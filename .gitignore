@@ -1,0 +1,23 @@
+# ── Python ───────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ── Build artifacts — NEVER committed ────────────────────
+# (built locally via the editor's Build button / tools/build script)
+build/
+dist/
+*.exe
+
+# ── Editor / tooling state ───────────────────────────────
+.editor_prefs.json
+*.log
+.claude/active_domain
+
+# ── IDE / OS noise ───────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
