@@ -1,8 +1,13 @@
 """PalettePanel (ED-20) — the tilemap editor's brush dock: semantic tile
 types + deco slots (each iconed with its engine-resolved sprite, grey X if
-none), the tool row (paint / erase / line / rect / bucket / picker), the
-layer eyes (terrain / zone tint / base / deco) and the grid-lines toggle
-(ED-23).
+none), the tool row (none / paint / erase / line / rect / bucket / picker —
+"none" is the default and only tool that never mutates the doc on
+left-click, so the map can be inspected/panned and the base can be grabbed
+without a stray brush stroke), the layer eyes (terrain / zone tint / base /
+deco), the grid-lines toggle (ED-23), and an "Import Spritesheet…" button
+that imports art straight for whichever brush is currently armed (tiles and
+deco both otherwise have no import affordance while the map palette has
+replaced the Details panel).
 
 ED-22 interpretation (user-confirmed): the icons are STATIC frames
 resolved by the engine's AssetStore and converted via the viewport's
@@ -18,17 +23,21 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QFileDialog,
     QLabel,
+    QMessageBox,
+    QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from editor.asset_import import import_idle_sheet
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
-TOOLS = ("paint", "erase", "line", "rect", "bucket", "picker")
+TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
 EYES = ("terrain", "tint", "base", "deco")
 
 
@@ -44,6 +53,7 @@ class PalettePanel(QWidget):
     deco_armed = Signal(str)     # a deco slot key
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
+    manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -69,8 +79,12 @@ class PalettePanel(QWidget):
             self._tool_group.addButton(btn)
             self._tool_buttons[name] = btn
             layout.addWidget(btn)
-        self._tool = "paint"
-        self._tool_buttons["paint"].setChecked(True)
+        self._tool = "none"
+        self._tool_buttons["none"].setChecked(True)
+
+        self._import_btn = QPushButton("Import Spritesheet…", self)
+        self._import_btn.clicked.connect(self._on_import_clicked)
+        layout.addWidget(self._import_btn)
 
         layout.addWidget(QLabel("Tiles"))
         self._tiles_start = layout.count()
@@ -197,3 +211,36 @@ class PalettePanel(QWidget):
 
     def grid_on(self):
         return self._grid_box.isChecked()
+
+    # -- import (ED-40 parity, reachable while the map palette has replaced
+    # the Details panel) -----------------------------------------------------
+
+    def _armed_slot(self):
+        """The slot the currently armed brush points at, or None."""
+        deco = self.armed_deco()
+        if deco is not None:
+            return deco
+        code = self.armed_code()
+        if code is not None and self._legend is not None:
+            return self._legend[code]["slot"]
+        return None
+
+    def _on_import_clicked(self):
+        slot = self._armed_slot()
+        if slot is None:
+            QMessageBox.information(
+                self, "Import Spritesheet",
+                "Arm a tile or deco brush first — the import targets "
+                "whichever one is currently selected.")
+            return
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Choose spritesheet PNG", "", "PNG images (*.png)")
+        if not path:
+            return
+        try:
+            import_idle_sheet(self._data_dir, self._registry, slot, path)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Import Spritesheet", str(exc))
+            return
+        self.refresh_icons()
+        self.manifest_changed.emit(slot)

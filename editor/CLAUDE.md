@@ -216,6 +216,31 @@ editor features should hang off selection, not add parallel state.
   disk immediately (all-forest fill for new maps) so the tree and the game
   see them; MainWindow follows `session.map_opened`/`active_changed` to
   refresh the Maps branch. Map deletion is deferred (destructive).
+- **"None" tool (follow-up)**: `PalettePanel.TOOLS` starts with `"none"`,
+  the default-armed tool on both the palette and a fresh `ViewportPanel`.
+  It structurally cannot paint/erase/place deco (`_tool_press`'s dispatch
+  matches none of its `if self._tool == ...` branches) but the base-cell
+  check runs BEFORE tool dispatch, so dragging the base still works with
+  "none" armed — this is the intended way to inspect/pan a map or grab the
+  base without risking a stray brush stroke on a miss-click.
+  `viewport._ghost_items` returns nothing for `"none"` (no misleading
+  preview of a placement that wouldn't happen).
+- **Palette import (follow-up, `editor/asset_import.py`)**: the map
+  palette replaces `DetailsPanel` in the right stack while a map is open,
+  so the normal importer is unreachable from there. `PalettePanel`'s
+  "Import Spritesheet…" button targets whichever brush is currently armed
+  (deco first, else the armed code's slot) and calls the new
+  `editor.asset_import.import_idle_sheet(data_dir, registry, slot_key,
+  png_path)` — a Qt-free, pygame-free helper (added to
+  `test_editor_viewport.TestPurity`) that always writes exactly ONE `idle`
+  row (map/deco slots' `animations` vocabulary in `slots.json` is
+  `["idle"]` only, so `DetailsPanel`'s multi-row `RowEditor` machinery is
+  unnecessary here). Emits `manifest_changed(slot)`, wired to the same
+  `MainWindow._on_manifest_changed` handler as `DetailsPanel.entry_saved`/
+  `entry_cleared` — which now ALSO calls `palette.refresh_icons()` (a
+  standing bug: importing art for a tile/deco slot through the normal
+  Details panel while a different tree node was selected never refreshed
+  the palette's brush icons before this fix).
 
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

@@ -194,7 +194,7 @@ class TestPurity(unittest.TestCase):
         code = (
             "import sys; "
             "import editor.main, editor.locks, editor.selection, "
-            "editor.tilemap_ops, editor.map_session, "
+            "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "

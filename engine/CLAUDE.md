@@ -115,7 +115,14 @@ an engine task; if an engine change forces a caller change, tell the user
   AssetStore (the editor's `reload_assets()` does exactly that).
 - **E-38**: `tools/migrate_prototype_assets.py` converts the prototype's v1
   manifest + imported/ PNGs (read-only) to manifest v2 + copied sheets;
-  idempotent; already run — its output is committed.
+  idempotent; already run — its output is committed. Follow-up (Phase 6):
+  the same script's `migrate_tiles()` bakes the 9 map tile slots the
+  prototype generated procedurally (never stored in its v1 manifest) to
+  static PNGs + manifest entries via `editor.asset_import.import_idle_sheet`
+  — 7 are direct file copies, `tile_combat[_b]` are a one-time Pillow
+  grayscale+tint reproduction of `sprite_gen.py`'s runtime tinting (this
+  codebase does not generate art at runtime, D-1/D-2). Also already run;
+  output committed.
 
 ## Phase 6 conventions (tilemap / overlay / per-map dims)
 - **`engine/tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for

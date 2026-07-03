@@ -91,7 +91,7 @@ class ViewportPanel(QWidget):
         # -- tilemap-editor state (ED-20); all mutations go through the
         # session's undo stack, all cell picking through engine.coords
         self._map_session = None
-        self._tool = "paint"
+        self._tool = "none"
         self._armed_code = None
         self._armed_deco = None
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True}
@@ -327,6 +327,8 @@ class ViewportPanel(QWidget):
             yield RenderItem(doc.base["slot"], cell, layer="overlay",
                              tint=GHOST_TINT)
             return
+        if self._tool == "none":
+            return   # no active brush — nothing would actually be placed
         if self._armed_deco is not None:
             yield RenderItem(self._armed_deco, cell, layer="overlay",
                              tint=GHOST_TINT)

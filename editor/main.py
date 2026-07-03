@@ -88,6 +88,7 @@ class MainWindow(QMainWindow):
         self.palette.deco_armed.connect(self.viewport.arm_deco)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
+        self.palette.manifest_changed.connect(self._on_manifest_changed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.cursor_world.connect(self._on_cursor_world)
@@ -255,9 +256,13 @@ class MainWindow(QMainWindow):
 
     def _on_manifest_changed(self, _slot_key):
         """Import-panel save/clear: assets reload without a restart (ED-42)
-        and the tree's ● markers follow (ED-11)."""
+        and the tree's ● markers follow (ED-11). Also drives the map
+        palette's brush icons, which have their own (draft-free) provider
+        and don't otherwise hear about an import made while a non-map node
+        is selected."""
         self.viewport.reload_assets()
         self.selector.refresh_markers()
+        self.palette.refresh_icons()
 
     # -- frame drive ---------------------------------------------------------
 

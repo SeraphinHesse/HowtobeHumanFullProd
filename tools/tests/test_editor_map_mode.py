@@ -15,18 +15,21 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
+from PIL import Image
 from PySide6.QtCore import QPoint, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QFileDialog
 
 from editor.main import MainWindow
 from engine import data_io, tilemap
 from engine.render import DrawCall, OverlayLines
+from editor.panels import palette as palette_module
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -114,6 +117,7 @@ class TestPaintTools(MapModeCase):
     def test_click_paints_armed_code_on_the_right_cell(self):
         doc = self.open_map()
         self.window.palette.arm_code("c")
+        self.window.palette.set_tool("paint")
         target = (15, 15)   # forest in the starter map, away from the base
         self.assertEqual(doc.terrain[15][15], "f")
         self.click_cell(*target)
@@ -123,6 +127,7 @@ class TestPaintTools(MapModeCase):
     def test_stroke_coalesces_to_one_undo_command(self):
         doc = self.open_map()
         self.window.palette.arm_code("b")
+        self.window.palette.set_tool("paint")
         cells = [(14, 15), (15, 15), (16, 15), (17, 15)]
         self.drag_cells(cells)
         for col, row in cells:
@@ -183,6 +188,7 @@ class TestBaseAndDeco(MapModeCase):
     def test_base_eye_off_paints_under_base(self):
         doc = self.open_map()
         self.window.palette.arm_code("c")
+        self.window.palette.set_tool("paint")
         self.window.palette._eye_boxes["base"].setChecked(False)
         self.click_cell(1, 1)
         self.assertEqual(doc.terrain[1][1], "c")
@@ -192,6 +198,7 @@ class TestBaseAndDeco(MapModeCase):
         doc = self.open_map()
         before = len(doc.deco)
         self.window.palette.arm_deco("deco_tree")
+        self.window.palette.set_tool("paint")
         self.click_cell(15, 15)
         self.assertEqual(len(doc.deco), before + 1)
         self.assertEqual(doc.deco[-1],
@@ -252,6 +259,7 @@ class TestLifecycle(MapModeCase):
     def test_save_round_trips_to_disk(self):
         doc = self.open_map()
         self.window.palette.arm_code("b")
+        self.window.palette.set_tool("paint")
         self.click_cell(15, 15)
         self.assertTrue(self.session.dirty)
         self.session.save()
@@ -302,12 +310,119 @@ class TestLifecycle(MapModeCase):
     def test_dirty_policy_discard_allows_switching(self):
         doc = self.open_map()
         self.window.palette.arm_code("b")
+        self.window.palette.set_tool("paint")
         self.click_cell(15, 15)
         self.window.dirty_policy = "discard"
         self.session.create("other", "Other", 6, 6)   # prompts resolved by policy
         self.window.selector.select_map(STARTER)      # reopens from disk
         self.assertEqual(self.session.doc.map_id, STARTER)
         self.assertEqual(self.session.doc.terrain[15][15], "f")   # discarded
+
+
+class TestNoneTool(MapModeCase):
+    """Phase 6 follow-up: "None" is the default tool and never paints, so
+    the map can be inspected/panned and the base grabbed without a stray
+    brush stroke landing first."""
+
+    def test_none_is_the_default_tool(self):
+        self.open_map()
+        self.assertEqual(self.window.palette.current_tool(), "none")
+        self.assertEqual(self.viewport._tool, "none")
+
+    def test_click_with_none_tool_does_not_paint(self):
+        doc = self.open_map()
+        self.window.palette.arm_code("c")
+        before = doc.terrain[15][15]
+        self.click_cell(15, 15)
+        self.assertEqual(doc.terrain[15][15], before)
+        self.assertEqual(self.session.undo_stack.count(), 0)
+
+    def test_deco_armed_with_none_tool_does_not_place(self):
+        doc = self.open_map()
+        before = len(doc.deco)
+        self.window.palette.arm_deco("deco_tree")
+        self.click_cell(15, 15)
+        self.assertEqual(len(doc.deco), before)
+
+    def test_base_drag_still_works_with_none_tool(self):
+        doc = self.open_map()
+        self.assertEqual(self.viewport._tool, "none")
+        self.drag_cells([(1, 1), (5, 5)])
+        self.assertEqual((doc.base["col"], doc.base["row"]), (5, 5))
+        self.assertEqual(self.session.undo_stack.count(), 1)
+
+    def test_no_ghost_items_with_none_tool_armed(self):
+        self.open_map()
+        self.window.palette.arm_code("c")
+        self.viewport._hover_cell = (5, 5)
+        self.assertEqual(list(self.viewport._ghost_items(self.session.doc)), [])
+
+
+class TestPaletteImport(MapModeCase):
+    """Phase 6 follow-up: the map palette's "Import Spritesheet…" targets
+    whichever brush is currently armed — the only import path reachable
+    while the map palette has replaced the Details panel."""
+
+    def make_png(self, w=64, h=32, colour=(10, 200, 10, 255)):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "art.png"
+        Image.new("RGBA", (w, h), colour).save(path)
+        return path
+
+    def test_import_with_no_brush_armed_warns_and_does_nothing(self):
+        # No map opened yet -> no tile code buttons exist and no deco is
+        # armed, so nothing should be armed to import into. Patch the
+        # message box too — it's modal and would hang a headless test.
+        with patch.object(QFileDialog, "getOpenFileName") as dlg, \
+                patch.object(palette_module.QMessageBox, "information") as info:
+            self.window.palette._on_import_clicked()
+            dlg.assert_not_called()
+            info.assert_called_once()
+
+    def test_import_targets_armed_deco_slot(self):
+        self.open_map()
+        self.window.palette.arm_deco("deco_rock")
+        png = self.make_png(64, 96)
+        with patch.object(QFileDialog, "getOpenFileName",
+                          return_value=(str(png), "")):
+            events = []
+            self.window.palette.manifest_changed.connect(events.append)
+            self.window.palette._on_import_clicked()
+        self.assertEqual(events, ["deco_rock"])
+        entry = data_io.load_validated(
+            self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json",
+        )["entries"]["deco_rock"]
+        self.assertEqual(entry["rows"][0]["animation"], "idle")
+        self.assertTrue(
+            (self.data_dir / "sprites" / "imported" / "deco_rock.png").exists())
+
+    def test_import_targets_armed_tile_code(self):
+        self.open_map()
+        self.window.palette.arm_code("b")
+        png = self.make_png(64, 32)
+        with patch.object(QFileDialog, "getOpenFileName",
+                          return_value=(str(png), "")):
+            self.window.palette._on_import_clicked()
+        entries = data_io.load_validated(
+            self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json",
+        )["entries"]
+        self.assertIn("tile_buildable", entries)
+
+    def test_import_via_details_panel_refreshes_palette_icon(self):
+        # Fix 1 regression: importing through the normal Details panel
+        # while a DIFFERENT tree node is selected must still update the
+        # map palette's brush icon, not just the viewport/selector.
+        self.open_map()
+        self.window.selector.select_node("deco", ("Props",))
+        self.window.details.set_slot("deco_bush")
+        png = self.make_png(64, 96)
+        self.window.details.import_sheet(png)
+        with patch.object(self.window.palette, "refresh_icons") as spy:
+            self.window.details.save()
+        spy.assert_called_once()
 
 
 if __name__ == "__main__":
