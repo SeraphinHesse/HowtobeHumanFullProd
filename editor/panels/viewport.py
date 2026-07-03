@@ -439,13 +439,18 @@ class ViewportPanel(QWidget):
     # -- input (ED-23): drag pan, wheel zoom — engine.coords only -----------
     # Entity preview: EITHER button pans (left is an editor-only addition
     # for devices without a right button). Tilemap mode: LEFT drives the
-    # armed tool, RIGHT pans (ED-23 / game "same feel").
+    # armed tool and RIGHT pans (ED-23 / game "same feel") — EXCEPT under the
+    # "none" tool (inspect mode), where a left-drag that didn't grab the base
+    # pans too, so you can move the camera without a brush armed.
     _PAN_BUTTONS = Qt.MouseButton.RightButton | Qt.MouseButton.LeftButton
 
     def mousePressEvent(self, event):
         if self.in_map_mode():
             if event.button() == Qt.MouseButton.LeftButton:
                 self._tool_press(event.position())
+                # "none" tool that didn't start a base drag → left-drag pans.
+                if self._tool == "none" and not self._base_drag:
+                    self._drag_pos = event.position()
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()
             return
@@ -457,8 +462,11 @@ class ViewportPanel(QWidget):
         wx, wy = self._coords.screen_to_world(pos.x(), pos.y())
         self.cursor_world.emit(wx, wy)   # ED-23 world-coordinate readout
         if self.in_map_mode():
+            # _drag_pos is set only for a pan gesture (RIGHT always, or a
+            # LEFT-drag under the "none" tool); a live brush stroke leaves it
+            # None and falls through to the tool.
             if self._drag_pos is not None and \
-                    (event.buttons() & Qt.MouseButton.RightButton):
+                    (event.buttons() & self._PAN_BUTTONS):
                 dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
                 self._drag_pos = pos
                 self._coords.pan(-dx, -dy)
@@ -476,6 +484,7 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             if event.button() == Qt.MouseButton.LeftButton:
                 self._tool_release(event.position())
+                self._drag_pos = None   # ends a "none"-tool left-drag pan
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = None
             return

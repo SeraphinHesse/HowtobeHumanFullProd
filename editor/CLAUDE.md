@@ -201,7 +201,10 @@ editor features should hang off selection, not add parallel state.
   move events so fast drags don't gap.
 - **Viewport map mode** (`set_map_mode(session)`): coords rebuilt with the
   map's dims; LEFT button = armed tool, RIGHT = pan (entity preview keeps
-  either-button pan). Ghosts are tinted engine sprites on the `overlay`
+  either-button pan). Under the "none" tool a LEFT-drag that didn't grab the
+  base pans too (inspect mode — `_drag_pos` is set after `_tool_press` when
+  `_tool == "none" and not _base_drag`), so the camera moves without a brush
+  armed. `_drag_pos` set ⇒ pan; a live brush stroke leaves it None. Ghosts are tinted engine sprites on the `overlay`
   layer; zone tints are per-code multipliers (ZONE_TINTS, editor chrome
   constants); grid lines go through `Renderer.submit_overlay_lines`
   (E-24) — QPainter still never draws tiles (ED-22). A press on the base's
@@ -231,9 +234,10 @@ editor features should hang off selection, not add parallel state.
   matches none of its `if self._tool == ...` branches) but the base-cell
   check runs BEFORE tool dispatch, so dragging the base still works with
   "none" armed — this is the intended way to inspect/pan a map or grab the
-  base without risking a stray brush stroke on a miss-click.
-  `viewport._ghost_items` returns nothing for `"none"` (no misleading
-  preview of a placement that wouldn't happen).
+  base without risking a stray brush stroke on a miss-click. A LEFT-drag
+  under "none" (off the base) PANS the camera — the map-editor pan when no
+  brush is armed. `viewport._ghost_items` returns nothing for `"none"` (no
+  misleading preview of a placement that wouldn't happen).
 - **Palette import (follow-up, `editor/asset_import.py`)**: the map
   palette replaces `DetailsPanel` in the right stack while a map is open,
   so the normal importer is unreachable from there. `PalettePanel`'s
