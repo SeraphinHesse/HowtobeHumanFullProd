@@ -58,6 +58,35 @@ an engine task; if an engine change forces a caller change, tell the user
 - `tools/render_demo.py` renders the grey-X grid offscreen and saves
   `build/render_demo.png` (gitignored) for visual verification.
 
+## Phase 2 conventions (core)
+- **Component fields** are class-level annotations with defaults
+  (`max_hp: int = 10`); `Component.__init_subclass__` collects them into
+  `cls._fields`, rejects non-JSON types (allowed: bool/int/float/str/
+  list/dict), and registers the class by name for `component_from_dict`.
+  Constructor takes field overrides as kwargs, type-checked.
+- **Serialization (E-15)**: `GameObject.to_dict()` →
+  `{id, name, tags, transform: {wx, wy, layer}, components:
+  [{type, fields}]}`. `GameObject.from_dict` returns a *base* GameObject —
+  subclass identity is not persisted (components carry all state;
+  subclasses are behavior convenience).
+- **Setattr guard (E-11, mechanical)**: after `GameObject.__init__`, new
+  public attributes raise `AttributeError`; underscore-prefixed transient
+  caches are allowed (never serialized, non-authoritative).
+- **Frame boundaries (E-13)**: `Scene.update(dt)` applies the spawn queue
+  first (`on_spawn`), updates live objects in spawn order (components in
+  list order, then the subclass `on_update` hook), applies the despawn
+  queue last (`on_despawn`). `Scene.query_area` raises until
+  `engine/physics` lands.
+- **Render submit hook**: a component with a visual presence defines
+  `render_items(transform) -> iterable[RenderItem]` (SpriteAnimator does);
+  `Scene.render_items()` collects generically and the host submits to the
+  Renderer. `engine.core` may import `engine.render.item` (pure data) —
+  still no pygame.
+- **E-12 phasing**: `SpriteAnimator` + `Health` shipped in Phase 2.
+  `Movement` and `RangeSensor` are deliberately absent (not stubbed) —
+  they land together with the `engine/physics` primitives they wrap
+  (E-30/E-31), ahead of the phase-9 gameplay port.
+
 ## Hard rules
 - **pygame imports are allowed ONLY in** `render/`'s backend and the asset
   surface cache. `coords/`, `core/`, `physics/`, and asset *metadata* code are
