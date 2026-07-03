@@ -68,10 +68,13 @@ editor features should hang off selection, not add parallel state.
   (`FRAME_INTERVAL_MS = 16`), never a busy loop. FPS is measured over
   real wall-clock time (not assumed from the timer interval) and logged to
   stdout + the window title about once a second.
-- **Input**: right-click-drag pan and wheel zoom live on `ViewportPanel`
+- **Input**: drag pan and wheel zoom live on `ViewportPanel`
   (`mousePressEvent`/`mouseMoveEvent`/`mouseReleaseEvent`/`wheelEvent`),
   calling only `engine.coords` methods (`pan`, `clamp`, `set_zoom`,
-  `world_to_screen`/`screen_to_world`) — no iso math in the editor. Zoom
+  `world_to_screen`/`screen_to_world`) — no iso math in the editor. Pan
+  accepts **either right-click-drag (ED-23/game "same feel") or left-click-
+  drag** — left is an editor-only addition for input devices without a
+  right button; `game/main.py` stays right-click-only per spec. Zoom
   anchors on the viewport centre, matching `game/main.py`'s `step_zoom` (ED-23
   "same feel"). Verified live via synthetic `QTest` mouse/wheel events against
   the real windowed app (not just headless unit tests) — panning is a no-op

@@ -86,14 +86,18 @@ class ViewportPanel(QWidget):
         painter = QPainter(self)
         painter.drawImage(0, 0, self._qimage)
 
-    # -- input (ED-23): right-drag pan, wheel zoom — engine.coords only -----
+    # -- input (ED-23): drag pan, wheel zoom — engine.coords only -----------
+    # ED-23 / game/main.py specify right-click-drag ("same feel"); left-click
+    # is also accepted here so panning works on input devices without a
+    # right button (e.g. no mouse, trackpad-only). Either button drags.
+    _PAN_BUTTONS = Qt.MouseButton.RightButton | Qt.MouseButton.LeftButton
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = event.position()
 
     def mouseMoveEvent(self, event):
-        if self._drag_pos is not None and (event.buttons() & Qt.MouseButton.RightButton):
+        if self._drag_pos is not None and (event.buttons() & self._PAN_BUTTONS):
             pos = event.position()
             dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
             self._drag_pos = pos
@@ -101,7 +105,7 @@ class ViewportPanel(QWidget):
             self._coords.clamp(self.width(), self.height())
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.MouseButton.RightButton:
+        if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = None
 
     def wheelEvent(self, event):
