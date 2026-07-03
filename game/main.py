@@ -9,9 +9,14 @@ scroll-wheel steps through the data-driven zoom levels (viewport centre
 kept fixed), Esc quits. Frame order is fixed per E-14:
 input → Scene.update(dt) → render submit.
 
-All tunables come from data/ (G-7): geometry.json (grid, zoom levels) and
-display.json (window size, fps, caption). No iso math here — clicks and
-zoom anchoring go through engine.coords only.
+All tunables come from data/ (G-7): geometry.json (tile pitch, zoom
+levels), display.json (window size, fps, caption), and — Phase 6 — the
+ACTIVE MAP (D-21): data/maps/active_map.json points at the map file whose
+grid dims, painted terrain/zone tiles, deco (above entities, E-26) and
+base render through engine.tilemap + the one pipeline. Invalid map data
+fails LOUD (D-2) — the E-37 log-and-placeholder tolerance is for art
+only. No iso math here — clicks and zoom anchoring go through
+engine.coords only.
 
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
@@ -23,12 +28,12 @@ sys.path.insert(0, str(REPO))
 
 import pygame
 
-from engine import data_io
+from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import GameObject, Scene, SpriteAnimator, Transform
-from engine.render import Renderer, RenderItem
+from engine.render import Renderer
 
 BACKGROUND = (24, 20, 32)
 
@@ -80,7 +85,10 @@ def main(max_frames=None, data_dir=None):
     pygame.display.set_caption(display["caption"])
     clock = pygame.time.Clock()
 
-    cs = load_coordinate_system(data_dir)
+    # D-21: the active map decides what the ground IS — and its dims (D-20)
+    map_doc = tilemap.load_active_map(data_dir)
+    cs = load_coordinate_system(
+        data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows)
     cs.clamp(view_w, view_h)  # centre the map in the viewport
     assets = AssetStore(
         manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
@@ -90,11 +98,9 @@ def main(max_frames=None, data_dir=None):
     )
     renderer = Renderer(cs, assets)
     scene = build_scene()
-    grid = [
-        (col, row)
-        for row in range(cs.geometry.map_rows)
-        for col in range(cs.geometry.map_cols)
-    ]
+    # static map items (tiles + base + deco) — precomputed once, submitted
+    # every frame; RenderItems are frozen and reusable
+    map_items = tilemap.render_items(map_doc)
 
     frames = 0
     fps_log_ms = 0
@@ -118,8 +124,8 @@ def main(max_frames=None, data_dir=None):
         scene.update(dt)
 
         # 3. render submit
-        for pos in grid:
-            renderer.submit(RenderItem("ground_tile", pos, layer="ground"))
+        for item in map_items:
+            renderer.submit(item)
         for item in scene.render_items():
             renderer.submit(item)
         window.fill(BACKGROUND)

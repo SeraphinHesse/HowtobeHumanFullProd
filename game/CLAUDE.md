@@ -31,6 +31,16 @@ tell the user.
   `world_to_screen` only (no iso math in the host); Esc quits.
 - Window size / fps / caption come from `data/display.json`
   (schema-validated, G-7) — never hardcode them.
+- **Active map (Phase 6, D-20/D-21)**: boot loads
+  `engine.tilemap.load_active_map(data_dir)` (follows
+  `data/maps/active_map.json`) and builds coords with THE MAP's dims
+  (`load_coordinate_system(data_dir, map_cols=…, map_rows=…)`). The whole
+  static map (tiles with prototype checkerboard parity, base on
+  `entities`, deco on `deco` above entities per E-26) comes from
+  `engine.tilemap.render_items(doc)` — precomputed once, submitted every
+  frame. Invalid map data fails LOUD (D-2); the E-37 log-and-placeholder
+  tolerance covers ART only. The three dummy entities stay until Phase 9
+  brings real ones (they prove entity depth-sort + deco-above-entities).
 
 ## Conventions
 - Game classes subclass `GameObject` but keep ALL state in components (engine

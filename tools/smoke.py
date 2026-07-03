@@ -22,17 +22,28 @@ sys.path.insert(0, str(REPO))
 FRAMES = 5
 
 
-def validate_data():
+def validate_data(data_root=None):
+    """Stem-pairing rule (data/foo.json ↔ schemas/foo.schema.json) with ONE
+    directory exception: every data/maps/*.json EXCEPT active_map.json is a
+    D-20 map file with an arbitrary stem and validates against
+    map_file.schema.json (the stem 'map' belongs to the balancing domain).
+    data_root parameter exists so tests can run this rule on a temp tree."""
     from engine import data_io
 
-    schema_dir = REPO / "data" / "schemas"
+    data_root = Path(data_root) if data_root is not None else REPO / "data"
+    schema_dir = data_root / "schemas"
+    maps_dir = data_root / "maps"
     checked = 0
-    for path in sorted((REPO / "data").rglob("*.json")):
+    for path in sorted(data_root.rglob("*.json")):
         if schema_dir in path.parents:
             continue  # schemas validate data, not themselves
-        schema = schema_dir / f"{path.stem}.schema.json"
+        if maps_dir in path.parents and path.name != "active_map.json":
+            schema = schema_dir / "map_file.schema.json"
+        else:
+            schema = schema_dir / f"{path.stem}.schema.json"
         if not schema.exists():
-            raise FileNotFoundError(f"{path.relative_to(REPO)} has no schema {schema.name}")
+            raise FileNotFoundError(
+                f"{path.relative_to(data_root.parent)} has no schema {schema.name}")
         data_io.load_validated(path, schema)
         checked += 1
     print(f"smoke: {checked} data file(s) schema-valid")

@@ -1,0 +1,218 @@
+{
+  "$id": "map_file.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One map file under data/maps/ (D-20). Named <id>.json where id == the 'id' property. Every data/maps/*.json EXCEPT active_map.json validates against THIS schema (directory rule in tools/smoke.py - the stem 'map' belongs to the balancing domain). The terrain grid paints zones; spawning is a painted zone, never point objects. Dimension consistency (row count/lengths, base/deco in bounds) is cross-checked by engine.tilemap.load_map, which fails loud (D-2).",
+  "properties": {
+    "base": {
+      "additionalProperties": false,
+      "description": "The base ('hole') - the single movable map object, dragged in the editor. Renders on the entities layer.",
+      "properties": {
+        "col": {
+          "description": "Base tile column, 0-based; must be < cols.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "row": {
+          "description": "Base tile row, 0-based; must be < rows.",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "slot": {
+          "const": "base_hole",
+          "description": "Asset slot the base renders with (const-pinned; the slot registry's core/Base slot)."
+        }
+      },
+      "required": [
+        "col",
+        "row",
+        "slot"
+      ],
+      "type": "object"
+    },
+    "cols": {
+      "description": "Grid width in tiles. Each map owns its dimensions (geometry.json keeps only tile pitch and zoom levels as global truth).",
+      "maximum": 128,
+      "minimum": 4,
+      "type": "integer"
+    },
+    "deco": {
+      "description": "Placed deco sprites. Render on the deco layer - ALWAYS above entities (E-26), e.g. trees covering spawn tiles. Cell-snapped by the Phase 6 editor; fractional positions are legal for later phases.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "World-space column position; must be < cols.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "row": {
+            "description": "World-space row position; must be < rows.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "slot": {
+            "description": "Deco asset slot key from the slot registry's deco category.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "display_name": {
+      "description": "Human-readable name shown in the editor's Maps tree.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable map id; MUST equal the filename stem (data/maps/<id>.json).",
+      "pattern": "^[a-z0-9_]+$",
+      "type": "string"
+    },
+    "legend": {
+      "additionalProperties": false,
+      "description": "Char -> tile mapping for the terrain rows, const-pinned so every map file is self-describing and no package hardcodes tile vocabulary. checker: true kinds alternate to <slot>_b on cells where (col + row + 1) % 2 == 1, i.e. col+row EVEN (prototype tile.py checkerboard rule); background kinds never alternate.",
+      "properties": {
+        "b": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_buildable"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "c": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_combat"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "f": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": false
+            },
+            "slot": {
+              "const": "tile_forest"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "l": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": false
+            },
+            "slot": {
+              "const": "tile_cliff"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "o": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": false
+            },
+            "slot": {
+              "const": "tile_ocean"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "s": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_spawning"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "b",
+        "c",
+        "f",
+        "l",
+        "o",
+        "s"
+      ],
+      "type": "object"
+    },
+    "rows": {
+      "description": "Grid height in tiles. Each map owns its dimensions.",
+      "maximum": 128,
+      "minimum": 4,
+      "type": "integer"
+    },
+    "terrain": {
+      "description": "The painted zone grid: exactly 'rows' strings of exactly 'cols' chars each (loader-enforced), terrain[row][col], chars from the legend. Row strings keep diffs one-line-per-row for git and agents (D-3 spirit).",
+      "items": {
+        "pattern": "^[bcflos]+$",
+        "type": "string"
+      },
+      "minItems": 4,
+      "type": "array"
+    }
+  },
+  "required": [
+    "base",
+    "cols",
+    "deco",
+    "display_name",
+    "id",
+    "legend",
+    "rows",
+    "terrain"
+  ],
+  "title": "map_file",
+  "type": "object"
+}

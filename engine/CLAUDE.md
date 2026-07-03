@@ -117,6 +117,33 @@ an engine task; if an engine change forces a caller change, tell the user
   manifest + imported/ PNGs (read-only) to manifest v2 + copied sheets;
   idempotent; already run — its output is committed.
 
+## Phase 6 conventions (tilemap / overlay / per-map dims)
+- **`engine/tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for
+  the D-20 map file format, shared by game and editor (they may not import
+  each other; user-approved scope addition). `TileMapDoc` +
+  `load_map`/`save_map` (schema via data_io PLUS fail-loud ValueError
+  cross-checks the schema can't express: row counts/lengths vs dims,
+  bounds, id == filename stem). NO game vocabulary in the code: terrain
+  cells are single chars resolved through the map file's own schema-pinned
+  `legend` (`defaults_from_schema` digs the canonical legend/base slot out
+  of `map_file.schema.json`'s consts — schemas over convention).
+- **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
+  `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has
+  `checker: true` AND `(col + row + 1) % 2 == 1` (col+row even).
+  Background kinds never alternate. Pinned in test_tilemap_model.
+- `render_items(doc, *, terrain/base/deco, tint_for_code)` emits the whole
+  map for the one pipeline: ground tiles (optional per-code tint — the
+  editor's zone-tint eye), base on `entities`, deco on `deco` (above
+  entities, E-26). The game submits all; the editor filters by its eyes.
+- **E-24 overlay primitive**: `Renderer.submit_overlay_lines(points_world,
+  color, width, closed)` → `OverlayLines` (item.py). Points convert via
+  coords at flush; overlay entries are appended AFTER every sprite
+  DrawCall in the same flat list (overlays always draw last); the backend
+  dispatches on isinstance. Grid lines in the editor use exactly this.
+- `load_coordinate_system(data_dir, map_cols=None, map_rows=None)`:
+  optional dim overrides — each map owns its dims (D-20); geometry.json
+  keeps pitch/zoom as global truth plus fallback dims for map-less hosts.
+
 ## Hard rules
 - **pygame imports are allowed ONLY in** `render/`'s backend and the asset
   surface cache. `coords/`, `core/`, `physics/`, and asset *metadata* code are

@@ -169,6 +169,54 @@ editor features should hang off selection, not add parallel state.
 - Measured live (this machine, windowed 1280x720, preview + import active):
   ~57 fps.
 
+## Phase 6 conventions (tilemap mode, ED-10/ED-20/ED-23/ED-24)
+- **Selection**: the Maps branch is the FIRST child of the "map" category
+  node; one leaf per `data/maps/*.json` (pointer excluded), ● prefix =
+  ACTIVE map (refresh_maps owns those markers; refresh_markers skips map
+  nodes). A map leaf emits `map_selected(map_id)` + `domain_selected("map")`
+  and NEVER `node_selected` — entity-preview machinery doesn't react.
+  MainWindow: map node → tilemap mode (palette shown, right stack →
+  MapDetailsPanel); any other node → `_leave_map_mode()` (entity preview
+  exactly as Phase 5).
+- **`editor/map_session.py`** owns the open doc (ONE map at a time, D-22)
+  and THE global `QUndoStack` (ED-24). Phase 6 undo scope: paint strokes
+  (ONE command per stroke — press→release coalesced, incl. line/rect/bucket),
+  base move, deco place/remove, display-name edit. Balancing/import undo
+  DEFERRED until those panels are next touched. Ctrl+Z / Ctrl+Y are
+  window-level QActions on MainWindow. Dirty = `not undo_stack.isClean()`;
+  save → `setClean()`. Opening a DIFFERENT map while dirty goes through
+  `MainWindow._resolve_dirty()` (`dirty_policy`: "ask" | "save" | "discard";
+  tests set the policy, the dialog is UI-only) — also injected into
+  MapDetailsPanel.dirty_resolver for New/Duplicate. Browsing away to an
+  entity node keeps the dirty doc in memory (reselecting the same map
+  returns to it un-prompted).
+- **Painting is pure-model first**: `editor/tilemap_ops.py` (no Qt) mutates
+  the doc in place and returns `[(col,row,old,new), ...]` change lists;
+  `line_cells`/`rect_cells` are exported separately for ghosts. The
+  viewport only translates mouse events: ALL cell picking is
+  `screen_to_world` → floor (E-3). Strokes Bresenham-interpolate between
+  move events so fast drags don't gap.
+- **Viewport map mode** (`set_map_mode(session)`): coords rebuilt with the
+  map's dims; LEFT button = armed tool, RIGHT = pan (entity preview keeps
+  either-button pan). Ghosts are tinted engine sprites on the `overlay`
+  layer; zone tints are per-code multipliers (ZONE_TINTS, editor chrome
+  constants); grid lines go through `Renderer.submit_overlay_lines`
+  (E-24) — QPainter still never draws tiles (ED-22). A press on the base's
+  cell starts a base drag regardless of tool; hide the base eye to paint
+  under it. `cursor_world` feeds the MainWindow status-bar readout (ED-23,
+  both modes).
+- **Palette** (`panels/palette.py`): brush icons are STATIC engine-resolved
+  frames via the injected `viewport.slot_qimage` provider (user-confirmed
+  ED-22 reading — not a second render path). Tile buttons rebuild from the
+  open map's legend (`set_legend`), zone kinds first; deco slots come from
+  the registry. Picker → `viewport.code_picked` → `palette.arm_code` loop.
+- **Lifecycle** (`panels/map_details.py`): New/Duplicate (schema-bounded
+  dialog, id re-checked) / Save / Set Active — Set Active is the ONLY
+  writer of `data/maps/active_map.json` (D-21). Create/duplicate write to
+  disk immediately (all-forest fill for new maps) so the tree and the game
+  see them; MainWindow follows `session.map_opened`/`active_changed` to
+  refresh the Maps branch. Map deletion is deferred (destructive).
+
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it.

@@ -9,12 +9,20 @@ and levels are picked in the Details panel / level bar, not here
 (editor.selection owns that resolution). ● marks any node with at least one
 assigned manifest slot in its subtree (ED-11).
 
+Phase 6 adds the "Maps" branch (ED-10) as the FIRST child of the "map"
+category: one node per data/maps/*.json (pointer excluded), labelled with
+the map's display name, ● prefix on the ACTIVE map (refresh_maps owns
+these markers; refresh_markers skips map nodes). Selecting a map node
+emits map_selected(map_id) + domain_selected("map") — never
+node_selected, so the entity-preview machinery stays untouched.
+
 Plain Qt widget; imports only the PURE half of engine.assets (registry +
-manifest metadata — no pygame). Exactly one node selected at a time (ED-3);
-selection is broadcast as node_selected(category, group_path) always, plus
-domain_selected(str) when the category is a balancing domain — the Phase 4
-contract the balancing panel still hangs off, now fired at any depth so
-clicking a building type also shows the buildings form.
+manifest metadata — no pygame) and engine.tilemap. Exactly one node
+selected at a time (ED-3); selection is broadcast as
+node_selected(category, group_path) always, plus domain_selected(str)
+when the category is a balancing domain — the Phase 4 contract the
+balancing panel still hangs off, now fired at any depth so clicking a
+building type also shows the buildings form.
 """
 from pathlib import Path
 
@@ -22,17 +30,22 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem
 
 from editor import locks
+from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
 _PAYLOAD_ROLE = Qt.ItemDataRole.UserRole        # (category_key, group_path)
 _LABEL_ROLE = Qt.ItemDataRole.UserRole + 1      # clean label, no ● prefix
+_MAP_ROLE = Qt.ItemDataRole.UserRole + 2        # map_id (Maps-branch leaves)
+
+_MAPS_BRANCH_LABEL = "Maps"
 
 
 class SelectorPanel(QTreeWidget):
     domain_selected = Signal(str)
     node_selected = Signal(str, tuple)
+    map_selected = Signal(str)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -40,6 +53,7 @@ class SelectorPanel(QTreeWidget):
         self.registry = load_registry(self._data_dir)
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self._maps_branch = None
         for category in self.registry.categories():
             if category.key in locks.DOMAINS and \
                     not locks.balancing_path(category.key, self._data_dir).exists():
@@ -48,6 +62,12 @@ class SelectorPanel(QTreeWidget):
             self.addTopLevelItem(root)
             for group in category.groups:
                 self._add_group(root, category.key, group, ())
+            if category.key == "map":
+                branch = self._make_item(
+                    _MAPS_BRANCH_LABEL, "map", (_MAPS_BRANCH_LABEL,))
+                root.insertChild(0, branch)
+                self._maps_branch = branch
+        self.refresh_maps()
         self.refresh_markers()
         self.itemSelectionChanged.connect(self._emit_selection)
 
@@ -106,6 +126,65 @@ class SelectorPanel(QTreeWidget):
             stack.extend(item.child(i) for i in range(item.childCount()))
         raise KeyError(f"no tree node for {wanted!r}")
 
+    # -- Maps branch (ED-10, Phase 6) ------------------------------------------
+
+    def map_ids(self):
+        """Map ids currently listed in the Maps branch, tree order."""
+        if self._maps_branch is None:
+            return ()
+        return tuple(
+            self._maps_branch.child(i).data(0, _MAP_ROLE)
+            for i in range(self._maps_branch.childCount()))
+
+    def select_map(self, map_id):
+        """Programmatic selection of a Maps-branch leaf (tests, post-create)."""
+        if self._maps_branch is None:
+            raise KeyError("no Maps branch (no map category in the registry)")
+        for i in range(self._maps_branch.childCount()):
+            item = self._maps_branch.child(i)
+            if item.data(0, _MAP_ROLE) == map_id:
+                self._maps_branch.parent().setExpanded(True)
+                self._maps_branch.setExpanded(True)
+                self.setCurrentItem(item)
+                return
+        raise KeyError(f"no map node {map_id!r}")
+
+    def refresh_maps(self):
+        """Rebuild the Maps branch from data/maps/ and re-mark the ACTIVE
+        map (●). Call after create / duplicate / set-active. Selection of a
+        still-existing map survives the rebuild."""
+        if self._maps_branch is None:
+            return
+        selected = None
+        items = self.selectedItems()
+        if items:
+            selected = items[0].data(0, _MAP_ROLE)
+        active = self._active_map_id()
+        self.blockSignals(True)
+        self._maps_branch.takeChildren()
+        for map_id in tilemap.list_map_ids(self._data_dir):
+            try:
+                label = data_io.load_json(
+                    tilemap.map_path(self._data_dir, map_id)
+                ).get("display_name") or map_id
+            except (OSError, ValueError):
+                label = map_id   # unreadable file still gets a node
+            item = QTreeWidgetItem(
+                [("● " + label) if map_id == active else label])
+            item.setData(0, _PAYLOAD_ROLE, ("map", (_MAPS_BRANCH_LABEL, map_id)))
+            item.setData(0, _LABEL_ROLE, label)
+            item.setData(0, _MAP_ROLE, map_id)
+            self._maps_branch.addChild(item)
+        self.blockSignals(False)
+        if selected is not None and selected in self.map_ids():
+            self.select_map(selected)
+
+    def _active_map_id(self):
+        path = tilemap.active_map_path(self._data_dir)
+        if not path.exists():
+            return None   # legal pre-first-set-active state
+        return data_io.load_json(path).get("active")
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -116,18 +195,28 @@ class SelectorPanel(QTreeWidget):
         stack = [self.topLevelItem(i) for i in range(self.topLevelItemCount())]
         while stack:
             item = stack.pop()
+            stack.extend(item.child(i) for i in range(item.childCount()))
             category_key, path = item.data(0, _PAYLOAD_ROLE)
-            slots = self.registry.group_slots(category_key, path)
+            try:
+                slots = self.registry.group_slots(category_key, path)
+            except KeyError:
+                continue   # Maps branch: ● means ACTIVE there (refresh_maps)
             label = item.data(0, _LABEL_ROLE)
             marked = any(slot in assigned for slot in slots)
             item.setText(0, ("● " + label) if marked else label)
-            stack.extend(item.child(i) for i in range(item.childCount()))
 
     # -- selection broadcast ---------------------------------------------------
 
     def _emit_selection(self):
         items = self.selectedItems()
         if not items:
+            return
+        map_id = items[0].data(0, _MAP_ROLE)
+        if map_id is not None:
+            # map node: tilemap mode + the 1:1 map balancing domain; no
+            # node_selected — entity-preview machinery must not react
+            self.map_selected.emit(map_id)
+            self.domain_selected.emit("map")
             return
         category_key, path = items[0].data(0, _PAYLOAD_ROLE)
         self.node_selected.emit(category_key, tuple(path))

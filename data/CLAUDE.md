@@ -63,6 +63,32 @@ schema, update THIS doc.**
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
   import time (editor) or by the migration tool. Never gitignore them.
 
+## Map data (Phase 6, D-20/21/22 specifics)
+- **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
+  `display_name`, `cols`/`rows` (each map owns its dims; geometry.json keeps
+  only tile pitch + zoom levels as global truth), `terrain` (rows strings of
+  cols single-char codes — one line per row keeps diffs cheap), `legend`
+  (schema-pinned char→{slot, checker} table: b/c/s = buildable/combat/
+  spawning with checkerboard `_b` alternation, f/l/o = forest/cliff/ocean
+  background, no alternation — the file is self-describing, no package
+  hardcodes tile vocabulary), `base` ({col,row,slot} — slot const-pinned to
+  `base_hole`), `deco` (world positions; renders ABOVE entities, E-26).
+  Spawning is a painted zone — the format has NO spawn-point objects.
+- **SCHEMA-PAIRING EXCEPTION (the one directory rule)**: every
+  `data/maps/*.json` EXCEPT `active_map.json` validates against
+  `schemas/map_file.schema.json` (tools/smoke.py implements + tests this);
+  `active_map.json` keeps normal stem pairing via `active_map.schema.json`.
+  The stem `map` still belongs to the BALANCING domain (`balancing/map.json`).
+- Dimension consistency (terrain row count/lengths, base/deco in bounds)
+  is beyond JSON Schema → `engine.tilemap.load_map` cross-checks and fails
+  LOUD (D-2). Read/write map files ONLY through `engine.tilemap`.
+- **`maps/active_map.json` (D-21)**: `{"active": "<map_id>"}` — written
+  ONLY by the editor's Set Active action (and tests). The game follows it
+  at boot and fails loud if missing/invalid (art tolerance E-37 does not
+  apply to map data).
+- `maps/first_light.json` is the committed starter map (prototype-exact
+  initial layout) so the game always boots on real data.
+
 ## Rules
 - **JSON here is the ONLY value store** (D-1). Never move a value into Python;
   never reintroduce the prototype's py+json dual system.

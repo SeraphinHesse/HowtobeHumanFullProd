@@ -29,18 +29,24 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from PySide6.QtCore import Qt, QTimer
+from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
+    QMessageBox,
     QSplitter,
+    QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from editor import selection
+from editor.map_session import MapSession
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
+from editor.panels.map_details import MapDetailsPanel
+from editor.panels.palette import PalettePanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
 
@@ -58,15 +64,56 @@ class MainWindow(QMainWindow):
         self.balancing = BalancingPanel(data_dir=data_dir)
         self.details = DetailsPanel(data_dir=data_dir)
         self.levelbar = LevelBar()
+        self.palette = PalettePanel(data_dir=data_dir)
+        self.map_details = MapDetailsPanel(data_dir=data_dir)
+        self.map_session = MapSession(data_dir=data_dir, parent=self)
         self._node = None   # (category_key, group_path) of the tree selection
+        # dirty policy when opening a DIFFERENT map over unsaved edits:
+        # "ask" (QMessageBox Save/Discard/Cancel) | "save" | "discard"
+        self.dirty_policy = "ask"
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
+        self.selector.map_selected.connect(self._on_map_selected)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
+
+        # tilemap-mode wiring (ED-20): palette state → viewport; picker →
+        # palette re-arm; session lifecycle → selector Maps branch
+        self.palette.tool_changed.connect(self.viewport.set_tool)
+        self.palette.code_armed.connect(self.viewport.arm_code)
+        self.palette.deco_armed.connect(self.viewport.arm_deco)
+        self.palette.eye_toggled.connect(self.viewport.set_eye)
+        self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
+        self.palette.set_icon_provider(self.viewport.slot_qimage)
+        self.viewport.code_picked.connect(self.palette.arm_code)
+        self.viewport.cursor_world.connect(self._on_cursor_world)
+        self.map_session.map_opened.connect(self._on_session_map_opened)
+        self.map_session.active_changed.connect(
+            lambda _map_id: self.selector.refresh_maps())
+        self.map_details.set_session(self.map_session)
+        self.map_details.dirty_resolver = self._resolve_dirty
+
+        # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere
+        undo = QAction("Undo", self)
+        undo.setShortcut(QKeySequence.StandardKey.Undo)
+        undo.triggered.connect(self.map_session.undo_stack.undo)
+        redo = QAction("Redo", self)
+        redo.setShortcut(QKeySequence("Ctrl+Y"))
+        redo.triggered.connect(self.map_session.undo_stack.redo)
+        self.addAction(undo)
+        self.addAction(redo)
+
+        self.palette.setVisible(False)
+        viewport_row = QSplitter(Qt.Orientation.Horizontal)
+        viewport_row.addWidget(self.palette)
+        viewport_row.addWidget(self.viewport)
+        viewport_row.setStretchFactor(0, 0)
+        viewport_row.setStretchFactor(1, 1)
+        viewport_row.setSizes([150, 700])
 
         bottom = QWidget()
         bottom_layout = QVBoxLayout(bottom)
@@ -75,20 +122,25 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.balancing, 1)
 
         center = QSplitter(Qt.Orientation.Vertical)
-        center.addWidget(self.viewport)
+        center.addWidget(viewport_row)
         center.addWidget(bottom)
         center.setStretchFactor(0, 3)
         center.setStretchFactor(1, 1)
 
+        self.right_stack = QStackedWidget()
+        self.right_stack.addWidget(self.details)      # index 0: asset import
+        self.right_stack.addWidget(self.map_details)  # index 1: map lifecycle
+
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
         split.addWidget(center)
-        split.addWidget(self.details)
+        split.addWidget(self.right_stack)
         split.setStretchFactor(0, 0)
         split.setStretchFactor(1, 1)
         split.setStretchFactor(2, 0)
         split.setSizes([220, 760, 300])
         self.setCentralWidget(split)
+        self.statusBar().showMessage("")   # ED-23 world-coordinate readout
 
         domains = self.selector.domains()
         if domains:
@@ -107,9 +159,76 @@ class MainWindow(QMainWindow):
     # -- composite slot selection (tree node × subcategory × level) ---------
 
     def _on_node_selected(self, category_key, group_path):
+        self._leave_map_mode()
         self._node = (category_key, tuple(group_path))
         self.details.set_context(category_key, group_path)
         self._refresh_levels()
+
+    # -- tilemap mode (ED-20): map node selected -----------------------------
+
+    def _on_map_selected(self, map_id):
+        session = self.map_session
+        if session.doc is not None and session.doc.map_id == map_id:
+            self._enter_map_mode()   # same doc (possibly dirty): keep edits
+            return
+        if not self._resolve_dirty():
+            # cancelled: put the selection back on the still-open map
+            self.selector.select_map(session.doc.map_id)
+            return
+        session.open(map_id)
+        self._enter_map_mode()
+
+    def _enter_map_mode(self):
+        self.viewport.set_map_mode(self.map_session)
+        self.palette.set_legend(self.map_session.doc.legend)
+        if self.palette.armed_code() is None:
+            armed = sorted(
+                c for c, e in self.map_session.doc.legend.items() if e["checker"])
+            if armed:
+                self.palette.arm_code(armed[0])
+        self.palette.setVisible(True)
+        self.right_stack.setCurrentWidget(self.map_details)
+        self.map_details.refresh()
+
+    def _leave_map_mode(self):
+        # the session keeps its (possibly dirty) doc — reselecting the same
+        # map returns to it; the prompt only guards opening a DIFFERENT map
+        if self.viewport.in_map_mode():
+            self.viewport.set_map_mode(None)
+        self.palette.setVisible(False)
+        self.right_stack.setCurrentWidget(self.details)
+
+    def _resolve_dirty(self):
+        """True → proceed (saving first if asked); False → cancel."""
+        session = self.map_session
+        if not session.dirty:
+            return True
+        policy = self.dirty_policy
+        if policy == "ask":
+            answer = QMessageBox.question(
+                self, "Unsaved changes",
+                f"Map {session.doc.map_id!r} has unsaved changes.",
+                QMessageBox.StandardButton.Save
+                | QMessageBox.StandardButton.Discard
+                | QMessageBox.StandardButton.Cancel)
+            if answer == QMessageBox.StandardButton.Cancel:
+                return False
+            policy = "save" if answer == QMessageBox.StandardButton.Save \
+                else "discard"
+        if policy == "save":
+            session.save()
+        return True
+
+    def _on_session_map_opened(self, map_id):
+        """create/duplicate/open: Maps branch follows, node gets selected
+        (re-selection of an already-open map short-circuits upstream)."""
+        self.selector.refresh_maps()
+        if map_id in self.selector.map_ids():
+            self.selector.select_map(map_id)
+
+    def _on_cursor_world(self, wx, wy):
+        self.statusBar().showMessage(
+            f"world ({wx:.2f}, {wy:.2f})   tile ({int(wx // 1)}, {int(wy // 1)})")
 
     def _on_subcategory_changed(self, _index):
         self._refresh_levels()

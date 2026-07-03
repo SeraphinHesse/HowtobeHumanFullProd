@@ -9,7 +9,7 @@ position with its BOTTOM edge on the bottom of that tile's diamond
 (world_to_screen y + tile_h·zoom). A 64x32 tile frame therefore covers its
 diamond exactly; taller frames (e.g. 64x96 buildings) rise above it.
 """
-from .item import LAYERS, DrawCall
+from .item import LAYERS, DrawCall, OverlayLines
 
 
 class Renderer:
@@ -18,11 +18,20 @@ class Renderer:
         self._assets = assets
         self._backend = backend
         self._queue = []
+        self._overlay = []
 
     def submit(self, item):
         if item.layer not in LAYERS:
             raise ValueError(f"unknown draw layer {item.layer!r}; expected one of {LAYERS}")
         self._queue.append(item)
+
+    def submit_overlay_lines(self, points, color, width=1, closed=False):
+        """E-24 overlay pass: a polyline in WORLD coordinates (e.g. the
+        editor's grid lines). Converted via coords at flush and appended
+        AFTER every sprite DrawCall — overlays always draw on top."""
+        if len(points) < 2:
+            raise ValueError("overlay polyline needs at least 2 points")
+        self._overlay.append(OverlayLines(tuple(points), color, width, closed))
 
     def flush(self, target):
         """Draw all submitted items to `target`, clear the queue, and return
@@ -55,11 +64,19 @@ class Renderer:
                     flip=item.flip,
                 )
             )
+        for lines in self._overlay:
+            draw_calls.append(OverlayLines(
+                points=tuple(coords.world_to_screen(*p) for p in lines.points),
+                color=lines.color,
+                width=lines.width,
+                closed=lines.closed,
+            ))
         if self._backend is None:
             from . import backend as _pygame_backend
 
             self._backend = _pygame_backend.draw
         self._backend(target, draw_calls)
-        count = len(self._queue)
+        count = len(self._queue) + len(self._overlay)
         self._queue.clear()
+        self._overlay.clear()
         return count

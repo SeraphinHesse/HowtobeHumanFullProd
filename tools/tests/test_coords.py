@@ -35,6 +35,13 @@ class TestGeometryFromData(unittest.TestCase):
         self.assertEqual(cs.geometry.map_rows, 20)
         self.assertIn(1.0, cs.geometry.zoom_levels)
 
+    def test_map_dim_overrides(self):
+        """Phase 6 (D-20): each map owns its dims; pitch/zoom stay global."""
+        cs = load_coordinate_system(DATA, map_cols=7, map_rows=9)
+        self.assertEqual(cs.geometry.map_cols, 7)
+        self.assertEqual(cs.geometry.map_rows, 9)
+        self.assertEqual(cs.geometry.tile_w, 64)  # untouched global truth
+
     def test_invalid_geometry_fails_loud(self):
         schema_path = DATA / "schemas" / "geometry.schema.json"
         with tempfile.TemporaryDirectory() as tmp:

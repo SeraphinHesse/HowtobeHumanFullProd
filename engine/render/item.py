@@ -28,3 +28,15 @@ class DrawCall:
     size: tuple  # final blit size in px (backend scales if != surface size)
     tint: tuple = None
     flip: bool = False
+
+
+@dataclass(frozen=True)
+class OverlayLines:
+    """E-24 overlay primitive: a polyline. Submitted in WORLD points via
+    Renderer.submit_overlay_lines; the renderer emits a screen-space copy
+    after all sprite DrawCalls (overlays draw last)."""
+
+    points: tuple  # ((x, y), ...) — world at submit, screen in the backend
+    color: tuple
+    width: int = 1
+    closed: bool = False

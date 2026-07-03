@@ -1,0 +1,76 @@
+{
+  "base": {
+    "col": 1,
+    "row": 1,
+    "slot": "base_hole"
+  },
+  "cols": 20,
+  "deco": [
+    {
+      "col": 4,
+      "row": 5,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 10,
+      "row": 8,
+      "slot": "deco_rock"
+    },
+    {
+      "col": 3,
+      "row": 3,
+      "slot": "deco_bush"
+    }
+  ],
+  "display_name": "First Light",
+  "id": "first_light",
+  "legend": {
+    "b": {
+      "checker": true,
+      "slot": "tile_buildable"
+    },
+    "c": {
+      "checker": true,
+      "slot": "tile_combat"
+    },
+    "f": {
+      "checker": false,
+      "slot": "tile_forest"
+    },
+    "l": {
+      "checker": false,
+      "slot": "tile_cliff"
+    },
+    "o": {
+      "checker": false,
+      "slot": "tile_ocean"
+    },
+    "s": {
+      "checker": true,
+      "slot": "tile_spawning"
+    }
+  },
+  "rows": 20,
+  "terrain": [
+    "olllffffffffffffffff",
+    "obbcccccccssssffffff",
+    "obbcccccccssssffffff",
+    "occcccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fcccccccccssssffffff",
+    "fsssssssssssssffffff",
+    "fsssssssssssssffffff",
+    "fsssssssssssssffffff",
+    "fsssssssssssssffffff",
+    "ffffffffffffffffffff",
+    "ffffffffffffffffffff",
+    "ffffffffffffffffffff",
+    "ffffffffffffffffffff",
+    "ffffffffffffffffffff",
+    "ffffffffffffffffffff"
+  ]
+}

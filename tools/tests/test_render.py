@@ -15,7 +15,7 @@ import pathlib
 
 from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
-from engine.render import LAYERS, RenderItem, Renderer
+from engine.render import LAYERS, OverlayLines, RenderItem, Renderer
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
@@ -118,6 +118,68 @@ class TestAnchoring(unittest.TestCase):
         self.assertEqual(call.size, (128.0, 64.0))
 
 
+class TestOverlayLines(unittest.TestCase):
+    """E-24 overlay primitive (Phase 6): world-space polylines drawn after
+    every sprite call, converted through the coords authority."""
+
+    def test_overlay_draws_after_all_sprites(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_overlay_lines(((0, 0), (5, 0)), color=(255, 0, 0))
+        r.submit(RenderItem("ovl", (0, 0), layer="overlay"))
+        r.submit(RenderItem("tile", (0, 0), layer="ground"))
+        self.assertEqual(r.flush(target=None), 3)
+        self.assertNotIsInstance(backend.calls[0], OverlayLines)
+        self.assertNotIsInstance(backend.calls[1], OverlayLines)
+        self.assertIsInstance(backend.calls[2], OverlayLines)
+
+    def test_points_convert_via_world_to_screen(self):
+        backend = RecordingBackend()
+        cs = make_cs()
+        r = Renderer(cs, FakeAssets(), backend=backend)
+        world = ((0, 0), (3, 1), (2.5, 2.5))
+        r.submit_overlay_lines(world, color=(0, 255, 0), width=2, closed=True)
+        r.flush(target=None)
+        call = backend.calls[0]
+        self.assertEqual(
+            call.points, tuple(cs.world_to_screen(*p) for p in world))
+        self.assertEqual(call.color, (0, 255, 0))
+        self.assertEqual(call.width, 2)
+        self.assertTrue(call.closed)
+
+    def test_flush_clears_overlay_queue(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(), backend=backend)
+        r.submit_overlay_lines(((0, 0), (1, 1)), color=(1, 2, 3))
+        r.flush(target=None)
+        self.assertEqual(r.flush(target=None), 0)
+        self.assertEqual(len(backend.calls), 1)
+
+    def test_too_few_points_rejected(self):
+        r = Renderer(make_cs(), FakeAssets(), backend=RecordingBackend())
+        with self.assertRaises(ValueError):
+            r.submit_overlay_lines(((0, 0),), color=(255, 255, 255))
+
+    def test_real_backend_draws_lines(self):
+        import pygame
+
+        pygame.init()
+        from engine.assets.store import AssetStore
+
+        cs = make_cs()
+        cs.pan(-320, -100)
+        r = Renderer(cs, AssetStore())
+        world = ((0, 0), (8, 0), (8, 8))
+        r.submit_overlay_lines(world, color=(255, 0, 255))
+        target = pygame.Surface((640, 480))
+        target.fill((0, 0, 0))
+        r.flush(target)
+        for p in world:  # every vertex pixel carries the line color
+            px, py = cs.world_to_screen(*p)
+            self.assertEqual(
+                target.get_at((round(px), round(py)))[:3], (255, 0, 255))
+
+
 class TestHeadlessRender(unittest.TestCase):
     """E-21/E-22/E-23: real pipeline, real backend, SDL dummy target surface."""
 
@@ -167,7 +229,7 @@ class TestPurity(unittest.TestCase):
         code = (
             "import sys; "
             "import engine.coords, engine.data_io, engine.render, engine.assets, "
-            "engine.assets.manifest, engine.assets.registry; "
+            "engine.assets.manifest, engine.assets.registry, engine.tilemap; "
             "assert 'pygame' not in sys.modules, 'pygame leaked into pure modules'"
         )
         result = subprocess.run(

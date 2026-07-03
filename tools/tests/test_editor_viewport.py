@@ -194,9 +194,11 @@ class TestPurity(unittest.TestCase):
         code = (
             "import sys; "
             "import editor.main, editor.locks, editor.selection, "
+            "editor.tilemap_ops, editor.map_session, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
-            "editor.panels.level_bar; "
+            "editor.panels.level_bar, editor.panels.palette, "
+            "editor.panels.map_details; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )
