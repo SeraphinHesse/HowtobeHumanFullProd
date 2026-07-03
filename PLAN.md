@@ -183,7 +183,7 @@ until green.
 |---|---|---|---|
 | 0 | Repo bootstrap: gitignore, skeleton, CLAUDE.mds, PLAN.md, SPEC.md | tree matches plan; docs in place | in progress |
 | 1 | `engine/coords` + render pipeline + asset placeholder | headless test: world↔screen round-trips; grey-X grid renders to offscreen surface | done — `py -m unittest discover -s tools/tests -t .` (28 tests); visual check `py tools/render_demo.py` |
-| 2 | GameObject/Component/Scene (`SpriteAnimator` + `Health` only) + `game/main.py` window host + minimal `tools/smoke.py` (T-2) | scrolling iso map of grey-X tiles in a pygame window; smoke test prints OK | — |
+| 2 | GameObject/Component/Scene (`SpriteAnimator` + `Health` only) + `game/main.py` window host + minimal `tools/smoke.py` (T-2) | scrolling iso map of grey-X tiles in a pygame window; smoke test prints OK | done — `py -m unittest discover -s tools/tests -t .` (58 tests); `py tools/smoke.py` OK; live window ~60fps |
 | 3 | **Qt viewport spike** — engine surface inside PySide6 at 60fps | same grid inside the editor window *(riskiest integration — done early on purpose)* | — |
 | 4 | Data schemas + selector panel + balancing panel | edit a value in editor → validated JSON on disk → game subprocess loads it | — |
 | 5 | Asset system v2 + import panel + entity preview | import a sheet for one building, preview animations in editor, see it in game | — |

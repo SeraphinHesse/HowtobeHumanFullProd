@@ -19,6 +19,19 @@ tell the user.
   prototype's five balancing domains, which still scope branches and locks
   (`/start-domain buildings` etc.).
 
+## Host conventions (`main.py`, Phase 2)
+- `main(max_frames=None)` is importable so `tools/smoke.py` can drive the
+  same code headlessly (G-8); `py game/main.py` runs it windowed.
+- Frame order is fixed per E-14: input → `Scene.update(dt)` →
+  render submit (grid tiles + `scene.render_items()`) → `flush` → `flip`.
+- **Camera input mapping (E-5) lives here**, on pure engine camera state:
+  right-click-drag pans (`cs.pan` + `cs.clamp` to map bounds); scroll
+  wheel steps through the data-driven `geometry.json` zoom levels, keeping
+  the viewport-centre world point fixed via `screen_to_world`/
+  `world_to_screen` only (no iso math in the host); Esc quits.
+- Window size / fps / caption come from `data/display.json`
+  (schema-validated, G-7) — never hardcode them.
+
 ## Conventions
 - Game classes subclass `GameObject` but keep ALL state in components (engine
   rule) — the editor's inspector and save/load depend on it.
