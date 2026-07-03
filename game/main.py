@@ -24,6 +24,7 @@ sys.path.insert(0, str(REPO))
 import pygame
 
 from engine import data_io
+from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import GameObject, Scene, SpriteAnimator, Transform
@@ -31,22 +32,22 @@ from engine.render import Renderer, RenderItem
 
 BACKGROUND = (24, 20, 32)
 
-DUMMY_ENTITIES = [  # world pos, phase offset — prove Scene → RenderItem submission
-    ((4.0, 4.0), 0),
-    ((10.0, 7.0), 250),
-    ((15.0, 12.0), 500),
+DUMMY_ENTITIES = [  # slot, world pos, phase offset — prove Scene → RenderItem
+    ("stone_thrower_t1_lvl1", (4.0, 4.0), 0),     # migrated multi-row sheet
+    ("flute_player_t1_lvl1", (10.0, 7.0), 250),   # migrated 17-frame idle
+    ("dummy_entity", (15.0, 12.0), 500),          # no registry slot → grey X
 ]
 
 
 def build_scene():
     scene = Scene()
-    for i, (pos, phase) in enumerate(DUMMY_ENTITIES):
+    for i, (slot, pos, phase) in enumerate(DUMMY_ENTITIES):
         scene.spawn(
             GameObject(
                 name=f"dummy_{i}",
                 tags=("dummy",),
                 transform=Transform(wx=pos[0], wy=pos[1]),
-                components=[SpriteAnimator(slot_key="dummy_entity", phase_ms=phase)],
+                components=[SpriteAnimator(slot_key=slot, phase_ms=phase)],
             )
         )
     return scene
@@ -67,9 +68,10 @@ def step_zoom(cs, direction, view_w, view_h):
     cs.clamp(view_w, view_h)
 
 
-def main(max_frames=None):
+def main(max_frames=None, data_dir=None):
+    data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
     display = data_io.load_validated(
-        REPO / "data" / "display.json", REPO / "data" / "schemas" / "display.schema.json"
+        data_dir / "display.json", data_dir / "schemas" / "display.schema.json"
     )
     view_w, view_h = display["window_w"], display["window_h"]
 
@@ -78,9 +80,14 @@ def main(max_frames=None):
     pygame.display.set_caption(display["caption"])
     clock = pygame.time.Clock()
 
-    cs = load_coordinate_system(REPO / "data")
+    cs = load_coordinate_system(data_dir)
     cs.clamp(view_w, view_h)  # centre the map in the viewport
-    assets = AssetStore(frame_sizes={"dummy_entity": (64, 96)})
+    assets = AssetStore(
+        manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
+        registry=load_registry(data_dir),
+        sprites_dir=data_dir / "sprites",
+        frame_sizes={"dummy_entity": (64, 96)},  # test dummy, not a registry slot
+    )
     renderer = Renderer(cs, assets)
     scene = build_scene()
     grid = [

@@ -166,7 +166,8 @@ class TestPurity(unittest.TestCase):
     def test_pure_modules_do_not_import_pygame(self):
         code = (
             "import sys; "
-            "import engine.coords, engine.data_io, engine.render, engine.assets; "
+            "import engine.coords, engine.data_io, engine.render, engine.assets, "
+            "engine.assets.manifest, engine.assets.registry; "
             "assert 'pygame' not in sys.modules, 'pygame leaked into pure modules'"
         )
         result = subprocess.run(

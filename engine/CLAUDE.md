@@ -52,9 +52,9 @@ an engine task; if an engine change forces a caller change, tell the user
   (`world_to_screen(...)y + tile_h*zoom`). A 64x32 tile frame covers its
   diamond exactly; taller frames rise above it.
 - **Assets import boundary**: `engine.assets` package `__init__` + `types` +
-  `manifest` are pure; pygame lives only in `engine.assets.placeholder` and
-  `engine.assets.store` (import those by full path). Manifest v2 loading is
-  a stub until Phase 5.
+  `manifest` + `registry` are pure; pygame lives only in
+  `engine.assets.placeholder` and `engine.assets.store` (import those by
+  full path). Manifest v2 + registry loading landed in Phase 5 (below).
 - `tools/render_demo.py` renders the grey-X grid offscreen and saves
   `build/render_demo.png` (gitignored) for visual verification.
 
@@ -86,6 +86,36 @@ an engine task; if an engine change forces a caller change, tell the user
   `Movement` and `RangeSensor` are deliberately absent (not stubbed) —
   they land together with the `engine/physics` primitives they wrap
   (E-30/E-31), ahead of the phase-9 gameplay port.
+
+## Phase 5 conventions (assets)
+- **Module split**: `manifest.py` (pure) holds `playback_order`/`parse_loop`
+  — PROTOTYPE-EXACT semantics (rows = animations, row 0 = idle required,
+  fps→`max(1, round(1000/fps))` ms, loop = pre-roll + range×count +
+  post-roll, hidden dropped AFTER expansion) — plus `Track`/`ManifestEntry`/
+  `Manifest`/`entry_from_dict`/`load_manifest`. `registry.py` (pure) loads
+  `data/slots.json` into `SlotRegistry` (E-34). `store.py` (pygame) does
+  sheet loading + subsurface slicing.
+- **E-36**: `Manifest.current_frame(slot, animation, time_ms, phase_ms=0)`
+  is a pure function of time → `(sheet_row, sheet_col)` or the `PLACEHOLDER`
+  sentinel (`types.py`; compare with `is`). Missing animation falls back to
+  the idle row; missing slot / no usable idle → PLACEHOLDER. Note
+  `SpriteAnimator` sums `phase_ms` into `anim_time_ms` at emit, so the
+  store's `frame(slot, animation, anim_time_ms)` takes ONE summed time.
+- **Tolerance split (E-37)**: `load_manifest` NEVER raises — absent file →
+  empty manifest (normal pre-import state); corrupt file → warn + empty;
+  corrupt entry → warn + skip that entry. `load_registry` fails LOUD (the
+  registry is infrastructure, like geometry.json). tools/smoke.py still
+  fails loud on an invalid COMMITTED manifest — separate concern.
+- **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
+  sprites_dir)`; frame-size precedence manifest entry > registry >
+  frame_sizes > default. Sheets load via `pygame.image.load` with NO
+  `convert()`/`convert_alpha()` (they need a display; the editor runs SDL
+  dummy). Sliced frames are SUBSURFACES — the parent sheet must stay cached.
+  There is no cache invalidation: when the manifest changes, build a new
+  AssetStore (the editor's `reload_assets()` does exactly that).
+- **E-38**: `tools/migrate_prototype_assets.py` converts the prototype's v1
+  manifest + imported/ PNGs (read-only) to manifest v2 + copied sheets;
+  idempotent; already run — its output is committed.
 
 ## Hard rules
 - **pygame imports are allowed ONLY in** `render/`'s backend and the asset

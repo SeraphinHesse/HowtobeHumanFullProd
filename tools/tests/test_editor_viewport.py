@@ -19,6 +19,8 @@ import pygame
 from PySide6.QtWidgets import QApplication
 
 from editor.panels.viewport import ViewportPanel, surface_to_qimage
+from engine import data_io
+from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -95,14 +97,106 @@ class TestZoomStep(unittest.TestCase):
         self.assertEqual(panel._coords.camera.zoom, levels[-1])
 
 
+def paint_bytes(panel):
+    panel.render_frame()
+    return pygame.image.tobytes(panel._surface, "RGB")
+
+
+DRAFT_ENTRY = {
+    "sheet": "imported/painter_t1_lvl1.png",
+    "frame_w": 64, "frame_h": 96, "offset_x": 0, "offset_y": 0,
+    "rows": [
+        {"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
+         "loop_start": 0, "loop_end": 0, "loop_count": 1},
+        {"animation": "attack", "frames": 1, "fps": 8, "hidden": [],
+         "loop_start": 0, "loop_end": 0, "loop_count": 1},
+    ],
+}
+
+
+class TestEntityPreview(TempDataCase):
+    """ED-21/ED-42: slot preview through the real engine pipeline, draft
+    overrides without disk writes, reload without restart."""
+
+    def make(self):
+        panel = ViewportPanel(data_dir=self.data_dir)
+        panel.resize(256, 256)
+        return panel
+
+    def test_grid_mode_is_default_and_preview_changes_pixels(self):
+        panel = self.make()
+        self.assertIsNone(panel.preview_slot)
+        baseline = paint_bytes(panel)
+        panel.set_preview_slot("painter_t1_lvl1")   # unassigned -> grey X 64x96
+        self.assertNotEqual(paint_bytes(panel), baseline)
+        panel.set_preview_slot("stone_thrower_t1_lvl1")   # migrated sheet
+        self.assertNotEqual(paint_bytes(panel), baseline)
+        panel.set_preview_slot(None)                # back to plain grid
+        self.assertEqual(paint_bytes(panel), baseline)
+
+    def test_preview_animations_and_dropdown_follow_the_slot(self):
+        panel = self.make()
+        panel.set_preview_slot("stone_thrower_t1_lvl1")
+        self.assertEqual(panel.preview_animations(), ("idle", "attack"))
+        self.assertEqual(panel.preview_animation, "idle")
+        combo = panel._anim_combo
+        self.assertFalse(combo.isHidden())
+        self.assertEqual([combo.itemText(i) for i in range(combo.count())],
+                         ["idle", "attack"])
+        panel.set_preview_animation("attack")
+        self.assertEqual(panel.preview_animation, "attack")
+        panel.render_frame()   # animating a non-idle row never raises
+        panel.set_preview_slot("painter_t1_lvl1")   # no entry -> no dropdown
+        self.assertEqual(panel.preview_animations(), ())
+        self.assertTrue(combo.isHidden())
+
+    def test_draft_override_never_touches_disk(self):
+        panel = self.make()
+        panel.set_preview_slot("painter_t1_lvl1")
+        self.assertEqual(panel.preview_animations(), ())
+        panel.set_preview_draft("painter_t1_lvl1", DRAFT_ENTRY)
+        self.assertEqual(panel.preview_animations(), ("idle", "attack"))
+        on_disk = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")
+        self.assertNotIn("painter_t1_lvl1", on_disk["entries"])
+        panel.set_preview_draft("painter_t1_lvl1", None)   # draft dropped
+        self.assertEqual(panel.preview_animations(), ())
+
+    def test_unusable_draft_falls_back_instead_of_raising(self):
+        panel = self.make()
+        panel.set_preview_slot("painter_t1_lvl1")
+        bad = dict(DRAFT_ENTRY, rows=[dict(DRAFT_ENTRY["rows"][0],
+                                           hidden=[0])])   # every frame hidden
+        panel.set_preview_draft("painter_t1_lvl1", bad)
+        self.assertEqual(panel.preview_animations(), ())
+        panel.render_frame()   # grey X, no crash (E-37)
+
+    def test_reload_assets_sees_disk_change_and_keeps_camera(self):
+        panel = self.make()
+        panel.set_preview_slot("painter_t1_lvl1")
+        panel._step_zoom(1)
+        zoom = panel._coords.camera.zoom
+        doc = data_io.load_json(self.data_dir / "sprites" / "asset_manifest.json")
+        doc["entries"]["painter_t1_lvl1"] = DRAFT_ENTRY
+        data_io.write_validated(
+            doc, self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+        self.assertEqual(panel.preview_animations(), ())   # not seen yet
+        panel.reload_assets()                              # ED-42
+        self.assertEqual(panel.preview_animations(), ("idle", "attack"))
+        self.assertEqual(panel._coords.camera.zoom, zoom)  # Phase 3 feel kept
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: editor/ never imports game/ (root CLAUDE.md layering rule)."""
 
     def test_editor_does_not_import_game(self):
         code = (
             "import sys; "
-            "import editor.main, editor.locks, "
-            "editor.panels.selector, editor.panels.balancing; "
+            "import editor.main, editor.locks, editor.selection, "
+            "editor.panels.selector, editor.panels.balancing, "
+            "editor.panels.viewport, editor.panels.details, "
+            "editor.panels.level_bar; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

@@ -7,7 +7,30 @@ import those explicitly:
     from engine.assets.store import AssetStore          # pygame (placeholder)
     from engine.assets.placeholder import placeholder_surface  # pygame
 """
-from .manifest import Manifest, load_manifest
-from .types import Frame
+from .manifest import (
+    Manifest,
+    ManifestEntry,
+    Track,
+    entry_from_dict,
+    load_manifest,
+    parse_loop,
+    playback_order,
+)
+from .registry import Category, GroupNode, SlotRegistry, load_registry
+from .types import Frame, PLACEHOLDER
 
-__all__ = ["Frame", "Manifest", "load_manifest"]
+__all__ = [
+    "Category",
+    "Frame",
+    "GroupNode",
+    "Manifest",
+    "ManifestEntry",
+    "PLACEHOLDER",
+    "SlotRegistry",
+    "Track",
+    "entry_from_dict",
+    "load_manifest",
+    "load_registry",
+    "parse_loop",
+    "playback_order",
+]

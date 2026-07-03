@@ -102,6 +102,73 @@ class TestSelector(TempDataCase):
         self.assertEqual(len(panel.selectedItems()), 1)  # ED-3
 
 
+class TestSelectorTree(TempDataCase):
+    """Phase 5 (ED-10/11): the tree grows from the slot registry — category
+    roots with group children, ● markers from the manifest. Domain behavior
+    (TestSelector above) must survive unchanged."""
+
+    def make(self):
+        return SelectorPanel(data_dir=self.data_dir)
+
+    def test_tree_stops_at_dropdown_nodes(self):
+        panel = self.make()
+        panel.select_node("buildings", ("Defender",))
+        self.assertEqual(panel.selectedItems()[0].childCount(), 0)  # tiers -> Details
+        panel.select_node("map", ("Tiles",))
+        self.assertEqual(panel.selectedItems()[0].childCount(), 0)  # families -> Details
+
+    def test_node_selection_emits_payload_and_domain(self):
+        panel = self.make()
+        nodes, domains = [], []
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains.append)
+        panel.select_node("buildings", ("Defender",))
+        self.assertEqual(nodes[-1], ("buildings", ("Defender",)))
+        self.assertEqual(domains[-1], "buildings")
+        panel.select_node("enemies", ("Boss",))
+        self.assertEqual(domains[-1], "enemies")
+
+    def test_asset_only_categories_exist_but_are_not_domains(self):
+        panel = self.make()
+        self.assertNotIn("vfx", panel.domains())
+        self.assertNotIn("deco", panel.domains())
+        domains = []
+        panel.domain_selected.connect(domains.append)
+        panel.select_node("vfx", ("Effects",))   # node exists and is selectable
+        self.assertEqual(domains, [])            # but drives no balancing form
+
+    def test_unknown_node_raises(self):
+        with self.assertRaises(KeyError):
+            self.make().select_node("buildings", ("No Such Type",))
+
+    def test_markers_reflect_migrated_manifest(self):
+        panel = self.make()
+        defender = panel._find_item("buildings", ("Defender",))
+        painter = panel._find_item("buildings", ("Painter",))
+        root = panel._find_item("buildings", ())
+        self.assertTrue(defender.text(0).startswith("● "))   # stone_thrower migrated
+        self.assertFalse(painter.text(0).startswith("● "))   # nothing assigned
+        self.assertTrue(root.text(0).startswith("● "))
+
+    def test_markers_refresh_after_manifest_write(self):
+        panel = self.make()
+        manifest_path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(manifest_path)
+        doc["entries"]["painter_t1_lvl1"] = {
+            "sheet": "imported/painter_t1_lvl1.png",
+            "frame_w": 64, "frame_h": 96, "offset_x": 0, "offset_y": 0,
+            "rows": [{"animation": "idle", "frames": 1, "fps": 8,
+                      "hidden": [], "loop_start": 0, "loop_end": 0,
+                      "loop_count": 1}],
+        }
+        data_io.write_validated(
+            doc, manifest_path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+        panel.refresh_markers()
+        painter = panel._find_item("buildings", ("Painter",))
+        self.assertTrue(painter.text(0).startswith("● "))
+
+
 class TestBalancingPanel(TempDataCase):
     def make_panel(self, domain):
         panel = BalancingPanel(data_dir=self.data_dir)
@@ -179,18 +246,66 @@ class TestBalancingPanel(TempDataCase):
 class TestMainWindowWiring(TempDataCase):
     """End-to-end: shell wires selector -> balancing, initial selection set."""
 
-    def test_select_and_edit_through_the_shell(self):
+    def make_window(self):
         from editor.main import MainWindow
 
         window = MainWindow(data_dir=self.data_dir)
         self.addCleanup(window.close)
         window._timer.stop()  # no frame drive needed here
+        return window
 
+    def test_select_and_edit_through_the_shell(self):
+        window = self.make_window()
         self.assertEqual(window.balancing.domain, locks.DOMAINS[0])
         window.selector.select_domain("ui")
         self.assertEqual(window.balancing.domain, "ui")
         window.balancing._widgets["hud_scale"].setValue(1.5)
         self.assertEqual(read_domain(self.data_dir, "ui")["hud_scale"], 1.5)
+
+    def test_slot_selection_flows_through_all_panels(self):
+        """Phase 5: tree node + tier dropdown + level bar resolve the slot
+        that drives viewport preview and import context (user layout)."""
+        window = self.make_window()
+        window.selector.select_node("buildings", ("Painter",))
+        self.assertEqual(window.balancing.domain, "buildings")   # 1:1 mapping
+        self.assertEqual(window.details.slot_key, "painter_t1_lvl1")
+        self.assertEqual(window.viewport.preview_slot, "painter_t1_lvl1")
+        self.assertEqual(len(window.levelbar._buttons), 3)
+        window.levelbar._buttons[1].click()                      # level 2
+        self.assertEqual(window.details.slot_key, "painter_t1_lvl2")
+        self.assertEqual(window.viewport.preview_slot, "painter_t1_lvl2")
+        window.details._subcat_combo.setCurrentIndex(1)          # tier 2
+        self.assertEqual(window.details.slot_key, "painter_t2_lvl1")
+        window.selector.select_domain("ui")                      # back to a root
+        self.assertIsNone(window.viewport.preview_slot)
+        self.assertEqual(window.balancing.domain, "ui")
+
+    def test_import_save_clear_update_preview_without_restart(self):
+        """ED-42 end-to-end: import -> draft preview -> save -> disk-backed
+        preview + ● marker; clear -> grey X returns."""
+        from PIL import Image
+
+        png = Path(self.data_dir) / "incoming.png"
+        Image.new("RGBA", (2 * 64, 96), (10, 200, 10, 255)).save(png)
+
+        window = self.make_window()
+        window.selector.select_node("buildings", ("Painter",))
+        self.assertEqual(window.viewport.preview_animations(), ())
+
+        window.details.import_sheet(png)
+        # unsaved draft already previews through the engine pipeline
+        self.assertEqual(window.viewport.preview_animations(), ("idle",))
+        window.details.save()
+        # saved state now comes from disk, not the draft (ED-42, no restart)
+        self.assertIsNone(window.viewport._draft)
+        self.assertEqual(window.viewport.preview_animations(), ("idle",))
+        painter_item = window.selector._find_item("buildings", ("Painter",))
+        self.assertTrue(painter_item.text(0).startswith("● "))
+
+        window.details.clear_entry(confirm=False)
+        self.assertEqual(window.viewport.preview_animations(), ())
+        painter_item = window.selector._find_item("buildings", ("Painter",))
+        self.assertFalse(painter_item.text(0).startswith("● "))
 
 
 if __name__ == "__main__":

@@ -14,3 +14,16 @@ class Frame:
     frame_h: int
     offset_x: int = 0
     offset_y: int = 0
+
+
+class _Placeholder:
+    """Unique sentinel: `Manifest.current_frame` returns it when a slot has
+    no usable entry (E-36). Compare with `is`. The store maps it to the
+    grey-X placeholder surface."""
+    __slots__ = ()
+
+    def __repr__(self):
+        return "<PLACEHOLDER>"
+
+
+PLACEHOLDER = _Placeholder()

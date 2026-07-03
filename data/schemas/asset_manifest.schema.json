@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "row": {
+      "additionalProperties": false,
+      "description": "One sheet row = one animation (E-35). Playback order: frames before loop_start once, loop_start..loop_end repeated loop_count times, the rest once; hidden frames dropped after loop expansion.",
+      "properties": {
+        "animation": {
+          "description": "Animation name this row plays as (row 0 must be 'idle').",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "fps": {
+          "description": "Playback rate for this row in frames per second.",
+          "exclusiveMinimum": 0,
+          "maximum": 60,
+          "type": "number"
+        },
+        "frames": {
+          "description": "Number of frame columns in this sheet row.",
+          "maximum": 256,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "hidden": {
+          "description": "0-based frame columns excluded from playback.",
+          "items": {
+            "maximum": 255,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "loop_count": {
+          "description": "Times the looped range plays; 1 = no loop.",
+          "maximum": 99,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "loop_end": {
+          "description": "Last frame column of the looped range (inclusive).",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "loop_start": {
+          "description": "First frame column of the looped range (inclusive).",
+          "maximum": 255,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "animation",
+        "frames",
+        "fps",
+        "hidden",
+        "loop_start",
+        "loop_end",
+        "loop_count"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "asset_manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Asset manifest v2 (D-30): maps slot keys to imported sprite sheets plus per-row animation metadata. Written only by the editor's import panel and the E-38 migration tool, through the validating writer.",
+  "properties": {
+    "entries": {
+      "additionalProperties": false,
+      "description": "One entry per assigned slot key.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "additionalProperties": false,
+          "description": "One imported sheet: where it lives, its frame grid size, placement offset, and its animation rows.",
+          "properties": {
+            "frame_h": {
+              "description": "Frame height in pixels this sheet is sliced at.",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "frame_w": {
+              "description": "Frame width in pixels this sheet is sliced at.",
+              "maximum": 1024,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "offset_x": {
+              "description": "Horizontal placement nudge in pixels (positive = right).",
+              "maximum": 256,
+              "minimum": -256,
+              "type": "integer"
+            },
+            "offset_y": {
+              "description": "Vertical placement nudge in pixels (negative = up).",
+              "maximum": 256,
+              "minimum": -256,
+              "type": "integer"
+            },
+            "rows": {
+              "description": "Sheet rows top to bottom; row 0 is the required idle animation (E-35).",
+              "items": {
+                "$ref": "#/$defs/row"
+              },
+              "minItems": 1,
+              "prefixItems": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/row"
+                    },
+                    {
+                      "properties": {
+                        "animation": {
+                          "const": "idle"
+                        }
+                      }
+                    }
+                  ]
+                }
+              ],
+              "type": "array"
+            },
+            "sheet": {
+              "description": "Sheet path relative to data/sprites (always imported/<slot>.png, D-31).",
+              "pattern": "^imported/[a-z][a-z0-9_]*\\.png$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "sheet",
+            "frame_w",
+            "frame_h",
+            "offset_x",
+            "offset_y",
+            "rows"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "version": {
+      "const": 2,
+      "description": "Manifest format version; this schema is v2."
+    }
+  },
+  "required": [
+    "version",
+    "entries"
+  ],
+  "title": "asset_manifest",
+  "type": "object"
+}

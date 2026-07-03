@@ -5,9 +5,10 @@ package reads. Requirements: SPEC.md §5 (`D-*`). **When you change a format or
 schema, update THIS doc.**
 
 ## What lives here
-- `schemas/` — one JSON Schema per file type, plus the slot registry
-  declarations (which asset slots exist per category, frame sizes, animation
-  vocabularies) (D-32, E-34).
+- `schemas/` — one JSON Schema per file type.
+- `slots.json` — the slot registry (which asset slots exist per category,
+  frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
+  the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
   `map.json`, `ui.json`, `core.json`), each carrying a `_lock` field (D-10/11).
 - `maps/` — map files (terrain/zone grid with spawning as a painted zone,
@@ -36,6 +37,31 @@ schema, update THIS doc.**
   `additionalProperties: false`, all keys `required`, canonical D-3
   formatting (author schemas via `dumps_deterministic`, content via
   `write_validated` — never hand-format).
+
+## Asset data (Phase 5, D-30/31/32 specifics)
+- **`slots.json` location is a deliberate D-32 deviation**: SPEC says
+  `data/schemas/slots.*`, but `tools/smoke.py` skips `data/schemas/` when
+  validating, and the registry must be validated content — so it lives at
+  `data/slots.json` with `schemas/slots.schema.json`.
+- **`slots.json` shape**: ordered `categories[]` (array — order survives
+  D-3 sorted-keys dumps and IS the editor tree order; the first five keys
+  mirror the D-10 domains, then asset-only `vfx`/`deco`), each with
+  `key/display_name/frame_w/frame_h/animations/groups`. `animations[0]` is
+  always `idle` (schema-enforced). `groups` is a recursive tree of
+  `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
+  ONE category (meditators reuse musician art) but never across categories
+  (frame size would be ambiguous — loader rejects it).
+- **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
+  64×96; map tiles 64×32; ui / vfx 64×64. All data — edit `slots.json`.
+- **`sprites/asset_manifest.json` (manifest v2, D-30)**:
+  `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
+  frame_h, offset_x, offset_y, rows[]}}}` with row =
+  `{animation, frames, fps, hidden[], loop_start, loop_end, loop_count}`;
+  `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written
+  ONLY by the editor's import panel and `tools/migrate_prototype_assets.py`
+  — both through `write_validated`.
+- **`sprites/imported/*.png` are committed content (D-31)**, copied there at
+  import time (editor) or by the migration tool. Never gitignore them.
 
 ## Rules
 - **JSON here is the ONLY value store** (D-1). Never move a value into Python;

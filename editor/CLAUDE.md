@@ -117,12 +117,57 @@ editor features should hang off selection, not add parallel state.
   "Locked by <owner> since <date>" (ED-32); lock state is read at selection
   time (re-select to refresh; no file watcher). Undo via the global
   QUndoStack (ED-24) lands with the tilemap editor.
-- **Viewport is selection-independent in Phase 4**: it keeps rendering the
-  grey-X grid whatever is selected — mode switching (tilemap editor / entity
-  preview) needs the Phase 5 slot registry and Phase 6 map format.
+- **Viewport selection-independence was Phase 4 only** — superseded by the
+  Phase 5 entity-preview mode (below); tilemap-editor mode is still Phase 6.
 - **Live verification convention**: windowed runs are driven by synthetic
   `QTest` events (real mouse click on the selector, real key events on form
   widgets), same as Phase 3.
+
+## Phase 5 conventions (merged tree / details panel / entity preview)
+- **Merged tree** (`panels/selector.py`): top-level nodes = registry
+  categories in `data/slots.json` order (the first five double as balancing
+  domains; vfx/deco are asset-only). Children come from registry groups; the
+  tree STOPS at the deepest group whose children are all leaf groups (a
+  building TYPE like "Defender") — tiers/levels never appear in the tree.
+  Signals: `node_selected(category, group_path)` on every selection, plus
+  the Phase 4 `domain_selected(str)` at ANY depth of a domain category, so
+  balancing follows while browsing types. ● markers (ED-11) come from
+  `refresh_markers()` (pure `load_manifest`; the clean label sits in
+  UserRole+1). A domain category with no balancing file is omitted whole
+  (Phase 4 behavior).
+- **Composite selection** (user-confirmed layout): tree node × Details
+  subcategory dropdown (tier — or the concrete slot for flat groups) ×
+  LevelBar index resolve to ONE slot key via the PURE `editor/selection.py`
+  (`subcategories` / `level_slots` / `resolve_slot`; no Qt — test it
+  headlessly). `MainWindow` owns the composite state and drives
+  `viewport.set_preview_slot` + `details.set_slot`. Balancing keeps its
+  last domain while vfx/deco nodes are selected. The level bar only
+  resolves the ASSET slot — per-level balancing values stay Phase 9.
+- **DetailsPanel** (`panels/details.py`, right pane): prototype-importer
+  parity (ED-40/41). The sheet PNG is copied to
+  `data/sprites/imported/<slot>.png` AT IMPORT TIME (prototype parity);
+  Save writes the manifest entry through `write_validated`; Clear (confirm
+  dialog in the UI path; `clear_entry(confirm=False)` for tests) removes
+  entry + PNG. Row 0's animation combo is locked to `["idle"]` — the E-35
+  rule is UNREPRESENTABLE in the UI, not a save-time error. Frame sizes and
+  animation vocabularies come from the registry per slot. No pygame here;
+  Pillow reads sheet dimensions.
+- **One render path (ED-22)**: the ONLY animated preview is the viewport.
+  Every Details edit emits `draft_changed(slot, entry_dict)` →
+  `viewport.set_preview_draft` overrides that slot in an in-memory manifest
+  (never disk) and rebuilds AssetStore + Renderer. `entry_saved` /
+  `entry_cleared` → `viewport.reload_assets()` (re-read manifest from disk,
+  drop draft — ED-42, no restart) + `selector.refresh_markers()`. Camera
+  state lives in `_coords` and survives reloads (Phase 3 feel).
+- **Entity preview (ED-21)**: the slot renders at the map centre on the
+  `entities` layer over the grid; the animation dropdown is a floating
+  QComboBox child pinned top-left of the viewport, visible only when the
+  effective entry has animations; the anim clock is wall-clock and resets
+  on slot/animation/draft change. No asset → grey X (E-37).
+- New editor modules MUST be added to `test_editor_viewport.TestPurity`'s
+  import list (`details`, `level_bar`, `selection` are in).
+- Measured live (this machine, windowed 1280x720, preview + import active):
+  ~57 fps.
 
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

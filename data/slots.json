@@ -1,0 +1,465 @@
+{
+  "categories": [
+    {
+      "animations": [
+        "idle",
+        "attack",
+        "death",
+        "hurt",
+        "place",
+        "upgrade"
+      ],
+      "display_name": "Buildings",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "label": "Stone Thrower",
+              "slots": [
+                "stone_thrower_t1_lvl1",
+                "stone_thrower_t1_lvl2",
+                "stone_thrower_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Slinger",
+              "slots": [
+                "slinger_t2_lvl1",
+                "slinger_t2_lvl2",
+                "slinger_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Pistoleer",
+              "slots": [
+                "pistoleer_t3_lvl1",
+                "pistoleer_t3_lvl2",
+                "pistoleer_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Defender"
+        },
+        {
+          "children": [
+            {
+              "label": "Flute Player",
+              "slots": [
+                "flute_player_t1_lvl1",
+                "flute_player_t1_lvl2",
+                "flute_player_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Harp Player",
+              "slots": [
+                "harp_player_t2_lvl1",
+                "harp_player_t2_lvl2",
+                "harp_player_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Trio",
+              "slots": [
+                "trio_t3_lvl1",
+                "trio_t3_lvl2",
+                "trio_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Musician"
+        },
+        {
+          "children": [
+            {
+              "label": "Meditator",
+              "slots": [
+                "flute_player_t1_lvl1",
+                "flute_player_t1_lvl2",
+                "flute_player_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Shaman",
+              "slots": [
+                "harp_player_t2_lvl1",
+                "harp_player_t2_lvl2",
+                "harp_player_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Sun Priest",
+              "slots": [
+                "trio_t3_lvl1",
+                "trio_t3_lvl2",
+                "trio_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Meditator"
+        },
+        {
+          "children": [
+            {
+              "label": "Maw Mortar",
+              "slots": [
+                "maw_mortar_t1_lvl1",
+                "maw_mortar_t1_lvl2",
+                "maw_mortar_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Maw Catapult",
+              "slots": [
+                "maw_mortar_t2_lvl1",
+                "maw_mortar_t2_lvl2",
+                "maw_mortar_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Maw Cannon",
+              "slots": [
+                "maw_mortar_t3_lvl1",
+                "maw_mortar_t3_lvl2",
+                "maw_mortar_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Maw Mortar"
+        },
+        {
+          "children": [
+            {
+              "label": "Cave Painter",
+              "slots": [
+                "painter_t1_lvl1",
+                "painter_t1_lvl2",
+                "painter_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Maestro",
+              "slots": [
+                "painter_t2_lvl1",
+                "painter_t2_lvl2",
+                "painter_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Art Factory",
+              "slots": [
+                "painter_t3_lvl1",
+                "painter_t3_lvl2",
+                "painter_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Painter"
+        },
+        {
+          "children": [
+            {
+              "label": "Sun Scorcher",
+              "slots": [
+                "sun_scorcher_t1_lvl1",
+                "sun_scorcher_t1_lvl2",
+                "sun_scorcher_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Radiant Beam",
+              "slots": [
+                "radiant_beam_t2_lvl1",
+                "radiant_beam_t2_lvl2",
+                "radiant_beam_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Laser Beam",
+              "slots": [
+                "laser_beam_t3_lvl1",
+                "laser_beam_t3_lvl2",
+                "laser_beam_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Sun Scorcher"
+        },
+        {
+          "children": [
+            {
+              "label": "Supporting Fan",
+              "slots": [
+                "boost_speed_t1_lvl1",
+                "boost_speed_t1_lvl2",
+                "boost_speed_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Cheerleader",
+              "slots": [
+                "boost_speed_t2_lvl1",
+                "boost_speed_t2_lvl2",
+                "boost_speed_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Drill Sergeant",
+              "slots": [
+                "boost_speed_t3_lvl1",
+                "boost_speed_t3_lvl2",
+                "boost_speed_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Speed Booster"
+        },
+        {
+          "children": [
+            {
+              "label": "Supporting Fan",
+              "slots": [
+                "boost_damage_t1_lvl1",
+                "boost_damage_t1_lvl2",
+                "boost_damage_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Cheerleader",
+              "slots": [
+                "boost_damage_t2_lvl1",
+                "boost_damage_t2_lvl2",
+                "boost_damage_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Drill Sergeant",
+              "slots": [
+                "boost_damage_t3_lvl1",
+                "boost_damage_t3_lvl2",
+                "boost_damage_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Damage Booster"
+        },
+        {
+          "children": [
+            {
+              "label": "Supporting Fan",
+              "slots": [
+                "boost_hp_t1_lvl1",
+                "boost_hp_t1_lvl2",
+                "boost_hp_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Cheerleader",
+              "slots": [
+                "boost_hp_t2_lvl1",
+                "boost_hp_t2_lvl2",
+                "boost_hp_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Drill Sergeant",
+              "slots": [
+                "boost_hp_t3_lvl1",
+                "boost_hp_t3_lvl2",
+                "boost_hp_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "HP Booster"
+        },
+        {
+          "label": "Blocker",
+          "slots": [
+            "blocker"
+          ]
+        },
+        {
+          "label": "Wall Builder",
+          "slots": [
+            "wall_builder"
+          ]
+        }
+      ],
+      "key": "buildings"
+    },
+    {
+      "animations": [
+        "idle",
+        "walk",
+        "attack",
+        "death"
+      ],
+      "display_name": "Enemies",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "label": "Walker",
+          "slots": [
+            "enemy",
+            "enemy_t2",
+            "enemy_t3",
+            "enemy_t4"
+          ]
+        },
+        {
+          "label": "Raider",
+          "slots": [
+            "raider"
+          ]
+        },
+        {
+          "label": "Siege Cannon",
+          "slots": [
+            "siege_cannon",
+            "siege_cannon_t2",
+            "siege_cannon_t3",
+            "siege_cannon_t4"
+          ]
+        },
+        {
+          "label": "Boss",
+          "slots": [
+            "boss_era_0",
+            "boss_era_1",
+            "boss_era_2",
+            "boss_era_3",
+            "boss_era_4"
+          ]
+        }
+      ],
+      "key": "enemies"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Map",
+      "frame_h": 32,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "tile_buildable",
+                "tile_buildable_b"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "tile_combat",
+                "tile_combat_b"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "tile_spawning",
+                "tile_spawning_b"
+              ]
+            },
+            {
+              "label": "Background",
+              "slots": [
+                "tile_forest",
+                "tile_ocean",
+                "tile_cliff"
+              ]
+            }
+          ],
+          "label": "Tiles"
+        },
+        {
+          "label": "Engine",
+          "slots": [
+            "ground_tile"
+          ]
+        }
+      ],
+      "key": "map"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "UI",
+      "frame_h": 64,
+      "frame_w": 64,
+      "groups": [
+        {
+          "label": "HUD",
+          "slots": [
+            "ui_button",
+            "ui_panel",
+            "ui_icon_resource"
+          ]
+        }
+      ],
+      "key": "ui"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Core",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "label": "Base",
+          "slots": [
+            "base_hole"
+          ]
+        }
+      ],
+      "key": "core"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "VFX",
+      "frame_h": 64,
+      "frame_w": 64,
+      "groups": [
+        {
+          "label": "Effects",
+          "slots": [
+            "vfx_hit",
+            "vfx_explosion"
+          ]
+        }
+      ],
+      "key": "vfx"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Deco",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "label": "Props",
+          "slots": [
+            "deco_rock",
+            "deco_bush",
+            "deco_tree"
+          ]
+        }
+      ],
+      "key": "deco"
+    }
+  ]
+}

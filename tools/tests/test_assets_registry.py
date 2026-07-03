@@ -1,0 +1,120 @@
+"""Slot registry loader (E-34/D-32) — pure, no pygame, no Qt.
+
+Runs against the real data/slots.json (read-only) plus synthetic docs for
+the failure modes. The registry fails LOUD on bad data (it is
+infrastructure, like geometry.json) — E-37 tolerance is for art only.
+"""
+import unittest
+from pathlib import Path
+
+from engine.assets import SlotRegistry, load_registry
+
+REPO = Path(__file__).resolve().parents[2]
+
+
+def tiny_doc(categories=None):
+    return {"categories": categories if categories is not None else [
+        {"key": "a", "display_name": "A", "frame_w": 8, "frame_h": 16,
+         "animations": ["idle"],
+         "groups": [{"label": "G", "slots": ["thing"]}]},
+    ]}
+
+
+class TestRealRegistry(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.reg = load_registry(REPO / "data")
+
+    def test_category_order_is_domain_order_plus_asset_only(self):
+        self.assertEqual(tuple(c.key for c in self.reg.categories()),
+                         ("buildings", "enemies", "map", "ui", "core",
+                          "vfx", "deco"))
+
+    def test_carried_over_frame_sizes(self):
+        self.assertEqual(self.reg.frame_size("stone_thrower_t1_lvl1"), (64, 96))
+        self.assertEqual(self.reg.frame_size("ground_tile"), (64, 32))
+
+    def test_tile_animation_vocabulary_is_idle_only(self):
+        self.assertEqual(self.reg.animations("tile_buildable"), ("idle",))
+
+    def test_building_vocabulary_carries_prototype_animations(self):
+        self.assertEqual(self.reg.animations("stone_thrower_t1_lvl1"),
+                         ("idle", "attack", "death", "hurt", "place", "upgrade"))
+
+    def test_meditator_shares_musician_keys(self):
+        # shared key: once in slot_keys(), reachable via both groups
+        keys = self.reg.slot_keys()
+        self.assertEqual(keys.count("flute_player_t1_lvl1"), 1)
+        musician = self.reg.group("buildings", ("Musician", "Flute Player"))
+        meditator = self.reg.group("buildings", ("Meditator", "Meditator"))
+        self.assertIn("flute_player_t1_lvl1", musician.slots)
+        self.assertIn("flute_player_t1_lvl1", meditator.slots)
+
+    def test_group_path_lookup(self):
+        node = self.reg.group("buildings", ("Defender", "Stone Thrower"))
+        self.assertEqual(node.slots, ("stone_thrower_t1_lvl1",
+                                      "stone_thrower_t1_lvl2",
+                                      "stone_thrower_t1_lvl3"))
+        tiles = self.reg.group("map", ("Tiles",))
+        self.assertEqual(tuple(c.label for c in tiles.children),
+                         ("Buildable", "Combat", "Spawning", "Background"))
+
+    def test_group_slots_walks_subtrees(self):
+        defender = self.reg.group_slots("buildings", ("Defender",))
+        self.assertEqual(len(defender), 9)   # 3 tiers x 3 levels
+        self.assertIn("stone_thrower_t1_lvl1", defender)
+        self.assertIn("pistoleer_t3_lvl3", defender)
+        whole = self.reg.group_slots("map")
+        self.assertIn("tile_buildable", whole)
+        self.assertIn("ground_tile", whole)
+
+    def test_category_of(self):
+        self.assertEqual(self.reg.category_of("boss_era_0").key, "enemies")
+        self.assertEqual(self.reg.category_of("base_hole").key, "core")
+
+    def test_unknown_slot_raises(self):
+        with self.assertRaises(KeyError):
+            self.reg.frame_size("no_such_slot")
+        with self.assertRaises(KeyError):
+            self.reg.animations("no_such_slot")
+        with self.assertRaises(KeyError):
+            self.reg.category_of("no_such_slot")
+
+    def test_unknown_category_and_path_raise(self):
+        with self.assertRaises(KeyError):
+            self.reg.category("no_such_category")
+        with self.assertRaises(KeyError):
+            self.reg.group("buildings", ("No Such Type",))
+
+
+class TestSyntheticRegistry(unittest.TestCase):
+    def test_duplicate_key_across_categories_rejected(self):
+        doc = tiny_doc([
+            {"key": "a", "display_name": "A", "frame_w": 8, "frame_h": 8,
+             "animations": ["idle"],
+             "groups": [{"label": "G", "slots": ["shared"]}]},
+            {"key": "b", "display_name": "B", "frame_w": 8, "frame_h": 8,
+             "animations": ["idle"],
+             "groups": [{"label": "H", "slots": ["shared"]}]},
+        ])
+        with self.assertRaises(ValueError):
+            SlotRegistry(doc)
+
+    def test_shared_key_within_one_category_allowed(self):
+        doc = tiny_doc([
+            {"key": "a", "display_name": "A", "frame_w": 8, "frame_h": 8,
+             "animations": ["idle"],
+             "groups": [{"label": "G", "slots": ["shared"]},
+                        {"label": "H", "slots": ["shared"]}]},
+        ])
+        reg = SlotRegistry(doc)
+        self.assertEqual(reg.slot_keys(), ("shared",))
+
+    def test_frame_size_and_first_seen_order(self):
+        reg = SlotRegistry(tiny_doc())
+        self.assertEqual(reg.frame_size("thing"), (8, 16))
+        self.assertEqual(reg.slot_keys(), ("thing",))
+
+
+if __name__ == "__main__":
+    unittest.main()
