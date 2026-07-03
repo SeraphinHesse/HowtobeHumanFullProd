@@ -398,6 +398,34 @@ class TestPaletteImport(MapModeCase):
         self.assertTrue(
             (self.data_dir / "sprites" / "imported" / "deco_rock.png").exists())
 
+    def test_import_targets_armed_base_slot(self):
+        self.open_map()
+        self.window.palette.arm_base("base_hole")
+        png = self.make_png(64, 96)
+        with patch.object(QFileDialog, "getOpenFileName",
+                          return_value=(str(png), "")):
+            events = []
+            self.window.palette.manifest_changed.connect(events.append)
+            self.window.palette._on_import_clicked()
+        self.assertEqual(events, ["base_hole"])
+        entry = data_io.load_validated(
+            self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json",
+        )["entries"]["base_hole"]
+        self.assertEqual(entry["rows"][0]["animation"], "idle")
+        self.assertTrue(
+            (self.data_dir / "sprites" / "imported" / "base_hole.png").exists())
+
+    def test_arming_base_does_not_affect_paint_tool_dispatch(self):
+        # Arming the base is import-target-only: it must not become a
+        # paintable brush (the base is moved by dragging, never painted).
+        doc = self.open_map()
+        self.window.palette.arm_base("base_hole")
+        self.window.palette.set_tool("paint")
+        before = doc.terrain[15][15]
+        self.click_cell(15, 15)
+        self.assertEqual(doc.terrain[15][15], before)
+
     def test_import_targets_armed_tile_code(self):
         self.open_map()
         self.window.palette.arm_code("b")

@@ -225,6 +225,12 @@ class ViewportPanel(QWidget):
         self._armed_deco = slot
         self._armed_code = None
 
+    def arm_base(self, slot):
+        """Arming the base is import-target-only (palette.py) — clear any
+        armed code/deco so a stray "paint" click can't use a stale brush."""
+        self._armed_code = None
+        self._armed_deco = None
+
     def set_eye(self, name, on):
         self._eyes[name] = on
 

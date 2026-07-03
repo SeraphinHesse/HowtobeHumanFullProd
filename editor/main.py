@@ -86,6 +86,7 @@ class MainWindow(QMainWindow):
         self.palette.tool_changed.connect(self.viewport.set_tool)
         self.palette.code_armed.connect(self.viewport.arm_code)
         self.palette.deco_armed.connect(self.viewport.arm_deco)
+        self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)

@@ -126,7 +126,10 @@ editor features should hang off selection, not add parallel state.
 ## Phase 5 conventions (merged tree / details panel / entity preview)
 - **Merged tree** (`panels/selector.py`): top-level nodes = registry
   categories in `data/slots.json` order (the first five double as balancing
-  domains; vfx/deco are asset-only). Children come from registry groups; the
+  domains; vfx is asset-only. `deco` is ALSO asset-only but nested as a
+  CHILD of the "map" node as of the Phase 6 follow-up — see the Phase 6
+  section below — rather than its own top-level node). Children come from
+  registry groups; the
   tree STOPS at the deepest group whose children are all leaf groups (a
   building TYPE like "Defender") — tiers/levels never appear in the tree.
   Signals: `node_selected(category, group_path)` on every selection, plus
@@ -210,6 +213,12 @@ editor features should hang off selection, not add parallel state.
   ED-22 reading — not a second render path). Tile buttons rebuild from the
   open map's legend (`set_legend`), zone kinds first; deco slots come from
   the registry. Picker → `viewport.code_picked` → `palette.arm_code` loop.
+  Follow-up: a "Base" section (registry `core` category, always just
+  `base_hole`) sits in the SAME exclusive brush group as tile codes and
+  deco — arming it (`arm_base`) is import-target-only (`_armed_slot()`'s
+  priority: deco, then base, then the armed code's slot) since the base is
+  never painted, only dragged; `viewport.arm_base` clears any stale armed
+  code/deco so a leftover "paint" click can't use the wrong brush.
 - **Lifecycle** (`panels/map_details.py`): New/Duplicate (schema-bounded
   dialog, id re-checked) / Save / Set Active — Set Active is the ONLY
   writer of `data/maps/active_map.json` (D-21). Create/duplicate write to
@@ -229,7 +238,8 @@ editor features should hang off selection, not add parallel state.
   palette replaces `DetailsPanel` in the right stack while a map is open,
   so the normal importer is unreachable from there. `PalettePanel`'s
   "Import Spritesheet…" button targets whichever brush is currently armed
-  (deco first, else the armed code's slot) and calls the new
+  (deco first, then the Base/hole slot, else the armed code's slot) and
+  calls the new
   `editor.asset_import.import_idle_sheet(data_dir, registry, slot_key,
   png_path)` — a Qt-free, pygame-free helper (added to
   `test_editor_viewport.TestPurity`) that always writes exactly ONE `idle`

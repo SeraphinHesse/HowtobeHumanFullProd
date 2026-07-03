@@ -28,7 +28,7 @@ from PySide6.QtWidgets import (
 
 from editor import locks
 from editor.panels.balancing import BalancingPanel
-from editor.panels.selector import SelectorPanel
+from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
 
 REPO = Path(__file__).resolve().parents[2]
@@ -140,6 +140,24 @@ class TestSelectorTree(TempDataCase):
     def test_unknown_node_raises(self):
         with self.assertRaises(KeyError):
             self.make().select_node("buildings", ("No Such Type",))
+
+    def test_deco_is_nested_under_map_not_top_level(self):
+        # Phase 6 follow-up: deco reads as part of map editing, so its root
+        # is a child of "map" in the TREE only — category_key stays "deco"
+        # (selection/DetailsPanel/palette are unaffected).
+        panel = self.make()
+        top_level_keys = [
+            panel.topLevelItem(i).data(0, _PAYLOAD_ROLE)[0]
+            for i in range(panel.topLevelItemCount())
+        ]
+        self.assertNotIn("deco", top_level_keys)
+        deco_root = panel._find_item("deco", ())
+        map_root = panel._find_item("map", ())
+        self.assertIs(deco_root.parent(), map_root)
+        # selection/import wiring is untouched: category_key is still "deco"
+        panel.select_node("deco", ("Props",))
+        self.assertEqual(panel.selectedItems()[0].data(0, _PAYLOAD_ROLE),
+                         ("deco", ("Props",)))
 
     def test_markers_reflect_migrated_manifest(self):
         panel = self.make()

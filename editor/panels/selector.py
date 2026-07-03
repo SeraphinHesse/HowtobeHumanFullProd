@@ -16,6 +16,15 @@ these markers; refresh_markers skips map nodes). Selecting a map node
 emits map_selected(map_id) + domain_selected("map") — never
 node_selected, so the entity-preview machinery stays untouched.
 
+Phase 6 follow-up: the "deco" registry category is nested as a CHILD of
+the "map" top-level node instead of its own top-level node (deco is
+browsed/imported while painting a map, so it reads as part of map editing)
+— a tree-construction-only change. The registry category itself, its own
+frame size (64x96, distinct from map tiles' 64x32), and its category_key
+("deco") are untouched everywhere else (editor.selection, DetailsPanel,
+the map palette's Deco section) — only where its root QTreeWidgetItem gets
+parented changes.
+
 Plain Qt widget; imports only the PURE half of engine.assets (registry +
 manifest metadata — no pygame) and engine.tilemap. Exactly one node
 selected at a time (ED-3); selection is broadcast as
@@ -54,15 +63,31 @@ class SelectorPanel(QTreeWidget):
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
+        map_root = None
         for category in self.registry.categories():
             if category.key in locks.DOMAINS and \
                     not locks.balancing_path(category.key, self._data_dir).exists():
                 continue  # Phase 4 behavior: no balancing file, no domain node
+            if category.key == "deco" and map_root is not None:
+                # Deco lives under the "Map" node in the TREE only (user
+                # request: browsing/import feel like part of map editing,
+                # since deco is placed while painting a map) — the
+                # registry category itself is untouched, so its own frame
+                # size (64x96, distinct from map tiles' 64x32) still
+                # applies; category_key stays "deco" everywhere else
+                # (selection.py, DetailsPanel, palette) so nothing else
+                # changes.
+                root = self._make_item(category.display_name, category.key, ())
+                map_root.addChild(root)
+                for group in category.groups:
+                    self._add_group(root, category.key, group, ())
+                continue
             root = self._make_item(category.display_name, category.key, ())
             self.addTopLevelItem(root)
             for group in category.groups:
                 self._add_group(root, category.key, group, ())
             if category.key == "map":
+                map_root = root
                 branch = self._make_item(
                     _MAPS_BRANCH_LABEL, "map", (_MAPS_BRANCH_LABEL,))
                 root.insertChild(0, branch)

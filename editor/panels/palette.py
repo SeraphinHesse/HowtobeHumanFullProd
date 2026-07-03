@@ -5,9 +5,11 @@ none), the tool row (none / paint / erase / line / rect / bucket / picker —
 left-click, so the map can be inspected/panned and the base can be grabbed
 without a stray brush stroke), the layer eyes (terrain / zone tint / base /
 deco), the grid-lines toggle (ED-23), and an "Import Spritesheet…" button
-that imports art straight for whichever brush is currently armed (tiles and
-deco both otherwise have no import affordance while the map palette has
-replaced the Details panel).
+that imports art straight for whichever brush is currently armed — tile
+codes, deco slots, or the Base/hole slot (base_hole; arming it only picks
+an import target, since the base is moved by dragging, never painted) —
+none of which otherwise have an import affordance while the map palette
+has replaced the Details panel.
 
 ED-22 interpretation (user-confirmed): the icons are STATIC frames
 resolved by the engine's AssetStore and converted via the viewport's
@@ -51,6 +53,7 @@ class PalettePanel(QWidget):
     tool_changed = Signal(str)
     code_armed = Signal(str)     # a terrain code from the open map's legend
     deco_armed = Signal(str)     # a deco slot key
+    base_armed = Signal(str)     # the base/hole slot (import-target only)
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -61,7 +64,7 @@ class PalettePanel(QWidget):
         self._registry = load_registry(self._data_dir)
         self._icon_provider = None      # slot -> QImage (viewport-injected)
         self._legend = None
-        self._brush_buttons = {}        # ("code"|"deco", key) -> QToolButton
+        self._brush_buttons = {}        # ("code"|"deco"|"base", key) -> QToolButton
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -97,6 +100,12 @@ class PalettePanel(QWidget):
             self._add_brush_button(("deco", slot), _title(slot),
                                    layout.count())
 
+        self._base_label = QLabel("Base")
+        layout.addWidget(self._base_label)
+        for slot in self._base_slots():
+            self._add_brush_button(("base", slot), _title(slot),
+                                   layout.count())
+
         layout.addWidget(QLabel("Layers"))
         self._eye_boxes = {}
         for name in EYES:
@@ -120,6 +129,12 @@ class PalettePanel(QWidget):
                 return self._registry.group_slots(category.key, ())
         return ()
 
+    def _base_slots(self):
+        for category in self._registry.categories():
+            if category.key == "core":
+                return self._registry.group_slots(category.key, ())
+        return ()
+
     def _add_brush_button(self, key, label, index):
         btn = QToolButton(self)
         btn.setText(label)
@@ -129,8 +144,10 @@ class PalettePanel(QWidget):
         kind, value = key
         if kind == "code":
             btn.clicked.connect(lambda _=False, v=value: self.arm_code(v))
-        else:
+        elif kind == "deco":
             btn.clicked.connect(lambda _=False, v=value: self.arm_deco(v))
+        else:
+            btn.clicked.connect(lambda _=False, v=value: self.arm_base(v))
         self._brush_group.addButton(btn)
         self._brush_buttons[key] = btn
         self.layout().insertWidget(index, btn)
@@ -206,6 +223,26 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.deco_armed.emit(slot)
 
+    def armed_base(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "base" and btn.isChecked():
+                return value
+        return None
+
+    def arm_base(self, slot):
+        """Arms the base/hole slot as the import target (ED-40 parity) —
+        the base itself is never painted; it's moved by dragging it in the
+        viewport (viewport.py's _tool_press base-cell check), so arming it
+        here only selects it for "Import Spritesheet…". Still emits
+        base_armed so the viewport clears any stale armed code/deco —
+        otherwise a "paint" click would keep using the brush that was
+        armed before base was selected."""
+        btn = self._brush_buttons.get(("base", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.base_armed.emit(slot)
+
     def eye(self, name):
         return self._eye_boxes[name].isChecked()
 
@@ -220,6 +257,9 @@ class PalettePanel(QWidget):
         deco = self.armed_deco()
         if deco is not None:
             return deco
+        base = self.armed_base()
+        if base is not None:
+            return base
         code = self.armed_code()
         if code is not None and self._legend is not None:
             return self._legend[code]["slot"]
