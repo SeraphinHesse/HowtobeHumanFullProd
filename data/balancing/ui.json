@@ -1,5 +1,5 @@
 {
   "_lock": "UNLOCKED",
   "hud_scale": 1.0,
-  "show_fps": false
+  "show_fps": true
 }
