@@ -1,0 +1,65 @@
+"""Renderer (E-21/E-22): submit → resolve via assets → depth sort → coords
+→ hand a flat DrawCall list to the backend.
+
+Pure orchestration — no pygame imports here; the default pygame backend is
+resolved lazily inside flush(), and tests inject a recording backend.
+
+Anchor convention: a frame is blitted centred horizontally on its world
+position with its BOTTOM edge on the bottom of that tile's diamond
+(world_to_screen y + tile_h·zoom). A 64x32 tile frame therefore covers its
+diamond exactly; taller frames (e.g. 64x96 buildings) rise above it.
+"""
+from .item import LAYERS, DrawCall
+
+
+class Renderer:
+    def __init__(self, coords, assets, backend=None):
+        self._coords = coords
+        self._assets = assets
+        self._backend = backend
+        self._queue = []
+
+    def submit(self, item):
+        if item.layer not in LAYERS:
+            raise ValueError(f"unknown draw layer {item.layer!r}; expected one of {LAYERS}")
+        self._queue.append(item)
+
+    def flush(self, target):
+        """Draw all submitted items to `target`, clear the queue, and return
+        the number of items drawn. Target-agnostic (E-22): game window or
+        editor offscreen surface alike."""
+        coords = self._coords
+        ordered = sorted(
+            self._queue,
+            key=lambda item: coords.depth_key(
+                item.world_pos[0], item.world_pos[1], LAYERS.index(item.layer)
+            ),
+        )
+        zoom = coords.camera.zoom
+        tile_h = coords.geometry.tile_h
+        draw_calls = []
+        for item in ordered:
+            frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
+            px, py = coords.world_to_screen(*item.world_pos)
+            w = frame.frame_w * zoom
+            h = frame.frame_h * zoom
+            draw_calls.append(
+                DrawCall(
+                    surface=frame.surface,
+                    dest=(
+                        px - w / 2 + frame.offset_x * zoom,
+                        py + tile_h * zoom - h + frame.offset_y * zoom,
+                    ),
+                    size=(w, h),
+                    tint=item.tint,
+                    flip=item.flip,
+                )
+            )
+        if self._backend is None:
+            from . import backend as _pygame_backend
+
+            self._backend = _pygame_backend.draw
+        self._backend(target, draw_calls)
+        count = len(self._queue)
+        self._queue.clear()
+        return count

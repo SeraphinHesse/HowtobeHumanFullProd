@@ -30,6 +30,34 @@ an engine task; if an engine change forces a caller change, tell the user
   row semantics (rows = animations, row 0 = idle), grey-X placeholder
   (E-33..E-38). Missing/corrupt art logs and falls back — never crashes boot.
 
+## Phase 1 conventions (coords / render / placeholder)
+- **Tests** live in `tools/tests/` (unittest, stdlib — no pytest dep). Run
+  from the repo root: `py -m unittest discover -s tools/tests -t .`
+  SDL dummy drivers are set in-code, so no env setup is needed.
+- `engine/data_io.py` — the schema-validating JSON load/write (pure Python;
+  used by coords to load geometry, later by the editor/agents to write).
+  Deterministic dumps: sorted keys, 2-space indent, trailing newline (D-3).
+- **Geometry** comes from `data/geometry.json` +
+  `data/schemas/geometry.schema.json` via
+  `engine.coords.load_coordinate_system(data_dir)` (E-1). Camera pan is in
+  screen pixels: `screen = iso * zoom - pan`; world (0,0) is the TOP corner
+  of tile (0,0)'s diamond.
+- **Render flow**: `Renderer(coords, assets, backend=None)` — renderer.py is
+  pure orchestration producing `DrawCall`s; the pygame backend
+  (`engine/render/backend.py`) is lazily imported on first `flush()` and
+  injectable for tests. Draw layers fixed: `LAYERS = ("ground", "entities",
+  "deco", "overlay")` (E-26); HUD is drawn by the host after flush.
+- **Anchor convention**: a frame blits centred horizontally on its world
+  position with its bottom edge on the bottom of that tile's diamond
+  (`world_to_screen(...)y + tile_h*zoom`). A 64x32 tile frame covers its
+  diamond exactly; taller frames rise above it.
+- **Assets import boundary**: `engine.assets` package `__init__` + `types` +
+  `manifest` are pure; pygame lives only in `engine.assets.placeholder` and
+  `engine.assets.store` (import those by full path). Manifest v2 loading is
+  a stub until Phase 5.
+- `tools/render_demo.py` renders the grey-X grid offscreen and saves
+  `build/render_demo.png` (gitignored) for visual verification.
+
 ## Hard rules
 - **pygame imports are allowed ONLY in** `render/`'s backend and the asset
   surface cache. `coords/`, `core/`, `physics/`, and asset *metadata* code are

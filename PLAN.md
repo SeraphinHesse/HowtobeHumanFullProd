@@ -180,7 +180,7 @@ until green.
 | Phase | Deliverable | Proof it works | Status |
 |---|---|---|---|
 | 0 | Repo bootstrap: gitignore, skeleton, CLAUDE.mds, PLAN.md, SPEC.md | tree matches plan; docs in place | in progress |
-| 1 | `engine/coords` + render pipeline + asset placeholder | headless test: world↔screen round-trips; grey-X grid renders to offscreen surface | — |
+| 1 | `engine/coords` + render pipeline + asset placeholder | headless test: world↔screen round-trips; grey-X grid renders to offscreen surface | done — `py -m unittest discover -s tools/tests -t .` (28 tests); visual check `py tools/render_demo.py` |
 | 2 | GameObject/Component/Scene + `game/main.py` window host | scrolling iso map of grey-X tiles in a pygame window | — |
 | 3 | **Qt viewport spike** — engine surface inside PySide6 at 60fps | same grid inside the editor window *(riskiest integration — done early on purpose)* | — |
 | 4 | Data schemas + selector panel + balancing panel | edit a value in editor → validated JSON on disk → game subprocess loads it | — |
