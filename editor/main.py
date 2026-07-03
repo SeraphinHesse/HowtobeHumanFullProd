@@ -110,6 +110,10 @@ class MainWindow(QMainWindow):
         self.addAction(redo)
 
         self.palette.setVisible(False)
+        # Height floor so the nested viewport_row can't collapse to 0 when the
+        # palette is hidden (entity mode) — otherwise the outer vertical split
+        # hands the whole center to the balancing form and the viewport vanishes.
+        self.viewport.setMinimumHeight(240)
         viewport_row = QSplitter(Qt.Orientation.Horizontal)
         viewport_row.addWidget(self.palette)
         viewport_row.addWidget(self.viewport)
@@ -128,6 +132,8 @@ class MainWindow(QMainWindow):
         center.addWidget(bottom)
         center.setStretchFactor(0, 3)
         center.setStretchFactor(1, 1)
+        center.setCollapsible(0, False)   # never collapse the viewport row
+        center.setSizes([520, 200])       # sane initial split (not stretch-only)
 
         self.right_stack = QStackedWidget()
         self.right_stack.addWidget(self.details)      # index 0: asset import
