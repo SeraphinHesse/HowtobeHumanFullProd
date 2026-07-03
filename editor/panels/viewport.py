@@ -206,7 +206,11 @@ class ViewportPanel(QWidget):
         else:
             self._coords = load_coordinate_system(self._data_dir)
             self._refresh_anim_combo()
-        self._coords.clamp(max(1, self.width()), max(1, self.height()))
+        w, h = max(1, self.width()), max(1, self.height())
+        if self.in_map_mode():
+            self._coords.clamp(w, h)
+        else:
+            self._center_on_preview(w, h)
         self._renderer = Renderer(self._coords, self._assets)
 
     def in_map_mode(self):
@@ -379,7 +383,17 @@ class ViewportPanel(QWidget):
     def _resize_surface(self):
         w, h = max(1, self.width()), max(1, self.height())
         self._surface = pygame.Surface((w, h))
-        self._coords.clamp(w, h)
+        if self.in_map_mode():
+            self._coords.clamp(w, h)
+        else:
+            self._center_on_preview(w, h)
+
+    def _center_on_preview(self, w, h):
+        """Entity preview mode: park the camera on the preview tile
+        (grid/map centre) so the sprite sits centred even when the grid is
+        wider than the viewport — clamp alone would anchor it to an edge."""
+        g = self._coords.geometry
+        self._coords.center_on(g.map_cols // 2, g.map_rows // 2, w, h)
 
     # -- frame drive: main.py's QTimer calls this once per tick -------------
 

@@ -139,6 +139,24 @@ class TestCamera(unittest.TestCase):
         cs.clamp(2000, 2000)
         self.assertEqual((cs.camera.pan_x, cs.camera.pan_y), (-1000.0, -680.0))
 
+    def test_center_on_puts_target_at_viewport_centre(self):
+        # map centre (10,10) overflows a narrow viewport → clamp alone would
+        # anchor it to an edge; center_on parks it at the middle instead.
+        cs = make_cs()
+        cs.center_on(10, 10, 590, 500)
+        sx, sy = cs.world_to_screen(10, 10)
+        self.assertAlmostEqual(sx, 295.0)
+        self.assertAlmostEqual(sy, 250.0)
+
+    def test_center_on_still_clamps_off_map_target(self):
+        # a target past the map edge is re-clamped onto the map (never off it)
+        cs = make_cs()
+        cs.center_on(0, 0, 800, 600)
+        min_x, min_y, max_x, max_y = cs.map_pixel_bounds()
+        self.assertGreaterEqual(cs.camera.pan_x, min_x)
+        self.assertLessEqual(cs.camera.pan_x, max_x - 800)
+        self.assertGreaterEqual(cs.camera.pan_y, min_y)
+
 
 class TestDataIO(unittest.TestCase):
     """D-3: deterministic formatting. D-2: writes validate."""

@@ -76,6 +76,19 @@ class CoordinateSystem:
         self.camera.pan_x = _clamp_axis(self.camera.pan_x, min_x, max_x, viewport_w)
         self.camera.pan_y = _clamp_axis(self.camera.pan_y, min_y, max_y, viewport_h)
 
+    def center_on(self, wx, wy, viewport_w, viewport_h):
+        """Pan so world (wx, wy) lands at the viewport centre, then clamp
+        back onto the map. Centring on the map's own centre is always in
+        bounds, so the clamp is a no-op there but still guards a narrow
+        axis — unlike clamp alone, which anchors (not centres) an
+        overflowing axis (E-5)."""
+        z = self.camera.zoom
+        ix = (wx - wy) * self._half_w * z
+        iy = (wx + wy) * self._half_h * z
+        self.camera.pan_x = ix - viewport_w / 2
+        self.camera.pan_y = iy - viewport_h / 2
+        self.clamp(viewport_w, viewport_h)
+
 
 def _clamp_axis(pan, lo, hi, view):
     extent = hi - lo

@@ -14,7 +14,11 @@ an engine task; if an engine change forces a caller change, tell the user
 - `coords/` — THE coordinate authority (E-1..E-5). `world_to_screen`,
   `screen_to_world` (exact inverse), iso depth key, camera state. **No other
   module in the repo may do iso math.** Geometry constants come from `data/`,
-  never hardcoded.
+  never hardcoded. `clamp` keeps the viewport on the map, *centring* an axis
+  only when the map is smaller than the viewport there; `center_on(wx, wy, w,
+  h)` instead parks a chosen world point at the viewport centre (then clamps)
+  — use it to frame a target that overflows the viewport, where `clamp` would
+  anchor to an edge (the editor's entity preview).
 - `core/` — `GameObject`, `Component`, `Transform`, `Scene`, frame order
   (E-10..E-15). Rule: **components are what the editor sees; subclasses are
   behavior convenience.** All gameplay state lives in declared component

@@ -163,7 +163,11 @@ editor features should hang off selection, not add parallel state.
   drop draft — ED-42, no restart) + `selector.refresh_markers()`. Camera
   state lives in `_coords` and survives reloads (Phase 3 feel).
 - **Entity preview (ED-21)**: the slot renders at the map centre on the
-  `entities` layer over the grid; the animation dropdown is a floating
+  `entities` layer over the grid, and the camera is parked on that same
+  centre tile via `CoordinateSystem.center_on` (in `_resize_surface` and on
+  entering entity mode) — `clamp` alone would anchor (not centre) the sprite
+  to an edge whenever the grid overflows the viewport (at zoom 1 the 20x20
+  grid is 1280px wide, wider than the center pane); the animation dropdown is a floating
   QComboBox child pinned top-left of the viewport, visible only when the
   effective entry has animations; the anim clock is wall-clock and resets
   on slot/animation/draft change. No asset → grey X (E-37).
