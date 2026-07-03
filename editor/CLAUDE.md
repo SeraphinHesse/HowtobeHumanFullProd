@@ -86,6 +86,44 @@ editor features should hang off selection, not add parallel state.
   (`QApplication.instance() or QApplication(sys.argv)`); Qt only allows one
   per process.
 
+## Phase 4 conventions (selector / balancing / locks, ED-3/ED-30..32)
+- **Shell layout** (`main.py`): plain `QSplitter`s — selector (left) |
+  viewport (center) over balancing (bottom). Full docking +
+  `.editor_prefs.json` persistence (ED-1) is deliberately deferred.
+  `MainWindow(max_frames=None, data_dir=None)`; the first listed domain is
+  selected on startup.
+- **`data_dir` injection**: every editor module takes `data_dir=None`
+  (defaults to `<repo>/data`), mirroring `ViewportPanel` — this is what lets
+  tests run against a tempfile copy of `data/` and never mutate the repo.
+- **`locks.py` is read-only**: `DOMAINS` (canonical D-10 order),
+  `balancing_path`/`schema_path` (the domain→file convention),
+  `lock_info`/`is_locked`/`owner`/`since`. No set/clear/force-unlock exists
+  anywhere in the editor (a test asserts this); /start-domain and
+  /merge-domain (Phase 8, T-1) are the only lock writers.
+- **`panels/selector.py`**: flat `QTreeWidget` of the domains whose
+  `data/balancing/<domain>.json` exists, D-10 order, SingleSelection (ED-3).
+  Emits `domain_selected(str)` — the only coupling to the shell. Deferred to
+  Phase 5/6 data: Maps node, Buildings type→tier→level subtree, ● asset
+  markers (ED-10/11).
+- **`panels/balancing.py`**: `set_domain(d)` re-reads data + schema fresh
+  from disk and rebuilds a `QFormLayout`: integer → `QSpinBox`, number →
+  `QDoubleSpinBox` (ranges from schema `minimum`/`maximum` — invalid input
+  is unrepresentable, ED-30), `enum` → `QComboBox` (typed `itemData`),
+  boolean → `QCheckBox`; tooltips carry the schema `description` (D-12
+  units/scale). Underscore keys (`_lock`) never become fields. Every widget
+  change writes the whole doc via `engine.data_io.write_validated` (ED-31) —
+  signals are connected *after* initial values are set, so form population
+  never writes. Locked domain → all fields disabled + banner
+  "Locked by <owner> since <date>" (ED-32); lock state is read at selection
+  time (re-select to refresh; no file watcher). Undo via the global
+  QUndoStack (ED-24) lands with the tilemap editor.
+- **Viewport is selection-independent in Phase 4**: it keeps rendering the
+  grey-X grid whatever is selected — mode switching (tilemap editor / entity
+  preview) needs the Phase 5 slot registry and Phase 6 map format.
+- **Live verification convention**: windowed runs are driven by synthetic
+  `QTest` events (real mouse click on the selector, real key events on form
+  widgets), same as Phase 3.
+
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it.

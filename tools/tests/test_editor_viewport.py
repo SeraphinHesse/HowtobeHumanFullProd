@@ -101,7 +101,8 @@ class TestPurity(unittest.TestCase):
     def test_editor_does_not_import_game(self):
         code = (
             "import sys; "
-            "import editor.main; "
+            "import editor.main, editor.locks, "
+            "editor.panels.selector, editor.panels.balancing; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

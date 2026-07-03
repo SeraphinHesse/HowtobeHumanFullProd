@@ -1,0 +1,53 @@
+{
+  "$id": "buildings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Buildings balancing domain (D-10). Damage/HP values, when they land, use the prototype's x10 combat scale (D-12). Phase 4 placeholder - real balance values land with the Phase 9 port.",
+  "properties": {
+    "_lock": {
+      "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
+      "oneOf": [
+        {
+          "const": "UNLOCKED"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "locked_by": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "since": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}",
+              "type": "string"
+            }
+          },
+          "required": [
+            "locked_by",
+            "since"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "cost_multiplier": {
+      "description": "Unitless multiplier applied to every building's love cost. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+      "maximum": 10,
+      "minimum": 0,
+      "type": "number"
+    },
+    "sell_refund_fraction": {
+      "description": "Fraction (0..1) of a building's love cost refunded on sell. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+      "maximum": 1,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "_lock",
+    "cost_multiplier",
+    "sell_refund_fraction"
+  ],
+  "title": "buildings",
+  "type": "object"
+}

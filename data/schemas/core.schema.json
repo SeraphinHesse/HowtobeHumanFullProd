@@ -1,0 +1,56 @@
+{
+  "$id": "core.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Core balancing domain (D-10): phase machine / economy tunables. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+  "properties": {
+    "_lock": {
+      "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
+      "oneOf": [
+        {
+          "const": "UNLOCKED"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "locked_by": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "since": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}",
+              "type": "string"
+            }
+          },
+          "required": [
+            "locked_by",
+            "since"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "base_hp": {
+      "description": "The hole's hit points, in absolute HP - deliberately NOT x10 combat scale (BASE_HP stays 10; prototype exception, D-12).",
+      "maximum": 1000,
+      "minimum": 1,
+      "type": "integer"
+    },
+    "combat_speed_default": {
+      "description": "Combat speed multiplier applied to dt in the ENEMY phase at round start; unitless. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+      "enum": [
+        1,
+        2,
+        4
+      ],
+      "type": "integer"
+    }
+  },
+  "required": [
+    "_lock",
+    "base_hp",
+    "combat_speed_default"
+  ],
+  "title": "core",
+  "type": "object"
+}

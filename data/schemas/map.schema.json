@@ -1,0 +1,46 @@
+{
+  "$id": "map.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Map balancing domain (D-10). Holds only a placeholder until the Phase 6 map format gives it real content. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+  "properties": {
+    "_lock": {
+      "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
+      "oneOf": [
+        {
+          "const": "UNLOCKED"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "locked_by": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "since": {
+              "pattern": "^\\d{4}-\\d{2}-\\d{2}",
+              "type": "string"
+            }
+          },
+          "required": [
+            "locked_by",
+            "since"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tile_unlock_cost_multiplier": {
+      "description": "Unitless multiplier on the love cost to unlock a tile. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+      "maximum": 10,
+      "minimum": 0,
+      "type": "number"
+    }
+  },
+  "required": [
+    "_lock",
+    "tile_unlock_cost_multiplier"
+  ],
+  "title": "map",
+  "type": "object"
+}
