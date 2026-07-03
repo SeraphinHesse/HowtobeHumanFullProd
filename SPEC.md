@@ -112,7 +112,10 @@ Hard rules (enforceable by review and lint):
   add behavior/methods but not authoritative state fields.
 - **E-12** Core components shipped by the engine: `SpriteAnimator` (slot key,
   current animation, phase offset), `Health`, `Movement` (waypoint follower),
-  `RangeSensor` (radius / Chebyshev range).
+  `RangeSensor` (radius / Chebyshev range). Delivery is phased:
+  `SpriteAnimator` + `Health` land with the core model (phase 2);
+  `Movement` + `RangeSensor` land together with the `engine/physics`
+  primitives they wrap (E-30/E-31), ahead of the phase-9 gameplay port.
 - **E-13** `Scene`: owns objects; spawn/despawn queues applied at frame
   boundaries; iteration by type/tag; area queries delegate to physics grid.
 - **E-14** Fixed-order frame: input → `Scene.update(dt)` → render submit.

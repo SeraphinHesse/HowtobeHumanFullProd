@@ -83,7 +83,9 @@ dims) are data-driven from `data/`.
   `Component`s, lifecycle (spawn/update/despawn).
 - `Component`: serializable data + optional `update(dt)`. Core set:
   `SpriteAnimator` (asset key + current animation state), `Health`, `Movement`,
-  `RangeSensor`, plus game-defined ones.
+  `RangeSensor`, plus game-defined ones. Phasing: `SpriteAnimator` + `Health`
+  ship in phase 2; `Movement` + `RangeSensor` ship with `engine/physics`
+  (whose queries they wrap) at the start of phase 9.
 - Game code subclasses `GameObject` (e.g. `Building(GameObject)`) to wire
   components in `__init__` — but **no gameplay state outside components**, so
   the inspector and the serializer see everything generically.
@@ -181,14 +183,14 @@ until green.
 |---|---|---|---|
 | 0 | Repo bootstrap: gitignore, skeleton, CLAUDE.mds, PLAN.md, SPEC.md | tree matches plan; docs in place | in progress |
 | 1 | `engine/coords` + render pipeline + asset placeholder | headless test: world↔screen round-trips; grey-X grid renders to offscreen surface | done — `py -m unittest discover -s tools/tests -t .` (28 tests); visual check `py tools/render_demo.py` |
-| 2 | GameObject/Component/Scene + `game/main.py` window host | scrolling iso map of grey-X tiles in a pygame window | — |
+| 2 | GameObject/Component/Scene (`SpriteAnimator` + `Health` only) + `game/main.py` window host + minimal `tools/smoke.py` (T-2) | scrolling iso map of grey-X tiles in a pygame window; smoke test prints OK | — |
 | 3 | **Qt viewport spike** — engine surface inside PySide6 at 60fps | same grid inside the editor window *(riskiest integration — done early on purpose)* | — |
 | 4 | Data schemas + selector panel + balancing panel | edit a value in editor → validated JSON on disk → game subprocess loads it | — |
 | 5 | Asset system v2 + import panel + entity preview | import a sheet for one building, preview animations in editor, see it in game | — |
 | 6 | Map format + tilemap editor + active-map selector | paint a map, save, Play launches game on it | — |
 | 7 | Run controls (Play/Build/Playbuild) | all three buttons work end-to-end | — |
 | 8 | Spawnclaude + locks + `.claude/` commands ported | dispatch a locked-domain agent from the editor | — |
-| 9+ | Port gameplay domain-by-domain (map → buildings → enemies → core phases → ui), prototype repo as spec | each domain: acceptance checklist → test → implement → live playtest | — |
+| 9+ | `engine/physics` (E-30..E-32) + `Movement`/`RangeSensor` components first, then port gameplay domain-by-domain (map → buildings → enemies → core phases → ui), prototype repo as spec | each domain: acceptance checklist → test → implement → live playtest | — |
 
 ## 7. Risks / open items
 
