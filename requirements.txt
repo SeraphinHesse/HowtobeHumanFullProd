@@ -1,5 +1,11 @@
-pygame-ce
-PySide6
-Pillow
-jsonschema
+# Python dependencies for How To Be Human
+# New machine setup: run setup.bat (installs Python via winget, then these deps)
+# Manual install (Python already present): py -m pip install -r requirements.txt
+
+pygame-ce        # core engine (do NOT also install plain 'pygame' - they conflict)
+PySide6          # editor UI (editor/main.py)
+Pillow           # image loading for editor asset import (editor/asset_import.py, panels/details.py)
+jsonschema       # validates data/ JSON against data/schemas/
+
+# Only needed if you want to build the .exe with build.bat:
 pyinstaller

@@ -29,7 +29,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QComboBox, QWidget
 
 from editor import tilemap_ops
@@ -52,6 +52,8 @@ ZONE_TINTS = {
 }
 GHOST_TINT = (255, 255, 140, 255)   # armed brush preview under the cursor
 GRID_COLOR = (110, 110, 140)
+
+LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
 
 def surface_to_qimage(surface):
@@ -114,6 +116,7 @@ class ViewportPanel(QWidget):
         self._qimage = None
         self._drag_pos = None
         self.last_frame_ms = 0.0
+        self._logo_pixmap = QPixmap(str(LOGO_PATH))
         self._resize_surface()
 
     # -- asset store lifecycle (rebuild = the only cache invalidation) ------
@@ -449,6 +452,35 @@ class ViewportPanel(QWidget):
             return
         painter = QPainter(self)
         painter.drawImage(0, 0, self._qimage)
+        if not self.in_map_mode() and self.preview_slot is None:
+            self._paint_empty_state(painter)
+
+    def _paint_empty_state(self, painter):
+        """Nothing selected in the tree: a large centred brand logo with
+        pixel-font title/subtitle underneath, instead of a bare grey grid."""
+        if self._logo_pixmap.isNull():
+            return
+        w, h = self.width(), self.height()
+        logo = self._logo_pixmap.scaledToHeight(
+            min(h // 2, 220), Qt.TransformationMode.SmoothTransformation)
+        logo_x = (w - logo.width()) // 2
+        logo_y = (h - logo.height()) // 2 - 40
+        painter.drawPixmap(logo_x, logo_y, logo)
+
+        title_font = QFont("Consolas", 22, QFont.Weight.Bold)
+        title_font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+        subtitle_font = QFont("Consolas", 13, QFont.Weight.Bold)
+        subtitle_font.setStyleStrategy(QFont.StyleStrategy.NoAntialias)
+
+        title_y = logo_y + logo.height() + 36
+        painter.setFont(title_font)
+        painter.setPen(Qt.GlobalColor.white)
+        painter.drawText(0, title_y, w, 32, Qt.AlignmentFlag.AlignHCenter,
+                          "drunken robot editor")
+
+        painter.setFont(subtitle_font)
+        painter.drawText(0, title_y + 30, w, 24, Qt.AlignmentFlag.AlignHCenter,
+                          "drunken donuts")
 
     # -- input (ED-23): drag pan, wheel zoom — engine.coords only -----------
     # Entity preview: EITHER button pans (left is an editor-only addition

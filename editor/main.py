@@ -29,10 +29,11 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QDockWidget,
+    QLabel,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -56,6 +57,7 @@ from editor.panels.viewport import ViewportPanel
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
+LOGO_PATH = Path(__file__).resolve().parent / "assets" / "drunken_donuts_logo.png"
 
 
 class MainWindow(QMainWindow):
@@ -63,6 +65,18 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("How To Be Human — editor")
         self.resize(1280, 720)
+
+        # Brand toolbar: small logo pinned top-left (ED chrome only, no
+        # layout impact on the splitters below it).
+        brand_toolbar = self.addToolBar("Brand")
+        brand_toolbar.setMovable(False)
+        brand_toolbar.setFloatable(False)
+        brand_logo = QLabel()
+        logo_pixmap = QPixmap(str(LOGO_PATH))
+        if not logo_pixmap.isNull():
+            brand_logo.setPixmap(logo_pixmap.scaledToHeight(
+                24, Qt.TransformationMode.SmoothTransformation))
+        brand_toolbar.addWidget(brand_logo)
 
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
 
@@ -148,7 +162,7 @@ class MainWindow(QMainWindow):
         # its OWN terminal (not the Console dock). The editor never writes the
         # lock; the spawned session runs /start-domain as its first move.
         agents_toolbar = self.addToolBar("Agents")
-        self.spawnclaude_action = QAction("Spawn Claude…", self)
+        self.spawnclaude_action = QAction("Summon a Drunken Robot", self)
         agents_toolbar.addAction(self.spawnclaude_action)
         self.spawnclaude_action.triggered.connect(self._on_spawnclaude)
 
