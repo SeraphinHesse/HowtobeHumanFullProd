@@ -105,18 +105,34 @@ editor features should hang off selection, not add parallel state.
   Emits `domain_selected(str)` — the only coupling to the shell. Deferred to
   Phase 5/6 data: Maps node, Buildings type→tier→level subtree, ● asset
   markers (ED-10/11).
-- **`panels/balancing.py`**: `set_domain(d)` re-reads data + schema fresh
-  from disk and rebuilds a `QFormLayout`: integer → `QSpinBox`, number →
-  `QDoubleSpinBox` (ranges from schema `minimum`/`maximum` — invalid input
-  is unrepresentable, ED-30), `enum` → `QComboBox` (typed `itemData`),
-  boolean → `QCheckBox`; tooltips carry the schema `description` (D-12
-  units/scale). Underscore keys (`_lock`) never become fields. Every widget
-  change writes the whole doc via `engine.data_io.write_validated` (ED-31) —
-  signals are connected *after* initial values are set, so form population
-  never writes. Locked domain → all fields disabled + banner
-  "Locked by <owner> since <date>" (ED-32); lock state is read at selection
-  time (re-select to refresh; no file watcher). Undo via the global
-  QUndoStack (ED-24) lands with the tilemap editor.
+- **`panels/balancing.py`** (recursive since Phase 9A): `set_domain(d)`
+  re-reads data + schema fresh from disk and rebuilds the form inside a
+  `QScrollArea`, recursing through the 9A nested tree: object →
+  `CollapsibleSection` (QToolButton arrow header; depth-1 groups start
+  expanded, deeper collapsed), array of objects → one collapsed sub-section
+  per index titled `[i] — <name>` when the item has a `name` field, array
+  of scalars → one row per index (**fixed length** — no add/remove rows;
+  `random_names` grows via the game's 9H add-name menu). Scalar leaves:
+  integer → `QSpinBox`, number → `QDoubleSpinBox` (4 decimals — boost
+  fractions go to 0.0005; ranges from schema `minimum`/`maximum` — invalid
+  input is unrepresentable, ED-30), `enum` → `QComboBox` (typed `itemData`;
+  no live domain carries one post-9A, a synthetic pair in
+  test_editor_panels keeps the branch covered), boolean → `QCheckBox`,
+  string → `QLineEdit` (commit on `editingFinished`; text shorter than
+  `minLength` is restored, not written). Local `#/$defs/` refs are resolved
+  by `_deref` (the only `$ref` kind allowed); schema-optional leaves absent
+  from the doc (tier `era_unlock_round`) are skipped. Widgets register in
+  `self._widgets` keyed by `/`-joined paths
+  (`"DefenceBuildings/BasicDefence/tiers/0/base_dmg"`); `_commit(path,
+  value)` walks the doc (numeric segment → list index) and writes the whole
+  doc via `engine.data_io.write_validated` (ED-31) — signals are connected
+  *after* initial values are set, so form population never writes. Locked
+  domain → all fields disabled + banner "Locked by <owner> since <date>"
+  (ED-32); lock state is read at selection time (re-select to refresh; no
+  file watcher). Undo via the global QUndoStack (ED-24) stays deferred.
+  Test fixture note: `test_editor_panels.TempDataCase` normalizes every
+  domain to UNLOCKED in its temp copy — the repo files are legitimately
+  locked while a feature branch exists (e.g. the 9A batch).
 - **Viewport selection-independence was Phase 4 only** — superseded by the
   Phase 5 entity-preview mode (below); tilemap-editor mode is still Phase 6.
 - **Live verification convention**: windowed runs are driven by synthetic

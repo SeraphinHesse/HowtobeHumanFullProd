@@ -1,8 +1,29 @@
 {
+  "FX": {
+    "bg_art": {
+      "enabled": true,
+      "file": "background_master.png",
+      "offset_x": -194,
+      "offset_y": -456,
+      "world_h": 1080,
+      "world_w": 1920
+    },
+    "boss_announce": {
+      "enabled": true,
+      "fade_in": 0.5,
+      "fade_out": 0.8,
+      "hold": 2.0
+    },
+    "gore_enabled": true,
+    "income_floaters_enabled": true
+  },
+  "Timing": {
+    "confirm_on_right_side": true,
+    "construct_show_cancel": true,
+    "not_enough_love_duration": 1.5
+  },
   "_lock": {
     "locked_by": "feature9A-balancing",
     "since": "2026-07-04"
-  },
-  "hud_scale": 1.0,
-  "show_fps": true
+  }
 }

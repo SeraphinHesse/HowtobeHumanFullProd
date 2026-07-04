@@ -16,11 +16,39 @@ schema, update THIS doc.**
 - `sprites/` — `asset_manifest.json` (manifest v2, D-30) + `imported/` sheet
   PNGs (committed — they are content, not build artifacts).
 
-## Balancing files (Phase 4, D-10/11/12 specifics)
+## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
 - All five domains exist: `balancing/{buildings,enemies,map,ui,core}.json`,
-  each with `schemas/<domain>.schema.json`. Values are **Phase 4
-  placeholders** — real balance lands with the Phase 9 port; `map.json`
-  holds only a placeholder multiplier until Phase 6 gives it the map format.
+  each with `schemas/<domain>.schema.json`. Since **Phase 9A** they hold the
+  prototype's live tuning verbatim, restructured into the REPLAN nested
+  feature tree (see MIGRATION_PLAN.md): PascalCase group objects
+  (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
+  tier struct-lists under a `tiers` key with the prototype's field names
+  verbatim. `_lock` stays top-level. The prototype's 4 stringified
+  LIGHTNING lists became real JSON arrays; the Features file dissolved into
+  one canonical wired flag per concept (`ui:FX/gore_enabled`,
+  `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
+  `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
+  `core:XP/xp_from_buildings`).
+- **Parity gate**: `tools/tests/balancing_parity_map.json` (committed,
+  deliberately NOT under `data/` — smoke stem-pairs everything here) maps
+  EVERY prototype live-JSON key to its new path, `MERGED:<target>`, or
+  `DROPPED:<reason>`; `tools/tests/test_balancing_parity.py` asserts
+  coverage both ways + value equality (skips whole if the prototype
+  checkout is absent). The py-only live `BOSS_ERAS` list is committed as
+  literal `_py_only` expectations (reshaped into `Boss/stats` +
+  `Boss/death_spawns`; its dead `swarm_*` fields not migrated). When you
+  move/rename a balancing key, update the mapping in the same change.
+- **Schema shape (9A)**: tier/struct subschemas live in each schema's
+  `$defs`, referenced via **local `#/$defs/` refs only** (plain
+  `jsonschema.validate` resolves in-document refs fine; cross-file still
+  forbidden). Every object level keeps `additionalProperties:false` + full
+  `required` — except `era_unlock_round`, optional in the meditator/beam/
+  wall-builder tier defs (only tier 0 carries it, prototype-verbatim). No
+  `allOf` composition (it breaks `additionalProperties:false`).
+  `random_names` has `minItems:1` and NO `maxItems` (the 9H add-name menu
+  appends). Bounds policy, documented per-domain in the schema description:
+  fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,
+  rounds/levels 0–1000, seconds 0–60, pixels ±4096.
 - **`_lock` shape (D-11)**: `"UNLOCKED"` or
   `{"locked_by": <str>, "since": "YYYY-MM-DD"}` — enforced via `oneOf`
   (`const` / closed object, `since` checked by regex pattern, not

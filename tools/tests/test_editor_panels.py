@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
+    QLineEdit,
     QSpinBox,
 )
 
@@ -56,13 +57,25 @@ def lock_domain(data_dir, domain, owner_name="featureBuildings"):
 
 
 class TempDataCase(unittest.TestCase):
-    """Copies data/ into a temp dir so writes never touch the repo."""
+    """Copies data/ into a temp dir so writes never touch the repo, and
+    normalizes every domain to UNLOCKED — the repo copy may legitimately be
+    locked while a feature branch exists (e.g. the 9A batch), but these
+    tests need a known lock state."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         shutil.copytree(REPO / "data", self.data_dir)
+        for domain in locks.DOMAINS:
+            doc = read_domain(self.data_dir, domain)
+            if doc["_lock"] != "UNLOCKED":
+                doc["_lock"] = "UNLOCKED"
+                data_io.write_validated(
+                    doc,
+                    self.data_dir / "balancing" / f"{domain}.json",
+                    self.data_dir / "schemas" / f"{domain}.schema.json",
+                )
 
 
 class TestLocks(TempDataCase):
@@ -194,15 +207,25 @@ class TestBalancingPanel(TempDataCase):
         return panel
 
     def test_widgets_generated_from_schema(self):
-        """ED-30: int -> spinbox, number -> double spinbox, enum -> combo,
-        bool -> checkbox; _lock never appears as a field."""
+        """ED-30: int -> spinbox, number -> double spinbox, bool -> checkbox,
+        string -> line edit; _lock never appears at any depth; widgets key by
+        '/'-joined paths into the 9A nested tree."""
         panel = self.make_panel("core")
-        self.assertIsInstance(panel._widgets["base_hp"], QSpinBox)
-        self.assertIsInstance(panel._widgets["combat_speed_default"], QComboBox)
+        self.assertIsInstance(panel._widgets["TheHole/base_hp"], QSpinBox)
         panel = self.make_panel("ui")
-        self.assertIsInstance(panel._widgets["hud_scale"], QDoubleSpinBox)
-        self.assertIsInstance(panel._widgets["show_fps"], QCheckBox)
-        self.assertNotIn("_lock", panel._widgets)
+        self.assertIsInstance(
+            panel._widgets["Timing/not_enough_love_duration"], QDoubleSpinBox
+        )
+        self.assertIsInstance(panel._widgets["FX/gore_enabled"], QCheckBox)
+        panel = self.make_panel("buildings")
+        self.assertIsInstance(
+            panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"], QSpinBox
+        )
+        self.assertIsInstance(
+            panel._widgets["BuildingsGlobal/random_names/0"], QLineEdit
+        )
+        for key in panel._widgets:
+            self.assertNotIn("_lock", key)
 
     def test_selection_switches_panel_content(self):
         """ED-3: the selected tree node drives the form's content."""
@@ -210,18 +233,22 @@ class TestBalancingPanel(TempDataCase):
         panel = BalancingPanel(data_dir=self.data_dir)
         selector.domain_selected.connect(panel.set_domain)
         selector.select_domain("buildings")
-        self.assertEqual(
-            set(panel._widgets), {"cost_multiplier", "sell_refund_fraction"}
-        )
+        self.assertIn("DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets)
         selector.select_domain("enemies")
-        self.assertEqual(set(panel._widgets), {"hp_multiplier", "speed_multiplier"})
+        self.assertIn("EnemyTypes/Standard/hp", panel._widgets)
+        self.assertNotIn(
+            "DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets
+        )
 
     def test_edit_writes_validated_canonical_file(self):
-        """ED-31: widget change -> write_validated -> canonical JSON on disk."""
+        """ED-31: a nested widget change -> write_validated -> the correct
+        leaf updated in canonical JSON on disk (the 9A Quick Test edit)."""
         panel = self.make_panel("buildings")
-        panel._widgets["cost_multiplier"].setValue(2.5)
+        panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"].setValue(30)
         on_disk = read_domain(self.data_dir, "buildings")
-        self.assertEqual(on_disk["cost_multiplier"], 2.5)
+        self.assertEqual(
+            on_disk["DefenceBuildings"]["BasicDefence"]["tiers"][0]["base_dmg"], 30
+        )
         path = self.data_dir / "balancing" / "buildings.json"
         text = path.read_text(encoding="utf-8")
         self.assertEqual(text, data_io.dumps_deterministic(on_disk))
@@ -230,20 +257,67 @@ class TestBalancingPanel(TempDataCase):
         """ED-30: the widget clamps to the schema's bounds — invalid values
         cannot even be entered, let alone written."""
         panel = self.make_panel("buildings")
-        widget = panel._widgets["cost_multiplier"]
-        widget.setValue(999.0)
-        self.assertEqual(widget.value(), 10.0)  # schema maximum
-        self.assertEqual(read_domain(self.data_dir, "buildings")["cost_multiplier"], 10.0)
+        widget = panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"]
+        widget.setValue(999999)
+        self.assertEqual(widget.value(), 100000)  # schema maximum (x10 scale cap)
+        on_disk = read_domain(self.data_dir, "buildings")
+        self.assertEqual(
+            on_disk["DefenceBuildings"]["BasicDefence"]["tiers"][0]["base_dmg"], 100000
+        )
 
-    def test_checkbox_and_enum_write_typed_values(self):
+    def test_checkbox_writes_typed_value(self):
         panel = self.make_panel("ui")
-        panel._widgets["show_fps"].setChecked(True)
-        self.assertIs(read_domain(self.data_dir, "ui")["show_fps"], True)
+        panel._widgets["FX/gore_enabled"].setChecked(False)
+        self.assertIs(read_domain(self.data_dir, "ui")["FX"]["gore_enabled"], False)
 
-        panel = self.make_panel("core")
-        combo = panel._widgets["combat_speed_default"]
+    def test_string_edit_writes_and_empty_is_restored(self):
+        """string -> QLineEdit; an empty edit violating minLength is restored
+        instead of written (invalid input unrepresentable, ED-30)."""
+        panel = self.make_panel("buildings")
+        widget = panel._widgets["BuildingsGlobal/random_names/0"]
+        widget.setText("Zed")
+        widget.editingFinished.emit()
+        on_disk = read_domain(self.data_dir, "buildings")
+        self.assertEqual(on_disk["BuildingsGlobal"]["random_names"][0], "Zed")
+        widget.setText("")
+        widget.editingFinished.emit()
+        self.assertEqual(widget.text(), "Zed")  # restored, nothing written
+        on_disk = read_domain(self.data_dir, "buildings")
+        self.assertEqual(on_disk["BuildingsGlobal"]["random_names"][0], "Zed")
+
+    def test_enum_widget_from_synthetic_domain(self):
+        """No live domain carries an enum after 9A; a synthetic schema/data
+        pair keeps _make_widget's enum -> QComboBox branch covered."""
+        schema = {
+            "$id": "synthetic.schema.json",
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": False,
+            "properties": {
+                "_lock": {"oneOf": [{"const": "UNLOCKED"}]},
+                "mode": {
+                    "description": "Synthetic enum for widget coverage.",
+                    "enum": [1, 2, 4],
+                    "type": "integer",
+                },
+            },
+            "required": ["_lock", "mode"],
+            "title": "synthetic",
+            "type": "object",
+        }
+        schema_path = self.data_dir / "schemas" / "synthetic.schema.json"
+        schema_path.write_text(
+            data_io.dumps_deterministic(schema), encoding="utf-8"
+        )
+        data_io.write_validated(
+            {"_lock": "UNLOCKED", "mode": 1},
+            self.data_dir / "balancing" / "synthetic.json",
+            schema_path,
+        )
+        panel = self.make_panel("synthetic")
+        combo = panel._widgets["mode"]
+        self.assertIsInstance(combo, QComboBox)
         combo.setCurrentIndex(combo.findData(4))
-        self.assertEqual(read_domain(self.data_dir, "core")["combat_speed_default"], 4)
+        self.assertEqual(read_domain(self.data_dir, "synthetic")["mode"], 4)
 
     def test_locked_domain_readonly_with_owner_shown(self):
         """ED-32: locked -> every field disabled + owner in the banner."""
@@ -277,8 +351,10 @@ class TestMainWindowWiring(TempDataCase):
         self.assertEqual(window.balancing.domain, locks.DOMAINS[0])
         window.selector.select_domain("ui")
         self.assertEqual(window.balancing.domain, "ui")
-        window.balancing._widgets["hud_scale"].setValue(1.5)
-        self.assertEqual(read_domain(self.data_dir, "ui")["hud_scale"], 1.5)
+        window.balancing._widgets["Timing/not_enough_love_duration"].setValue(2.5)
+        self.assertEqual(
+            read_domain(self.data_dir, "ui")["Timing"]["not_enough_love_duration"], 2.5
+        )
 
     def test_slot_selection_flows_through_all_panels(self):
         """Phase 5: tree node + tier dropdown + level bar resolve the slot

@@ -2,8 +2,263 @@
   "$id": "core.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Core balancing domain (D-10): phase machine / economy tunables. Phase 4 placeholder - real balance values land with the Phase 9 port.",
+  "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): general, phase loop, XP, the hole, lightning strike. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60.",
   "properties": {
+    "General": {
+      "additionalProperties": false,
+      "description": "Session-wide constants.",
+      "properties": {
+        "game_scale_rounds": {
+          "description": "Rounds per difficulty era (drives era pacing).",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "starting_currency": {
+          "description": "Love the player starts the game with.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "game_scale_rounds",
+        "starting_currency"
+      ],
+      "type": "object"
+    },
+    "LightningStrike": {
+      "additionalProperties": false,
+      "description": "The click-to-strike active ability. Per-level arrays are index-aligned: level N uses damage[N-1], radius[N-1], cooldown[N-1].",
+      "properties": {
+        "cooldown": {
+          "description": "Cooldown in rounds per level.",
+          "items": {
+            "description": "Rounds between strikes at this level.",
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "damage": {
+          "description": "Damage per level (x10 combat scale, D-12).",
+          "items": {
+            "description": "Lightning damage at this level.",
+            "maximum": 100000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "max_level": {
+          "description": "Maximum lightning level.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "radius": {
+          "description": "Strike radius in tiles per level.",
+          "items": {
+            "description": "Lightning radius at this level.",
+            "maximum": 1000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "type": "array"
+        },
+        "unlock_cost": {
+          "description": "Love cost to unlock lightning at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_costs": {
+          "description": "Love cost per upgrade (level 1->2, 2->3).",
+          "items": {
+            "description": "Love cost of this upgrade step.",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "type": "array"
+        }
+      },
+      "required": [
+        "cooldown",
+        "damage",
+        "max_level",
+        "radius",
+        "unlock_cost",
+        "upgrade_costs"
+      ],
+      "type": "object"
+    },
+    "PhaseLoop": {
+      "additionalProperties": false,
+      "description": "Round/phase machine timing.",
+      "properties": {
+        "income_phase_duration": {
+          "description": "Seconds the income phase banner/floaters play before build phase.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "round_end_delay": {
+          "description": "Seconds of pause after the last enemy dies before the income phase.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "speed_1_5x_min_round": {
+          "description": "First round the 1.5x combat speed button unlocks.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "speed_2x_min_round": {
+          "description": "First round the 2x combat speed button unlocks.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "income_phase_duration",
+        "round_end_delay",
+        "speed_1_5x_min_round",
+        "speed_2x_min_round"
+      ],
+      "type": "object"
+    },
+    "TheHole": {
+      "additionalProperties": false,
+      "description": "The base ('the hole') being defended.",
+      "properties": {
+        "base_hp": {
+          "description": "The hole's hit points, in absolute HP - deliberately NOT x10 combat scale (BASE_HP stays 10; prototype exception, D-12).",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "base_income": {
+          "description": "Love the hole itself produces per income phase.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_kills_enemies": {
+          "description": "If true, enemies that reach the hole die in it (dealing their damage).",
+          "type": "boolean"
+        },
+        "base_lives": {
+          "description": "Lives in lives mode.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "base_lives_mode": {
+          "description": "If true the hole has base_lives lives instead of an HP pool.",
+          "type": "boolean"
+        },
+        "building_revive": {
+          "description": "If true, buildings destroyed during the round revive at the income phase (canonical flag; was BUILDING_REVIVE + FEATURE_BUILDING_REVIVE).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_income",
+        "base_kills_enemies",
+        "base_lives",
+        "base_lives_mode",
+        "building_revive"
+      ],
+      "type": "object"
+    },
+    "XP": {
+      "additionalProperties": false,
+      "description": "Village XP and levelling.",
+      "properties": {
+        "levelup_love_reward": {
+          "description": "Love granted on each village levelup.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "village_xp_base_threshold": {
+          "description": "XP needed for the first village level.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "village_xp_threshold_inc": {
+          "description": "Extra XP needed per subsequent level.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "village_xp_threshold_inc_growth": {
+          "description": "Growth added to the increment each level (accelerating curve).",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_from_buildings": {
+          "description": "If true, buildings dying grants XP per BuildingsGlobal xp_on_death (canonical flag; was FEATURE_XP_FROM_BUILDINGS).",
+          "type": "boolean"
+        },
+        "xp_on_base_damage_kill": {
+          "description": "If true, enemies that die by hitting the base still grant XP.",
+          "type": "boolean"
+        },
+        "xp_per_boss": {
+          "description": "XP per boss killed.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_per_raider": {
+          "description": "XP per raider killed.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_per_siege_enemy": {
+          "description": "XP per siege cannon killed.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "xp_per_standard_enemy": {
+          "description": "XP per standard enemy killed.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "levelup_love_reward",
+        "village_xp_base_threshold",
+        "village_xp_threshold_inc",
+        "village_xp_threshold_inc_growth",
+        "xp_from_buildings",
+        "xp_on_base_damage_kill",
+        "xp_per_boss",
+        "xp_per_raider",
+        "xp_per_siege_enemy",
+        "xp_per_standard_enemy"
+      ],
+      "type": "object"
+    },
     "_lock": {
       "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
       "oneOf": [
@@ -29,27 +284,15 @@
           "type": "object"
         }
       ]
-    },
-    "base_hp": {
-      "description": "The hole's hit points, in absolute HP - deliberately NOT x10 combat scale (BASE_HP stays 10; prototype exception, D-12).",
-      "maximum": 1000,
-      "minimum": 1,
-      "type": "integer"
-    },
-    "combat_speed_default": {
-      "description": "Combat speed multiplier applied to dt in the ENEMY phase at round start; unitless. Phase 4 placeholder - real balance values land with the Phase 9 port.",
-      "enum": [
-        1,
-        2,
-        4
-      ],
-      "type": "integer"
     }
   },
   "required": [
-    "_lock",
-    "base_hp",
-    "combat_speed_default"
+    "General",
+    "LightningStrike",
+    "PhaseLoop",
+    "TheHole",
+    "XP",
+    "_lock"
   ],
   "title": "core",
   "type": "object"

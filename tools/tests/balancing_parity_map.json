@@ -1,0 +1,414 @@
+{
+  "Balancing_Buildings.json": {
+    "AOE_DEFENCE_BUILDING_TIERS": "buildings:DefenceBuildings/AOEDefence/tiers",
+    "AOE_DEFENCE_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/aoe_defence",
+    "BLOCKER_BUILDING_TIERS": "buildings:StructureBuildings/Blocker/tiers",
+    "BLOCKER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/blocker",
+    "BOOST_DAMAGE_BUILDING_TIERS": "buildings:BoostBuildings/Damage/tiers",
+    "BOOST_DAMAGE_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/boost_damage",
+    "BOOST_HP_BUILDING_TIERS": "buildings:BoostBuildings/HP/tiers",
+    "BOOST_HP_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/boost_hp",
+    "BOOST_SPEED_BUILDING_TIERS": "buildings:BoostBuildings/Speed/tiers",
+    "BOOST_SPEED_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/boost_speed",
+    "BOOST_UNLOCK_MIN_ROUND": "buildings:BoostBuildings/globals/unlock_min_round",
+    "DEFENCE_BUILDING_TIERS": "buildings:DefenceBuildings/BasicDefence/tiers",
+    "DEFENCE_MIN_ATTACK_SPEED": "buildings:DefenceBuildings/globals/min_attack_speed",
+    "DEFENCE_RANGE_AFFECTS_PATHFINDING": "buildings:BuildingsGlobal/defence_range_pathfinding/enabled",
+    "DEFENCE_RANGE_PATH_WEIGHT_ADD": "buildings:BuildingsGlobal/defence_range_pathfinding/path_weight_add",
+    "DEFENCE_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/defence",
+    "ECONOMIC_BUILDING_TIERS": "buildings:EconomyBuildings/Musicians/tiers",
+    "ECONOMIC_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/economic",
+    "FlatBoostBuildings": "buildings:BoostBuildings/globals/flat_mode",
+    "MEDITATOR_BUILDING_TIERS": "buildings:EconomyBuildings/Meditators/tiers",
+    "MEDITATOR_ERA_UNLOCK_ROUND": "buildings:EconomyBuildings/Meditators/era_unlock_round",
+    "MEDITATOR_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/meditator",
+    "PAINTER_BASE_HP": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_BASE_PAYOUT": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_BASE_UPGRADE_COST": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_BUILDING_TIERS": "buildings:EconomyBuildings/Painters/tiers",
+    "PAINTER_BUILD_COST": "DROPPED:dead-fallback: per-tier PAINTER_BUILDING_TIERS wins (painter_building.py:50-54)",
+    "PAINTER_HP_PER_LEVEL": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_MAX_ACTIVE": "DROPPED:never-read: no reader anywhere in prototype src/",
+    "PAINTER_PAYOUT_PER_LEVEL": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_ROUNDS_TO_PAYOUT": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_UNLOCK_MIN_VILLAGE_LEVEL": "buildings:EconomyBuildings/Painters/unlock_min_village_level",
+    "PAINTER_UPGRADE_COST_INCREMENT": "DROPPED:dead-fallback: per-tier wins",
+    "PAINTER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/painter",
+    "RANDOM_NAMES": "buildings:BuildingsGlobal/random_names",
+    "SUN_SCORCHER_BUILDING_TIERS": "buildings:DefenceBuildings/BeamDefence/tiers",
+    "SUN_SCORCHER_ERA_UNLOCK_ROUND": "buildings:DefenceBuildings/BeamDefence/era_unlock_round",
+    "SUN_SCORCHER_TARGET_DEATH_COOLDOWN": "buildings:DefenceBuildings/BeamDefence/target_death_cooldown",
+    "SUN_SCORCHER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/sun_scorcher",
+    "WALL_BUILDER_TIERS": "buildings:StructureBuildings/WallBuilder/tiers",
+    "WALL_BUILDER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/wall_builder",
+    "WALL_BUILDING_TIERS": "DROPPED:no-class: legacy single-tier Wall list; no Wall building class exists (walls come from WallBuilder, wall_hp per tier)",
+    "WALL_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/wall"
+  },
+  "Balancing_Core.json": {
+    "BASE_HP": "core:TheHole/base_hp",
+    "BASE_INCOME": "core:TheHole/base_income",
+    "BASE_KILLS_ENEMIES": "core:TheHole/base_kills_enemies",
+    "BASE_LIVES": "core:TheHole/base_lives",
+    "BASE_LIVES_MODE": "core:TheHole/base_lives_mode",
+    "BUILDING_REVIVE": "core:TheHole/building_revive",
+    "GAME_SCALE_ROUNDS": "core:General/game_scale_rounds",
+    "INCOME_PHASE_DURATION": "core:PhaseLoop/income_phase_duration",
+    "LEVELUP_LOVE_REWARD": "core:XP/levelup_love_reward",
+    "LIGHTNING_COOLDOWN": {
+      "path": "core:LightningStrike/cooldown",
+      "transform": "literal_eval"
+    },
+    "LIGHTNING_DAMAGE": {
+      "path": "core:LightningStrike/damage",
+      "transform": "literal_eval"
+    },
+    "LIGHTNING_MAX_LEVEL": "core:LightningStrike/max_level",
+    "LIGHTNING_RADIUS": {
+      "path": "core:LightningStrike/radius",
+      "transform": "literal_eval"
+    },
+    "LIGHTNING_UNLOCK_COST": "core:LightningStrike/unlock_cost",
+    "LIGHTNING_UPGRADE_COSTS": {
+      "path": "core:LightningStrike/upgrade_costs",
+      "transform": "literal_eval"
+    },
+    "ROUND_END_DELAY": "core:PhaseLoop/round_end_delay",
+    "SPEED_1_5X_MIN_ROUND": "core:PhaseLoop/speed_1_5x_min_round",
+    "SPEED_2X_MIN_ROUND": "core:PhaseLoop/speed_2x_min_round",
+    "STARTING_CURRENCY": "core:General/starting_currency",
+    "VILLAGE_XP_BASE_THRESHOLD": "core:XP/village_xp_base_threshold",
+    "VILLAGE_XP_THRESHOLD_INC": "core:XP/village_xp_threshold_inc",
+    "VILLAGE_XP_THRESHOLD_INC_GROWTH": "core:XP/village_xp_threshold_inc_growth",
+    "XP_ON_BASE_DAMAGE_KILL": "core:XP/xp_on_base_damage_kill",
+    "XP_PER_BOSS": "core:XP/xp_per_boss",
+    "XP_PER_RAIDER": "core:XP/xp_per_raider",
+    "XP_PER_SIEGE_ENEMY": "core:XP/xp_per_siege_enemy",
+    "XP_PER_STANDARD_ENEMY": "core:XP/xp_per_standard_enemy"
+  },
+  "Balancing_Enemies.json": {
+    "BASE_ENEMY_COUNT": "enemies:EnemyScaling/base_enemy_count",
+    "BOSS_ATTACK_RANGE_TILES": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_ATTACK_SPEED": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_DEATH_RAIDERS": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_DEATH_REGULAR": "DROPPED:superseded-by-BOSS_ERAS: unread in src/ (game.py:1322 reads per-era death_* from BOSS_ERAS)",
+    "BOSS_DEATH_SIEGE": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_DMG": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_ERA_SIZES": "enemies:EnemyTypes/Boss/era_sizes",
+    "BOSS_HP": "DROPPED:superseded-by-BOSS_ERAS: unread in src/ (boss.py reads per-era stats from the py-only BOSS_ERAS list)",
+    "BOSS_MOVE_SPEED": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
+    "BOSS_ROUND_COUNTS": "enemies:EnemyTypes/Boss/round_counts",
+    "BOSS_ROUND_INTERVAL": "enemies:EnemyTypes/Boss/round_interval",
+    "BOSS_SHAKE_INTERVAL": "enemies:EnemyTypes/Boss/shake/interval",
+    "BOSS_SHAKE_STRENGTH": "enemies:EnemyTypes/Boss/shake/strength",
+    "ENEMIES_PER_ROUND": "enemies:EnemyScaling/enemies_per_round",
+    "ENEMY_ATTACK_RANGE_TILES": "enemies:EnemyTypes/Standard/attack_range_tiles",
+    "ENEMY_ATTACK_SPEED": "enemies:EnemyTypes/Standard/attack_speed",
+    "ENEMY_DMG": "enemies:EnemyTypes/Standard/dmg",
+    "ENEMY_HP": "enemies:EnemyTypes/Standard/hp",
+    "ENEMY_MOVE_SPEED": "enemies:EnemyTypes/Standard/move_speed",
+    "ENEMY_SCALE_EVERY_N_LEVELS": "enemies:EnemyScaling/scale_every_n_levels",
+    "ENEMY_SCALE_TIERS": "enemies:EnemyScaling/scale_tiers",
+    "ENEMY_SPAWN_INTERVAL": "enemies:EnemyScaling/spawn_interval",
+    "MORTAR_PREDICTIVE_TARGETING": "enemies:MortarTargeting/predictive_targeting",
+    "RAIDER_ATTACK_RANGE_TILES": "enemies:EnemyTypes/Raider/attack_range_tiles",
+    "RAIDER_ATTACK_SPEED": "enemies:EnemyTypes/Raider/attack_speed",
+    "RAIDER_BASE_COUNT": "enemies:EnemyTypes/Raider/base_count",
+    "RAIDER_DMG": "enemies:EnemyTypes/Raider/dmg",
+    "RAIDER_HP": "enemies:EnemyTypes/Raider/hp",
+    "RAIDER_MOVE_SPEED": "enemies:EnemyTypes/Raider/move_speed",
+    "RAIDER_PER_ROUND": "enemies:EnemyTypes/Raider/per_round",
+    "RAIDER_START_ROUND": "enemies:EnemyTypes/Raider/start_round",
+    "SIEGE_ATTACK_RANGE_TILES": "enemies:EnemyTypes/SiegeCannon/attack_range_tiles",
+    "SIEGE_ATTACK_SPEED": "enemies:EnemyTypes/SiegeCannon/attack_speed",
+    "SIEGE_BASE_COUNT": "enemies:EnemyTypes/SiegeCannon/base_count",
+    "SIEGE_DMG": "enemies:EnemyTypes/SiegeCannon/dmg",
+    "SIEGE_HP": "enemies:EnemyTypes/SiegeCannon/hp",
+    "SIEGE_MIX_RATIO": "enemies:EnemyTypes/SiegeCannon/mix_ratio",
+    "SIEGE_MOVE_SPEED": "enemies:EnemyTypes/SiegeCannon/move_speed",
+    "SIEGE_QUEUE_LEAD_COUNT": "enemies:EnemyTypes/SiegeCannon/queue_lead_count",
+    "SIEGE_ROUNDS_PER_CANNON": "enemies:EnemyTypes/SiegeCannon/rounds_per_cannon",
+    "SIEGE_START_ROUND": "enemies:EnemyTypes/SiegeCannon/start_round",
+    "SPAWN_RAMP_ENABLED": "enemies:EnemyScaling/spawn_ramp_enabled",
+    "SPAWN_RAMP_RANGE": "enemies:EnemyScaling/spawn_ramp_range"
+  },
+  "Balancing_Features.json": {
+    "FEATURE_BG_ART": "MERGED:ui:FX/bg_art/enabled",
+    "FEATURE_BLOOD_STAINS": "MERGED:ui:FX/gore_enabled",
+    "FEATURE_BOSS_ANNOUNCEMENT": "ui:FX/boss_announce/enabled",
+    "FEATURE_BUILDING_REVIVE": "MERGED:core:TheHole/building_revive",
+    "FEATURE_INCOME_FLOATERS": "ui:FX/income_floaters_enabled",
+    "FEATURE_XP_FROM_BUILDINGS": "core:XP/xp_from_buildings"
+  },
+  "Balancing_Map.json": {
+    "ADJACENT_UNLOCK_ONLY": "map:TileUnlocking/adjacent_unlock_only",
+    "BASE_UNLOCK_COST": "map:TileUnlocking/base_unlock_cost",
+    "FOREST_DEF_DMG_PENALTY": "map:TileConditions/modifiers/Forest/def_dmg_penalty",
+    "FOREST_ECO_YIELD_BONUS": "map:TileConditions/modifiers/Forest/eco_yield_bonus",
+    "FOREST_ENEMY_DMG_BONUS": "map:TileConditions/modifiers/Forest/enemy_dmg_bonus",
+    "FOREST_ENEMY_SPEED_PENALTY": "map:TileConditions/modifiers/Forest/enemy_speed_penalty",
+    "MOUNTAIN_DEF_RANGE_BONUS": "map:TileConditions/modifiers/Mountain/def_range_bonus",
+    "MOUNTAIN_ECO_YIELD_PENALTY": "map:TileConditions/modifiers/Mountain/eco_yield_penalty",
+    "MOUNTAIN_ENEMY_DMG_BONUS": "map:TileConditions/modifiers/Mountain/enemy_dmg_bonus",
+    "MOUNTAIN_ENEMY_SPEED_PENALTY": "map:TileConditions/modifiers/Mountain/enemy_speed_penalty",
+    "PF_WEIGHT_AOE_DEFENCE_BUILDING": "map:Pathfinding/content_weights/aoe_defence_building",
+    "PF_WEIGHT_BASE_BUILDING": "map:Pathfinding/content_weights/base_building",
+    "PF_WEIGHT_BUILDABLE_TILE": "map:Pathfinding/content_weights/buildable_tile",
+    "PF_WEIGHT_COMBAT_TILE": "map:Pathfinding/content_weights/combat_tile",
+    "PF_WEIGHT_CONDITION_FOREST": "map:TileConditions/path_weights/forest",
+    "PF_WEIGHT_CONDITION_MOUNTAIN": "map:TileConditions/path_weights/mountain",
+    "PF_WEIGHT_CONDITION_POND": "map:TileConditions/path_weights/pond",
+    "PF_WEIGHT_DEFENCE_BUILDING": "map:Pathfinding/content_weights/defence_building",
+    "PF_WEIGHT_ECONOMIC_BUILDING": "map:Pathfinding/content_weights/economic_building",
+    "PF_WEIGHT_IMPASSABLE": "map:Pathfinding/content_weights/impassable",
+    "PF_WEIGHT_PAINTER_BUILDING": "map:Pathfinding/content_weights/painter_building",
+    "PF_WEIGHT_SPAWNING_TILE": "map:Pathfinding/content_weights/spawning_tile",
+    "POND_DEF_ATTACK_SPEED_PENALTY": "map:TileConditions/modifiers/Pond/def_attack_speed_penalty",
+    "POND_ECO_YIELD_BONUS": "map:TileConditions/modifiers/Pond/eco_yield_bonus",
+    "TILE_CONDITION_FOREST_CHANCE": "map:TileConditions/spawn_chances/forest",
+    "TILE_CONDITION_GRASS_CHANCE": "map:TileConditions/spawn_chances/grass",
+    "TILE_CONDITION_MOUNTAIN_CHANCE": "map:TileConditions/spawn_chances/mountain",
+    "TILE_CONDITION_POND_CHANCE": "map:TileConditions/spawn_chances/pond",
+    "TILE_WEIGHT_DAMAGE_MIN_ROUND": "map:Pathfinding/damage_reduction/min_round",
+    "TILE_WEIGHT_DAMAGE_REDUCTION": "map:Pathfinding/damage_reduction/reduction",
+    "TILE_WEIGHT_DAMAGE_TOP_N": "map:Pathfinding/damage_reduction/top_n",
+    "UNLOCK_COST_DISTANCE_MOD": "map:TileUnlocking/unlock_cost_distance_mod"
+  },
+  "Balancing_UI.json": {
+    "BG_ART_ENABLED": "ui:FX/bg_art/enabled",
+    "BG_ART_FILE": "ui:FX/bg_art/file",
+    "BG_ART_OFFSET_X": "ui:FX/bg_art/offset_x",
+    "BG_ART_OFFSET_Y": "ui:FX/bg_art/offset_y",
+    "BG_ART_WORLD_H": "ui:FX/bg_art/world_h",
+    "BG_ART_WORLD_W": "ui:FX/bg_art/world_w",
+    "BOSS_ANNOUNCE_FADE_IN": "ui:FX/boss_announce/fade_in",
+    "BOSS_ANNOUNCE_FADE_OUT": "ui:FX/boss_announce/fade_out",
+    "BOSS_ANNOUNCE_HOLD": "ui:FX/boss_announce/hold",
+    "CONFIRM_ON_RIGHT_SIDE": "ui:Timing/confirm_on_right_side",
+    "CONSTRUCT_SHOW_CANCEL": "ui:Timing/construct_show_cancel",
+    "GORE_ENABLED": "ui:FX/gore_enabled",
+    "NOT_ENOUGH_LOVE_DURATION": "ui:Timing/not_enough_love_duration"
+  },
+  "_policy": "Phase 9A committed mapping: every non-underscore key in each prototype Balancing_*.json appears exactly once below. Underscore-prefixed prototype keys (_lock/_comment/_section_*/..., loader-ignored markers) are excluded by rule. Entry shapes: '<domain>:<slash/path>' asserts value equality; {path, transform:'literal_eval'} parses the prototype's stringified list first; 'DROPPED:<reason>' documents a deliberate drop; 'MERGED:<domain>:<path>' points a redundant flag at its canonical home (equality still asserted). _py_only holds literal expectations for the prototype's live py-only BOSS_ERAS (balancing_enemies.py) reshaped into Boss/stats + Boss/death_spawns; its swarm_* fields were dead (round composition reads BOSS_ROUND_COUNTS) and are not migrated.",
+  "_py_only": {
+    "BOSS_ERAS[0].attack_range_tiles": {
+      "expect": 2,
+      "path": "enemies:EnemyTypes/Boss/stats/0/attack_range_tiles"
+    },
+    "BOSS_ERAS[0].attack_speed": {
+      "expect": 1.5,
+      "path": "enemies:EnemyTypes/Boss/stats/0/attack_speed"
+    },
+    "BOSS_ERAS[0].death_raiders": {
+      "expect": 5,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/0/raiders"
+    },
+    "BOSS_ERAS[0].death_regular": {
+      "expect": 10,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/0/regular"
+    },
+    "BOSS_ERAS[0].death_siege": {
+      "expect": 1,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/0/siege"
+    },
+    "BOSS_ERAS[0].dmg": {
+      "expect": 200,
+      "path": "enemies:EnemyTypes/Boss/stats/0/dmg"
+    },
+    "BOSS_ERAS[0].hp": {
+      "expect": 2000,
+      "path": "enemies:EnemyTypes/Boss/stats/0/hp"
+    },
+    "BOSS_ERAS[0].move_speed": {
+      "expect": 0.3,
+      "path": "enemies:EnemyTypes/Boss/stats/0/move_speed"
+    },
+    "BOSS_ERAS[0].name": {
+      "expect": "Bandit Chieftain",
+      "path": "enemies:EnemyTypes/Boss/stats/0/name"
+    },
+    "BOSS_ERAS[0].sprite_h": {
+      "expect": 56,
+      "path": "enemies:EnemyTypes/Boss/stats/0/sprite_h"
+    },
+    "BOSS_ERAS[0].sprite_w": {
+      "expect": 72,
+      "path": "enemies:EnemyTypes/Boss/stats/0/sprite_w"
+    },
+    "BOSS_ERAS[1].attack_range_tiles": {
+      "expect": 2,
+      "path": "enemies:EnemyTypes/Boss/stats/1/attack_range_tiles"
+    },
+    "BOSS_ERAS[1].attack_speed": {
+      "expect": 1.4,
+      "path": "enemies:EnemyTypes/Boss/stats/1/attack_speed"
+    },
+    "BOSS_ERAS[1].death_raiders": {
+      "expect": 7,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/1/raiders"
+    },
+    "BOSS_ERAS[1].death_regular": {
+      "expect": 14,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/1/regular"
+    },
+    "BOSS_ERAS[1].death_siege": {
+      "expect": 2,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/1/siege"
+    },
+    "BOSS_ERAS[1].dmg": {
+      "expect": 320,
+      "path": "enemies:EnemyTypes/Boss/stats/1/dmg"
+    },
+    "BOSS_ERAS[1].hp": {
+      "expect": 3800,
+      "path": "enemies:EnemyTypes/Boss/stats/1/hp"
+    },
+    "BOSS_ERAS[1].move_speed": {
+      "expect": 0.33,
+      "path": "enemies:EnemyTypes/Boss/stats/1/move_speed"
+    },
+    "BOSS_ERAS[1].name": {
+      "expect": "Cannon Fortress",
+      "path": "enemies:EnemyTypes/Boss/stats/1/name"
+    },
+    "BOSS_ERAS[1].sprite_h": {
+      "expect": 84,
+      "path": "enemies:EnemyTypes/Boss/stats/1/sprite_h"
+    },
+    "BOSS_ERAS[1].sprite_w": {
+      "expect": 108,
+      "path": "enemies:EnemyTypes/Boss/stats/1/sprite_w"
+    },
+    "BOSS_ERAS[2].attack_range_tiles": {
+      "expect": 2,
+      "path": "enemies:EnemyTypes/Boss/stats/2/attack_range_tiles"
+    },
+    "BOSS_ERAS[2].attack_speed": {
+      "expect": 1.3,
+      "path": "enemies:EnemyTypes/Boss/stats/2/attack_speed"
+    },
+    "BOSS_ERAS[2].death_raiders": {
+      "expect": 10,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/2/raiders"
+    },
+    "BOSS_ERAS[2].death_regular": {
+      "expect": 20,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/2/regular"
+    },
+    "BOSS_ERAS[2].death_siege": {
+      "expect": 3,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/2/siege"
+    },
+    "BOSS_ERAS[2].dmg": {
+      "expect": 480,
+      "path": "enemies:EnemyTypes/Boss/stats/2/dmg"
+    },
+    "BOSS_ERAS[2].hp": {
+      "expect": 6500,
+      "path": "enemies:EnemyTypes/Boss/stats/2/hp"
+    },
+    "BOSS_ERAS[2].move_speed": {
+      "expect": 0.36,
+      "path": "enemies:EnemyTypes/Boss/stats/2/move_speed"
+    },
+    "BOSS_ERAS[2].name": {
+      "expect": "Wrecking Ball",
+      "path": "enemies:EnemyTypes/Boss/stats/2/name"
+    },
+    "BOSS_ERAS[2].sprite_h": {
+      "expect": 84,
+      "path": "enemies:EnemyTypes/Boss/stats/2/sprite_h"
+    },
+    "BOSS_ERAS[2].sprite_w": {
+      "expect": 108,
+      "path": "enemies:EnemyTypes/Boss/stats/2/sprite_w"
+    },
+    "BOSS_ERAS[3].attack_range_tiles": {
+      "expect": 3,
+      "path": "enemies:EnemyTypes/Boss/stats/3/attack_range_tiles"
+    },
+    "BOSS_ERAS[3].attack_speed": {
+      "expect": 1.15,
+      "path": "enemies:EnemyTypes/Boss/stats/3/attack_speed"
+    },
+    "BOSS_ERAS[3].death_raiders": {
+      "expect": 13,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/3/raiders"
+    },
+    "BOSS_ERAS[3].death_regular": {
+      "expect": 26,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/3/regular"
+    },
+    "BOSS_ERAS[3].death_siege": {
+      "expect": 4,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/3/siege"
+    },
+    "BOSS_ERAS[3].dmg": {
+      "expect": 700,
+      "path": "enemies:EnemyTypes/Boss/stats/3/dmg"
+    },
+    "BOSS_ERAS[3].hp": {
+      "expect": 10000,
+      "path": "enemies:EnemyTypes/Boss/stats/3/hp"
+    },
+    "BOSS_ERAS[3].move_speed": {
+      "expect": 0.4,
+      "path": "enemies:EnemyTypes/Boss/stats/3/move_speed"
+    },
+    "BOSS_ERAS[3].name": {
+      "expect": "Iron Drill",
+      "path": "enemies:EnemyTypes/Boss/stats/3/name"
+    },
+    "BOSS_ERAS[3].sprite_h": {
+      "expect": 88,
+      "path": "enemies:EnemyTypes/Boss/stats/3/sprite_h"
+    },
+    "BOSS_ERAS[3].sprite_w": {
+      "expect": 116,
+      "path": "enemies:EnemyTypes/Boss/stats/3/sprite_w"
+    },
+    "BOSS_ERAS[4].attack_range_tiles": {
+      "expect": 3,
+      "path": "enemies:EnemyTypes/Boss/stats/4/attack_range_tiles"
+    },
+    "BOSS_ERAS[4].attack_speed": {
+      "expect": 1.0,
+      "path": "enemies:EnemyTypes/Boss/stats/4/attack_speed"
+    },
+    "BOSS_ERAS[4].death_raiders": {
+      "expect": 16,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/4/raiders"
+    },
+    "BOSS_ERAS[4].death_regular": {
+      "expect": 34,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/4/regular"
+    },
+    "BOSS_ERAS[4].death_siege": {
+      "expect": 5,
+      "path": "enemies:EnemyTypes/Boss/death_spawns/4/siege"
+    },
+    "BOSS_ERAS[4].dmg": {
+      "expect": 1000,
+      "path": "enemies:EnemyTypes/Boss/stats/4/dmg"
+    },
+    "BOSS_ERAS[4].hp": {
+      "expect": 15000,
+      "path": "enemies:EnemyTypes/Boss/stats/4/hp"
+    },
+    "BOSS_ERAS[4].move_speed": {
+      "expect": 0.45,
+      "path": "enemies:EnemyTypes/Boss/stats/4/move_speed"
+    },
+    "BOSS_ERAS[4].name": {
+      "expect": "Siege Tank",
+      "path": "enemies:EnemyTypes/Boss/stats/4/name"
+    },
+    "BOSS_ERAS[4].sprite_h": {
+      "expect": 96,
+      "path": "enemies:EnemyTypes/Boss/stats/4/sprite_h"
+    },
+    "BOSS_ERAS[4].sprite_w": {
+      "expect": 124,
+      "path": "enemies:EnemyTypes/Boss/stats/4/sprite_w"
+    }
+  }
+}

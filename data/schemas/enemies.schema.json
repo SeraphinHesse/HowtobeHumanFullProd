@@ -1,9 +1,519 @@
 {
+  "$defs": {
+    "boss_stat": {
+      "additionalProperties": false,
+      "description": "Per-era boss stats (ported from the prototype's live py-only BOSS_ERAS; its swarm_* fields were dead and are not migrated).",
+      "properties": {
+        "attack_range_tiles": {
+          "description": "Boss attack range in tiles (Chebyshev).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "attack_speed": {
+          "description": "Seconds between boss attacks.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "dmg": {
+          "description": "Boss damage per hit (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "Boss hit points (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "move_speed": {
+          "description": "Boss movement speed in tiles per second.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "name": {
+          "description": "Boss display name for this era (used by the boss announcement).",
+          "minLength": 1,
+          "type": "string"
+        },
+        "sprite_h": {
+          "description": "Canonical boss sprite canvas height in pixels.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sprite_w": {
+          "description": "Canonical boss sprite canvas width in pixels.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attack_range_tiles",
+        "attack_speed",
+        "dmg",
+        "hp",
+        "move_speed",
+        "name",
+        "sprite_h",
+        "sprite_w"
+      ],
+      "type": "object"
+    },
+    "era_size": {
+      "additionalProperties": false,
+      "description": "Per-era boss sprite render size in pixels (sprite is generated at canonical size then scaled to w x h at startup).",
+      "properties": {
+        "h": {
+          "description": "Rendered boss sprite height in pixels.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "w": {
+          "description": "Rendered boss sprite width in pixels.",
+          "maximum": 4096,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "h",
+        "w"
+      ],
+      "type": "object"
+    },
+    "scale_tier": {
+      "additionalProperties": false,
+      "description": "Additive stat scaling applied to non-boss enemies once per scale tier.",
+      "properties": {
+        "dmg": {
+          "description": "Damage added to enemy base damage at this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "HP added to enemy base HP at this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "spawn_interval": {
+          "description": "Seconds shaved off the spawn interval at this tier.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "speed": {
+          "description": "Move speed added at this tier, in tiles per second.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "dmg",
+        "hp",
+        "spawn_interval",
+        "speed"
+      ],
+      "type": "object"
+    },
+    "spawn_counts": {
+      "additionalProperties": false,
+      "description": "A mix of enemy counts by type.",
+      "properties": {
+        "raiders": {
+          "description": "Raider count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regular": {
+          "description": "Standard enemy count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "siege": {
+          "description": "Siege cannon count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "raiders",
+        "regular",
+        "siege"
+      ],
+      "type": "object"
+    }
+  },
   "$id": "enemies.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Enemies balancing domain (D-10). HP/DMG values, when they land, use the prototype's x10 combat scale (D-12). Phase 4 placeholder - real balance values land with the Phase 9 port.",
+  "description": "Enemies balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, pixels 1-4096.",
   "properties": {
+    "EnemyScaling": {
+      "additionalProperties": false,
+      "description": "Wave sizing and stat scaling across the campaign.",
+      "properties": {
+        "base_enemy_count": {
+          "description": "Enemies in round 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies_per_round": {
+          "description": "Base enemies added per round; +1 per scale tier reached.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scale_every_n_levels": {
+          "description": "Village levels between enemy scale tiers.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "scale_tiers": {
+          "description": "Additive enemy stat scaling, one entry per scale tier.",
+          "items": {
+            "$ref": "#/$defs/scale_tier"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        },
+        "spawn_interval": {
+          "description": "Base seconds between spawns within a wave.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "spawn_ramp_enabled": {
+          "description": "If true each spawn interval is jittered by 1 +/- spawn_ramp_range.",
+          "type": "boolean"
+        },
+        "spawn_ramp_range": {
+          "description": "Jitter half-range: intervals vary between (1-range)x and (1+range)x.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "base_enemy_count",
+        "enemies_per_round",
+        "scale_every_n_levels",
+        "scale_tiers",
+        "spawn_interval",
+        "spawn_ramp_enabled",
+        "spawn_ramp_range"
+      ],
+      "type": "object"
+    },
+    "EnemyTypes": {
+      "additionalProperties": false,
+      "description": "Per-type enemy stats.",
+      "properties": {
+        "Boss": {
+          "additionalProperties": false,
+          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawns[N], era_sizes[N], round_counts[N].",
+          "properties": {
+            "death_spawns": {
+              "description": "Enemies spawned where the boss dies, per era.",
+              "items": {
+                "$ref": "#/$defs/spawn_counts"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            },
+            "era_sizes": {
+              "description": "Per-era boss sprite render sizes.",
+              "items": {
+                "$ref": "#/$defs/era_size"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            },
+            "round_counts": {
+              "description": "Boss-round wave composition, per era.",
+              "items": {
+                "$ref": "#/$defs/spawn_counts"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            },
+            "round_interval": {
+              "description": "A boss round every N rounds.",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "shake": {
+              "additionalProperties": false,
+              "description": "Screen shake while the boss walks.",
+              "properties": {
+                "interval": {
+                  "description": "Seconds between shake impulses.",
+                  "maximum": 60,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "strength": {
+                  "description": "Shake amplitude (fraction of a tile).",
+                  "maximum": 60,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "interval",
+                "strength"
+              ],
+              "type": "object"
+            },
+            "stats": {
+              "description": "Per-era boss combat stats.",
+              "items": {
+                "$ref": "#/$defs/boss_stat"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            }
+          },
+          "required": [
+            "death_spawns",
+            "era_sizes",
+            "round_counts",
+            "round_interval",
+            "shake",
+            "stats"
+          ],
+          "type": "object"
+        },
+        "Raider": {
+          "additionalProperties": false,
+          "description": "Fast, fragile flanker (from round start_round).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Raiders in the first raider round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "per_round": {
+              "description": "Extra raiders added per round after start_round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_round": {
+              "description": "First round raiders appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "dmg",
+            "hp",
+            "move_speed",
+            "per_round",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "SiegeCannon": {
+          "additionalProperties": false,
+          "description": "Slow, heavy sieger (from round start_round).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Siege cannons in the first siege round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mix_ratio": {
+              "description": "Fraction of the siege allotment interleaved into the queue (rest trails).",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "queue_lead_count": {
+              "description": "How many spawn-queue slots the cannons lead the wave by.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "rounds_per_cannon": {
+              "description": "Rounds between each additional cannon added to the mix.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_round": {
+              "description": "First round siege cannons appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "dmg",
+            "hp",
+            "mix_ratio",
+            "move_speed",
+            "queue_lead_count",
+            "rounds_per_cannon",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "Standard": {
+          "additionalProperties": false,
+          "description": "The standard walker.",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "dmg",
+            "hp",
+            "move_speed"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Boss",
+        "Raider",
+        "SiegeCannon",
+        "Standard"
+      ],
+      "type": "object"
+    },
+    "MortarTargeting": {
+      "additionalProperties": false,
+      "description": "Enemy-facing mortar behavior toggles.",
+      "properties": {
+        "predictive_targeting": {
+          "description": "If true AOE mortars lead their shots at the target's predicted position.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "predictive_targeting"
+      ],
+      "type": "object"
+    },
     "_lock": {
       "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
       "oneOf": [
@@ -29,24 +539,13 @@
           "type": "object"
         }
       ]
-    },
-    "hp_multiplier": {
-      "description": "Unitless multiplier on enemy max HP (HP is x10 combat scale, D-12). Phase 4 placeholder - real balance values land with the Phase 9 port.",
-      "maximum": 10,
-      "minimum": 0,
-      "type": "number"
-    },
-    "speed_multiplier": {
-      "description": "Unitless multiplier on enemy movement speed (base rates in tiles/second land in Phase 9). Phase 4 placeholder - real balance values land with the Phase 9 port.",
-      "maximum": 10,
-      "minimum": 0,
-      "type": "number"
     }
   },
   "required": [
-    "_lock",
-    "hp_multiplier",
-    "speed_multiplier"
+    "EnemyScaling",
+    "EnemyTypes",
+    "MortarTargeting",
+    "_lock"
   ],
   "title": "enemies",
   "type": "object"

@@ -1,8 +1,59 @@
 {
+  "General": {
+    "game_scale_rounds": 15,
+    "starting_currency": 25
+  },
+  "LightningStrike": {
+    "cooldown": [
+      5,
+      3,
+      2
+    ],
+    "damage": [
+      10,
+      15,
+      32
+    ],
+    "max_level": 3,
+    "radius": [
+      1,
+      2,
+      3
+    ],
+    "unlock_cost": 20,
+    "upgrade_costs": [
+      35,
+      80
+    ]
+  },
+  "PhaseLoop": {
+    "income_phase_duration": 2.0,
+    "round_end_delay": 1.0,
+    "speed_1_5x_min_round": 10,
+    "speed_2x_min_round": 20
+  },
+  "TheHole": {
+    "base_hp": 10,
+    "base_income": 5,
+    "base_kills_enemies": true,
+    "base_lives": 3,
+    "base_lives_mode": true,
+    "building_revive": true
+  },
+  "XP": {
+    "levelup_love_reward": 25,
+    "village_xp_base_threshold": 50,
+    "village_xp_threshold_inc": 15,
+    "village_xp_threshold_inc_growth": 5,
+    "xp_from_buildings": true,
+    "xp_on_base_damage_kill": true,
+    "xp_per_boss": 150,
+    "xp_per_raider": 1,
+    "xp_per_siege_enemy": 3,
+    "xp_per_standard_enemy": 1
+  },
   "_lock": {
     "locked_by": "feature9A-balancing",
     "since": "2026-07-04"
-  },
-  "base_hp": 10,
-  "combat_speed_default": 1
+  }
 }
