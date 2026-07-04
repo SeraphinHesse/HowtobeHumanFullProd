@@ -45,6 +45,7 @@ from PySide6.QtWidgets import (
 from editor import selection
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
+from editor.spawnclaude import SpawnClaudeDialog
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
@@ -142,6 +143,14 @@ class MainWindow(QMainWindow):
         self.run_controls.build_state_changed.connect(
             self._update_playbuild_enabled)
         self._update_playbuild_enabled(self.run_controls.can_playbuild())
+
+        # ED-60/61/62: Spawnclaude — dispatch a domain-scoped claude session in
+        # its OWN terminal (not the Console dock). The editor never writes the
+        # lock; the spawned session runs /start-domain as its first move.
+        agents_toolbar = self.addToolBar("Agents")
+        self.spawnclaude_action = QAction("Spawn Claude…", self)
+        agents_toolbar.addAction(self.spawnclaude_action)
+        self.spawnclaude_action.triggered.connect(self._on_spawnclaude)
 
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the
@@ -337,6 +346,16 @@ class MainWindow(QMainWindow):
         self.playbuild_action.setToolTip(
             "" if can_playbuild else
             "Run Build first — no dist/HowToBeHuman/HowToBeHuman.exe found")
+
+    # -- spawnclaude (ED-60/61/62) -------------------------------------------
+
+    def _on_spawnclaude(self):
+        """Open the Spawnclaude dialog (locks read fresh each open, so already-
+        locked domains are greyed with their owner — ED-61). The dialog dispatches
+        into its own terminal; the editor writes no lock."""
+        dialog = SpawnClaudeDialog(
+            data_dir=self._data_dir, repo=REPO, parent=self)
+        dialog.exec()
 
     # -- frame drive ---------------------------------------------------------
 

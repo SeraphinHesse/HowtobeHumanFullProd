@@ -357,6 +357,53 @@ editor features should hang off selection, not add parallel state.
   6s under the same trigger, and stayed running (detached) under the
   final Play/Playbuild design too.
 
+## Phase 8 conventions (spawnclaude / locks / .claude commands, ED-60/61/62, T-1)
+- **`editor/spawnclaude.py`**: pure Qt-free builders (`domain_choices`,
+  `start_domain_prompt`, `small_tweak_prompt`, `spawn_command`) + `dispatch()`
+  + `SpawnClaudeDialog`. Added to `test_editor_viewport.TestPurity`. Reads locks
+  via `editor.locks` (ED-61 greying) and NEVER writes one.
+- **Three dispatch modes.** The session's first input is the LITERAL slash
+  command (passed as claude's initial-prompt arg), so Claude loads that skill
+  directly — no natural-language wrapper:
+  - **Domain** → `/start-domain <domain>`. **Delegation lock model
+    (user-confirmed, reconciles ED-60 vs. locks.py's "editor never writes
+    locks")**: the editor GUI does NOT flip any `_lock` JSON — the spawned
+    `/start-domain` skill does, so the branch+lock protocol stays the single
+    lock-writer and `/merge-domain` the only unlock (ED-62 "one enforcement
+    point"). A test asserts spawnclaude exposes no set/clear/unlock symbol.
+  - **Small tweak** → `/smalltweak <task>`. No lock, no domain scope — the
+    scope guard fail-opens when no domain is active (does NOT pop a second
+    guarded prompt).
+  - **Admin** → a blank `claude` (no initial input, no lock, no scope) for
+    unguarded work. `spawn_command(None)` omits the trailing prompt arg;
+    `dispatch(admin=True)` selects it (precedence: admin > domain > tweak).
+- **Terminal launch = Windows Terminal (`wt`) only** (user-confirmed).
+  `spawn_command` → `["wt", "-d", <repo>, "cmd", "/k", "claude", <prompt>]`;
+  `cmd /k` keeps the tab open so a launch error stays visible. The launch
+  REUSES `run_controls.start_detached` (instance-form `QProcess().startDetached()`
+  with `_real_window_environment()`) so the `SDL_VIDEODRIVER`/`AUDIODRIVER=dummy`
+  vars the viewport sets at import time are stripped from the spawned terminal —
+  same Phase 7 lesson, one tested strip point. `dispatch(detach=…)` is injectable
+  so tests capture the argv instead of spawning a real terminal.
+- **Its own terminal, not the Console dock** (resolves SPEC open-question 3,
+  already noted Phase 7). `MainWindow` gets an `addToolBar("Agents")` with a
+  single `Spawn Claude…` `QAction` → `_on_spawnclaude` (opens the dialog; locks
+  re-read on every open, no watcher).
+- **`.claude/` layout (T-1)**: `commands/` holds `start/resume/finish/merge-domain`,
+  `smalltweak`, plus the ported `processtodo`/`replace-visual`. `hooks/scope_guard.py`
+  is the PreToolUse file-scope guard (reads `.claude/active_domain`, fail-open when
+  absent; deny via the `permissionDecision:"deny"` JSON; `_norm` strips a leading
+  `./` only — NOT a leading dotdir, so `.claude/**` matches). Wired in
+  `.claude/settings.json` on `Edit|Write|MultiEdit`. Lock writes go through
+  `engine.data_io.write_validated` (the lock is a D-11 object now, not a string —
+  commands use an inline `py -c`, never hand-edit).
+- **Integration branch = `main`** (user-confirmed): `/start-domain` branches
+  `feature<Domain>` off `main` and commits the lock to `main`; `/merge-domain`
+  merges back into `main`. (The prototype's `claudeprototype` has no equivalent;
+  `phase1-engine-core` is `origin/HEAD` but stale.) Per-domain docs
+  (`game/<domain>/CLAUDE.md`) don't exist until Phase 9, so the commands fall
+  back to `game/CLAUDE.md`.
+
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it.
