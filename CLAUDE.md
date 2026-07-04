@@ -55,6 +55,21 @@ stays 10 (deliberate exception).
    confirmation: commit (brief msg) → push → PR.
 
 ## Branch + lock protocol
+
+> ⚠️ **TEMPORARY OVERRIDE (migration in progress) — read first.**
+> The branch + lock protocol below is **SUSPENDED** for all Claude agents.
+> It is no longer compatible with the engine migration and will be
+> redesigned *after* the project is migrated to the new engine setup.
+> Until this flag is removed:
+> - **Ignore branch lock protocol entirely** — do not run `/start-domain` /
+>   `/merge-domain`, do not set/clear `_lock`, do not treat any domain as
+>   LOCKED.
+> - For each new phase of the engine creation plan (`PLAN.md`) or the
+>   `MIGRATION_PLAN.md`, simply **create one new branch for that phase** and
+>   work on it.
+> - The "never run destructive git on uncommitted work" and "never commit
+>   `build/`/`dist/`/`*.exe`" rules below **still apply**.
+
 Ported from the prototype (commands land in `.claude/commands/`, PLAN phase 8):
 - `/start-domain <domain>` → lock that domain's `data/balancing/*.json`
   `_lock`, branch `feature<Domain>`.
