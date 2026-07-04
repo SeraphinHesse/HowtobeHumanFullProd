@@ -23,7 +23,13 @@ main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
+if getattr(sys, "frozen", False):
+    # PyInstaller one-folder build (T-4): --add-data bundles data/ under
+    # _internal/, not next to the exe — sys._MEIPASS is PyInstaller's own
+    # pointer to wherever bundled resources actually live (onedir or onefile).
+    REPO = Path(sys._MEIPASS)
+else:
+    REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 import pygame

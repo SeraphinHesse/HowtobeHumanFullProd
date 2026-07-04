@@ -10,6 +10,7 @@ venv/
 build/
 dist/
 *.exe
+*.spec
 
 # ── Editor / tooling state ───────────────────────────────
 .editor_prefs.json

@@ -2,3 +2,4 @@ pygame-ce
 PySide6
 Pillow
 jsonschema
+pyinstaller

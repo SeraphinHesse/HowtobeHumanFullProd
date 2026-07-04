@@ -345,12 +345,25 @@ where they land. Port order and per-domain acceptance work is PLAN.md phase 9+.
 ### 7.6 Run controls
 
 - **ED-50** **Play**: save all dirty data → validate → launch
-  `py game/main.py` as a subprocess. Editor stays open; subprocess output
-  captured to an editor console pane.
-- **ED-51** **Build**: run the PyInstaller build (tools/build script);
-  progress + errors surfaced in the console pane.
-- **ED-52** **Playbuild**: launch `dist/HowToBeHuman/HowToBeHuman.exe`;
-  disabled with a hint when no build exists.
+  `py game/main.py` **detached** (revised in phase 7: it's a long-running
+  GUI process the user closes on their own schedule — tracking it via a
+  QProcess parented to the editor crashed live with `RuntimeError: Signal
+  source has been deleted`; a detached launch has no Qt object to outlive).
+  Editor stays open; the console pane gets a one-line launch
+  confirmation/failure note, not streamed output. The detached child MUST
+  get a real-driver environment, not the editor's own — `editor/panels/
+  viewport.py` forces `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER=dummy` in the
+  editor process for its offscreen surface, which every subprocess
+  inherits by default; without stripping those two vars, Play ran the
+  real game (fps printed to console) but rendered into an invisible
+  surface — found live, not by automated tests.
+- **ED-51** **Build**: run the PyInstaller build (tools/build script) as a
+  tracked subprocess; progress + errors surfaced live in the console pane
+  (requires `PYTHONUNBUFFERED=1` — Python fully block-buffers stdout once
+  it isn't a tty).
+- **ED-52** **Playbuild**: launch `dist/HowToBeHuman/HowToBeHuman.exe`
+  **detached** (same reasoning as ED-50); disabled with a hint when no
+  build exists.
 
 ### 7.7 Spawnclaude & access
 
@@ -394,7 +407,8 @@ where they land. Port order and per-domain acceptance work is PLAN.md phase 9+.
    the slot registry is authored (phase 5); buildings 64×96 and tiles 64×32
    carry over.
 2. Access-limitation ideas beyond locks (ED-63) — pending designer input.
-3. Editor console pane scope (Play output only vs. also agent session logs) —
-   decide at phase 7/8.
+3. ~~Editor console pane scope~~ — **Resolved (phase 7):** Play +
+   Build/Playbuild subprocess output only. Spawnclaude's agent session
+   (phase 8) gets its own terminal, not this pane.
 4. Whether `ui`/`vfx` get their own balancing domains + locks or fold into
    `core` — decide when porting begins (phase 9).

@@ -260,6 +260,103 @@ editor features should hang off selection, not add parallel state.
   Details panel while a different tree node was selected never refreshed
   the palette's brush icons before this fix).
 
+## Phase 7 conventions (run controls, ED-1/ED-50/51/52, T-4)
+- **`editor/run_controls.py`**: pure, Qt-optional builders (`play_command`,
+  `build_command`, `playbuild_path`, `build_exists`) plus `RunControls
+  (QObject)`.
+- **Play and Playbuild are DETACHED, not tracked** — this is a deliberate
+  deviation from ED-50's literal "subprocess output captured to an editor
+  console pane" wording for Play, confirmed live and user-directed: both
+  spawn a long-running GUI process (a pygame window / the frozen exe) that
+  the user closes on their own schedule, and a QProcess parented to
+  `RunControls` for that whole lifetime crashed live with `RuntimeError:
+  Signal source has been deleted` when its `finished` signal fired. Only a
+  one-line `launched(which, started_ok)` signal fires (console gets a
+  "launched ... (detached)" or "FAILED to launch ..." note) — no output
+  streaming. Three live-verification catches on the way to a working
+  detached launch, in the order found:
+  1. The static `QProcess.startDetached(program, args, workingDirectory)`
+     returns `(ok, pid)` in this PySide6 version, NOT a bare bool —
+     emitting the raw tuple into a `Signal(str, bool)` threw a Shiboken
+     conversion error at the `.emit()` call site.
+  2. **The real bug, found only by testing in an actual terminal (not my
+     own automation)**: `editor/panels/viewport.py` sets
+     `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER` to `"dummy"` in `os.environ` at
+     import time, for its OWN offscreen render surface (Phase 3
+     convention). Since that's a real process-environment mutation, EVERY
+     subprocess the editor spawns inherits it — so Play/Playbuild launched
+     a real `game/main.py` / `HowToBeHuman.exe` that ran its full loop and
+     printed "fps: N" every second (spamming whatever console it shared),
+     but rendered into an invisible dummy surface: no window ever
+     appeared. `editor/run_controls.py`'s `_real_window_environment()`
+     strips both vars from a copy of `QProcessEnvironment.
+     systemEnvironment()` before handing it to the detached child — a
+     regression test (`test_real_window_environment_strips_sdl_dummy_vars`)
+     reproduces the exact scenario by setting the same dummy vars the test
+     file already sets for its own headless conventions.
+  3. Handing that environment to a detached child requires the INSTANCE
+     form `QProcess().startDetached()` (no args) — the static overload
+     only takes program/arguments/workingDirectory, no environment.
+     `run_controls.start_detached(program, arguments, working_dir)` is a
+     plain module function wrapping this; `RunControls._detach` holds it
+     as an **instance attribute** (not a bound method lookup) specifically
+     so tests can substitute a fake launcher — mocking `QProcess.
+     startDetached` directly (even with `unittest.mock.patch.object(...,
+     autospec=True)`) silently failed to intercept the Shiboken-bound
+     call, and the real method ran unmocked during a test.
+- **Build stays tracked** (short-lived, progress matters): `RunControls`
+  owns exactly one `QProcess` at a time for it — a second `build()` while
+  one is in flight is refused, not queued. Signals: `output(str)` (merged
+  stdout+stderr), `started("build")`, `finished("build", code)`,
+  `build_state_changed(can_playbuild)`. `_on_ready_read`/`_on_finished`
+  guard with `shiboken6.isValid(self)` before emitting, in case the editor
+  is torn down mid-build. `RunControls` does NOT save dirty data or
+  validate schemas — `MainWindow` does that before calling `.play()` —
+  keeping this module a dumb subprocess launcher ("editor never runs game
+  logic in-process"). Must stay in `test_editor_viewport.TestPurity`'s
+  import list.
+- **Unbuffered subprocess output is required for Build, not optional**:
+  its `QProcess` gets `PYTHONUNBUFFERED=1` injected into its environment
+  (`QProcessEnvironment.systemEnvironment()` + `insert`, never a bare
+  environment — that would drop `PATH` etc.). Python fully block-buffers
+  stdout once it isn't a tty (the QProcess pipe case), so without this the
+  console pane shows nothing until the subprocess exits — verified live:
+  omitting it left `console_len=0` seconds into a run; with it, output
+  streamed within 10s of a PyInstaller build.
+- **Console pane scope (resolves SPEC.md open question 3)**: Build's
+  streamed progress + Play/Playbuild's one-line launch notes, in a
+  `QDockWidget` docked bottom wrapping a read-only `QPlainTextEdit`.
+  Spawnclaude's agent session (Phase 8) gets its own terminal, not this
+  pane.
+- **`MainWindow` wiring**: `addToolBar("Run")` holds three `QAction`s
+  (Play/Build/Playbuild) — the first chrome beyond the undo/redo
+  window-actions and the status bar. `_on_play()`: if `map_session.dirty`,
+  `save()` it (balancing/import panels already write on every edit, so
+  nothing else needs flushing); then `tools.smoke.validate_data(data_dir)`
+  (reused, not duplicated) — on failure, `QMessageBox.critical` and abort,
+  no launch. Only `build_action` disables on `started`/re-enables on
+  `finished` (Play/Playbuild aren't tracked, so nothing to disable while
+  they run). Playbuild gates on `RunControls.can_playbuild()`, re-checked
+  via `build_state_changed` after every Build; disabled state carries a
+  tooltip hint ("Run Build first…").
+- **`tools/build.py`** (T-4): PyInstaller one-folder build, same
+  pure-builder-plus-thin-`main()` shape as `tools/smoke.py`; calls
+  `tools.smoke.validate_data()` first (fail loud before a slow build).
+  Invoked as `[sys.executable, "-m", "PyInstaller", ...]` (not a bare
+  `pyinstaller` console-script, which may not be on PATH), `--onedir`,
+  `--add-data` separator via `os.pathsep`. Output: `dist/HowToBeHuman/
+  HowToBeHuman.exe`. `*.spec` (PyInstaller drops one at repo root every
+  build) is gitignored alongside `build/`/`dist/`/`*.exe`.
+- **Frozen-exe data path (`game/main.py`)**: PyInstaller 6.x's `--onedir`
+  nests `--add-data` targets under `_internal/`, NOT next to the exe —
+  confirmed live (a `Path(sys.executable).parent`-based fix built cleanly
+  but the frozen exe exited within ~4s; `data/` wasn't found). Fixed via
+  `sys._MEIPASS` (PyInstaller's own pointer to wherever bundled resources
+  live, correct for both onedir and onefile) instead of deriving from
+  `sys.executable`. Re-verified live: the rebuilt exe stayed running past
+  6s under the same trigger, and stayed running (detached) under the
+  final Play/Playbuild design too.
+
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it.

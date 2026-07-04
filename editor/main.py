@@ -29,11 +29,13 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtGui import QAction, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
+    QDockWidget,
     QMainWindow,
     QMessageBox,
+    QPlainTextEdit,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -42,6 +44,7 @@ from PySide6.QtWidgets import (
 
 from editor import selection
 from editor.map_session import MapSession
+from editor.run_controls import RunControls
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
@@ -49,6 +52,7 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
+from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
 
@@ -58,6 +62,8 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("How To Be Human — editor")
         self.resize(1280, 720)
+
+        self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
 
         self.viewport = ViewportPanel(data_dir=data_dir)
         self.selector = SelectorPanel(data_dir=data_dir)
@@ -108,6 +114,34 @@ class MainWindow(QMainWindow):
         redo.triggered.connect(self.map_session.undo_stack.redo)
         self.addAction(undo)
         self.addAction(redo)
+
+        # ED-50/51/52: run controls toolbar + console pane (Play/Build output
+        # only — spawnclaude gets its own terminal in Phase 8)
+        self.run_controls = RunControls(data_dir=data_dir, parent=self)
+        self.console = QPlainTextEdit(readOnly=True)
+        self.console.setFont(QFont("Consolas", 9))
+        console_dock = QDockWidget("Console", self)
+        console_dock.setWidget(self.console)
+        self.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, console_dock)
+
+        run_toolbar = self.addToolBar("Run")
+        self.play_action = QAction("Play", self)
+        self.build_action = QAction("Build", self)
+        self.playbuild_action = QAction("Playbuild", self)
+        run_toolbar.addAction(self.play_action)
+        run_toolbar.addAction(self.build_action)
+        run_toolbar.addAction(self.playbuild_action)
+
+        self.play_action.triggered.connect(self._on_play)
+        self.build_action.triggered.connect(self.run_controls.build)
+        self.playbuild_action.triggered.connect(self.run_controls.playbuild)
+        self.run_controls.output.connect(self.console.appendPlainText)
+        self.run_controls.launched.connect(self._on_launched)
+        self.run_controls.started.connect(self._on_build_started)
+        self.run_controls.finished.connect(self._on_build_finished)
+        self.run_controls.build_state_changed.connect(
+            self._update_playbuild_enabled)
+        self._update_playbuild_enabled(self.run_controls.can_playbuild())
 
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the
@@ -270,6 +304,39 @@ class MainWindow(QMainWindow):
         self.viewport.reload_assets()
         self.selector.refresh_markers()
         self.palette.refresh_icons()
+
+    # -- run controls (ED-50/51/52) ------------------------------------------
+
+    def _on_play(self):
+        if self.map_session.dirty:
+            self.map_session.save()
+        try:
+            validate_data(self._data_dir)
+        except Exception as exc:
+            QMessageBox.critical(self, "Play", f"Data validation failed:\n{exc}")
+            return
+        self.run_controls.play()
+
+    def _on_launched(self, which, started_ok):
+        """Play/Playbuild are detached (fire-and-forget, own GUI window) —
+        no tracked process, just a one-line console note."""
+        label = "game/main.py" if which == "play" else "HowToBeHuman.exe"
+        self.console.appendPlainText(
+            f"{which}: launched {label} (detached)" if started_ok
+            else f"{which}: FAILED to launch {label}")
+
+    def _on_build_started(self, _which):
+        self.build_action.setEnabled(False)
+
+    def _on_build_finished(self, _which, _code):
+        self.build_action.setEnabled(True)
+        self._update_playbuild_enabled(self.run_controls.can_playbuild())
+
+    def _update_playbuild_enabled(self, can_playbuild):
+        self.playbuild_action.setEnabled(can_playbuild)
+        self.playbuild_action.setToolTip(
+            "" if can_playbuild else
+            "Run Build first — no dist/HowToBeHuman/HowToBeHuman.exe found")
 
     # -- frame drive ---------------------------------------------------------
 
