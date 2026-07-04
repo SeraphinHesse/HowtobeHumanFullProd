@@ -1,4 +1,7 @@
 {
-  "_lock": "UNLOCKED",
+  "_lock": {
+    "locked_by": "feature9A-balancing",
+    "since": "2026-07-04"
+  },
   "tile_unlock_cost_multiplier": 0.5
 }

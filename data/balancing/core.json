@@ -1,5 +1,8 @@
 {
-  "_lock": "UNLOCKED",
+  "_lock": {
+    "locked_by": "feature9A-balancing",
+    "since": "2026-07-04"
+  },
   "base_hp": 10,
   "combat_speed_default": 1
 }
