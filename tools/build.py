@@ -30,6 +30,11 @@ def build_command(data_dir=None, dist_dir=None, repo=None):
         "--distpath", str(dist_dir),
         "--workpath", str(repo / "build"),
         "--add-data", f"{data_dir}{os.pathsep}data",
+        # Bundle OpenCV (cutscene playback, engine/video.py): --collect-all
+        # pulls cv2's binaries + data + submodules; --hidden-import guards the
+        # lazy `import cv2` PyInstaller's static analysis can't otherwise see.
+        "--collect-all", "cv2",
+        "--hidden-import", "cv2",
     ]
 
 

@@ -62,6 +62,13 @@ class Component:
 
     # -- lifecycle hooks (called by GameObject) ---------------------------
 
+    def on_added(self, owner):
+        """Owner seam: called by GameObject.add_component right after this
+        component is appended. Default no-op. A component that needs its
+        owner's transform caches it here as ``self._owner = owner`` — an
+        underscore-prefixed transient (non-authoritative), which is fine:
+        the E-11 setattr guard is on GameObject, not Component."""
+
     def update(self, dt):
         """Optional per-frame behavior; dt in seconds."""
 

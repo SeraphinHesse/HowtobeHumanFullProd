@@ -155,10 +155,98 @@ an engine task; if an engine change forces a caller change, tell the user
   optional dim overrides — each map owns its dims (D-20); geometry.json
   keeps pitch/zoom as global truth plus fallback dims for map-less hosts.
 
+## Phase 9B conventions (physics / components / HUD data)
+Everything below is pure Python — no pygame — and headless-testable.
+
+- **`engine/physics/` primitives** (generic; no game vocabulary):
+  - `SpatialGrid(cell_size=1.0)` (`grid.py`, E-31) — buckets objects by
+    `(floor(wx/cell), floor(wy/cell))`; objects expose
+    `obj.transform.world_pos`. `insert/remove/move/rebuild`;
+    `query_radius(world_pos, radius)` (Euclidean; scans candidate cells then
+    exact-tests) and `query_chebyshev(center_tile, range_tiles)` (tile =
+    `(round(wx), round(wy))`, `max(|Δcol|,|Δrow|) <= range`). Returns are in
+    **insertion order** (deterministic). Cell membership is fixed at
+    insert/rebuild; the exact tests read **live** `world_pos`, so callers keep
+    membership fresh via `move()` or a periodic `rebuild()`.
+  - `TileOccupancy` (`occupancy.py`, E-32) — `(col,row) -> obj`, one occupant
+    per tile: `set/clear/get/is_occupied` (tile keys normalized to tuples).
+  - `advance(pos, waypoints, index, speed, dt, threshold=0.06)`
+    (`movement.py`, E-30) — pure waypoint step, prototype-exact
+    (`enemy.py _do_move`): snap onto the waypoint and advance the index when
+    within `threshold`, else step `speed*dt` along the unit direction (no
+    overshoot clamp). Returns `(new_pos, new_index, arrived_this_step,
+    reached_end)`.
+- **`on_added(self, owner)` owner seam** — `Component.on_added` is a default
+  no-op; `GameObject.add_component` calls it right after appending. A component
+  that needs its owner's transform caches `self._owner = owner` (underscore
+  transient — the E-11 setattr guard is on GameObject, not Component).
+- **New components** (declared fields only, JSON-safe):
+  - `Movement` (`core/movement.py`) — `waypoints/speed/index/
+    arrival_threshold/arrived`; `on_added` caches the owner, `update(dt)`
+    drives the owner's transform via `physics.advance`, sets `arrived` at
+    end-of-path. Inert with no waypoints or once arrived.
+  - `RangeSensor` (`core/range_sensor.py`) — `range_tiles`; `in_range(my_tile,
+    other_tile)` (pure Chebyshev) and `query(grid, center_tile)` (delegates to
+    `grid.query_chebyshev`). Sticky-target / nearest-enemy tiebreak is GAME
+    logic (9D/9E), NOT here — the engine only supplies candidates.
+- **`Scene` spatial queries** — Scene owns a `SpatialGrid`, `rebuild`t once at
+  the start of each `update(dt)` (after the spawn queue). `query_area(world_pos,
+  radius)` → `grid.query_radius`; `query_chebyshev(center_tile, range_tiles)` →
+  `grid.query_chebyshev`. `by_type`/`by_tag`/`render_items` unchanged.
+- **HUD data pass** (`render/hud.py`, E-12) — four frozen, pure, screen-space
+  dataclasses: `HudRect`, `HudText`, `HudSprite`, `HudLines`. The host calls
+  `Renderer.submit_hud(item)`; at `flush`, AFTER sprites and overlay lines, HUD
+  items fold into the same flat draw list **in screen space (no coords
+  conversion, no depth sort)** — `HudSprite` resolves to a `DrawCall` via
+  `assets.frame(slot_key)`, the other three pass through as-is for the pygame
+  backend to `isinstance`-dispatch (mirrors `OverlayLines`). `_hud` clears each
+  flush; HUD count folds into the returned count.
+- **`engine/video_playback.py`** (E-12) — pure clock/state machine
+  (`VideoPlayback(length, enabled=True)`) the cv2 video source composes for
+  timing: `advance(dt)` accumulates and marks `done` at the `length` cap;
+  `finish/skip/mark_source_ended` all end it; `enabled=False` starts `done`
+  (graceful disable). `length` is a constructor param (engine stays
+  game-agnostic; the prototype's 44.2 s cap is a caller concern).
+
+## Phase 9B conventions (render backend HUD / fonts / audio / video)
+- **`render/fonts.py`** — a lazy `SysFont("monospace", …)` cache keyed by
+  font_key (`sm/md/lg/xl/xxl` = prototype `src/ui/fonts.py` 1:1, lg/xl/xxl
+  bold; plus `hud_phase=14`, `hud_lvl=12`). `get_font(key)` builds on first
+  use (unknown key → 'md'); `TextMetrics().size(text, key)` → `(w, h)` for
+  layout without blitting. `pygame.font.init()` is called defensively — works
+  headless under SDL dummy. Pure-metadata code that needs string widths asks
+  `TextMetrics` so it never imports pygame itself.
+- **`render/backend.py` HUD pass** — the backend's flat draw list is
+  heterogeneous: sprite `DrawCall`, `OverlayLines` (E-24), and the screen-space
+  HUD primitives the RENDERER folds in AFTER sprites+overlays: `HudRect`
+  (`pygame.draw.rect` with `border_radius`/`width`), `HudLines`
+  (`pygame.draw.lines`), `HudText` (rendered via the `fonts.py` cache, blitted
+  at `pos`, `align` left/center/right shifts x by text width). `HudSprite` is
+  resolved to a `DrawCall` by the renderer and never reaches the backend. HUD
+  coords are already screen-space — the backend does NOT convert them.
+  Dispatch is `isinstance`, mirroring `OverlayLines`; the HUD dataclasses live
+  in `render/hud.py`. The font cache is lazy, so non-text frames pay nothing.
+- **`engine/audio.py`** — thin `pygame.mixer.music` wrapper
+  (`play_music`/`stop_music`/`set_volume`). Every call swallows ALL exceptions
+  → silent no-op when audio is unavailable (no device, missing file, mixer not
+  initialised, SDL dummy). No game vocabulary; the caller passes the path.
+- **`engine/video.py`** — OpenCV `VideoSource(path, length, target_size=None)`
+  for the cutscene. cv2 is imported LAZILY; graceful skip (`enabled=False`,
+  `done=True` immediately) if cv2 is absent, the file is missing, or the
+  capture won't open — never crashes, never hangs, headless-safe. Timing is
+  delegated to the pure `engine.video_playback` clock (composed; an in-file
+  fallback clock keeps it standalone). `update(dt)` advances + reads one frame;
+  `frame_surface()` does BGR→RGB → optional resize →
+  `pygame.surfarray.make_surface`; `skip()`/`release()` free the capture.
+  opencv-python is an OPTIONAL requirement (absent = cutscene skips);
+  `tools/build.py` bundles it for the frozen exe via `--collect-all cv2`
+  `--hidden-import cv2`.
+
 ## Hard rules
-- **pygame imports are allowed ONLY in** `render/`'s backend and the asset
-  surface cache. `coords/`, `core/`, `physics/`, and asset *metadata* code are
-  pure Python — that is what keeps game logic headless-testable.
+- **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
+  the asset surface cache, `engine/audio.py`, and `engine/video.py`. `coords/`,
+  `core/`, `physics/`, and asset *metadata* code are pure Python — that is what
+  keeps game logic headless-testable.
 - Rendering never raises on a missing asset (grey X instead).
 - No game-specific names in the engine (no "raider", no "flute_player") —
   those belong in `game/` and `data/`.

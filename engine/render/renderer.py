@@ -9,7 +9,10 @@ position with its BOTTOM edge on the bottom of that tile's diamond
 (world_to_screen y + tile_h·zoom). A 64x32 tile frame therefore covers its
 diamond exactly; taller frames (e.g. 64x96 buildings) rise above it.
 """
+from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import LAYERS, DrawCall, OverlayLines
+
+_HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
 
 
 class Renderer:
@@ -19,6 +22,7 @@ class Renderer:
         self._backend = backend
         self._queue = []
         self._overlay = []
+        self._hud = []
 
     def submit(self, item):
         if item.layer not in LAYERS:
@@ -32,6 +36,17 @@ class Renderer:
         if len(points) < 2:
             raise ValueError("overlay polyline needs at least 2 points")
         self._overlay.append(OverlayLines(tuple(points), color, width, closed))
+
+    def submit_hud(self, item):
+        """HUD pass (E-12): a screen-space primitive (HudRect / HudText /
+        HudSprite / HudLines). Folded into the flat draw list after every
+        sprite and overlay at flush — HUD always draws last, in pixels."""
+        if not isinstance(item, _HUD_TYPES):
+            raise TypeError(
+                f"submit_hud expects one of {[t.__name__ for t in _HUD_TYPES]}, "
+                f"got {type(item).__name__}"
+            )
+        self._hud.append(item)
 
     def flush(self, target):
         """Draw all submitted items to `target`, clear the queue, and return
@@ -71,12 +86,28 @@ class Renderer:
                 width=lines.width,
                 closed=lines.closed,
             ))
+        # HUD pass (E-12): screen space already — no coords conversion, no
+        # depth sort. Sprites resolve to DrawCalls; the rest pass through for
+        # the backend to isinstance-dispatch (like OverlayLines).
+        for hud in self._hud:
+            if isinstance(hud, HudSprite):
+                frame = self._assets.frame(hud.slot_key)
+                draw_calls.append(DrawCall(
+                    surface=frame.surface,
+                    dest=hud.dest,
+                    size=hud.size,
+                    tint=hud.tint,
+                    flip=hud.flip,
+                ))
+            else:
+                draw_calls.append(hud)
         if self._backend is None:
             from . import backend as _pygame_backend
 
             self._backend = _pygame_backend.draw
         self._backend(target, draw_calls)
-        count = len(self._queue) + len(self._overlay)
+        count = len(self._queue) + len(self._overlay) + len(self._hud)
         self._queue.clear()
         self._overlay.clear()
+        self._hud.clear()
         return count

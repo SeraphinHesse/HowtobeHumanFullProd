@@ -46,6 +46,15 @@ class TestBuildCommand(unittest.TestCase):
         cmd = build_command(dist_dir=Path("X"), repo=REPO)
         self.assertEqual(cmd[cmd.index("--distpath") + 1], "X")
 
+    def test_bundles_cv2_for_cutscene(self):
+        # OpenCV (engine/video.py) is bundled so the frozen exe can play the
+        # cutscene; without these flags PyInstaller misses the lazy import.
+        cmd = build_command(repo=REPO)
+        self.assertIn("--collect-all", cmd)
+        self.assertEqual(cmd[cmd.index("--collect-all") + 1], "cv2")
+        self.assertIn("--hidden-import", cmd)
+        self.assertEqual(cmd[cmd.index("--hidden-import") + 1], "cv2")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -6,6 +6,7 @@ pygame-ce        # core engine (do NOT also install plain 'pygame' - they confli
 PySide6          # editor UI (editor/main.py)
 Pillow           # image loading for editor asset import (editor/asset_import.py, panels/details.py)
 jsonschema       # validates data/ JSON against data/schemas/
+opencv-python    # cutscene playback (engine/video.py) — OPTIONAL: absent = cutscene gracefully skips
 
 # Only needed if you want to build the .exe with build.bat:
 pyinstaller

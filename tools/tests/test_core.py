@@ -261,9 +261,18 @@ class TestSceneOrderAndQueries(unittest.TestCase):
         self.assertEqual(list(scene.by_tag("static")), [g])
         self.assertEqual(list(scene.by_tag("none")), [])
 
-    def test_area_query_stub_until_physics(self):
-        with self.assertRaises(NotImplementedError):
-            Scene().query_area((0, 0), 3)
+    def test_area_query_delegates_to_grid(self):
+        # query_area now delegates to the spatial grid (E-31), rebuilt each
+        # update from live transforms. Empty scene → empty result, no raise.
+        scene = Scene()
+        self.assertEqual(scene.query_area((0, 0), 3), [])
+        near = GameObject(name="near", transform=Transform(1.0, 0.0))
+        far = GameObject(name="far", transform=Transform(9.0, 9.0))
+        scene.spawn(near)
+        scene.spawn(far)
+        scene.update(0.016)  # rebuilds the grid from spawned objects
+        self.assertEqual(scene.query_area((0, 0), 2.0), [near])
+        self.assertEqual(scene.query_chebyshev((0, 0), 1), [near])
 
 
 class TestPurity(unittest.TestCase):

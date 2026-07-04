@@ -9,6 +9,7 @@ render submit (E-14).
 
 Pure Python — no pygame.
 """
+from engine.physics import SpatialGrid
 
 
 class Scene:
@@ -16,6 +17,7 @@ class Scene:
         self._objects = []  # live, in spawn order (E-14 determinism)
         self._spawn_queue = []
         self._despawn_queue = []
+        self._grid = SpatialGrid()  # rebuilt each update from live transforms
 
     # -- lifecycle queues (E-13) -------------------------------------------
 
@@ -31,6 +33,11 @@ class Scene:
             self._objects.append(obj)
             obj.on_spawn()
         self._spawn_queue.clear()
+        # Rebuild the spatial grid once per frame (E-31): buckets objects by
+        # their position now, so this frame's queries hit an up-to-date grid.
+        # (Exact distance/tile tests read live transforms; the once-per-frame
+        # rebuild keeps cell membership fresh — see engine/physics/grid.py.)
+        self._grid.rebuild(self._objects)
         for obj in list(self._objects):  # snapshot: mid-update spawns wait
             obj.update(dt)
         for obj in self._despawn_queue:
@@ -51,10 +58,14 @@ class Scene:
         return [obj for obj in self._objects if tag in obj.tags]
 
     def query_area(self, world_pos, radius):
-        raise NotImplementedError(
-            "area queries delegate to the spatial grid (E-31), which lands "
-            "with engine/physics — see PLAN.md phase 9"
-        )
+        """Objects within Euclidean `radius` of `world_pos` (E-31), via the
+        spatial grid rebuilt at the start of the last update."""
+        return self._grid.query_radius(world_pos, radius)
+
+    def query_chebyshev(self, center_tile, range_tiles):
+        """Objects within Chebyshev tile `range_tiles` of `center_tile` — the
+        square range used by tile-range targeting (E-31)."""
+        return self._grid.query_chebyshev(center_tile, range_tiles)
 
     # -- render submit leg of the frame (E-14 / E-20) -------------------------
 

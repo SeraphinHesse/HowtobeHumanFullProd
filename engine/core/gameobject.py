@@ -47,6 +47,7 @@ class GameObject:
 
     def add_component(self, component):
         self.components.append(component)
+        component.on_added(self)  # owner seam (E-12): lets a component cache us
         return component
 
     def get_component(self, cls):
