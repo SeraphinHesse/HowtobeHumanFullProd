@@ -52,8 +52,5 @@
     "xp_per_siege_enemy": 3,
     "xp_per_standard_enemy": 1
   },
-  "_lock": {
-    "locked_by": "feature9A-balancing",
-    "since": "2026-07-04"
-  }
+  "_lock": "UNLOCKED"
 }

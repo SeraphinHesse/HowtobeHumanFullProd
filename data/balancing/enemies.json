@@ -208,8 +208,5 @@
   "MortarTargeting": {
     "predictive_targeting": true
   },
-  "_lock": {
-    "locked_by": "feature9A-balancing",
-    "since": "2026-07-04"
-  }
+  "_lock": "UNLOCKED"
 }

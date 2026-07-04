@@ -22,8 +22,5 @@
     "construct_show_cancel": true,
     "not_enough_love_duration": 1.5
   },
-  "_lock": {
-    "locked_by": "feature9A-balancing",
-    "since": "2026-07-04"
-  }
+  "_lock": "UNLOCKED"
 }
