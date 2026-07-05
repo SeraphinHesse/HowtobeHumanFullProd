@@ -11,9 +11,7 @@ Unlock sections and the playfield window anchor at the base (the buildable min
 corner) rather than the prototype's hardcoded ``PLAYFIELD_*`` constants, so the
 math is map-driven. Pure Python — no pygame.
 """
-from pathlib import Path
-
-from engine import data_io
+from game.core.balance import load_balance
 from .tiles import Tile, TileState
 
 
@@ -33,13 +31,10 @@ BASE_CONTENT_KEY = "base_building"
 
 def load_map_balance(data_dir):
     """Load + schema-validate ``data/balancing/map.json`` (the pathfinder /
-    unlock tuning). 9C reads this directly; 9D's ``balance.py`` centralises it.
+    unlock tuning). Thin shim over the centralised loader (9D); kept because
+    tests and ``game.map`` re-export this name.
     """
-    data_dir = Path(data_dir)
-    return data_io.load_validated(
-        data_dir / "balancing" / "map.json",
-        data_dir / "schemas" / "map.schema.json",
-    )
+    return load_balance(data_dir, "map")
 
 
 class TileMap:

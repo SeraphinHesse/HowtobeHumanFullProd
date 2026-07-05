@@ -39,8 +39,10 @@ tell the user.
   `entities`, deco on `deco` above entities per E-26) comes from
   `engine.tilemap.render_items(doc)` — precomputed once, submitted every
   frame. Invalid map data fails LOUD (D-2); the E-37 log-and-placeholder
-  tolerance covers ART only. The three dummy entities stay until Phase 9
-  brings real ones (they prove entity depth-sort + deco-above-entities).
+  tolerance covers ART only. Since 9D the host builds a `TileMap` +
+  `engine.physics.TileOccupancy`, attaches the `BaseBuilding` to its tile, and
+  places a demo Defender + Musician via `game.buildings.place_building`
+  (the dummy entities are gone).
 
 ## Conventions
 - Game classes subclass `GameObject` but keep ALL state in components (engine
@@ -71,9 +73,11 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   +defence-range coverage → ×damage discount, all gated `0 < w < impassable`.
 - **Picking goes through `engine.coords` only** (`screen_to_world` + floor) —
   no iso math in `game/`.
-- **Balancing read directly** via `load_map_balance(data_dir)` until 9D's
-  `game/core/balance.py` generalises the loader; `TileMap(doc, balance)` takes
-  the dict so tests can inject fixtures.
+- **Balancing** now loads through `game/core/balance.py`
+  (`load_balance(data_dir, domain)`, the single validated loader for all five
+  domains — 9D); `load_map_balance` is a thin shim over it, kept for the
+  re-export + tests. `TileMap(doc, balance)` still takes the dict so tests can
+  inject fixtures.
 - **Dormant hooks, ported but fed neutral** until their producers land:
   tile conditions (all GRASS → +0, random roll in **10I**), damage-weight
   reduction (`set_round`/`refresh_damage_weight_reductions` present, no building
@@ -87,6 +91,41 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   (BACKGROUND impassability is a weight concern, not occupancy). In 9C nothing
   occupies a tile yet (the base has no GameObject) → it clears everything; 9D
   wires real occupants through this one seam.
+
+## Buildings (`buildings/`, Phase 9D)
+`Building(GameObject)` hierarchy; 9D ships the Musician (economy) + Defender
+(defence) lines + the untiered `BaseBuilding`. Ports the prototype's
+`src/buildings/*`. Rules:
+- **All state in components** (E-11): `components.py` holds `TierState`
+  (building_type + tier/level cursor), `Nameplate` (rebirth chain), `RoundStats`
+  (per-round damage), `Attacker` (defence combat marker), `YieldEconomy`
+  (economy marker); plus engine `Health` / `SpriteAnimator` / `RangeSensor`. The
+  duck-typed values `game/map` reads — `alive` / `building_type` /
+  `damage_dealt_last_round` — are guard-safe `@property`s backed by those
+  components (never plain instance attrs); the balancing dict + tier table live
+  as `_`-prefixed transients.
+- **Derived values are computed methods on the parents**, never stored (prototype
+  `update_stats_from_tier`): `max_hp`, `upgrade_cost`, `level`, `yield_amount`
+  (economy), `damage`/`upkeep`/`range_tiles`/`attack_speed` (defence). Formulas
+  are `base + (level_in_tier-1)*per_level`; **every `upgrade()`/`advance_tier()`
+  full-heals** (sets hp = max_hp). Leaves are ≤ ~10 lines: `SUBTREE` path into
+  `buildings.json`, `BUILDING_TYPE`, `TIER_SPRITES` prefixes.
+- **Values come from `data/balancing/buildings.json`** (the 9A REPLAN tree —
+  authoritative; the prototype `.py` defaults drifted). ×10 combat scale is baked
+  in; `BaseBuilding` HP is `core.json TheHole.base_hp` = 10 (the NOT-×10
+  exception). The base carries **no SpriteAnimator** — its sprite is the static
+  map render (`doc.base` slot), so attaching one would double-draw.
+- **Attacker + `"combat"` tag replace the prototype `IS_COMBAT` flag** (SPEC G-3)
+  so the combat sweep stays type-agnostic. 9D wires the seam (RangeSensor range
+  from the tier, an Attacker clock) but NO enemy acquisition/damage — that is 9E.
+- **`registry.py` is the factory + placement seam**: `create(building_type,…)`
+  (also reconstructs a subclass after `GameObject.from_dict`), and
+  `place_building(tilemap, tile, type, love, …)` — buildable-tile +
+  affordability gate → sets `tile.occupant/content_key/state` → `scene.spawn` →
+  `sync_occupancy` (raises `PlacementError` on a bad tile / too little love).
+  `attach_base` wires the `BaseBuilding` onto its pre-seeded tile. Love is passed
+  in (no game-state store until 9F); UI batching + per-type unlock gates are
+  9F/9G.
 
 ## Porting protocol (PLAN phase 9+)
 Port one domain at a time, prototype as spec: acceptance checklist → runnable

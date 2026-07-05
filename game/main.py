@@ -38,29 +38,32 @@ from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.core import GameObject, Scene, SpriteAnimator, Transform
+from engine.core import Scene
+from engine.physics import TileOccupancy
 from engine.render import Renderer
+from game.buildings import BaseBuilding, attach_base, place_building
+from game.core.balance import load_balance
+from game.map import TileMap
 
 BACKGROUND = (24, 20, 32)
 
-DUMMY_ENTITIES = [  # slot, world pos, phase offset — prove Scene → RenderItem
-    ("stone_thrower_t1_lvl1", (4.0, 4.0), 0),     # migrated multi-row sheet
-    ("flute_player_t1_lvl1", (10.0, 7.0), 250),   # migrated 17-frame idle
-    ("dummy_entity", (15.0, 12.0), 500),          # no registry slot → grey X
-]
+# Demo occupants proving the 9D placement seam: one building type per buildable
+# tile, placed with unlimited love (player-driven placement + economy arrive
+# with the UI/phase machine, 9F/9G).
+DEMO_PLACEMENTS = ("defence", "economic")
 
 
-def build_scene():
+def build_scene(tile_map, occupancy, buildings_balance, core_balance):
+    """Populate the scene: the base occupant (attached to its pre-seeded tile)
+    plus a demo Defender + Musician on buildable tiles — proves the placement
+    seam and entity render/animation on tiles."""
     scene = Scene()
-    for i, (slot, pos, phase) in enumerate(DUMMY_ENTITIES):
-        scene.spawn(
-            GameObject(
-                name=f"dummy_{i}",
-                tags=("dummy",),
-                transform=Transform(wx=pos[0], wy=pos[1]),
-                components=[SpriteAnimator(slot_key=slot, phase_ms=phase)],
-            )
-        )
+    base = BaseBuilding(tile_map.base_col, tile_map.base_row, core_balance)
+    attach_base(tile_map, base, scene, occupancy)
+    for building_type, tile in zip(DEMO_PLACEMENTS, tile_map.buildable_tiles()):
+        place_building(tile_map, tile, building_type, love=9999,
+                       buildings_balance=buildings_balance,
+                       scene=scene, occupancy=occupancy)
     return scene
 
 
@@ -100,10 +103,14 @@ def main(max_frames=None, data_dir=None):
         manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
         registry=load_registry(data_dir),
         sprites_dir=data_dir / "sprites",
-        frame_sizes={"dummy_entity": (64, 96)},  # test dummy, not a registry slot
     )
     renderer = Renderer(cs, assets)
-    scene = build_scene()
+    # Runtime tile grid + occupancy (9C), populated with real buildings (9D).
+    tile_map = TileMap(map_doc, load_balance(data_dir, "map"))
+    occupancy = TileOccupancy()
+    scene = build_scene(
+        tile_map, occupancy,
+        load_balance(data_dir, "buildings"), load_balance(data_dir, "core"))
     # static map items (tiles + base + deco) — precomputed once, submitted
     # every frame; RenderItems are frozen and reusable
     map_items = tilemap.render_items(map_doc)

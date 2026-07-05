@@ -102,8 +102,10 @@ class TestAnchoring(unittest.TestCase):
         r.submit(RenderItem("ent", (1, 1), layer="entities"))
         r.flush(target=None)
         call = backend.calls[0]
-        # world (1,1) → screen (0, 32); bottom of 96-tall frame sits at 32+32
-        self.assertEqual(call.dest, (-32.0, -32.0))
+        # world (1,1) → screen (0, 32); a frame taller than the tile anchors one
+        # extra tile-height lower (bottom at 32 + 2·32 = 96), so the centred
+        # figure sits ON the tile — the prototype building-sheet convention.
+        self.assertEqual(call.dest, (-32.0, 0.0))
         self.assertEqual(call.size, (64.0, 96.0))
 
     def test_zoom_scales_dest_and_size(self):

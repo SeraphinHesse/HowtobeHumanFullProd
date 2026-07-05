@@ -52,9 +52,13 @@ an engine task; if an engine change forces a caller change, tell the user
   injectable for tests. Draw layers fixed: `LAYERS = ("ground", "entities",
   "deco", "overlay")` (E-26); HUD is drawn by the host after flush.
 - **Anchor convention**: a frame blits centred horizontally on its world
-  position with its bottom edge on the bottom of that tile's diamond
-  (`world_to_screen(...)y + tile_h*zoom`). A 64x32 tile frame covers its
-  diamond exactly; taller frames rise above it.
+  position. A 64x32 tile frame anchors its bottom on the bottom of that tile's
+  diamond (`world_to_screen(...)y + tile_h*zoom`), covering it exactly. A frame
+  TALLER than the tile (64x96 buildings/enemies/deco) anchors one extra
+  tile-height lower (bottom at `y + 2*tile_h*zoom`) — the prototype's
+  building-sheet convention (`src/buildings/building.py`: art is authored
+  centred in the 96px frame, so this "sits the figure ON the tile, not above
+  it"). Per-entry manifest `offset_x/offset_y` nudge from there.
 - **Assets import boundary**: `engine.assets` package `__init__` + `types` +
   `manifest` + `registry` are pure; pygame lives only in
   `engine.assets.placeholder` and `engine.assets.store` (import those by
