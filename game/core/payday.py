@@ -17,9 +17,11 @@ from game.buildings.components import RoundStats
 from .phases import GamePhase
 
 
-def _buildings(tilemap):
-    """Every occupant of a BUILT tile (the base + all built buildings)."""
-    return [t.occupant for t in tilemap.built_tiles() if t.occupant is not None]
+def _built_tiles_with_occupant(tilemap):
+    """(tile, occupant) for every BUILT tile that has an occupant (base + all
+    built buildings). Tiles carry ``col``/``row`` for floater anchoring (9G)."""
+    return [(t, t.occupant) for t in tilemap.built_tiles()
+            if t.occupant is not None]
 
 
 def _amount(building, method):
@@ -30,9 +32,13 @@ def _amount(building, method):
 
 def run_payday(state, tilemap, core_balance):
     hole = core_balance["TheHole"]
-    buildings = _buildings(tilemap)
+    built = _built_tiles_with_occupant(tilemap)
+    buildings = [b for _, b in built]
 
-    # 1. Reset income floaters — the floater VFX list (9G/10J); nothing here yet.
+    # 1. Reset income floaters — the per-tile ledger the 9G UI reads to spawn
+    #    income/upkeep floaters (gated by ui.FX.income_floaters_enabled). Filled
+    #    in steps 4 (income) + 5 (upkeep) below; the floater VFX itself is 9G.
+    state.income_events.clear()
 
     # 2. Snapshot RoundStats: roll this-round -> last-round, then zero. Covers
     #    the base + every building (all sit on BUILT tiles). MUST be first — the
@@ -51,24 +57,30 @@ def run_payday(state, tilemap, core_balance):
     # 4. Base income + yield sweep. Base income is always paid; village-level
     #    scaling is 10A (village_level == 1 here, so it's the flat base_income).
     #    Then a duck-typed sweep adds each alive economy building's yield.
-    state.add_love(hole["base_income"])
-    for b in buildings:
+    #    Each payout is recorded as a floater event anchored on the paying tile.
+    base_income = hole["base_income"]
+    state.add_love(base_income)
+    state.income_events.append(
+        (tilemap.base_col, tilemap.base_row, base_income, "income"))
+    for tile, b in built:
         if not getattr(b, "alive", False):
             continue
         amount = _amount(b, "yield_amount")
         if amount > 0:
             state.add_love(amount)
+            state.income_events.append((tile.col, tile.row, amount, "income"))
 
     # 5. Upkeep sweep. Mirror of income: every alive building is asked for its
     #    upkeep(); the total is deducted, love clamped at 0 (bills never push it
     #    negative — the prototype logs any shortfall; the log is 9G).
     total_upkeep = 0
-    for b in buildings:
+    for tile, b in built:
         if not getattr(b, "alive", False):
             continue
         up = _amount(b, "upkeep")
         if up > 0:
             total_upkeep += up
+            state.income_events.append((tile.col, tile.row, -up, "upkeep"))
     if total_upkeep > 0:
         state.spend_love(total_upkeep)
 

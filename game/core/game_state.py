@@ -11,7 +11,7 @@ the wave spawned by End Turn uses the pre-increment value — prototype-exact.
 Love is clamped at ``>= 0`` on every write (the prototype clamps on every
 currency mutation).
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .phases import GamePhase, GameState
 
@@ -26,6 +26,12 @@ class RunState:
     phase_timer: float = 0.0
     enemies_killed: int = 0
     buildings_placed: int = 0
+    # Runtime-only floater ledger (9G): payday records what each tile paid this
+    # income phase as ``(col, row, amount, kind)`` (kind = "income" | "upkeep",
+    # amount signed) so the UI spawns income/upkeep floaters without re-deriving
+    # payday math. Cleared + refilled every ``run_payday``; never serialized
+    # (RunState is rebuilt from balance, not persisted).
+    income_events: list = field(default_factory=list)
 
     @classmethod
     def from_balance(cls, core_balance):

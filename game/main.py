@@ -6,7 +6,7 @@ Creates the pygame window, runs the engine loop at the data-driven fps,
 routes input. Camera input mapping lives here per E-5 (the engine holds
 pure camera state): right-click-drag pans (clamped to map bounds),
 scroll-wheel steps through the data-driven zoom levels (viewport centre
-kept fixed), Esc quits. Frame order is fixed per E-14:
+kept fixed), Esc closes the panel / quits. Frame order is fixed per E-14:
 input → Scene.update(dt) → render submit.
 
 All tunables come from data/ (G-7): geometry.json (tile pitch, zoom
@@ -17,6 +17,14 @@ base render through engine.tilemap + the one pipeline. Invalid map data
 fails LOUD (D-2) — the E-37 log-and-placeholder tolerance is for art
 only. No iso math here — clicks and zoom anchoring go through
 engine.coords only.
+
+Phase 9G wires the real UI (game/ui): the HUD (love/income/lives/phase +
+End Turn button), the building panel (unlock/construct/upgrade/base-info +
+ConstructPreview), income/upkeep floaters + building HP bars, and the game
+over screen. Left-click drives all of it; the input-priority ladder
+(game_over > preview modal > HUD > panel > panel spatial block > tile pick)
+mirrors the prototype's click-consume order so clicks never bleed through
+the panel to the world behind it.
 
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
@@ -40,55 +48,49 @@ from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import Scene
 from engine.physics import TileOccupancy
-from engine.render import HudText, Renderer
-from game.buildings import BaseBuilding, attach_base, place_building
+from engine.render import Renderer
+from game.buildings import BaseBuilding, attach_base
 from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
-from game.map import TileMap
+from game.map import TileMap, tile_at_screen
+from game.ui import BuildingUI, FloaterManager, GameOverScreen, Hud
 
 BACKGROUND = (24, 20, 32)
-HUD_COLOR = (235, 225, 245)
-
-# Demo occupants proving the 9D placement seam: one building type per buildable
-# tile, placed with unlimited love (player-driven placement + economy arrive
-# with the UI/phase machine, 9F/9G).
-DEMO_PLACEMENTS = ("defence", "economic")
+_LEFT, _RIGHT = 1, 3
+_DRAG_THRESHOLD_SQ = 4 * 4  # a left-press that moves less than this is a click
+_KEY_NAMES = None  # lazily built (needs pygame constants)
 
 
-def build_scene(tile_map, occupancy, buildings_balance, core_balance):
-    """Populate the scene: the base occupant (attached to its pre-seeded tile)
-    plus a demo Defender + Musician on buildable tiles — proves the placement
-    seam and entity render/animation on tiles."""
-    scene = Scene()
-    base = BaseBuilding(tile_map.base_col, tile_map.base_row, core_balance)
-    attach_base(tile_map, base, scene, occupancy)
-    for building_type, tile in zip(DEMO_PLACEMENTS, tile_map.buildable_tiles()):
-        place_building(tile_map, tile, building_type, love=9999,
-                       buildings_balance=buildings_balance,
-                       scene=scene, occupancy=occupancy)
-    return scene
+def _key_name(key):
+    """Map a pygame keycode to the neutral name game/ui expects (keeps game/ui
+    pygame-free). Unknown keys -> None (treated as a typed character)."""
+    global _KEY_NAMES
+    if _KEY_NAMES is None:
+        _KEY_NAMES = {
+            pygame.K_BACKSPACE: "backspace",
+            pygame.K_RETURN: "return",
+            pygame.K_KP_ENTER: "return",
+            pygame.K_ESCAPE: "escape",
+        }
+    return _KEY_NAMES.get(key)
 
 
-def submit_debug_hud(renderer, state, view_w):
-    """Minimal dev readout of the run state (G-6 HUD pass). NOT the 9G HUD (love
-    panel / End-Turn button / phase banner / lives display) — a plain text overlay
-    so the 9F loop is observable: love, round, lives, phase, and GAME OVER."""
-    lines = [f"LOVE {state.love}", f"ROUND {state.round_num}",
-             f"LIVES {state.base_lives}", f"[{state.phase.name}]"]
-    y = 8
-    for text in lines:
-        renderer.submit_hud(HudText(text=text, pos=(8, y), font_key="md",
-                                    color=HUD_COLOR, align="left"))
-        y += 20
-    if state.state == GameState.GAME_OVER:
-        renderer.submit_hud(HudText(
-            text="GAME OVER", pos=(view_w // 2, 40), font_key="xxl",
-            color=(255, 90, 90), align="center"))
-    elif state.phase == GamePhase.BUILDING:
-        renderer.submit_hud(HudText(
-            text="SPACE = End Turn", pos=(8, y + 4), font_key="sm",
-            color=(150, 150, 165), align="left"))
+class _World:
+    """The rebuildable run state: tile grid, occupancy, scene, session. A fresh
+    ``_World`` is a fresh game — the game-over 'restart' path just makes a new
+    one (the base is re-attached to its pre-seeded tile)."""
+
+    def __init__(self, map_doc, map_bal, enemies_bal, core_bal, registry):
+        self.tile_map = TileMap(map_doc, map_bal)
+        self.occupancy = TileOccupancy()
+        self.scene = Scene()
+        base = BaseBuilding(self.tile_map.base_col, self.tile_map.base_row,
+                            core_bal)
+        attach_base(self.tile_map, base, self.scene, self.occupancy)
+        self.spawner = Spawner()
+        self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
+                                      core_bal, registry=registry)
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -130,26 +132,52 @@ def main(max_frames=None, data_dir=None):
         sprites_dir=data_dir / "sprites",
     )
     renderer = Renderer(cs, assets)
-    # Runtime tile grid + occupancy (9C), populated with real buildings (9D).
-    tile_map = TileMap(map_doc, load_balance(data_dir, "map"))
-    occupancy = TileOccupancy()
+    map_bal = load_balance(data_dir, "map")
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
     core_balance = load_balance(data_dir, "core")
-    scene = build_scene(tile_map, occupancy, buildings_balance, core_balance)
-    # 9F: the round loop. Session owns the phase machine (BUILDING -> ENEMY ->
-    # ROUND_END -> INCOME), love, base lives, and game over. Press [SPACE] in
-    # BUILDING to End Turn (the real button + interactive placement land in 9G);
-    # the demo buildings stay so combat / revive / yield are visible.
-    spawner = Spawner()
-    session = Session.create(spawner, tile_map, enemies_balance, core_balance,
-                             registry=registry)
-    # static map items (tiles + base + deco) — precomputed once, submitted
-    # every frame; RenderItems are frozen and reusable
+    ui_balance = load_balance(data_dir, "ui")
+
+    world = _World(map_doc, map_bal, enemies_balance, core_balance, registry)
+    hud = Hud(view_w, view_h)
+    panel = BuildingUI(view_w, view_h, ui_balance)
+    floaters = FloaterManager(ui_balance, core_balance)
+    game_over = GameOverScreen(view_w, view_h)
+    # static map items (tiles + base + deco) — precomputed once, submitted every
+    # frame; RenderItems are frozen and reusable
     map_items = tilemap.render_items(map_doc)
+
+    def handle_left_click(mx, my):
+        """The click-consume priority ladder (prototype-exact order)."""
+        nonlocal world, panel, floaters
+        st = world.session.state
+        if st.state == GameState.GAME_OVER:
+            if game_over.hit(mx, my) == "restart":
+                world = _World(map_doc, map_bal, enemies_balance, core_balance,
+                               registry)
+                panel = BuildingUI(view_w, view_h, ui_balance)
+                floaters = FloaterManager(ui_balance, core_balance)
+            return
+        if panel.preview is not None:                      # modal
+            panel.handle_click(mx, my, world.session, buildings_balance,
+                               world.scene, world.occupancy)
+            return
+        if hud.hit(mx, my) == "end_turn":
+            world.session.end_turn()
+            return
+        if panel.handle_click(mx, my, world.session, buildings_balance,
+                              world.scene, world.occupancy):
+            return
+        if panel.visible and mx >= panel.panel_x:          # spatial block
+            return
+        if st.state == GameState.GAMEPLAY and st.phase == GamePhase.BUILDING:
+            tile = tile_at_screen(world.tile_map, cs, mx, my)
+            panel.open_for_tile(tile, world.session, buildings_balance)
 
     frames = 0
     fps_log_ms = 0
+    mouse_down = None
+    prev_phase = world.session.state.phase
     running = True
     while running:
         dt = clock.tick(display["fps"]) / 1000.0
@@ -158,35 +186,68 @@ def main(max_frames=None, data_dir=None):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                session.end_turn()  # BUILDING -> ENEMY (temporary End Turn key)
+            elif event.type == pygame.KEYDOWN:
+                if panel.preview is not None:
+                    if event.key == pygame.K_ESCAPE and not panel.preview.editing:
+                        panel.preview = None
+                    else:
+                        panel.handle_key(event.unicode, _key_name(event.key))
+                elif event.key == pygame.K_ESCAPE:
+                    if panel.visible:
+                        panel.close()
+                    else:
+                        running = False
+                elif event.key == pygame.K_SPACE:
+                    world.session.end_turn()  # dev convenience beside the button
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
+                mouse_down = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == _LEFT:
+                if mouse_down is not None:
+                    dx, dy = event.pos[0] - mouse_down[0], event.pos[1] - mouse_down[1]
+                    if dx * dx + dy * dy <= _DRAG_THRESHOLD_SQ:
+                        handle_left_click(*event.pos)
+                mouse_down = None
             elif event.type == pygame.MOUSEMOTION and event.buttons[2]:
-                cs.pan(-event.rel[0], -event.rel[1])  # right-drag: map follows mouse
+                cs.pan(-event.rel[0], -event.rel[1])  # right-drag: map follows
                 cs.clamp(view_w, view_h)
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
-        # 2. simulate — the Session drives the phase machine (spawns during
-        #    ENEMY, runs payday at ROUND_END); on GAME_OVER the whole world
-        #    FREEZES (prototype _update has no GAME_OVER branch), so the scene
-        #    tick + combat sweep are gated on GAMEPLAY — otherwise enemies would
-        #    keep walking into the hole and drive lives negative. Combat feeds
-        #    base breaches back to the session, which then detects wave-clear.
-        session.pre_sim(dt, scene)
+        # 2. simulate — the Session drives the phase machine; on GAME_OVER the
+        #    whole world FREEZES (scene tick + combat gated on GAMEPLAY).
+        session = world.session
+        session.pre_sim(dt, world.scene)
         if session.state.state == GameState.GAMEPLAY:
-            scene.update(dt)
-            resolve_combat(scene, tile_map, dt, buildings_balance,
+            world.scene.update(dt)
+            resolve_combat(world.scene, world.tile_map, dt, buildings_balance,
                            on_base_hit=session.on_base_hit)
-            session.post_sim(scene)
+            session.post_sim(world.scene)
 
-        # 3. render submit
+        # payday fills state.income_events + flips to INCOME; spawn floaters once
+        if session.state.phase == GamePhase.INCOME and prev_phase != GamePhase.INCOME:
+            floaters.spawn_income_events(session.state)
+        prev_phase = session.state.phase
+
+        # 3. UI update (mouse hover, timers)
+        mx, my = pygame.mouse.get_pos()
+        hud.update(dt, mx, my, session, panel)
+        panel.hover(mx, my)
+        panel.update(dt)
+        floaters.update(dt)
+        if session.state.state == GameState.GAME_OVER:
+            game_over.update(dt, mx, my)
+
+        # 4. render submit — world, then UI (HUD pass draws on top)
         for item in map_items:
             renderer.submit(item)
-        for item in scene.render_items():
+        for item in world.scene.render_items():
             renderer.submit(item)
-        submit_debug_hud(renderer, session.state, view_w)
+        panel.submit(renderer, session)             # tile-highlight overlays + panel
+        floaters.submit_hp_bars(renderer, cs, world.scene)
+        floaters.submit(renderer, cs)
+        hud.submit(renderer, session, view_w, view_h, hover_cost=panel.hover_cost)
+        if session.state.state == GameState.GAME_OVER:
+            game_over.submit(renderer, session.state, view_w, view_h)
         window.fill(BACKGROUND)
         renderer.flush(window)
         pygame.display.flip()
