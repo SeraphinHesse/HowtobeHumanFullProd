@@ -78,7 +78,6 @@ class TestRunState(unittest.TestCase):
         st = RunState.from_balance(CORE)
         self.assertEqual(st.love, CORE["General"]["starting_currency"])
         self.assertEqual(st.base_lives, HOLE["base_lives"])
-        self.assertEqual(st.base_lives_mode, HOLE["base_lives_mode"])
         self.assertEqual(st.round_num, 1)          # prototype inits round 1
         self.assertEqual(st.phase, GamePhase.BUILDING)
         self.assertEqual(st.state, GameState.GAMEPLAY)
@@ -310,19 +309,6 @@ class TestGameOverLives(unittest.TestCase):
             session.on_base_hit(_Dummy())
         self.assertEqual(session.state.state, GameState.GAME_OVER)
         self.assertEqual(session.state.base_lives, 0)   # clamped, never -9
-
-    def test_hp_mode_game_over_on_base_destroyed(self):
-        tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, ENEM, CORE)
-        session.state.base_lives_mode = False   # HP mode
-        base = tm.get(tm.base_col, tm.base_row).occupant
-        base.get_component(Health).hp = 3
-
-        class _Hit:
-            dmg = 50
-        session.on_base_hit(_Hit())
-        self.assertTrue(base.get_component(Health).is_dead)
-        self.assertEqual(session.state.state, GameState.GAME_OVER)
 
 
 # ---------------------------------------------------------------------------

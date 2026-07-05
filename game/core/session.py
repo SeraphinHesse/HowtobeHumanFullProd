@@ -17,9 +17,6 @@ GAME_OVER branch. Base-breach consequences (lives / game over / round-wipe)
 arrive from the combat sweep via the ``on_base_hit`` callback, keeping
 ``game/enemies`` free of any ``game/core`` import (clean layering).
 """
-from engine.core import Health
-
-from game.buildings.components import RoundStats
 from .game_state import RunState
 from .payday import run_payday
 from .phases import GamePhase, GameState
@@ -96,35 +93,19 @@ class Session:
 
     def on_base_hit(self, enemy):
         """An enemy reached the base (the sweep processes ONE per frame, then
-        despawns it — ``base_kills_enemies``). Lives mode: lose a life + wipe the
-        round (game over at 0 lives). HP mode: base takes the enemy's dmg (game
-        over at 0 HP)."""
+        despawns it — ``base_kills_enemies``). Lose a life + wipe the round
+        (game over at 0 lives)."""
         st = self.state
         if st.state == GameState.GAME_OVER:
             return  # world frozen: never drive lives negative on a late arrival
         st.enemies_killed += 1
-        if st.base_lives_mode:
-            st.base_lives -= 1
-            if st.base_lives <= 0:
-                st.state = GameState.GAME_OVER
-            else:
-                self._wipe_pending = True
-            return
-        base = self._base()
-        if base is None:
-            return
-        base.get_component(Health).damage(enemy.dmg)
-        rs = base.get_component(RoundStats)
-        if rs is not None:
-            rs.dmg_taken_this_round += enemy.dmg
-        if base.get_component(Health).is_dead:
+        st.base_lives -= 1
+        if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
+        else:
+            self._wipe_pending = True
 
     # -- helpers ----------------------------------------------------------
-
-    def _base(self):
-        tile = self.tilemap.get(self.tilemap.base_col, self.tilemap.base_row)
-        return tile.occupant if tile is not None else None
 
     def _begin_round_end(self):
         self.state.phase = GamePhase.ROUND_END

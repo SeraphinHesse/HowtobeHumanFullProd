@@ -160,14 +160,10 @@
           "type": "boolean"
         },
         "base_lives": {
-          "description": "Lives in lives mode.",
+          "description": "Lives before game over — an enemy reaching the hole costs one life and wipes the round.",
           "maximum": 1000,
           "minimum": 1,
           "type": "integer"
-        },
-        "base_lives_mode": {
-          "description": "If true the hole has base_lives lives instead of an HP pool.",
-          "type": "boolean"
         },
         "building_revive": {
           "description": "If true, buildings destroyed during the round revive at the income phase (canonical flag; was BUILDING_REVIVE + FEATURE_BUILDING_REVIVE).",
@@ -179,7 +175,6 @@
         "base_income",
         "base_kills_enemies",
         "base_lives",
-        "base_lives_mode",
         "building_revive"
       ],
       "type": "object"

@@ -49,7 +49,7 @@
     "BASE_INCOME": "core:TheHole/base_income",
     "BASE_KILLS_ENEMIES": "core:TheHole/base_kills_enemies",
     "BASE_LIVES": "core:TheHole/base_lives",
-    "BASE_LIVES_MODE": "core:TheHole/base_lives_mode",
+    "BASE_LIVES_MODE": "DROPPED:lives-mode-only, HP-mode toggle removed",
     "BUILDING_REVIVE": "core:TheHole/building_revive",
     "GAME_SCALE_ROUNDS": "core:General/game_scale_rounds",
     "INCOME_PHASE_DURATION": "core:PhaseLoop/income_phase_duration",

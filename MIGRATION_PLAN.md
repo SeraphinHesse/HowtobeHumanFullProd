@@ -92,9 +92,9 @@ No game code. All five `data/balancing/*.json` restructured to the REPLAN tree w
 - **10C — Painter + Meditator**: payout cycle in the payday painter slot, tile freed + permanently barred, gone-for-good + "painting lost!"; meditator compounding streak + reset on damage.
 - **10D — Boost buildings**: cardinal adjacency, per-turn vs flat mode, explosion debuff on death, adjacency placement block, boost highlights + boosted_stats in panel.
 - **10E — Blocker + WallBuilder + edge walls**: wall-edge registry, perimeter place/teardown/rebuild, enemy wall-attack mode, find_path_ignoring_walls live.
-- **10F — Raider + Siege + scale tiers + lives mode + combat speed**: enable spawner branches, ENEMY_SCALE_TIERS + sprite stages, lives faces, 1×/1.5×/2×/pause buttons + keys (round-gated), P quick-skip.
+- **10F — Raider + Siege + scale tiers + combat speed**: enable spawner branches, ENEMY_SCALE_TIERS + sprite stages, lives faces, 1×/1.5×/2×/pause buttons + keys (round-gated), P quick-skip.
 - **10G — Boss**: era stats/sizes, boss-round queue composition, announcement, screen shake, death-swarm, boss HP bar, boss cutscene A/B + boss_bonuses port (payday hooks into reserved slots), boss history panel.
-- **10H — Lightning strike + cheat menu**: unlock/upgrade at base-info, click-to-strike + effect + cooldown HUD; full cheat menu (Ctrl+P).
+- **10H — Lightning strike + cheat menu**: unlock/upgrade at base-info, click-to-strike + effect + cooldown HUD; full cheat menu (Ctrl+L).
 - **10I — Map depth**: tile conditions (spawn chances, stat modifiers, tooltips, badges), damage-based path-weight reduction, defence-range path weights, RANGE + HEATMAP overlay toggles.
 - **10J — QOL & FX sweep**: shift multi-select batches, name dice + rebirth ordinals, next-tier preview, income tooltip breakdown, game log, all remaining floaters/FX (spark bursts, gold highlights, death bursts, muzzle/slash), gore/blood splatters, bg art layer, DIED LAST ROUND tag, hover cost preview.
 - **11 — Full parity audit + editor alignment**: committed `PARITY.md` (prototype module → new home, every feature checked), editor per-tier balancing focus + entity-preview range from new paths, PLAN.md phase table update, playtest to round 30+ (two boss cycles) + frozen-exe playtest. **Exit rule: nothing from the prototype inventory missing.**

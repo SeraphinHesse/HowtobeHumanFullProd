@@ -37,7 +37,6 @@
     "base_income": 5,
     "base_kills_enemies": true,
     "base_lives": 3,
-    "base_lives_mode": true,
     "building_revive": true
   },
   "XP": {

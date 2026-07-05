@@ -72,12 +72,10 @@ def build_scene(tile_map, occupancy, buildings_balance, core_balance):
 
 def submit_debug_hud(renderer, state, view_w):
     """Minimal dev readout of the run state (G-6 HUD pass). NOT the 9G HUD (love
-    panel / End-Turn button / phase banner / base HP bar) — a plain text overlay
+    panel / End-Turn button / phase banner / lives display) — a plain text overlay
     so the 9F loop is observable: love, round, lives, phase, and GAME OVER."""
-    lines = [f"LOVE {state.love}", f"ROUND {state.round_num}"]
-    if state.base_lives_mode:
-        lines.append(f"LIVES {state.base_lives}")
-    lines.append(f"[{state.phase.name}]")
+    lines = [f"LOVE {state.love}", f"ROUND {state.round_num}",
+             f"LIVES {state.base_lives}", f"[{state.phase.name}]"]
     y = 8
     for text in lines:
         renderer.submit_hud(HudText(text=text, pos=(8, y), font_key="md",

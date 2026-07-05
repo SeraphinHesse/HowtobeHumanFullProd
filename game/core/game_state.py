@@ -23,7 +23,6 @@ class RunState:
     round_num: int = 1
     love: int = 0
     base_lives: int = 0
-    base_lives_mode: bool = True
     phase_timer: float = 0.0
     enemies_killed: int = 0
     buildings_placed: int = 0
@@ -35,7 +34,6 @@ class RunState:
         return cls(
             love=core_balance["General"]["starting_currency"],
             base_lives=hole["base_lives"],
-            base_lives_mode=hole["base_lives_mode"],
         )
 
     def add_love(self, amount):

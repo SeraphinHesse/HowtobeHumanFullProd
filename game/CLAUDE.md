@@ -226,10 +226,9 @@ beside `balance.py`, all pure logic (no pygame — a `TestPurity` guards it):
   (BUILDING→ENEMY, `spawner.begin_round(round_num, …)`); `pre_sim(dt, scene)`
   (spawner during ENEMY; ROUND_END/INCOME timers from `core.PhaseLoop`; payday at
   ROUND_END end); `post_sim(scene)` (wave-clear = `spawner.done` + no live enemy →
-  ROUND_END; or a `_wipe_pending` lives-breach wipe); `on_base_hit(enemy)` (lives
-  mode: `base_lives--` + round wipe, game over at 0; HP mode: base HP dmg, game
-  over at 0). Everything freezes on GAME_OVER (no phase advances) — prototype
-  `_update` has no GAME_OVER branch.
+  ROUND_END; or a `_wipe_pending` lives-breach wipe); `on_base_hit(enemy)`
+  (`base_lives--` + round wipe, game over at 0 lives). Everything freezes on
+  GAME_OVER (no phase advances) — prototype `_update` has no GAME_OVER branch.
 - **Love → interactive placement + real HUD/End-Turn button are 9G**; `Session`
   owns the love store now, ready to feed `place_building`.
 
