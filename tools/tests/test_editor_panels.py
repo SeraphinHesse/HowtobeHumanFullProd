@@ -374,6 +374,43 @@ class TestMainWindowWiring(TempDataCase):
         self.assertIsNone(window.viewport.preview_slot)
         self.assertEqual(window.balancing.domain, "ui")
 
+    def test_add_variant_button_only_on_enemy_stages(self):
+        window = self.make_window()
+        # a building tier's levels are gameplay steps, not variants
+        window.selector.select_node("buildings", ("Painter",))
+        self.assertIsNone(window._variant_era())
+        self.assertTrue(window.levelbar._add_btn.isHidden())
+        # an enemy era exposes the "+ Variant" button (even single-slot eras)
+        window.selector.select_node("enemies", ("Walker",))
+        window.details.select_subcategory(1)   # Era 2 (one slot)
+        self.assertEqual(window._variant_era(), "Era 2")
+        self.assertFalse(window.levelbar._add_btn.isHidden())
+        self.assertFalse(window.levelbar.isHidden())
+
+    def test_add_variant_appends_slot_selects_it_and_persists(self):
+        from engine.assets import load_registry
+
+        window = self.make_window()
+        window.selector.select_node("enemies", ("Walker",))
+        window.details.select_subcategory(1)    # Era 2: [enemy_stage_2]
+        self.assertEqual(len(window.levelbar._buttons), 1)
+
+        window.levelbar._add_btn.click()        # + Variant
+
+        # slots.json on disk grew, validated
+        reg = load_registry(self.data_dir)
+        self.assertEqual(
+            reg.group_slots("enemies", ("Walker", "Era 2")),
+            ("enemy_stage_2", "enemy_stage_2_v2"))
+        # the level bar now offers both and lands on the NEW variant, ready to
+        # import art onto it (details + viewport follow)
+        self.assertEqual(len(window.levelbar._buttons), 2)
+        self.assertEqual(window.levelbar.level(), 1)
+        self.assertEqual(window.details.slot_key, "enemy_stage_2_v2")
+        self.assertEqual(window.viewport.preview_slot, "enemy_stage_2_v2")
+        # still on the same era (didn't jump back to Era 1)
+        self.assertEqual(window._variant_era(), "Era 2")
+
     def test_import_save_clear_update_preview_without_restart(self):
         """ED-42 end-to-end: import -> draft preview -> save -> disk-backed
         preview + ● marker; clear -> grey X returns."""

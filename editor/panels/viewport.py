@@ -140,6 +140,12 @@ class ViewportPanel(QWidget):
         self._build_store()
         self._refresh_anim_combo()
 
+    def reload_registry(self):
+        """Re-read data/slots.json (a variant slot was added) so the new slot
+        resolves for preview + import; the store is rebuilt, camera untouched."""
+        self._registry = load_registry(self._data_dir)
+        self._build_store()
+
     # -- entity preview (ED-21) ----------------------------------------------
 
     def set_preview_slot(self, slot_key):

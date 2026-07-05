@@ -43,7 +43,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import selection
+from editor import registry_ops, selection
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.spawnclaude import SpawnClaudeDialog
@@ -98,6 +98,7 @@ class MainWindow(QMainWindow):
         self.selector.map_selected.connect(self._on_map_selected)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
+        self.levelbar.add_variant_requested.connect(self._on_add_variant)
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
@@ -307,8 +308,57 @@ class MainWindow(QMainWindow):
             self.selector.registry, category_key, group_path,
             self.details.subcategory_index())
         assigned = set(self.viewport.assigned_slots())
-        self.levelbar.set_levels(slots, assigned)
+        self.levelbar.set_levels(slots, assigned,
+                                 can_add=self._variant_era() is not None)
         self._apply_slot()
+
+    # Only enemy stages get the "+ Variant" affordance: their era slots are
+    # interchangeable art rolled at spawn, whereas a building tier's levels
+    # (lvl1/2/3) are distinct gameplay steps, not variants.
+    _VARIANT_CATEGORY = "enemies"
+
+    def _variant_era(self):
+        """The era child-label a new variant would extend for the current
+        selection, or None when adding a variant doesn't apply (non-enemy
+        node, flat subgroup, no selection)."""
+        if self._node is None:
+            return None
+        category_key, group_path = self._node
+        if category_key != self._VARIANT_CATEGORY:
+            return None
+        return selection.variant_target(
+            self.selector.registry, category_key, group_path,
+            self.details.subcategory_index())
+
+    def _on_add_variant(self):
+        """+ Variant: append a slot to the selected enemy era in slots.json,
+        reload every cached registry, and reselect the new (last) variant so
+        it's ready to import art onto."""
+        era_label = self._variant_era()
+        if era_label is None:
+            return
+        category_key, group_path = self._node
+        subcat_idx = self.details.subcategory_index()
+        try:
+            new_key = registry_ops.add_variant(
+                self._data_dir, category_key, group_path, era_label)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(f"Could not add variant: {exc}", 5000)
+            return
+        self._reload_registries()
+        # rebuild the subcategory dropdown against the fresh registry, keep the
+        # era, then rebuild the level bar and land on the new variant
+        self.details.set_context(category_key, group_path)   # signals blocked
+        self.details.select_subcategory(subcat_idx)
+        self._refresh_levels()
+        self.levelbar.select_last()
+        self.statusBar().showMessage(f"Added variant {new_key}", 5000)
+
+    def _reload_registries(self):
+        """Refresh the registry every panel caches, after a slots.json edit."""
+        self.selector.reload_registry()
+        self.details.reload_registry()
+        self.viewport.reload_registry()
 
     def _apply_slot(self):
         category_key, group_path = self._node

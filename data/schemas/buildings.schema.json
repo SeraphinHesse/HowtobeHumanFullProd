@@ -1362,10 +1362,17 @@
               "maximum": 60,
               "minimum": 0,
               "type": "number"
+            },
+            "projectile_speed_tiles": {
+              "description": "Defence projectile travel speed in tiles per second (prototype 120 px/s over 32 px/tile). Travel time = distance / this; a shot in flight is wasted if its target dies first.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
             }
           },
           "required": [
-            "min_attack_speed"
+            "min_attack_speed",
+            "projectile_speed_tiles"
           ],
           "type": "object"
         }

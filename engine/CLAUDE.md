@@ -123,7 +123,14 @@ an engine task; if an engine change forces a caller change, tell the user
   AssetStore (the editor's `reload_assets()` does exactly that).
 - **E-38**: `tools/migrate_prototype_assets.py` converts the prototype's v1
   manifest + imported/ PNGs (read-only) to manifest v2 + copied sheets;
-  idempotent; already run — its output is committed. Follow-up (Phase 6):
+  idempotent; already run — its output is committed. Each source sheet is
+  resolved from its own v1 `sheet` path (the prototype filed most under
+  `imported/{buildings,enemies/*,hole}/` subfolders; dst still flattens to
+  `imported/<slot>.png`, D-31). It imports every prototype sheet 1:1 — no
+  synthetic/alias slots (the enemies registry references the real
+  `enemy_stage_N`/`raider_stage_N` sheets directly; the procedural `enemy`/
+  `enemy_t*` sheets stay in the manifest but are unreferenced leftovers).
+  Follow-up (Phase 6):
   the same script's `migrate_tiles()` bakes the 9 map tile slots the
   prototype generated procedurally (never stored in its v1 manifest) to
   static PNGs + manifest entries via `editor.asset_import.import_idle_sheet`

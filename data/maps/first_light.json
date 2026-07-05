@@ -5,23 +5,7 @@
     "slot": "base_hole"
   },
   "cols": 20,
-  "deco": [
-    {
-      "col": 4,
-      "row": 5,
-      "slot": "deco_tree"
-    },
-    {
-      "col": 10,
-      "row": 8,
-      "slot": "deco_rock"
-    },
-    {
-      "col": 3,
-      "row": 3,
-      "slot": "deco_bush"
-    }
-  ],
+  "deco": [],
   "display_name": "First Light",
   "id": "first_light",
   "legend": {

@@ -191,6 +191,31 @@ class TestLevelBar(unittest.TestCase):
         self.assertTrue(bar.isHidden())
         self.assertEqual(bar.level(), 0)
 
+    def test_can_add_keeps_single_slot_bar_and_button_visible(self):
+        # an enemy era with ONE variant must still show the "+ Variant" button
+        bar = LevelBar()
+        requested = []
+        bar.add_variant_requested.connect(lambda: requested.append(True))
+        bar.set_levels(("enemy_stage_2",), can_add=True)
+        self.assertFalse(bar.isHidden())
+        self.assertFalse(bar._add_btn.isHidden())
+        bar._add_btn.click()
+        self.assertEqual(requested, [True])
+
+    def test_add_button_hidden_without_can_add(self):
+        bar = LevelBar()
+        bar.set_levels(("a_lvl1", "a_lvl2", "a_lvl3"))
+        self.assertTrue(bar._add_btn.isHidden())
+
+    def test_select_last_reports_the_new_variant(self):
+        bar = LevelBar()
+        seen = []
+        bar.level_changed.connect(seen.append)
+        bar.set_levels(("v1", "v2"), can_add=True)
+        bar.select_last()
+        self.assertEqual(bar.level(), 1)
+        self.assertEqual(seen, [1])
+
 
 if __name__ == "__main__":
     unittest.main()

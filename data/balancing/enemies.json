@@ -1,6 +1,6 @@
 {
   "EnemyScaling": {
-    "base_enemy_count": 3,
+    "base_enemy_count": 0,
     "enemies_per_round": 2,
     "scale_every_n_levels": 10,
     "scale_tiers": [
@@ -37,7 +37,7 @@
     ],
     "spawn_interval": 0.7,
     "spawn_ramp_enabled": true,
-    "spawn_ramp_range": 0.5
+    "spawn_ramp_range": 0.0
   },
   "EnemyTypes": {
     "Boss": {

@@ -69,3 +69,18 @@ def resolve_slot(registry, category_key, path, subcat_idx, level_idx):
     if not slots or not 0 <= level_idx < len(slots):
         return None
     return slots[level_idx]
+
+
+def variant_target(registry, category_key, path, subcat_idx):
+    """The child-group LABEL whose slots a new variant would extend for this
+    (tree node, subcategory), or None when the subcategory is not a leaf child
+    group (flat single-slot groups, stale index). Structural only — WHICH
+    categories actually offer a "+ variant" affordance is the shell's product
+    decision, not this resolver's."""
+    group = _node(registry, category_key, path)
+    if group is None or not group.children:
+        return None
+    if not 0 <= subcat_idx < len(group.children):
+        return None
+    child = group.children[subcat_idx]
+    return child.label if child.slots else None

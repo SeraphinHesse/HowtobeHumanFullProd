@@ -162,6 +162,22 @@ editor features should hang off selection, not add parallel state.
   `viewport.set_preview_slot` + `details.set_slot`. Balancing keeps its
   last domain while vfx/deco nodes are selected. The level bar only
   resolves the ASSET slot — per-level balancing values stay Phase 9.
+- **"+ Variant" button (enemy sprite variants)**: the LevelBar carries a
+  trailing `+ Variant` button, shown ONLY for enemy eras
+  (`MainWindow._variant_era` gates on `category_key == "enemies"` — a product
+  call kept in the shell; `selection.variant_target` is the game-name-free
+  structural half). It appends one more interchangeable variant slot to that
+  era in `data/slots.json` via `editor/registry_ops.py` (pure —
+  `write_validated`, in `TestPurity`), naming it `<era-stem>_v<k>`
+  (`next_variant_key`; a bare slot counts as v1 so the first add is `_v2`).
+  Because eras can start with a single slot, `set_levels(..., can_add=True)`
+  forces the bar visible even for one level. After the write MainWindow
+  reloads every cached registry (`selector`/`details`/`viewport`
+  `.reload_registry()` — the tree stops above variant slots so its shape is
+  unchanged) and `select_last()`s the new slot so it's ready to import art
+  onto. No game change is needed: `game/enemies/enemy.py:variant_slot` already
+  rolls a random variant per spawn across ALL of an era's slots, so a new slot
+  joins the pool the moment it's saved (grey-X until its art is imported).
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer
   parity (ED-40/41). The sheet PNG is copied to
   `data/sprites/imported/<slot>.png` AT IMPORT TIME (prototype parity);

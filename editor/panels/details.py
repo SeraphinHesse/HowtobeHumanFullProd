@@ -223,6 +223,18 @@ class DetailsPanel(QWidget):
     def subcategory_index(self):
         return max(0, self._subcat_combo.currentIndex())
 
+    def select_subcategory(self, index):
+        """Programmatically pick a subcategory (used after adding a variant so
+        the dropdown stays on the same era); emits subcategory_changed when it
+        actually moves."""
+        if 0 <= index < self._subcat_combo.count():
+            self._subcat_combo.setCurrentIndex(index)
+
+    def reload_registry(self):
+        """Re-read the registry after a slots.json edit so a freshly added
+        variant slot resolves (frame size, animation vocabulary)."""
+        self.registry = load_registry(self._data_dir)
+
     def _on_subcat_changed(self, index):
         if index >= 0:
             self.subcategory_changed.emit(index)

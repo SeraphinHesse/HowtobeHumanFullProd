@@ -230,6 +230,12 @@ class SelectorPanel(QTreeWidget):
             marked = any(slot in assigned for slot in slots)
             item.setText(0, ("● " + label) if marked else label)
 
+    def reload_registry(self):
+        """Re-read data/slots.json after a registry edit (a new enemy variant).
+        The tree STOPS above variant slots, so its shape is unchanged — only
+        the cached registry the shell reads for level resolution is refreshed."""
+        self.registry = load_registry(self._data_dir)
+
     # -- selection broadcast ---------------------------------------------------
 
     def _emit_selection(self):

@@ -87,9 +87,15 @@ def run(src, dst_data):
 
     copied = []
     for slot_key in list(v2["entries"]):
-        src_png = src / "assets" / "sprites" / "imported" / f"{slot_key}.png"
+        # Resolve the source PNG from the v1 entry's own sheet path (relative
+        # to assets/sprites/) — the prototype filed many sheets under
+        # imported/{buildings,enemies/*,hole}/ subfolders, so a flat
+        # imported/<slot>.png guess misses ~90 of them. Dst still flattens to
+        # imported/<slot>.png (D-31 invariant).
+        v1_sheet = v1["entries"][slot_key].get("sheet", f"imported/{slot_key}.png")
+        src_png = src / "assets" / "sprites" / Path(v1_sheet)
         if not src_png.exists():
-            print(f"warning: {slot_key}: {src_png.name} not found — entry skipped")
+            print(f"warning: {slot_key}: {v1_sheet} not found — entry skipped")
             del v2["entries"][slot_key]
             continue
         dst_png = dst_data / "sprites" / "imported" / f"{slot_key}.png"

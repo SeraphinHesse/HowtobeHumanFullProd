@@ -301,38 +301,128 @@
       "frame_w": 64,
       "groups": [
         {
-          "label": "Walker",
-          "slots": [
-            "enemy",
-            "enemy_t2",
-            "enemy_t3",
-            "enemy_t4"
-          ]
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "enemy_stage_1_v1",
+                "enemy_stage_1_v2"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "enemy_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "enemy_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "enemy_stage_4_v1",
+                "enemy_stage_4_v2"
+              ]
+            }
+          ],
+          "label": "Walker"
         },
         {
-          "label": "Raider",
-          "slots": [
-            "raider"
-          ]
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "raider_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "raider_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "raider_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "raider_stage_4"
+              ]
+            }
+          ],
+          "label": "Raider"
         },
         {
-          "label": "Siege Cannon",
-          "slots": [
-            "siege_cannon",
-            "siege_cannon_t2",
-            "siege_cannon_t3",
-            "siege_cannon_t4"
-          ]
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "siege_cannon"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "siege_cannon_t2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "siege_cannon_t3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "siege_cannon_t4"
+              ]
+            }
+          ],
+          "label": "Siege Cannon"
         },
         {
-          "label": "Boss",
-          "slots": [
-            "boss_era_0",
-            "boss_era_1",
-            "boss_era_2",
-            "boss_era_3",
-            "boss_era_4"
-          ]
+          "children": [
+            {
+              "label": "Era 0",
+              "slots": [
+                "boss_era_0"
+              ]
+            },
+            {
+              "label": "Era 1",
+              "slots": [
+                "boss_era_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "boss_era_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "boss_era_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "boss_era_4"
+              ]
+            }
+          ],
+          "label": "Boss"
         }
       ],
       "key": "enemies"

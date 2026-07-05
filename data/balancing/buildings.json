@@ -403,7 +403,8 @@
       ]
     },
     "globals": {
-      "min_attack_speed": 0.2
+      "min_attack_speed": 0.2,
+      "projectile_speed_tiles": 3.75
     }
   },
   "EconomyBuildings": {

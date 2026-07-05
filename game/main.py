@@ -43,6 +43,7 @@ from engine.physics import TileOccupancy
 from engine.render import Renderer
 from game.buildings import BaseBuilding, attach_base, place_building
 from game.core.balance import load_balance
+from game.enemies import Spawner, resolve_combat
 from game.map import TileMap
 
 BACKGROUND = (24, 20, 32)
@@ -99,18 +100,25 @@ def main(max_frames=None, data_dir=None):
     cs = load_coordinate_system(
         data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows)
     cs.clamp(view_w, view_h)  # centre the map in the viewport
+    registry = load_registry(data_dir)
     assets = AssetStore(
         manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
-        registry=load_registry(data_dir),
+        registry=registry,
         sprites_dir=data_dir / "sprites",
     )
     renderer = Renderer(cs, assets)
     # Runtime tile grid + occupancy (9C), populated with real buildings (9D).
     tile_map = TileMap(map_doc, load_balance(data_dir, "map"))
     occupancy = TileOccupancy()
+    buildings_balance = load_balance(data_dir, "buildings")
+    enemies_balance = load_balance(data_dir, "enemies")
     scene = build_scene(
-        tile_map, occupancy,
-        load_balance(data_dir, "buildings"), load_balance(data_dir, "core"))
+        tile_map, occupancy, buildings_balance, load_balance(data_dir, "core"))
+    # 9E: keypress-driven wave spawner + combat sweep. The round loop / love /
+    # game-over that would drive this automatically is 9F — press [N] to spawn
+    # the next round's wave (enemies walk to the base; the demo Defender fires).
+    spawner = Spawner()
+    round_num = 0
     # static map items (tiles + base + deco) — precomputed once, submitted
     # every frame; RenderItems are frozen and reusable
     map_items = tilemap.render_items(map_doc)
@@ -127,14 +135,22 @@ def main(max_frames=None, data_dir=None):
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
+                round_num += 1
+                spawner.begin_round(round_num, tile_map, enemies_balance,
+                                    registry=registry)
             elif event.type == pygame.MOUSEMOTION and event.buttons[2]:
                 cs.pan(-event.rel[0], -event.rel[1])  # right-drag: map follows mouse
                 cs.clamp(view_w, view_h)
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
-        # 2. simulate
+        # 2. simulate — spawn queued wave enemies, tick the scene (movement,
+        #    enemy attacks, projectiles), then resolve combat (defender fire,
+        #    base arrivals, dead-enemy cleanup).
+        spawner.update(dt, scene)
         scene.update(dt)
+        resolve_combat(scene, tile_map, dt, buildings_balance)
 
         # 3. render submit
         for item in map_items:
