@@ -238,6 +238,44 @@ beside `balance.py`, all pure logic (no pygame — a `TestPurity` guards it):
 > repeated in-process `game.main` boots the tests/smoke do). Pure engine
 > robustness fix, no API change.
 
+## Shell + menus (`ui/`, Phase 9H)
+The top-level application state machine that wraps a run — ports the prototype's
+`GameState` shell (`src/core/game.py` dispatch). Split by the ONE-WAY layering
+`game.ui → game.core` (`hud.py` already imports `game.core.phases`), so the shell
+lives in **`game/ui/shell.py`**, NOT `game/core` (that would be circular):
+- **`Shell` is pure** (pygame-free, like all of `game/ui`; a source-scan purity
+  test in `test_shell.py` guards it — `game/ui` may import `engine.render.fonts`,
+  a sanctioned pygame module, so it imports pygame only *transitively*). It owns
+  `state` (`GameState`), the five menu screens (`main_menu`/`settings`/`credits`/
+  `add_name`/`pause`, each mirroring the `game_over.py` construct→layout→update→
+  hit→submit template + `widgets.Button`), the session-only `SessionSettings`,
+  and `settings_caller` (SETTINGS is reused for both entry points — NO
+  `SETTINGS_PAUSED` state). It applies pure transitions itself and returns an
+  **intent string** only for host-side (pygame/disk) actions: `new_game` /
+  `quit_to_menu` / `quit_app` / `set_display_mode` / `add_name_commit`.
+- **The host (`main.py`) executes intents + owns the pygame-only concerns** the
+  pure shell can't: window (re)creation (`_apply_display_mode` — SCALED keeps the
+  logical surface `view_w×view_h` in all three modes so coords/renderer/hit-rects
+  never change, E-5), the cutscene raw-surface blit, `engine.audio.play_music`
+  (one looping track; windowed runs only), and the `_World` lifecycle
+  (`build_gameplay`/`teardown_gameplay` — a fresh `_World` = a fresh run; menus
+  hold NO world). The frame loop is three per-`shell.state` switches
+  (input / update / render); the 9G in-round click ladder is unchanged but runs
+  only in GAMEPLAY. Esc opens PAUSE in gameplay / backs out of menus (was: quit).
+- **Cutscene = FULL video** via the 9B `engine.video.VideoSource`
+  (`data/video/cutscene.mp4`, length from `ui.json Menu.cutscene_length`);
+  graceful-skips to MAIN_MENU when cv2/file absent (headless).
+- **ADD_NAME persists** the typed name to `buildings.json`
+  `BuildingsGlobal.random_names` via **`game/core/names.py append_random_name`**
+  (the one runtime data write; disk I/O stays out of pygame-pure `game/ui`); the
+  host also appends to the in-memory `buildings_balance` so it goes live.
+- **Headless seam**: `main(autostart=True)` skips the shell straight into
+  GAMEPLAY so `tools/smoke.py` + the boot tests still exercise the full
+  `_World`/`Session` construction + sim the menu would otherwise defer.
+- **Deferred**: main-menu background art + the pause dim overlay (the HUD pass
+  has no per-pixel alpha) are host raw-surface concerns, not yet wired; the
+  settings audio slider is inert (no audio system beyond music).
+
 ## Porting protocol (PLAN phase 9+)
 Port one domain at a time, prototype as spec: acceptance checklist → runnable
 test → implement → iterate until green → live playtest. State what you

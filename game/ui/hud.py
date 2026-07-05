@@ -58,11 +58,14 @@ def _tile_counts(tilemap):
 class Hud:
     def __init__(self, view_w, view_h):
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
+        self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
         w, h = self.end_turn.rect[2], self.end_turn.rect[3]
         self.end_turn.rect = (view_w - w - 16, view_h - h - 16, w, h)
+        pw, ph = self.pause.rect[2], self.pause.rect[3]
+        self.pause.rect = (view_w - pw - 16, 12, pw, ph)
 
     def update(self, dt, mx, my, session, panel):
         st = session.state
@@ -72,8 +75,13 @@ class Hud:
             and not panel.visible)
         self.end_turn.hover(mx, my)
         self.end_turn.update(dt)
+        self.pause.enabled = st.state == GameState.GAMEPLAY
+        self.pause.hover(mx, my)
+        self.pause.update(dt)
 
     def hit(self, mx, my):
+        if self.pause.hit(mx, my):
+            return "pause"
         return "end_turn" if self.end_turn.hit(mx, my) else None
 
     def submit(self, renderer, session, view_w, view_h, hover_cost=None):
@@ -122,3 +130,6 @@ class Hud:
         self.end_turn.submit(renderer)
         # a faint separator under the round text keeps the corner legible
         renderer.submit_hud(HudRect((bx, by - 2, bw, 1), C_UI_BORDER))
+
+        # -- pause button (top-right) -------------------------------------
+        self.pause.submit(renderer)

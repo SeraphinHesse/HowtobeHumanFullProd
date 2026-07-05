@@ -108,6 +108,22 @@
       ],
       "type": "object"
     },
+    "Menu": {
+      "additionalProperties": false,
+      "description": "Top-level shell/menu tunables (Phase 9H): the intro-cutscene timing.",
+      "properties": {
+        "cutscene_length": {
+          "description": "Seconds the intro cutscene plays before it auto-advances to the main menu (prototype cutscene.py length cap; the decoder running out ends it sooner).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "cutscene_length"
+      ],
+      "type": "object"
+    },
     "Timing": {
       "additionalProperties": false,
       "description": "UI interaction timing and layout toggles.",
@@ -163,6 +179,7 @@
   },
   "required": [
     "FX",
+    "Menu",
     "Timing",
     "_lock"
   ],

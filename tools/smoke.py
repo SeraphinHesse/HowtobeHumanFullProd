@@ -55,8 +55,14 @@ def main():
         validate_data()
         from game.main import main as game_main
 
-        frames = game_main(max_frames=FRAMES)
-        print(f"smoke: game ran {frames} headless frame(s)")
+        # autostart -> straight into GAMEPLAY so the sim/combat/payday path and
+        # the full _World/Session construction are exercised (the 9H shell would
+        # otherwise defer them until START NEW GAME).
+        frames = game_main(max_frames=FRAMES, autostart=True)
+        print(f"smoke: game ran {frames} headless gameplay frame(s)")
+        # also boot the default shell path (cutscene/menu, no world) once.
+        game_main(max_frames=2)
+        print("smoke: shell boot OK")
     except Exception:
         traceback.print_exc()
         print("smoke: FAILED")

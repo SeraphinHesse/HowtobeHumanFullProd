@@ -1,9 +1,9 @@
 """Game over screen (Phase 9G).
 
 Pure logic. Ports the prototype's ``src/ui/game_over_screen.py``: a full-screen
-panel with the title, the run's stats, and a button. There is no main menu until
-9H, so the button returns ``"restart"`` and the host rebuilds a fresh run
-(the prototype returned ``"main_menu"``).
+panel with the title, the run's stats, and a button. Since 9H the button returns
+``"main_menu"`` (prototype-exact) — the host tears the dead run down and returns
+to the shell's main menu, where START NEW GAME builds a fresh run.
 """
 from engine.render import HudRect
 
@@ -28,7 +28,7 @@ class GameOverScreen:
         self.button.update(dt)
 
     def hit(self, mx, my):
-        return "restart" if self.button.hit(mx, my) else None
+        return "main_menu" if self.button.hit(mx, my) else None
 
     def submit(self, renderer, state, view_w, view_h):
         self.layout(view_w, view_h)

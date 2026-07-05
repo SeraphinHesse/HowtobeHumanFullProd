@@ -17,6 +17,9 @@
     "gore_enabled": true,
     "income_floaters_enabled": true
   },
+  "Menu": {
+    "cutscene_length": 44.2
+  },
   "Timing": {
     "confirm_on_right_side": true,
     "construct_show_cancel": true,

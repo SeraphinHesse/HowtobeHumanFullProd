@@ -7,6 +7,7 @@ Phase 9D shipped the single validated balancing loader (``balance.py``). Phase
 """
 from .balance import DOMAINS, load_all, load_balance
 from .game_state import RunState
+from .names import append_random_name
 from .payday import run_payday
 from .phases import GamePhase, GameState
 from .session import Session
@@ -14,4 +15,5 @@ from .session import Session
 __all__ = [
     "DOMAINS", "load_all", "load_balance",
     "GamePhase", "GameState", "RunState", "run_payday", "Session",
+    "append_random_name",
 ]
