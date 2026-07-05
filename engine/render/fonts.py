@@ -34,12 +34,28 @@ def _ensure_init():
         pygame.font.init()
 
 
+def _is_usable(font):
+    """A SysFont whose pygame.font session was torn down (a prior pygame.quit)
+    raises 'font module quit since font created' on ANY use — even after a fresh
+    pygame.init leaves get_init() True. Probe cheaply so ``get_font`` can rebuild
+    a stale cache entry (matters when a host re-boots pygame in one process:
+    tools tests / smoke run game.main repeatedly)."""
+    try:
+        font.get_height()
+        return True
+    except pygame.error:
+        return False
+
+
 def get_font(font_key):
-    """Cached SysFont for font_key (created on first use). Unknown keys fall
-    back to 'md', mirroring the prototype's fonts.get()."""
+    """Cached SysFont for font_key (created on first use, rebuilt if its pygame
+    session died). Unknown keys fall back to 'md', mirroring the prototype's
+    fonts.get()."""
     _ensure_init()
     key = font_key if font_key in _FONT_SPECS else _FALLBACK_KEY
     font = _cache.get(key)
+    if font is not None and not _is_usable(font):
+        font = None
     if font is None:
         size, bold = _FONT_SPECS[key]
         font = pygame.font.SysFont("monospace", size, bold=bold)

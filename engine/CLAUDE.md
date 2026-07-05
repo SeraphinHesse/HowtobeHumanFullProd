@@ -225,7 +225,11 @@ Everything below is pure Python — no pygame — and headless-testable.
   bold; plus `hud_phase=14`, `hud_lvl=12`). `get_font(key)` builds on first
   use (unknown key → 'md'); `TextMetrics().size(text, key)` → `(w, h)` for
   layout without blitting. `pygame.font.init()` is called defensively — works
-  headless under SDL dummy. Pure-metadata code that needs string widths asks
+  headless under SDL dummy. A cached font whose pygame session was torn down (a
+  prior `pygame.quit()`) is transparently rebuilt — `get_font` probes it with
+  `get_height()` first — so repeated in-process boots of a text-drawing host
+  (tools tests / smoke re-running `game.main`) never hit "font module quit since
+  font created" (added 9F). Pure-metadata code that needs string widths asks
   `TextMetrics` so it never imports pygame itself.
 - **`render/backend.py` HUD pass** — the backend's flat draw list is
   heterogeneous: sprite `DrawCall`, `OverlayLines` (E-24), and the screen-space

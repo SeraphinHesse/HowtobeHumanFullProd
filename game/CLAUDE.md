@@ -42,11 +42,15 @@ tell the user.
   tolerance covers ART only. Since 9D the host builds a `TileMap` +
   `engine.physics.TileOccupancy`, attaches the `BaseBuilding` to its tile, and
   places a demo Defender + Musician via `game.buildings.place_building`
-  (the dummy entities are gone). Since 9E the host also builds a `Spawner` and,
-  each frame, runs `spawner.update(dt, scene)` → `scene.update(dt)` →
-  `game.enemies.resolve_combat(...)`; pressing **`N`** calls
-  `spawner.begin_round(++round_num, …)` to spawn a wave (temporary — the real
-  round loop is 9F).
+  (the dummy entities are gone). Since 9F the host builds a `game.core.Session`
+  (owns the phase machine, love, lives, game over) and each frame runs
+  `session.pre_sim(dt, scene)` → `scene.update(dt)` →
+  `game.enemies.resolve_combat(..., on_base_hit=session.on_base_hit)` →
+  `session.post_sim(scene)`; pressing **`SPACE`** in BUILDING calls
+  `session.end_turn()` (temporary stand-in for the 9G End Turn button). A minimal
+  debug HUD (`submit_debug_hud`) draws love / round / lives / phase via the
+  engine HUD pass — NOT the real 9G HUD. The demo buildings stay so combat /
+  revive / yield are visible.
 
 ## Conventions
 - Game classes subclass `GameObject` but keep ALL state in components (engine
@@ -190,9 +194,50 @@ subclasses present for the spawner's branches but NEVER emitted (`spawner.py`
   DefenceBuildings.globals.projectile_speed_tiles` (new 9E key = 3.75 = prototype
   120 px/s ÷ 32). Logical GameObjects with no sprite in 9E — projectile/muzzle/
   blood art is the 10J FX sweep.
-- **Deferred to 9F+**: base lives-mode / game-over / round wipe, the round loop
-  and love economy, XP-per-kill + floaters (10A). Terrain/wall/death-swarm hooks
-  stay dormant.
+- **9F wires the round loop** around this sweep: `resolve_combat` gained an
+  optional `on_base_hit(enemy)` callback — with it, `_resolve_base_arrivals`
+  hands the session exactly ONE base arrival per frame then bails (prototype
+  `_update_enemy_phase` returns on the first hit), keeping base lives / game over
+  / round wipe a `game/core` concern and `game/enemies` free of any core import.
+  With no callback (9E tests) it deals raw HP as before. `Spawner.clear()` drops
+  the pending wave for a lives-mode round wipe.
+- **Deferred to 10A+**: XP-per-kill + floaters (10A); terrain/wall/death-swarm
+  hooks stay dormant.
+
+## Core / round loop (`core/`, Phase 9F)
+The round machine + economy, porting the prototype's `Game._update_gameplay` /
+`_begin_enemy_phase` / `_begin_round_end` / `_begin_income_phase`. Four files
+beside `balance.py`, all pure logic (no pygame — a `TestPurity` guards it):
+- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/INCOME driven now;
+  LEVELUP/BOSS_CUTSCENE declared at their prototype ordinal but never entered —
+  10A/10G) and `GameState` (GAMEPLAY/GAME_OVER now; menu states reserved for 9H).
+- **`game_state.py`** — `RunState` dataclass: the single owner of `phase`,
+  `state`, `round_num` (starts 1, `++`'d in payday — prototype numbering),
+  `love`, `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
+  `add_love`/`spend_love` clamp at ≥0 (prototype clamps every currency write).
+- **`payday.py`** — `run_payday(state, tilemap, core)` mirrors
+  `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F drives:
+  snapshot RoundStats (this→last) → base income + duck-typed `yield_amount` sweep
+  → duck-typed `upkeep` sweep (clamp 0) → revive sweep (`rebuild()` on non-base,
+  base excluded) → round++ → phase=INCOME. Reserved no-op slots (boss-bonus,
+  painter, boost, wall-teardown before revive; rebuild-walls) stay in place for
+  10C-10G. Do not reorder without the user.
+- **`session.py`** — `Session` orchestrates per frame: `end_turn()`
+  (BUILDING→ENEMY, `spawner.begin_round(round_num, …)`); `pre_sim(dt, scene)`
+  (spawner during ENEMY; ROUND_END/INCOME timers from `core.PhaseLoop`; payday at
+  ROUND_END end); `post_sim(scene)` (wave-clear = `spawner.done` + no live enemy →
+  ROUND_END; or a `_wipe_pending` lives-breach wipe); `on_base_hit(enemy)` (lives
+  mode: `base_lives--` + round wipe, game over at 0; HP mode: base HP dmg, game
+  over at 0). Everything freezes on GAME_OVER (no phase advances) — prototype
+  `_update` has no GAME_OVER branch.
+- **Love → interactive placement + real HUD/End-Turn button are 9G**; `Session`
+  owns the love store now, ready to feed `place_building`.
+
+> Cross-package note (9F): `engine/render/fonts.py` `get_font` now probes a
+> cached SysFont with `get_height()` and rebuilds it if its pygame session was
+> torn down (a prior `pygame.quit()` — surfaced by drawing HUD text across the
+> repeated in-process `game.main` boots the tests/smoke do). Pure engine
+> robustness fix, no API change.
 
 ## Porting protocol (PLAN phase 9+)
 Port one domain at a time, prototype as spec: acceptance checklist → runnable

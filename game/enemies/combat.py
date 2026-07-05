@@ -9,9 +9,13 @@ architecture:
    Chebyshev range, else acquires the nearest in-range enemy by Euclidean world
    distance (game-side tiebreak). On its cooldown it spawns a ``Projectile``;
    the reset interval is clamped to ``DefenceBuildings.globals.min_attack_speed``.
-2. **Base arrival** — an enemy whose ``PathAgent.reached_base`` is set deals its
-   ``dmg`` to the base's ``Health`` (+ its ``RoundStats``) and despawns. Base
-   lives / game-over / round-wipe is 9F; 9E does the raw HP damage.
+2. **Base arrival** — an enemy whose ``PathAgent.reached_base`` is set is
+   consumed at the base. With no ``on_base_hit`` callback (9E tests) it deals its
+   ``dmg`` straight to the base's ``Health`` (+ its ``RoundStats``). With a
+   callback (9F ``Session``) the sweep hands off exactly ONE arrival per frame,
+   then despawns it and bails — the prototype's ``_update_enemy_phase`` returns
+   on the first base hit, so lives/HP/game-over/round-wipe stays a core concern
+   and ``game/enemies`` never imports ``game/core``.
 3. **Death cleanup** — any enemy with a dead ``Health`` is despawned.
 
 **Projectiles** travel then deal GUARANTEED damage on arrival if the target is
@@ -123,7 +127,7 @@ def attack_interval(defender, min_attack_speed):
 
 # -- the sweep ------------------------------------------------------------
 
-def resolve_combat(scene, tilemap, dt, buildings_balance):
+def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None):
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -132,7 +136,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance):
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, enemies, dt, min_atk, proj_speed)
 
-    _resolve_base_arrivals(scene, tilemap)
+    _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
     for enemy in scene.by_tag("enemy"):
         if not enemy.alive:
@@ -178,13 +182,19 @@ def _fire(defender, target, scene, proj_speed):
     scene.spawn(proj)
 
 
-def _resolve_base_arrivals(scene, tilemap):
+def _resolve_base_arrivals(scene, tilemap, on_base_hit=None):
     base_tile = tilemap.get(tilemap.base_col, tilemap.base_row)
     base = base_tile.occupant if base_tile is not None else None
     for enemy in scene.by_tag("enemy"):
         pa = enemy.get_component(PathAgent)
         if pa is None or not pa.reached_base:
             continue
+        if on_base_hit is not None:
+            # 9F: hand off ONE arrival to the session (lives/HP/game-over/wipe),
+            # despawn it, and stop — the prototype returns on the first hit.
+            on_base_hit(enemy)
+            scene.despawn(enemy)
+            return
         if base is not None:
             base.get_component(Health).damage(enemy.dmg)
             rs = base.get_component(RoundStats)

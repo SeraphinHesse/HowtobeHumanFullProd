@@ -40,13 +40,15 @@ from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import Scene
 from engine.physics import TileOccupancy
-from engine.render import Renderer
+from engine.render import HudText, Renderer
 from game.buildings import BaseBuilding, attach_base, place_building
-from game.core.balance import load_balance
+from game.core import Session, load_balance
+from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
 from game.map import TileMap
 
 BACKGROUND = (24, 20, 32)
+HUD_COLOR = (235, 225, 245)
 
 # Demo occupants proving the 9D placement seam: one building type per buildable
 # tile, placed with unlimited love (player-driven placement + economy arrive
@@ -66,6 +68,29 @@ def build_scene(tile_map, occupancy, buildings_balance, core_balance):
                        buildings_balance=buildings_balance,
                        scene=scene, occupancy=occupancy)
     return scene
+
+
+def submit_debug_hud(renderer, state, view_w):
+    """Minimal dev readout of the run state (G-6 HUD pass). NOT the 9G HUD (love
+    panel / End-Turn button / phase banner / base HP bar) — a plain text overlay
+    so the 9F loop is observable: love, round, lives, phase, and GAME OVER."""
+    lines = [f"LOVE {state.love}", f"ROUND {state.round_num}"]
+    if state.base_lives_mode:
+        lines.append(f"LIVES {state.base_lives}")
+    lines.append(f"[{state.phase.name}]")
+    y = 8
+    for text in lines:
+        renderer.submit_hud(HudText(text=text, pos=(8, y), font_key="md",
+                                    color=HUD_COLOR, align="left"))
+        y += 20
+    if state.state == GameState.GAME_OVER:
+        renderer.submit_hud(HudText(
+            text="GAME OVER", pos=(view_w // 2, 40), font_key="xxl",
+            color=(255, 90, 90), align="center"))
+    elif state.phase == GamePhase.BUILDING:
+        renderer.submit_hud(HudText(
+            text="SPACE = End Turn", pos=(8, y + 4), font_key="sm",
+            color=(150, 150, 165), align="left"))
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -112,13 +137,15 @@ def main(max_frames=None, data_dir=None):
     occupancy = TileOccupancy()
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
-    scene = build_scene(
-        tile_map, occupancy, buildings_balance, load_balance(data_dir, "core"))
-    # 9E: keypress-driven wave spawner + combat sweep. The round loop / love /
-    # game-over that would drive this automatically is 9F — press [N] to spawn
-    # the next round's wave (enemies walk to the base; the demo Defender fires).
+    core_balance = load_balance(data_dir, "core")
+    scene = build_scene(tile_map, occupancy, buildings_balance, core_balance)
+    # 9F: the round loop. Session owns the phase machine (BUILDING -> ENEMY ->
+    # ROUND_END -> INCOME), love, base lives, and game over. Press [SPACE] in
+    # BUILDING to End Turn (the real button + interactive placement land in 9G);
+    # the demo buildings stay so combat / revive / yield are visible.
     spawner = Spawner()
-    round_num = 0
+    session = Session.create(spawner, tile_map, enemies_balance, core_balance,
+                             registry=registry)
     # static map items (tiles + base + deco) — precomputed once, submitted
     # every frame; RenderItems are frozen and reusable
     map_items = tilemap.render_items(map_doc)
@@ -135,28 +162,33 @@ def main(max_frames=None, data_dir=None):
                 running = False
             elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 running = False
-            elif event.type == pygame.KEYDOWN and event.key == pygame.K_n:
-                round_num += 1
-                spawner.begin_round(round_num, tile_map, enemies_balance,
-                                    registry=registry)
+            elif event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
+                session.end_turn()  # BUILDING -> ENEMY (temporary End Turn key)
             elif event.type == pygame.MOUSEMOTION and event.buttons[2]:
                 cs.pan(-event.rel[0], -event.rel[1])  # right-drag: map follows mouse
                 cs.clamp(view_w, view_h)
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
-        # 2. simulate — spawn queued wave enemies, tick the scene (movement,
-        #    enemy attacks, projectiles), then resolve combat (defender fire,
-        #    base arrivals, dead-enemy cleanup).
-        spawner.update(dt, scene)
-        scene.update(dt)
-        resolve_combat(scene, tile_map, dt, buildings_balance)
+        # 2. simulate — the Session drives the phase machine (spawns during
+        #    ENEMY, runs payday at ROUND_END); on GAME_OVER the whole world
+        #    FREEZES (prototype _update has no GAME_OVER branch), so the scene
+        #    tick + combat sweep are gated on GAMEPLAY — otherwise enemies would
+        #    keep walking into the hole and drive lives negative. Combat feeds
+        #    base breaches back to the session, which then detects wave-clear.
+        session.pre_sim(dt, scene)
+        if session.state.state == GameState.GAMEPLAY:
+            scene.update(dt)
+            resolve_combat(scene, tile_map, dt, buildings_balance,
+                           on_base_hit=session.on_base_hit)
+            session.post_sim(scene)
 
         # 3. render submit
         for item in map_items:
             renderer.submit(item)
         for item in scene.render_items():
             renderer.submit(item)
+        submit_debug_hud(renderer, session.state, view_w)
         window.fill(BACKGROUND)
         renderer.flush(window)
         pygame.display.flip()

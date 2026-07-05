@@ -51,6 +51,13 @@ class Spawner:
     def enemy_tier(self):
         return self._tier
 
+    def clear(self):
+        """Drop the pending wave — a lives-mode base breach ends the round early
+        (Session._wipe_round). The already-spawned enemies are cleared by the
+        caller from the scene; this just abandons the unspawned queue."""
+        self._queue = []
+        self._timer = 0.0
+
     # -- round setup (prototype _begin_enemy_phase) -----------------------
 
     def begin_round(self, round_num, tilemap, enemies_balance, rng=None,
