@@ -55,6 +55,39 @@ tell the user.
 - Phase machine + income ordering (snapshot → income → upkeep → painters →
   revive → cleanup) is prototype-exact (G-5); do not reorder without the user.
 
+## Map runtime (`map/`, Phase 9C)
+Runtime layer over an `engine.tilemap.TileMapDoc` (never re-parse map JSON):
+`tiles.py` (`Tile`, `TileState`, `TileCondition`), `tile_map.py` (`TileMap`),
+`pathfinder.py`, `picking.py`. Ports the prototype's `src/map/*` behaviour.
+Conventions that differ from the prototype (deliberate, clean-arch):
+- **Zones seed from the map file's terrain codes**, not procedural rings —
+  `b`→BUILDABLE, `c`→COMBAT, `s`→SPAWNING, `f/l/o`→BACKGROUND, `doc.base`
+  tile→BUILT. The map file is the source of truth. Unlock sections + the
+  playfield window anchor at the base corner (`base_col/row` .. `dim-1`).
+- **Pathfinding weight is content-key driven, not `isinstance(Building)`**:
+  each tile resolves to a key in `map.json` `Pathfinding.content_weights`
+  (empty tiles from their zone; occupied tiles carry the key set at placement).
+  Composition order is PROTOTYPE-EXACT: base → +condition (`path_weights`) →
+  +defence-range coverage → ×damage discount, all gated `0 < w < impassable`.
+- **Picking goes through `engine.coords` only** (`screen_to_world` + floor) —
+  no iso math in `game/`.
+- **Balancing read directly** via `load_map_balance(data_dir)` until 9D's
+  `game/core/balance.py` generalises the loader; `TileMap(doc, balance)` takes
+  the dict so tests can inject fixtures.
+- **Dormant hooks, ported but fed neutral** until their producers land:
+  tile conditions (all GRASS → +0, random roll in **10I**), damage-weight
+  reduction (`set_round`/`refresh_damage_weight_reductions` present, no building
+  damage yet, **10F**), defence-range coverage (`_defence_coverage_fn`=None,
+  add value from the *buildings* domain, **10I**), walls (`get_wall_between`→
+  None, so `find_path_ignoring_walls` == `find_path`, **10E**), and the four
+  building-targeting `find_path_*` variants (goal by occupant `building_type`;
+  no occupants yet → all fall back to `find_path`).
+- **Occupancy sync is occupant-driven**: `TileMap.sync_occupancy(occupancy)`
+  mirrors tiles with a GameObject occupant into `engine.physics.TileOccupancy`
+  (BACKGROUND impassability is a weight concern, not occupancy). In 9C nothing
+  occupies a tile yet (the base has no GameObject) → it clears everything; 9D
+  wires real occupants through this one seam.
+
 ## Porting protocol (PLAN phase 9+)
 Port one domain at a time, prototype as spec: acceptance checklist → runnable
 test → implement → iterate until green → live playtest. State what you
