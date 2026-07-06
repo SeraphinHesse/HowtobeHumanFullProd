@@ -135,7 +135,7 @@ class TestVariants(unittest.TestCase):
     def test_targets_nearest_defence_building(self):
         tm = synth(OPEN_5x5)
         goal = tm.get(3, 1)
-        goal.state = TileState.BUILT
+        tm.set_tile_state(goal, TileState.BUILT)
         goal.content_key = "defence_building"
         goal.occupant = types.SimpleNamespace(building_type="defence", alive=True)
         path = find_path_to_nearest_defence(tm, 3, 3)
@@ -146,7 +146,7 @@ class TestVariants(unittest.TestCase):
     def test_dead_building_is_not_a_goal(self):
         tm = synth(OPEN_5x5)
         goal = tm.get(3, 1)
-        goal.state = TileState.BUILT
+        tm.set_tile_state(goal, TileState.BUILT)
         goal.content_key = "defence_building"
         goal.occupant = types.SimpleNamespace(building_type="defence", alive=False)
         # dead → falls back to the base path

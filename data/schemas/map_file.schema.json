@@ -32,7 +32,7 @@
     },
     "cols": {
       "description": "Grid width in tiles. Each map owns its dimensions (geometry.json keeps only tile pitch and zoom levels as global truth).",
-      "maximum": 128,
+      "maximum": 1024,
       "minimum": 4,
       "type": "integer"
     },
@@ -189,7 +189,7 @@
     },
     "rows": {
       "description": "Grid height in tiles. Each map owns its dimensions.",
-      "maximum": 128,
+      "maximum": 1024,
       "minimum": 4,
       "type": "integer"
     },

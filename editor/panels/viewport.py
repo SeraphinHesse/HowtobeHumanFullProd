@@ -434,10 +434,14 @@ class ViewportPanel(QWidget):
 
     def _submit_map_items(self):
         """ED-20: the open doc through engine.tilemap (layer eyes + zone
-        tints), the ghost preview, and grid lines via the E-24 primitive."""
+        tints), the ghost preview, and grid lines via the E-24 primitive.
+        Windowed culling (same as game/main.py) keeps large maps interactive:
+        only the on-screen tile range is generated/submitted."""
         doc = self._map_session.doc
-        for item in tilemap.render_items(
-                doc,
+        w, h = self.width(), self.height()
+        cmin, cmax, rmin, rmax = self._coords.visible_tile_window(w, h, margin=4)
+        for item in tilemap.visible_render_items(
+                doc, cmin, cmax, rmin, rmax,
                 terrain=self._eyes["terrain"],
                 base=self._eyes["base"],
                 deco=self._eyes["deco"],
@@ -446,12 +450,16 @@ class ViewportPanel(QWidget):
         for item in self._ghost_items(doc):
             self._renderer.submit(item)
         if self._grid_lines:
-            for r in range(doc.rows + 1):
+            # bound the grid to the visible window too (a 1024-line full grid
+            # would swamp the overlay pass)
+            c0, c1 = max(0, cmin), min(doc.cols, cmax)
+            r0, r1 = max(0, rmin), min(doc.rows, rmax)
+            for r in range(r0, r1 + 1):
                 self._renderer.submit_overlay_lines(
-                    ((0, r), (doc.cols, r)), GRID_COLOR)
-            for c in range(doc.cols + 1):
+                    ((c0, r), (c1, r)), GRID_COLOR)
+            for c in range(c0, c1 + 1):
                 self._renderer.submit_overlay_lines(
-                    ((c, 0), (c, doc.rows)), GRID_COLOR)
+                    ((c, r0), (c, r1)), GRID_COLOR)
 
     def paintEvent(self, event):
         if self._qimage is None:

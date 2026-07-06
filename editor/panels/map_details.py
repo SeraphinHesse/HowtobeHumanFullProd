@@ -49,7 +49,7 @@ class NewMapDialog(QDialog):
                 spin = QSpinBox(self)
                 spin.setMinimum(schema["properties"]["cols"]["minimum"])
                 spin.setMaximum(schema["properties"]["cols"]["maximum"])
-                spin.setValue(20)
+                spin.setValue(128)
                 setattr(self, attr, spin)
                 form.addRow(label, spin)
         buttons = QDialogButtonBox(

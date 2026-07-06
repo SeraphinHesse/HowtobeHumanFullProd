@@ -158,6 +158,34 @@ class TestCamera(unittest.TestCase):
         self.assertGreaterEqual(cs.camera.pan_y, min_y)
 
 
+class TestVisibleTileWindow(unittest.TestCase):
+    """E-5: the on-screen tile range for windowed culling — the AABB of the
+    four screen-corner inversions, optionally padded by a whole-tile margin."""
+
+    def test_window_is_corner_aabb(self):
+        # pan 0, zoom 1: corners invert to wx∈[0,25], wy∈[-10,15] for 640x480.
+        cs = make_cs()
+        self.assertEqual(cs.visible_tile_window(640, 480), (0, 25, -10, 15))
+
+    def test_margin_pads_all_sides(self):
+        cs = make_cs()
+        self.assertEqual(
+            cs.visible_tile_window(640, 480, margin=4), (-4, 29, -14, 19))
+
+    def test_covers_every_on_screen_tile(self):
+        # exhaustive: any tile whose diamond origin projects inside the viewport
+        # must fall inside the (margin-0) window.
+        cs = make_cs(pan_x=-200, pan_y=-50)
+        cmin, cmax, rmin, rmax = cs.visible_tile_window(640, 480)
+        for row in range(-50, 70):
+            for col in range(-50, 70):
+                sx, sy = cs.world_to_screen(col, row)
+                if 0 <= sx < 640 and 0 <= sy < 480:
+                    self.assertTrue(
+                        cmin <= col <= cmax and rmin <= row <= rmax,
+                        f"tile ({col},{row}) at ({sx},{sy}) not in window")
+
+
 class TestDataIO(unittest.TestCase):
     """D-3: deterministic formatting. D-2: writes validate."""
 

@@ -10,6 +10,8 @@ Spaces:
 
 Pure Python — headless-testable, no pygame.
 """
+import math
+
 from .camera import Camera
 
 
@@ -75,6 +77,32 @@ class CoordinateSystem:
         min_x, min_y, max_x, max_y = self.map_pixel_bounds()
         self.camera.pan_x = _clamp_axis(self.camera.pan_x, min_x, max_x, viewport_w)
         self.camera.pan_y = _clamp_axis(self.camera.pan_y, min_y, max_y, viewport_h)
+
+    def visible_tile_window(self, viewport_w, viewport_h, margin=0):
+        """Integer (col_min, col_max, row_min, row_max) of the tiles whose
+        diamonds can touch the viewport — for windowed culling (only these
+        tiles need to be generated/submitted, no matter how big the map is).
+
+        The visible region is a rotated rectangle in world space; its
+        axis-aligned world bounding box has its extrema at the four screen
+        corners (an affine map of a rectangle attains min/max at corners), so
+        min/max over the four `screen_to_world` corners is exact. `margin` pads
+        the box (whole tiles) for tall-sprite overhang / anti-pop-in. Not
+        clamped to the map — the tile emitter clamps to [0, cols/rows)."""
+        corners = (
+            self.screen_to_world(0, 0),
+            self.screen_to_world(viewport_w, 0),
+            self.screen_to_world(0, viewport_h),
+            self.screen_to_world(viewport_w, viewport_h),
+        )
+        wxs = [wx for wx, _ in corners]
+        wys = [wy for _, wy in corners]
+        return (
+            math.floor(min(wxs)) - margin,
+            math.ceil(max(wxs)) + margin,
+            math.floor(min(wys)) - margin,
+            math.ceil(max(wys)) + margin,
+        )
 
     def center_on(self, wx, wy, viewport_w, viewport_h):
         """Pan so world (wx, wy) lands at the viewport centre, then clamp

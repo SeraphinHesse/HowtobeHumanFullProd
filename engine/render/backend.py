@@ -10,6 +10,8 @@ pixel coords already; the backend does NOT convert them. Dispatch is by
 isinstance, mirroring OverlayLines. Text uses the lazy font cache in
 engine.render.fonts — no font is built unless HudText is actually drawn.
 """
+import weakref
+
 import pygame
 
 from . import fonts
@@ -24,6 +26,26 @@ try:
 except ImportError:  # pragma: no cover - exercised only pre-merge
     HudRect = HudText = HudLines = ()
 
+# Scaled-surface cache: at zoom != 1.0 the same tile/sprite surface is scaled to
+# the same size every frame. Cache the resample keyed by the SOURCE surface's
+# identity (frame slices are memoized in AssetStore, so identity is stable) with
+# a WeakKeyDictionary so the entry evicts when the source surface is GC'd — the
+# grey-X placeholder (a fresh surface each call) therefore never leaks. Only the
+# scale is cached; flip/tint stay per-call (they vary per instance and copy).
+_scale_cache = weakref.WeakKeyDictionary()
+
+
+def _scaled(surface, size):
+    if size == surface.get_size():
+        return surface
+    by_size = _scale_cache.get(surface)
+    if by_size is None:
+        by_size = _scale_cache[surface] = {}
+    scaled = by_size.get(size)
+    if scaled is None:
+        scaled = by_size[size] = pygame.transform.scale(surface, size)
+    return scaled
+
 
 def _draw_hud_text(target, call):
     font = fonts.get_font(call.font_key)
@@ -37,31 +59,42 @@ def _draw_hud_text(target, call):
 
 
 def draw(target, draw_calls):
+    # Sprite blits accumulate into one batch (target.blits) — far less Python
+    # per-blit overhead with hundreds of entities/projectiles. A non-sprite call
+    # (overlay/HUD) flushes the batch first so draw order is exact. The dispatch
+    # tuple is built here (not a module constant) so it reads the CURRENT module
+    # names — the pre-merge HUD test patches backend.HudRect/HudText/HudLines and
+    # relies on isinstance seeing the swap. One tuple per draw() call is nothing.
+    non_sprite = (OverlayLines, HudRect, HudLines, HudText)
+    batch = []
     for call in draw_calls:
-        if isinstance(call, OverlayLines):
-            points = [(round(x), round(y)) for x, y in call.points]
-            pygame.draw.lines(target, call.color, call.closed, points, call.width)
+        if isinstance(call, non_sprite):
+            if batch:
+                target.blits(batch, doreturn=False)
+                batch.clear()
+            if isinstance(call, OverlayLines):
+                points = [(round(x), round(y)) for x, y in call.points]
+                pygame.draw.lines(target, call.color, call.closed, points,
+                                  call.width)
+            elif isinstance(call, HudRect):
+                pygame.draw.rect(
+                    target, call.color, call.rect, call.width,
+                    border_radius=call.border_radius,
+                )
+            elif isinstance(call, HudLines):
+                points = [(round(x), round(y)) for x, y in call.points]
+                pygame.draw.lines(target, call.color, call.closed, points,
+                                  call.width)
+            else:  # HudText
+                _draw_hud_text(target, call)
             continue
-        if isinstance(call, HudRect):
-            pygame.draw.rect(
-                target, call.color, call.rect, call.width,
-                border_radius=call.border_radius,
-            )
-            continue
-        if isinstance(call, HudLines):
-            points = [(round(x), round(y)) for x, y in call.points]
-            pygame.draw.lines(target, call.color, call.closed, points, call.width)
-            continue
-        if isinstance(call, HudText):
-            _draw_hud_text(target, call)
-            continue
-        surface = call.surface
         size = (max(1, round(call.size[0])), max(1, round(call.size[1])))
-        if size != surface.get_size():
-            surface = pygame.transform.scale(surface, size)
+        surface = _scaled(call.surface, size)
         if call.flip:
             surface = pygame.transform.flip(surface, True, False)
         if call.tint is not None:
             surface = surface.copy()
             surface.fill(call.tint, special_flags=pygame.BLEND_RGBA_MULT)
-        target.blit(surface, (round(call.dest[0]), round(call.dest[1])))
+        batch.append((surface, (round(call.dest[0]), round(call.dest[1]))))
+    if batch:
+        target.blits(batch, doreturn=False)

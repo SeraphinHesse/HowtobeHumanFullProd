@@ -25,20 +25,78 @@ tell the user.
 - Frame order is fixed per E-14: input → `Scene.update(dt)` →
   render submit (grid tiles + `scene.render_items()`) → `flush` → `flip`.
 - **Camera input mapping (E-5) lives here**, on pure engine camera state:
-  right-click-drag pans (`cs.pan` + `cs.clamp` to map bounds); scroll
-  wheel steps through the data-driven `geometry.json` zoom levels, keeping
-  the viewport-centre world point fixed via `screen_to_world`/
-  `world_to_screen` only (no iso math in the host); Esc quits.
+  **both left- and right-click-drag pan** (`cs.pan` + `cs.clamp` to map
+  bounds). Left-drag pans only when the press began over the world (not a
+  panel/HUD button) and is gated by the same 4px drag threshold that
+  separates a click from a drag, so a short left click still selects/places
+  a tile while a left-drag moves the camera (`pan_from` tracks this).
+  Scroll wheel steps through the data-driven `geometry.json` zoom levels,
+  keeping the viewport-centre world point fixed via `screen_to_world`/
+  `world_to_screen` only (no iso math in the host); Esc opens pause.
 - Window size / fps / caption come from `data/display.json`
   (schema-validated, G-7) — never hardcode them.
+- **Tile-state index (perf, THE static-camera large-map fix)**: `TileMap`
+  keeps an incremental `_by_state` index (`{TileState: set()}`), so
+  `built_tiles()`/`buildable_tiles()`/`spawning_tiles()` are **O(result)**, not
+  a full `rows×cols` scan. This is what fixed a 1024² map running at ~2 fps
+  *even with a static camera* (and in the editor's Play): the in-round HUD
+  (`game/ui/hud.py`) calls those queries several times **per frame** (income
+  breakdown + tile counter), which on a 1024² map was ~4 full-map scans ×
+  ~1M cells ≈ **630 ms/frame** (measured) — dwarfing all render cost. The
+  editor's map *viewport* builds no `TileMap` and has no HUD, so it never paid
+  this (it rendered the same map at ~20 fps), which is what isolated the cause.
+  **INVARIANT: every tile-state write goes through `TileMap.set_tile_state`**
+  (the only place `_by_state` is kept consistent) — `do_unlock`, spawn recede,
+  building placement (`game/buildings/registry.py`), and the base seed all route
+  through it. `Tile.state` stays a plain `__slots__` attribute so *reads* (the
+  pathfinding hot path) pay no property overhead; only writes are routed. A
+  consistency unit test (`test_tile_unlock.TestStateIndexConsistency`) pins the
+  index == a brute-force scan across seed/unlock/recede. (`sync_occupancy` still
+  scans `all_tiles()` but is per-placement, not per-frame — a later follow-up.)
+- **Large-map GC (perf)**: a big map builds one `Tile` per cell (a 1024²
+  map = ~1M long-lived objects). Left alone, Python's cyclic GC periodically
+  walks that whole static grid (an 80–140 ms stall that *scales with map
+  size*). After each `build_gameplay`
+  the host calls `gc.collect(); gc.freeze()` (helper `freeze_static`) to move
+  the tile grid into a permanent generation the collector never re-scans, so a
+  collection costs <1 ms at any map size; `teardown_gameplay` calls
+  `gc.unfreeze()` first so the old world can be reclaimed. **Gated to windowed
+  runs** (`tune_gc = max_frames is None`) — headless tests/smoke re-boot
+  `main()` in-process and must not have GC state mutated. `game/map` `Tile`
+  carries `__slots__` for the same reason (memory: ~3× smaller per tile).
+- **Ground cache (perf, the panning fix)**: the static terrain is no longer
+  re-blitted tile-by-tile each frame. The host builds
+  `engine.render.ground_cache.GroundCache(cs, assets, bg_color=BACKGROUND)` and,
+  in the world/PAUSED render branch, calls `ground_cache.ensure(view_w, view_h,
+  <band emitter>)` + `ground_cache.blit(window)` FIRST, then submits base + deco
+  (`visible_render_items(..., terrain=False)`) + entities + UI over it. The
+  `ensure` callback is the iso-diagonal band emitter
+  `lambda dmn,dmx,smn,smx: tilemap.band_render_items(map_doc, dmn,dmx,smn,smx)`
+  (NOT `visible_render_items` — the cache repaints thin diagonal scroll strips;
+  see engine/CLAUDE.md). In-game terrain never mutates at runtime (unlock/recede
+  change runtime zone state, not `map_doc.terrain`; highlights are overlay-layer),
+  so no `invalidate()` is needed. The cache SCROLLS on pan and repaints only the
+  exposed edge, so panning cost tracks pan speed, not map size — a 1024² map that
+  used to drop to ~2 fps while panning (every margin-cross triggered a ~70 ms full
+  recomposite) now stays smooth (headless: ~6–14 ms/frame at 1024² zoom 1,
+  independent of map size). Details in engine/CLAUDE.md "Ground layer cache".
+- **Frame-timing HUD**: windowed runs print `sim/submit/flush/flip` avg ms beside
+  the fps line (gated on `tune_gc`, so headless stays silent) — the on-hardware
+  measure of where a frame goes.
 - **Active map (Phase 6, D-20/D-21)**: boot loads
   `engine.tilemap.load_active_map(data_dir)` (follows
   `data/maps/active_map.json`) and builds coords with THE MAP's dims
-  (`load_coordinate_system(data_dir, map_cols=…, map_rows=…)`). The whole
-  static map (tiles with prototype checkerboard parity, base on
-  `entities`, deco on `deco` above entities per E-26) comes from
-  `engine.tilemap.render_items(doc)` — precomputed once, submitted every
-  frame. Invalid map data fails LOUD (D-2); the E-37 log-and-placeholder
+  (`load_coordinate_system(data_dir, map_cols=…, map_rows=…)`). The static
+  map (tiles with prototype checkerboard parity, base on `entities`, deco on
+  `deco` above entities per E-26) is submitted **windowed** each frame:
+  `cs.visible_tile_window(view_w, view_h, margin=4)` →
+  `engine.tilemap.visible_render_items(map_doc, …)` generates ONLY the tiles
+  that can touch the viewport. This is what makes very large maps (up to
+  1024×1024) render at full fps — the per-frame cost tracks the visible
+  window (worst case ~7k tiles at min zoom), not the map's total tile count.
+  (The old full-map `render_items` precompute is gone — it would build/hold
+  ~1M RenderItems for a 1024² map.) Invalid map data fails LOUD (D-2); the
+  E-37 log-and-placeholder
   tolerance covers ART only. Since 9D the host builds a `TileMap` +
   `engine.physics.TileOccupancy`, attaches the `BaseBuilding` to its tile, and
   places a demo Defender + Musician via `game.buildings.place_building`

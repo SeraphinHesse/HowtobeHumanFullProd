@@ -18,7 +18,11 @@ an engine task; if an engine change forces a caller change, tell the user
   only when the map is smaller than the viewport there; `center_on(wx, wy, w,
   h)` instead parks a chosen world point at the viewport centre (then clamps)
   — use it to frame a target that overflows the viewport, where `clamp` would
-  anchor to an edge (the editor's entity preview).
+  anchor to an edge (the editor's entity preview). `visible_tile_window(vw,
+  vh, margin)` returns the integer `(col_min, col_max, row_min, row_max)` of
+  tiles that can touch the viewport (AABB of the four `screen_to_world`
+  corners, padded by `margin` whole tiles) — the basis of windowed tile
+  culling so arbitrarily large maps cost only their visible window.
 - `core/` — `GameObject`, `Component`, `Transform`, `Scene`, frame order
   (E-10..E-15). Rule: **components are what the editor sees; subclasses are
   behavior convenience.** All gameplay state lives in declared component
@@ -157,6 +161,77 @@ an engine task; if an engine change forces a caller change, tell the user
   map for the one pipeline: ground tiles (optional per-code tint — the
   editor's zone-tint eye), base on `entities`, deco on `deco` (above
   entities, E-26). The game submits all; the editor filters by its eyes.
+  `visible_render_items(doc, col_min, col_max, row_min, row_max, …)` is the
+  **windowed** variant (same output for the covered cells, clamped to the
+  map; base/deco gated by a `tall_margin`): pair it with
+  `CoordinateSystem.visible_tile_window` so game AND editor viewports only
+  generate on-screen tiles — the reason a 1024² map stays at full fps.
+  `render_items` (full map) is kept for tests / small full-map consumers.
+  `band_render_items(doc, d_min, d_max, s_min, s_max, …)` is a THIRD emitter —
+  ground only, addressed by the rotated iso coords `d = col−row`, `s = col+row`
+  — for callers that need a thin diagonal on-screen strip (the ground cache's
+  scroll-fill): a rectangular tile window for such a strip balloons to the whole
+  viewport, a `d`/`s` band emits only the strip's tiles. See the Ground layer
+  cache note below.
+- **Ground layer cache** (`render/ground_cache.py`, perf): windowed culling
+  bounds the ground submit to O(visible), but that is still ~2.6k tile blits +
+  RenderItem allocs + a full sort EVERY frame under the SCALED software
+  renderer — the real large-map fps killer while panning. `GroundCache(coords,
+  assets, *, pixel_margin=192, bg_color=None)` composites the ground layer into
+  an oversized (viewport + 2·margin) surface baked at an "anchor" pan.
+  Steady-state (pan unchanged) is ONE blit. **On pan it SCROLLS the surface in
+  place (`Surface.scroll`, a memmove) and repaints only the newly-exposed edge
+  strip** — work proportional to pan *speed*, not viewport area or map size. A
+  full rebuild fires only on first use / zoom / resize / explicit `invalidate()`
+  / a jump clear off the cached surface.
+  - **Why scroll, not rebuild-on-margin-escape**: an earlier version rebuilt the
+    WHOLE viewport whenever the pan escaped the margin. Each rebuild recomposited
+    ~2.6k tiles (== the old per-frame full render, ~70 ms) and, on a large map,
+    fired continuously while panning (a small map hits the pan clamp first, so it
+    rarely rebuilt — that is why fps used to scale INVERSELY with map area:
+    128²→60 fps but 1024²→2 fps). Scroll-and-fill removes the stall: no tile is
+    ever recomposited just because the camera moved a bit.
+  - **Diagonal-band emission (the subtle part)**: a thin *screen* strip is a
+    *diagonal* in tile space, so an axis-aligned tile window (`visible_render_items`)
+    for it balloons to almost the whole viewport (and is only cut back by
+    map-edge clamping — reintroducing the map-size scaling). The strip repaint
+    therefore addresses tiles by the rotated coords `d = col−row`, `s = col+row`
+    via `tilemap.band_render_items(doc, d_min, d_max, s_min, s_max)`; a thin strip
+    is a thin band in `d` (vertical) or `s` (horizontal) → only the ~100 tiles it
+    truly covers. `_paint` derives the band from the strip's pixels:
+    `d = (screen_x+pan_x)/(half_w·z)`, `s = (screen_y+pan_y)/(half_h·z)`, padded
+    for diamond overhang, and clips the blit to the strip so seams are exact.
+  - **Why it's safe**: `depth_key = (layer_index, wx+wy, wy)` makes the draw
+    LAYER the primary sort key, so the whole `ground` layer always draws before
+    `entities`/`deco`/`overlay`. This is a LOAD-BEARING invariant — if
+    `depth_key` ever interleaves layers, the cache breaks. Callers draw the
+    cache first, then submit the dynamic layers over it via the normal renderer.
+  - **Anchor technique**: it renders into the cache through a PRIVATE
+    `CoordinateSystem` (a fresh `Camera` at `pan = anchor_pan − margin`, same
+    zoom) — never mutating the host camera. Blit offset is
+    `dest = anchor_pan − current_pan − margin` (derived from
+    `screen = iso*zoom − pan`). Scroll advances `anchor_pan` by the integer pixels
+    scrolled; the sub-pixel remainder rides along in the blit's float `dest` — so
+    the surface stays rounding-exact vs a direct render (pinned pixel-for-pixel
+    across successive scroll steps in `test_ground_cache`).
+  - **Content-agnostic**: `ensure(view_w, view_h, ground_items_fn)` takes a
+    callback `(d_min,d_max,s_min,s_max) → iterable[RenderItem]` (band form) so
+    terrain/tint choices stay with the caller (game: untinted; editor:
+    `tint_for_code`). `bg_color=<rgb>` bakes an OPAQUE cache (pixel-identical to
+    the old `fill(bg)`-then-tiles path) and is REQUIRED by scroll-fill (the
+    exposed strip is `fill(bg_color)`ed before repaint); `None`/SRCALPHA is for
+    static (non-scrolling) consumers only.
+  - **NOT exported from `engine.render.__init__`** (which stays pure) — import
+    it by full path `engine.render.ground_cache`, like the backend/store.
+- **Backend throughput** (`render/backend.py`, perf, for hundreds of
+  entities/projectiles): (1) a module-level `WeakKeyDictionary` **scaled-frame
+  cache** keyed by source-surface identity avoids re-running
+  `pygame.transform.scale` for the same (surface, size) each frame at zoom≠1 —
+  only the scale is cached; flip/tint stay per-call (they copy); the grey-X
+  placeholder is a fresh surface each call so it never leaks (weak eviction).
+  (2) plain sprite draws accumulate into one `target.blits(...)` **batch**,
+  flushed whenever a non-sprite (overlay/HUD) call must land in order. Both are
+  pixel-transparent (tests in `test_render.TestBackendThroughput`).
 - **E-24 overlay primitive**: `Renderer.submit_overlay_lines(points_world,
   color, width, closed)` → `OverlayLines` (item.py). Points convert via
   coords at flush; overlay entries are appended AFTER every sprite
@@ -259,7 +334,8 @@ Everything below is pure Python — no pygame — and headless-testable.
 
 ## Hard rules
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
-  the asset surface cache, `engine/audio.py`, and `engine/video.py`. `coords/`,
+  `render/ground_cache.py`, the asset surface cache, `engine/audio.py`, and
+  `engine/video.py`. `coords/`,
   `core/`, `physics/`, and asset *metadata* code are pure Python — that is what
   keeps game logic headless-testable.
 - Rendering never raises on a missing asset (grey X instead).

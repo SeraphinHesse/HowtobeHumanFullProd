@@ -223,6 +223,87 @@ class TestHeadlessRender(unittest.TestCase):
         renderer.flush(pygame.Surface((64, 64)))  # must not raise (E-23)
 
 
+class TestBackendThroughput(unittest.TestCase):
+    """Scaled-frame cache + batched blits (perf) must not change pixels."""
+
+    def test_scaled_cache_reuses_scale(self):
+        import pygame
+        from engine.render import backend
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        src = pygame.Surface((8, 8), pygame.SRCALPHA)
+        src.fill((10, 200, 30, 255))
+        # Three draws of the SAME surface at the SAME size -> one scale, reused.
+        calls = [DrawCall(surface=src, dest=(i * 4, 0), size=(16, 16))
+                 for i in range(3)]
+        real_scale = pygame.transform.scale
+        count = {"n": 0}
+
+        def counting_scale(surface, size):
+            count["n"] += 1
+            return real_scale(surface, size)
+
+        pygame.transform.scale = counting_scale
+        try:
+            backend.draw(pygame.Surface((64, 64)), calls)
+        finally:
+            pygame.transform.scale = real_scale
+        self.assertEqual(count["n"], 1, "same (surface,size) must scale once")
+
+    def test_batch_equals_per_blit(self):
+        import pygame
+        from engine.render import backend
+        from engine.render import OverlayLines
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        src = pygame.Surface((8, 8), pygame.SRCALPHA)
+        src.fill((200, 40, 40, 255))
+        calls = [
+            DrawCall(surface=src, dest=(2, 3), size=(8, 8)),
+            DrawCall(surface=src, dest=(30, 3), size=(16, 16)),
+            OverlayLines(points=((1, 1), (40, 1)), color=(0, 255, 0), width=2),
+            DrawCall(surface=src, dest=(10, 30), size=(8, 8), flip=True),
+        ]
+        via_backend = pygame.Surface((64, 64))
+        via_backend.fill((0, 0, 0))
+        backend.draw(via_backend, calls)
+
+        # Reference: exactly the old per-call semantics, one blit at a time.
+        ref = pygame.Surface((64, 64))
+        ref.fill((0, 0, 0))
+        for c in calls:
+            if isinstance(c, OverlayLines):
+                pts = [(round(x), round(y)) for x, y in c.points]
+                pygame.draw.lines(ref, c.color, c.closed, pts, c.width)
+                continue
+            surf = c.surface
+            size = (max(1, round(c.size[0])), max(1, round(c.size[1])))
+            if size != surf.get_size():
+                surf = pygame.transform.scale(surf, size)
+            if c.flip:
+                surf = pygame.transform.flip(surf, True, False)
+            ref.blit(surf, (round(c.dest[0]), round(c.dest[1])))
+        self.assertEqual(pygame.image.tobytes(via_backend, "RGB"),
+                         pygame.image.tobytes(ref, "RGB"))
+
+    def test_placeholder_surfaces_do_not_leak(self):
+        import gc as _gc
+        import pygame
+        from engine.render import backend
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        target = pygame.Surface((64, 64))
+        for _ in range(50):  # each a fresh surface, like the grey-X placeholder
+            fresh = pygame.Surface((8, 8), pygame.SRCALPHA)
+            backend.draw(target, [DrawCall(surface=fresh, dest=(0, 0), size=(16, 16))])
+        _gc.collect()
+        self.assertLessEqual(len(backend._scale_cache), 1,
+                             "transient surfaces must evict from the scale cache")
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: coords / data_io / render orchestration / asset metadata
     import no pygame."""

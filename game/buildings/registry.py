@@ -58,7 +58,7 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     building = create(building_type, tile.col, tile.row, buildings_balance)
     tile.occupant = building
     tile.content_key = building.CONTENT_KEY
-    tile.state = TileState.BUILT
+    tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)
     tilemap.sync_occupancy(occupancy)
     return building, cost

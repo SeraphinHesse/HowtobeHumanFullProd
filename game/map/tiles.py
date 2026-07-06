@@ -55,6 +55,20 @@ _CONDITION_WEIGHT_KEY = {
 
 
 class Tile:
+    # __slots__ (not a behaviour change): a large map builds one Tile per cell
+    # (a 1024×1024 map = ~1M tiles). Dropping the per-instance __dict__ cuts
+    # each tile's memory footprint by well over half, which on big maps saves
+    # hundreds of MB of resident RAM — the difference between fitting in
+    # physical memory and paging every frame. The attribute set is fixed (all
+    # assigned here or by the placement/unlock/UI code that reads them), so
+    # slots cost nothing in flexibility. Paired with the host's gc.freeze()
+    # (see game/main.py), this is what keeps very large maps performant.
+    __slots__ = (
+        "col", "row", "state", "content_key", "occupant", "condition",
+        "damage_weight_reduced", "defence_range_covered",
+        "highlighted", "unlock_highlight", "range_highlight",
+    )
+
     def __init__(self, col, row, state, content_key=None, occupant=None,
                  condition=TileCondition.GRASS):
         self.col = col

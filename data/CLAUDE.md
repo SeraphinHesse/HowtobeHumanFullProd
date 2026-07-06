@@ -93,8 +93,10 @@ schema, update THIS doc.**
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
-  `display_name`, `cols`/`rows` (each map owns its dims; geometry.json keeps
-  only tile pitch + zoom levels as global truth), `terrain` (rows strings of
+  `display_name`, `cols`/`rows` (each map owns its dims, 4..1024; geometry.json
+  keeps only tile pitch + zoom levels as global truth — large maps stay
+  performant via windowed tile culling, see engine `visible_render_items`),
+  `terrain` (rows strings of
   cols single-char codes — one line per row keeps diffs cheap), `legend`
   (schema-pinned char→{slot, checker} table: b/c/s = buildable/combat/
   spawning with checkerboard `_b` alternation, f/l/o = forest/cliff/ocean

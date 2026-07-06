@@ -65,12 +65,24 @@ class TileMap:
         self._defence_range_add = 0
 
         # Seed the runtime grid from terrain codes; the base occupies its tile.
-        self._grid = [
-            [Tile(c, r, _CODE_STATE[doc.terrain[r][c]]) for c in range(self.cols)]
-            for r in range(self.rows)
-        ]
+        # An incremental per-state index (`_by_state`) is built in the SAME pass:
+        # `built_tiles()` / `buildable_tiles()` / `spawning_tiles()` return from
+        # it in O(result) instead of scanning all rows×cols. On a 1024²+ map a
+        # full scan is ~1M iterations, and the in-round HUD ran several PER
+        # FRAME (income + tile counter) — the sole cause of a static-camera large
+        # map dropping to ~2 fps. INVARIANT: every tile-state write goes through
+        # `set_tile_state` so this index stays consistent (see the setter).
+        self._by_state = {s: set() for s in TileState}
+        self._grid = []
+        for r in range(self.rows):
+            row_tiles = []
+            for c in range(self.cols):
+                t = Tile(c, r, _CODE_STATE[doc.terrain[r][c]])
+                row_tiles.append(t)
+                self._by_state[t.state].add(t)
+            self._grid.append(row_tiles)
         base_tile = self.get(self.base_col, self.base_row)
-        base_tile.state = TileState.BUILT
+        self.set_tile_state(base_tile, TileState.BUILT)
         base_tile.content_key = BASE_CONTENT_KEY
 
     # -- balancing accessors ----------------------------------------------
@@ -94,19 +106,29 @@ class TileMap:
             return self._grid[row][col]
         return None
 
+    def set_tile_state(self, tile, new_state):
+        """THE one place a tile's zone/unlock state changes. Keeps the
+        `_by_state` index consistent so the state queries stay O(result). A
+        no-op when the state is unchanged; never write `tile.state` directly."""
+        if tile.state == new_state:
+            return
+        self._by_state[tile.state].discard(tile)
+        tile.state = new_state
+        self._by_state[new_state].add(tile)
+
     def all_tiles(self):
         for r in range(self.rows):
             for c in range(self.cols):
                 yield self._grid[r][c]
 
     def spawning_tiles(self):
-        return [t for t in self.all_tiles() if t.state == TileState.SPAWNING]
+        return list(self._by_state[TileState.SPAWNING])
 
     def built_tiles(self):
-        return [t for t in self.all_tiles() if t.state == TileState.BUILT]
+        return list(self._by_state[TileState.BUILT])
 
     def buildable_tiles(self):
-        return [t for t in self.all_tiles() if t.state == TileState.BUILDABLE]
+        return list(self._by_state[TileState.BUILDABLE])
 
     # -- tile unlocking (prototype tile_map.py:298-374) -------------------
 
@@ -165,7 +187,7 @@ class TileMap:
         converted = False
         for t in chunk:
             if t.state == TileState.COMBAT:
-                t.state = TileState.BUILDABLE
+                self.set_tile_state(t, TileState.BUILDABLE)
                 converted = True
         if converted:
             self._recede_spawn_after_unlock(chunk)
@@ -213,7 +235,7 @@ class TileMap:
         if spawn_block is None:
             return
         for t in spawn_block:
-            t.state = TileState.COMBAT
+            self.set_tile_state(t, TileState.COMBAT)
 
         sc = sum(t.col for t in spawn_block) / 4
         sr = sum(t.row for t in spawn_block) / 4
@@ -226,7 +248,7 @@ class TileMap:
         if bg_block is None:
             return
         for t in bg_block:
-            t.state = TileState.SPAWNING
+            self.set_tile_state(t, TileState.SPAWNING)
 
     # -- round gate + dormant weight drivers (prototype tile_map.py:117-150) --
 

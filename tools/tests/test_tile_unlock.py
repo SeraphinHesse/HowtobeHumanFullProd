@@ -107,5 +107,46 @@ class TestUnlockAndRecede(unittest.TestCase):
         self.assertEqual(tm.get(1, 12).state, before)
 
 
+class TestStateIndexConsistency(unittest.TestCase):
+    """The `_by_state` index (perf: O(result) state queries — it removed the
+    per-frame full-map HUD scans that dropped large maps to ~2 fps) must always
+    agree with a brute-force scan of `all_tiles()`, through every state change."""
+
+    def _assert_consistent(self, tm):
+        for state in TileState:
+            indexed = {(t.col, t.row) for t in tm._by_state[state]}
+            scanned = {(t.col, t.row) for t in tm.all_tiles()
+                       if t.state == state}
+            self.assertEqual(indexed, scanned, f"index desync for {state.name}")
+
+    def test_query_methods_match_scan_at_seed(self):
+        tm = make_tilemap()
+        self._assert_consistent(tm)
+        # the three queries return exactly the indexed sets
+        self.assertEqual({(t.col, t.row) for t in tm.built_tiles()},
+                         {(t.col, t.row) for t in tm.all_tiles()
+                          if t.state == TileState.BUILT})
+        self.assertEqual({(t.col, t.row) for t in tm.spawning_tiles()},
+                         {(t.col, t.row) for t in tm.all_tiles()
+                          if t.state == TileState.SPAWNING})
+
+    def test_index_survives_unlock_and_recede(self):
+        tm = make_tilemap()
+        tm.do_unlock(tm.get(3, 1))  # converts + recedes across all three states
+        self._assert_consistent(tm)
+
+    def test_set_tile_state_moves_between_buckets(self):
+        tm = make_tilemap()
+        t = tm.get(2, 1)  # BUILDABLE at seed
+        self.assertIn(t, tm._by_state[TileState.BUILDABLE])
+        tm.set_tile_state(t, TileState.BUILT)
+        self.assertIn(t, tm._by_state[TileState.BUILT])
+        self.assertNotIn(t, tm._by_state[TileState.BUILDABLE])
+        self.assertEqual(t.state, TileState.BUILT)
+        # a no-op state write leaves the index untouched
+        tm.set_tile_state(t, TileState.BUILT)
+        self._assert_consistent(tm)
+
+
 if __name__ == "__main__":
     unittest.main()

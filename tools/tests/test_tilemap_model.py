@@ -185,6 +185,75 @@ class TestRenderItems(unittest.TestCase):
         self.assertIsNone(items[(1, 0)].tint)
 
 
+class TestVisibleRenderItems(unittest.TestCase):
+    """Windowed culling emitter: identical to render_items for the covered
+    cells, clamped to the map, base/deco gated by the tall-sprite margin."""
+
+    def test_window_matches_full_render_over_the_same_cells(self):
+        doc = make_doc(cols=10, rows=10, fill="s")  # checker kind → parity matters
+        window = (2, 5, 3, 6)  # cols 2..5, rows 3..6 inclusive
+        got = {i.world_pos: i.slot_key for i in tilemap.visible_render_items(
+            doc, *window, base=False, deco=False)}
+        full = {i.world_pos: i.slot_key for i in tilemap.render_items(
+            doc, base=False, deco=False)}
+        expected = {(c, r): full[(c, r)]
+                    for r in range(3, 7) for c in range(2, 6)}
+        self.assertEqual(got, expected)
+
+    def test_window_clamps_to_map_bounds(self):
+        doc = make_doc(cols=6, rows=5)
+        items = tilemap.visible_render_items(
+            doc, -100, 100, -100, 100, base=False, deco=False)
+        self.assertEqual(len(items), doc.cols * doc.rows)  # whole map, no OOB
+
+    def test_base_and_deco_gated_by_window(self):
+        doc = make_doc(cols=40, rows=40)  # base at (1,1)
+        doc.deco.append({"col": 30, "row": 30, "slot": "deco_tree"})
+        # a window far from both, with the default tall_margin, excludes them
+        items = tilemap.visible_render_items(doc, 10, 15, 10, 15)
+        self.assertEqual([i for i in items if i.layer in ("entities", "deco")], [])
+        # a window over the base includes it (entities layer)
+        near = tilemap.visible_render_items(doc, 0, 3, 0, 3)
+        self.assertEqual([i.slot_key for i in near if i.layer == "entities"],
+                         ["base_hole"])
+
+
+class TestBandRenderItems(unittest.TestCase):
+    """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
+    scroll strips: same tiles/slots as render_items over the covered cells, only
+    ground, clamped to the map, correct s/d parity coupling."""
+
+    def test_band_matches_full_render_over_covered_cells(self):
+        doc = make_doc(cols=12, rows=12, fill="s")  # checker kind → parity matters
+        d_min, d_max, s_min, s_max = -3, 3, 6, 14
+        got = {i.world_pos: i.slot_key for i in tilemap.band_render_items(
+            doc, d_min, d_max, s_min, s_max)}
+        full = {i.world_pos: i.slot_key for i in tilemap.render_items(
+            doc, base=False, deco=False)}
+        expected = {
+            (c, r): full[(c, r)]
+            for r in range(doc.rows) for c in range(doc.cols)
+            if d_min <= c - r <= d_max and s_min <= c + r <= s_max
+        }
+        self.assertEqual(got, expected)
+        self.assertTrue(got, "band should cover some cells")
+
+    def test_band_is_ground_only(self):
+        doc = make_doc(cols=12, rows=12)
+        items = tilemap.band_render_items(doc, -12, 12, 0, 24)
+        self.assertTrue(all(i.layer == "ground" for i in items))
+        self.assertEqual(len(items), doc.cols * doc.rows)  # whole map, clamped
+
+    def test_band_clamps_and_respects_parity(self):
+        doc = make_doc(cols=6, rows=6)
+        # a wide-open band emits every cell exactly once (no OOB, no dupes)
+        items = tilemap.band_render_items(doc, -100, 100, -100, 100)
+        positions = [i.world_pos for i in items]
+        self.assertEqual(len(positions), len(set(positions)))
+        self.assertEqual(set(positions),
+                         {(c, r) for r in range(6) for c in range(6)})
+
+
 class TestNewAndDuplicate(unittest.TestCase):
     def test_new_doc_is_schema_valid_and_filled(self):
         doc = tilemap.new_doc("fresh", "Fresh", 8, 6, SCHEMA)

@@ -125,6 +125,70 @@ def render_items(doc, *, terrain=True, base=True, deco=True, tint_for_code=None)
     return items
 
 
+def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
+                         terrain=True, base=True, deco=True,
+                         tall_margin=3, tint_for_code=None):
+    """render_items bounded to a tile window (from
+    CoordinateSystem.visible_tile_window) — windowed culling so an arbitrarily
+    large map only ever generates the tiles that can be on screen. Identical
+    output to render_items for the covered cells; the window is clamped to
+    [0, cols/rows). Base/deco (tall sprites, possibly a few) are included when
+    within the window expanded by `tall_margin`, since they anchor up to ~2
+    tile-heights above their own cell and stay visible slightly off the top
+    edge."""
+    items = []
+    if terrain:
+        tints = tint_for_code or {}
+        r0 = max(0, row_min)
+        r1 = min(doc.rows, row_max + 1)
+        c0 = max(0, col_min)
+        c1 = min(doc.cols, col_max + 1)
+        for row in range(r0, r1):
+            trow = doc.terrain[row]
+            for col in range(c0, c1):
+                items.append(RenderItem(
+                    slot_for_code(doc.legend, trow[col], col, row),
+                    (col, row), layer="ground", tint=tints.get(trow[col])))
+    tc0, tc1 = col_min - tall_margin, col_max + tall_margin
+    tr0, tr1 = row_min - tall_margin, row_max + tall_margin
+    if base and tc0 <= doc.base["col"] <= tc1 and tr0 <= doc.base["row"] <= tr1:
+        items.append(RenderItem(
+            doc.base["slot"], (doc.base["col"], doc.base["row"]), layer="entities"))
+    if deco:
+        for d in doc.deco:
+            if tc0 <= d["col"] <= tc1 and tr0 <= d["row"] <= tr1:
+                items.append(RenderItem(d["slot"], (d["col"], d["row"]), layer="deco"))
+    return items
+
+
+def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None):
+    """Ground RenderItems for an ISO-DIAGONAL band, addressed by the rotated
+    coordinates ``d = col - row`` and ``s = col + row`` (both integers, always
+    the same parity for a real cell). ``visible_render_items`` takes an
+    axis-aligned *tile* rectangle, whose bounding box for a thin but long
+    on-screen strip (a diagonal in tile space) balloons to almost the whole
+    viewport — the wrong emitter for the ground cache's scroll-fill strips. A
+    thin screen strip is a thin band in ``d`` (a vertical strip) or ``s`` (a
+    horizontal one), so iterating ``d``/``s`` directly emits ONLY the tiles the
+    strip actually covers, independent of map size. Ground layer only (base/deco
+    live on other layers and are submitted separately by the caller)."""
+    items = []
+    tints = tint_for_code or {}
+    cols, rows = doc.cols, doc.rows
+    legend, terrain = doc.legend, doc.terrain
+    for d in range(d_min, d_max + 1):
+        s0 = s_min if (s_min - d) % 2 == 0 else s_min + 1
+        for s in range(s0, s_max + 1, 2):
+            col = (s + d) // 2
+            row = (s - d) // 2
+            if 0 <= col < cols and 0 <= row < rows:
+                code = terrain[row][col]
+                items.append(RenderItem(
+                    slot_for_code(legend, code, col, row),
+                    (col, row), layer="ground", tint=tints.get(code)))
+    return items
+
+
 # -- disk I/O (schema + cross-checks + id==stem, all fail loud) --------------
 
 def load_map(path, schema_path):

@@ -226,17 +226,20 @@ class TestRenderPath(MapModeCase):
         return backend.calls
 
     def test_layer_eyes_filter_submitted_items(self):
-        doc = self.open_map()
-        full = len([c for c in self.record_frame() if isinstance(c, DrawCall)])
-        self.assertEqual(full, doc.cols * doc.rows + 1 + len(doc.deco))
+        # Windowed culling means only the on-screen tile range is submitted, so
+        # the assertion is on the eyes' filtering effect, not a full-map count.
+        self.open_map()
+
+        def sprite_count():
+            return len([c for c in self.record_frame() if isinstance(c, DrawCall)])
+
+        full = sprite_count()
+        self.assertGreater(full, 0)             # some tiles are on screen
         self.viewport.set_eye("terrain", False)
-        no_terrain = len([c for c in self.record_frame()
-                          if isinstance(c, DrawCall)])
-        self.assertEqual(no_terrain, 1 + len(doc.deco))
+        self.assertLess(sprite_count(), full)   # terrain eye dropped ground tiles
         self.viewport.set_eye("base", False)
         self.viewport.set_eye("deco", False)
-        self.assertEqual(len([c for c in self.record_frame()
-                              if isinstance(c, DrawCall)]), 0)
+        self.assertEqual(sprite_count(), 0)     # every layer off → nothing drawn
 
     def test_zone_tint_eye_tints_zone_tiles_only(self):
         self.open_map()
@@ -252,7 +255,10 @@ class TestRenderPath(MapModeCase):
                              for c in self.record_frame()))
         self.viewport.set_grid_lines(True)
         lines = [c for c in self.record_frame() if isinstance(c, OverlayLines)]
-        self.assertEqual(len(lines), (doc.rows + 1) + (doc.cols + 1))
+        # grid goes through the E-24 overlay primitive; bounded to the visible
+        # window (never more than the full-map line count).
+        self.assertGreater(len(lines), 0)
+        self.assertLessEqual(len(lines), (doc.rows + 1) + (doc.cols + 1))
 
 
 class TestLifecycle(MapModeCase):

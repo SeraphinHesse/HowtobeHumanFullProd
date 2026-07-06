@@ -48,10 +48,11 @@ def income_breakdown(session):
 
 
 def _tile_counts(tilemap):
-    built = sum(1 for t in tilemap.built_tiles()
+    built_tiles = tilemap.built_tiles()
+    built = sum(1 for t in built_tiles
                 if t.occupant is not None
                 and getattr(t.occupant, "building_type", None) != "base")
-    unlocked = len(tilemap.buildable_tiles()) + len(tilemap.built_tiles())
+    unlocked = len(tilemap.buildable_tiles()) + len(built_tiles)
     return built, unlocked
 
 
