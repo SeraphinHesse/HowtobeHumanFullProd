@@ -36,16 +36,38 @@ class _StrokeCommand(QUndoCommand):
         tilemap_ops.apply_changes(self._doc, self._changes, reverse=True)
 
 
-class _BaseMoveCommand(QUndoCommand):
-    def __init__(self, doc, old, new):
-        super().__init__("move base")
-        self._doc, self._old, self._new = doc, old, new
+class _BaseSetCommand(QUndoCommand):
+    """Place / move / remove the single base (hole). ``old`` and ``new`` are
+    full base dicts (``{'col','row','slot'}``) or ``None`` (no hole)."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
 
     def redo(self):
-        self._doc.base["col"], self._doc.base["row"] = self._new
+        self._doc.base = dict(self._new) if self._new is not None else None
 
     def undo(self):
-        self._doc.base["col"], self._doc.base["row"] = self._old
+        self._doc.base = dict(self._old) if self._old is not None else None
+
+
+class _AddBackgroundCommand(QUndoCommand):
+    """Add a new BACKGROUND legend entry (code -> slot) to the open map — the
+    palette's '+ Level' button. Undo drops the code again (paint commands that
+    used it sit ABOVE this on the stack, so they undo first)."""
+
+    def __init__(self, doc, code, slot):
+        super().__init__(f"add background {slot}")
+        self._doc, self._code = doc, code
+        self._entry = {"checker": False, "slot": slot}
+
+    def redo(self):
+        self._doc.legend[self._code] = dict(self._entry)
+
+    def undo(self):
+        self._doc.legend.pop(self._code, None)
 
 
 class _DecoPlaceCommand(QUndoCommand):
@@ -164,9 +186,40 @@ class MapSession(QObject):
         if changes:
             self.undo_stack.push(_StrokeCommand(self.doc, changes, text))
 
+    def _base_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.defaults_from_schema(schema)[1]
+
+    def push_base_place(self, col, row):
+        """Place the hole (if the map has none) or move the single hole to a new
+        cell — ONE undoable command either way (the base is placed like a tile
+        but there can only be one)."""
+        old = self.doc.base
+        slot = old["slot"] if old is not None else self._base_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = "move hole" if old is not None else "place hole"
+        self.undo_stack.push(_BaseSetCommand(self.doc, old, new, text))
+
+    def push_base_remove(self):
+        if self.doc.base is not None:
+            self.undo_stack.push(
+                _BaseSetCommand(self.doc, self.doc.base, None, "remove hole"))
+
     def push_base_move(self, old, new):
-        if old is not None:
-            self.undo_stack.push(_BaseMoveCommand(self.doc, old, new))
+        """Drag path (kept for the base-drag gesture): ``old`` is the pre-move
+        (col,row) or None; ``new`` is the target (col,row). Routes through the
+        same set command as click-placement."""
+        if old is not None and new is not None:
+            self.push_base_place(new[0], new[1])
+
+    def push_add_background(self, slot):
+        """'+ Level': claim the next free legend code for a new background type
+        and add it to the open map's legend. Returns the code."""
+        code = tilemap_ops.next_free_code(self.doc.legend)
+        self.undo_stack.push(_AddBackgroundCommand(self.doc, code, slot))
+        return code
 
     def push_deco_place(self, col, row, slot):
         self.undo_stack.push(_DecoPlaceCommand(self.doc, col, row, slot))

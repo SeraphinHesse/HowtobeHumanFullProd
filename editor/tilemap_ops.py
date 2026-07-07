@@ -10,6 +10,7 @@ do iso math.
 The *_cells generators are exported separately so the viewport can ghost
 a pending line/rect without mutating the document.
 """
+import string
 
 
 def _in_bounds(doc, col, row):
@@ -137,11 +138,50 @@ def remove_top_deco(doc, col, row):
 
 def move_base(doc, col, row):
     """Reposition the base; returns (old_col, old_row) or None for a no-op
-    (same cell / out of bounds)."""
-    if not _in_bounds(doc, col, row):
+    (same cell / out of bounds / no base). Kept for the drag path."""
+    if not _in_bounds(doc, col, row) or doc.base is None:
         return None
     old = (doc.base["col"], doc.base["row"])
     if old == (col, row):
         return None
     doc.base["col"], doc.base["row"] = col, row
     return old
+
+
+# -- background-legend growth + map-requirement warnings (ED-20 follow-up) ----
+
+def next_free_code(legend):
+    """Lowest single-char terrain code (a-z then 0-9) not already in the
+    legend — the code a new background type claims. Raises if exhausted."""
+    for ch in string.ascii_lowercase + string.digits:
+        if ch not in legend:
+            return ch
+    raise ValueError("no free single-char legend code left")
+
+
+# (zone slot, warning label) — the const-pinned zone slots a playable map needs
+# at least one of. Derived-by-slot (not hardcoded b/c/s codes) so it survives a
+# legend that renamed the codes.
+_REQUIRED_ZONE_SLOTS = (
+    ("tile_buildable", "buildable tile"),
+    ("tile_combat", "combat tile"),
+    ("tile_spawning", "spawning tile"),
+)
+
+
+def map_requirement_warnings(doc):
+    """What the map is missing to be playable — the editor's non-blocking yellow
+    Set-Active warning. A playable map needs at least one buildable, combat and
+    spawning tile painted, plus a hole (base). Returns a list of labels (empty
+    when nothing is missing)."""
+    codes_by_slot = {}
+    for code, entry in doc.legend.items():
+        codes_by_slot.setdefault(entry["slot"], set()).add(code)
+    used = set()
+    for row in doc.terrain:
+        used.update(row)
+    warnings = [label for slot, label in _REQUIRED_ZONE_SLOTS
+                if not (codes_by_slot.get(slot, set()) & used)]
+    if doc.base is None:
+        warnings.append("hole")
+    return warnings

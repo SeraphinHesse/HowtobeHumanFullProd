@@ -5,30 +5,37 @@
   "description": "One map file under data/maps/ (D-20). Named <id>.json where id == the 'id' property. Every data/maps/*.json EXCEPT active_map.json validates against THIS schema (directory rule in tools/smoke.py - the stem 'map' belongs to the balancing domain). The terrain grid paints zones; spawning is a painted zone, never point objects. Dimension consistency (row count/lengths, base/deco in bounds) is cross-checked by engine.tilemap.load_map, which fails loud (D-2).",
   "properties": {
     "base": {
-      "additionalProperties": false,
-      "description": "The base ('hole') - the single movable map object, dragged in the editor. Renders on the entities layer.",
-      "properties": {
-        "col": {
-          "description": "Base tile column, 0-based; must be < cols.",
-          "minimum": 0,
-          "type": "integer"
+      "description": "The base ('hole') - the single movable map object, click-placed or dragged in the editor. Renders on the entities layer. MAY BE null: a map with no hole is allowed (the editor shows a yellow warning before Set Active), though the game needs one to be playable. The key is always present.",
+      "oneOf": [
+        {
+          "type": "null"
         },
-        "row": {
-          "description": "Base tile row, 0-based; must be < rows.",
-          "minimum": 0,
-          "type": "integer"
-        },
-        "slot": {
-          "const": "base_hole",
-          "description": "Asset slot the base renders with (const-pinned; the slot registry's core/Base slot)."
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Base tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Base tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "base_hole",
+              "description": "Asset slot the base renders with (const-pinned; the slot registry's core/Base slot)."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
         }
-      },
-      "required": [
-        "col",
-        "row",
-        "slot"
-      ],
-      "type": "object"
+      ]
     },
     "cols": {
       "description": "Grid width in tiles. Each map owns its dimensions (geometry.json keeps only tile pitch and zoom levels as global truth).",
@@ -77,8 +84,25 @@
       "type": "string"
     },
     "legend": {
-      "additionalProperties": false,
-      "description": "Char -> tile mapping for the terrain rows, const-pinned so every map file is self-describing and no package hardcodes tile vocabulary. checker: true kinds alternate to <slot>_b on cells where (col + row + 1) % 2 == 1, i.e. col+row EVEN (prototype tile.py checkerboard rule); background kinds never alternate.",
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "A background (non-checker) tile kind: any legend code beyond the three fixed zone codes b/c/s. Editor-extensible via the palette's '+ Level' button; the runtime collapses every such code to BACKGROUND. Never alternates (checker is const false).",
+        "properties": {
+          "checker": {
+            "const": false
+          },
+          "slot": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checker",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "description": "Char -> tile mapping for the terrain rows. The three ZONE codes b/c/s are const-pinned (self-describing, gameplay-meaningful); BACKGROUND codes are open (additionalProperties) so the editor can add new background types (f/l/o are the defaults new maps seed). checker: true kinds alternate to <slot>_b on cells where (col + row + 1) % 2 == 1, i.e. col+row EVEN (prototype tile.py checkerboard rule); background kinds never alternate.",
       "properties": {
         "b": {
           "additionalProperties": false,
@@ -112,54 +136,6 @@
           ],
           "type": "object"
         },
-        "f": {
-          "additionalProperties": false,
-          "properties": {
-            "checker": {
-              "const": false
-            },
-            "slot": {
-              "const": "tile_forest"
-            }
-          },
-          "required": [
-            "checker",
-            "slot"
-          ],
-          "type": "object"
-        },
-        "l": {
-          "additionalProperties": false,
-          "properties": {
-            "checker": {
-              "const": false
-            },
-            "slot": {
-              "const": "tile_cliff"
-            }
-          },
-          "required": [
-            "checker",
-            "slot"
-          ],
-          "type": "object"
-        },
-        "o": {
-          "additionalProperties": false,
-          "properties": {
-            "checker": {
-              "const": false
-            },
-            "slot": {
-              "const": "tile_ocean"
-            }
-          },
-          "required": [
-            "checker",
-            "slot"
-          ],
-          "type": "object"
-        },
         "s": {
           "additionalProperties": false,
           "properties": {
@@ -180,9 +156,6 @@
       "required": [
         "b",
         "c",
-        "f",
-        "l",
-        "o",
         "s"
       ],
       "type": "object"
@@ -196,7 +169,7 @@
     "terrain": {
       "description": "The painted zone grid: exactly 'rows' strings of exactly 'cols' chars each (loader-enforced), terrain[row][col], chars from the legend. Row strings keep diffs one-line-per-row for git and agents (D-3 spirit).",
       "items": {
-        "pattern": "^[bcflos]+$",
+        "pattern": "^[a-z0-9]+$",
         "type": "string"
       },
       "minItems": 4,

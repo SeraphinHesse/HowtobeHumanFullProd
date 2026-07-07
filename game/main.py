@@ -105,9 +105,12 @@ class _World:
         self.tile_map = TileMap(map_doc, map_bal)
         self.occupancy = TileOccupancy()
         self.scene = Scene()
-        base = BaseBuilding(self.tile_map.base_col, self.tile_map.base_row,
-                            core_bal)
-        attach_base(self.tile_map, base, self.scene, self.occupancy)
+        # A hole-less map (editor allows it with a warning) has no base to
+        # attach — the run just isn't winnable. Skip rather than crash.
+        if self.tile_map.base_col is not None:
+            base = BaseBuilding(self.tile_map.base_col, self.tile_map.base_row,
+                                core_bal)
+            attach_base(self.tile_map, base, self.scene, self.occupancy)
         self.spawner = Spawner()
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, registry=registry)

@@ -51,8 +51,34 @@ tell the user.
   through it. `Tile.state` stays a plain `__slots__` attribute so *reads* (the
   pathfinding hot path) pay no property overhead; only writes are routed. A
   consistency unit test (`test_tile_unlock.TestStateIndexConsistency`) pins the
-  index == a brute-force scan across seed/unlock/recede. (`sync_occupancy` still
-  scans `all_tiles()` but is per-placement, not per-frame — a later follow-up.)
+  index == a brute-force scan across seed/unlock/recede.
+- **Event-driven full-map scans removed (perf, large-map hitch cleanup)**: two
+  routine-play actions used to scan all ~1M tiles on a 1024² map (a multi-hundred-
+  ms freeze each), now O(local):
+  - **Placement occupancy is incremental** — `place_building`/`attach_base`
+    (`game/buildings/registry.py`) call `occupancy.set((col,row), building)` for
+    the one tile that changed instead of the full-map `TileMap.sync_occupancy`
+    scan. `sync_occupancy` is kept only as a from-scratch full rebuild (not on the
+    placement path). Buildings are add-only in the current phases, so a single-tile
+    `set` is exact; a remove/sell seam would `occupancy.clear` its tile likewise.
+  - **`TileMap._find_2x2` (spawn-recede on unlock) uses an expanding-window
+    search** — the nearest matching 2×2 is almost always a few tiles from the
+    reference, so it scans a doubling Chebyshev window (`_scan_2x2` inner) and
+    accepts only once the window provably contains the global nearest
+    (`best_d ≤ (radius−2)²`), with the whole-map window as the terminating
+    fallback. Output is byte-identical to the old full scan (same
+    nearest-by-squared-distance pick, same first-row-major tie-break, same
+    `min_ring`); pinned by `test_tile_unlock.TestFind2x2WindowedMatchesFullScan`
+    (40×40 map vs an inlined brute-force oracle) plus the existing exact recede-
+    coordinate tests.
+- **Next known large-map frontier — per-spawn pathfinding (NOT yet done)**:
+  `Enemy.on_spawn` runs a full `find_path` Dijkstra to the base **per enemy**
+  (`game/enemies/enemy.py`), which is O(reachable tiles) — the dominant cost when
+  hundreds of enemies spawn on a huge map (staggered, so a per-spawn micro-hitch,
+  not a sustained fps drop). The intended fix is a single shared reverse-Dijkstra
+  "flow field" from the base, recomputed once per wave / map-topology change and
+  reused by every enemy, instead of one Dijkstra per spawn. Left for a dedicated
+  pass — it touches path-equivalence, the wall hook, and the goal-set variants.
 - **Large-map GC (perf)**: a big map builds one `Tile` per cell (a 1024²
   map = ~1M long-lived objects). Left alone, Python's cyclic GC periodically
   walks that whole static grid (an 80–140 ms stall that *scales with map
@@ -152,11 +178,12 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   None, so `find_path_ignoring_walls` == `find_path`, **10E**), and the four
   building-targeting `find_path_*` variants (goal by occupant `building_type`;
   no occupants yet → all fall back to `find_path`).
-- **Occupancy sync is occupant-driven**: `TileMap.sync_occupancy(occupancy)`
-  mirrors tiles with a GameObject occupant into `engine.physics.TileOccupancy`
-  (BACKGROUND impassability is a weight concern, not occupancy). In 9C nothing
-  occupies a tile yet (the base has no GameObject) → it clears everything; 9D
-  wires real occupants through this one seam.
+- **Occupancy is occupant-driven and updated incrementally**: a tile with a
+  GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
+  impassability is a weight concern, not occupancy). Placement seams
+  (`game/buildings/registry.py`) call `occupancy.set` for the single changed tile;
+  `TileMap.sync_occupancy(occupancy)` is the full-grid rebuild variant (not on the
+  placement path — see the large-map hitch-cleanup note above).
 
 ## Buildings (`buildings/`, Phase 9D)
 `Building(GameObject)` hierarchy; 9D ships the Musician (economy) + Defender

@@ -96,6 +96,7 @@ class ViewportPanel(QWidget):
         self._tool = "none"
         self._armed_code = None
         self._armed_deco = None
+        self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True}
         self._grid_lines = False
         self._hover_cell = None
@@ -233,14 +234,17 @@ class ViewportPanel(QWidget):
     def arm_code(self, code):
         self._armed_code = code
         self._armed_deco = None
+        self._armed_base = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
         self._armed_code = None
+        self._armed_base = None
 
     def arm_base(self, slot):
-        """Arming the base is import-target-only (palette.py) — clear any
-        armed code/deco so a stray "paint" click can't use a stale brush."""
+        """Arm the Hole brush — a real paintable brush now (paint = place/move
+        the single hole, erase = remove it). Clears any armed code/deco."""
+        self._armed_base = slot
         self._armed_code = None
         self._armed_deco = None
 
@@ -272,7 +276,15 @@ class ViewportPanel(QWidget):
             return
         doc = self._map_session.doc
         self._hover_cell = cell
-        if self._eyes["base"] and cell == (doc.base["col"], doc.base["row"]):
+        if self._armed_base is not None:
+            # the Hole is placed like a tile (but only one exists)
+            if self._tool == "paint":
+                self._map_session.push_base_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_base_remove()
+            return
+        if self._eyes["base"] and doc.base is not None \
+                and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
             return                   # hide the base eye to paint under it
         if self._armed_deco is not None:
@@ -321,8 +333,7 @@ class ViewportPanel(QWidget):
         doc = self._map_session.doc
         if self._base_drag:
             if cell is not None:
-                old = tilemap_ops.move_base(doc, *cell)
-                self._map_session.push_base_move(old, cell)
+                self._map_session.push_base_place(cell[0], cell[1])
             self._base_drag = False
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
@@ -348,6 +359,11 @@ class ViewportPanel(QWidget):
             return
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
+        if self._armed_base is not None:
+            if self._tool == "paint":
+                yield RenderItem(self._armed_base, cell, layer="overlay",
+                                 tint=GHOST_TINT)
+            return
         if self._armed_deco is not None:
             yield RenderItem(self._armed_deco, cell, layer="overlay",
                              tint=GHOST_TINT)

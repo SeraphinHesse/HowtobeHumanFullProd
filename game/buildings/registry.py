@@ -60,7 +60,9 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     tile.content_key = building.CONTENT_KEY
     tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)
-    tilemap.sync_occupancy(occupancy)
+    # Only this one tile changed — update its occupancy directly instead of the
+    # full-map ``sync_occupancy`` scan (an O(map) hitch on large maps, D-20).
+    occupancy.set((tile.col, tile.row), building)
     return building, cost
 
 
@@ -71,5 +73,6 @@ def attach_base(tilemap, base_building, scene, occupancy):
     tile = tilemap.get(tilemap.base_col, tilemap.base_row)
     tile.occupant = base_building
     scene.spawn(base_building)
-    tilemap.sync_occupancy(occupancy)
+    # Single-tile occupancy update (see place_building) — no full-map scan.
+    occupancy.set((tile.col, tile.row), base_building)
     return base_building

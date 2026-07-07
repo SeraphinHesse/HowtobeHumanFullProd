@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from editor import tilemap_ops
 from engine import data_io, tilemap
 
 REPO = Path(__file__).resolve().parents[2]
@@ -93,6 +94,14 @@ class MapDetailsPanel(QWidget):
         self._id_label = QLabel("—", self)
         self._dims_label = QLabel("—", self)
         self._dirty_label = QLabel("", self)
+        # Non-blocking yellow warning for a map that isn't playable yet (no
+        # hole / buildable / combat / spawning tile). Set Active still works.
+        self._warning_label = QLabel("", self)
+        self._warning_label.setWordWrap(True)
+        self._warning_label.setStyleSheet(
+            "color: #7a5c00; background: #fff3bf; border: 1px solid #e0c65a;"
+            " padding: 3px; border-radius: 3px;")
+        self._warning_label.setVisible(False)
         self.name_edit = QLineEdit(self)
         self.name_edit.editingFinished.connect(self._on_name_edited)
 
@@ -102,6 +111,7 @@ class MapDetailsPanel(QWidget):
         form.addRow("Size", self._dims_label)
         layout.addLayout(form)
         layout.addWidget(self._dirty_label)
+        layout.addWidget(self._warning_label)
 
         self.new_button = QPushButton("New map…", self)
         self.duplicate_button = QPushButton("Duplicate…", self)
@@ -144,12 +154,22 @@ class MapDetailsPanel(QWidget):
             self._dims_label.setText("—")
             self._dirty_label.setText("")
             self.name_edit.setText("")
+            self._warning_label.setVisible(False)
             return
         self._id_label.setText(doc.map_id)
         self._dims_label.setText(f"{doc.cols} × {doc.rows} tiles")
         if not self.name_edit.hasFocus():
             self.name_edit.setText(doc.display_name)
         self._dirty_label.setText("● unsaved changes" if dirty else "saved")
+        self._refresh_warning(doc)
+
+    def _refresh_warning(self, doc):
+        missing = tilemap_ops.map_requirement_warnings(doc)
+        if missing:
+            self._warning_label.setText("⚠ Missing: " + ", ".join(missing))
+            self._warning_label.setVisible(True)
+        else:
+            self._warning_label.setVisible(False)
 
     # -- actions ---------------------------------------------------------------
 
@@ -187,4 +207,7 @@ class MapDetailsPanel(QWidget):
         self.refresh()
 
     def _on_set_active(self):
+        # Warn but ALLOW (user-confirmed): the yellow warning is informational;
+        # a not-yet-playable map can still be made active.
         self._session.set_active()
+        self.refresh()

@@ -96,3 +96,54 @@ def add_variant(data_dir, category_key, group_path, subcat_label):
     child["slots"].append(new_key)
     data_io.write_validated(doc, slots_path, schema_path)
     return new_key
+
+
+# -- new background types + deco props (the palette's '+ Level' / '+ Add Prop'
+# buttons) — same validating-write pattern as add_variant --------------------
+
+def _next_numbered_key(prefix, taken):
+    """Lowest ``<prefix><k>`` (k >= 1) not already used anywhere in the
+    registry."""
+    k = 1
+    while f"{prefix}{k}" in taken:
+        k += 1
+    return f"{prefix}{k}"
+
+
+def _append_slot(data_dir, category_key, group_label, prefix):
+    """Append a fresh numbered slot to a leaf ``slots`` group of a category and
+    return the new key. Raises ``KeyError`` if the category/group is missing or
+    isn't a leaf (``slots``) group."""
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    schema_path = data_dir / "schemas" / "slots.schema.json"
+    doc = data_io.load_json(slots_path)
+
+    category = next(
+        (c for c in doc["categories"] if c["key"] == category_key), None)
+    if category is None:
+        raise KeyError(f"no category {category_key!r}")
+    group = next(
+        (g for g in category["groups"] if g.get("label") == group_label), None)
+    if group is None:
+        raise KeyError(f"no group {group_label!r} in category {category_key!r}")
+    if "slots" not in group:
+        raise KeyError(f"group {group_label!r} has no slots list to extend")
+
+    new_key = _next_numbered_key(prefix, _all_slots(doc))
+    group["slots"].append(new_key)
+    data_io.write_validated(doc, slots_path, schema_path)
+    return new_key
+
+
+def add_background_slot(data_dir):
+    """Append a new background tile slot (``tile_background_<n>``) to the map
+    category's 'Background' group — the palette's '+ Level' button. Art is
+    imported onto it afterwards (grey-X until then)."""
+    return _append_slot(data_dir, "map", "Background", "tile_background_")
+
+
+def add_deco_prop(data_dir):
+    """Append a new deco prop slot (``deco_prop_<n>``) to the deco category's
+    'Props' group — the palette's '+ Add Prop' button."""
+    return _append_slot(data_dir, "deco", "Props", "deco_prop_")

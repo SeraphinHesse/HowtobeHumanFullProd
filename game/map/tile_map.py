@@ -15,15 +15,13 @@ from game.core.balance import load_balance
 from .tiles import Tile, TileState
 
 
-# Map-file legend code -> runtime zone state. The three background kinds
-# (forest/cliff/ocean) all collapse to BACKGROUND (impassable terrain).
+# Map-file legend code -> runtime zone state. Only the three ZONE codes carry a
+# gameplay state; every other code is a BACKGROUND kind (forest/cliff/ocean and
+# any editor-added background type) — resolved via `.get(code, BACKGROUND)`.
 _CODE_STATE = {
     "b": TileState.BUILDABLE,
     "c": TileState.COMBAT,
     "s": TileState.SPAWNING,
-    "f": TileState.BACKGROUND,
-    "l": TileState.BACKGROUND,
-    "o": TileState.BACKGROUND,
 }
 
 BASE_CONTENT_KEY = "base_building"
@@ -43,14 +41,18 @@ class TileMap:
         self._balance = balance
         self.cols = doc.cols
         self.rows = doc.rows
-        self.base_col = doc.base["col"]
-        self.base_row = doc.base["row"]
+        # A map may have NO hole (editor allows it with a warning). base_col/row
+        # are None then; the playfield window anchors at (0,0) and no BUILT base
+        # tile is seeded. Such a map is not winnable but must not crash.
+        has_base = doc.base is not None
+        self.base_col = doc.base["col"] if has_base else None
+        self.base_row = doc.base["row"] if has_base else None
 
         # Unlock sections + playfield window anchor at the base (buildable min
         # corner); a one-tile background border → max index = dim-1. This
         # reproduces the prototype's PLAYFIELD 1..dim-1 for the shipped map.
-        self._pf_col_min = self.base_col
-        self._pf_row_min = self.base_row
+        self._pf_col_min = self.base_col if has_base else 0
+        self._pf_row_min = self.base_row if has_base else 0
         self._pf_col_max = self.cols - 1
         self._pf_row_max = self.rows - 1
 
@@ -77,13 +79,15 @@ class TileMap:
         for r in range(self.rows):
             row_tiles = []
             for c in range(self.cols):
-                t = Tile(c, r, _CODE_STATE[doc.terrain[r][c]])
+                t = Tile(c, r, _CODE_STATE.get(
+                    doc.terrain[r][c], TileState.BACKGROUND))
                 row_tiles.append(t)
                 self._by_state[t.state].add(t)
             self._grid.append(row_tiles)
-        base_tile = self.get(self.base_col, self.base_row)
-        self.set_tile_state(base_tile, TileState.BUILT)
-        base_tile.content_key = BASE_CONTENT_KEY
+        if has_base:
+            base_tile = self.get(self.base_col, self.base_row)
+            self.set_tile_state(base_tile, TileState.BUILT)
+            base_tile.content_key = BASE_CONTENT_KEY
 
     # -- balancing accessors ----------------------------------------------
 
@@ -195,15 +199,19 @@ class TileMap:
 
     # -- dynamic zone progression (prototype tile_map.py:377-438) ---------
 
-    def _find_2x2(self, predicate, ref_col, ref_row, min_ring=None):
-        """Nearest 2×2 block (top-left anchor) whose four tiles all satisfy
-        `predicate`, by squared distance to (ref_col, ref_row). `min_ring`
-        optionally forces the block centre's Chebyshev ring ≥ that value (keeps
-        the new spawn block strictly behind the converted one)."""
+    def _scan_2x2(self, predicate, ref_col, ref_row, min_ring,
+                  c_lo, c_hi, r_lo, r_hi):
+        """Nearest 2×2 block (top-left anchor) satisfying `predicate` within the
+        anchor window [c_lo, c_hi] × [r_lo, r_hi], by squared distance to
+        (ref_col, ref_row). Returns (block, squared_distance) or (None, inf).
+        Row-major scan + strict `<` best-update: the FIRST row-major block at the
+        minimum distance wins (the invariant `_find_2x2` relies on to stay exact
+        vs a whole-map scan). `min_ring` forces the block centre's Chebyshev ring
+        (from the map corner) ≥ that value."""
         best = None
         best_d = float("inf")
-        for r in range(self.rows - 1):
-            for c in range(self.cols - 1):
+        for r in range(r_lo, r_hi + 1):
+            for c in range(c_lo, c_hi + 1):
                 block = [self.get(c, r), self.get(c + 1, r),
                          self.get(c, r + 1), self.get(c + 1, r + 1)]
                 if any(t is None or not predicate(t) for t in block):
@@ -214,7 +222,44 @@ class TileMap:
                 d = (cc - ref_col) ** 2 + (rr - ref_row) ** 2
                 if d < best_d:
                     best_d, best = d, block
-        return best
+        return best, best_d
+
+    def _find_2x2(self, predicate, ref_col, ref_row, min_ring=None):
+        """Nearest 2×2 block (top-left anchor) whose four tiles all satisfy
+        `predicate`, by squared distance to (ref_col, ref_row). `min_ring`
+        optionally forces the block centre's Chebyshev ring ≥ that value (keeps
+        the new spawn block strictly behind the converted one).
+
+        The nearest match is almost always a few tiles from the reference, so we
+        scan an EXPANDING square window instead of the whole map (an O(map) hitch
+        on a 1024²+ map, and unlock calls this 2–3× per click). We accept a hit
+        only once the window provably contains the global nearest: any anchor
+        outside a Chebyshev-`radius` window is >radius from the reference, so when
+        the best found squared distance ≤ (radius−2)² (the −2 absorbs the 0.5
+        block-centre offsets) no outside block can be closer OR equal — hence the
+        window holds every minimum-distance block and row-major-first *in it*
+        equals row-major-first *globally*. Result is byte-identical to a full
+        scan; the whole-map window is the terminating fallback."""
+        anchor_c_max = self.cols - 2
+        anchor_r_max = self.rows - 2
+        if anchor_c_max < 0 or anchor_r_max < 0:
+            return None
+        ci = int(round(ref_col))
+        ri = int(round(ref_row))
+        max_radius = max(self.cols, self.rows)
+        radius = 8
+        while True:
+            c_lo = max(0, ci - radius)
+            c_hi = min(anchor_c_max, ci + radius)
+            r_lo = max(0, ri - radius)
+            r_hi = min(anchor_r_max, ri + radius)
+            best, best_d = self._scan_2x2(
+                predicate, ref_col, ref_row, min_ring, c_lo, c_hi, r_lo, r_hi)
+            covers_map = (c_lo == 0 and r_lo == 0
+                          and c_hi == anchor_c_max and r_hi == anchor_r_max)
+            if covers_map or (best is not None and best_d <= (radius - 2) ** 2):
+                return best
+            radius *= 2
 
     def _in_playfield(self, t):
         return (self._pf_col_min <= t.col <= self._pf_col_max and
@@ -293,11 +338,15 @@ class TileMap:
     # -- occupancy sync to engine physics (E-32) --------------------------
 
     def sync_occupancy(self, occupancy):
-        """Mirror occupied tiles into an ``engine.physics.TileOccupancy`` so
-        placement + range queries (9D+) see the map. Occupancy is *occupant*
-        driven (an object standing on the tile); BACKGROUND impassability is a
-        pathfinding-weight concern, not occupancy. In 9C nothing occupies a
-        tile yet, so this clears everything — it is the single seam 9D wires."""
+        """FULL-REBUILD mirror of every occupied tile into an
+        ``engine.physics.TileOccupancy``. Occupancy is *occupant* driven (an
+        object standing on the tile); BACKGROUND impassability is a
+        pathfinding-weight concern, not occupancy.
+
+        NOT on the per-placement path: placing/attaching a building only changes
+        ONE tile, so those seams call ``occupancy.set`` directly (a full
+        ``all_tiles`` scan here is an O(map) hitch on large maps). Kept for a
+        from-scratch resync of the whole grid if a caller ever needs one."""
         for t in self.all_tiles():
             if t.occupant is not None:
                 occupancy.set((t.col, t.row), t.occupant)

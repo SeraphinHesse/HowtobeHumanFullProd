@@ -112,6 +112,8 @@ class MainWindow(QMainWindow):
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
+        self.palette.add_level_requested.connect(self._on_add_level)
+        self.palette.add_prop_requested.connect(self._on_add_prop)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.cursor_world.connect(self._on_cursor_world)
@@ -247,11 +249,8 @@ class MainWindow(QMainWindow):
     def _enter_map_mode(self):
         self.viewport.set_map_mode(self.map_session)
         self.palette.set_legend(self.map_session.doc.legend)
-        if self.palette.armed_code() is None:
-            armed = sorted(
-                c for c, e in self.map_session.doc.legend.items() if e["checker"])
-            if armed:
-                self.palette.arm_code(armed[0])
+        # Default to Game-tiles mode; set_mode arms the first zone brush.
+        self.palette.set_mode("gametiles")
         self.palette.setVisible(True)
         self.right_stack.setCurrentWidget(self.map_details)
         self.map_details.refresh()
@@ -359,6 +358,39 @@ class MainWindow(QMainWindow):
         self.selector.reload_registry()
         self.details.reload_registry()
         self.viewport.reload_registry()
+
+    def _on_add_level(self):
+        """+ Level: add a new background tile type — a fresh slot in slots.json
+        plus a new legend code in the OPEN map — then reload every registry,
+        rebuild the palette, and arm the new background (grey-X until art is
+        imported via 'Import Spritesheet…')."""
+        if self.map_session.doc is None:
+            return
+        try:
+            new_slot = registry_ops.add_background_slot(self._data_dir)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(f"Could not add level: {exc}", 5000)
+            return
+        self._reload_registries()
+        self.palette.reload_registry()
+        code = self.map_session.push_add_background(new_slot)
+        self.palette.set_legend(self.map_session.doc.legend)
+        self.palette.set_mode("background")
+        self.palette.arm_code(code)
+        self.statusBar().showMessage(f"Added background {new_slot}", 5000)
+
+    def _on_add_prop(self):
+        """+ Add Prop: add a new deco slot to slots.json, reload, and arm it."""
+        try:
+            new_slot = registry_ops.add_deco_prop(self._data_dir)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(f"Could not add prop: {exc}", 5000)
+            return
+        self._reload_registries()
+        self.palette.reload_registry()
+        self.palette.set_mode("decoration")
+        self.palette.arm_deco(new_slot)
+        self.statusBar().showMessage(f"Added prop {new_slot}", 5000)
 
     def _apply_slot(self):
         category_key, group_path = self._node

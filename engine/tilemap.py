@@ -25,6 +25,15 @@ from engine.render.item import RenderItem
 
 ACTIVE_MAP_FILENAME = "active_map.json"
 
+# Default BACKGROUND legend codes new maps seed with (the schema no longer
+# const-pins them — background codes are open so the editor can add more).
+# Zone codes b/c/s still come from the schema's const pins (defaults_from_schema).
+DEFAULT_BACKGROUNDS = (
+    ("f", "tile_forest"),
+    ("l", "tile_cliff"),
+    ("o", "tile_ocean"),
+)
+
 
 @dataclass
 class TileMapDoc:
@@ -32,9 +41,9 @@ class TileMapDoc:
     display_name: str
     cols: int
     rows: int
-    legend: dict       # code -> {"slot": str, "checker": bool} (schema-pinned)
+    legend: dict       # code -> {"slot": str, "checker": bool} (b/c/s pinned)
     terrain: list      # rows × cols nested lists of legend codes (mutable)
-    base: dict         # {"col": int, "row": int, "slot": str}
+    base: dict         # {"col": int, "row": int, "slot": str} OR None (no hole)
     deco: list         # [{"col": num, "row": num, "slot": str}, ...]
 
 
@@ -48,14 +57,14 @@ def from_dict(data):
         rows=data["rows"],
         legend=copy.deepcopy(data["legend"]),
         terrain=[list(row) for row in data["terrain"]],
-        base=dict(data["base"]),
+        base=dict(data["base"]) if data["base"] is not None else None,
         deco=[dict(d) for d in data["deco"]],
     )
 
 
 def to_dict(doc):
     return {
-        "base": dict(doc.base),
+        "base": dict(doc.base) if doc.base is not None else None,
         "cols": doc.cols,
         "deco": [dict(d) for d in doc.deco],
         "display_name": doc.display_name,
@@ -79,7 +88,8 @@ def validate_doc(doc):
             if code not in doc.legend:
                 raise ValueError(
                     f"map {doc.map_id!r}: cell ({c},{r}) code {code!r} not in legend")
-    if not (0 <= doc.base["col"] < doc.cols and 0 <= doc.base["row"] < doc.rows):
+    if doc.base is not None and not (
+            0 <= doc.base["col"] < doc.cols and 0 <= doc.base["row"] < doc.rows):
         raise ValueError(
             f"map {doc.map_id!r}: base {doc.base} outside {doc.cols}x{doc.rows}")
     for d in doc.deco:
@@ -116,7 +126,7 @@ def render_items(doc, *, terrain=True, base=True, deco=True, tint_for_code=None)
                 items.append(RenderItem(
                     slot_for_cell(doc, col, row), (col, row), layer="ground",
                     tint=tints.get(doc.terrain[row][col])))
-    if base:
+    if base and doc.base is not None:
         items.append(RenderItem(
             doc.base["slot"], (doc.base["col"], doc.base["row"]), layer="entities"))
     if deco:
@@ -151,7 +161,8 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
                     (col, row), layer="ground", tint=tints.get(trow[col])))
     tc0, tc1 = col_min - tall_margin, col_max + tall_margin
     tr0, tr1 = row_min - tall_margin, row_max + tall_margin
-    if base and tc0 <= doc.base["col"] <= tc1 and tr0 <= doc.base["row"] <= tr1:
+    if base and doc.base is not None \
+            and tc0 <= doc.base["col"] <= tc1 and tr0 <= doc.base["row"] <= tr1:
         items.append(RenderItem(
             doc.base["slot"], (doc.base["col"], doc.base["row"]), layer="entities"))
     if deco:
@@ -210,9 +221,21 @@ def save_map(doc, path, schema_path):
 
 # -- creation ---------------------------------------------------------------
 
+def _base_slot_from_schema(schema):
+    """The const-pinned base slot, dug out of the nullable base schema
+    (oneOf: [null, object])."""
+    for sub in schema["properties"]["base"]["oneOf"]:
+        props = sub.get("properties")
+        if props and "slot" in props:
+            return props["slot"]["const"]
+    raise ValueError("map schema: base has no object branch with a slot const")
+
+
 def defaults_from_schema(schema):
-    """(legend, base_slot) dug out of map_file.schema.json's const pins —
-    schemas over convention: no package hardcodes the tile vocabulary."""
+    """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
+    dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
+    longer pins background codes — they are editor-extensible). Zone vocabulary
+    still lives in data (schemas over convention); backgrounds default here."""
     legend = {
         code: {
             "checker": sub["properties"]["checker"]["const"],
@@ -220,7 +243,9 @@ def defaults_from_schema(schema):
         }
         for code, sub in schema["properties"]["legend"]["properties"].items()
     }
-    return legend, schema["properties"]["base"]["properties"]["slot"]["const"]
+    for code, slot in DEFAULT_BACKGROUNDS:
+        legend[code] = {"checker": False, "slot": slot}
+    return legend, _base_slot_from_schema(schema)
 
 
 def default_fill_code(legend):

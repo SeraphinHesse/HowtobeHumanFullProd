@@ -56,7 +56,7 @@ class MainMenu:
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         submit_centered(renderer, _TITLE, view_w // 2, view_h // 2 - 150,
                         "xxl", C_UI_TEXT)
-        submit_centered(renderer, "a tower defence about staying human",
+        submit_centered(renderer, "defend the munckins",
                         view_w // 2, view_h // 2 - 110, "md", C_GOLD)
         for btn, _ in self.buttons:
             btn.submit(renderer)
