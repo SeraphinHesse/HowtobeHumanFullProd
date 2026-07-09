@@ -148,6 +148,18 @@ def move_base(doc, col, row):
     return old
 
 
+def move_camera(doc, col, row):
+    """Reposition the camera startpoint; returns (old_col, old_row) or None for
+    a no-op (same cell / out of bounds / no startpoint). Mirrors move_base."""
+    if not _in_bounds(doc, col, row) or doc.camera_start is None:
+        return None
+    old = (doc.camera_start["col"], doc.camera_start["row"])
+    if old == (col, row):
+        return None
+    doc.camera_start["col"], doc.camera_start["row"] = col, row
+    return old
+
+
 # -- background-legend growth + map-requirement warnings (ED-20 follow-up) ----
 
 def next_free_code(legend):
@@ -172,8 +184,8 @@ _REQUIRED_ZONE_SLOTS = (
 def map_requirement_warnings(doc):
     """What the map is missing to be playable — the editor's non-blocking yellow
     Set-Active warning. A playable map needs at least one buildable, combat and
-    spawning tile painted, plus a hole (base). Returns a list of labels (empty
-    when nothing is missing)."""
+    spawning tile painted, plus a hole (base) and a camera startpoint. Returns a
+    list of labels (empty when nothing is missing)."""
     codes_by_slot = {}
     for code, entry in doc.legend.items():
         codes_by_slot.setdefault(entry["slot"], set()).add(code)
@@ -184,4 +196,6 @@ def map_requirement_warnings(doc):
                 if not (codes_by_slot.get(slot, set()) & used)]
     if doc.base is None:
         warnings.append("hole")
+    if doc.camera_start is None:
+        warnings.append("camera startpoint")
     return warnings

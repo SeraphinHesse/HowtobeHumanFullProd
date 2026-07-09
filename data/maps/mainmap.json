@@ -4,6 +4,7 @@
     "row": 64,
     "slot": "base_hole"
   },
+  "camera_start": null,
   "cols": 128,
   "deco": [],
   "display_name": "Main Map",

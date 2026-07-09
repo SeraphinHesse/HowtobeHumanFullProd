@@ -97,7 +97,9 @@ class ViewportPanel(QWidget):
         self._armed_code = None
         self._armed_deco = None
         self._armed_base = None     # the Hole slot when the Hole brush is armed
-        self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True}
+        self._armed_camera = None   # the Camera Start slot when that brush is armed
+        self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
+                      "camera": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
@@ -105,6 +107,7 @@ class ViewportPanel(QWidget):
         self._stroke_last = None
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
+        self._camera_drag = False
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
@@ -235,11 +238,13 @@ class ViewportPanel(QWidget):
         self._armed_code = code
         self._armed_deco = None
         self._armed_base = None
+        self._armed_camera = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
         self._armed_code = None
         self._armed_base = None
+        self._armed_camera = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -247,6 +252,15 @@ class ViewportPanel(QWidget):
         self._armed_base = slot
         self._armed_code = None
         self._armed_deco = None
+        self._armed_camera = None
+
+    def arm_camera(self, slot):
+        """Arm the Camera Start brush (paint = place/move the single startpoint,
+        erase = remove it). Mirrors arm_base; clears any other armed brush."""
+        self._armed_camera = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
 
     def set_eye(self, name, on):
         self._eyes[name] = on
@@ -283,10 +297,21 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_base_remove()
             return
+        if self._armed_camera is not None:
+            # the camera startpoint is placed like the Hole (single object)
+            if self._tool == "paint":
+                self._map_session.push_camera_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_camera_remove()
+            return
         if self._eyes["base"] and doc.base is not None \
                 and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
             return                   # hide the base eye to paint under it
+        if self._eyes["camera"] and doc.camera_start is not None \
+                and cell == (doc.camera_start["col"], doc.camera_start["row"]):
+            self._camera_drag = True   # draggable like the base;
+            return                     # hide the camera eye to paint under it
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
@@ -335,6 +360,10 @@ class ViewportPanel(QWidget):
             if cell is not None:
                 self._map_session.push_base_place(cell[0], cell[1])
             self._base_drag = False
+        elif self._camera_drag:
+            if cell is not None:
+                self._map_session.push_camera_place(cell[0], cell[1])
+            self._camera_drag = False
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
@@ -357,11 +386,20 @@ class ViewportPanel(QWidget):
             yield RenderItem(doc.base["slot"], cell, layer="overlay",
                              tint=GHOST_TINT)
             return
+        if self._camera_drag:
+            yield RenderItem(doc.camera_start["slot"], cell, layer="overlay",
+                             tint=GHOST_TINT)
+            return
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
         if self._armed_base is not None:
             if self._tool == "paint":
                 yield RenderItem(self._armed_base, cell, layer="overlay",
+                                 tint=GHOST_TINT)
+            return
+        if self._armed_camera is not None:
+            if self._tool == "paint":
+                yield RenderItem(self._armed_camera, cell, layer="overlay",
                                  tint=GHOST_TINT)
             return
         if self._armed_deco is not None:
@@ -461,6 +499,7 @@ class ViewportPanel(QWidget):
                 terrain=self._eyes["terrain"],
                 base=self._eyes["base"],
                 deco=self._eyes["deco"],
+                camera=self._eyes["camera"],
                 tint_for_code=ZONE_TINTS if self._eyes["tint"] else None):
             self._renderer.submit(item)
         for item in self._ghost_items(doc):

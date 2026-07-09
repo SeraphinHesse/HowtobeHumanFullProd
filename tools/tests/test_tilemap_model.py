@@ -218,6 +218,68 @@ class TestVisibleRenderItems(unittest.TestCase):
                          ["base_hole"])
 
 
+class TestCameraStart(unittest.TestCase):
+    """The camera-startpoint object mirrors the base: a single nullable movable
+    map object. It centres the game camera at boot and is drawn only when the
+    render `camera` toggle is on (default off)."""
+
+    def test_defaults_to_none_and_round_trips(self):
+        doc = make_doc()
+        self.assertIsNone(doc.camera_start)  # absent by default (new maps too)
+        # place one and round-trip through the serialized form
+        doc.camera_start = {"col": 2, "row": 3, "slot": "camera_startpoint"}
+        again = tilemap.from_dict(tilemap.to_dict(doc))
+        self.assertEqual(again.camera_start,
+                         {"col": 2, "row": 3, "slot": "camera_startpoint"})
+        self.assertEqual(again, doc)
+
+    def test_disk_round_trip_with_camera_start(self):
+        doc = make_doc()
+        doc.camera_start = {"col": 4, "row": 2, "slot": "camera_startpoint"}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "testmap.json"
+        tilemap.save_map(doc, path, SCHEMA)
+        self.assertEqual(tilemap.load_map(path, SCHEMA), doc)
+
+    def test_slot_const_from_schema(self):
+        schema = data_io.load_json(SCHEMA)
+        self.assertEqual(
+            tilemap.camera_start_slot_from_schema(schema), "camera_startpoint")
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.camera_start = {"col": doc.cols, "row": 0, "slot": "camera_startpoint"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+    def test_render_toggle_off_by_default(self):
+        doc = make_doc()
+        doc.camera_start = {"col": 2, "row": 2, "slot": "camera_startpoint"}
+        # default camera=False → nothing emitted for it
+        full = tilemap.render_items(doc)
+        self.assertNotIn("camera_startpoint", [i.slot_key for i in full])
+        # camera=True → the marker rides the entities layer
+        on = tilemap.render_items(doc, camera=True)
+        marker = [i for i in on if i.slot_key == "camera_startpoint"]
+        self.assertEqual(len(marker), 1)
+        self.assertEqual(marker[0].layer, "entities")
+        self.assertEqual(marker[0].world_pos, (2, 2))
+
+    def test_windowed_render_toggle_and_gating(self):
+        doc = make_doc(cols=40, rows=40)
+        doc.camera_start = {"col": 1, "row": 1, "slot": "camera_startpoint"}
+        # a window over the startpoint, camera on → included
+        near = tilemap.visible_render_items(doc, 0, 3, 0, 3, camera=True)
+        self.assertIn("camera_startpoint", [i.slot_key for i in near])
+        # same window, camera off (default) → excluded
+        off = tilemap.visible_render_items(doc, 0, 3, 0, 3)
+        self.assertNotIn("camera_startpoint", [i.slot_key for i in off])
+        # a far window with camera on → still gated out by the tile window
+        far = tilemap.visible_render_items(doc, 20, 25, 20, 25, camera=True)
+        self.assertNotIn("camera_startpoint", [i.slot_key for i in far])
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only

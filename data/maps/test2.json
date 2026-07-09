@@ -4,6 +4,7 @@
     "row": 256,
     "slot": "base_hole"
   },
+  "camera_start": null,
   "cols": 512,
   "deco": [],
   "display_name": "Test2",

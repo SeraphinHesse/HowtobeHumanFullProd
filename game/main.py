@@ -149,7 +149,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
     map_doc = tilemap.load_active_map(data_dir)
     cs = load_coordinate_system(
         data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows)
-    cs.clamp(view_w, view_h)  # centre the map in the viewport
+
+    def frame_camera():
+        """Open the camera centred on the map's camera-startpoint object if it
+        has one (center_on parks it at the viewport centre, then clamps);
+        otherwise the default corner clamp."""
+        if map_doc.camera_start is not None:
+            cs.center_on(map_doc.camera_start["col"],
+                         map_doc.camera_start["row"], view_w, view_h)
+        else:
+            cs.clamp(view_w, view_h)
+
+    frame_camera()  # centre on the startpoint / map at boot
     registry = load_registry(data_dir)
     assets = AssetStore(
         manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
@@ -166,6 +177,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
     enemies_balance = load_balance(data_dir, "enemies")
     core_balance = load_balance(data_dir, "core")
     ui_balance = load_balance(data_dir, "ui")
+    # debug: draw the camera-startpoint marker in-game (default off)
+    show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
     # intro cutscene (full video; graceful skip if cv2/file absent -> MAIN_MENU)
     video = VideoSource(data_dir / "video" / "cutscene.mp4",
@@ -210,7 +223,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h)
         gp["prev_phase"] = gp["world"].session.state.phase
-        cs.clamp(view_w, view_h)  # re-centre the map for the fresh run
+        frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
         shell.enter_gameplay()
 
@@ -419,7 +432,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # Base + deco stay dynamic (their own layers, above ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
-                    map_doc, cmin, cmax, rmin, rmax, terrain=False):
+                    map_doc, cmin, cmax, rmin, rmax, terrain=False,
+                    camera=show_camera_start):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)

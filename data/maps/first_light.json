@@ -4,6 +4,11 @@
     "row": 1,
     "slot": "base_hole"
   },
+  "camera_start": {
+    "col": 6,
+    "row": 6,
+    "slot": "camera_startpoint"
+  },
   "cols": 20,
   "deco": [],
   "display_name": "First Light",

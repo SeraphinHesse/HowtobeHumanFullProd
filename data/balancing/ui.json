@@ -1,4 +1,7 @@
 {
+  "Debug": {
+    "show_camera_startpoint": false
+  },
   "FX": {
     "bg_art": {
       "enabled": true,

@@ -4,6 +4,20 @@
   "additionalProperties": false,
   "description": "UI balancing domain (D-10), REPLAN nested tree (Phase 9A): UI timing plus FX/art tunables (the REPLAN folds FX into ui - no separate vfx domain). Values are the prototype's live tuning, verbatim. Bounds policy: seconds 0-60, pixels -4096-4096.",
   "properties": {
+    "Debug": {
+      "additionalProperties": false,
+      "description": "Developer/debug visibility toggles. Off by default in shipped data.",
+      "properties": {
+        "show_camera_startpoint": {
+          "description": "If true the camera-startpoint marker sprite is drawn in the running game (grey-X placeholder until art is imported). Default false: the game uses the startpoint only to position the camera and draws nothing for it. Always visible in the editor regardless.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "show_camera_startpoint"
+      ],
+      "type": "object"
+    },
     "FX": {
       "additionalProperties": false,
       "description": "Visual FX and background art tunables.",
@@ -178,6 +192,7 @@
     }
   },
   "required": [
+    "Debug",
     "FX",
     "Menu",
     "Timing",
