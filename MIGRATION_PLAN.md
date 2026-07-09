@@ -97,6 +97,7 @@ No game code. All five `data/balancing/*.json` restructured to the REPLAN tree w
 - **10H — Lightning strike + cheat menu**: unlock/upgrade at base-info, click-to-strike + effect + cooldown HUD; full cheat menu (Ctrl+L).
 - **10I — Map depth**: tile conditions (spawn chances, stat modifiers, tooltips, badges), damage-based path-weight reduction, defence-range path weights, RANGE + HEATMAP overlay toggles.
 - **10J — QOL & FX sweep**: shift multi-select batches, name dice + rebirth ordinals, next-tier preview, income tooltip breakdown, game log, all remaining floaters/FX (spark bursts, gold highlights, death bursts, muzzle/slash), gore/blood splatters, bg art layer, DIED LAST ROUND tag, hover cost preview.
+- **10K — Main menu background image**: import the prototype's main-menu background art through the asset pipeline into `data/sprites/` + `slots.json`; `game/ui/main_menu.py` draws it (scaled to the display resolution, letterbox-safe) behind the menu widgets. Editor gains a control to pick/swap the background image, writing the slot reference through the validating writer — no hand-edited JSON, no editor-only hidden state.
 - **11 — Full parity audit + editor alignment**: committed `PARITY.md` (prototype module → new home, every feature checked), editor per-tier balancing focus + entity-preview range from new paths, PLAN.md phase table update, playtest to round 30+ (two boss cycles) + frozen-exe playtest. **Exit rule: nothing from the prototype inventory missing.**
 
 ## Verification (every phase)
