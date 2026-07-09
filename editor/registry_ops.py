@@ -110,10 +110,12 @@ def _next_numbered_key(prefix, taken):
     return f"{prefix}{k}"
 
 
-def _append_slot(data_dir, category_key, group_label, prefix):
+def _append_slot(data_dir, category_key, group_path, prefix):
     """Append a fresh numbered slot to a leaf ``slots`` group of a category and
-    return the new key. Raises ``KeyError`` if the category/group is missing or
-    isn't a leaf (``slots``) group."""
+    return the new key. ``group_path`` is the label path to that leaf group
+    (e.g. ``("Tiles", "Background")`` — a nested subgroup, exactly like
+    ``add_variant`` walks an era). Raises ``KeyError`` if the category/path is
+    missing or the target isn't a leaf (``slots``) group."""
     data_dir = Path(data_dir)
     slots_path = data_dir / "slots.json"
     schema_path = data_dir / "schemas" / "slots.schema.json"
@@ -123,12 +125,9 @@ def _append_slot(data_dir, category_key, group_label, prefix):
         (c for c in doc["categories"] if c["key"] == category_key), None)
     if category is None:
         raise KeyError(f"no category {category_key!r}")
-    group = next(
-        (g for g in category["groups"] if g.get("label") == group_label), None)
-    if group is None:
-        raise KeyError(f"no group {group_label!r} in category {category_key!r}")
+    group = _find_group(category["groups"], group_path)
     if "slots" not in group:
-        raise KeyError(f"group {group_label!r} has no slots list to extend")
+        raise KeyError(f"group {group_path!r} has no slots list to extend")
 
     new_key = _next_numbered_key(prefix, _all_slots(doc))
     group["slots"].append(new_key)
@@ -138,12 +137,13 @@ def _append_slot(data_dir, category_key, group_label, prefix):
 
 def add_background_slot(data_dir):
     """Append a new background tile slot (``tile_background_<n>``) to the map
-    category's 'Background' group — the palette's '+ Level' button. Art is
-    imported onto it afterwards (grey-X until then)."""
-    return _append_slot(data_dir, "map", "Background", "tile_background_")
+    category's 'Tiles' → 'Background' subgroup — the palette's '+ Level' button.
+    Art is imported onto it afterwards (grey-X until then)."""
+    return _append_slot(data_dir, "map", ("Tiles", "Background"),
+                        "tile_background_")
 
 
 def add_deco_prop(data_dir):
     """Append a new deco prop slot (``deco_prop_<n>``) to the deco category's
     'Props' group — the palette's '+ Add Prop' button."""
-    return _append_slot(data_dir, "deco", "Props", "deco_prop_")
+    return _append_slot(data_dir, "deco", ("Props",), "deco_prop_")

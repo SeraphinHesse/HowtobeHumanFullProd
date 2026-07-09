@@ -182,12 +182,31 @@ class PalettePanel(QWidget):
             return []
         return sorted(c for c, e in self._legend.items() if e["checker"])
 
+    def _background_slot_order(self):
+        """The registry's ordering of background slots (forest, ocean, cliff,
+        then any '+ Level' additions) — the canonical level order, stable across
+        save/reload and appending new levels last (like enemy '+ Variant')."""
+        try:
+            return list(self._registry.group_slots("map", ("Tiles", "Background")))
+        except (KeyError, ValueError):
+            return []
+
     def _background_codes(self):
-        """Legend codes for the background (non-checker) tiles, sorted — the
-        order that numbers them 'Level 1', 'Level 2', …"""
+        """Legend codes for the background (non-checker) tiles, ordered by the
+        registry's background-slot order — the order that numbers them 'Level 1',
+        'Level 2', …  A new '+ Level' slot is appended in the registry, so its
+        code lands last. Codes whose slot isn't in the registry fall back to the
+        end, code-sorted, so nothing is ever dropped."""
         if not self._legend:
             return []
-        return sorted(c for c, e in self._legend.items() if not e["checker"])
+        codes = [c for c, e in self._legend.items() if not e["checker"]]
+        order = self._background_slot_order()
+
+        def rank(code):
+            slot = self._legend[code]["slot"]
+            return (order.index(slot), "") if slot in order else (len(order), code)
+
+        return sorted(codes, key=rank)
 
     # -- brush-button construction -------------------------------------------
 

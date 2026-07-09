@@ -463,7 +463,9 @@
               "slots": [
                 "tile_forest",
                 "tile_ocean",
-                "tile_cliff"
+                "tile_cliff",
+                "tile_background_1",
+                "tile_background_2"
               ]
             }
           ],

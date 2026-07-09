@@ -37,6 +37,39 @@
         }
       ]
     },
+    "camera_start": {
+      "description": "The camera startpoint - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like the base. The game opens its camera centred on this tile; if null the camera falls back to the default corner clamp. Only DRAWN in the running game when the ui.json Debug.show_camera_startpoint toggle is on (default off); always visible in the editor. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Camera startpoint tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Camera startpoint tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "camera_startpoint",
+              "description": "Asset slot the marker renders with (const-pinned; the slot registry's core/Camera Start slot)."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "cols": {
       "description": "Grid width in tiles. Each map owns its dimensions (geometry.json keeps only tile pitch and zoom levels as global truth).",
       "maximum": 1024,
@@ -178,6 +211,7 @@
   },
   "required": [
     "base",
+    "camera_start",
     "cols",
     "deco",
     "display_name",
