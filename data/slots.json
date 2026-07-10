@@ -549,12 +549,33 @@
       "frame_w": 64,
       "groups": [
         {
-          "label": "Props",
-          "slots": [
-            "deco_rock",
-            "deco_bush",
-            "deco_tree"
-          ]
+          "children": [
+            {
+              "label": "Rock",
+              "slots": [
+                "deco_rock"
+              ]
+            },
+            {
+              "label": "Bush",
+              "slots": [
+                "deco_bush"
+              ]
+            },
+            {
+              "label": "Tree",
+              "slots": [
+                "deco_tree"
+              ]
+            },
+            {
+              "label": "Prop 1",
+              "slots": [
+                "deco_prop_1"
+              ]
+            }
+          ],
+          "label": "Props"
         }
       ],
       "key": "deco"

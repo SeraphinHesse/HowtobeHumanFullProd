@@ -162,22 +162,42 @@ editor features should hang off selection, not add parallel state.
   `viewport.set_preview_slot` + `details.set_slot`. Balancing keeps its
   last domain while vfx/deco nodes are selected. The level bar only
   resolves the ASSET slot — per-level balancing values stay Phase 9.
-- **"+ Variant" button (enemy sprite variants)**: the LevelBar carries a
-  trailing `+ Variant` button, shown ONLY for enemy eras
-  (`MainWindow._variant_era` gates on `category_key == "enemies"` — a product
-  call kept in the shell; `selection.variant_target` is the game-name-free
-  structural half). It appends one more interchangeable variant slot to that
-  era in `data/slots.json` via `editor/registry_ops.py` (pure —
-  `write_validated`, in `TestPurity`), naming it `<era-stem>_v<k>`
-  (`next_variant_key`; a bare slot counts as v1 so the first add is `_v2`).
-  Because eras can start with a single slot, `set_levels(..., can_add=True)`
-  forces the bar visible even for one level. After the write MainWindow
-  reloads every cached registry (`selector`/`details`/`viewport`
-  `.reload_registry()` — the tree stops above variant slots so its shape is
-  unchanged) and `select_last()`s the new slot so it's ready to import art
-  onto. No game change is needed: `game/enemies/enemy.py:variant_slot` already
-  rolls a random variant per spawn across ALL of an era's slots, so a new slot
-  joins the pool the moment it's saved (grey-X until its art is imported).
+- **"+ Variant" / "+ Type" buttons (sprite variants)**: the LevelBar carries a
+  trailing `+ Variant` button plus a `+ Type` button. WHICH selections offer
+  them is a product call kept in the shell — `MainWindow._VARIANT_TARGETS`
+  (`{"enemies": None, "deco": None, "map": {"Background"}}`; `None` = any leaf
+  subcategory) filtered through `_variant_target()`;
+  `selection.variant_target` stays the game-name-free structural half. The
+  `map` entry is a real constraint, not decoration: `Buildable`/`Combat`/
+  `Spawning` are leaf subgroups too, and a `tile_buildable_v2` would silently
+  break the checkerboard `_b` pairing. Because subgroups can start with a
+  single slot, `set_levels(..., can_add=…, can_add_type=…)` forces the bar
+  visible even for one level.
+  - **enemies / deco** → `registry_ops.add_variant` appends an interchangeable
+    `<stem>_v<k>` slot to that era / prop type (`next_variant_key`; a bare slot
+    counts as v1 so the first add is `_v2`).
+  - **map → Background** → `registry_ops.add_background_slot` instead: a
+    background needs its OWN legend code, so "another variant" IS another
+    numbered `tile_background_<n>` type. `_bind_background_code` claims that
+    code in the open map (an undoable command) — shared with the palette's
+    `+ Level`. With no map open the slot is registry-only (importable now,
+    paintable once some map's `+ Level` claims a code); the status bar says so.
+  - **`+ Type` (deco only)** → `registry_ops.add_deco_prop` appends a whole
+    leaf CHILD group (`Prop <n>` holding `deco_prop_<n>`) under `Props`. Same
+    handler as the palette's `+ Add Prop`; it branches on
+    `viewport.in_map_mode()` to reselect in the palette or the Details
+    dropdown (`details.select_subcategory_label`, which tolerates the ●
+    prefix).
+
+  All of these are pure `write_validated` calls in `editor/registry_ops.py`
+  (`TestPurity`). After the write MainWindow reloads every cached registry
+  (`selector`/`details`/`viewport`/`palette` `.reload_registry()` — the tree
+  stops above variant slots, so its shape is unchanged even for the new deco
+  children) and `select_last()`s the new slot so it's ready to import art onto.
+  No game change is needed: `game/enemies/enemy.py:variant_slot` already rolls
+  a random enemy variant per spawn across ALL of an era's slots, and a deco
+  placement stores its CONCRETE slot in the map file — so a new slot joins the
+  pool the moment it's saved (grey-X until its art is imported).
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer
   parity (ED-40/41). The sheet PNG is copied to
   `data/sprites/imported/<slot>.png` AT IMPORT TIME (prototype parity);
@@ -252,6 +272,15 @@ editor features should hang off selection, not add parallel state.
   ED-22 reading — not a second render path). Tile buttons rebuild from the
   open map's legend (`set_legend`), zone kinds first; deco slots come from
   the registry. Picker → `viewport.code_picked` → `palette.arm_code` loop.
+  **Decoration mode is two-level** (user-directed): a `Type:` `QComboBox`
+  lists the `Props` group's child labels, and the brushes below it are ONLY
+  that type's variants (`Var 1`, `Var 2`, … — one brush per variant, so a
+  specific variant is armed and lands in the map file). `+ Variant` extends the
+  shown type, `+ Add Prop` adds a new type; both mirror the LevelBar buttons.
+  Because only the shown type has buttons, **`arm_deco(slot)` switches the
+  combo to that slot's own type first** — every caller (the `+ Variant` /
+  `+ Add Prop` handlers, tests) names a slot, not a type, and would otherwise
+  silently no-op.
   Follow-up: a "Base" section (registry `core` category, always just
   `base_hole`) sits in the SAME exclusive brush group as tile codes and
   deco — arming it (`arm_base`) is import-target-only (`_armed_slot()`'s

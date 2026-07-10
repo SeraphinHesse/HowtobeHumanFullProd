@@ -374,18 +374,72 @@ class TestMainWindowWiring(TempDataCase):
         self.assertIsNone(window.viewport.preview_slot)
         self.assertEqual(window.balancing.domain, "ui")
 
-    def test_add_variant_button_only_on_enemy_stages(self):
+    def test_add_variant_button_only_on_variant_subcategories(self):
         window = self.make_window()
         # a building tier's levels are gameplay steps, not variants
         window.selector.select_node("buildings", ("Painter",))
-        self.assertIsNone(window._variant_era())
+        self.assertIsNone(window._variant_target())
         self.assertTrue(window.levelbar._add_btn.isHidden())
         # an enemy era exposes the "+ Variant" button (even single-slot eras)
         window.selector.select_node("enemies", ("Walker",))
         window.details.select_subcategory(1)   # Era 2 (one slot)
-        self.assertEqual(window._variant_era(), "Era 2")
+        self.assertEqual(window._variant_target(), "Era 2")
         self.assertFalse(window.levelbar._add_btn.isHidden())
         self.assertFalse(window.levelbar.isHidden())
+        # deco prop types take variants AND new types
+        window.selector.select_node("deco", ("Props",))
+        window.details.select_subcategory(0)   # Rock
+        self.assertEqual(window._variant_target(), "Rock")
+        self.assertFalse(window.levelbar._add_type_btn.isHidden())
+        # backgrounds take another type; the checkerboard zone kinds do NOT
+        window.selector.select_node("map", ("Tiles",))
+        window.details.select_subcategory_label("Background")
+        self.assertEqual(window._variant_target(), "Background")
+        window.details.select_subcategory_label("Buildable")
+        self.assertIsNone(window._variant_target())
+        self.assertTrue(window.levelbar._add_btn.isHidden())
+        self.assertTrue(window.levelbar._add_type_btn.isHidden())
+
+    def test_add_deco_variant_and_type_from_the_tree(self):
+        from engine.assets import load_registry
+
+        window = self.make_window()
+        window.selector.select_node("deco", ("Props",))
+        window.details.select_subcategory(0)   # Rock: [deco_rock]
+
+        window.levelbar._add_btn.click()       # + Variant
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.group_slots("deco", ("Props", "Rock")),
+                         ("deco_rock", "deco_rock_v2"))
+        self.assertEqual(window.details.slot_key, "deco_rock_v2")
+
+        before = [c.label for c in reg.group("deco", ("Props",)).children]
+        window.levelbar._add_type_btn.click()  # + Type
+        reg = load_registry(self.data_dir)
+        labels = [c.label for c in reg.group("deco", ("Props",)).children]
+        self.assertEqual(labels[:-1], before)
+        # a brand-new type, holding its own first (grey-X) variant, selected
+        new_slot, = reg.group_slots("deco", ("Props", labels[-1]))
+        self.assertTrue(new_slot.startswith("deco_prop_"))
+        self.assertEqual(window.details.slot_key, new_slot)
+
+    def test_add_background_variant_from_the_tree(self):
+        from engine.assets import load_registry
+
+        window = self.make_window()
+        window.selector.select_node("map", ("Tiles",))
+        window.details.select_subcategory_label("Background")
+        before = load_registry(self.data_dir).group_slots(
+            "map", ("Tiles", "Background"))
+
+        window.levelbar._add_btn.click()       # + Variant == another BG type
+
+        after = load_registry(self.data_dir).group_slots(
+            "map", ("Tiles", "Background"))
+        self.assertEqual(len(after), len(before) + 1)
+        self.assertTrue(after[-1].startswith("tile_background_"))
+        # lands on the new slot, ready to import art onto (grey-X until then)
+        self.assertEqual(window.details.slot_key, after[-1])
 
     def test_add_variant_appends_slot_selects_it_and_persists(self):
         from engine.assets import load_registry
@@ -409,7 +463,7 @@ class TestMainWindowWiring(TempDataCase):
         self.assertEqual(window.details.slot_key, "enemy_stage_2_v2")
         self.assertEqual(window.viewport.preview_slot, "enemy_stage_2_v2")
         # still on the same era (didn't jump back to Era 1)
-        self.assertEqual(window._variant_era(), "Era 2")
+        self.assertEqual(window._variant_target(), "Era 2")
 
     def test_import_save_clear_update_preview_without_restart(self):
         """ED-42 end-to-end: import -> draft preview -> save -> disk-backed

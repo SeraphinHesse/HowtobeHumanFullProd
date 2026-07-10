@@ -79,6 +79,15 @@ schema, update THIS doc.**
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
   ONE category (meditators reuse musician art) but never across categories
   (frame size would be ambiguous — loader rejects it).
+- **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
+  one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
+  enemy_stage_2_v2]`) and `deco` prop TYPES (`Props → Rock → [deco_rock,
+  deco_rock_v2]`) are both shaped this way, and the editor's "+ Variant"
+  button appends `<stem>_v<k>` to either. `map → Tiles → Background` is NOT a
+  variant family: every background slot needs its own map-file legend code, so
+  "another background variant" is just another numbered `tile_background_<n>`
+  type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
+  `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
   64×96; map tiles 64×32; ui / vfx 64×64. All data — edit `slots.json`.
 - **`sprites/asset_manifest.json` (manifest v2, D-30)**:

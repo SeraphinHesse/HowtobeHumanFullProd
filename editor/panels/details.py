@@ -230,6 +230,15 @@ class DetailsPanel(QWidget):
         if 0 <= index < self._subcat_combo.count():
             self._subcat_combo.setCurrentIndex(index)
 
+    def select_subcategory_label(self, label):
+        """Pick a subcategory by its LABEL (used after adding a deco type,
+        whose index isn't known to the caller). Tolerates the ● assigned
+        prefix; a no-op when the label isn't in the dropdown."""
+        for i in range(self._subcat_combo.count()):
+            if self._subcat_combo.itemText(i).removeprefix("● ") == label:
+                self._subcat_combo.setCurrentIndex(i)
+                return
+
     def reload_registry(self):
         """Re-read the registry after a slots.json edit so a freshly added
         variant slot resolves (frame size, animation vocabulary)."""

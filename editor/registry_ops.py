@@ -3,10 +3,16 @@
 through the validating writer exactly like an agent would, and stays in
 `test_editor_viewport.TestPurity`.
 
-A "variant" is one more interchangeable sprite slot inside an enemy era
-subgroup (Walker/Era 2, …). The game already rolls a random variant per spawn
-across ALL of an era's slots (`game/enemies/enemy.py:variant_slot`), so adding a
-slot here needs no game change — only art imported onto the new slot.
+A "variant" is one more interchangeable sprite slot inside a leaf subgroup —
+an enemy era (Walker/Era 2, …) or a deco prop TYPE (Props/Rock, …). For enemies
+the game already rolls a random variant per spawn across ALL of an era's slots
+(`game/enemies/enemy.py:variant_slot`); for deco the map painter arms one
+variant explicitly and the map file stores that concrete slot. Either way
+adding a slot here needs no game change — only art imported onto it.
+
+Background tiles have no variant dimension: one legend code per slot, so
+"another background variant" IS "another background type"
+(`add_background_slot`).
 """
 import re
 from pathlib import Path
@@ -98,16 +104,28 @@ def add_variant(data_dir, category_key, group_path, subcat_label):
     return new_key
 
 
+def add_deco_variant(data_dir, type_label):
+    """Append a fresh variant slot to one deco prop TYPE (``Props`` → ``Rock``)
+    and return the new slot key (``deco_rock_v2``, …)."""
+    return add_variant(data_dir, "deco", ("Props",), type_label)
+
+
 # -- new background types + deco props (the palette's '+ Level' / '+ Add Prop'
 # buttons) — same validating-write pattern as add_variant --------------------
+
+def _next_numbered_suffix(prefix, taken):
+    """Lowest ``k`` (k >= 1) for which ``<prefix><k>`` is not already used
+    anywhere in the registry."""
+    k = 1
+    while f"{prefix}{k}" in taken:
+        k += 1
+    return k
+
 
 def _next_numbered_key(prefix, taken):
     """Lowest ``<prefix><k>`` (k >= 1) not already used anywhere in the
     registry."""
-    k = 1
-    while f"{prefix}{k}" in taken:
-        k += 1
-    return f"{prefix}{k}"
+    return f"{prefix}{_next_numbered_suffix(prefix, taken)}"
 
 
 def _append_slot(data_dir, category_key, group_path, prefix):
@@ -143,7 +161,35 @@ def add_background_slot(data_dir):
                         "tile_background_")
 
 
+def _append_child_group(data_dir, category_key, group_path, label, slot):
+    """Append a fresh leaf subgroup ``{label, slots: [slot]}`` to a group that
+    already holds ``children``. Raises ``KeyError`` if the category/path is
+    missing or the target is a leaf (``slots``) group."""
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    schema_path = data_dir / "schemas" / "slots.schema.json"
+    doc = data_io.load_json(slots_path)
+
+    category = next(
+        (c for c in doc["categories"] if c["key"] == category_key), None)
+    if category is None:
+        raise KeyError(f"no category {category_key!r}")
+    group = _find_group(category["groups"], group_path)
+    if "children" not in group:
+        raise KeyError(f"group {group_path!r} has no children list to extend")
+
+    group["children"].append({"label": label, "slots": [slot]})
+    data_io.write_validated(doc, slots_path, schema_path)
+
+
 def add_deco_prop(data_dir):
-    """Append a new deco prop slot (``deco_prop_<n>``) to the deco category's
-    'Props' group — the palette's '+ Add Prop' button."""
-    return _append_slot(data_dir, "deco", ("Props",), "deco_prop_")
+    """Add a new deco prop TYPE — a leaf subgroup ``Prop <n>`` holding its
+    first variant slot ``deco_prop_<n>`` — under the deco category's 'Props'
+    group. The palette's '+ Add Prop' button. Returns ``(label, slot_key)``;
+    art is imported onto the slot afterwards (grey-X until then)."""
+    data_dir = Path(data_dir)
+    doc = data_io.load_json(data_dir / "slots.json")
+    n = _next_numbered_suffix("deco_prop_", _all_slots(doc))
+    label, slot = f"Prop {n}", f"deco_prop_{n}"
+    _append_child_group(data_dir, "deco", ("Props",), label, slot)
+    return label, slot

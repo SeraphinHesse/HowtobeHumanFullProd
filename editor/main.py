@@ -99,6 +99,7 @@ class MainWindow(QMainWindow):
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.levelbar.add_variant_requested.connect(self._on_add_variant)
+        self.levelbar.add_type_requested.connect(self._on_add_prop)
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
@@ -115,6 +116,8 @@ class MainWindow(QMainWindow):
         self.palette.manifest_changed.connect(self._on_manifest_changed)
         self.palette.add_level_requested.connect(self._on_add_level)
         self.palette.add_prop_requested.connect(self._on_add_prop)
+        self.palette.add_deco_variant_requested.connect(
+            self._on_add_deco_variant)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.cursor_world.connect(self._on_cursor_world)
@@ -308,57 +311,109 @@ class MainWindow(QMainWindow):
             self.selector.registry, category_key, group_path,
             self.details.subcategory_index())
         assigned = set(self.viewport.assigned_slots())
-        self.levelbar.set_levels(slots, assigned,
-                                 can_add=self._variant_era() is not None)
+        self.levelbar.set_levels(
+            slots, assigned,
+            can_add=self._variant_target() is not None,
+            can_add_type=category_key == self._DECO_CATEGORY)
         self._apply_slot()
 
-    # Only enemy stages get the "+ Variant" affordance: their era slots are
-    # interchangeable art rolled at spawn, whereas a building tier's levels
-    # (lvl1/2/3) are distinct gameplay steps, not variants.
-    _VARIANT_CATEGORY = "enemies"
+    # Which categories offer "+ Variant", and (when not None) WHICH of their
+    # leaf subcategories do. A product call kept in the shell — enemy eras and
+    # deco types hold interchangeable art, whereas a building tier's levels
+    # (lvl1/2/3) are distinct gameplay steps. Under "map" only Background
+    # qualifies: a tile_buildable_v2 would silently break the checkerboard
+    # `_b` pairing of the zone kinds.
+    _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"}}
+    _DECO_CATEGORY = "deco"
 
-    def _variant_era(self):
-        """The era child-label a new variant would extend for the current
-        selection, or None when adding a variant doesn't apply (non-enemy
-        node, flat subgroup, no selection)."""
+    def _variant_target(self):
+        """The leaf child-label a new variant would extend for the current
+        selection, or None when adding a variant doesn't apply (unsupported
+        category or subcategory, flat subgroup, no selection)."""
         if self._node is None:
             return None
         category_key, group_path = self._node
-        if category_key != self._VARIANT_CATEGORY:
+        if category_key not in self._VARIANT_TARGETS:
             return None
-        return selection.variant_target(
+        label = selection.variant_target(
             self.selector.registry, category_key, group_path,
             self.details.subcategory_index())
+        allowed = self._VARIANT_TARGETS[category_key]
+        if label is None or (allowed is not None and label not in allowed):
+            return None
+        return label
+
+    def _add_variant_slot(self, category_key, group_path, label):
+        """Write ONE new variant slot for a (category, subcategory) and return
+        its key. Backgrounds are numbered types rather than `_v<k>` variants —
+        they get one legend code each, so 'another variant' IS 'another type'."""
+        if category_key == "map":
+            new_key = registry_ops.add_background_slot(self._data_dir)
+            self._bind_background_code(new_key)
+            return new_key
+        return registry_ops.add_variant(
+            self._data_dir, category_key, group_path, label)
 
     def _on_add_variant(self):
-        """+ Variant: append a slot to the selected enemy era in slots.json,
-        reload every cached registry, and reselect the new (last) variant so
-        it's ready to import art onto."""
-        era_label = self._variant_era()
-        if era_label is None:
+        """+ Variant: append a slot to the selected enemy era / deco type /
+        background family in slots.json, reload every cached registry, and
+        reselect the new (last) variant so it's ready to import art onto."""
+        label = self._variant_target()
+        if label is None:
             return
         category_key, group_path = self._node
         subcat_idx = self.details.subcategory_index()
         try:
-            new_key = registry_ops.add_variant(
-                self._data_dir, category_key, group_path, era_label)
+            new_key = self._add_variant_slot(category_key, group_path, label)
         except (KeyError, OSError, ValueError) as exc:
             self.statusBar().showMessage(f"Could not add variant: {exc}", 5000)
             return
         self._reload_registries()
+        self.palette.reload_registry()
         # rebuild the subcategory dropdown against the fresh registry, keep the
-        # era, then rebuild the level bar and land on the new variant
+        # subcategory, then rebuild the level bar and land on the new variant
         self.details.set_context(category_key, group_path)   # signals blocked
         self.details.select_subcategory(subcat_idx)
         self._refresh_levels()
         self.levelbar.select_last()
-        self.statusBar().showMessage(f"Added variant {new_key}", 5000)
+        message = f"Added variant {new_key}"
+        if category_key == "map" and self.map_session.doc is None:
+            message += " — open a map and use '+ Level' to make it paintable"
+        self.statusBar().showMessage(message, 5000)
+
+    def _on_add_deco_variant(self, type_label):
+        """The map palette's '+ Variant': another sprite variant for the deco
+        type the Type: combo shows, armed as the new brush."""
+        if not type_label:
+            return
+        try:
+            new_slot = registry_ops.add_deco_variant(self._data_dir, type_label)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(f"Could not add variant: {exc}", 5000)
+            return
+        self._reload_registries()
+        self.palette.reload_registry()
+        self.palette.set_mode("decoration")
+        self.palette.arm_deco(new_slot)   # switches the Type: combo for us
+        self.statusBar().showMessage(f"Added variant {new_slot}", 5000)
 
     def _reload_registries(self):
         """Refresh the registry every panel caches, after a slots.json edit."""
         self.selector.reload_registry()
         self.details.reload_registry()
         self.viewport.reload_registry()
+
+    def _bind_background_code(self, slot):
+        """Claim a legend code for a new background slot in the OPEN map (an
+        undoable command) and refresh the palette's level brushes. Returns the
+        code, or None when no map is open — the slot then lives in the registry
+        only (art can still be imported onto it; it becomes paintable once a
+        map's '+ Level' claims a code for it)."""
+        if self.map_session.doc is None:
+            return None
+        code = self.map_session.push_add_background(slot)
+        self.palette.set_legend(self.map_session.doc.legend)
+        return code
 
     def _on_add_level(self):
         """+ Level: add a new background tile type — a fresh slot in slots.json
@@ -374,24 +429,30 @@ class MainWindow(QMainWindow):
             return
         self._reload_registries()
         self.palette.reload_registry()
-        code = self.map_session.push_add_background(new_slot)
-        self.palette.set_legend(self.map_session.doc.legend)
+        code = self._bind_background_code(new_slot)
         self.palette.set_mode("background")
         self.palette.arm_code(code)
         self.statusBar().showMessage(f"Added background {new_slot}", 5000)
 
     def _on_add_prop(self):
-        """+ Add Prop: add a new deco slot to slots.json, reload, and arm it."""
+        """+ Add Prop / + Type: add a new deco TYPE (its own variant family) to
+        slots.json, reload, and select it in whichever panel is showing."""
         try:
-            new_slot = registry_ops.add_deco_prop(self._data_dir)
+            label, new_slot = registry_ops.add_deco_prop(self._data_dir)
         except (KeyError, OSError, ValueError) as exc:
             self.statusBar().showMessage(f"Could not add prop: {exc}", 5000)
             return
         self._reload_registries()
         self.palette.reload_registry()
-        self.palette.set_mode("decoration")
-        self.palette.arm_deco(new_slot)
-        self.statusBar().showMessage(f"Added prop {new_slot}", 5000)
+        if self.viewport.in_map_mode():
+            self.palette.set_mode("decoration")
+            self.palette.arm_deco(new_slot)   # switches the Type: combo for us
+        elif self._node is not None:
+            category_key, group_path = self._node
+            self.details.set_context(category_key, group_path)
+            self.details.select_subcategory_label(label)
+            self._refresh_levels()
+        self.statusBar().showMessage(f"Added prop type {label}", 5000)
 
     def _apply_slot(self):
         category_key, group_path = self._node

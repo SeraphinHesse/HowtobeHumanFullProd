@@ -7,8 +7,11 @@ PAINT MODES (user-directed):
 - **Background** — the background tile types shown as "Level 1", "Level 2", … in
   legend order, with a "+ Level" button that adds a brand-new background type
   (Level 4, 5, …) to the open map's legend + the slot registry.
-- **Decoration** — the deco props, with an "+ Add Prop" button that adds a new
-  prop slot to the registry.
+- **Decoration** — a "Type:" selector picks one deco prop TYPE (Rock, Bush, …);
+  the brushes below it are that type's interchangeable VARIANTS ("Var 1",
+  "Var 2", …), so a specific variant is armed and stored in the map file.
+  "+ Variant" adds another variant to the current type; "+ Add Prop" adds a
+  brand-new type.
 
 A single exclusive brush group spans all three mode pages, so exactly one brush
 is armed at a time. The tool row (none/paint/erase/line/rect/bucket/picker), the
@@ -27,6 +30,7 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QLabel,
     QMessageBox,
@@ -68,7 +72,8 @@ class PalettePanel(QWidget):
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
     mode_changed = Signal(str)       # gametiles / background / decoration
     add_level_requested = Signal()   # + Level (new background type)
-    add_prop_requested = Signal()    # + Add Prop (new deco slot)
+    add_prop_requested = Signal()    # + Add Prop (new deco type)
+    add_deco_variant_requested = Signal(str)  # + Variant (deco type label)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -137,13 +142,28 @@ class PalettePanel(QWidget):
         self._add_level_btn.clicked.connect(self.add_level_requested.emit)
         self._pages["background"][2].addWidget(self._add_level_btn)
 
+        # decoration page: type selector above the variant brushes, then the
+        # two add-buttons. Brushes insert at index 1 (after the combo).
+        self._deco_type_combo = QComboBox(self)
+        self._deco_type_combo.currentIndexChanged.connect(
+            self._on_deco_type_changed)
+        self._pages["decoration"][2].addWidget(self._deco_type_combo)
+
+        self._add_deco_variant_btn = QPushButton("+ Variant", self)
+        self._add_deco_variant_btn.setToolTip(
+            "Add another sprite variant to the selected decoration type")
+        self._add_deco_variant_btn.clicked.connect(
+            lambda: self.add_deco_variant_requested.emit(self.deco_type()))
+        self._pages["decoration"][2].addWidget(self._add_deco_variant_btn)
+
         self._add_prop_btn = QPushButton("+ Add Prop", self)
+        self._add_prop_btn.setToolTip("Add a brand-new decoration type")
         self._add_prop_btn.clicked.connect(self.add_prop_requested.emit)
         self._pages["decoration"][2].addWidget(self._add_prop_btn)
 
+        self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
-        self._rebuild_deco()
 
         # -- layer eyes + grid (shared) ---------------------------------------
         layout.addWidget(QLabel("Layers"))
@@ -165,11 +185,26 @@ class PalettePanel(QWidget):
 
     # -- registry-driven slot lists ------------------------------------------
 
-    def _deco_slots(self):
-        for category in self._registry.categories():
-            if category.key == "deco":
-                return self._registry.group_slots(category.key, ())
-        return ()
+    def _deco_types(self):
+        """Labels of the deco prop TYPES (the 'Props' group's leaf children),
+        in registry order — what the Type: combo offers."""
+        try:
+            group = self._registry.group("deco", ("Props",))
+        except (KeyError, ValueError):
+            return []
+        return [child.label for child in group.children]
+
+    def _deco_slots(self, type_label=None):
+        """Variant slots of ONE deco type (default: the armed type). Every deco
+        brush button is a variant of exactly one type."""
+        label = self._deco_type_combo.currentText() if type_label is None \
+            else type_label
+        if not label:
+            return []
+        try:
+            return list(self._registry.group_slots("deco", ("Props", label)))
+        except (KeyError, ValueError):
+            return []
 
     def _base_slots(self):
         # scoped to the "Base" group so the sibling "Camera Start" group's slot
@@ -283,12 +318,51 @@ class PalettePanel(QWidget):
                 page_layout, ("code", code), f"Level {i + 1}", i)
         self.refresh_icons()
 
+    def _rebuild_deco_types(self):
+        """Repopulate the Type: combo from the registry, keeping the current
+        type selected when it survived a reload."""
+        previous = self._deco_type_combo.currentText()
+        self._deco_type_combo.blockSignals(True)
+        self._deco_type_combo.clear()
+        self._deco_type_combo.addItems(self._deco_types())
+        index = self._deco_type_combo.findText(previous)
+        self._deco_type_combo.setCurrentIndex(max(index, 0))
+        self._deco_type_combo.blockSignals(False)
+        self._rebuild_deco()
+
+    def _on_deco_type_changed(self, _index):
+        self._rebuild_deco()
+        if self._mode == "decoration":
+            self._arm_first_of_mode()
+
     def _rebuild_deco(self):
+        """One brush per VARIANT of the selected type; the brushes sit between
+        the Type: combo and the two add-buttons."""
         _title_w, _page, page_layout = self._pages["decoration"]
         self._clear_page_brushes("deco", page_layout)
-        for i, slot in enumerate(self._deco_slots()):
-            self._add_brush_button(page_layout, ("deco", slot), _title(slot), i)
+        slots = self._deco_slots()
+        for i, slot in enumerate(slots):
+            label = f"Var {i + 1}" if len(slots) > 1 else _title(slot)
+            self._add_brush_button(page_layout, ("deco", slot), label, 1 + i)
         self.refresh_icons()
+
+    def deco_type(self):
+        """The deco type label the Type: combo currently shows ('' when none)."""
+        return self._deco_type_combo.currentText()
+
+    def select_deco_type(self, label):
+        """Show one deco type's variants (after a '+ Add Prop' registry write).
+        A no-op for an unknown/empty label."""
+        index = self._deco_type_combo.findText(label) if label else -1
+        if index >= 0:
+            self._deco_type_combo.setCurrentIndex(index)
+
+    def _deco_type_of(self, slot):
+        """The type label owning a deco variant slot ('' when unknown)."""
+        for label in self._deco_types():
+            if slot in self._deco_slots(label):
+                return label
+        return ""
 
     # -- legend (per open map) + icons ---------------------------------------
 
@@ -300,11 +374,11 @@ class PalettePanel(QWidget):
         self._rebuild_background()
 
     def reload_registry(self):
-        """Re-read data/slots.json after a '+ Add Prop' / '+ Level' registry
-        write so new slots resolve for icons + import."""
+        """Re-read data/slots.json after a '+ Add Prop' / '+ Variant' / '+ Level'
+        registry write so new slots resolve for icons + import."""
         self._registry = load_registry(self._data_dir)
         self._rebuild_gametiles()
-        self._rebuild_deco()
+        self._rebuild_deco_types()
 
     def set_icon_provider(self, provider):
         """provider(slot_key) -> QImage of the engine-resolved idle frame."""
@@ -400,6 +474,10 @@ class PalettePanel(QWidget):
         self.code_armed.emit(code)
 
     def arm_deco(self, slot):
+        """Arm one deco VARIANT. Only the selected type's variants have buttons,
+        so switch the Type: combo to the slot's own type first — callers (the
+        picker, '+ Variant', '+ Add Prop') name a slot, not a type."""
+        self.select_deco_type(self._deco_type_of(slot))
         btn = self._brush_buttons.get(("deco", slot))
         if btn is None:
             return
