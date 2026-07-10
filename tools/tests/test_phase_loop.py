@@ -158,7 +158,7 @@ class TestPhaseMachine(unittest.TestCase):
         # No 's' in the terrain -> no spawn tiles -> every wave is empty, so the
         # loop runs on pure timers with zero combat/timing flakiness.
         tm, scene, occ = build_board(rows)
-        session = Session.create(Spawner(), tm, ENEM, CORE)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         return session, scene, tm, occ
 
     def test_end_turn_only_from_building(self):
@@ -218,7 +218,7 @@ class TestGameOverLives(unittest.TestCase):
     def test_life_lost_and_round_wiped_on_breach(self):
         # base(0,0), spawn(1,0) adjacent -> the enemy reaches the base fast.
         tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, ENEM, CORE)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         session.state.phase = GamePhase.ENEMY   # pretend a wave is live
         lives0 = session.state.base_lives
         # Two enemies inbound; only ONE breach is processed, then the round wipes.
@@ -240,7 +240,7 @@ class TestGameOverLives(unittest.TestCase):
 
     def test_game_over_at_zero_lives_freezes_world(self):
         tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, ENEM, CORE)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         session.state.base_lives = 1
         session.state.phase = GamePhase.ENEMY
 
@@ -266,7 +266,7 @@ class TestGameOverLives(unittest.TestCase):
         # ran every frame regardless of state, so queued enemies kept reaching
         # the hole and drove base_lives below 0.
         tm, scene, occ = build_board(["bss"])   # base(0,0), spawn(1,0)/(2,0)
-        session = Session.create(Spawner(), tm, ENEM, CORE)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         session.state.base_lives = 1            # next breach ends the game
         session.state.phase = GamePhase.ENEMY
         # A crowd inbound: one breach ends the game; the rest must NOT keep
@@ -299,7 +299,7 @@ class TestGameOverLives(unittest.TestCase):
         # Defense in depth: even if a stray arrival is fed to on_base_hit after
         # GAME_OVER (e.g. a caller without the gate), lives never go negative.
         tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, ENEM, CORE)
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         session.state.base_lives = 1
         session.state.phase = GamePhase.ENEMY
 

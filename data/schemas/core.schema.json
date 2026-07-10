@@ -183,6 +183,12 @@
       "additionalProperties": false,
       "description": "Village XP and levelling.",
       "properties": {
+        "base_income_per_village_level": {
+          "description": "Love added to the base income for every village level above 1.",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "integer"
+        },
         "levelup_love_reward": {
           "description": "Love granted on each village levelup.",
           "maximum": 10000,
@@ -241,6 +247,7 @@
         }
       },
       "required": [
+        "base_income_per_village_level",
         "levelup_love_reward",
         "village_xp_base_threshold",
         "village_xp_threshold_inc",

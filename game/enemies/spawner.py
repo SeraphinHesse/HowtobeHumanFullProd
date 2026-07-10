@@ -51,6 +51,11 @@ class Spawner:
     def enemy_tier(self):
         return self._tier
 
+    def pending(self):
+        """``(tile, etype)`` for every queued, not-yet-spawned enemy. The round
+        loop pays their XP before a lives-mode wipe drops them (10A)."""
+        return [(tile, etype) for tile, etype, _ in self._queue]
+
     def clear(self):
         """Drop the pending wave — a lives-mode base breach ends the round early
         (Session._wipe_round). The already-spawned enemies are cleared by the

@@ -333,7 +333,7 @@
       ]
     },
     "BeamDefence": {
-      "era_unlock_round": 10,
+      "era_unlock_round": 14,
       "target_death_cooldown": 1.4,
       "tiers": [
         {
@@ -345,7 +345,6 @@
           "dmg_per_level": 1,
           "dmg_ramp_max": 45,
           "dmg_ramp_per_tick": 1,
-          "era_unlock_round": 14,
           "explanation": "Focuses sunlight into a burning beam. Slow to anger, deadly to tanks.",
           "hp_per_level": 20,
           "levels": 3,
@@ -415,7 +414,6 @@
           "base_hp": 160,
           "base_yield": 4,
           "build_cost": 12,
-          "era_unlock_round": 10,
           "explanation": "Meditates for love — pays more each undisturbed turn.",
           "hp_per_level": 40,
           "levels": 3,
@@ -616,12 +614,12 @@
       ]
     },
     "WallBuilder": {
+      "era_unlock_round": 5,
       "tiers": [
         {
           "base_hp": 300,
           "base_upkeep": 3,
           "build_cost": 12,
-          "era_unlock_round": 5,
           "explanation": "Grows a hedge wall around every unlocked tile.",
           "hp_per_level": 100,
           "levels": 3,

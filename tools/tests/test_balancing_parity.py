@@ -32,6 +32,14 @@ def resolve(docs, spec):
     return node
 
 
+def strip_keys(value, drop_keys):
+    """Drop `drop_keys` from every dict in a struct-list. Lets a mapping entry
+    migrate a tier list while deliberately dropping one dead sub-key from it
+    (10A lifted `era_unlock_round` off the tier dicts onto the group)."""
+    return [{k: v for k, v in item.items() if k not in drop_keys}
+            for item in value]
+
+
 @unittest.skipUnless(PROTO.is_dir(), "prototype checkout not present")
 class TestBalancingParity(unittest.TestCase):
     @classmethod
@@ -68,8 +76,11 @@ class TestBalancingParity(unittest.TestCase):
         for fname, key, entry in self.entries():
             proto_value = self.proto[fname][key]
             if isinstance(entry, dict):
-                self.assertEqual(entry["transform"], "literal_eval")
-                proto_value, spec = ast.literal_eval(proto_value), entry["path"]
+                spec = entry["path"]
+                if entry.get("transform") == "literal_eval":
+                    proto_value = ast.literal_eval(proto_value)
+                if "drop_keys" in entry:
+                    proto_value = strip_keys(proto_value, entry["drop_keys"])
             elif entry.startswith("DROPPED:"):
                 continue
             elif entry.startswith("MERGED:"):

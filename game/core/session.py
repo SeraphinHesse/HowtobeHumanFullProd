@@ -15,8 +15,19 @@ The host (``game/main.py``, and tests) calls it around the per-frame sim:
 advances, no spawning), exactly like the prototype's ``_update`` having no
 GAME_OVER branch. Base-breach consequences (lives / game over / round-wipe)
 arrive from the combat sweep via the ``on_base_hit`` callback, keeping
-``game/enemies`` free of any ``game/core`` import (clean layering).
+``game/enemies`` free of any ``game/core`` import (clean layering); 10A adds a
+second such callback, ``on_enemy_death``, for XP + the kill counter.
+
+Phase 10A inserts LEVELUP between ROUND_END and INCOME: at the ROUND_END timer's
+expiry a pending level-up opens the modal instead of running payday, and
+``resolve_levelup`` runs payday afterwards (the prototype's ``run_income=True``
+path). LEVELUP freezes the world completely — the host checks ``frozen`` and
+skips the whole sim, so nothing animates behind the window.
 """
+import random
+
+from . import levelup as lv
+from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
 from .phases import GamePhase, GameState
@@ -24,22 +35,34 @@ from .phases import GamePhase, GameState
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
-                 registry=None, rng=None):
+                 buildings_balance, registry=None, rng=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
         self.enemies_balance = enemies_balance
         self.core_balance = core_balance
+        self.buildings_balance = buildings_balance
         self.registry = registry
-        self.rng = rng
+        self.rng = rng if rng is not None else random
         self._wipe_pending = False
+        # Buildings that have already paid their death XP, by id(). NEVER reset
+        # (prototype `_buildings_xp_awarded`): a building that dies, revives at
+        # payday and dies again pays XP only the first time.
+        self._xp_awarded_buildings = set()
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
-               registry=None, rng=None):
+               buildings_balance, registry=None, rng=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance), spawner, tilemap,
-                   enemies_balance, core_balance, registry, rng)
+                   enemies_balance, core_balance, buildings_balance, registry,
+                   rng)
+
+    @property
+    def frozen(self):
+        """LEVELUP is fully modal: no updates, no animations, no combat
+        (prototype ``_update_gameplay`` returns immediately)."""
+        return self.state.phase == GamePhase.LEVELUP
 
     # -- BUILDING -> ENEMY (prototype _begin_enemy_phase) -----------------
 
@@ -64,14 +87,20 @@ class Session:
         """Advance phase timers + spawn wave enemies. Call BEFORE
         ``scene.update``. Fully frozen on GAME_OVER."""
         st = self.state
-        if st.state != GameState.GAMEPLAY:
+        if st.state != GameState.GAMEPLAY or self.frozen:
             return
         if st.phase == GamePhase.ENEMY:
             self.spawner.update(dt, scene)
+            self._award_building_deaths(scene)
         elif st.phase == GamePhase.ROUND_END:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
-                run_payday(st, self.tilemap, self.core_balance)  # -> INCOME
+                # A pending level-up takes priority over payday; the window's
+                # resolve runs payday afterwards (prototype game.py:1215-1226).
+                if st.levelup_pending:
+                    self._begin_levelup()
+                else:
+                    run_payday(st, self.tilemap, self.core_balance)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -89,6 +118,45 @@ class Session:
                 e.alive for e in scene.by_tag("enemy")):
             self._begin_round_end()
 
+    # -- LEVELUP (10A) ----------------------------------------------------
+
+    def _begin_levelup(self):
+        """Open the modal window on the rolled options (prototype
+        ``_begin_levelup(run_income=True)``; the cheat ``return_phase`` path is
+        10H). The host reads ``state.levelup_options``."""
+        st = self.state
+        st.levelup_options = lv.roll_levelup_options(
+            st, self.buildings_balance, self.core_balance, self.rng)
+        st.phase = GamePhase.LEVELUP
+
+    def resolve_levelup(self, option):
+        """Grant the chosen reward, advance the village level, then run the
+        payday the level-up deferred (prototype ``_resolve_levelup``)."""
+        st = self.state
+        lv.apply_levelup_option(st, option, self.core_balance)
+        st.levelup_pending = False
+        st.levelup_options = []
+        xpmod.advance_village_level(st, self.core_balance)
+        run_payday(st, self.tilemap, self.core_balance)  # -> INCOME
+
+    # -- XP award sites (10A) ---------------------------------------------
+
+    def _award_building_deaths(self, scene):
+        """Buildings that died this tick pay XP once each, by id (prototype
+        ``game.py:1378-1386``). Gated by ``core.XP.xp_from_buildings``."""
+        if not self.core_balance["XP"]["xp_from_buildings"]:
+            return
+        per_type = self.buildings_balance["BuildingsGlobal"]["xp_on_death"]
+        for b in scene.by_tag("building"):
+            btype = getattr(b, "building_type", None)
+            if btype == "base" or getattr(b, "alive", True):
+                continue
+            if id(b) in self._xp_awarded_buildings:
+                continue
+            self._xp_awarded_buildings.add(id(b))
+            xpmod.award_xp(self.state, per_type.get(btype, 1),
+                           b.transform.world_pos)
+
     # -- base breach (fed from resolve_combat's on_base_hit) --------------
 
     def on_base_hit(self, enemy):
@@ -98,12 +166,30 @@ class Session:
         st = self.state
         if st.state == GameState.GAME_OVER:
             return  # world frozen: never drive lives negative on a late arrival
+        # The base kill grants XP only when the rule allows it — awarded even on
+        # the fatal hit, before the game-over check (prototype game.py:1293-99).
+        if self.core_balance["XP"]["xp_on_base_damage_kill"]:
+            self._award_enemy_xp(enemy)
         st.enemies_killed += 1
         st.base_lives -= 1
         if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
         else:
             self._wipe_pending = True
+
+    # -- enemy death (fed from resolve_combat's on_enemy_death) -----------
+
+    def on_enemy_death(self, enemy):
+        """An enemy was killed on the field (not at the base)."""
+        self.state.enemies_killed += 1
+        self._award_enemy_xp(enemy)
+
+    def _award_enemy_xp(self, enemy):
+        amount = xpmod.xp_for_etype(getattr(enemy, "ETYPE", "standard"),
+                                    self.core_balance)
+        transform = getattr(enemy, "transform", None)
+        xpmod.award_xp(self.state, amount,
+                       transform.world_pos if transform is not None else None)
 
     # -- helpers ----------------------------------------------------------
 
@@ -114,8 +200,15 @@ class Session:
 
     def _wipe_round(self, scene):
         """A lives-mode base hit ends the round instantly: clear live enemies +
-        drain the spawn queue (the prototype awards queued-enemy XP here — 10A)."""
+        drain the spawn queue. Enemies that were QUEUED but never spawned still
+        pay their XP, so a life-loss round-clear doesn't rob the player
+        (prototype game.py:1300-1303). Enemies already on the field are cleared
+        silently — they grant nothing (prototype ``enemies.clear()``)."""
         for e in list(scene.by_tag("enemy")):
             scene.despawn(e)
+        for tile, etype in self.spawner.pending():
+            xpmod.award_xp(self.state,
+                           xpmod.xp_for_etype(etype, self.core_balance),
+                           (tile.col + 0.5, tile.row + 0.5))
         self.spawner.clear()
         self._wipe_pending = False

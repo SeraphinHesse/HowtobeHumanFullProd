@@ -15,6 +15,8 @@ from .widgets import (
 )
 
 _UPKEEP_BLUE = (120, 170, 230)
+_XP_PURPLE = (202, 140, 245)
+_XP_LIFE = 0.9  # prototype XPFloater lifetime (seconds)
 
 
 class _Floater:
@@ -51,6 +53,16 @@ class FloaterManager:
             text = f"+{amount}{HEART}" if amount >= 0 else str(amount)
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
+
+    def spawn_xp_events(self, state):
+        """Drain ``state.xp_events`` (filled by the Session's XP award sites)
+        into short purple floaters. Called every frame — XP is granted mid-combat,
+        not once at a phase edge like income. The prototype's ``xp_icon`` sprite
+        has no slot in this repo, so the floater is text-only (10J)."""
+        for wx, wy, amount in state.xp_events:
+            self._floaters.append(
+                _Floater(wx, wy, f"+{amount}", _XP_PURPLE, _XP_LIFE))
+        state.xp_events.clear()
 
     def clear(self):
         self._floaters.clear()

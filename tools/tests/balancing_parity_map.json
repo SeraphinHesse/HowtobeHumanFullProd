@@ -19,7 +19,12 @@
     "ECONOMIC_BUILDING_TIERS": "buildings:EconomyBuildings/Musicians/tiers",
     "ECONOMIC_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/economic",
     "FlatBoostBuildings": "buildings:BoostBuildings/globals/flat_mode",
-    "MEDITATOR_BUILDING_TIERS": "buildings:EconomyBuildings/Meditators/tiers",
+    "MEDITATOR_BUILDING_TIERS": {
+      "drop_keys": [
+        "era_unlock_round"
+      ],
+      "path": "buildings:EconomyBuildings/Meditators/tiers"
+    },
     "MEDITATOR_ERA_UNLOCK_ROUND": "buildings:EconomyBuildings/Meditators/era_unlock_round",
     "MEDITATOR_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/meditator",
     "PAINTER_BASE_HP": "DROPPED:dead-fallback: per-tier wins",
@@ -35,11 +40,21 @@
     "PAINTER_UPGRADE_COST_INCREMENT": "DROPPED:dead-fallback: per-tier wins",
     "PAINTER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/painter",
     "RANDOM_NAMES": "buildings:BuildingsGlobal/random_names",
-    "SUN_SCORCHER_BUILDING_TIERS": "buildings:DefenceBuildings/BeamDefence/tiers",
-    "SUN_SCORCHER_ERA_UNLOCK_ROUND": "buildings:DefenceBuildings/BeamDefence/era_unlock_round",
+    "SUN_SCORCHER_BUILDING_TIERS": {
+      "drop_keys": [
+        "era_unlock_round"
+      ],
+      "path": "buildings:DefenceBuildings/BeamDefence/tiers"
+    },
+    "SUN_SCORCHER_ERA_UNLOCK_ROUND": "DROPPED:dead - the prototype's src/ never reads this top-level constant; the wired era gate is the tier-1 block's era_unlock_round (14), lifted in 10A onto buildings:DefenceBuildings/BeamDefence/era_unlock_round",
     "SUN_SCORCHER_TARGET_DEATH_COOLDOWN": "buildings:DefenceBuildings/BeamDefence/target_death_cooldown",
     "SUN_SCORCHER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/sun_scorcher",
-    "WALL_BUILDER_TIERS": "buildings:StructureBuildings/WallBuilder/tiers",
+    "WALL_BUILDER_TIERS": {
+      "drop_keys": [
+        "era_unlock_round"
+      ],
+      "path": "buildings:StructureBuildings/WallBuilder/tiers"
+    },
     "WALL_BUILDER_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/wall_builder",
     "WALL_BUILDING_TIERS": "DROPPED:no-class: legacy single-tier Wall list; no Wall building class exists (walls come from WallBuilder, wall_hp per tier)",
     "WALL_XP_ON_DEATH": "buildings:BuildingsGlobal/xp_on_death/wall"

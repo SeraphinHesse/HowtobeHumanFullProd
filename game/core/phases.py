@@ -2,10 +2,10 @@
 
 Ports the prototype's two state enums (``src/core/constants.py``): ``GamePhase``
 is the in-round loop; ``GameState`` is the top-level app state (menus vs
-gameplay vs game over). Only the members 9F actually drives are ever entered;
-the rest are DECLARED now — at their prototype ordinal positions — so later
-phases layer in without editing this enum (10A ``LEVELUP``, 10G
-``BOSS_CUTSCENE``, the 9H shell menu states).
+gameplay vs game over). Members are DECLARED at their prototype ordinal
+positions so later phases layer in without editing this enum; ``LEVELUP`` was
+reserved by 9F and is entered since 10A. ``BOSS_CUTSCENE`` (10G) is still
+reserved.
 """
 from enum import Enum, auto
 
@@ -13,10 +13,10 @@ from enum import Enum, auto
 class GamePhase(Enum):
     BUILDING = auto()       # player places/upgrades; End Turn -> ENEMY
     ENEMY = auto()          # wave spawns + combat; clear -> ROUND_END
-    ROUND_END = auto()      # ROUND_END_DELAY cooldown -> INCOME
+    ROUND_END = auto()      # ROUND_END_DELAY cooldown -> LEVELUP? -> INCOME
     INCOME = auto()         # "PAYDAY": love collected + floaters -> BUILDING
-    # Reserved — declared for ordinal fidelity, NEVER entered in 9F:
-    LEVELUP = auto()        # village level-up window, after ROUND_END (10A)
+    LEVELUP = auto()        # modal reward window after ROUND_END (10A)
+    # Reserved — declared for ordinal fidelity, NEVER entered yet:
     BOSS_CUTSCENE = auto()  # boss A/B choice overlay, after ROUND_END (10G)
 
 

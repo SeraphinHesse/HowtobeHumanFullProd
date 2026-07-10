@@ -58,7 +58,9 @@ from game.core import Session, append_random_name, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
 from game.map import TileMap, tile_at_screen
-from game.ui import BuildingUI, FloaterManager, GameOverScreen, Hud, Shell
+from game.ui import (
+    BuildingUI, FloaterManager, GameOverScreen, Hud, LevelupWindow, Shell,
+)
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -101,7 +103,8 @@ class _World:
     """The rebuildable run state: tile grid, occupancy, scene, session. A fresh
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
 
-    def __init__(self, map_doc, map_bal, enemies_bal, core_bal, registry):
+    def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
+                 registry):
         self.tile_map = TileMap(map_doc, map_bal)
         self.occupancy = TileOccupancy()
         self.scene = Scene()
@@ -113,7 +116,7 @@ class _World:
             attach_base(self.tile_map, base, self.scene, self.occupancy)
         self.spawner = Spawner()
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
-                                      core_bal, registry=registry)
+                                      core_bal, buildings_bal, registry=registry)
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -213,15 +216,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     # gameplay bundle — None until START NEW GAME; dropped on quit-to-menu
     gp = {"world": None, "hud": None, "panel": None, "floaters": None,
-          "game_over": None, "prev_phase": None}
+          "game_over": None, "levelup": None, "prev_phase": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             registry)
+                             buildings_balance, registry)
         gp["hud"] = Hud(view_w, view_h)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance)
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h)
+        gp["levelup"] = LevelupWindow(view_w, view_h)
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -230,7 +234,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
     def teardown_gameplay():
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
-        for k in ("world", "hud", "panel", "floaters", "game_over"):
+        for k in ("world", "hud", "panel", "floaters", "game_over", "levelup"):
             gp[k] = None
         if tune_gc:
             gc.collect()
@@ -266,6 +270,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
             if gp["game_over"].hit(mx, my) == "main_menu":
                 teardown_gameplay()
                 shell.to_main_menu()
+            return
+        if session.frozen:                                 # LEVELUP: fully modal
+            option = gp["levelup"].hit(mx, my)
+            if option is not None:
+                gp["levelup"].close()
+                session.resolve_levelup(option)            # -> payday -> INCOME
             return
         if panel.preview is not None:                      # modal
             panel.handle_click(mx, my, session, buildings_balance,
@@ -327,8 +337,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             session = world.session
             panel = gp["panel"]
             if event.type == pygame.KEYDOWN:
-                if session.state.state != GameState.GAMEPLAY:
-                    continue
+                if session.state.state != GameState.GAMEPLAY or session.frozen:
+                    continue  # the LEVELUP window owns all input
                 if panel.preview is not None:
                     if event.key == pygame.K_ESCAPE and not panel.preview.editing:
                         panel.preview = None
@@ -381,16 +391,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
             world = gp["world"]
             session = world.session
             session.pre_sim(dt, world.scene)
-            if session.state.state == GameState.GAMEPLAY:
+            # LEVELUP freezes the world entirely (no sim, no animations).
+            if session.state.state == GameState.GAMEPLAY and not session.frozen:
                 world.scene.update(dt)
                 resolve_combat(world.scene, world.tile_map, dt, buildings_balance,
-                               on_base_hit=session.on_base_hit)
+                               on_base_hit=session.on_base_hit,
+                               on_enemy_death=session.on_enemy_death)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
                     and gp["prev_phase"] != GamePhase.INCOME):
                 gp["floaters"].spawn_income_events(session.state)
+            # pre_sim rolled the cards when it entered LEVELUP; open on the edge
+            if (session.state.phase == GamePhase.LEVELUP
+                    and gp["prev_phase"] != GamePhase.LEVELUP):
+                gp["panel"].close()  # the modal owns the screen
+                gp["levelup"].open(session.state.levelup_options)
             gp["prev_phase"] = session.state.phase
+            gp["floaters"].spawn_xp_events(session.state)
             # mirror a fresh game over up to the shell (never while PAUSED)
             if (st == GameState.GAMEPLAY
                     and session.state.state == GameState.GAME_OVER):
@@ -399,6 +417,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["panel"].hover(mx, my)
             gp["panel"].update(dt)
             gp["floaters"].update(dt)
+            if session.frozen:
+                gp["levelup"].update(dt, mx, my)
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].update(dt, mx, my)
         else:  # menu states + PAUSED
@@ -442,6 +462,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].submit(renderer, cs)
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
+            if gp["levelup"].visible:
+                gp["levelup"].submit(renderer, view_w, view_h)
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].submit(renderer, session.state, view_w, view_h)
             if st == GameState.PAUSED:

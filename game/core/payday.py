@@ -15,6 +15,7 @@ types are picked up here with no edit to this loop.
 """
 from game.buildings.components import RoundStats
 from .phases import GamePhase
+from .xp import scaled_base_income
 
 
 def _built_tiles_with_occupant(tilemap):
@@ -54,11 +55,11 @@ def run_payday(state, tilemap, core_balance):
 
     # 3. [reserved 10G] Boss-bonus payouts (Boss1B / Boss3B).
 
-    # 4. Base income + yield sweep. Base income is always paid; village-level
-    #    scaling is 10A (village_level == 1 here, so it's the flat base_income).
-    #    Then a duck-typed sweep adds each alive economy building's yield.
-    #    Each payout is recorded as a floater event anchored on the paying tile.
-    base_income = hole["base_income"]
+    # 4. Base income + yield sweep. Base income is always paid, scaled by the
+    #    village level (10A). Then a duck-typed sweep adds each alive economy
+    #    building's yield. Each payout is recorded as a floater event anchored
+    #    on the paying tile.
+    base_income = scaled_base_income(state, core_balance)
     state.add_love(base_income)
     state.income_events.append(
         (tilemap.base_col, tilemap.base_row, base_income, "income"))

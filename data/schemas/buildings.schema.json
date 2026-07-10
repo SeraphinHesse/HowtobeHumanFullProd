@@ -192,12 +192,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "era_unlock_round": {
-          "description": "Era gate: earliest round this tier's art/era becomes available.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "explanation": {
           "description": "Flavor/help text shown in the build and upgrade panel.",
           "minLength": 1,
@@ -630,12 +624,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "era_unlock_round": {
-          "description": "Era gate: earliest round this tier's art/era becomes available.",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "explanation": {
           "description": "Flavor/help text shown in the build and upgrade panel.",
           "minLength": 1,
@@ -953,12 +941,6 @@
         "build_cost": {
           "description": "Love cost to place a fresh building of this tier (0 for tiers entered only via tier advance).",
           "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "era_unlock_round": {
-          "description": "Era gate: earliest round this tier's art/era becomes available.",
-          "maximum": 1000,
           "minimum": 0,
           "type": "integer"
         },
@@ -1325,7 +1307,7 @@
           "description": "The ramping beam line (era-gated).",
           "properties": {
             "era_unlock_round": {
-              "description": "Era gate: earliest round the beam line becomes available.",
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
               "maximum": 1000,
               "minimum": 0,
               "type": "integer"
@@ -1394,7 +1376,7 @@
           "description": "The Meditator line - compounding streak economy (era-gated).",
           "properties": {
             "era_unlock_round": {
-              "description": "Era gate: earliest round the Meditator line becomes available.",
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
               "maximum": 1000,
               "minimum": 0,
               "type": "integer"
@@ -1495,6 +1477,12 @@
           "additionalProperties": false,
           "description": "The Wall Builder line - raises perimeter walls around unlocked tiles.",
           "properties": {
+            "era_unlock_round": {
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
             "tiers": {
               "description": "Wall builder tiers in advance order.",
               "items": {
@@ -1506,6 +1494,7 @@
             }
           },
           "required": [
+            "era_unlock_round",
             "tiers"
           ],
           "type": "object"

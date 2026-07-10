@@ -16,6 +16,7 @@ from .credits import CreditsScreen
 from .effects import FloaterManager
 from .game_over import GameOverScreen
 from .hud import Hud
+from .levelup import LevelupWindow
 from .main_menu import MainMenu
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
@@ -27,6 +28,7 @@ __all__ = [
     "ConstructPreview",
     "FloaterManager",
     "GameOverScreen",
+    "LevelupWindow",
     "Shell",
     "MainMenu",
     "SettingsScreen",

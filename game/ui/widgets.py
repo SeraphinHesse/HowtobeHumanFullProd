@@ -49,6 +49,24 @@ def pretty(slug):
     return slug.replace("_", " ").title()
 
 
+def wrap_text(text, font_key, max_w, max_lines=None):
+    """Greedy word wrap to ``max_w`` pixels. A word longer than the line is not
+    broken (it just overhangs). Truncates to ``max_lines`` when given."""
+    lines, current = [], ""
+    for word in text.split():
+        trial = f"{current} {word}" if current else word
+        if current and text_size(trial, font_key)[0] > max_w:
+            lines.append(current)
+            current = word
+            if max_lines is not None and len(lines) == max_lines:
+                return lines
+        else:
+            current = trial
+    if current:
+        lines.append(current)
+    return lines
+
+
 def contains(rect, mx, my):
     x, y, w, h = rect
     return x <= mx < x + w and y <= my < y + h

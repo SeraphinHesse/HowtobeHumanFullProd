@@ -1,38 +1,50 @@
-"""Main HUD (Phase 9G): love/income panel, lives, tile counter, phase banner,
-End Turn button.
+"""Main HUD (Phase 9G): love/income panel, XP bar, lives, tile counter, phase
+banner, End Turn button.
 
 Pure logic (no pygame): reads the ``Session``/``RunState`` and the tile grid,
 emits screen-space HUD primitives via ``renderer.submit_hud``. Ports the
-prototype's ``src/ui/hud.py`` core (the speed controls, XP bar, boss/lightning
-readouts and map-overlay toggles are their own later phases — 10A/10F/10G/10H/
-10I). The hole is lives-based (HP mode was removed), so the base readout is a
-life count, never an HP bar.
+prototype's ``src/ui/hud.py`` core (the speed controls, boss/lightning readouts
+and map-overlay toggles are their own later phases — 10F/10G/10H/10I). The hole
+is lives-based (HP mode was removed), so the base readout is a life count, never
+an HP bar.
+
+The 10A XP bar drops the prototype's mascot face: it needs an ``xp_icon`` slot
+that ``data/slots.json`` does not carry (revisit in the 10J art sweep).
 """
+import math
+
 from game.core.phases import GamePhase, GameState
+from game.core.xp import scaled_base_income
 
 from .widgets import (
     C_GOLD, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED, C_UI_BORDER,
-    C_UI_TEXT_DIM, HEART, Button, submit_centered, submit_text, text_h,
+    C_UI_TEXT_DIM, HEART, Button, submit_bar, submit_centered, submit_text,
+    text_h,
 )
 
 _PHASE_LABEL = {
     GamePhase.BUILDING: "BUILDING",
     GamePhase.ENEMY: "COMBAT!",
     GamePhase.ROUND_END: "REBUILDING",
+    GamePhase.LEVELUP: "LEVEL UP",
     GamePhase.INCOME: "PAYDAY",
 }
 _PHASE_COLOR = {
     GamePhase.ENEMY: C_RED,
+    GamePhase.LEVELUP: C_GOLD,
     GamePhase.INCOME: C_GOLD,
 }
 _INCOME_PINK = (214, 96, 136)
+_XP_PURPLE = (168, 105, 222)
+_XP_TRACK = (48, 34, 66)
 
 
 def income_breakdown(session):
-    """(gross_income, total_upkeep) this HUD would pay next payday — the flat
-    base income plus every alive building's duck-typed ``yield_amount`` /
-    ``upkeep`` (mirrors the payday sweep, so the readout can't drift)."""
-    income = session.core_balance["TheHole"]["base_income"]
+    """(gross_income, total_upkeep) this HUD would pay next payday — the
+    village-scaled base income plus every alive building's duck-typed
+    ``yield_amount`` / ``upkeep`` (mirrors the payday sweep, so the readout
+    can't drift)."""
+    income = scaled_base_income(session.state, session.core_balance)
     upkeep = 0
     for t in session.tilemap.built_tiles():
         b = t.occupant
@@ -60,6 +72,7 @@ class Hud:
     def __init__(self, view_w, view_h):
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
         self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
+        self._clock = 0.0  # drives the levelup-pending pulse
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
@@ -70,6 +83,7 @@ class Hud:
 
     def update(self, dt, mx, my, session, panel):
         st = session.state
+        self._clock += dt
         self.end_turn.enabled = (
             st.state == GameState.GAMEPLAY
             and st.phase == GamePhase.BUILDING
@@ -105,6 +119,9 @@ class Hud:
         submit_text(renderer, love_txt, (pill[0] + 10, pill[1] + 7), "xl",
                     love_col)
 
+        # -- XP bar + village level (right of the love pill) ---------------
+        self._submit_xp(renderer, st, pill[0] + pill[2] + 12, pill[1])
+
         # -- income line --------------------------------------------------
         income, upkeep = income_breakdown(session)
         net = income - upkeep
@@ -134,3 +151,24 @@ class Hud:
 
         # -- pause button (top-right) -------------------------------------
         self.pause.submit(renderer)
+
+    def _submit_xp(self, renderer, st, x, y):
+        """`LVL N`, a purple progress bar, and `xp/threshold`. When a level-up
+        is pending the bar reads full and pulses gold (prototype `_render_xp`)."""
+        bar_w, bar_h = 110, 9
+        if st.levelup_pending:
+            ratio = 1.0
+            # 0.5 Hz sine between the purple and gold ends of the ramp
+            t = 0.5 + 0.5 * math.sin(self._clock * math.pi)
+            color = tuple(int(a + (b - a) * t)
+                          for a, b in zip(_XP_PURPLE, C_GOLD))
+        else:
+            ratio = st.player_xp / st.xp_threshold if st.xp_threshold else 0.0
+            color = _XP_PURPLE
+        submit_text(renderer, f"LVL {st.village_level}", (x, y), "hud_lvl",
+                    C_GOLD)
+        bar_y = y + text_h("hud_lvl") + 3
+        submit_bar(renderer, x, bar_y, bar_w, bar_h, ratio,
+                   bg=_XP_TRACK, fill=color, border=C_UI_BORDER)
+        submit_text(renderer, f"{st.player_xp}/{st.xp_threshold}",
+                    (x, bar_y + bar_h + 2), "sm", C_UI_TEXT_DIM)

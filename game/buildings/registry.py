@@ -3,24 +3,25 @@
 ``create`` maps a ``building_type`` string to its leaf class — also the way to
 reconstruct a subclass after ``GameObject.from_dict`` (which returns a base
 GameObject, losing subclass identity). ``place_building`` ports the prototype's
-placement gate that applies in 9D (buildable tile + affordability) and wires the
+placement gate: buildable tile + affordability (9D) + the per-type research gate
+(10A — the type must be unlocked and its first tier researched), and wires the
 new building through the 9C seams: ``tile.occupant``/``content_key``/``state``,
-``Scene.spawn``, ``TileMap.sync_occupancy``. Love is passed in (no game-state
-store until 9F); per-type unlock gates + UI batching are 9F/9G.
+``Scene.spawn``, ``TileMap.sync_occupancy``. Love + the run state are passed in;
+this module never reaches into ``game.core``.
+
+``BUILDING_CLASSES`` is the same dict as ``research.LEAF_CLASSES`` — it lives
+there so ``game/core/levelup.py`` can read it without importing this module (see
+the import-boundary note in ``research.py``).
 
 ``BaseBuilding`` is NOT in the placeable registry — it has a different
 constructor (core balance) and is attached to its pre-seeded tile via
 ``attach_base`` during bootstrap.
 """
 from game.map.tiles import TileState
-from .defender import Defender
-from .musician import Musician
+from .research import LEAF_CLASSES, RESEARCH, buildable
 
 # building_type -> leaf class. Only the 9D leaves; families grow in 10x.
-BUILDING_CLASSES = {
-    "defence": Defender,
-    "economic": Musician,
-}
+BUILDING_CLASSES = LEAF_CLASSES
 
 
 class PlacementError(Exception):
@@ -39,18 +40,23 @@ def build_cost(building_type, buildings_balance):
 
 
 def place_building(tilemap, tile, building_type, love, buildings_balance,
-                   scene, occupancy):
+                   scene, occupancy, state=None):
     """Place ``building_type`` on ``tile``. Returns ``(building, cost)``.
 
-    Raises ``PlacementError`` if the tile is not BUILDABLE or ``love`` is below
-    the build cost (prototype ``Game.place_building`` gate; the full per-type
-    unlock gates + UI batching are 9F/9G). On success sets the tile's
+    Raises ``PlacementError`` if the tile is not BUILDABLE, the type is not yet
+    researched (given a ``state``), or ``love`` is below the build cost
+    (prototype ``Game.place_building`` gate). On success sets the tile's
     occupant/content_key/state, spawns the building into ``scene``, and re-syncs
     ``occupancy`` — the single 9C occupancy seam.
+
+    ``state`` is the ``RunState`` (duck-typed: ``unlocked_buildings`` /
+    ``tiers_unlocked``); omit it in stat/logic tests that predate the run state.
     """
     if tile.state != TileState.BUILDABLE:
         raise PlacementError(
             f"tile ({tile.col},{tile.row}) is {tile.state.name}, not BUILDABLE")
+    if state is not None and not buildable(state, building_type):
+        raise PlacementError(f"{building_type} is not researched yet")
     cost = build_cost(building_type, buildings_balance)
     if love < cost:
         raise PlacementError(

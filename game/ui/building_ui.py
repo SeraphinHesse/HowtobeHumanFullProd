@@ -4,15 +4,23 @@ modal.
 
 Pure logic. Ports the core of the prototype's ``src/ui/building_ui.py`` for the
 two building lines that exist (Defender / Musician). The deferred depth — shift
-multi-select, era/research gates, next-tier preview, terrain badges, name dice,
-lightning + boss-history sections — lands with its owning phase (10A-10J). Costs
-are gated against ``session.state.love`` here and spent by this module (the
-9D/9F split: ``place_building`` / ``upgrade`` never touch RunState).
+multi-select, next-tier preview, terrain badges, name dice, lightning +
+boss-history sections — lands with its owning phase (10B-10J). Costs are gated
+against ``session.state.love`` here and spent by this module (the 9D/9F split:
+``place_building`` / ``upgrade`` never touch RunState).
+
+10A wired the research gates: the construct list only offers types the run has
+earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
+classifier — a tier can only be ADVANCED into once it has been researched on a
+level-up, and it stays unnamed until its ``unlock_min_round``.
 """
 from game.buildings.components import RoundStats
 from game.buildings.registry import (
     BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
 )
+from game.buildings.research import buildable
+from game.core.levelup import upgrade_gate
+from game.core.xp import scaled_base_income
 from game.map.tiles import TileState
 
 from .widgets import (
@@ -167,6 +175,8 @@ class BuildingUI:
         self.tile = None
         self.preview = None
         self._selected = None
+        self._session = None
+        self._upgrade_hint = None
         self._buildings_balance = None
         self._highlight_tiles = []
         self._hover_cost = None
@@ -192,6 +202,7 @@ class BuildingUI:
         self.tile = None
         self.preview = None
         self._selected = None
+        self._upgrade_hint = None
         self._highlight_tiles = []
         self._hover_cost = None
         self.cards = []
@@ -201,6 +212,7 @@ class BuildingUI:
         if tile is None:
             return
         self._buildings_balance = buildings_balance
+        self._session = session
         st = tile.state
         if st == TileState.COMBAT:
             self.mode, self.tile = "unlock", tile
@@ -238,7 +250,10 @@ class BuildingUI:
     def _build_construct(self):
         self.cards = []
         y = 64
+        state = self._session.state
         for btype in BUILDING_CLASSES:
+            if not buildable(state, btype):
+                continue  # type not unlocked / tier 1 not researched (10A)
             cost = build_cost(btype, self._buildings_balance)
             name = pretty(BUILDING_CLASSES[btype].TIER_SPRITES[0])
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
@@ -248,21 +263,29 @@ class BuildingUI:
         self._highlight_tiles = [(self.tile.col, self.tile.row, C_HIGHLIGHT)]
 
     def _build_upgrade(self):
-        kind, cost, label = self._upgrade_state(self._selected)
+        mode, cost, label, hint = self._upgrade_state(self._selected)
         self.action_btn.rect = (
             self.panel_x + 12, self.view_h - 120, self.panel_w - 24, 36)
-        self.action_btn.enabled = kind != "max"
+        self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
         self.action_btn.label = label
-        self._action_cost = cost
+        self._action_cost = cost if self.action_btn.enabled else 0
+        self._upgrade_hint = hint
 
     def _upgrade_state(self, b):
-        if not b.at_tier_max():
-            c = b.upgrade_cost()
-            return "in_tier", c, f"UPGRADE  {HEART}{c}"
-        if b.has_next_tier():
-            c = b.upgrade_cost()
-            return "advance", c, f"ADVANCE TIER  {HEART}{c}"
-        return "max", 0, "MAX TIER"
+        """``(mode, cost, button_label, hint)`` — the five-mode research gate
+        (``game.core.levelup.upgrade_gate``). ``cost`` is only a love price for
+        the two enabled modes; for ``tier_hidden`` it carries the unlock round."""
+        mode, next_name, cost = upgrade_gate(
+            self._session.state, b, self._buildings_balance)
+        if mode == "in_tier":
+            return mode, cost, f"UPGRADE  {HEART}{cost}", None
+        if mode == "tier_upgrade":
+            return mode, cost, f"ADVANCE: {next_name.upper()}  {HEART}{cost}", None
+        if mode == "tier_locked":
+            return mode, cost, "RESEARCH REQUIRED", "Research it on levelup"
+        if mode == "tier_hidden":
+            return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
+        return mode, 0, "MAX TIER", None
 
     def _set_range_highlight(self, b, tilemap):
         hl = [(b.col, b.row, C_HIGHLIGHT)]
@@ -353,14 +376,14 @@ class BuildingUI:
     def _upgrade_click(self, mx, my, session):
         b, st = self._selected, session.state
         if self.action_btn.hit(mx, my):
-            kind, cost, _ = self._upgrade_state(b)
-            if kind == "max":
-                return True
+            mode, cost, _, _ = self._upgrade_state(b)
+            if mode not in ("in_tier", "tier_upgrade"):
+                return True  # max / not researched / round-gated: inert
             if st.love < cost:
                 self.action_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
                 return True
             st.spend_love(cost)
-            if kind == "advance":
+            if mode == "tier_upgrade":
                 b.advance_tier()
             else:
                 b.upgrade()
@@ -383,7 +406,7 @@ class BuildingUI:
         try:
             building, cost = place_building(
                 session.tilemap, self.tile, p.building_type, st.love,
-                buildings_balance, scene, occupancy)
+                buildings_balance, scene, occupancy, state=st)
         except PlacementError:
             p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
             return
@@ -458,10 +481,14 @@ class BuildingUI:
             submit_text(renderer, str(rs.dmg_taken_last_round), (self._right, y),
                         "sm", C_UI_TEXT, align="right")
         self.action_btn.submit(renderer)
+        if self._upgrade_hint:
+            bx, by, bw, bh = self.action_btn.rect
+            submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
+                        "sm", C_UI_TEXT_DIM, align="center")
 
     def _submit_base_info(self, renderer, session):
         x, st = self.panel_x + 14, session.state
-        income = session.core_balance["TheHole"]["base_income"]
+        income = scaled_base_income(st, session.core_balance)
         submit_text(renderer, "THE HOLE", (x, 16), "lg", C_UI_TEXT)
         rows = [
             ("Lives", st.base_lives),

@@ -127,7 +127,8 @@ def attack_interval(defender, min_attack_speed):
 
 # -- the sweep ------------------------------------------------------------
 
-def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None):
+def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
+                   on_enemy_death=None):
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -140,6 +141,11 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None):
 
     for enemy in scene.by_tag("enemy"):
         if not enemy.alive:
+            # 10A: the session counts the kill + awards XP here. Base arrivals
+            # left through `on_base_hit` above and were already despawned, so
+            # they can never reach this sweep — no double award.
+            if on_enemy_death is not None:
+                on_enemy_death(enemy)
             scene.despawn(enemy)
 
 

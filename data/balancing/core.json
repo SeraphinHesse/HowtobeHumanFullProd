@@ -40,6 +40,7 @@
     "building_revive": true
   },
   "XP": {
+    "base_income_per_village_level": 2,
     "levelup_love_reward": 25,
     "village_xp_base_threshold": 50,
     "village_xp_threshold_inc": 15,

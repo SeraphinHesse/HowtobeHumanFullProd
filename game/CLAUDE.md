@@ -286,16 +286,17 @@ subclasses present for the spawner's branches but NEVER emitted (`spawner.py`
   / round wipe a `game/core` concern and `game/enemies` free of any core import.
   With no callback (9E tests) it deals raw HP as before. `Spawner.clear()` drops
   the pending wave for a lives-mode round wipe.
-- **Deferred to 10A+**: XP-per-kill + floaters (10A); terrain/wall/death-swarm
-  hooks stay dormant.
+- **10A** added `resolve_combat(on_enemy_death=…)`, the callback the session uses
+  to count kills + award XP without `game/enemies` importing `game/core`.
+  Terrain/wall/death-swarm hooks stay dormant.
 
 ## Core / round loop (`core/`, Phase 9F)
 The round machine + economy, porting the prototype's `Game._update_gameplay` /
 `_begin_enemy_phase` / `_begin_round_end` / `_begin_income_phase`. Four files
 beside `balance.py`, all pure logic (no pygame — a `TestPurity` guards it):
-- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/INCOME driven now;
-  LEVELUP/BOSS_CUTSCENE declared at their prototype ordinal but never entered —
-  10A/10G) and `GameState` (GAMEPLAY/GAME_OVER now; menu states reserved for 9H).
+- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/LEVELUP/INCOME driven
+  now — LEVELUP since 10A; BOSS_CUTSCENE declared at its prototype ordinal but
+  never entered — 10G) and `GameState` (GAMEPLAY/GAME_OVER; menu states 9H).
 - **`game_state.py`** — `RunState` dataclass: the single owner of `phase`,
   `state`, `round_num` (starts 1, `++`'d in payday — prototype numbering),
   `love`, `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
@@ -360,6 +361,71 @@ lives in **`game/ui/shell.py`**, NOT `game/core` (that would be circular):
 - **Deferred**: main-menu background art + the pause dim overlay (the HUD pass
   has no per-pixel alpha) are host raw-surface concerns, not yet wired; the
   settings audio slider is inert (no audio system beyond music).
+
+## XP / village level-up / research (Phase 10A)
+The run's progression layer: enemies and buildings drop XP, XP fills a village
+level, and each level opens a modal LEVELUP window whose reward researches the
+next building tier (or pays love). Ports the prototype's `_award_xp` /
+`_roll_levelup_options` / `_resolve_levelup` + `levelup_window.py`.
+- **`game/core/xp.py`** (pure) — `xp_for_etype` (keyed on `Enemy.ETYPE`),
+  `award_xp` (arms `levelup_pending`; queues an `xp_events` floater),
+  `advance_village_level` (the 50→65→85→110→140 threshold walk; surplus carries
+  forward, one level per resolve), and **`scaled_base_income`** — the ONE source
+  for payday, the HUD income line and the base-info panel, so they can't drift.
+- **`game/core/levelup.py`** (pure) — the option roll + `apply_levelup_option` +
+  **`upgrade_gate`**, the FIVE-mode upgrade classifier the panel renders
+  (`in_tier` / `tier_upgrade` / `tier_locked` / `tier_hidden` / `max_tier`). A
+  tier can no longer be advanced into for free: it must be **researched on a
+  level-up** first, and it stays unnamed until its `unlock_min_round`.
+- **Three gates stack**, all read live from `buildings.json`: the type unlock
+  (`RunState.unlocked_buildings`), the **era gate** `<group>.era_unlock_round`,
+  and the per-tier `tiers[idx].unlock_min_round`. Only the SINGLE next locked
+  tier (`idx == tiers_unlocked`) is ever offerable. Research is GLOBAL per type.
+- **`<group>.era_unlock_round` is the ONE canonical era key.** 10A lifted it off
+  the tier dicts (where the prototype read it) onto the group (where 9A had
+  migrated a *dead* top-level constant), fixing Sun Scorcher's live gate to 14 —
+  the group value had been the never-read 10. The parity map marks
+  `SUN_SCORCHER_ERA_UNLOCK_ROUND` DROPPED and the three affected tier-list
+  entries carry `drop_keys` (a new `test_balancing_parity` entry form).
+- **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` +
+  a `RESEARCH` table of `ResearchSpec` rows (`starts_unlocked`,
+  `starts_with_tier`, `gate_kind`/`gate_path`, `unlock_group`, UI copy). A spec
+  never stores a gate VALUE, only where in `buildings.json` to read it.
+  **10B–10E add a leaf class + one row and never reopen the roll.** It lives
+  there (not `registry.py`) because `registry` imports `game.map.tiles` →
+  `game.core.balance`; `game/core/levelup.py` must read the table without
+  closing that cycle. `registry` re-exports `LEAF_CLASSES` as
+  `BUILDING_CLASSES` and gates `place_building` on `buildable(state, btype)`.
+- **Phase machine**: at ROUND_END's expiry a pending level-up enters
+  `GamePhase.LEVELUP` **instead of** running payday; `Session.resolve_levelup`
+  applies the reward, advances the level, then runs payday (the prototype's
+  `run_income=True` path — the cheat `return_phase` path is 10H). `Session.frozen`
+  is the host's single "skip the whole sim" flag: no `scene.update`, no combat,
+  no animation behind the modal. Payday's base income is now village-scaled.
+- **XP award sites**: field kills via a new `resolve_combat(on_enemy_death=…)`
+  callback (same layering trick as `on_base_hit` — `game/enemies` still imports
+  no `game/core`); base-damage kills gated by `XP.xp_on_base_damage_kill`;
+  queued-but-never-spawned enemies paid on a lives wipe (`Spawner.pending()`),
+  while live enemies cleared from the field pay nothing (prototype-exact);
+  building deaths gated by `XP.xp_from_buildings`, **once per building `id()`
+  for the whole run** — a faithful prototype quirk: revive, die again, no
+  second payout. `on_enemy_death` also fixes a real bug — `enemies_killed` used
+  to count only base breaches, so the game-over screen under-reported kills.
+- **UI**: `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it
+  lays out on `open` because hover/hit run before the first `submit`), an XP bar
+  + `LVL N` in `hud.py` (gold + pulsing when pending), purple XP floaters via
+  `FloaterManager.spawn_xp_events` (drained every frame, not at a phase edge),
+  and the gated construct list + five-mode upgrade button in `building_ui.py`.
+  The modal sits at the TOP of `main.py`'s click ladder and swallows keys.
+- **Known divergences** (both deliberate): the window's backdrop is OPAQUE — the
+  HUD pass has no per-pixel alpha, the same limit that deferred 9H's pause dim
+  (10J). And the XP bar/floaters drop the prototype's mascot face + `xp_icon`,
+  which has no slot in `data/slots.json` (10J).
+- **Empty pool is expected before round 10**: only `defence` + `economic` exist,
+  both start unlocked at tier 1, their tier-2s are round-gated to 10, and the
+  hole is lives-based so the prototype's `+1 Base HP` fallback doesn't apply —
+  so early level-ups show three identical `+25 Love` cards, exactly the
+  prototype's pad-to-3. The pool fills as 10B–10E land their families.
 
 ## Porting protocol (PLAN phase 9+)
 Port one domain at a time, prototype as spec: acceptance checklist → runnable
