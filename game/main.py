@@ -457,7 +457,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)
+            gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["panel"].submit(renderer, session)
+            gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
             gp["hud"].submit(renderer, session, view_w, view_h,

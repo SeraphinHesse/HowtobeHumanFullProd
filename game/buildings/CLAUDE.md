@@ -28,6 +28,15 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
 - **Attacker + `"combat"` tag replace the prototype `IS_COMBAT` flag** (SPEC G-3)
   so the combat sweep stays type-agnostic. 9D wires the seam (RangeSensor range
   from the tier, an Attacker clock) but NO enemy acquisition/damage — that is 9E.
+- **10B defence lines** (`aoe_defence.py` Maw Mortar, `sun_scorcher.py` Sun
+  Scorcher) subclass `DefenceBuilding` and add ONE extra capability component +
+  a couple computed methods each: AOE adds `SplashAttacker` (marker) +
+  `splash_radius()`; Beam adds `BeamAttacker` (ramp/death-cooldown state) +
+  `ramp_per_tick()`/`ramp_max()`/`target_death_cooldown()`. The **firing
+  behaviour** those markers select lives in the combat sweep (`game/enemies/
+  combat.py`), NOT here — the building must not import `game/enemies` (that
+  closes a cycle). AOE sets its own `CONTENT_KEY = "aoe_defence_building"` (its
+  own pathfinder weight); Beam keeps the shared `"defence_building"`.
 - **`registry.py` is the factory + placement seam**: `create(building_type,…)`
   (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability
@@ -52,6 +61,13 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   (`idx == tiers_unlocked`) is ever offerable. Research is GLOBAL per type.
   `<group>.era_unlock_round` is the ONE canonical era key (10A lifted it off the
   tier dicts onto the group).
+- **10B rows** (`aoe_defence`, `sun_scorcher`) are both `starts_unlocked=False`
+  (earned via a level-up unlock card). Maw Mortar uses
+  `gate_kind="min_village_level"` reading a NEW `AOEDefence.unlock_min_village_level`
+  key (value 1 — offered from the first level-up; the prototype had it only as a
+  `.py` constant, absent from the live JSON 9A migrated, so 10B added it to
+  data+schema). Sun Scorcher needs NO `gate_kind`: its era gate resolves from
+  `BeamDefence.era_unlock_round = 14`.
 
 ## Perf invariant that lives here
 Placement occupancy is incremental (`occupancy.set` per placed tile, not a

@@ -1276,10 +1276,17 @@
               "maxItems": 3,
               "minItems": 3,
               "type": "array"
+            },
+            "unlock_min_village_level": {
+              "description": "Village-level gate: minimum village level before this building TYPE's unlock card can appear in the level-up pool.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
             }
           },
           "required": [
-            "tiers"
+            "tiers",
+            "unlock_min_village_level"
           ],
           "type": "object"
         },

@@ -9,6 +9,8 @@ that only shows when a building is damaged). Ports the prototype's
 gold highlights, blood, muzzle/slash) is the 10J sweep.
 """
 from engine.core import Health
+from engine.render import HudLines
+from game.buildings.components import BeamAttacker, TierState
 
 from .widgets import (
     C_GOLD, C_HP_GREEN, C_HP_RED, HEART, submit_bar, submit_centered,
@@ -17,6 +19,12 @@ from .widgets import (
 _UPKEEP_BLUE = (120, 170, 230)
 _XP_PURPLE = (202, 140, 245)
 _XP_LIFE = 0.9  # prototype XPFloater lifetime (seconds)
+
+# Sun Scorcher beam colour per tier (prototype outer-beam colour, simplified to
+# one line since the HUD pass has no per-pixel alpha for a glow — 10J polish):
+# yellow -> orange -> red as the line thickens with tier.
+_BEAM_COLORS = ((255, 200, 40), (255, 110, 15), (210, 20, 10))
+_CRATER_COLOR = (120, 78, 66)   # spent-shell scorch (world-space diamond)
 
 
 class _Floater:
@@ -82,6 +90,43 @@ class FloaterManager:
             cx, cy = cs.world_to_screen(f.wx, f.wy)
             y = int(cy) - 20 - int(36 * frac)  # rise over its lifetime
             submit_centered(renderer, f.text, int(cx), y, "md", f.color)
+
+    def submit_beams(self, renderer, cs, scene):
+        """A per-tier colored line from each firing Sun Scorcher to its target
+        (Phase 10B). Reads the live ``BeamAttacker._target`` the combat sweep
+        sets — so the beam shows only while the beam is actually engaging and
+        vanishes during its target-death cooldown. Screen-space HudLines (no
+        alpha glow — 10J)."""
+        for b in scene.by_tag("combat"):
+            beam = b.get_component(BeamAttacker)
+            if beam is None:
+                continue
+            target = getattr(beam, "_target", None)
+            if target is None or not getattr(target, "alive", False):
+                continue
+            tier = b.get_component(TierState).current_tier
+            color = _BEAM_COLORS[min(tier, len(_BEAM_COLORS) - 1)]
+            ox, oy = cs.world_to_screen(b.transform.wx + 0.5, b.transform.wy + 0.5)
+            tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
+                                        target.transform.wy + 0.5)
+            top = int(cs.geometry.tile_h * cs.camera.zoom)  # crystal-ball height
+            renderer.submit_hud(HudLines(
+                ((int(ox), int(oy) - top), (int(tx), int(ty))),
+                color, width=2 + tier))
+
+    def submit_craters(self, renderer, cs, scene):
+        """A fading world-space diamond where each mortar shell landed (Phase
+        10B). Purely cosmetic — the ``Crater`` GameObjects age + self-despawn in
+        the scene; here we just draw them, fading the colour toward black over
+        the crater's life (the HUD/overlay pass has no alpha — 10J)."""
+        for c in scene.by_tag("crater"):
+            frac = c.fade_frac
+            r = c.radius
+            cx, cy = c.transform.world_pos
+            color = tuple(int(ch * frac) for ch in _CRATER_COLOR)
+            pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
+                   (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
+            renderer.submit_overlay_lines(pts, color, width=2, closed=True)
 
     def submit_hp_bars(self, renderer, cs, scene):
         """A red/green bar over every non-base building below full HP (prototype

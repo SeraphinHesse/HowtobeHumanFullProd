@@ -19,13 +19,18 @@ re-exports it as ``BUILDING_CLASSES`` (one source, two names for two callers).
 """
 from dataclasses import dataclass
 
+from .aoe_defence import AOEDefenceBuilding
 from .defender import Defender
 from .musician import Musician
+from .sun_scorcher import SunScorcher
 
-# building_type -> leaf class. Only the 9D leaves; families grow in 10x.
+# building_type -> leaf class. 9D leaves + the 10B defence lines; families grow
+# in 10x.
 LEAF_CLASSES = {
     "defence": Defender,
     "economic": Musician,
+    "aoe_defence": AOEDefenceBuilding,
+    "sun_scorcher": SunScorcher,
 }
 
 
@@ -47,12 +52,21 @@ class ResearchSpec:
 RESEARCH = {
     "defence": ResearchSpec(),
     "economic": ResearchSpec(),
-    # 10B: "aoe_defence": ResearchSpec(
-    #          starts_unlocked=False, gate_kind="min_village_level",
-    #          gate_path=("DefenceBuildings", "AOEDefence",
-    #                     "unlock_min_village_level"),
-    #          unlock_title="Unlock Maw Mortar", unlock_explanation="...")
-    #      "sun_scorcher": era-gated only (BeamDefence.era_unlock_round = 14)
+    # 10B — the two special defence lines. Both are LOCKED types earned via a
+    # level-up unlock card. Maw Mortar is gated by village level (available from
+    # level 1, i.e. the first level-up); Sun Scorcher is era-gated only — the
+    # roll resolves its gate from BeamDefence.era_unlock_round (14), so no
+    # gate_kind is needed here.
+    "aoe_defence": ResearchSpec(
+        starts_unlocked=False, gate_kind="min_village_level",
+        gate_path=("DefenceBuildings", "AOEDefence", "unlock_min_village_level"),
+        unlock_title="Unlock Maw Mortar",
+        unlock_explanation="An organic mortar that rains splash damage on hordes."),
+    "sun_scorcher": ResearchSpec(
+        starts_unlocked=False,
+        unlock_title="Unlock Sun Scorcher",
+        unlock_explanation="A burning beam that ramps up — slow to anger, "
+                           "deadly to tanks."),
     # 10C: "painter": gate_path ("EconomyBuildings", "Painters",
     #                            "unlock_min_village_level")
     #      "meditator": starts_with_tier=0 (era-gated, tier 1 is researched)

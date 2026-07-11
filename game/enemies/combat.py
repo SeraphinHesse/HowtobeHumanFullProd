@@ -26,9 +26,21 @@ no sprite in 9E (real stone art is the 10J FX sweep).
 """
 import math
 
-from engine.core import Component, GameObject, Health, SpriteAnimator, Transform
-from game.buildings.components import Attacker, RoundStats
+from engine.core import (
+    Component, GameObject, Health, Movement, SpriteAnimator, Transform,
+)
+from game.buildings.components import (
+    Attacker, BeamAttacker, RoundStats, SplashAttacker,
+)
 from .components import PathAgent
+
+# Cosmetic / timing constants the prototype hardcodes in source (NOT balancing):
+# the mortar shell's fixed flight time + the crater's fade lifetime, and the
+# beam's own fast tick floor (the Sun Scorcher must tick far below the shared
+# ``min_attack_speed`` = 0.2, so its cadence is clamped to this instead).
+AOE_TRAVEL_TIME = 0.55   # seconds a shell arcs to its fixed ground point
+CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading out
+BEAM_MIN_TICK = 0.02     # beam tick-rate floor (prototype ``_MIN_TICK``)
 
 
 class ProjectileHoming(Component):
@@ -101,6 +113,119 @@ class Projectile(GameObject):
         )
 
 
+# -- AOE mortar: arcing shell + splash on impact + crater (Phase 10B) ------
+
+class ProjectileArc(Component):
+    """A mortar shell arcing to a FIXED ground point (prototype ``AOEProjectile``
+    — NOT homing). It carries the damage + splash radius LOADED at fire time, so
+    the shooter dying or the original target vanishing mid-flight is a non-event.
+    When the flight timer expires it deals ``dmg`` to EVERY alive enemy within
+    ``radius`` of the landing point (Euclidean, full damage, no falloff, no
+    target cap), spawns a cosmetic ``Crater``, then despawns itself."""
+
+    dmg: int = 0
+    radius: float = 0.0
+    timer: float = 0.0
+
+    def on_added(self, owner):
+        self._proj = owner
+        self._shooter = None
+        self._scene = None
+        self._gx = 0.0
+        self._gy = 0.0
+
+    def launch(self, gx, gy, shooter, scene, travel_time):
+        self._gx, self._gy = gx, gy
+        self._shooter = shooter
+        self._scene = scene
+        self.timer = travel_time
+
+    def update(self, dt):
+        proj = getattr(self, "_proj", None)
+        if proj is None:
+            return
+        self.timer -= dt
+        if self.timer > 0:
+            return
+        self._impact()
+
+    def _impact(self):
+        scene = getattr(self, "_scene", None)
+        if scene is None:
+            return
+        shooter = getattr(self, "_shooter", None)
+        rs = shooter.get_component(RoundStats) if shooter is not None else None
+        for enemy in scene.by_tag("enemy"):
+            if not getattr(enemy, "alive", False):
+                continue
+            ex, ey = enemy.transform.world_pos
+            if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
+                enemy.get_component(Health).damage(self.dmg)
+                if rs is not None:
+                    rs.dmg_dealt_this_round += self.dmg
+        crater = Crater(self._gx, self._gy, self.radius)
+        crater.get_component(CraterFade)._scene = scene
+        scene.spawn(crater)
+        scene.despawn(self._proj)
+
+
+class ProjectileAOE(GameObject):
+    """A mortar's in-flight shell (logical only in 10B; no sprite)."""
+
+    def __init__(self, wx, wy, dmg, radius):
+        super().__init__(
+            name="shell",
+            tags=("projectile",),
+            transform=Transform(wx=wx, wy=wy, layer="entities"),
+            components=[ProjectileArc(dmg=dmg, radius=radius)],
+        )
+
+
+class CraterFade(Component):
+    """A spent-shell crater's fade clock (prototype ``Crater``). Purely cosmetic
+    — no gameplay effect. Ages to ``life`` then despawns; ``radius`` and
+    ``fade_frac`` (via the owner) are read by the FX layer."""
+
+    radius: float = 0.0
+    life: float = CRATER_LIFE
+    age: float = 0.0
+
+    def on_added(self, owner):
+        self._owner = owner
+        self._scene = None
+
+    def update(self, dt):
+        self.age += dt
+        if self.age >= self.life:
+            scene = getattr(self, "_scene", None)
+            if scene is not None:
+                scene.despawn(self._owner)
+
+
+class Crater(GameObject):
+    """A cosmetic impact crater at a mortar landing point (Phase 10B). Logical
+    only; the FX layer draws a fading marker from its ``radius`` + ``fade_frac``.
+    """
+
+    def __init__(self, wx, wy, radius):
+        super().__init__(
+            name="crater",
+            tags=("crater",),
+            transform=Transform(wx=wx, wy=wy, layer="overlay"),
+            components=[CraterFade(radius=radius)],
+        )
+
+    @property
+    def radius(self):
+        return self.get_component(CraterFade).radius
+
+    @property
+    def fade_frac(self):
+        """1.0 fresh -> 0.0 gone (drives the FX fade)."""
+        cf = self.get_component(CraterFade)
+        return max(0.0, 1.0 - cf.age / cf.life) if cf.life else 0.0
+
+
 # -- targeting helpers ----------------------------------------------------
 
 def _enemy_tile(enemy):
@@ -123,6 +248,29 @@ def attack_interval(defender, min_attack_speed):
     """Seconds between shots, clamped by the shared ``min_attack_speed`` floor
     (prototype ``_effective_attack_speed``; boosts/penalties land 10B/10D)."""
     return max(min_attack_speed, defender.attack_speed())
+
+
+def _predict_lead(target, travel_time):
+    """The mortar's aim point (prototype ``_predict_intercept``): extrapolate the
+    enemy's position along its heading over the shell's flight time. Heading is
+    toward the enemy's current next waypoint at its move speed. If the enemy
+    would reach/pass that waypoint within the flight time, aim exactly at the
+    waypoint (clamp, no overshoot); with no next waypoint, aim at its current
+    position. Predictive targeting is always on (prototype
+    ``MORTAR_PREDICTIVE_TARGETING = True``)."""
+    px, py = target.transform.world_pos
+    mv = target.get_component(Movement)
+    if mv is None or not mv.waypoints or mv.index >= len(mv.waypoints):
+        return px, py
+    wx, wy = mv.waypoints[mv.index]
+    dx, dy = wx - px, wy - py
+    dist = math.hypot(dx, dy)
+    if dist < 1e-9:
+        return px, py
+    travel = mv.speed * travel_time
+    if travel >= dist:
+        return wx, wy
+    return px + dx / dist * travel, py + dy / dist * travel
 
 
 # -- the sweep ------------------------------------------------------------
@@ -153,6 +301,12 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed):
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
+    # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
+    # tick model — handle them wholesale, then bail.
+    if defender.get_component(BeamAttacker) is not None:
+        _update_beam(defender, enemies, dt)
+        return
+
     center = (defender.col, defender.row)
     rng = defender.range_tiles()
     in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
@@ -171,8 +325,69 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed):
 
     attacker.cooldown -= dt
     if target is not None and attacker.cooldown <= 0:
-        _fire(defender, target, scene, proj_speed)
+        # Splash (mortar) buildings fire an arcing shell to a predicted ground
+        # point; the plain defender fires a homing shot. The capability marker
+        # (SplashAttacker), not the class, selects the path (SPEC G-3).
+        if defender.get_component(SplashAttacker) is not None:
+            _fire_splash(defender, target, scene)
+        else:
+            _fire(defender, target, scene, proj_speed)
         attacker.cooldown = attack_interval(defender, min_atk)
+
+
+def _update_beam(defender, enemies, dt):
+    """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
+    highest-HP enemy in range, ramp damage while focused, reset the ramp on any
+    target change, and pause re-acquiring for ``target_death_cooldown`` after a
+    kill. Instant hitscan — no projectile."""
+    attacker = defender.get_component(Attacker)
+    beam = defender.get_component(BeamAttacker)
+    center = (defender.col, defender.row)
+    rng = defender.range_tiles()
+    in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
+
+    if beam.death_cooldown > 0:
+        beam.death_cooldown -= dt
+
+    target = getattr(attacker, "_target", None)
+    if target is not None and (not getattr(target, "alive", False)
+                               or target not in in_range):
+        target = None
+    if target is None and beam.death_cooldown <= 0 and in_range:
+        target = max(in_range, key=lambda e: e.get_component(Health).hp)
+    attacker._target = target
+    beam._target = target          # the FX layer reads this
+    attacker.has_target = target is not None
+
+    # Ramp resets to 0 on any target change (the _ramp_target bookkeeping stays
+    # for the fire step — prototype resets ramp here but advances _ramp_target
+    # only when it actually fires, so the first tick on a new target is base
+    # damage and the ramp builds from the second tick).
+    if target is not getattr(beam, "_ramp_target", None):
+        beam.ramp = 0.0
+    _set_defender_anim(defender, "attack" if target is not None else "idle")
+
+    attacker.cooldown -= dt
+    if target is None or attacker.cooldown > 0:
+        return
+    if target is beam._ramp_target:
+        beam.ramp = min(defender.ramp_max(), beam.ramp + defender.ramp_per_tick())
+    else:
+        beam.ramp = 0.0
+        beam._ramp_target = target
+    dmg = defender.damage() + int(beam.ramp)
+    target.get_component(Health).damage(dmg)
+    rs = defender.get_component(RoundStats)
+    if rs is not None:
+        rs.dmg_dealt_this_round += dmg
+    attacker.cooldown = max(BEAM_MIN_TICK, defender.attack_speed())
+    if not getattr(target, "alive", False):     # killed this tick
+        beam.ramp = 0.0
+        beam._ramp_target = None
+        beam._target = None
+        attacker._target = None
+        attacker.has_target = False
+        beam.death_cooldown = defender.target_death_cooldown()
 
 
 def _set_defender_anim(defender, name):
@@ -186,6 +401,18 @@ def _fire(defender, target, scene, proj_speed):
     proj = Projectile(bx, by, defender.damage(), proj_speed)
     proj.get_component(ProjectileHoming).launch(target, defender, scene)
     scene.spawn(proj)
+
+
+def _fire_splash(defender, target, scene):
+    """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
+    fixed ground point via predictive lead, load it with the current damage +
+    splash radius, and let ``ProjectileArc`` resolve the splash on impact."""
+    bx, by = defender.transform.world_pos
+    gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
+    shell = ProjectileAOE(bx, by, defender.damage(), defender.splash_radius())
+    shell.get_component(ProjectileArc).launch(gx, gy, defender, scene,
+                                              AOE_TRAVEL_TIME)
+    scene.spawn(shell)
 
 
 def _resolve_base_arrivals(scene, tilemap, on_base_hit=None):

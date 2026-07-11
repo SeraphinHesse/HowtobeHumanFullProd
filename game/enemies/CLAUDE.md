@@ -63,6 +63,21 @@ update THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   DefenceBuildings.globals.projectile_speed_tiles` (new 9E key = 3.75 = prototype
   120 px/s ÷ 32). Logical GameObjects with no sprite in 9E — projectile/muzzle/
   blood art is the 10J FX sweep.
+- **Three firing paths, dispatched by capability component (10B), never by
+  class** — the sweep still selects combatants by the `"combat"` tag, then
+  `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`
+  (instant hitscan, **highest-HP** targeting, per-tick damage ramp reset on any
+  target change, and a `target_death_cooldown` re-acquire pause after a kill,
+  ticking at its own `BEAM_MIN_TICK=0.02` floor — below the shared 0.2); a
+  building with `SplashAttacker` fires an arcing `ProjectileAOE` to a FIXED
+  ground point via predictive lead (`_predict_lead` reads the enemy's next
+  `Movement` waypoint + speed), splashing full damage to every enemy within
+  `splash_radius()` on impact (no falloff/target cap) and spawning a cosmetic
+  `Crater`; otherwise the plain homing `Projectile`. `AOE_TRAVEL_TIME` (0.55s)
+  and `CRATER_LIFE` (1.0s) are prototype-hardcoded cosmetic/timing constants, not
+  balancing. The beam line + crater marker draw in `game/ui/effects.py`
+  (`submit_beams`/`submit_craters`, reading `BeamAttacker._target` + `"crater"`
+  scene objects) — alpha-limited by the HUD pass (10J polish).
 
 ## Round-loop / XP callbacks (9F / 10A) — layering trick
 `game/enemies` imports NO `game/core`. Cross-boundary needs are optional callbacks:

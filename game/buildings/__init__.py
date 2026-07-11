@@ -6,13 +6,23 @@ Defender (defence line) and the BaseBuilding, plus the shared hierarchy and the
 factory/placement seam. The other families (Meditator/Painter/AOE/Beam/Boost/
 Structure) land in 10x.
 """
+from .aoe_defence import AOEDefenceBuilding
 from .base_building import BaseBuilding
 from .building import Building
-from .components import Attacker, Nameplate, RoundStats, TierState, YieldEconomy
+from .components import (
+    Attacker,
+    BeamAttacker,
+    Nameplate,
+    RoundStats,
+    SplashAttacker,
+    TierState,
+    YieldEconomy,
+)
 from .defence import DefenceBuilding
 from .defender import Defender
 from .economy import EconomyBuilding
 from .musician import Musician
+from .sun_scorcher import SunScorcher
 from .registry import (
     BUILDING_CLASSES,
     PlacementError,
@@ -28,11 +38,15 @@ __all__ = [
     "Musician",
     "DefenceBuilding",
     "Defender",
+    "AOEDefenceBuilding",
+    "SunScorcher",
     "BaseBuilding",
     "TierState",
     "Nameplate",
     "RoundStats",
     "Attacker",
+    "SplashAttacker",
+    "BeamAttacker",
     "YieldEconomy",
     "BUILDING_CLASSES",
     "PlacementError",

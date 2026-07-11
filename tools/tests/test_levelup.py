@@ -86,9 +86,16 @@ class TestRunStateSeeding(unittest.TestCase):
 
     def test_research_seeded_from_table(self):
         st = RunState.from_balance(CORE)
-        self.assertEqual(st.tiers_unlocked, {"defence": 1, "economic": 1})
-        self.assertEqual(st.unlocked_buildings,
-                         {"defence": True, "economic": True})
+        # 9D lines start unlocked at tier 1; the 10B defence lines start LOCKED
+        # (earned via a level-up unlock card) but with tier 1 ready to build once
+        # unlocked.
+        self.assertEqual(
+            st.tiers_unlocked,
+            {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1})
+        self.assertEqual(
+            st.unlocked_buildings,
+            {"defence": True, "economic": True,
+             "aoe_defence": False, "sun_scorcher": False})
 
 
 # ---------------------------------------------------------------------------
@@ -147,18 +154,27 @@ class TestOptionRoll(unittest.TestCase):
     def roll(self, state):
         return lv.roll_levelup_options(state, BUILD, CORE, NoShuffle)
 
-    def test_empty_pool_pads_with_three_love_fallbacks(self):
-        st = RunState.from_balance(CORE)   # round 1: both tier-2s round-gated
+    def test_early_pool_offers_maw_mortar_then_pads(self):
+        # Round 1, village level 1: the tier-2s are round-gated to 10 and Sun
+        # Scorcher is era-gated to 14, so the only real card is the Maw Mortar
+        # unlock (village-level 1 gate is met from the start); the roll pads the
+        # remaining two slots with love fallbacks.
+        st = RunState.from_balance(CORE)
         options = self.roll(st)
         self.assertEqual(len(options), 3)
-        self.assertTrue(all(o["kind"] == "fallback" for o in options))
+        unlocks = [o for o in options if o["kind"] == "unlock_building"]
+        fallbacks = [o for o in options if o["kind"] == "fallback"]
+        self.assertEqual([o["title"] for o in unlocks], ["Unlock Maw Mortar"])
+        self.assertEqual(len(fallbacks), 2)
         self.assertTrue(all(o["amount"] == XP["levelup_love_reward"]
-                            for o in options))
+                            for o in fallbacks))
 
     def test_tier_two_enters_the_pool_at_its_unlock_min_round(self):
         st = RunState.from_balance(CORE)
         st.round_num = 9
-        self.assertTrue(all(o["kind"] == "fallback" for o in self.roll(st)))
+        # No TIER card yet (both tier-2s gated to round 10); the Maw Mortar
+        # unlock card is present but is not a tier option.
+        self.assertFalse(any(o["kind"] == "tier" for o in self.roll(st)))
         st.round_num = 10
         titles = {o["title"] for o in self.roll(st) if o["kind"] == "tier"}
         self.assertEqual(titles, {"Slinger", "Harp Player"})
@@ -253,11 +269,13 @@ class TestUnlockOptions(unittest.TestCase):
         bal["EconomyBuildings"]["Painters"]["unlock_min_village_level"] = 3
         st = self.locked_state()
         with self.synthetic(spec):
-            self.assertFalse(any(o["kind"] == "unlock_building"
+            # Scope to the synthetic "economic" card — the shipped Maw Mortar
+            # unlock (10B) is also an unlock_building card in every pool.
+            self.assertFalse(any(o.get("building_type") == "economic"
                                  for o in lv.roll_levelup_options(
                                      st, bal, CORE, NoShuffle)))
             st.village_level = 3
-            self.assertTrue(any(o["kind"] == "unlock_building"
+            self.assertTrue(any(o.get("building_type") == "economic"
                                 for o in lv.roll_levelup_options(
                                     st, bal, CORE, NoShuffle)))
 
@@ -268,11 +286,11 @@ class TestUnlockOptions(unittest.TestCase):
         st = self.locked_state()
         with self.synthetic(spec):
             st.round_num = 9
-            self.assertFalse(any(o["kind"] == "unlock_building"
+            self.assertFalse(any(o.get("building_type") == "economic"
                                  for o in lv.roll_levelup_options(
                                      st, BUILD, CORE, NoShuffle)))
             st.round_num = 10   # BoostBuildings.globals.unlock_min_round
-            self.assertTrue(any(o["kind"] == "unlock_building"
+            self.assertTrue(any(o.get("building_type") == "economic"
                                 for o in lv.roll_levelup_options(
                                     st, BUILD, CORE, NoShuffle)))
 
@@ -316,8 +334,9 @@ class TestApplyOption(unittest.TestCase):
     def test_fallback_pays_love(self):
         st = RunState.from_balance(CORE)
         st.love = 0
-        lv.apply_levelup_option(st, lv.roll_levelup_options(
-            st, BUILD, CORE, NoShuffle)[0], CORE)
+        fallback = next(o for o in lv.roll_levelup_options(
+            st, BUILD, CORE, NoShuffle) if o["kind"] == "fallback")
+        lv.apply_levelup_option(st, fallback, CORE)
         self.assertEqual(st.love, XP["levelup_love_reward"])
 
     def test_unknown_kind_raises(self):
@@ -406,6 +425,72 @@ class TestPlacementGate(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+class TestDefence10BGates(unittest.TestCase):
+    """The two 10B defence lines enter the pool by their shipped RESEARCH rows:
+    Maw Mortar by village level, Sun Scorcher by era round — both hidden until
+    the unlock card is taken."""
+
+    def roll(self, st):
+        return lv.roll_levelup_options(st, BUILD, CORE, NoShuffle)
+
+    def test_maw_mortar_unlock_offered_from_village_level_one(self):
+        st = RunState.from_balance(CORE)          # village level 1, round 1
+        card = next(o for o in self.roll(st)
+                    if o.get("building_type") == "aoe_defence")
+        self.assertEqual(card["kind"], "unlock_building")
+        self.assertEqual(card["title"], "Unlock Maw Mortar")
+        self.assertEqual(card["building_types"], ("aoe_defence",))
+        self.assertEqual(card["cost"], 0)                    # free unlock
+        self.assertEqual(card["display_cost"],
+                         BUILD["DefenceBuildings"]["AOEDefence"]["tiers"][0]
+                         ["build_cost"])
+        self.assertEqual(card["sprite_key"], "maw_mortar_t1_lvl1")
+
+    def test_maw_mortar_gate_reads_the_village_level_key(self):
+        bal = copy.deepcopy(BUILD)
+        bal["DefenceBuildings"]["AOEDefence"]["unlock_min_village_level"] = 4
+        st = RunState.from_balance(CORE)
+        self.assertFalse(any(o.get("building_type") == "aoe_defence"
+                             for o in lv.roll_levelup_options(
+                                 st, bal, CORE, NoShuffle)))
+        st.village_level = 4
+        self.assertTrue(any(o.get("building_type") == "aoe_defence"
+                            for o in lv.roll_levelup_options(
+                                st, bal, CORE, NoShuffle)))
+
+    def test_sun_scorcher_is_era_gated_to_round_14(self):
+        st = RunState.from_balance(CORE)
+        # Drop the tier competition so both locked-type unlock cards fit the
+        # three-card pool regardless of order.
+        st.tiers_unlocked["defence"] = 3
+        st.tiers_unlocked["economic"] = 3
+        st.round_num = 13
+        self.assertFalse(any(o.get("building_type") == "sun_scorcher"
+                             for o in self.roll(st)))
+        st.round_num = 14
+        card = next(o for o in self.roll(st)
+                    if o.get("building_type") == "sun_scorcher")
+        self.assertEqual(card["kind"], "unlock_building")
+        self.assertEqual(card["title"], "Unlock Sun Scorcher")
+        self.assertEqual(card["sprite_key"], "sun_scorcher_t1_lvl1")
+
+    def test_unlocking_lets_the_type_be_placed(self):
+        tm, scene, occ = build_board(["bb", "bb"])
+        st = RunState.from_balance(CORE)
+        st.love = 1000
+        with self.assertRaises(PlacementError):           # locked initially
+            place_building(tm, tm.get(1, 1), "aoe_defence", st.love, BUILD,
+                           scene, occ, state=st)
+        card = next(o for o in self.roll(st)
+                    if o.get("building_type") == "aoe_defence")
+        lv.apply_levelup_option(st, card, CORE)
+        self.assertTrue(buildable(st, "aoe_defence"))
+        b, _ = place_building(tm, tm.get(1, 1), "aoe_defence", st.love, BUILD,
+                              scene, occ, state=st)
+        self.assertEqual(b.building_type, "aoe_defence")
+
+
+# ---------------------------------------------------------------------------
 class TestLevelupPhase(unittest.TestCase):
     """ROUND_END -> [LEVELUP] -> INCOME."""
 
@@ -449,7 +534,8 @@ class TestLevelupPhase(unittest.TestCase):
         frame(session, scene, tm, 0.1)
         st = session.state
         before = st.love
-        session.resolve_levelup(st.levelup_options[0])   # a +25 Love fallback
+        fallback = next(o for o in st.levelup_options if o["kind"] == "fallback")
+        session.resolve_levelup(fallback)                # a +25 Love fallback
         self.assertEqual(st.village_level, 2)
         self.assertFalse(st.levelup_pending)
         self.assertEqual(st.levelup_options, [])

@@ -61,6 +61,16 @@ logic is `game/core` — see that doc.)
   no per-pixel alpha) are host raw-surface concerns, not yet wired; the settings
   audio slider is inert (no audio system beyond music).
 
+## Defence FX (10B)
+`effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
+live scene state (like `submit_hp_bars`): a per-tier colored `HudLines` from each
+firing Sun Scorcher to the enemy its `BeamAttacker._target` names, and a fading
+world-space diamond for each `"crater"` GameObject a mortar shell left (the
+`Crater` objects age + self-despawn in the scene; the FX just draws them). This is
+the sanctioned `game/ui → game/buildings.components` read (building_ui already
+imports it). Alpha-true glow/ellipse is deferred to 10J (the HUD/overlay pass has
+no per-pixel alpha — same limit as the opaque level-up backdrop).
+
 ## Known divergences (deliberate)
 The level-up window backdrop is OPAQUE — the HUD pass has no per-pixel alpha, the
 same limit that deferred 9H's pause dim (10J). The XP bar/floaters drop the

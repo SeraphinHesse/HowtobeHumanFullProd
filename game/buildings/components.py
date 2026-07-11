@@ -61,3 +61,33 @@ class YieldEconomy(Component):
     the defence ``Attacker`` marker."""
 
     streak: int = 0
+
+
+class SplashAttacker(Component):
+    """Marks an AOE (splash) combat building (Phase 10B). Its PRESENCE tells the
+    type-agnostic combat sweep to fire the splash path — a fixed-ground-point
+    shell that damages every enemy within the building's ``splash_radius`` on
+    impact (prototype ``AOEDefenceBuilding``). Carries no state: the radius is a
+    computed method on ``AOEDefenceBuilding``, the firing clock lives on the
+    shared ``Attacker``. Present alongside ``Attacker`` on AOE buildings."""
+
+
+class BeamAttacker(Component):
+    """Marks a ramping-beam combat building (Phase 10B, prototype
+    ``SunScorcherBuilding``). Its PRESENCE routes the combat sweep to the beam
+    path (instant hitscan, highest-HP targeting, damage ramp, target-death
+    cooldown). ``ramp`` is the accumulated bonus damage on the current target
+    (reset to 0 on any target change, capped at the tier's ``dmg_ramp_max``);
+    ``death_cooldown`` is the seconds remaining in the post-kill re-acquire
+    pause. The current beam target is a transient ref (``_target``), set by the
+    sweep and read by the FX layer, symmetric with ``Attacker._target``."""
+
+    ramp: float = 0.0
+    death_cooldown: float = 0.0
+
+    def on_added(self, owner):
+        # Transient combat refs (never serialized): the enemy the beam is
+        # currently on (read by the FX layer) and the enemy the ramp has been
+        # accumulating against (the fire step compares to detect a switch).
+        self._target = None
+        self._ramp_target = None

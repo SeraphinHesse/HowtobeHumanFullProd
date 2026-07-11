@@ -269,7 +269,8 @@
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 8
         }
-      ]
+      ],
+      "unlock_min_village_level": 1
     },
     "BasicDefence": {
       "tiers": [
