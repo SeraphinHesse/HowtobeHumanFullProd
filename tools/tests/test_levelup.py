@@ -87,15 +87,19 @@ class TestRunStateSeeding(unittest.TestCase):
     def test_research_seeded_from_table(self):
         st = RunState.from_balance(CORE)
         # 9D lines start unlocked at tier 1; the 10B defence lines start LOCKED
-        # (earned via a level-up unlock card) but with tier 1 ready to build once
-        # unlocked.
+        # (earned via a level-up unlock card) but with tier 1 ready once unlocked.
+        # 10C: Painter is a LOCKED type (tier 1 ready once unlocked); Meditator's
+        # type is always unlocked but starts at ZERO researched tiers (tier 1
+        # researched at a level-up, era-gated to round 10).
         self.assertEqual(
             st.tiers_unlocked,
-            {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1})
+            {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
+             "painter": 1, "meditator": 0})
         self.assertEqual(
             st.unlocked_buildings,
             {"defence": True, "economic": True,
-             "aoe_defence": False, "sun_scorcher": False})
+             "aoe_defence": False, "sun_scorcher": False,
+             "painter": False, "meditator": True})
 
 
 # ---------------------------------------------------------------------------
@@ -154,18 +158,20 @@ class TestOptionRoll(unittest.TestCase):
     def roll(self, state):
         return lv.roll_levelup_options(state, BUILD, CORE, NoShuffle)
 
-    def test_early_pool_offers_maw_mortar_then_pads(self):
-        # Round 1, village level 1: the tier-2s are round-gated to 10 and Sun
-        # Scorcher is era-gated to 14, so the only real card is the Maw Mortar
-        # unlock (village-level 1 gate is met from the start); the roll pads the
-        # remaining two slots with love fallbacks.
+    def test_early_pool_offers_unlocks_then_pads(self):
+        # Round 1, village level 1: the tier-2s are round-gated to 10, Sun
+        # Scorcher is era-gated to 14 and the Meditator to 10 — so the only real
+        # cards are the two village-level-gated unlocks whose gate is met from
+        # the start: Maw Mortar (min_village_level 1) and Painter (0). The roll
+        # pads the remaining slot with a love fallback.
         st = RunState.from_balance(CORE)
         options = self.roll(st)
         self.assertEqual(len(options), 3)
         unlocks = [o for o in options if o["kind"] == "unlock_building"]
         fallbacks = [o for o in options if o["kind"] == "fallback"]
-        self.assertEqual([o["title"] for o in unlocks], ["Unlock Maw Mortar"])
-        self.assertEqual(len(fallbacks), 2)
+        self.assertEqual([o["title"] for o in unlocks],
+                         ["Unlock Maw Mortar", "Unlock Painter"])
+        self.assertEqual(len(fallbacks), 1)
         self.assertTrue(all(o["amount"] == XP["levelup_love_reward"]
                             for o in fallbacks))
 

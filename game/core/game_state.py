@@ -32,6 +32,15 @@ class RunState:
     # payday math. Cleared + refilled every ``run_payday``; never serialized
     # (RunState is rebuilt from balance, not persisted).
     income_events: list = field(default_factory=list)
+    # -- Painter (10C) ----------------------------------------------------
+    # ``(col, row)`` of tiles that completed a Painter payout: permanently
+    # barred from hosting another Painter (prototype ``used_painter_tiles``).
+    # A painter LOST before payout does NOT go here — only a completed one.
+    used_painter_tiles: set = field(default_factory=set)
+    # Message-floater ledger, same drained-by-UI contract as ``income_events``:
+    # ``(col, row, text, kind)`` where kind = "finished" | "lost". Filled by
+    # ``run_payday``, drained by the UI; never serialized.
+    painter_events: list = field(default_factory=list)
     # -- XP / village level (10A) -----------------------------------------
     player_xp: int = 0
     village_level: int = 1

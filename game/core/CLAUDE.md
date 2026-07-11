@@ -18,13 +18,23 @@ Four files beside `balance.py`:
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
   `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
   `add_love`/`spend_love` clamp at ≥0 (prototype clamps every currency write).
-- **`payday.py`** — `run_payday(state, tilemap, core)` mirrors `_begin_income_phase`
-  **step for step; the ordering is SACROSANCT**. 9F drives: snapshot RoundStats
-  (this→last) → base income + duck-typed `yield_amount` sweep → duck-typed `upkeep`
-  sweep (clamp 0) → revive sweep (`rebuild()` on non-base, base excluded) →
-  round++ → phase=INCOME. Reserved no-op slots (boss-bonus, painter, boost,
-  wall-teardown before revive; rebuild-walls) stay in place for 10C-10G. **Do not
-  reorder without the user.**
+- **`payday.py`** — `run_payday(state, tilemap, core, occupancy=None, scene=None)`
+  mirrors `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F
+  drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
+  sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
+  revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
+  Remaining reserved no-op slots (boss-bonus, boost, wall-teardown before revive;
+  rebuild-walls) stay in place for 10D-10G. **Do not reorder without the user.**
+  - **10C filled slot 6**: `_process_painters` advances alive painters and, on a
+    completed one, pays the lump sum + frees the tile (occupant/content_key
+    cleared, BUILDABLE, occupancy cleared, building despawned) + bars it via
+    `RunState.used_painter_tiles`. The revive step removes a dead gone-for-good
+    painter (freeing the tile, NOT barring it) with a `painter_events` "painting
+    lost!" message. Freeing a tile needs `occupancy` + `scene`, so both are
+    threaded from the `Session` (optional-defaulted → logic tests keep the 3-arg
+    call). The income sweep calls a meditator's `collect_income(disturbed)`
+    instead of `yield_amount()` — the ONE non-duck-typed branch, for the streak
+    compounding (see `game/buildings/CLAUDE.md`).
 - **`session.py`** — `Session` orchestrates per frame: `end_turn()` (BUILDING→ENEMY,
   `spawner.begin_round(round_num, …)`); `pre_sim(dt, scene)` (spawner during ENEMY;
   ROUND_END/INCOME timers from `core.PhaseLoop`; payday at ROUND_END end);

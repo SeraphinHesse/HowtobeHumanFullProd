@@ -26,7 +26,7 @@ from game.map.tiles import TileState
 from .widgets import (
     C_GOLD, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE, C_RANGE_HIGHLIGHT,
     C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, HEART, Button, contains,
-    pretty, submit_panel, submit_tile_diamond, submit_text,
+    submit_panel, submit_tile_diamond, submit_text,
 )
 
 
@@ -34,14 +34,28 @@ def _building_stats(b):
     """(label, value) rows for a building's current tier — the panel/preview
     stat block. Duck-typed so any future family is picked up."""
     rows = [("HP", b.max_hp())]
-    if hasattr(b, "damage"):        # defence family
+    if hasattr(b, "damage"):            # defence family
         rows.append(("Damage", b.damage()))
         rows.append(("Range", b.range_tiles()))
         rows.append(("Atk speed", f"{b.attack_speed():.1f}s"))
         rows.append(("Upkeep", b.upkeep()))
-    if hasattr(b, "yield_amount"):  # economy family
+    if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
+        rows.append(("Progress", f"{b.progress}/{b.rounds_to_payout()}"))
+        rows.append(("Payout", f"{HEART}{b.payout_amount()}"))
+        rows.append(("Pays in", f"{b.rounds_to_payout()} rounds"))
+    elif hasattr(b, "streak_max"):      # meditator — compounding economy
+        rows.append(("Yield", b.yield_amount()))  # pure (no streak advance)
+        rows.append(("Streak", f"{b.streak}/{b.streak_max()}"))
+    elif hasattr(b, "yield_amount"):    # musician
         rows.append(("Yield", b.yield_amount()))
     return rows
+
+
+def _tier_name(b):
+    """The building's current-tier display name from balancing (e.g. "Cave
+    Painter"), not the art-slot prefix — so tiers that reuse another line's art
+    (Meditator) or share one prefix (Painter) still title correctly."""
+    return b.tier_data()["name"]
 
 
 class ConstructPreview:
@@ -56,7 +70,7 @@ class ConstructPreview:
         self.view_w = view_w
         self.view_h = view_h
         temp = create(building_type, 0, 0, buildings_balance)
-        self.title = pretty(temp.TIER_SPRITES[0])
+        self.title = _tier_name(temp)
         self.stats = _building_stats(temp)
         self.name = ""
         self.editing = False
@@ -255,7 +269,8 @@ class BuildingUI:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
             cost = build_cost(btype, self._buildings_balance)
-            name = pretty(BUILDING_CLASSES[btype].TIER_SPRITES[0])
+            name = BUILDING_CLASSES[btype]._resolve_tiers(
+                self._buildings_balance)[0]["name"]
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
                          f"{name}  {HEART}{cost}", "md")
             self.cards.append((btype, btn))
@@ -461,7 +476,7 @@ class BuildingUI:
 
     def _submit_upgrade(self, renderer):
         x, b = self.panel_x + 14, self._selected
-        title = pretty(b.TIER_SPRITES[b._tier.current_tier])
+        title = _tier_name(b)
         submit_text(renderer, title, (x, 12), "lg", C_UI_TEXT)
         submit_text(renderer, f"Level {b.level}", (x, 46), "md", C_UI_TEXT_DIM)
         y = 92

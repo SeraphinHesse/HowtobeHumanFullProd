@@ -21,16 +21,20 @@ from dataclasses import dataclass
 
 from .aoe_defence import AOEDefenceBuilding
 from .defender import Defender
+from .meditator import Meditator
 from .musician import Musician
+from .painter import Painter
 from .sun_scorcher import SunScorcher
 
-# building_type -> leaf class. 9D leaves + the 10B defence lines; families grow
-# in 10x.
+# building_type -> leaf class. 9D leaves + the 10B defence lines + the 10C
+# economy lines; families grow in 10x.
 LEAF_CLASSES = {
     "defence": Defender,
     "economic": Musician,
     "aoe_defence": AOEDefenceBuilding,
     "sun_scorcher": SunScorcher,
+    "painter": Painter,
+    "meditator": Meditator,
 }
 
 
@@ -67,9 +71,19 @@ RESEARCH = {
         unlock_title="Unlock Sun Scorcher",
         unlock_explanation="A burning beam that ramps up — slow to anger, "
                            "deadly to tanks."),
-    # 10C: "painter": gate_path ("EconomyBuildings", "Painters",
-    #                            "unlock_min_village_level")
-    #      "meditator": starts_with_tier=0 (era-gated, tier 1 is researched)
+    # 10C — the two economy lines. Painter is a LOCKED type earned via a
+    # level-up unlock card gated by village level (available from the first
+    # level-up: Painters.unlock_min_village_level = 0). Meditator's type is
+    # always unlocked but starts at ZERO researched tiers, so its tier 1 must be
+    # researched at a level-up; the roll is era-gated from
+    # Meditators.era_unlock_round (10), so no gate_kind is needed here.
+    "painter": ResearchSpec(
+        starts_unlocked=False, gate_kind="min_village_level",
+        gate_path=("EconomyBuildings", "Painters", "unlock_min_village_level"),
+        unlock_title="Unlock Painter",
+        unlock_explanation="A risky artist who pays a large lump sum after "
+                           "surviving a few rounds — then is gone for good."),
+    "meditator": ResearchSpec(starts_with_tier=0),
     # 10D: "boost_speed"/"boost_damage"/"boost_hp": gate_kind="min_round",
     #      gate_path ("BoostBuildings", "globals", "unlock_min_round"),
     #      unlock_group = the trio (one card unlocks all three)
