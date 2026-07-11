@@ -1,0 +1,33 @@
+# CLAUDE.md — engine/coords
+
+THE coordinate authority (E-1..E-5). You reached here from `engine/CLAUDE.md`.
+**No other module in the repo may do iso math.** When you change coords
+conventions, update THIS doc.
+
+## What it owns
+- `world_to_screen`, `screen_to_world` (exact inverse), iso depth key, camera
+  state. Geometry constants come from `data/`, never hardcoded.
+- `clamp` keeps the viewport on the map, *centring* an axis only when the map is
+  smaller than the viewport there.
+- `center_on(wx, wy, w, h)` instead parks a chosen world point at the viewport
+  centre (then clamps) — use it to frame a target that overflows the viewport,
+  where `clamp` would anchor to an edge (the editor's entity preview).
+- `visible_tile_window(vw, vh, margin)` returns the integer `(col_min, col_max,
+  row_min, row_max)` of tiles that can touch the viewport (AABB of the four
+  `screen_to_world` corners, padded by `margin` whole tiles) — the basis of
+  windowed tile culling so arbitrarily large maps cost only their visible window.
+
+## Conventions
+- **Geometry** comes from `data/geometry.json` +
+  `data/schemas/geometry.schema.json` via
+  `engine.coords.load_coordinate_system(data_dir)` (E-1). Camera pan is in screen
+  pixels: `screen = iso * zoom - pan`; world (0,0) is the TOP corner of tile
+  (0,0)'s diamond.
+- `load_coordinate_system(data_dir, map_cols=None, map_rows=None)`: optional dim
+  overrides — each map owns its dims (D-20); geometry.json keeps pitch/zoom as
+  global truth plus fallback dims for map-less hosts.
+- Pure Python — no pygame. That is what keeps game logic headless-testable.
+
+## Verify
+Coords round-trip unit tests (`world↔screen`), T-3:
+`py -m unittest discover -s tools/tests -t .`

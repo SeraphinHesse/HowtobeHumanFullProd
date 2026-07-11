@@ -50,7 +50,7 @@
   },
   "TileUnlocking": {
     "adjacent_unlock_only": true,
-    "base_unlock_cost": 6,
+    "base_unlock_cost": 0,
     "unlock_cost_distance_mod": 2
   },
   "_lock": "UNLOCKED"

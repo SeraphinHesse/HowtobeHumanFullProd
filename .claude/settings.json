@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "deny": [
+      "Read(./dist/**)",
+      "Read(./build/**)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {

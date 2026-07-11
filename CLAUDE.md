@@ -37,6 +37,15 @@ If a task truly spans two packages, tell the user — they decide whether you
 read both docs. Within `game/`, the prototype's five balancing domains
 (buildings / enemies / map / ui / core) still scope locks and branches.
 
+Each package doc is a **router** to per-subsystem docs
+(`<package>/<subfolder>/CLAUDE.md`) that auto-load when you edit inside that
+folder — read the ONE that matches your task, not the whole package. Reusable
+task openers (add a building/enemy/balancing value, port a domain, fix a bug)
+live in [`docs/prompt-templates.md`](docs/prompt-templates.md); the matching
+skills are `/add-building`, `/add-enemy`, `/add-balancing-value`,
+`/add-engine-component`, `/add-editor-feature`, `/add-asset-importer`,
+`/add-skill`.
+
 ## Data source of truth
 `data/` JSON is the ONLY value store (no py+json dual system — do not
 reintroduce it). Every file validates against `data/schemas/`. Write through
