@@ -11,6 +11,16 @@ schema, update THIS doc.**
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
   `map.json`, `ui.json`, `core.json`), each carrying a `_lock` field (D-10/11).
+- `balancing_history/` — one file per domain (`buildings.json`, …, matching
+  `balancing/`'s stems), each a flat newest-first JSON array of full-document
+  snapshots appended only by the editor's explicit "Save Balancing Changes"
+  action (`editor/balancing_history.py`, `editor/panels/balancing.py`). A
+  **second schema-pairing exception** (see the map files entry below): every
+  `data/balancing_history/*.json` validates against
+  `schemas/balancing_history.schema.json`, not `schemas/<domain>.schema.json`
+  — its filename stem intentionally collides with the real domain file's stem,
+  so `tools/smoke.py` special-cases the directory the same way it already does
+  for `maps/`.
 - `maps/` — map files (terrain/zone grid with spawning as a painted zone,
   deco layer, base position) + `active_map.json` pointer (D-20/21).
 - `sprites/` — `asset_manifest.json` (manifest v2, D-30) + `imported/` sheet

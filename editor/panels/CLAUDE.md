@@ -63,12 +63,31 @@ import list.**
   `#/$defs/` refs resolved by `_deref` (the only `$ref` kind allowed);
   schema-optional leaves absent from the doc (tier `era_unlock_round`) skipped.
   Widgets register in `self._widgets` keyed by `/`-joined paths
-  (`"DefenceBuildings/BasicDefence/tiers/0/base_dmg"`); `_commit(path, value)`
-  walks the doc (numeric segment → list index) and writes the whole doc via
-  `engine.data_io.write_validated` (ED-31) — signals connected *after* initial
-  values are set, so form population never writes. Locked domain → all fields
-  disabled + banner "Locked by <owner> since <date>" (ED-32); lock state read at
-  selection time (re-select to refresh; no file watcher). Undo (ED-24) deferred for
+  (`"DefenceBuildings/BasicDefence/tiers/0/base_dmg"`); numeric/enum widgets are
+  `_NoWheelSpinBox`/`_NoWheelDoubleSpinBox`/`_NoWheelComboBox` (ignore
+  `wheelEvent` so scrolling the panel can never nudge a value by accident — the
+  event propagates to the enclosing `QScrollArea` instead).
+  **Edits are staged, not written immediately**: `_commit(path, value)` walks the
+  doc (numeric segment → list index) and mutates `self._doc` in memory only,
+  then toggles a small pending-change dot (`self._dots`) next to that field by
+  comparing against `self._baseline` (a deep copy taken at `set_domain`/last-save
+  time) — signals connected *after* initial values are set, so form population
+  never dirties anything. The toolbar's **"Save Balancing Changes"** button
+  (enabled only while `self._dirty` is non-empty) is the ONE place that calls
+  `engine.data_io.write_validated` (ED-31) — it prompts for a required session
+  name + optional description (`_SaveMetaDialog`), then also appends a full-doc
+  snapshot to that domain's history via `editor.balancing_history.save_session`
+  (`data/balancing_history/<domain>.json`, a per-domain flat newest-first JSON
+  array — one file per domain because domains lock/edit independently, unlike
+  the old prototype's single combined snapshot). **"Version History"** opens
+  `_HistoryDialog`, listing that domain's sessions newest-first; "Load into
+  Editor" replays a past snapshot into the live widgets via
+  `_apply_snapshot`/`_set_widget_value` (staged only — dirty dots reappear for
+  whatever differs from the current baseline, nothing is written until the user
+  clicks Save again); "Delete" removes an entry via
+  `balancing_history.delete_session`. Locked domain → all fields disabled +
+  banner "Locked by <owner> since <date>" (ED-32); lock state read at selection
+  time (re-select to refresh; no file watcher). Undo (ED-24) deferred for
   balancing. Test note: `test_editor_panels.TempDataCase` normalizes every domain
   to UNLOCKED in its temp copy (repo files are legitimately locked while a feature
   branch exists).

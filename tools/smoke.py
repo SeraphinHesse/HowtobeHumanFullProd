@@ -23,22 +23,28 @@ FRAMES = 5
 
 
 def validate_data(data_root=None):
-    """Stem-pairing rule (data/foo.json ↔ schemas/foo.schema.json) with ONE
-    directory exception: every data/maps/*.json EXCEPT active_map.json is a
+    """Stem-pairing rule (data/foo.json ↔ schemas/foo.schema.json) with TWO
+    directory exceptions: every data/maps/*.json EXCEPT active_map.json is a
     D-20 map file with an arbitrary stem and validates against
-    map_file.schema.json (the stem 'map' belongs to the balancing domain).
+    map_file.schema.json (the stem 'map' belongs to the balancing domain);
+    every data/balancing_history/*.json is named after its domain (colliding
+    with that domain's own schema stem) and validates against
+    balancing_history.schema.json instead.
     data_root parameter exists so tests can run this rule on a temp tree."""
     from engine import data_io
 
     data_root = Path(data_root) if data_root is not None else REPO / "data"
     schema_dir = data_root / "schemas"
     maps_dir = data_root / "maps"
+    history_dir = data_root / "balancing_history"
     checked = 0
     for path in sorted(data_root.rglob("*.json")):
         if schema_dir in path.parents:
             continue  # schemas validate data, not themselves
         if maps_dir in path.parents and path.name != "active_map.json":
             schema = schema_dir / "map_file.schema.json"
+        elif history_dir in path.parents:
+            schema = schema_dir / "balancing_history.schema.json"
         else:
             schema = schema_dir / f"{path.stem}.schema.json"
         if not schema.exists():

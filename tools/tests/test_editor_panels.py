@@ -7,10 +7,12 @@ QApplication per process. Every test runs against a tempfile COPY of
 data/ so panel writes never touch the repo's files — which is why all
 editor modules take a data_dir parameter.
 """
+import copy
 import os
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -18,16 +20,18 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
     QComboBox,
+    QDialogButtonBox,
     QDoubleSpinBox,
     QLineEdit,
     QSpinBox,
 )
 
-from editor import locks
+from editor import balancing_history, locks
 from editor.panels.balancing import BalancingPanel
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
@@ -60,13 +64,19 @@ class TempDataCase(unittest.TestCase):
     """Copies data/ into a temp dir so writes never touch the repo, and
     normalizes every domain to UNLOCKED — the repo copy may legitimately be
     locked while a feature branch exists (e.g. the 9A batch), but these
-    tests need a known lock state."""
+    tests need a known lock state. Also clears balancing_history/ in the
+    COPY (never the repo) — it's a runtime-populated log, not seed content,
+    and the repo copy may carry real entries from live editor sessions that
+    would otherwise leak into every test's starting state."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         shutil.copytree(REPO / "data", self.data_dir)
+        history_dir = self.data_dir / "balancing_history"
+        if history_dir.exists():
+            shutil.rmtree(history_dir)
         for domain in locks.DOMAINS:
             doc = read_domain(self.data_dir, domain)
             if doc["_lock"] != "UNLOCKED":
@@ -241,10 +251,19 @@ class TestBalancingPanel(TempDataCase):
         )
 
     def test_edit_writes_validated_canonical_file(self):
-        """ED-31: a nested widget change -> write_validated -> the correct
-        leaf updated in canonical JSON on disk (the 9A Quick Test edit)."""
+        """ED-31: a nested widget change stages in memory + shows a dirty
+        dot; only Save Balancing Changes writes the correct leaf to
+        canonical JSON on disk (the 9A Quick Test edit, now staged)."""
         panel = self.make_panel("buildings")
-        panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"].setValue(30)
+        key = "DefenceBuildings/BasicDefence/tiers/0/base_dmg"
+        panel._widgets[key].setValue(30)
+        before = read_domain(self.data_dir, "buildings")
+        self.assertNotEqual(
+            before["DefenceBuildings"]["BasicDefence"]["tiers"][0]["base_dmg"], 30
+        )
+        self.assertFalse(panel._dots[key].isHidden())
+        self.assertTrue(panel._save_btn.isEnabled())
+        panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "buildings")
         self.assertEqual(
             on_disk["DefenceBuildings"]["BasicDefence"]["tiers"][0]["base_dmg"], 30
@@ -252,6 +271,8 @@ class TestBalancingPanel(TempDataCase):
         path = self.data_dir / "balancing" / "buildings.json"
         text = path.read_text(encoding="utf-8")
         self.assertEqual(text, data_io.dumps_deterministic(on_disk))
+        self.assertTrue(panel._dots[key].isHidden())
+        self.assertFalse(panel._save_btn.isEnabled())
 
     def test_out_of_range_input_unrepresentable(self):
         """ED-30: the widget clamps to the schema's bounds — invalid values
@@ -260,6 +281,7 @@ class TestBalancingPanel(TempDataCase):
         widget = panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"]
         widget.setValue(999999)
         self.assertEqual(widget.value(), 100000)  # schema maximum (x10 scale cap)
+        panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "buildings")
         self.assertEqual(
             on_disk["DefenceBuildings"]["BasicDefence"]["tiers"][0]["base_dmg"], 100000
@@ -268,6 +290,7 @@ class TestBalancingPanel(TempDataCase):
     def test_checkbox_writes_typed_value(self):
         panel = self.make_panel("ui")
         panel._widgets["FX/gore_enabled"].setChecked(False)
+        panel.save_changes("Test session")
         self.assertIs(read_domain(self.data_dir, "ui")["FX"]["gore_enabled"], False)
 
     def test_string_edit_writes_and_empty_is_restored(self):
@@ -277,6 +300,7 @@ class TestBalancingPanel(TempDataCase):
         widget = panel._widgets["BuildingsGlobal/random_names/0"]
         widget.setText("Zed")
         widget.editingFinished.emit()
+        panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "buildings")
         self.assertEqual(on_disk["BuildingsGlobal"]["random_names"][0], "Zed")
         widget.setText("")
@@ -284,6 +308,46 @@ class TestBalancingPanel(TempDataCase):
         self.assertEqual(widget.text(), "Zed")  # restored, nothing written
         on_disk = read_domain(self.data_dir, "buildings")
         self.assertEqual(on_disk["BuildingsGlobal"]["random_names"][0], "Zed")
+
+    def test_wheel_over_spinbox_does_not_change_value(self):
+        """Mouse-wheel scrolling must never nudge a balancing value."""
+        from PySide6.QtCore import QPoint, QPointF
+        from PySide6.QtGui import QWheelEvent
+
+        panel = self.make_panel("buildings")
+        widget = panel._widgets["DefenceBuildings/BasicDefence/tiers/0/base_dmg"]
+        before = widget.value()
+        event = QWheelEvent(
+            QPointF(0, 0), QPointF(0, 0), QPoint(0, 120), QPoint(0, 120),
+            Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False,
+        )
+        widget.wheelEvent(event)
+        self.assertEqual(widget.value(), before)
+        self.assertFalse(panel._dirty)
+
+    def test_on_save_is_a_noop_with_no_pending_changes(self):
+        """_on_save must not pop the (blocking, modal) name dialog at all
+        when there is nothing staged."""
+        panel = self.make_panel("core")
+        before = read_domain(self.data_dir, "core")
+        self.assertFalse(panel._dirty)
+        panel._on_save()  # no dirty fields -> returns before building a dialog
+        after = read_domain(self.data_dir, "core")
+        self.assertEqual(before, after)
+
+    def test_save_meta_dialog_requires_a_name(self):
+        """The OK button of the save-session dialog stays disabled until a
+        non-blank session name is entered."""
+        from editor.panels.balancing import _SaveMetaDialog
+
+        dialog = _SaveMetaDialog()
+        ok_button = dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Ok)
+        self.assertFalse(ok_button.isEnabled())
+        dialog._name.setText("  ")
+        self.assertFalse(ok_button.isEnabled())
+        dialog._name.setText("My Session")
+        self.assertTrue(ok_button.isEnabled())
+        self.assertEqual(dialog.session_name(), "My Session")
 
     def test_enum_widget_from_synthetic_domain(self):
         """No live domain carries an enum after 9A; a synthetic schema/data
@@ -317,6 +381,7 @@ class TestBalancingPanel(TempDataCase):
         combo = panel._widgets["mode"]
         self.assertIsInstance(combo, QComboBox)
         combo.setCurrentIndex(combo.findData(4))
+        panel.save_changes("Test session")
         self.assertEqual(read_domain(self.data_dir, "synthetic")["mode"], 4)
 
     def test_locked_domain_readonly_with_owner_shown(self):
@@ -333,6 +398,119 @@ class TestBalancingPanel(TempDataCase):
         for key, widget in panel._widgets.items():
             self.assertTrue(widget.isEnabled(), msg=key)
         self.assertTrue(panel._banner.isHidden())
+
+
+class TestBalancingHistory(TempDataCase):
+    """Pure I/O (editor.balancing_history) + panel wiring (Save/Load/Delete)."""
+
+    def test_save_session_appends_newest_first(self):
+        first = balancing_history.save_session(
+            "core", "First", "", {"a": 1}, self.data_dir
+        )
+        second = balancing_history.save_session(
+            "core", "Second", "desc", {"a": 2}, self.data_dir
+        )
+        sessions = balancing_history.load_sessions("core", self.data_dir)
+        self.assertEqual([s["id"] for s in sessions], [second["id"], first["id"]])
+        path = self.data_dir / "balancing_history" / "core.json"
+        self.assertTrue(path.exists())
+
+    def test_load_sessions_empty_when_no_file(self):
+        self.assertEqual(balancing_history.load_sessions("core", self.data_dir), [])
+
+    def test_delete_session_removes_only_that_entry(self):
+        first = balancing_history.save_session(
+            "core", "First", "", {"a": 1}, self.data_dir
+        )
+        second = balancing_history.save_session(
+            "core", "Second", "", {"a": 2}, self.data_dir
+        )
+        balancing_history.delete_session("core", first["id"], self.data_dir)
+        sessions = balancing_history.load_sessions("core", self.data_dir)
+        self.assertEqual([s["id"] for s in sessions], [second["id"]])
+
+    def test_panel_save_changes_records_history_entry(self):
+        panel = BalancingPanel(data_dir=self.data_dir)
+        panel.set_domain("core")
+        key = "TheHole/base_hp"
+        widget = panel._widgets[key]
+        widget.setValue(widget.value() + 1)
+        panel.save_changes("Bumped base HP", "for testing")
+        sessions = balancing_history.load_sessions("core", self.data_dir)
+        self.assertEqual(len(sessions), 1)
+        self.assertEqual(sessions[0]["name"], "Bumped base HP")
+        self.assertEqual(
+            sessions[0]["snapshot"]["TheHole"]["base_hp"], widget.value()
+        )
+
+    def test_apply_snapshot_stages_without_writing(self):
+        panel = BalancingPanel(data_dir=self.data_dir)
+        panel.set_domain("core")
+        key = "TheHole/base_hp"
+        widget = panel._widgets[key]
+        original = widget.value()
+        entry = balancing_history.save_session(
+            "core", "Baseline", "", copy.deepcopy(panel._doc), self.data_dir
+        )
+        widget.setValue(original + 5)
+        panel.save_changes("Bumped")
+        on_disk_after_bump = read_domain(self.data_dir, "core")["TheHole"]["base_hp"]
+        self.assertEqual(on_disk_after_bump, original + 5)
+
+        panel._apply_snapshot(entry["snapshot"])
+        self.assertEqual(widget.value(), original)
+        self.assertFalse(panel._dots[key].isHidden())
+        # not written yet — disk still shows the bumped value
+        self.assertEqual(
+            read_domain(self.data_dir, "core")["TheHole"]["base_hp"], original + 5
+        )
+        panel.save_changes("Reverted")
+        self.assertEqual(
+            read_domain(self.data_dir, "core")["TheHole"]["base_hp"], original
+        )
+
+    def test_save_session_survives_a_concurrent_writer(self):
+        """Regression: save_session used to be a bare read-modify-write, so a
+        second writer racing between its load() and write() would clobber the
+        first writer's just-saved entry (reported as "history gets cleared").
+        _history_lock() serializes the critical section; simulate the other
+        writer holding the lock during ours and confirm nothing is lost."""
+        first = balancing_history.save_session(
+            "core", "First", "", {"a": 1}, self.data_dir
+        )
+        path = self.data_dir / "balancing_history" / "core.json"
+        lock_path = path.with_name(path.name + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+
+        import threading
+
+        release_after = threading.Timer(0.2, lock_path.unlink)
+        release_after.start()
+        second = balancing_history.save_session(
+            "core", "Second", "", {"a": 2}, self.data_dir
+        )
+        release_after.join()
+
+        sessions = balancing_history.load_sessions("core", self.data_dir)
+        self.assertEqual([s["id"] for s in sessions], [second["id"], first["id"]])
+
+    def test_stale_lock_is_reclaimed_not_deadlocked(self):
+        path = self.data_dir / "balancing_history" / "core.json"
+        lock_path = path.with_name(path.name + ".lock")
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        os.close(fd)
+        stale_time = time.time() - (balancing_history.STALE_LOCK_SECONDS + 5)
+        os.utime(lock_path, (stale_time, stale_time))
+
+        entry = balancing_history.save_session(
+            "core", "After stale lock", "", {"a": 1}, self.data_dir
+        )
+        sessions = balancing_history.load_sessions("core", self.data_dir)
+        self.assertEqual([s["id"] for s in sessions], [entry["id"]])
+        self.assertFalse(lock_path.exists())
 
 
 class TestMainWindowWiring(TempDataCase):
@@ -352,6 +530,7 @@ class TestMainWindowWiring(TempDataCase):
         window.selector.select_domain("ui")
         self.assertEqual(window.balancing.domain, "ui")
         window.balancing._widgets["Timing/not_enough_love_duration"].setValue(2.5)
+        window.balancing.save_changes("Test session")
         self.assertEqual(
             read_domain(self.data_dir, "ui")["Timing"]["not_enough_love_duration"], 2.5
         )
