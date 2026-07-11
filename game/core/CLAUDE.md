@@ -23,8 +23,15 @@ Four files beside `balance.py`:
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
-  Remaining reserved no-op slots (boss-bonus, boost, wall-teardown before revive;
-  rebuild-walls) stay in place for 10D-10G. **Do not reorder without the user.**
+  Remaining reserved no-op slots (boss-bonus, wall-teardown before revive;
+  rebuild-walls) stay in place for 10E-10G. **Do not reorder without the user.**
+  - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
+    on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
+    per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`
+    (one `boost_events` floater each); a booster dead THIS round explodes its debuff
+    onto neighbours once (guarded by `BoostEmitter.exploded`, reset in `rebuild()`)
+    and, in flat mode, reverses its 10× contribution. Runs before revive for the
+    same reason painters do — it must see the dead booster as `alive == False`.
   - **10C filled slot 6**: `_process_painters` advances alive painters and, on a
     completed one, pays the lump sum + frees the tile (occupant/content_key
     cleared, BUILDABLE, occupancy cleared, building despawned) + bars it via
@@ -80,6 +87,11 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   building `id()` for the whole run** — a faithful prototype quirk: revive, die
   again, no second payout. `on_enemy_death` also fixes a real bug — `enemies_killed`
   used to count only base breaches, so the game-over screen under-reported kills.
+- **Grouped unlock (10D boost trio)**: `roll_levelup_options` offers an unlock card
+  only for the LEAD member of a spec's `unlock_group` (`btype == unlock_group[0]`),
+  skipping the other locked members — so the three boosters surface as ONE "Unlock
+  Boost Buildings" card whose `apply_levelup_option` unlocks all three. All three
+  still carry a `RESEARCH` row so each researches its own tiers after unlocking.
 - **Empty pool is expected before round 10**: only `defence` + `economic` exist,
   both start unlocked at tier 1, their tier-2s are round-gated to 10, and the hole
   is lives-based so the prototype's `+1 Base HP` fallback doesn't apply — so early

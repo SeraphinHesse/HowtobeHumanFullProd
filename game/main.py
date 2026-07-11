@@ -404,6 +404,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     and gp["prev_phase"] != GamePhase.INCOME):
                 gp["floaters"].spawn_income_events(session.state)
                 gp["floaters"].spawn_painter_events(session.state)
+                gp["floaters"].spawn_boost_events(session.state)
             # pre_sim rolled the cards when it entered LEVELUP; open on the edge
             if (session.state.phase == GamePhase.LEVELUP
                     and gp["prev_phase"] != GamePhase.LEVELUP):

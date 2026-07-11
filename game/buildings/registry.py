@@ -64,6 +64,16 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             and (tile.col, tile.row) in getattr(state, "used_painter_tiles", ())):
         raise PlacementError(
             f"tile ({tile.col},{tile.row}) already sold a painting")
+    # 10D: boosters may not be placed cardinally adjacent to another booster
+    # (prototype ``Game.place_building`` 'boost_adjacent' — cardinal-4, diagonals
+    # allowed). Enforced HERE, the single legal placement path.
+    if building_type.startswith("boost_"):
+        for dc, dr in ((0, -1), (0, 1), (-1, 0), (1, 0)):
+            adj = tilemap.get(tile.col + dc, tile.row + dr)
+            if (adj is not None and adj.occupant is not None
+                    and "boost" in adj.occupant.tags):
+                raise PlacementError(
+                    f"a boost building is already next to ({tile.col},{tile.row})")
     cost = build_cost(building_type, buildings_balance)
     if love < cost:
         raise PlacementError(
@@ -76,6 +86,10 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # Only this one tile changed — update its occupancy directly instead of the
     # full-map ``sync_occupancy`` scan (an O(map) hitch on large maps, D-20).
     occupancy.set((tile.col, tile.row), building)
+    # 10D: a placed booster clears the explosion debuffs the tile's previous
+    # occupant left on neighbours, and (flat mode) applies its one-time boost.
+    if "boost" in building.tags:
+        building.on_placed(tilemap)
     return building, cost
 
 

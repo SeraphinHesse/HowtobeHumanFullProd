@@ -24,6 +24,7 @@ _XP_LIFE = 0.9  # prototype XPFloater lifetime (seconds)
 _PAINTER_FINISHED = (255, 255, 100)
 _PAINTER_LOST = (255, 100, 100)
 _PAINTER_LIFE = 1.5
+_BOOST_WHITE = (255, 255, 255)   # prototype boost floater colour
 
 # Sun Scorcher beam colour per tier (prototype outer-beam colour, simplified to
 # one line since the HUD pass has no per-pixel alpha for a glow — 10J polish):
@@ -86,6 +87,15 @@ class FloaterManager:
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, _PAINTER_LIFE))
         state.painter_events.clear()
+
+    def spawn_boost_events(self, state):
+        """Drain ``state.boost_events`` (filled by the payday boost slot) into white
+        per-turn boost floaters over each buffed defender — prototype white text.
+        Called on the INCOME edge beside the income floaters."""
+        for col, row, text in state.boost_events:
+            self._floaters.append(
+                _Floater(col + 0.5, row + 0.5, text, _BOOST_WHITE, self._life))
+        state.boost_events.clear()
 
     def clear(self):
         self._floaters.clear()

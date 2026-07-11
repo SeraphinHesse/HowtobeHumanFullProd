@@ -157,6 +157,12 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng):
                                                    buildings_balance):
                 pool.append(_tier_option(btype, idx, buildings_balance))
         elif _gate_met(state, spec, buildings_balance):
+            # Grouped unlock (the boost trio): all members are seeded locked so
+            # each offers its own tier cards after unlocking, but only the LEAD
+            # type offers the shared "unlock all three" card — skip the rest so
+            # the trio surfaces as ONE card, not three identical ones.
+            if spec.unlock_group and btype != spec.unlock_group[0]:
+                continue
             pool.append(_unlock_option(btype, spec, buildings_balance))
 
     rng.shuffle(pool)

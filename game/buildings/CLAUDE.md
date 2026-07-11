@@ -54,6 +54,24 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   combat.py`), NOT here — the building must not import `game/enemies` (that
   closes a cycle). AOE sets its own `CONTENT_KEY = "aoe_defence_building"` (its
   own pathfinder weight); Beam keeps the shared `"defence_building"`.
+- **10D boost line** (`boost.py`: `BoostBuilding` family + thin `BoostSpeed`/
+  `BoostDamage`/`BoostHP` leaves) subclasses `Building` directly (neither economy
+  nor defence). ONE behaviour class, three data lines
+  (`BoostBuildings.{Speed,Damage,HP}`); `CONTENT_KEY="economic_building"` (the
+  prototype's boost pathfinding-weight fallback — no map change), tag `"boost"`.
+  All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
+  (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
+  to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
+  in `DefenceBuilding.damage()`/`attack_speed()` and `Building.max_hp()` (None-safe),
+  so the combat sweep needs no change. The per-turn accumulation + explosion-on-death
+  run in the payday **boost slot (slot 7, before revive)**; the cardinal-4 adjacency
+  placement block + `on_placed` debuff-clear/flat-apply run in `registry.place_building`.
+  A `BoostEmitter` marker holds the `exploded` (one-shot per death, reset on
+  `rebuild()`) + `flat_applied` guards. Both modes exist: ramp (default) accumulates
+  each income phase, flat (`BoostBuildings.globals.flat_mode`) applies 10× once on
+  placement / reverses on death. Research: three `starts_unlocked=False` rows sharing
+  `unlock_group=(the trio)` + `gate_kind="min_round"`; the roll offers ONE unlock card
+  (the lead `boost_speed`), then each type researches its own tiers (see `game/core`).
 - **`registry.py` is the factory + placement seam**: `create(building_type,…)`
   (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability

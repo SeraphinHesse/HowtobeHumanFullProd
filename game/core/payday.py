@@ -20,7 +20,7 @@ income sweep drives via ``collect_income`` (its ``yield_amount()`` stays pure).
 frees a completed painter's tile — clearing occupancy + despawning the building
 GameObject — so both are threaded from the ``Session``.
 """
-from game.buildings.components import PainterProgress, RoundStats
+from game.buildings.components import BoostEmitter, PainterProgress, RoundStats
 from game.map.tiles import TileState
 from .phases import GamePhase
 from .xp import scaled_base_income
@@ -78,6 +78,34 @@ def _process_painters(state, tilemap, occupancy, scene):
             (tile.col, tile.row, "painting finished", "finished"))
         state.used_painter_tiles.add((tile.col, tile.row))
         _free_tile(tilemap, tile, occupancy, scene)
+
+
+def _process_boosts(state, tilemap):
+    """Reserved payday slot 7 (prototype ``Game._process_boosts`` + the death half
+    of ``_on_boost_destroyed``): sweep every boost building on a built tile.
+
+    An ALIVE booster in RAMP mode accumulates one turn of its stat onto its
+    cardinal-adjacent combat neighbours (a floater per neighbour); in FLAT mode the
+    boost was already applied at placement, so it only pays upkeep. A booster that
+    DIED this round (seen here BEFORE the revive step, exactly like painters) stamps
+    its one-shot explosion debuff on those neighbours — guarded by ``BoostEmitter``
+    so a single death explodes once; flat mode also reverses its 10× contribution
+    here. The revive step then rebuilds it and clears the guard."""
+    for tile in list(tilemap.built_tiles()):
+        b = tile.occupant
+        if b is None or "boost" not in getattr(b, "tags", ()):
+            continue
+        emitter = b.get_component(BoostEmitter)
+        if getattr(b, "alive", False):
+            if not b.flat_mode():
+                for col, row, text in b.apply_per_turn(tilemap):
+                    state.boost_events.append((col, row, text))
+        elif not emitter.exploded:
+            if b.flat_mode() and emitter.flat_applied:
+                b.remove_flat(tilemap)
+                emitter.flat_applied = False
+            b.apply_explosion_debuff(tilemap)
+            emitter.exploded = True
 
 
 def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
@@ -147,7 +175,9 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
 
     # 6. Painter payout sweep — BEFORE revive (10C).
     _process_painters(state, tilemap, occupancy, scene)
-    # 7. [reserved 10D] Boost sweep — BEFORE revive.
+    # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
+    #    per-turn buff, dead boosters explode their debuff onto neighbours.
+    _process_boosts(state, tilemap)
     # 8. [reserved 10E] Wall-teardown for dead wall-builders — BEFORE revive.
 
     # 9. Revive / heal: every non-base building full-heals (revives if dead).
