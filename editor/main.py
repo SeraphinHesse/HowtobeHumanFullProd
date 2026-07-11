@@ -126,6 +126,7 @@ class MainWindow(QMainWindow):
             lambda _map_id: self.selector.refresh_maps())
         self.map_details.set_session(self.map_session)
         self.map_details.dirty_resolver = self._resolve_dirty
+        self.map_details.map_deleted.connect(self._on_map_deleted)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere
         undo = QAction("Undo", self)
@@ -258,6 +259,10 @@ class MainWindow(QMainWindow):
         self.palette.setVisible(True)
         self.right_stack.setCurrentWidget(self.map_details)
         self.map_details.refresh()
+
+    def _on_map_deleted(self):
+        self._leave_map_mode()
+        self.selector.refresh_maps()
 
     def _leave_map_mode(self):
         # the session keeps its (possibly dirty) doc — reselecting the same

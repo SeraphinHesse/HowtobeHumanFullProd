@@ -221,7 +221,7 @@ class ViewportPanel(QWidget):
             self._refresh_anim_combo()
         w, h = max(1, self.width()), max(1, self.height())
         if self.in_map_mode():
-            self._coords.clamp(w, h)
+            self._center_on_camera_start(w, h)
         else:
             self._center_on_preview(w, h)
         self._renderer = Renderer(self._coords, self._assets)
@@ -447,7 +447,7 @@ class ViewportPanel(QWidget):
         w, h = max(1, self.width()), max(1, self.height())
         self._surface = pygame.Surface((w, h))
         if self.in_map_mode():
-            self._coords.clamp(w, h)
+            self._center_on_camera_start(w, h)
         else:
             self._center_on_preview(w, h)
 
@@ -457,6 +457,17 @@ class ViewportPanel(QWidget):
         wider than the viewport — clamp alone would anchor it to an edge."""
         g = self._coords.geometry
         self._coords.center_on(g.map_cols // 2, g.map_rows // 2, w, h)
+
+    def _center_on_camera_start(self, w, h):
+        """Tilemap mode: open (and re-frame on resize) centred on the map's
+        own camera-startpoint — the same view `game/main.py:frame_camera()`
+        opens on — falling back to `clamp` (centres if the map fits, else
+        anchors) when no startpoint has been painted yet."""
+        cam = self._map_session.doc.camera_start
+        if cam is not None:
+            self._coords.center_on(cam["col"], cam["row"], w, h)
+        else:
+            self._coords.clamp(w, h)
 
     # -- frame drive: main.py's QTimer calls this once per tick -------------
 

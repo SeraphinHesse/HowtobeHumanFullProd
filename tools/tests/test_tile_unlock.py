@@ -44,13 +44,15 @@ class TestSeeding(unittest.TestCase):
 class TestUnlockCost(unittest.TestCase):
     def test_cost_scales_with_section_distance(self):
         tm = make_tilemap()
-        # section (col_sec, row_sec) anchored at the base (1,1): 5 + (sc+sr)*2
+        # section (col_sec, row_sec) with the base (1,1) as the bottom-left tile
+        # of section (0,0) — col origin 1, row origin 0. Live map.json values:
+        # base_unlock_cost 0, unlock_cost_distance_mod 2 -> cost = (sc+sr)*2.
         cases = {
-            (1, 1): 5,   # section (0,0)
-            (3, 1): 7,   # section (1,0)
-            (1, 3): 7,   # section (0,1)
-            (3, 3): 9,   # section (1,1)
-            (7, 7): 5 + (3 + 3) * 2,  # section (3,3) -> 17
+            (1, 1): 0,   # section (0,0)
+            (3, 1): 2,   # section (1,0)
+            (1, 3): 2,   # section (0,1)
+            (3, 3): 4,   # section (1,1)
+            (7, 7): (3 + 3) * 2,  # section (3,3) -> 12
         }
         for (c, r), expected in cases.items():
             with self.subTest(tile=(c, r)):
@@ -70,8 +72,9 @@ class TestAdjacency(unittest.TestCase):
 
     def test_already_buildable_chunk_does_not_unlock(self):
         tm = make_tilemap()
-        # section (0,0) is the buildable pocket — no COMBAT tiles to convert.
-        self.assertFalse(tm.do_unlock(tm.get(2, 2)))
+        # The hole's section (0,0) chunk is cols[1,2]×rows[0,1] (base at its
+        # bottom-left): only BUILT/BUILDABLE + background, no COMBAT to convert.
+        self.assertFalse(tm.do_unlock(tm.get(2, 1)))
 
 
 class TestUnlockAndRecede(unittest.TestCase):
@@ -80,8 +83,10 @@ class TestUnlockAndRecede(unittest.TestCase):
         ok = tm.do_unlock(tm.get(3, 1))
         self.assertTrue(ok)
 
-        # 1. The chunk's four COMBAT tiles become BUILDABLE.
-        unlocked = [(3, 1), (4, 1), (3, 2), (4, 2)]
+        # 1. get(3,1)'s chunk is cols[3,4]×rows[0,1] (grid offset one row up so
+        #    the base is a section's bottom-left tile). Row 0 is background, so
+        #    only the two COMBAT tiles in the chunk become BUILDABLE.
+        unlocked = [(3, 1), (4, 1)]
         self.assertTrue(
             all(s == TileState.BUILDABLE for s in states(tm, unlocked)),
             states(tm, unlocked))

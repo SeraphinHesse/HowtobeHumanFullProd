@@ -180,6 +180,16 @@ class MapSession(QObject):
                          tilemap.map_schema_path(self._data_dir))
         self.undo_stack.setClean()
 
+    def delete(self, map_id):
+        """Delete a map from disk. Refuses to delete the ACTIVE map (D-21
+        pointer would dangle) or the currently-open doc (caller must close/
+        leave map mode first)."""
+        if self.doc is not None and self.doc.map_id == map_id:
+            raise ValueError("cannot delete the currently open map")
+        if self.active_map_id() == map_id:
+            raise ValueError("cannot delete the active map")
+        tilemap.delete_map(self._data_dir, map_id)
+
     def set_active(self):
         """The ONLY writer of active_map.json (D-21)."""
         data_io.write_validated(

@@ -5,12 +5,13 @@ undoable, dims fixed at creation) + New / Duplicate / Save / Set Active
 and a dirty indicator driven by the session's undo-stack clean state.
 
 Buttons drive the MapSession directly; MainWindow stays in sync through
-the session's map_opened / active_changed signals. Deleting maps is
-deliberately deferred (destructive; not in the Phase 6 lifecycle).
+the session's map_opened / active_changed signals, plus this panel's own
+map_deleted signal (Delete map — disabled for the ACTIVE map, D-21).
 """
 import re
 from pathlib import Path
 
+from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -82,6 +83,8 @@ class NewMapDialog(QDialog):
 
 
 class MapDetailsPanel(QWidget):
+    map_deleted = Signal()   # the open map was deleted; MainWindow leaves map mode
+
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
@@ -117,8 +120,10 @@ class MapDetailsPanel(QWidget):
         self.duplicate_button = QPushButton("Duplicate…", self)
         self.save_button = QPushButton("Save", self)
         self.set_active_button = QPushButton("Set active", self)
+        self.delete_button = QPushButton("Delete map…", self)
         for btn in (self.new_button, self.duplicate_button,
-                    self.save_button, self.set_active_button):
+                    self.save_button, self.set_active_button,
+                    self.delete_button):
             layout.addWidget(btn)
         layout.addStretch(1)
 
@@ -126,6 +131,7 @@ class MapDetailsPanel(QWidget):
         self.duplicate_button.clicked.connect(self._on_duplicate)
         self.save_button.clicked.connect(self._on_save)
         self.set_active_button.clicked.connect(self._on_set_active)
+        self.delete_button.clicked.connect(lambda: self._on_delete())
 
     # -- session binding -------------------------------------------------------
 
@@ -155,6 +161,8 @@ class MapDetailsPanel(QWidget):
             self._dirty_label.setText("")
             self.name_edit.setText("")
             self._warning_label.setVisible(False)
+            self.delete_button.setEnabled(False)
+            self.delete_button.setToolTip("")
             return
         self._id_label.setText(doc.map_id)
         self._dims_label.setText(f"{doc.cols} × {doc.rows} tiles")
@@ -162,6 +170,11 @@ class MapDetailsPanel(QWidget):
             self.name_edit.setText(doc.display_name)
         self._dirty_label.setText("● unsaved changes" if dirty else "saved")
         self._refresh_warning(doc)
+        is_active = doc.map_id == self._session.active_map_id()
+        self.delete_button.setEnabled(not is_active)
+        self.delete_button.setToolTip(
+            "Set a different map active before deleting this one."
+            if is_active else "")
 
     def _refresh_warning(self, doc):
         missing = tilemap_ops.map_requirement_warnings(doc)
@@ -211,3 +224,20 @@ class MapDetailsPanel(QWidget):
         # a not-yet-playable map can still be made active.
         self._session.set_active()
         self.refresh()
+
+    def _on_delete(self, confirm=True):
+        doc = self._session.doc
+        if doc is None:
+            return
+        if confirm:
+            answer = QMessageBox.question(
+                self, "Delete map",
+                f"Delete map '{doc.display_name}' ({doc.map_id})?\n\n"
+                "This permanently deletes the map file. This cannot be undone.")
+            if answer != QMessageBox.StandardButton.Yes:
+                return
+        map_id = doc.map_id
+        self._session.doc = None
+        self._session.undo_stack.clear()
+        self._session.delete(map_id)
+        self.map_deleted.emit()

@@ -338,6 +338,12 @@ def list_map_ids(data_dir):
         p.stem for p in maps_dir.glob("*.json") if p.name != ACTIVE_MAP_FILENAME)
 
 
+def delete_map(data_dir, map_id):
+    """Delete a map file from disk. Caller (MapSession) must not be holding
+    it open, and must handle the active-map case first."""
+    map_path(data_dir, map_id).unlink()
+
+
 def load_active_map(data_dir):
     """The game's entry: follow data/maps/active_map.json (D-21), fail loud."""
     data_dir = Path(data_dir)
