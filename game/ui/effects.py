@@ -19,6 +19,11 @@ from .widgets import (
 _UPKEEP_BLUE = (120, 170, 230)
 _XP_PURPLE = (202, 140, 245)
 _XP_LIFE = 0.9  # prototype XPFloater lifetime (seconds)
+# Painter message floaters (Phase 10C): gold "painting finished" on a payout,
+# red "painting lost!" when a gone-for-good painter dies. Prototype life 1.5s.
+_PAINTER_FINISHED = (255, 255, 100)
+_PAINTER_LOST = (255, 100, 100)
+_PAINTER_LIFE = 1.5
 
 # Sun Scorcher beam colour per tier (prototype outer-beam colour, simplified to
 # one line since the HUD pass has no per-pixel alpha for a glow — 10J polish):
@@ -71,6 +76,16 @@ class FloaterManager:
             self._floaters.append(
                 _Floater(wx, wy, f"+{amount}", _XP_PURPLE, _XP_LIFE))
         state.xp_events.clear()
+
+    def spawn_painter_events(self, state):
+        """Drain ``state.painter_events`` (filled by the payday Painter slot +
+        revive) into 1.5s message floaters — gold "painting finished", red
+        "painting lost!". Called on the INCOME edge beside the income floaters."""
+        for col, row, text, kind in state.painter_events:
+            color = _PAINTER_FINISHED if kind == "finished" else _PAINTER_LOST
+            self._floaters.append(
+                _Floater(col + 0.5, row + 0.5, text, color, _PAINTER_LIFE))
+        state.painter_events.clear()
 
     def clear(self):
         self._floaters.clear()

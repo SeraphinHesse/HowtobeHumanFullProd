@@ -116,7 +116,8 @@ class _World:
             attach_base(self.tile_map, base, self.scene, self.occupancy)
         self.spawner = Spawner()
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
-                                      core_bal, buildings_bal, registry=registry)
+                                      core_bal, buildings_bal, registry=registry,
+                                      occupancy=self.occupancy)
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -275,7 +276,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             option = gp["levelup"].hit(mx, my)
             if option is not None:
                 gp["levelup"].close()
-                session.resolve_levelup(option)            # -> payday -> INCOME
+                session.resolve_levelup(option, world.scene)  # -> payday -> INCOME
             return
         if panel.preview is not None:                      # modal
             panel.handle_click(mx, my, session, buildings_balance,
@@ -402,6 +403,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             if (session.state.phase == GamePhase.INCOME
                     and gp["prev_phase"] != GamePhase.INCOME):
                 gp["floaters"].spawn_income_events(session.state)
+                gp["floaters"].spawn_painter_events(session.state)
             # pre_sim rolled the cards when it entered LEVELUP; open on the edge
             if (session.state.phase == GamePhase.LEVELUP
                     and gp["prev_phase"] != GamePhase.LEVELUP):

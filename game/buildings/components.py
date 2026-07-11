@@ -56,11 +56,24 @@ class Attacker(Component):
 
 class YieldEconomy(Component):
     """Marks a love-yielding building. ``streak`` is dormant for Musicians
-    (used by Meditators, 10B); Musician yield is a computed method on
+    (used by Meditators, 10C); Musician yield is a computed method on
     ``EconomyBuilding``. Present as the economy capability marker, symmetric with
     the defence ``Attacker`` marker."""
 
     streak: int = 0
+
+
+class PainterProgress(Component):
+    """Painter deferred-payout state (Phase 10C, prototype ``PainterBuilding``).
+    ``progress`` counts survived round-end cycles (0..``rounds_to_payout``); the
+    payday painter slot advances alive painters and, once ``is_ready``, pays the
+    lump sum then frees + bars the tile. ``gone_for_good`` is dormant here — a
+    painter that DIES before payout is removed at the payday revive step keyed on
+    its tier's ``goneforgood`` flag; the field exists so a non-gone-for-good
+    variant (none in the current data) could instead reset progress and revive."""
+
+    progress: int = 0
+    gone_for_good: bool = False
 
 
 class SplashAttacker(Component):

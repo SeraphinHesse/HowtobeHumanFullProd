@@ -35,7 +35,7 @@ from .phases import GamePhase, GameState
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
-                 buildings_balance, registry=None, rng=None):
+                 buildings_balance, registry=None, rng=None, occupancy=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
@@ -44,6 +44,10 @@ class Session:
         self.buildings_balance = buildings_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
+        # Occupancy handle so the payday Painter slot can free a completed
+        # painter's tile (clear it here as well as on the tilemap). Optional so
+        # logic tests that predate it still construct a Session.
+        self.occupancy = occupancy
         self._wipe_pending = False
         # Buildings that have already paid their death XP, by id(). NEVER reset
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
@@ -52,11 +56,11 @@ class Session:
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
-               buildings_balance, registry=None, rng=None):
+               buildings_balance, registry=None, rng=None, occupancy=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance), spawner, tilemap,
                    enemies_balance, core_balance, buildings_balance, registry,
-                   rng)
+                   rng, occupancy)
 
     @property
     def frozen(self):
@@ -100,7 +104,8 @@ class Session:
                 if st.levelup_pending:
                     self._begin_levelup()
                 else:
-                    run_payday(st, self.tilemap, self.core_balance)  # -> INCOME
+                    run_payday(st, self.tilemap, self.core_balance,
+                               self.occupancy, scene)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -129,15 +134,17 @@ class Session:
             st, self.buildings_balance, self.core_balance, self.rng)
         st.phase = GamePhase.LEVELUP
 
-    def resolve_levelup(self, option):
+    def resolve_levelup(self, option, scene=None):
         """Grant the chosen reward, advance the village level, then run the
-        payday the level-up deferred (prototype ``_resolve_levelup``)."""
+        payday the level-up deferred (prototype ``_resolve_levelup``). ``scene``
+        lets the deferred payday's Painter slot despawn a completed painter."""
         st = self.state
         lv.apply_levelup_option(st, option, self.core_balance)
         st.levelup_pending = False
         st.levelup_options = []
         xpmod.advance_village_level(st, self.core_balance)
-        run_payday(st, self.tilemap, self.core_balance)  # -> INCOME
+        run_payday(st, self.tilemap, self.core_balance,
+                   self.occupancy, scene)  # -> INCOME
 
     # -- XP award sites (10A) ---------------------------------------------
 

@@ -57,6 +57,13 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             f"tile ({tile.col},{tile.row}) is {tile.state.name}, not BUILDABLE")
     if state is not None and not buildable(state, building_type):
         raise PlacementError(f"{building_type} is not researched yet")
+    # 10C: a tile that completed a Painter payout is permanently barred from
+    # hosting another Painter (prototype ``used_painter_tiles`` — enforced HERE,
+    # the single legal placement path; the UI disabling is only a convenience).
+    if (building_type == "painter" and state is not None
+            and (tile.col, tile.row) in getattr(state, "used_painter_tiles", ())):
+        raise PlacementError(
+            f"tile ({tile.col},{tile.row}) already sold a painting")
     cost = build_cost(building_type, buildings_balance)
     if love < cost:
         raise PlacementError(

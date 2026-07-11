@@ -56,6 +56,15 @@ class TileMap:
         self._pf_col_max = self.cols - 1
         self._pf_row_max = self.rows - 1
 
+        # The 2×2 unlock/section grid is anchored so the HOLE is the BOTTOM-LEFT
+        # tile of its own section (0,0), not the top-left corner: the row origin
+        # is one tile up from the base (col origin unchanged), so a section spans
+        # [base_row-1, base_row] in the hole's band. The playfield window (_pf_*)
+        # still anchors at the base corner and is unaffected.
+        self._sec_col_origin = self._pf_col_min
+        self._sec_row_origin = (
+            self._pf_row_min - 1 if has_base else self._pf_row_min)
+
         # Round gate for the damage-weight discount (dormant: nothing calls
         # set_round until 9F/10F). Defence-range coverage function is wired by
         # core in 10I; None keeps the range-affects-path feature dormant.
@@ -137,10 +146,11 @@ class TileMap:
     # -- tile unlocking (prototype tile_map.py:298-374) -------------------
 
     def _section_index(self, tile):
-        """(col_section, row_section) of the fixed 2×2 grid anchored at the
-        base corner. The starting buildable pocket is section (0, 0)."""
-        return ((tile.col - self._pf_col_min) // 2,
-                (tile.row - self._pf_row_min) // 2)
+        """(col_section, row_section) of the fixed 2×2 grid anchored so the base
+        is the BOTTOM-LEFT tile of section (0, 0) (row origin one tile above the
+        base). The starting buildable pocket is section (0, 0)."""
+        return ((tile.col - self._sec_col_origin) // 2,
+                (tile.row - self._sec_row_origin) // 2)
 
     def unlock_cost(self, tile):
         """BASE + (col_sec + row_sec) * MOD — cost scales with 2×2-section
@@ -150,10 +160,13 @@ class TileMap:
         return u["base_unlock_cost"] + (sc + sr) * u["unlock_cost_distance_mod"]
 
     def get_chunk_for_tile(self, tile):
-        """The fixed 2×2 chunk containing `tile` (aligned to the base corner so
-        every playfield tile belongs to exactly one non-overlapping chunk)."""
-        anchor_col = self._pf_col_min + ((tile.col - self._pf_col_min) // 2) * 2
-        anchor_row = self._pf_row_min + ((tile.row - self._pf_row_min) // 2) * 2
+        """The fixed 2×2 chunk containing `tile` (aligned so the base is its
+        bottom-left tile; every playfield tile belongs to exactly one
+        non-overlapping chunk)."""
+        anchor_col = self._sec_col_origin + (
+            (tile.col - self._sec_col_origin) // 2) * 2
+        anchor_row = self._sec_row_origin + (
+            (tile.row - self._sec_row_origin) // 2) * 2
         chunk = []
         for dc in range(2):
             for dr in range(2):

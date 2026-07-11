@@ -28,6 +28,23 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
 - **Attacker + `"combat"` tag replace the prototype `IS_COMBAT` flag** (SPEC G-3)
   so the combat sweep stays type-agnostic. 9D wires the seam (RangeSensor range
   from the tier, an Attacker clock) but NO enemy acquisition/damage — that is 9E.
+- **10C economy lines** (`painter.py`, `meditator.py`) subclass `EconomyBuilding`,
+  each a thin leaf + a little computed state:
+  - **Painter** (risky lump-sum) adds a `PainterProgress` component
+    (`progress`/`gone_for_good`); `yield_amount()` is `0` (out of the income +
+    upkeep sweeps), and `payout_amount()`/`rounds_to_payout()`/`goneforgood()`/
+    `is_ready()`/`advance_progress()` drive the payday Painter slot (slot 6, in
+    `game/core/payday.py`) that pays the lump sum, frees + permanently bars the
+    tile (`used_painter_tiles`), or removes a dead gone-for-good painter with a
+    "painting lost!" message. The used-tile bar is enforced in `registry.place_building`.
+  - **Meditator** (compounding streak) reuses `YieldEconomy.streak`. Its
+    `yield_amount()` is **PURE** (three callers: payday, the panel, the HUD
+    readout) — the streak side-effect (disturbance reset → pay → advance) lives in
+    `collect_income(disturbed)`, called ONLY by the payday income sweep, which
+    derives `disturbed` from `RoundStats.dmg_taken_last_round`. Do NOT move the
+    side-effect back into `yield_amount()`.
+  Both add one `research.py` row (Painter: locked type, `min_village_level` gate;
+  Meditator: `starts_with_tier=0`, era-gated from `Meditators.era_unlock_round`).
 - **10B defence lines** (`aoe_defence.py` Maw Mortar, `sun_scorcher.py` Sun
   Scorcher) subclass `DefenceBuilding` and add ONE extra capability component +
   a couple computed methods each: AOE adds `SplashAttacker` (marker) +

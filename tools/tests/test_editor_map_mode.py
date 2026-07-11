@@ -112,6 +112,29 @@ class TestMapsBranch(MapModeCase):
         g = self.viewport._coords.geometry
         self.assertEqual((g.map_cols, g.map_rows), (doc.cols, doc.rows))
 
+    def test_camera_opens_centred_on_camera_start(self):
+        doc = self.open_map()   # first_light: camera_start at (6, 6), off-centre
+        w, h = self.viewport.width(), self.viewport.height()
+        coords = self.viewport._coords
+        # Reference: an identical coord system, but pan reset then centred
+        # via the coords API directly (mirrors _center_on_camera_start).
+        expected_pan_x, expected_pan_y = coords.camera.pan_x, coords.camera.pan_y
+        coords.camera.pan_x = coords.camera.pan_y = 0.0
+        coords.center_on(doc.camera_start["col"], doc.camera_start["row"], w, h)
+        self.assertAlmostEqual(coords.camera.pan_x, expected_pan_x, delta=1)
+        self.assertAlmostEqual(coords.camera.pan_y, expected_pan_y, delta=1)
+
+    def test_camera_falls_back_to_clamp_without_camera_start(self):
+        self.session.create("nocam", "No Camera", 8, 8)
+        doc = self.session.doc
+        self.assertIsNone(doc.camera_start)   # new_doc starts with no startpoint
+        w, h = self.viewport.width(), self.viewport.height()
+        coords = self.viewport._coords
+        expected_pan_x, expected_pan_y = coords.camera.pan_x, coords.camera.pan_y
+        coords.clamp(w, h)   # already clamped by set_map_mode; idempotent
+        self.assertAlmostEqual(coords.camera.pan_x, expected_pan_x, delta=1)
+        self.assertAlmostEqual(coords.camera.pan_y, expected_pan_y, delta=1)
+
 
 class TestPaintTools(MapModeCase):
     def test_click_paints_armed_code_on_the_right_cell(self):
@@ -312,6 +335,53 @@ class TestLifecycle(MapModeCase):
         self.assertEqual(doc.display_name, "Renamed Map")
         self.session.undo_stack.undo()
         self.assertEqual(doc.display_name, old)
+
+    def test_delete_removes_file_and_tree_entry(self):
+        self.open_map()
+        self.session.create("throwaway", "Throwaway", 6, 6)
+        self.assertTrue(tilemap.map_path(self.data_dir, "throwaway").exists())
+        self.window.map_details._on_delete(confirm=False)
+        self.assertFalse(tilemap.map_path(self.data_dir, "throwaway").exists())
+        self.assertNotIn("throwaway", self.window.selector.map_ids())
+        self.assertFalse(self.viewport.in_map_mode())
+        self.assertIsNone(self.session.doc)
+
+    def test_delete_button_disabled_for_active_map(self):
+        active_id = self.session.active_map_id()
+        self.open_map(active_id)
+        self.assertFalse(self.window.map_details.delete_button.isEnabled())
+
+    def test_delete_button_enabled_for_non_active_map(self):
+        self.open_map()
+        self.session.create("throwaway", "Throwaway", 6, 6)
+        self.assertTrue(self.window.map_details.delete_button.isEnabled())
+
+    def test_session_delete_refuses_active_map(self):
+        self.open_map()
+        self.session.create("actmap", "Active Map", 6, 6)
+        self.session.set_active()
+        self.open_map(STARTER)   # re-open a different map so actmap isn't
+                                 # also caught by the "currently open" guard
+        with self.assertRaises(ValueError):
+            self.session.delete("actmap")
+
+    def test_session_delete_refuses_currently_open_map(self):
+        self.open_map()
+        self.session.create("throwaway", "Throwaway", 6, 6)
+        with self.assertRaises(ValueError):
+            self.session.delete("throwaway")   # still the open doc
+
+    def test_delete_does_not_touch_active_map_pointer(self):
+        self.open_map()
+        self.session.create("throwaway", "Throwaway", 6, 6)
+        before = data_io.load_validated(
+            tilemap.active_map_path(self.data_dir),
+            tilemap.active_map_schema_path(self.data_dir))
+        self.window.map_details._on_delete(confirm=False)
+        after = data_io.load_validated(
+            tilemap.active_map_path(self.data_dir),
+            tilemap.active_map_schema_path(self.data_dir))
+        self.assertEqual(before, after)
 
     def test_dirty_policy_discard_allows_switching(self):
         doc = self.open_map()

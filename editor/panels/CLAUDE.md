@@ -184,7 +184,11 @@ import list.**
   events: ALL cell picking is `screen_to_world` → floor (E-3). Strokes
   Bresenham-interpolate between move events so fast drags don't gap.
 - **Viewport map mode** (`set_map_mode(session)`): coords rebuilt with the map's
-  dims; LEFT = armed tool, RIGHT = pan (entity preview keeps either-button pan).
+  dims; camera opens (and re-frames on window resize, `_resize_surface`) centred
+  on the map's own `camera_start` via `_center_on_camera_start` — the same view
+  `game/main.py:frame_camera()` opens on at boot — falling back to `clamp` (which
+  centres if the map fits the viewport, else anchors) when no startpoint has been
+  painted yet. LEFT = armed tool, RIGHT = pan (entity preview keeps either-button pan).
   Under the "none" tool a LEFT-drag that didn't grab the base pans too (inspect
   mode — `_drag_pos` set after `_tool_press` when `_tool == "none" and not
   _base_drag`). `_drag_pos` set ⇒ pan; a live brush stroke leaves it None. Ghosts
@@ -207,9 +211,20 @@ import list.**
   import-target-only (`_armed_slot()` priority: deco, then base, then armed code's
   slot) since the base is never painted, only dragged.
 - **Lifecycle** (`panels/map_details.py`): New/Duplicate (schema-bounded dialog, id
-  re-checked) / Save / Set Active — Set Active is the ONLY writer of
+  re-checked) / Save / Set Active / Delete — Set Active is the ONLY writer of
   `data/maps/active_map.json` (D-21). Create/duplicate write to disk immediately
-  (all-forest fill for new maps). Map deletion deferred (destructive).
+  (all-forest fill for new maps). **Delete map** (`MapSession.delete`,
+  `engine.tilemap.delete_map`) is confirm-dialog gated (mirrors
+  `details.py:clear_entry` / `balancing.py:_HistoryDialog._delete_selected`) and
+  refuses the ACTIVE map (button disabled + tooltip; would leave the D-21
+  pointer dangling) — deleting always targets the currently-open doc, which
+  `_on_delete` releases from the session (`doc = None`, undo stack cleared)
+  before the file unlink, then emits `map_deleted` so MainWindow leaves map
+  mode and the selector's Maps branch refreshes. **Do not connect a
+  `clicked`-driven confirm method directly** — `QPushButton.clicked` emits
+  `clicked(bool checked)`, which silently overrides a `confirm=True` kwarg
+  default to `False` on connect; wrap in a lambda (`clicked.connect(lambda:
+  self._on_delete())`) so a real click always shows the dialog.
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the

@@ -11,8 +11,10 @@ Runtime layer over an `engine.tilemap.TileMapDoc` (**never re-parse map JSON**):
 Conventions that differ from the prototype (deliberate, clean-arch):
 - **Zones seed from the map file's terrain codes**, not procedural rings —
   `b`→BUILDABLE, `c`→COMBAT, `s`→SPAWNING, `f/l/o`→BACKGROUND, `doc.base`
-  tile→BUILT. The map file is the source of truth. Unlock sections + the playfield
-  window anchor at the base corner (`base_col/row` .. `dim-1`).
+  tile→BUILT. The map file is the source of truth. The playfield window anchors
+  at the base corner (`base_col/row` .. `dim-1`); the 2×2 unlock/section grid is
+  offset one row up from that (`_sec_row_origin = base_row-1`) so the hole is the
+  **bottom-left** tile of its own section (0,0), not the top-left corner.
 - **Pathfinding weight is content-key driven, not `isinstance(Building)`**: each
   tile resolves to a key in `map.json` `Pathfinding.content_weights` (empty tiles
   from their zone; occupied tiles carry the key set at placement). Composition
