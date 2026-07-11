@@ -20,6 +20,7 @@ re-exports it as ``BUILDING_CLASSES`` (one source, two names for two callers).
 from dataclasses import dataclass
 
 from .aoe_defence import AOEDefenceBuilding
+from .boost import BoostDamage, BoostHP, BoostSpeed
 from .defender import Defender
 from .meditator import Meditator
 from .musician import Musician
@@ -27,7 +28,7 @@ from .painter import Painter
 from .sun_scorcher import SunScorcher
 
 # building_type -> leaf class. 9D leaves + the 10B defence lines + the 10C
-# economy lines; families grow in 10x.
+# economy lines + the 10D boost trio; families grow in 10x.
 LEAF_CLASSES = {
     "defence": Defender,
     "economic": Musician,
@@ -35,7 +36,14 @@ LEAF_CLASSES = {
     "sun_scorcher": SunScorcher,
     "painter": Painter,
     "meditator": Meditator,
+    "boost_speed": BoostSpeed,
+    "boost_damage": BoostDamage,
+    "boost_hp": BoostHP,
 }
+
+# The boost trio unlocks together from a single level-up card; the lead type owns
+# the card copy, the other two ride its ``unlock_group`` (see the RESEARCH rows).
+_BOOST_TRIO = ("boost_speed", "boost_damage", "boost_hp")
 
 
 @dataclass(frozen=True)
@@ -84,9 +92,27 @@ RESEARCH = {
         unlock_explanation="A risky artist who pays a large lump sum after "
                            "surviving a few rounds — then is gone for good."),
     "meditator": ResearchSpec(starts_with_tier=0),
-    # 10D: "boost_speed"/"boost_damage"/"boost_hp": gate_kind="min_round",
-    #      gate_path ("BoostBuildings", "globals", "unlock_min_round"),
-    #      unlock_group = the trio (one card unlocks all three)
+    # 10D — the boost trio. All three are LOCKED types that unlock TOGETHER from
+    # one round-gated card (round 10, BoostBuildings.globals.unlock_min_round). The
+    # lead (boost_speed) carries the card copy + is the only one the roll offers an
+    # unlock card for; the other two ride its unlock_group (the roll skips non-lead
+    # members — see game/core/levelup.py). All three need a row so each offers its
+    # own Supporting Fan->Cheerleader->Drill Sergeant tier cards AFTER unlocking.
+    "boost_speed": ResearchSpec(
+        starts_unlocked=False, gate_kind="min_round",
+        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
+        unlock_group=_BOOST_TRIO,
+        unlock_title="Unlock Boost Buildings",
+        unlock_explanation="Cheerleaders that buff adjacent defenders — but curse "
+                           "their neighbours when they fall."),
+    "boost_damage": ResearchSpec(
+        starts_unlocked=False, gate_kind="min_round",
+        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
+        unlock_group=_BOOST_TRIO),
+    "boost_hp": ResearchSpec(
+        starts_unlocked=False, gate_kind="min_round",
+        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
+        unlock_group=_BOOST_TRIO),
     # 10E: "blocker": no gate;  "wall_builder": starts_with_tier=0
 }
 

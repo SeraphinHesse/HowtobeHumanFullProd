@@ -19,7 +19,7 @@ stats and marker components.
 from functools import reduce
 
 from engine.core import GameObject, Health, SpriteAnimator, Transform
-from .components import Nameplate, RoundStats, TierState
+from .components import BoostReceiver, Nameplate, RoundStats, TierState
 
 
 def _ordinal(n):
@@ -108,8 +108,16 @@ class Building(GameObject):
     # -- derived stats (prototype formulas; ×10 scale baked into the data) -
 
     def max_hp(self):
+        """Base tier HP, lifted by an adjacent ``boost_hp`` and cut by its
+        explosion penalty when a booster on this combat building dies (prototype
+        ``update_stats_from_tier``). Non-combat buildings carry no ``BoostReceiver``
+        → the plain tier value."""
         d = self.tier_data()
-        return max(1, d["base_hp"] + self._lvl_idx * d["hp_per_level"])
+        base = d["base_hp"] + self._lvl_idx * d["hp_per_level"]
+        rcv = self.get_component(BoostReceiver)
+        if rcv is None:
+            return max(1, base)
+        return max(1, int(base * (1.0 + rcv.hp_pct)) - rcv.hp_penalty())
 
     def upgrade_cost(self):
         d = self.tier_data()

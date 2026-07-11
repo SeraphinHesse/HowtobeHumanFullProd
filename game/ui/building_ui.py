@@ -39,6 +39,12 @@ def _building_stats(b):
         rows.append(("Range", b.range_tiles()))
         rows.append(("Atk speed", f"{b.attack_speed():.1f}s"))
         rows.append(("Upkeep", b.upkeep()))
+        # 10D: a booster is lifting these — show the un-boosted base for contrast.
+        for label, base in b.boosted_stats().items():
+            rows.append((f"{label} base", base))
+    if hasattr(b, "boost_value"):       # boost building (10D) — buffs neighbours
+        rows.append((b._boost_label, f"{b.boost_value() * 100:.1f}%"))
+        rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("Progress", f"{b.progress}/{b.rounds_to_payout()}"))
         rows.append(("Payout", f"{HEART}{b.payout_amount()}"))

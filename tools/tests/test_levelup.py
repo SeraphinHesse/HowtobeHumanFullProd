@@ -90,16 +90,20 @@ class TestRunStateSeeding(unittest.TestCase):
         # (earned via a level-up unlock card) but with tier 1 ready once unlocked.
         # 10C: Painter is a LOCKED type (tier 1 ready once unlocked); Meditator's
         # type is always unlocked but starts at ZERO researched tiers (tier 1
-        # researched at a level-up, era-gated to round 10).
+        # researched at a level-up, era-gated to round 10). 10D: the three boost
+        # types start LOCKED (unlocked together by one round-10 card) but tier 1
+        # ready once unlocked.
         self.assertEqual(
             st.tiers_unlocked,
             {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
-             "painter": 1, "meditator": 0})
+             "painter": 1, "meditator": 0,
+             "boost_speed": 1, "boost_damage": 1, "boost_hp": 1})
         self.assertEqual(
             st.unlocked_buildings,
             {"defence": True, "economic": True,
              "aoe_defence": False, "sun_scorcher": False,
-             "painter": False, "meditator": True})
+             "painter": False, "meditator": True,
+             "boost_speed": False, "boost_damage": False, "boost_hp": False})
 
 
 # ---------------------------------------------------------------------------

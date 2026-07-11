@@ -76,6 +76,72 @@ class PainterProgress(Component):
     gone_for_good: bool = False
 
 
+class BoostReceiver(Component):
+    """Boost accumulators + explosion debuffs a COMBAT building carries (Phase
+    10D, prototype ``_boost_*_pct`` / ``_explosion_debuffs`` ad-hoc attrs, which
+    E-11 forbids here). Present on every defence-family building so a booster can
+    write into it; the combat building READS it when computing effective stats:
+
+    - ``damage_pct`` / ``speed_pct`` / ``hp_pct`` — fractions ACCUMULATED each
+      surviving income phase by a cardinal-adjacent booster (ramp mode) or once at
+      placement (flat mode). Never rolled back when the booster dies (ramp); flat
+      mode reverses its own contribution on death.
+    - ``explosion_debuffs`` — a booster that DIES stamps a penalty on its
+      neighbours "until rebuilt". JSON-safe: a list of
+      ``{"col", "row", "stat", "amount"}`` (a Component can't hold a tuple-keyed
+      dict), keyed logically by the dead booster's ``(col, row)``. ``stat`` is
+      ``"damage"`` / ``"speed"`` (lazy multiplier flags: ×0.5 dmg / ×1.5 spd per
+      entry) or ``"hp"`` (``amount`` = the max-HP chunk removed, restored exactly
+      when a new booster is placed on that tile).
+    """
+
+    damage_pct: float = 0.0
+    speed_pct: float = 0.0
+    hp_pct: float = 0.0
+    explosion_debuffs: list = []
+
+    def hp_penalty(self):
+        """Total max-HP removed by ``hp`` explosion debuffs (prototype sum)."""
+        return sum(e["amount"] for e in self.explosion_debuffs
+                   if e["stat"] == "hp")
+
+    def count_debuffs(self, stat):
+        """How many ``stat`` explosion debuffs are active (each applies once —
+        the prototype halves damage / ×1.5 slows PER entry)."""
+        return sum(1 for e in self.explosion_debuffs if e["stat"] == stat)
+
+    def set_explosion(self, col, row, stat, amount=0):
+        """Stamp (or overwrite) the debuff from booster ``(col, row)`` — prototype
+        ``_explosion_debuffs[(col,row)] = …`` (same tile overwrites)."""
+        self.pop_explosion(col, row)
+        self.explosion_debuffs.append(
+            {"col": col, "row": row, "stat": stat, "amount": amount})
+
+    def pop_explosion(self, col, row):
+        """Remove + return the debuff stamped by booster ``(col, row)`` (or None)."""
+        for i, e in enumerate(self.explosion_debuffs):
+            if e["col"] == col and e["row"] == row:
+                return self.explosion_debuffs.pop(i)
+        return None
+
+
+class BoostEmitter(Component):
+    """Marks a boost building (Phase 10D). Its PRESENCE + the ``"boost"`` tag are
+    the boost-family capability marker (symmetric with ``Attacker`` /
+    ``YieldEconomy``). Carries two guards the payday boost sweep + placement need:
+
+    - ``exploded`` — set when a DEAD booster has already stamped its one explosion
+      (reset on revive), so a booster dead across a single payday doesn't
+      re-explode or stack. The boost magnitude is a computed method on
+      ``BoostBuilding`` (from the tier table), never stored.
+    - ``flat_applied`` — in flat mode, whether this booster's one-time 10× boost is
+      currently applied to its neighbours, so death-removal is exact + idempotent.
+    """
+
+    exploded: bool = False
+    flat_applied: bool = False
+
+
 class SplashAttacker(Component):
     """Marks an AOE (splash) combat building (Phase 10B). Its PRESENCE tells the
     type-agnostic combat sweep to fire the splash path — a fixed-ground-point

@@ -41,6 +41,11 @@ class RunState:
     # ``(col, row, text, kind)`` where kind = "finished" | "lost". Filled by
     # ``run_payday``, drained by the UI; never serialized.
     painter_events: list = field(default_factory=list)
+    # -- Boost (10D) ------------------------------------------------------
+    # White per-turn boost floaters, same drained-by-UI contract as the others:
+    # ``(col, row, text)`` anchored on each buffed defender's tile. Filled by the
+    # payday boost slot, drained by the UI; never serialized.
+    boost_events: list = field(default_factory=list)
     # -- XP / village level (10A) -----------------------------------------
     player_xp: int = 0
     village_level: int = 1
