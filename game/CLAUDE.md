@@ -82,11 +82,19 @@ These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only he
 - **No full-map scans on routine actions** — `_find_2x2` (spawn-recede) uses an
   expanding-window search, byte-identical to the old full scan.
 - **Ground terrain draws through the scrolling `GroundCache`**, fed the
-  `band_render_items` diagonal-strip emitter (NOT `visible_render_items`).
+  `band_render_items` diagonal-strip emitter (NOT `visible_render_items`),
+  with `TileMap.terrain_overrides` as `code_overrides` so unlock/recede zone
+  changes show; `tile_map.on_zone_change = ground_cache.invalidate` (wired in
+  `build_gameplay`) repaints the cache once per zone change, never per frame.
 - **GC is frozen after `build_gameplay`** (`freeze_static`), gated to windowed runs
   (`tune_gc`) — headless boots must not have GC state mutated.
-- Open frontier (not yet done): per-spawn Dijkstra in `Enemy.on_spawn` → a shared
-  flow-field. See `game/PERF.md`.
+- **Base pathfinding is a shared flow field** — `find_path` /
+  `find_path_ignoring_walls` walk ONE cached reverse-Dijkstra field from the
+  base instead of a Dijkstra per enemy spawn. INVARIANT: every weight or
+  blocking mutation must bump `TileMap._path_version` (zone/content writes go
+  through `set_tile_state`/`set_tile_content`; wall add/remove/death and the
+  pre-query weight producers bump internally) — a missed bump serves stale
+  paths. See `game/PERF.md`.
 
 ## Conventions (whole package)
 - Game classes subclass `GameObject` but keep ALL state in components (engine rule)

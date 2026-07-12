@@ -46,7 +46,7 @@ from engine.assets import load_registry
 REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
-EYES = ("terrain", "tint", "base", "deco", "camera")
+EYES = ("terrain", "tint", "base", "deco", "camera", "start_area")
 MODES = ("gametiles", "background", "decoration")
 MODE_LABELS = {
     "gametiles": "Game tiles",
@@ -67,6 +67,7 @@ class PalettePanel(QWidget):
     deco_armed = Signal(str)     # a deco slot key
     base_armed = Signal(str)     # the base/hole slot (now a paintable brush)
     camera_armed = Signal(str)   # the camera-startpoint slot (paintable brush)
+    start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -169,7 +170,7 @@ class PalettePanel(QWidget):
         layout.addWidget(QLabel("Layers"))
         self._eye_boxes = {}
         for name in EYES:
-            box = QCheckBox(name.title(), self)
+            box = QCheckBox(name.replace("_", " ").title(), self)
             box.setChecked(True)
             box.toggled.connect(
                 lambda on, n=name: self.eye_toggled.emit(n, on))
@@ -220,6 +221,12 @@ class PalettePanel(QWidget):
         except (KeyError, ValueError):
             return []
 
+    def _start_area_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Start Area",)))
+        except (KeyError, ValueError):
+            return []
+
     def _zone_codes(self):
         """Legend codes for the zone (checker) tiles, sorted."""
         if not self._legend:
@@ -267,6 +274,8 @@ class PalettePanel(QWidget):
             btn.clicked.connect(lambda _=False, v=value: self.arm_deco(v))
         elif kind == "camera":
             btn.clicked.connect(lambda _=False, v=value: self.arm_camera(v))
+        elif kind == "start_area":
+            btn.clicked.connect(lambda _=False, v=value: self.arm_start_area(v))
         else:
             btn.clicked.connect(lambda _=False, v=value: self.arm_base(v))
         self._brush_group.addButton(btn)
@@ -284,8 +293,9 @@ class PalettePanel(QWidget):
     def _rebuild_gametiles(self):
         _title_w, _page, page_layout = self._pages["gametiles"]
         self._clear_page_brushes("code", page_layout)
-        # base + camera buttons also live here; clear + rebuild them too
-        for key in [k for k in self._brush_buttons if k[0] in ("base", "camera")]:
+        # base + camera + start-area buttons also live here; clear + rebuild too
+        for key in [k for k in self._brush_buttons
+                    if k[0] in ("base", "camera", "start_area")]:
             btn = self._brush_buttons.pop(key)
             self._brush_group.removeButton(btn)
             page_layout.removeWidget(btn)
@@ -301,6 +311,10 @@ class PalettePanel(QWidget):
         for slot in self._camera_slots():
             self._add_brush_button(page_layout, ("camera", slot),
                                    "Camera Start", idx)
+            idx += 1
+        for slot in self._start_area_slots():
+            self._add_brush_button(page_layout, ("start_area", slot),
+                                   "Starting Area", idx)
             idx += 1
         self.refresh_icons()
 
@@ -466,6 +480,12 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_start_area(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "start_area" and btn.isChecked():
+                return value
+        return None
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -505,6 +525,16 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.camera_armed.emit(slot)
 
+    def arm_start_area(self, slot):
+        """Arm the Starting Area brush (paint = place/move the single 2×2 area,
+        erase = remove it — viewport._tool_press). start_area_armed tells the
+        viewport to clear any stale armed code/deco/base/camera."""
+        btn = self._brush_buttons.get(("start_area", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.start_area_armed.emit(slot)
+
     def eye(self, name):
         return self._eye_boxes[name].isChecked()
 
@@ -524,6 +554,9 @@ class PalettePanel(QWidget):
         camera = self.armed_camera()
         if camera is not None:
             return camera
+        start_area = self.armed_start_area()
+        if start_area is not None:
+            return start_area
         code = self.armed_code()
         if code is not None and self._legend is not None:
             return self._legend[code]["slot"]
@@ -534,8 +567,9 @@ class PalettePanel(QWidget):
         if slot is None:
             QMessageBox.information(
                 self, "Import Spritesheet",
-                "Arm a tile, background, hole, camera startpoint or deco brush "
-                "first — the import targets whichever one is currently selected.")
+                "Arm a tile, background, hole, camera startpoint, starting "
+                "area or deco brush first — the import targets whichever one "
+                "is currently selected.")
             return
         path, _filter = QFileDialog.getOpenFileName(
             self, "Choose spritesheet PNG", "", "PNG images (*.png)")

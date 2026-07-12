@@ -199,6 +199,39 @@
       "minimum": 4,
       "type": "integer"
     },
+    "start_area": {
+      "description": "The 2x2 starting area - a single movable map object, click-placed or dragged in the editor (Game tiles mode). {col,row} is the 2x2's MIN corner (top-left anchor); it spans col..col+1 x row..row+1 and must fit inside the grid (col+1 < cols, row+1 < rows - cross-checked by engine.tilemap.load_map). The game anchors the 2x2 tile-unlock section grid (and the playfield window) on it; the marker never forces tile states - the designer still paints buildable tiles under it (the editor warns otherwise). Not rendered in-game; the editor draws it as a 2x2 outline. MAY BE null (the editor shows a yellow warning; the game falls back to base-anchored sections); the key is always present.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Starting area min-corner column, 0-based; must satisfy col+1 < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Starting area min-corner row, 0-based; must satisfy row+1 < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "start_area",
+              "description": "Asset slot key (const-pinned; the slot registry's core/Start Area slot). The editor draws the marker as an outline, not this sprite."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
     "terrain": {
       "description": "The painted zone grid: exactly 'rows' strings of exactly 'cols' chars each (loader-enforced), terrain[row][col], chars from the legend. Row strings keep diffs one-line-per-row for git and agents (D-3 spirit).",
       "items": {
@@ -218,6 +251,7 @@
     "id",
     "legend",
     "rows",
+    "start_area",
     "terrain"
   ],
   "title": "map_file",

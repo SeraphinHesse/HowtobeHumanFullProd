@@ -11,10 +11,44 @@ Runtime layer over an `engine.tilemap.TileMapDoc` (**never re-parse map JSON**):
 Conventions that differ from the prototype (deliberate, clean-arch):
 - **Zones seed from the map file's terrain codes**, not procedural rings —
   `b`→BUILDABLE, `c`→COMBAT, `s`→SPAWNING, `f/l/o`→BACKGROUND, `doc.base`
-  tile→BUILT. The map file is the source of truth. The playfield window anchors
-  at the base corner (`base_col/row` .. `dim-1`); the 2×2 unlock/section grid is
-  offset one row up from that (`_sec_row_origin = base_row-1`) so the hole is the
-  **bottom-left** tile of its own section (0,0), not the top-left corner.
+  tile→BUILT. The map file is the source of truth. **Anchoring:** when the map
+  carries a `start_area` marker (the editor's 2×2 "Starting Area" object), the
+  2×2 unlock/section grid anchors at its min corner — the marker IS section
+  (0,0). The marker never forces tile states (painted terrain wins; the editor
+  warns if its 4 cells aren't `b`). Maps without a marker fall back to the
+  legacy base anchoring: section grid offset one row up
+  (`_sec_row_origin = base_row-1`) so the hole is the **bottom-left** tile of
+  its own section (0,0). There is NO playfield window anymore — the old
+  quarter-plane window (start corner → map max) blocked every recede left/above
+  the start area; the directional backfill rule below does the real filtering.
+- **Unlock cost is direction-agnostic**: `base_unlock_cost +
+  max(0, manhattan_section_distance − 1) * unlock_cost_distance_mod` — sections
+  adjacent to the start section cost exactly the base cost, each further
+  Manhattan step adds the mod, never below base (the old signed `sc+sr` formula
+  went negative left/above the start).
+- **Zone changes show on the ground**: `set_tile_state` records the tile's new
+  zone code (state→code via `_STATE_CODE`) in `TileMap.terrain_overrides` and
+  fires the host-wired `on_zone_change` callable. `game/main.py` feeds the
+  overrides to `band_render_items(code_overrides=…)` and wires
+  `on_zone_change = ground_cache.invalidate`, so an unlocked chunk renders
+  buildable and a backfilled background block renders spawning — WITHOUT
+  mutating the shared map doc (a new game builds a fresh TileMap → empty
+  overrides → pristine terrain). BUILT/BACKGROUND have no code and never
+  write an override.
+- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND**: a successful
+  unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk
+  AND the nearest col-aligned one to COMBAT (an axis with no aligned band is
+  skipped — no nearest-overall fallback), then each converted block backfills
+  the nearest BACKGROUND 2×2 strictly behind it (`_backfill_spawn_behind`):
+  beyond the block on the recede axis, away from the chunk, anchor pinned to
+  the block's own cross-axis anchor — a clean band translation. Nothing
+  qualifies behind (map edge) → NO backfill, the band shrinks by one block
+  (deliberately no any-background fallback — that's exactly the wrong-side
+  placement this rule removes). Both conversions happen before either
+  backfill so the second axis can't re-find the first's block or its fresh
+  backfill. Axis alignment + behindness are expressed as `_find_2x2` anchor
+  clamp bounds (`c_bounds`/`r_bounds`), which also keep every backfill and
+  no-match axis search O(strip), never O(map).
 - **Pathfinding weight is content-key driven, not `isinstance(Building)`**: each
   tile resolves to a key in `map.json` `Pathfinding.content_weights` (empty tiles
   from their zone; occupied tiles carry the key set at placement). Composition
@@ -73,8 +107,19 @@ Conventions that differ from the prototype (deliberate, clean-arch):
 
 ## Perf invariants that live here
 Tile-state writes MUST route through `TileMap.set_tile_state` (keeps the
-`_by_state` index consistent); `_find_2x2` uses an expanding-window search. Full
-rationale + measured numbers → `game/PERF.md`.
+`_by_state` index consistent); `_find_2x2` uses an expanding-window search.
+**Base pathfinding is a shared flow field**: `find_path` +
+`find_path_ignoring_walls` walk one cached reverse-Dijkstra field
+(`pathfinder._build_flow_field` — reverse edges cost the weight of the tile a
+forward walker would enter, so field distances equal forward costs exactly),
+keyed by `TileMap._path_version`. EVERY weight/blocking mutation must bump the
+counter: `set_tile_state`, `set_tile_content` (the ONE occupant/content-key
+seam — never write `tile.occupant`/`tile.content_key` directly from outside
+the map layer), wall add/remove/death (mid-HP wall hits don't bump —
+`_wall_blocks` is hp>0), and the two pre-query weight producers, which
+change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev`)
+and bump only on a real difference. Goal-set `find_path_to_nearest_*` variants
+stay fresh Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base

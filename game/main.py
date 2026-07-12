@@ -237,6 +237,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
                              buildings_balance, registry)
+        # Ground follows runtime zone changes: unlock/recede invalidates the
+        # cached ground surface (repainted next ensure). Fresh game -> fresh
+        # TileMap with empty overrides; invalidate drops the previous run's
+        # unlocked-tile visuals too.
+        gp["world"].tile_map.on_zone_change = ground_cache.invalidate
+        ground_cache.invalidate()
         gp["hud"] = Hud(view_w, view_h)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance)
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
@@ -604,11 +610,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # Ground (static terrain) via the cached surface: blitted first,
             # once, at the current pan offset (below the entities/deco/overlay
             # the layer order guarantees draw on top). Rebuilds only on zoom /
-            # resize / panning past the margin — not every frame.
+            # resize / panning past the margin / a zone change (unlock/recede
+            # fires tile_map.on_zone_change -> invalidate) — not every frame.
+            # The runtime zone overrides keep unlocked/receded tiles' ground
+            # visuals in sync WITHOUT mutating the shared map_doc.
             ground_cache.ensure(
                 view_w, view_h,
                 lambda dmn, dmx, smn, smx: tilemap.band_render_items(
-                    map_doc, dmn, dmx, smn, smx))
+                    map_doc, dmn, dmx, smn, smx,
+                    code_overrides=world.tile_map.terrain_overrides))
             ground_cache.blit(window)
             # Base + deco stay dynamic (their own layers, above ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)

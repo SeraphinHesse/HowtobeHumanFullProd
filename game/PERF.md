@@ -48,14 +48,44 @@ multi-hundred-ms freeze each), now O(local):
   `test_tile_unlock.TestFind2x2WindowedMatchesFullScan` (40×40 map vs an inlined
   brute-force oracle) plus the existing exact recede-coordinate tests.
 
-## Next known large-map frontier — per-spawn pathfinding (NOT yet done)
-`Enemy.on_spawn` runs a full `find_path` Dijkstra to the base **per enemy**
-(`game/enemies/enemy.py`), which is O(reachable tiles) — the dominant cost when
-hundreds of enemies spawn on a huge map (staggered, so a per-spawn micro-hitch,
-not a sustained fps drop). The intended fix is a single shared reverse-Dijkstra
-"flow field" from the base, recomputed once per wave / map-topology change and
-reused by every enemy, instead of one Dijkstra per spawn. Left for a dedicated
-pass — it touches path-equivalence, the wall hook, and the goal-set variants.
+## Shared base flow field — per-spawn pathfinding fixed (DONE)
+`Enemy.on_spawn` used to run a full `find_path` Dijkstra to the base **per
+enemy** (O(reachable tiles) each) — the dominant cost when hundreds of enemies
+spawn on a huge map, felt as per-spawn stutter that worsened late in big waves
+(the spawn ramp packs spawns closer together). Now `find_path` AND
+`find_path_ignoring_walls` walk ONE shared reverse-Dijkstra **flow field**
+(`game/map/pathfinder.py _build_flow_field`): a single Dijkstra seeded at the
+base expands outward over the TRANSPOSED edge graph, and each query is an
+O(path-length) walk down the resulting next-step tree.
+- **Reverse edge-cost trick (the equivalence proof):** a forward path pays the
+  weight of every tile it ENTERS after the start (the start tile is free), so
+  in reverse, relaxing neighbour `v` from a settled `u` costs `weight(u)` — the
+  tile a forward walker enters when stepping v→u. Edge rules stay byte-identical
+  to `_dijkstra` (4-connectivity, `_wall_blocks`, the `w >= impassable` skip),
+  making a node's field distance exactly its forward start→base cost. An
+  impassable tile may hold a distance (a spawn can start on one) but never
+  expands.
+- **Invalidation:** the field caches on the `TileMap` keyed by its
+  `_path_version` counter; **every weight/blocking mutation MUST bump it** (a
+  stale cached path is a correctness bug). Bumpers: `set_tile_state` (zone
+  changes: unlock/recede/placement), `set_tile_content` (the ONE
+  occupant/content-key seam — placement, base attach, tile freeing), wall
+  add/remove/death (`place_walls_for_builder` / `remove_walls_for_builder` /
+  `rebuild_walls` recreations / `damage_wall` only on the hp≤0 delete — mid-HP
+  hits don't change `_wall_blocks`), and the two pre-query weight producers
+  (`refresh_damage_weight_reductions` / `refresh_defence_range_coverage`) which
+  now change-detect their flag sets and bump only on an actual difference — so
+  `set_round` and coverage churn invalidate exactly when they change weights.
+- **Both base variants ride the field** (walls-respecting + walls-ignoring,
+  cached side by side): when the player walls in the base, EVERY spawn takes
+  the ignoring-walls fallback, so it must not stay a per-enemy Dijkstra. With
+  no walls the two builds are the same search, keeping the variants byte-equal
+  (a 9C test pins that). The goal-set variants (`find_path_to_nearest_*`) stay
+  fresh forward searches — ~one boss per wave — and their base-path fallback
+  rides the field automatically. `spawn_death_swarm`'s burst also reuses it.
+- Pinned by `test_flow_field` (forward-equivalence on mixed weights + walls,
+  one-build cache reuse, invalidation through every mutation seam) plus the
+  existing exact-cost path tests running unchanged on the field.
 
 ## Large-map GC
 A big map builds one `Tile` per cell (a 1024² map = ~1M long-lived objects). Left

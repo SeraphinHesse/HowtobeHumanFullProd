@@ -7,9 +7,10 @@ logic. Balancing (``data/balancing/map.json``) is injected as a plain dict;
 generalises the loader.
 
 Grid is indexed ``_grid[row][col]`` (prototype-exact); ``get(col, row)`` swaps.
-Unlock sections and the playfield window anchor at the base (the buildable min
-corner) rather than the prototype's hardcoded ``PLAYFIELD_*`` constants, so the
-math is map-driven. Pure Python — no pygame.
+Unlock sections anchor at the map's 2×2 ``start_area`` marker when placed (its
+min corner is section (0,0)), falling back to the base (the buildable min
+corner) rather than the prototype's hardcoded constants, so the math is
+map-driven. Pure Python — no pygame.
 """
 from dataclasses import dataclass
 
@@ -49,6 +50,18 @@ _CODE_STATE = {
     "s": TileState.SPAWNING,
 }
 
+# Runtime zone state -> legend code, the reverse mapping: when unlock/recede
+# changes a tile's zone, `set_tile_state` records the new code in
+# `terrain_overrides` so the GROUND VISUAL follows (unlocked tiles render
+# buildable, a backfilled background block renders spawning). BUILT and
+# BACKGROUND have no code — nothing ever converts TO them at runtime except
+# the base seed, which keeps its painted ground under the sprite.
+_STATE_CODE = {
+    TileState.BUILDABLE: "b",
+    TileState.COMBAT: "c",
+    TileState.SPAWNING: "s",
+}
+
 BASE_CONTENT_KEY = "base_building"
 
 
@@ -67,34 +80,42 @@ class TileMap:
         self.cols = doc.cols
         self.rows = doc.rows
         # A map may have NO hole (editor allows it with a warning). base_col/row
-        # are None then; the playfield window anchors at (0,0) and no BUILT base
-        # tile is seeded. Such a map is not winnable but must not crash.
+        # are None then and no BUILT base tile is seeded. Such a map is not
+        # winnable but must not crash.
         has_base = doc.base is not None
         self.base_col = doc.base["col"] if has_base else None
         self.base_row = doc.base["row"] if has_base else None
 
-        # Unlock sections + playfield window anchor at the base (buildable min
-        # corner); a one-tile background border → max index = dim-1. This
-        # reproduces the prototype's PLAYFIELD 1..dim-1 for the shipped map.
-        self._pf_col_min = self.base_col if has_base else 0
-        self._pf_row_min = self.base_row if has_base else 0
-        self._pf_col_max = self.cols - 1
-        self._pf_row_max = self.rows - 1
-
-        # The 2×2 unlock/section grid is anchored so the HOLE is the BOTTOM-LEFT
-        # tile of its own section (0,0), not the top-left corner: the row origin
-        # is one tile up from the base (col origin unchanged), so a section spans
-        # [base_row-1, base_row] in the hole's band. The playfield window (_pf_*)
-        # still anchors at the base corner and is unaffected.
-        self._sec_col_origin = self._pf_col_min
-        self._sec_row_origin = (
-            self._pf_row_min - 1 if has_base else self._pf_row_min)
+        # Unlock sections anchor at the map's 2×2 START AREA marker when one
+        # is placed: the marker's min corner IS section (0,0) — the starting
+        # buildable pocket the designer painted under it. Maps without a
+        # marker (editor warns, never blocks) fall back to the legacy
+        # base-derived anchoring: section grid offset one row up so the HOLE
+        # is the BOTTOM-LEFT tile of its own section (0,0).
+        start = doc.start_area
+        if start is not None:
+            self._sec_col_origin = start["col"]
+            self._sec_row_origin = start["row"]
+        else:
+            self._sec_col_origin = self.base_col if has_base else 0
+            self._sec_row_origin = (
+                self.base_row - 1 if has_base else 0)
 
         # Round gate for the damage-weight discount (dormant: nothing calls
         # set_round until 9F/10F). Defence-range coverage function is wired by
         # core in 10I; None keeps the range-affects-path feature dormant.
         self.round_num = 1
         self._defence_coverage_fn = None
+
+        # Ground-visual sync: `{(col, row): code}` of tiles whose runtime zone
+        # diverged from the painted terrain (unlock/recede). The host feeds it
+        # to `band_render_items(code_overrides=…)` so the ground layer follows
+        # zone changes WITHOUT mutating the shared map doc (a new game builds
+        # a fresh TileMap → empty overrides → pristine terrain). `on_zone_change`
+        # is a host-wired callable (e.g. GroundCache.invalidate), fired on every
+        # zone-code write; None keeps headless fixtures inert.
+        self.terrain_overrides = {}
+        self.on_zone_change = None
 
         # Perimeter edge walls placed by WallBuilder buildings (10E). Keyed by
         # `_wall_key`. One WallEdge per edge — if two builders cover the same
@@ -105,6 +126,20 @@ class TileMap:
         # wired in 10I; 0 keeps the coverage add inert in 9C (and coverage is
         # empty anyway, so it never fires).
         self._defence_range_add = 0
+
+        # Flow-field invalidation seam (game/PERF.md): the pathfinder caches
+        # ONE shared base flow field per `_path_version`; EVERY weight or
+        # blocking mutation must bump the counter (`_bump_path_version`) or a
+        # stale cached path becomes a correctness bug. Bumpers: zone changes
+        # (`set_tile_state`), occupant/content-key writes
+        # (`set_tile_content`), wall add/remove/death (mid-HP hits keep
+        # `_wall_blocks` true, so they do NOT bump), and the two pre-query
+        # weight producers below when their flag SETS actually change. All
+        # underscore transients — TileMap is a plain class, not a GameObject.
+        self._path_version = 0
+        self._flow_cache = None
+        self._dmg_reduced_prev = set()
+        self._defence_covered_prev = set()
 
         # Seed the runtime grid from terrain codes; the base occupies its tile.
         # An incremental per-state index (`_by_state`) is built in the SAME pass:
@@ -127,7 +162,7 @@ class TileMap:
         if has_base:
             base_tile = self.get(self.base_col, self.base_row)
             self.set_tile_state(base_tile, TileState.BUILT)
-            base_tile.content_key = BASE_CONTENT_KEY
+            self.set_tile_content(base_tile, None, BASE_CONTENT_KEY)
 
         # -- 10I: tile-condition roll (prototype tile_map.py:69-91) ---------
         # ONE weighted draw per eligible tile, ONCE at map construction —
@@ -176,15 +211,46 @@ class TileMap:
             return self._grid[row][col]
         return None
 
+    def _bump_path_version(self):
+        """Invalidate the pathfinder's cached base flow field. Called by every
+        weight/blocking mutation (see the `_path_version` init note); cheap —
+        the field itself rebuilds lazily on the next `find_path` query."""
+        self._path_version += 1
+
+    def set_tile_content(self, tile, occupant, content_key):
+        """THE one seam for occupant/content-key writes (building placement,
+        base attach, tile freeing — `game/buildings/registry.py` +
+        `game/core/payday.py` route through here). A tile's content key IS
+        its base pathfinding weight, so a key change invalidates the flow
+        field; occupant-only changes don't (the two pre-query weight
+        producers self-detect theirs)."""
+        tile.occupant = occupant
+        if tile.content_key != content_key:
+            tile.content_key = content_key
+            self._bump_path_version()
+
     def set_tile_state(self, tile, new_state):
         """THE one place a tile's zone/unlock state changes. Keeps the
-        `_by_state` index consistent so the state queries stay O(result). A
-        no-op when the state is unchanged; never write `tile.state` directly."""
+        `_by_state` index consistent so the state queries stay O(result), and
+        records the tile's new zone CODE in `terrain_overrides` (+ fires
+        `on_zone_change`) so the ground visual follows the zone. A no-op when
+        the state is unchanged; never write `tile.state` directly."""
         if tile.state == new_state:
             return
         self._by_state[tile.state].discard(tile)
         tile.state = new_state
         self._by_state[new_state].add(tile)
+        # An empty tile's path weight derives from its zone — invalidate.
+        self._bump_path_version()
+        code = _STATE_CODE.get(new_state)
+        if code is not None:
+            if self._doc.terrain[tile.row][tile.col] == code:
+                # back to the painted code — drop the override
+                self.terrain_overrides.pop((tile.col, tile.row), None)
+            else:
+                self.terrain_overrides[(tile.col, tile.row)] = code
+            if self.on_zone_change is not None:
+                self.on_zone_change()
 
     def all_tiles(self):
         for r in range(self.rows):
@@ -203,22 +269,28 @@ class TileMap:
     # -- tile unlocking (prototype tile_map.py:298-374) -------------------
 
     def _section_index(self, tile):
-        """(col_section, row_section) of the fixed 2×2 grid anchored so the base
-        is the BOTTOM-LEFT tile of section (0, 0) (row origin one tile above the
-        base). The starting buildable pocket is section (0, 0)."""
+        """(col_section, row_section) of the fixed 2×2 grid. Anchored at the
+        map's start_area marker when placed (the marker IS section (0, 0));
+        otherwise so the base is the BOTTOM-LEFT tile of section (0, 0) (row
+        origin one tile above the base). The starting buildable pocket is
+        section (0, 0)."""
         return ((tile.col - self._sec_col_origin) // 2,
                 (tile.row - self._sec_row_origin) // 2)
 
     def unlock_cost(self, tile):
-        """BASE + (col_sec + row_sec) * MOD — cost scales with 2×2-section
-        Manhattan distance from the starting buildable section."""
+        """BASE + (manhattan − 1) * MOD — cost scales with the 2×2-section
+        Manhattan distance from the starting section (0, 0), direction-agnostic:
+        sections ADJACENT to the start cost exactly ``base_unlock_cost`` and
+        each further step adds ``unlock_cost_distance_mod``. The distance term
+        is clamped ≥ 0 (section (0, 0) itself starts owned, never purchased)."""
         u = self._balance["TileUnlocking"]
         sc, sr = self._section_index(tile)
-        return u["base_unlock_cost"] + (sc + sr) * u["unlock_cost_distance_mod"]
+        dist = max(0, abs(sc) + abs(sr) - 1)
+        return u["base_unlock_cost"] + dist * u["unlock_cost_distance_mod"]
 
     def get_chunk_for_tile(self, tile):
-        """The fixed 2×2 chunk containing `tile` (aligned so the base is its
-        bottom-left tile; every playfield tile belongs to exactly one
+        """The fixed 2×2 chunk containing `tile` (aligned to the section grid —
+        see `_section_index`; every playfield tile belongs to exactly one
         non-overlapping chunk)."""
         anchor_col = self._sec_col_origin + (
             (tile.col - self._sec_col_origin) // 2) * 2
@@ -269,15 +341,14 @@ class TileMap:
 
     # -- dynamic zone progression (prototype tile_map.py:377-438) ---------
 
-    def _scan_2x2(self, predicate, ref_col, ref_row, min_ring,
+    def _scan_2x2(self, predicate, ref_col, ref_row,
                   c_lo, c_hi, r_lo, r_hi):
         """Nearest 2×2 block (top-left anchor) satisfying `predicate` within the
         anchor window [c_lo, c_hi] × [r_lo, r_hi], by squared distance to
         (ref_col, ref_row). Returns (block, squared_distance) or (None, inf).
         Row-major scan + strict `<` best-update: the FIRST row-major block at the
         minimum distance wins (the invariant `_find_2x2` relies on to stay exact
-        vs a whole-map scan). `min_ring` forces the block centre's Chebyshev ring
-        (from the map corner) ≥ that value."""
+        vs a whole-map scan)."""
         best = None
         best_d = float("inf")
         for r in range(r_lo, r_hi + 1):
@@ -287,18 +358,19 @@ class TileMap:
                 if any(t is None or not predicate(t) for t in block):
                     continue
                 cc, rr = c + 0.5, r + 0.5
-                if min_ring is not None and max(cc, rr) < min_ring:
-                    continue
                 d = (cc - ref_col) ** 2 + (rr - ref_row) ** 2
                 if d < best_d:
                     best_d, best = d, block
         return best, best_d
 
-    def _find_2x2(self, predicate, ref_col, ref_row, min_ring=None):
+    def _find_2x2(self, predicate, ref_col, ref_row,
+                  c_bounds=None, r_bounds=None):
         """Nearest 2×2 block (top-left anchor) whose four tiles all satisfy
-        `predicate`, by squared distance to (ref_col, ref_row). `min_ring`
-        optionally forces the block centre's Chebyshev ring ≥ that value (keeps
-        the new spawn block strictly behind the converted one).
+        `predicate`, by squared distance to (ref_col, ref_row). `c_bounds` /
+        `r_bounds` optionally clamp the block ANCHOR's col/row to an inclusive
+        range — the dual-axis recede's axis-alignment constraint: a 2-tall
+        block anchored at row r covers rows {r, r+1}, so anchors in
+        (lo−1, hi) are EXACTLY the blocks whose rows overlap [lo, hi].
 
         The nearest match is almost always a few tiles from the reference, so we
         scan an EXPANDING square window instead of the whole map (an O(map) hitch
@@ -309,57 +381,110 @@ class TileMap:
         block-centre offsets) no outside block can be closer OR equal — hence the
         window holds every minimum-distance block and row-major-first *in it*
         equals row-major-first *globally*. Result is byte-identical to a full
-        scan; the whole-map window is the terminating fallback."""
+        scan; the whole-CLAMPED-region window is the terminating fallback (with
+        bounds, a no-match search stays O(strip), never O(map) — blocks outside
+        the clamp are not candidates at all, so the early-accept proof holds
+        unchanged)."""
         anchor_c_max = self.cols - 2
         anchor_r_max = self.rows - 2
         if anchor_c_max < 0 or anchor_r_max < 0:
             return None
+        full_c_lo, full_c_hi = 0, anchor_c_max
+        if c_bounds is not None:
+            full_c_lo = max(full_c_lo, c_bounds[0])
+            full_c_hi = min(full_c_hi, c_bounds[1])
+        full_r_lo, full_r_hi = 0, anchor_r_max
+        if r_bounds is not None:
+            full_r_lo = max(full_r_lo, r_bounds[0])
+            full_r_hi = min(full_r_hi, r_bounds[1])
+        if full_c_lo > full_c_hi or full_r_lo > full_r_hi:
+            return None
         ci = int(round(ref_col))
         ri = int(round(ref_row))
-        max_radius = max(self.cols, self.rows)
         radius = 8
         while True:
-            c_lo = max(0, ci - radius)
-            c_hi = min(anchor_c_max, ci + radius)
-            r_lo = max(0, ri - radius)
-            r_hi = min(anchor_r_max, ri + radius)
+            c_lo = max(full_c_lo, ci - radius)
+            c_hi = min(full_c_hi, ci + radius)
+            r_lo = max(full_r_lo, ri - radius)
+            r_hi = min(full_r_hi, ri + radius)
             best, best_d = self._scan_2x2(
-                predicate, ref_col, ref_row, min_ring, c_lo, c_hi, r_lo, r_hi)
-            covers_map = (c_lo == 0 and r_lo == 0
-                          and c_hi == anchor_c_max and r_hi == anchor_r_max)
-            if covers_map or (best is not None and best_d <= (radius - 2) ** 2):
+                predicate, ref_col, ref_row, c_lo, c_hi, r_lo, r_hi)
+            covers_all = (c_lo == full_c_lo and r_lo == full_r_lo
+                          and c_hi == full_c_hi and r_hi == full_r_hi)
+            if covers_all or (best is not None and best_d <= (radius - 2) ** 2):
                 return best
             radius *= 2
 
-    def _in_playfield(self, t):
-        return (self._pf_col_min <= t.col <= self._pf_col_max and
-                self._pf_row_min <= t.row <= self._pf_row_max)
-
     def _recede_spawn_after_unlock(self, chunk):
-        """Push the spawn band one 2×2 section outward: nearest SPAWNING 2×2 →
-        COMBAT, then nearest in-playfield BACKGROUND 2×2 behind it → SPAWNING.
-        Never touches BUILDABLE/BUILT tiles; degrades silently at the map edge
-        (the prototype logged; a shrinking band is the intended fallback)."""
+        """Push the spawn band one 2×2 block outward on BOTH axes: the nearest
+        SPAWNING 2×2 horizontally aligned with the purchased chunk (block rows
+        overlap the chunk's rows) AND the nearest vertically aligned one each
+        convert to COMBAT, then each converted block backfills the nearest
+        BACKGROUND 2×2 strictly BEHIND it — on the opposite side from the
+        purchased chunk, on the block's own rows/cols (a clean band
+        translation). An axis with no aligned spawning block is SKIPPED (a
+        single-edge spawn band only ever recedes on its own axis). Both
+        conversions happen before either backfill so the second axis can
+        neither re-find the first axis's converted block (already COMBAT) nor
+        immediately re-convert its fresh backfill (not yet SPAWNING). Never
+        touches BUILDABLE/BUILT tiles; degrades silently when nothing behind
+        qualifies (map edge) — the band shrinks by one block, the intended
+        fallback (the prototype logged and fell back to ANY background block,
+        which is exactly the wrong-side placement this rule removes)."""
         if not chunk:
             return
         ref_c = sum(t.col for t in chunk) / len(chunk)
         ref_r = sum(t.row for t in chunk) / len(chunk)
+        row_lo = min(t.row for t in chunk)
+        row_hi = max(t.row for t in chunk)
+        col_lo = min(t.col for t in chunk)
+        col_hi = max(t.col for t in chunk)
+        spawning = lambda t: t.state == TileState.SPAWNING
 
-        spawn_block = self._find_2x2(
-            lambda t: t.state == TileState.SPAWNING, ref_c, ref_r)
-        if spawn_block is None:
-            return
-        for t in spawn_block:
-            self.set_tile_state(t, TileState.COMBAT)
+        converted = []
+        for axis, axis_bounds in (
+                ("col", {"r_bounds": (row_lo - 1, row_hi)}),   # x axis
+                ("row", {"c_bounds": (col_lo - 1, col_hi)})):  # y axis
+            block = self._find_2x2(spawning, ref_c, ref_r, **axis_bounds)
+            if block is None:
+                continue   # no aligned spawn band on this axis — skip it
+            if axis == "col":
+                sign = (sum(t.col for t in block) / 4) - ref_c
+            else:
+                sign = (sum(t.row for t in block) / 4) - ref_r
+            for t in block:
+                self.set_tile_state(t, TileState.COMBAT)
+            converted.append((block, axis, sign))
+        for block, axis, sign in converted:
+            self._backfill_spawn_behind(block, axis, sign)
 
+    def _backfill_spawn_behind(self, spawn_block, axis, sign):
+        """Replace one converted spawn block: the BACKGROUND 2×2 nearest to it
+        STRICTLY BEHIND it — beyond the block along the recede `axis` in the
+        `sign` direction (away from the purchased chunk), anchor pinned to the
+        block's own cross-axis anchor so the band translates cleanly. `sign`
+        == 0 (exotic painted overlap: block centred on the chunk along the
+        recede axis) keeps the cross-axis pin but drops the direction clamp.
+        Degrades silently when nothing qualifies (map edge): no backfill, the
+        band shrinks by one block."""
+        anchor_col = min(t.col for t in spawn_block)
+        anchor_row = min(t.row for t in spawn_block)
         sc = sum(t.col for t in spawn_block) / 4
         sr = sum(t.row for t in spawn_block) / 4
-        spawn_ring = max(sc, sr)
-        bg_pred = lambda t: (t.state == TileState.BACKGROUND
-                             and self._in_playfield(t))
-        bg_block = self._find_2x2(bg_pred, sc, sr, min_ring=spawn_ring)
-        if bg_block is None:  # nothing strictly behind → any background block
-            bg_block = self._find_2x2(bg_pred, sc, sr)
+        if axis == "col":
+            bounds = {"r_bounds": (anchor_row, anchor_row)}
+            if sign > 0:
+                bounds["c_bounds"] = (anchor_col + 2, self.cols)
+            elif sign < 0:
+                bounds["c_bounds"] = (-self.cols, anchor_col - 2)
+        else:
+            bounds = {"c_bounds": (anchor_col, anchor_col)}
+            if sign > 0:
+                bounds["r_bounds"] = (anchor_row + 2, self.rows)
+            elif sign < 0:
+                bounds["r_bounds"] = (-self.rows, anchor_row - 2)
+        bg_pred = lambda t: t.state == TileState.BACKGROUND
+        bg_block = self._find_2x2(bg_pred, sc, sr, **bounds)
         if bg_block is None:
             return
         for t in bg_block:
@@ -374,7 +499,12 @@ class TileMap:
         """Mark the top-N damage-dealing built tiles for a weight discount so
         later waves route over them. Dormant in 9C: no occupant reports damage
         and nothing calls ``set_round`` (round gate), so this is a no-op — but
-        it is ported whole for 9F/10F to activate by wiring its producers."""
+        it is ported whole for 9F/10F to activate by wiring its producers.
+
+        Runs before EVERY pathfinder query (`_pre_query_refresh`), so it is
+        also the flow-field invalidation point for both its inputs (round
+        gate + last-round damage): the field is bumped only when the flagged
+        SET actually changes, never per query."""
         dmg_cfg = self._balance["Pathfinding"]["damage_reduction"]
         candidates = []
         for t in self.built_tiles():
@@ -387,15 +517,31 @@ class TileMap:
             dmg = getattr(occ, "damage_dealt_last_round", 0)
             if dmg > 0:
                 candidates.append((dmg, t))
-        if self.round_num <= dmg_cfg["min_round"] or not candidates:
-            return
-        candidates.sort(key=lambda dt: dt[0], reverse=True)
-        for _, t in candidates[:int(dmg_cfg["top_n"])]:
-            t.damage_weight_reduced = True
+        flagged = set()
+        if self.round_num > dmg_cfg["min_round"] and candidates:
+            candidates.sort(key=lambda dt: dt[0], reverse=True)
+            for _, t in candidates[:int(dmg_cfg["top_n"])]:
+                t.damage_weight_reduced = True
+                flagged.add((t.col, t.row))
+        if flagged != self._dmg_reduced_prev:
+            self._dmg_reduced_prev = flagged
+            self._bump_path_version()
 
     def refresh_defence_range_coverage(self, covered_set):
-        for t in self.all_tiles():
-            t.defence_range_covered = (t.col, t.row) in covered_set
+        """Mirror ``covered_set`` into the per-tile `defence_range_covered`
+        flags. Change-detected (it runs before every pathfinder query): an
+        unchanged set — the common case — is a no-op; otherwise only the
+        symmetric difference is touched and the flow field invalidates
+        (covered tiles carry a weight add, so coverage changes re-route)."""
+        covered = set(covered_set)
+        if covered == self._defence_covered_prev:
+            return
+        for col, row in covered ^ self._defence_covered_prev:
+            t = self.get(col, row)
+            if t is not None:
+                t.defence_range_covered = (col, row) in covered
+        self._defence_covered_prev = covered
+        self._bump_path_version()
 
     # -- edge walls (10E, prototype tile_map.py:152-252) ------------------
 
@@ -416,6 +562,9 @@ class TileMap:
         edge.hp -= amount
         if edge.hp <= 0:
             del self.wall_edges[key]
+            # Only the DEATH transition changes pathing (`_wall_blocks` is
+            # hp>0) — a mid-HP hit never invalidates the flow field.
+            self._bump_path_version()
             return True
         return False
 
@@ -486,12 +635,16 @@ class TileMap:
                     tile.col, tile.row, nc, nr, wall_hp, wall_hp, builder)
                 snapshot.append([tile.col, tile.row, nc, nr])
         builder.set_wall_snapshot(snapshot)
+        if snapshot:
+            self._bump_path_version()   # new blocking edges re-route paths
 
     def remove_walls_for_builder(self, builder):
         """Remove every wall owned by ``builder`` (called when it dies)."""
-        for key in [k for k, e in self.wall_edges.items()
-                    if e.owner is builder]:
+        owned = [k for k, e in self.wall_edges.items() if e.owner is builder]
+        for key in owned:
             del self.wall_edges[key]
+        if owned:
+            self._bump_path_version()   # edges opened — paths may shorten
 
     def rebuild_walls(self):
         """Restore destroyed wall segments from each alive WallBuilder's frozen
@@ -515,6 +668,9 @@ class TileMap:
                 if edge is None:
                     self.wall_edges[key] = WallEdge(
                         c1, r1, c2, r2, wall_hp, wall_hp, b)
+                    # A destroyed edge came back — blocking changed. Healing
+                    # a surviving edge (else-branch) never does (alive→alive).
+                    self._bump_path_version()
                 else:
                     edge.hp = edge.max_hp
 

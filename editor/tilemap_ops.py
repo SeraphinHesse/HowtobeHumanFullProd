@@ -184,8 +184,11 @@ _REQUIRED_ZONE_SLOTS = (
 def map_requirement_warnings(doc):
     """What the map is missing to be playable — the editor's non-blocking yellow
     Set-Active warning. A playable map needs at least one buildable, combat and
-    spawning tile painted, plus a hole (base) and a camera startpoint. Returns a
-    list of labels (empty when nothing is missing)."""
+    spawning tile painted, plus a hole (base), a camera startpoint and a 2×2
+    starting area — and the starting area's four cells must be painted
+    buildable (the marker anchors the game's unlock grid but never forces tile
+    states: painted terrain wins). Returns a list of labels (empty when nothing
+    is missing)."""
     codes_by_slot = {}
     for code, entry in doc.legend.items():
         codes_by_slot.setdefault(entry["slot"], set()).add(code)
@@ -198,4 +201,13 @@ def map_requirement_warnings(doc):
         warnings.append("hole")
     if doc.camera_start is None:
         warnings.append("camera startpoint")
+    if doc.start_area is None:
+        warnings.append("starting area")
+    else:
+        buildable_codes = codes_by_slot.get("tile_buildable", set())
+        covered = (doc.terrain[doc.start_area["row"] + dr]
+                   [doc.start_area["col"] + dc]
+                   for dr in range(2) for dc in range(2))
+        if any(code not in buildable_codes for code in covered):
+            warnings.append("buildable tiles under starting area")
     return warnings

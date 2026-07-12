@@ -112,5 +112,43 @@ class TestDecoAndBase(unittest.TestCase):
         self.assertIsNone(ops.move_base(doc, 99, 1))
 
 
+class TestRequirementWarnings(unittest.TestCase):
+    """The non-blocking Set-Active warnings: zone coverage, hole, camera
+    startpoint, and the 2×2 starting area (present + sitting on buildable)."""
+
+    @staticmethod
+    def _playable_doc():
+        """A doc that clears every zone warning: b/c/s painted, base set."""
+        doc = make_doc()
+        ops.paint(doc, 1, 1, "b")
+        ops.paint(doc, 1, 2, "b")
+        ops.paint(doc, 2, 1, "b")
+        ops.paint(doc, 2, 2, "b")
+        ops.paint(doc, 4, 1, "c")
+        ops.paint(doc, 5, 1, "s")
+        doc.camera_start = {"col": 3, "row": 3, "slot": "camera_startpoint"}
+        return doc
+
+    def test_missing_start_area_warns(self):
+        doc = self._playable_doc()
+        self.assertIn("starting area", ops.map_requirement_warnings(doc))
+
+    def test_start_area_on_non_buildable_warns(self):
+        doc = self._playable_doc()
+        # min corner (4,1): covers the 'c' at (4,1) + forest — not all 'b'
+        doc.start_area = {"col": 4, "row": 1, "slot": "start_area"}
+        warnings = ops.map_requirement_warnings(doc)
+        self.assertNotIn("starting area", warnings)
+        self.assertIn("buildable tiles under starting area", warnings)
+
+    def test_start_area_on_buildable_pocket_is_clean(self):
+        doc = self._playable_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        warnings = ops.map_requirement_warnings(doc)
+        self.assertNotIn("starting area", warnings)
+        self.assertNotIn("buildable tiles under starting area", warnings)
+        self.assertEqual(warnings, [])   # nothing else missing either
+
+
 if __name__ == "__main__":
     unittest.main()

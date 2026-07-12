@@ -46,6 +46,11 @@ class TileMapDoc:
     base: dict         # {"col": int, "row": int, "slot": str} OR None (no hole)
     deco: list         # [{"col": num, "row": num, "slot": str}, ...]
     camera_start: dict = None  # {"col": int, "row": int, "slot": str} OR None
+    # {"col": int, "row": int, "slot": str} OR None — the 2×2 starting area's
+    # MIN corner (spans col..col+1 × row..row+1). Deliberately NOT emitted by
+    # the render emitters: the game never draws it and the editor draws a pure
+    # 2×2 outline via overlay lines instead of a sprite.
+    start_area: dict = None
 
 
 # -- dict <-> doc (terrain rows are strings on disk, char lists in memory) --
@@ -62,6 +67,8 @@ def from_dict(data):
         deco=[dict(d) for d in data["deco"]],
         camera_start=(dict(data["camera_start"])
                       if data["camera_start"] is not None else None),
+        start_area=(dict(data["start_area"])
+                    if data["start_area"] is not None else None),
     )
 
 
@@ -76,6 +83,8 @@ def to_dict(doc):
         "id": doc.map_id,
         "legend": copy.deepcopy(doc.legend),
         "rows": doc.rows,
+        "start_area": (dict(doc.start_area)
+                       if doc.start_area is not None else None),
         "terrain": ["".join(row) for row in doc.terrain],
     }
 
@@ -103,6 +112,13 @@ def validate_doc(doc):
         raise ValueError(
             f"map {doc.map_id!r}: camera_start {doc.camera_start} outside "
             f"{doc.cols}x{doc.rows}")
+    if doc.start_area is not None and not (
+            0 <= doc.start_area["col"] and doc.start_area["col"] + 1 < doc.cols
+            and 0 <= doc.start_area["row"]
+            and doc.start_area["row"] + 1 < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: start_area {doc.start_area} (2x2 from its min "
+            f"corner) outside {doc.cols}x{doc.rows}")
     for d in doc.deco:
         if not (0 <= d["col"] < doc.cols and 0 <= d["row"] < doc.rows):
             raise ValueError(
@@ -197,7 +213,8 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
     return items
 
 
-def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None):
+def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None,
+                      code_overrides=None):
     """Ground RenderItems for an ISO-DIAGONAL band, addressed by the rotated
     coordinates ``d = col - row`` and ``s = col + row`` (both integers, always
     the same parity for a real cell). ``visible_render_items`` takes an
@@ -207,7 +224,13 @@ def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None):
     thin screen strip is a thin band in ``d`` (a vertical strip) or ``s`` (a
     horizontal one), so iterating ``d``/``s`` directly emits ONLY the tiles the
     strip actually covers, independent of map size. Ground layer only (base/deco
-    live on other layers and are submitted separately by the caller)."""
+    live on other layers and are submitted separately by the caller).
+
+    ``code_overrides`` — optional ``{(col, row): code}`` map consulted before
+    the doc's terrain: a caller whose RUNTIME state diverges from the static
+    doc (e.g. a game unlocking tiles) passes its override map so the doc stays
+    pristine (a fresh session re-reads the unmutated terrain). Overridden codes
+    resolve through the same legend/checker rule as painted ones."""
     items = []
     tints = tint_for_code or {}
     cols, rows = doc.cols, doc.rows
@@ -219,6 +242,8 @@ def band_render_items(doc, d_min, d_max, s_min, s_max, *, tint_for_code=None):
             row = (s - d) // 2
             if 0 <= col < cols and 0 <= row < rows:
                 code = terrain[row][col]
+                if code_overrides is not None:
+                    code = code_overrides.get((col, row), code)
                 items.append(RenderItem(
                     slot_for_code(legend, code, col, row),
                     (col, row), layer="ground", tint=tints.get(code)))
@@ -267,6 +292,11 @@ def camera_start_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "camera_start")
 
 
+def start_area_slot_from_schema(schema):
+    """The const-pinned 2×2 starting-area slot (the editor's placement brush)."""
+    return _object_slot_from_schema(schema, "start_area")
+
+
 def defaults_from_schema(schema):
     """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
     dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
@@ -303,6 +333,7 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         base={"col": cols // 2, "row": rows // 2, "slot": base_slot},
         deco=[],
         camera_start=None,
+        start_area=None,
     )
 
 

@@ -236,6 +236,75 @@ class TestBaseAndDeco(MapModeCase):
         self.assertEqual(len(doc.deco), before)
 
 
+class TestStartArea(MapModeCase):
+    """The 2×2 starting-area marker: brush place/erase (undoable), 4-cell drag
+    grab, edge clamping, and disk round-trip. Outline rendering is covered in
+    TestRenderPath (backend-observed, ED-22)."""
+
+    def arm_start_area(self):
+        self.window.palette.arm_start_area("start_area")
+        self.window.palette.set_tool("paint")
+
+    def test_click_places_min_corner_and_is_undoable(self):
+        doc = self.open_map()
+        self.assertIsNone(doc.start_area)
+        self.arm_start_area()
+        self.click_cell(5, 6)
+        self.assertEqual(doc.start_area,
+                         {"col": 5, "row": 6, "slot": "start_area"})
+        self.assertEqual(self.session.undo_stack.count(), 1)
+        self.session.undo_stack.undo()
+        self.assertIsNone(doc.start_area)
+        self.session.undo_stack.redo()
+        self.assertEqual(doc.start_area["col"], 5)
+
+    def test_erase_removes(self):
+        doc = self.open_map()
+        self.arm_start_area()
+        self.click_cell(5, 6)
+        self.window.palette.set_tool("erase")
+        self.click_cell(10, 10)   # erase targets the single object, any cell
+        self.assertIsNone(doc.start_area)
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.start_area["col"], 5)
+
+    def test_edge_click_clamps_to_fit(self):
+        doc = self.open_map()
+        self.arm_start_area()
+        self.click_cell(doc.cols - 1, doc.rows - 1)
+        self.assertEqual((doc.start_area["col"], doc.start_area["row"]),
+                         (doc.cols - 2, doc.rows - 2))
+
+    def test_any_covered_cell_drags_the_area(self):
+        doc = self.open_map()
+        self.arm_start_area()
+        self.click_cell(5, 6)
+        # disarm the marker brush (an armed single-object brush intercepts the
+        # press) — dragging works with any tile brush + the "none" tool, like
+        # the base
+        self.window.palette.arm_code("b")
+        self.window.palette.set_tool("none")
+        # grab by the BOTTOM-RIGHT covered cell (6,7), drop at (10,10) — the
+        # release cell becomes the new min corner; ONE more undo command
+        self.drag_cells([(6, 7), (10, 10)])
+        self.assertEqual((doc.start_area["col"], doc.start_area["row"]),
+                         (10, 10))
+        self.assertEqual(self.session.undo_stack.count(), 2)
+        self.session.undo_stack.undo()
+        self.assertEqual((doc.start_area["col"], doc.start_area["row"]), (5, 6))
+
+    def test_save_round_trips_to_disk(self):
+        doc = self.open_map()
+        self.arm_start_area()
+        self.click_cell(2, 2)
+        self.session.save()
+        loaded = tilemap.load_map(
+            tilemap.map_path(self.data_dir, STARTER),
+            tilemap.map_schema_path(self.data_dir))
+        self.assertEqual(loaded.start_area,
+                         {"col": 2, "row": 2, "slot": "start_area"})
+
+
 class TestRenderPath(MapModeCase):
     """ED-22: eyes/tints/grid observed at the engine backend, not via Qt."""
 
@@ -282,6 +351,24 @@ class TestRenderPath(MapModeCase):
         # window (never more than the full-map line count).
         self.assertGreater(len(lines), 0)
         self.assertLessEqual(len(lines), (doc.rows + 1) + (doc.cols + 1))
+
+    def test_start_area_outline_through_overlay_primitive(self):
+        # The placed 2×2 marker draws as ONE closed overlay polygon (never a
+        # sprite), gated by its eye — ED-22-clean, same primitive as the grid.
+        doc = self.open_map()
+        doc.start_area = {"col": 3, "row": 3, "slot": "start_area"}
+        lines = [c for c in self.record_frame() if isinstance(c, OverlayLines)]
+        self.assertEqual(len(lines), 1)
+        self.assertTrue(lines[0].closed)
+        self.assertEqual(len(lines[0].points), 4)
+        # the backend receives SCREEN-space points; corner 0 is the world
+        # min corner (3,3) converted through the one coords authority
+        sx, sy = self.viewport._coords.world_to_screen(3, 3)
+        self.assertAlmostEqual(lines[0].points[0][0], sx, delta=1)
+        self.assertAlmostEqual(lines[0].points[0][1], sy, delta=1)
+        self.viewport.set_eye("start_area", False)
+        self.assertFalse(any(isinstance(c, OverlayLines)
+                             for c in self.record_frame()))
 
 
 class TestLifecycle(MapModeCase):

@@ -179,9 +179,14 @@ skill.**
   boss-bonus story damage in as a plain int. Enemy construction never leaves
   this package.
 
-## Perf frontier that lives here
-`Enemy.on_spawn` runs one `find_path` Dijkstra per enemy — the next large-map
-frontier (shared flow-field fix, not yet done). Detail → `game/PERF.md`.
+## Perf note that lives here
+`Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)
+now walk the shared base flow field — a wave of hundreds of spawns pays ONE
+Dijkstra per map-topology change, not one each, and `spawn_death_swarm`'s
+burst rides it for free. `Boss.on_spawn`'s `find_path_to_nearest_building`
+stays a fresh Dijkstra (~one per wave). Nothing in this package invalidates
+the field directly — all mutations route through `TileMap`. Detail →
+`game/PERF.md`.
 
 ## Verify
 Scripted round asserts HP ledger matches hand-computed prototype values:
