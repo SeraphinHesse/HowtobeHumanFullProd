@@ -45,8 +45,7 @@ _BEAM_COLORS = ((255, 200, 40), (255, 110, 15), (210, 20, 10))
 _CRATER_COLOR = (120, 78, 66)   # spent-shell scorch (world-space diamond)
 
 # -- 10G boss: announcement + HP-bar constants ------------------------------
-_ANNOUNCE_RED = (220, 40, 40)      # prototype banner colour
-_ANNOUNCE_BG = (24, 20, 32)        # host BACKGROUND — the fade lerps toward it
+_ANNOUNCE_RED = (220, 40, 40)      # prototype banner colour (10J: alpha fade)
 _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
@@ -394,7 +393,12 @@ class FloaterManager:
             frac = f.age / f.life if f.life else 1.0
             cx, cy = cs.world_to_screen(f.wx, f.wy)
             y = int(cy) - 20 - int(36 * frac)  # rise over its lifetime
-            submit_centered(renderer, f.text, int(cx), y, "md", f.color)
+            # 10J: alpha fade over the last third (prototype fade = life/3)
+            color = f.color
+            if frac > 2 / 3:
+                color = tuple(color[:3]) + (
+                    int(255 * max(0.0, (1.0 - frac) * 3)),)
+            submit_centered(renderer, f.text, int(cx), y, "md", color)
 
     # -- 10J FX draw --------------------------------------------------------
 
@@ -469,18 +473,18 @@ class FloaterManager:
                 color, width=2 + tier))
 
     def submit_craters(self, renderer, cs, scene):
-        """A fading world-space diamond where each mortar shell landed (Phase
+        """A fading world-space scorch where each mortar shell landed (Phase
         10B). Purely cosmetic — the ``Crater`` GameObjects age + self-despawn in
-        the scene; here we just draw them, fading the colour toward black over
-        the crater's life (the HUD/overlay pass has no alpha — 10J)."""
+        the scene; since 10J the diamond is alpha-FILLED and fades by alpha
+        (prototype's SRCALPHA ground ellipse)."""
         for c in scene.by_tag("crater"):
             frac = c.fade_frac
             r = c.radius
             cx, cy = c.transform.world_pos
-            color = tuple(int(ch * frac) for ch in _CRATER_COLOR)
             pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
                    (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
-            renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+            renderer.submit_overlay_polys(
+                pts, _CRATER_COLOR + (int(150 * frac),))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -513,12 +517,29 @@ class FloaterManager:
                     int((w + (yl - w) * progress) * bolt)
                     for w, yl in zip(_BOLT_WHITE, _BOLT_YELLOW))
                 renderer.submit_hud(HudLines(tuple(pts), color, width=2))
+            if bolt > 0:
+                # 10J: the expanding alpha impact flash (prototype
+                # effects.py:222-290 — flash radius grows to ~20 px). An
+                # 8-gon in world units projects to the 2:1 ground ellipse.
+                fr = (1.0 - bolt) * (20.0 / (cs.geometry.tile_w / 2.0))
+                if fr > 0:
+                    k = 0.7071 * fr
+                    pts = [(wx, wy - fr), (wx + k, wy - k), (wx + fr, wy),
+                           (wx + k, wy + k), (wx, wy + fr), (wx - k, wy + k),
+                           (wx - fr, wy), (wx - k, wy - k)]
+                    renderer.submit_overlay_polys(
+                        pts, (255, 250, 200, int(200 * bolt)))
             frac = fx.fade_frac
             if frac > 0:
                 r = fx.radius_tiles
-                color = tuple(int(ch * frac) for ch in _LIGHTNING_MARKER)
                 pts = [(wx, wy - r), (wx + r, wy), (wx, wy + r), (wx - r, wy)]
-                renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+                # 10J: alpha-filled ground marker fading out (prototype fill);
+                # the outline keeps the old colour-fade (lines carry no alpha)
+                renderer.submit_overlay_polys(
+                    pts, _LIGHTNING_MARKER + (int(120 * frac),))
+                renderer.submit_overlay_lines(
+                    pts, tuple(int(ch * frac) for ch in _LIGHTNING_MARKER),
+                    width=2, closed=True)
 
     # -- /10H ---------------------------------------------------------------
 
@@ -558,10 +579,9 @@ class FloaterManager:
     def submit_announce(self, renderer, view_w, view_h):
         """The screen-centred "SOMETHING BIG / IS APPROACHING!" banner
         (prototype ``effects.py:292-337``): fade in -> hold -> fade out on the
-        ``ui.FX.boss_announce`` timings. The HUD pass has no per-pixel alpha,
-        so the fade lerps the text colour toward the host background — the
-        same documented divergence as craters / the levelup backdrop (10J).
-        Ignores the camera; drawn over the game surface."""
+        ``ui.FX.boss_announce`` timings. Since 10J the fade is a real text
+        alpha (RGBA ``HudText``). Ignores the camera; drawn over the game
+        surface."""
         if self._announce_age is None:
             return
         a = self._announce
@@ -574,8 +594,7 @@ class FloaterManager:
             out = t - a["fade_in"] - a["hold"]
             k = 1.0 - out / a["fade_out"] if a["fade_out"] > 0 else 0.0
         k = max(0.0, min(1.0, k))
-        color = tuple(int(bg + (fg - bg) * k)
-                      for fg, bg in zip(_ANNOUNCE_RED, _ANNOUNCE_BG))
+        color = _ANNOUNCE_RED + (int(255 * k),)
         cx = view_w // 2
         cy = view_h // 2 - text_h("xl") - 6
         submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)

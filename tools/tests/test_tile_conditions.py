@@ -572,9 +572,10 @@ class TestOverlays(unittest.TestCase):
         self.assertNotIn((4 + 2, 0 + 2), cov)    # boosts add no square
 
     def test_heat_ramp_endpoints(self):
-        self.assertEqual(heat_color(0.0), (0, 100, 200))
-        self.assertEqual(heat_color(0.5), (255, 255, 0))
-        self.assertEqual(heat_color(1.0), (255, 0, 0))
+        # 10J: the ramp carries the prototype's alpha (50 + 130*t) again
+        self.assertEqual(heat_color(0.0), (0, 100, 200, 50))
+        self.assertEqual(heat_color(0.5), (255, 255, 0, 115))
+        self.assertEqual(heat_color(1.0), (255, 0, 0, 180))
 
 
 # ---------------------------------------------------------------------------

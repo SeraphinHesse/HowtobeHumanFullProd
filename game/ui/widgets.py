@@ -107,6 +107,18 @@ def submit_tile_diamond(renderer, col, row, color, width=2):
     renderer.submit_overlay_lines(pts, color, width=width, closed=True)
 
 
+def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
+                             border_width=2):
+    """An alpha-FILLED world-space tile diamond (10J overlay alpha) with an
+    optional outline — the prototype's SRCALPHA tile overlays (condition tint,
+    RANGE, heatmap)."""
+    pts = [(col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)]
+    renderer.submit_overlay_polys(pts, rgba)
+    if border is not None:
+        renderer.submit_overlay_lines(pts, border, width=border_width,
+                                      closed=True)
+
+
 def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
     """A horizontal fill bar (HP / lives). ``ratio`` clamped to [0, 1]."""
     ratio = max(0.0, min(1.0, ratio))

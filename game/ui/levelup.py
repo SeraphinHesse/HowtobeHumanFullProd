@@ -4,10 +4,8 @@ Pure logic. Ports the prototype's ``src/ui/levelup_window.py``: three option
 boxes, no cancel button (the player MUST pick), resolution on click. The whole
 world is frozen behind it (``Session.frozen``), so nothing animates.
 
-Divergence: the prototype dims the frozen world with a ``(0, 0, 0, 185)`` alpha
-overlay. The HUD pass has no per-pixel alpha (the same limitation that deferred
-9H's pause dim), so the backdrop here is OPAQUE, matching ``GameOverScreen``.
-Alpha overlays are the 10J FX sweep.
+Since 10J the backdrop is the prototype's real ``(0, 0, 0, 185)`` alpha dim —
+the frozen world stays visible behind the window (RGBA ``HudRect``).
 """
 from engine.render import HudLines, HudRect, HudSprite
 
@@ -16,7 +14,7 @@ from .widgets import (
     C_UI_TEXT_DIM, HEART, contains, submit_centered, text_h, wrap_text,
 )
 
-_BG = (10, 5, 15)
+_BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
 _BOX_W, _BOX_H, _GAP = 200, 220, 8
 _BOX_BG = C_UI_PANEL
 _BOX_HOVER = C_UI_BTN_HOVER
