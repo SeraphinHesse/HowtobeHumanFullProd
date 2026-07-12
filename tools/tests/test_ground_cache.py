@@ -234,6 +234,58 @@ class GroundCacheCase(unittest.TestCase):
         gc.ensure(VIEW_W + 40, VIEW_H, fn)
         self.assertEqual((n["rebuild"], n["scroll"]), (5, 2), "resize rebuilds")
 
+    # -- 10J underlay (world-locked background art) -------------------------
+
+    def test_underlay_paints_under_tiles_and_stays_world_locked(self):
+        """An underlay pixel must show where no tile covers it, at the world
+        position implied by ``screen = iso_px*zoom - pan`` — and keep showing
+        at the SAME world point across scroll steps (world-locked)."""
+        cs = self._coords(40, 40, zoom=1.0)
+        doc = make_doc()
+        art = pygame.Surface((200, 200))
+        art.fill((10, 200, 10))
+        gc = GroundCache(cs, self.assets, pixel_margin=64, bg_color=BG)
+        gc.set_underlay(art, -600, -600)  # well above/left of the tile field
+
+        def probe():
+            surf = pygame.Surface((VIEW_W, VIEW_H))
+            surf.fill((0, 0, 0))
+            gc.ensure(VIEW_W, VIEW_H, lambda *a: [])  # no tiles: art + bg only
+            gc.blit(surf)
+            return surf
+
+        # world-pixel (-500, -500) is inside the art; find its screen pos
+        def screen_of(wx_px, wy_px):
+            cam = cs.camera
+            return (round(wx_px * cam.zoom - cam.pan_x),
+                    round(wy_px * cam.zoom - cam.pan_y))
+
+        cs.camera.pan_x, cs.camera.pan_y = -600.0, -600.0
+        sx, sy = screen_of(-500, -500)
+        surf = probe()
+        self.assertEqual(surf.get_at((sx, sy))[:3], (10, 200, 10))
+        # outside the art (right of its -600..-400 span) -> the bg fill
+        ox, oy = screen_of(-350, -450)
+        self.assertEqual(surf.get_at((ox, oy))[:3], BG)
+        # scroll a little: the same WORLD point still reads the art colour
+        cs.pan(23, -17)
+        sx, sy = screen_of(-500, -500)
+        self.assertEqual(probe().get_at((sx, sy))[:3], (10, 200, 10))
+
+    def test_set_underlay_invalidates(self):
+        cs = self._coords(40, 40, zoom=1.0)
+        doc = make_doc()
+        gc = GroundCache(cs, self.assets, pixel_margin=64, bg_color=BG)
+        fn = self._ground_fn(doc)
+        gc.ensure(VIEW_W, VIEW_H, fn)
+        gen = gc._seen_generation
+        art = pygame.Surface((8, 8))
+        gc.set_underlay(art, 0, 0)
+        gc.ensure(VIEW_W, VIEW_H, fn)
+        self.assertGreater(gc._seen_generation, gen)  # rebuild happened
+        gc.set_underlay(None)
+        self.assertIsNone(gc._underlay)
+
 
 if __name__ == "__main__":
     unittest.main()

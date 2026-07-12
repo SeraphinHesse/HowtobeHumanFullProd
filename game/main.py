@@ -210,6 +210,29 @@ def main(max_frames=None, data_dir=None, autostart=False):
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
                                  caption)
     clock = pygame.time.Clock()
+
+    # -- 10J: world-locked background art, painted INTO the ground cache as an
+    # underlay (the cache is opaque, so a host-level blit would be covered).
+    # The slot key is the configured filename's stem (ui.FX.bg_art.file stays
+    # the balancing-parity key). Re-applied cheaply each frame so the settings
+    # toggle takes effect live; set_underlay invalidates the cache itself. --
+    bg_cfg = ui_balance["FX"]["bg_art"]
+    bg_state = {"on": None}
+
+    def apply_bg_art():
+        on = bool(bg_cfg["enabled"] and shell.settings.bg_art)
+        if on == bg_state["on"]:
+            return
+        bg_state["on"] = on
+        if on:
+            frame = assets.frame(Path(bg_cfg["file"]).stem)
+            ground_cache.set_underlay(frame.surface, bg_cfg["offset_x"],
+                                      bg_cfg["offset_y"])
+        else:
+            ground_cache.set_underlay(None)
+
+    apply_bg_art()
+    # -- /10J --
     if max_frames is None:  # windowed run only — headless tests stay silent/fast
         play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)
 
@@ -679,11 +702,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # fires tile_map.on_zone_change -> invalidate) — not every frame.
             # The runtime zone overrides keep unlocked/receded tiles' ground
             # visuals in sync WITHOUT mutating the shared map_doc.
-            ground_cache.ensure(
-                view_w, view_h,
-                lambda dmn, dmx, smn, smx: tilemap.band_render_items(
+            apply_bg_art()  # 10J: follow the settings toggle live
+
+            def ground_items(dmn, dmx, smn, smx, world=world):
+                items = tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
-                    code_overrides=world.tile_map.terrain_overrides))
+                    code_overrides=world.tile_map.terrain_overrides)
+                if not bg_state["on"]:
+                    return items
+                # 10J: with background art active, BACKGROUND-zone tiles are
+                # skipped so the art shows through (prototype skip_bg,
+                # tile_map.py:458-464).
+                tm = world.tile_map
+                return [it for it in items
+                        if (t := tm.get(int(it.world_pos[0]),
+                                        int(it.world_pos[1]))) is None
+                        or t.state != TileState.BACKGROUND]
+
+            ground_cache.ensure(view_w, view_h, ground_items)
             ground_cache.blit(window)
             # Base + deco stay dynamic (their own layers, above ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)

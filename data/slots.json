@@ -586,6 +586,23 @@
         }
       ],
       "key": "deco"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Backgrounds",
+      "frame_h": 1080,
+      "frame_w": 1920,
+      "groups": [
+        {
+          "label": "World",
+          "slots": [
+            "background_master"
+          ]
+        }
+      ],
+      "key": "backgrounds"
     }
   ]
 }
