@@ -62,6 +62,23 @@ class RunState:
     # three rolled cards the LEVELUP window renders.
     xp_events: list = field(default_factory=list)
     levelup_options: list = field(default_factory=list)
+    # -- Boss (10G) ---------------------------------------------------------
+    # The six A/B bonus stack counters (see ``game/core/boss_bonuses.py``); a
+    # fresh RunState = the prototype's new-game reset. ``boss_choices`` is the
+    # per-run history ledger of ``(boss_num, option, outcome)`` tuples — no disk
+    # persistence. The two snapshots are taken at End Turn: love EVERY round
+    # (Boss3A), lives on boss rounds only (the win/loss compare).
+    # ``pending_boss_cutscene`` is ``{"boss_num", "outcome"}`` queued at a boss
+    # round's ROUND_END and consumed by ``resolve_boss_cutscene``.
+    # ``boss_events`` is a drained-by-UI announcement ledger (same contract as
+    # ``xp_events``): one marker per boss-round End Turn.
+    boss_stacks: dict = field(default_factory=lambda: dict.fromkeys(
+        ("boss1a", "boss1b", "boss2a", "boss2b", "boss3a", "boss3b"), 0))
+    boss_choices: list = field(default_factory=list)
+    boss_lives_snapshot: int = 0
+    boss_love_snapshot: int = 0
+    pending_boss_cutscene: object = None
+    boss_events: list = field(default_factory=list)
 
     @classmethod
     def from_balance(cls, core_balance):

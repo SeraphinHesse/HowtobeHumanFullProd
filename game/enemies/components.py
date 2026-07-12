@@ -19,6 +19,7 @@ by ``engine.core.Movement``.
 """
 from engine.core import Component, Health, Movement, SpriteAnimator
 from game.buildings.components import RoundStats
+from game.map.pathfinder import find_path_to_nearest_building
 
 
 class PathAgent(Component):
@@ -28,10 +29,24 @@ class PathAgent(Component):
     applies base damage + despawns). Gates ``Movement`` by zeroing its speed
     while blocked and restoring it on unblock — the path (``Movement.waypoints``)
     is never discarded, so no re-path is needed when the blocker dies (the route
-    already runs through that now-passable tile)."""
+    already runs through that now-passable tile).
+
+    10G adds two default-off flags (Standard/Raider/Siege stay byte-identical):
+
+    * ``goal_is_base`` — ``reached_base`` is only set on ``Movement.arrived``
+      when True. A hunter whose path ENDS on a targeted building (the boss)
+      must never count arrival there as a base breach — the phantom-base-hit
+      hazard the 10F raider/siege deferral documented.
+    * ``repath_on_kill`` — on unblocking (the blocker died) or on arriving at a
+      dead non-base goal, re-run ``find_path_to_nearest_building`` from the
+      current tile and reload the waypoints — the prototype boss's
+      ``_repath``-after-kill (``boss.py:108-114``) mapped onto the
+      block-and-attack model."""
 
     reached_base: bool = False
     blocked: bool = False
+    goal_is_base: bool = True     # arrival counts as a base breach (10G)
+    repath_on_kill: bool = False  # re-route to the next nearest building (10G)
 
     def on_added(self, owner):
         self._owner = owner
@@ -49,7 +64,13 @@ class PathAgent(Component):
         if mv is None:
             return
         if mv.arrived:
-            self.reached_base = True
+            # -- 10G boss: arrival only breaches when the path goal IS the
+            # base. A non-base goal (the hunted building died en route with no
+            # blocker contact) re-paths instead of firing a phantom base hit.
+            if self.goal_is_base:
+                self.reached_base = True
+            else:
+                self._repath(owner, tm, mv)
             return
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
@@ -88,6 +109,25 @@ class PathAgent(Component):
                 self.blocked = False
                 mv.speed = self._real_speed
                 self._set_anim(owner, "walk")
+                # -- 10G boss: the blocker died — hunt the next nearest
+                # building instead of resuming the stale route.
+                if self.repath_on_kill:
+                    self._repath(owner, tm, mv)
+
+    def _repath(self, owner, tm, mv):
+        """Re-route to the nearest alive building (base included) from the
+        current tile, reloading ``Movement`` and re-deriving ``goal_is_base``
+        (10G). No path at all (fully sealed board) leaves the agent standing —
+        the next unblock/arrival retries."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        path = find_path_to_nearest_building(tm, col, row)
+        if not path:
+            return
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        mv.index = 0
+        mv.arrived = False
+        self.goal_is_base = path[-1] == (tm.base_col, tm.base_row)
 
     @staticmethod
     def _wall_edge_ahead(tm, wps, index, tc, tr):
@@ -161,9 +201,9 @@ class EnemyCombat(Component):
 
 
 class BossState(Component):
-    """Boss-only state (era index + one-shot death-swarm guard). Present for the
-    zeroed boss branch; boss behaviour (era stats, swarm, announcement) lands in
-    10G. Never spawned live in 9E."""
+    """Boss-only state: the era index + the one-shot death-swarm guard. LIVE
+    since 10G — ``Session.on_enemy_death`` sets ``death_spawned`` the first
+    time the boss's death is reported, so the swarm can never double-spawn."""
 
     era: int = 0
     death_spawned: bool = False

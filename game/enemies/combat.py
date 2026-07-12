@@ -276,14 +276,20 @@ def _predict_lead(target, travel_time):
 # -- the sweep ------------------------------------------------------------
 
 def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
-                   on_enemy_death=None):
+                   on_enemy_death=None, dmg_bonus=0):
+    """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
+    fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
+    boundary as a plain int (the host computes it per frame from
+    ``game.core.boss_bonuses.story_damage_bonus``). Default 0 keeps every
+    pre-10G call byte-identical."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
 
     enemies = [e for e in scene.by_tag("enemy") if e.alive]
     for defender in scene.by_tag("combat"):
-        _update_defender(defender, scene, enemies, dt, min_atk, proj_speed)
+        _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
+                         dmg_bonus)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -297,14 +303,15 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
             scene.despawn(enemy)
 
 
-def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed):
+def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
+                     dmg_bonus=0):
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
     # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
     # tick model — handle them wholesale, then bail.
     if defender.get_component(BeamAttacker) is not None:
-        _update_beam(defender, enemies, dt)
+        _update_beam(defender, enemies, dt, dmg_bonus)
         return
 
     center = (defender.col, defender.row)
@@ -329,13 +336,13 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed):
         # point; the plain defender fires a homing shot. The capability marker
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
-            _fire_splash(defender, target, scene)
+            _fire_splash(defender, target, scene, dmg_bonus)
         else:
-            _fire(defender, target, scene, proj_speed)
+            _fire(defender, target, scene, proj_speed, dmg_bonus)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
-def _update_beam(defender, enemies, dt):
+def _update_beam(defender, enemies, dt, dmg_bonus=0):
     """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
     highest-HP enemy in range, ramp damage while focused, reset the ramp on any
     target change, and pause re-acquiring for ``target_death_cooldown`` after a
@@ -375,7 +382,7 @@ def _update_beam(defender, enemies, dt):
     else:
         beam.ramp = 0.0
         beam._ramp_target = target
-    dmg = defender.damage() + int(beam.ramp)
+    dmg = defender.damage() + int(beam.ramp) + dmg_bonus  # story bonus (10G)
     target.get_component(Health).damage(dmg)
     rs = defender.get_component(RoundStats)
     if rs is not None:
@@ -396,20 +403,21 @@ def _set_defender_anim(defender, name):
         anim.set_animation(name)
 
 
-def _fire(defender, target, scene, proj_speed):
+def _fire(defender, target, scene, proj_speed, dmg_bonus=0):
     bx, by = defender.transform.world_pos
-    proj = Projectile(bx, by, defender.damage(), proj_speed)
+    proj = Projectile(bx, by, defender.damage() + dmg_bonus, proj_speed)
     proj.get_component(ProjectileHoming).launch(target, defender, scene)
     scene.spawn(proj)
 
 
-def _fire_splash(defender, target, scene):
+def _fire_splash(defender, target, scene, dmg_bonus=0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact."""
     bx, by = defender.transform.world_pos
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
-    shell = ProjectileAOE(bx, by, defender.damage(), defender.splash_radius())
+    shell = ProjectileAOE(bx, by, defender.damage() + dmg_bonus,
+                          defender.splash_radius())
     shell.get_component(ProjectileArc).launch(gx, gy, defender, scene,
                                               AOE_TRAVEL_TIME)
     scene.spawn(shell)

@@ -26,6 +26,7 @@ skips the whole sim, so nothing animates behind the window.
 """
 import random
 
+from . import boss_bonuses as bb
 from . import levelup as lv
 from . import xp as xpmod
 from .game_state import RunState
@@ -55,6 +56,7 @@ class Session:
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
         self._wipe_pending = False
+        self._boss_swarm_pending = None  # (col, row, era) death swarm (10G)
         # Buildings that have already paid their death XP, by id(). NEVER reset
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
         # payday and dies again pays XP only the first time.
@@ -74,9 +76,9 @@ class Session:
 
     @property
     def frozen(self):
-        """LEVELUP is fully modal: no updates, no animations, no combat
-        (prototype ``_update_gameplay`` returns immediately)."""
-        return self.state.phase == GamePhase.LEVELUP
+        """LEVELUP / BOSS_CUTSCENE are fully modal: no updates, no animations,
+        no combat (prototype ``_update_gameplay`` returns immediately)."""
+        return self.state.phase in (GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE)
 
     # -- combat speed (10F) -----------------------------------------------
 
@@ -142,6 +144,18 @@ class Session:
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
+        # -- 10G boss: End-Turn snapshots + announcement marker --
+        # Love snapshot EVERY round (the Boss3A damage base, prototype
+        # game.py:838-839); on a boss round also snapshot lives (the cutscene's
+        # win/loss compare) and queue one announce marker (drained by the UI —
+        # the enabled gate lives in FloaterManager, session stays ui-free).
+        st.boss_love_snapshot = st.love
+        boss_interval = \
+            self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
+        if st.round_num % boss_interval == 0:
+            st.boss_lives_snapshot = st.base_lives
+            st.boss_events.append(st.round_num)
+        # -- /10G --
         st.phase = GamePhase.ENEMY
         self._wipe_pending = False
 
@@ -159,9 +173,12 @@ class Session:
         elif st.phase == GamePhase.ROUND_END:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
-                # A pending level-up takes priority over payday; the window's
-                # resolve runs payday afterwards (prototype game.py:1215-1226).
-                if st.levelup_pending:
+                # A pending boss cutscene beats a pending level-up beats
+                # payday; each modal's resolve chains into the next step
+                # (prototype game.py:1215-1226 — 10G added the first arm).
+                if st.pending_boss_cutscene:  # -- 10G boss --
+                    self._begin_boss_cutscene()
+                elif st.levelup_pending:
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
@@ -176,6 +193,14 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return
+        # -- 10G boss: flush the death swarm BEFORE the wave-clear check, so
+        # the round can never end in the gap between the boss's death and its
+        # swarm hitting the field. Enemy construction stays in the Spawner.
+        if self._boss_swarm_pending is not None:
+            col, row, era = self._boss_swarm_pending
+            self._boss_swarm_pending = None
+            self.spawner.spawn_death_swarm(scene, col, row, era)
+        # -- /10G --
         if self._wipe_pending:
             self._wipe_round(scene)
             self._begin_round_end()
@@ -205,6 +230,32 @@ class Session:
         xpmod.advance_village_level(st, self.core_balance)
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene)  # -> INCOME
+
+    # -- BOSS_CUTSCENE (10G) -----------------------------------------------
+
+    def _begin_boss_cutscene(self):
+        """Enter the fully modal A/B phase. ``pending_boss_cutscene`` stays set
+        (the host reads boss_num/outcome to open the window on the phase edge —
+        the LEVELUP pattern); ``resolve_boss_cutscene`` consumes it."""
+        self.state.phase = GamePhase.BOSS_CUTSCENE
+
+    def resolve_boss_cutscene(self, option, scene=None):
+        """Apply the ``"A"``/``"B"`` choice (choice sets cycle every 3 bosses),
+        log it to the run history, then chain into the LEVELUP the cutscene
+        deferred — or straight to payday (prototype game.py:947-963). Payday
+        runs exactly once either way."""
+        st = self.state
+        pending = st.pending_boss_cutscene or {}
+        boss_num = pending.get("boss_num", 1)
+        outcome = pending.get("outcome", "win")
+        bb.apply_choice(st, (boss_num - 1) % 3, option)
+        st.boss_choices.append((boss_num, option, outcome))
+        st.pending_boss_cutscene = None
+        if st.levelup_pending:
+            self._begin_levelup()
+        else:
+            run_payday(st, self.tilemap, self.core_balance,
+                       self.occupancy, scene)  # -> INCOME
 
     # -- XP award sites (10A) ---------------------------------------------
 
@@ -248,6 +299,18 @@ class Session:
 
     def on_enemy_death(self, enemy):
         """An enemy was killed on the field (not at the base)."""
+        # -- 10G boss: one-shot death-swarm stash (duck-typed — game/core never
+        # imports game/enemies). Flushed by post_sim BEFORE the wave-clear
+        # check; the BossState.death_spawned guard makes a second report of the
+        # same boss a no-op. A boss despawned by quick-skip / a lives wipe
+        # never reaches this callback, so it spawns no swarm (prototype clears
+        # the enemy list wholesale).
+        if (getattr(enemy, "ETYPE", "") == "boss"
+                and not getattr(enemy, "death_spawned", True)):
+            enemy.mark_death_spawned()
+            wx, wy = enemy.transform.world_pos
+            self._boss_swarm_pending = (round(wx), round(wy), enemy.era)
+        # -- /10G --
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
 
@@ -261,9 +324,21 @@ class Session:
     # -- helpers ----------------------------------------------------------
 
     def _begin_round_end(self):
-        self.state.phase = GamePhase.ROUND_END
-        self.state.phase_timer = \
-            self.core_balance["PhaseLoop"]["round_end_delay"]
+        st = self.state
+        # -- 10G boss: queue the cutscene at a boss round's end (round_num is
+        # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
+        # post_sim/on_base_hit gates stop first). Outcome compares lives to the
+        # End-Turn snapshot (prototype game.py:933-938).
+        interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
+        if st.round_num % interval == 0:
+            st.pending_boss_cutscene = {
+                "boss_num": st.round_num // interval,
+                "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
+                            else "loss"),
+            }
+        # -- /10G --
+        st.phase = GamePhase.ROUND_END
+        st.phase_timer = self.core_balance["PhaseLoop"]["round_end_delay"]
 
     def _wipe_round(self, scene):
         """A lives-mode base hit ends the round instantly: clear live enemies +

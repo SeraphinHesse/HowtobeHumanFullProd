@@ -209,6 +209,20 @@ class BuildingUI:
         self.action_btn = Button(
             (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
         self.cards = []
+        # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
+        # (10H's lightning section sits ABOVE this block in base_info.)
+        self.boss_btn = Button(
+            (self.panel_x + 12, 246, self.panel_w - 24, 32),
+            "BOSS CHOICES", "md")
+        pw, ph = 340, 260
+        self._boss_popup_rect = (view_w // 2 - pw // 2,
+                                 view_h // 2 - ph // 2, pw, ph)
+        px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
+        self._boss_close_btn = Button(
+            (px + pw // 2 - 60, py + ph - 44, 120, 32), "CLOSE", "md")
+        self._boss_popup_open = False
+        self._boss_hover_row = -1
+        # -- /10G --
 
     # -- open / close -----------------------------------------------------
 
@@ -229,6 +243,7 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self.cards = []
+        self._boss_popup_open = False  # -- 10G boss --
 
     def open_for_tile(self, tile, session, buildings_balance):
         self.close()
@@ -345,6 +360,16 @@ class BuildingUI:
             self.action_btn.hover(mx, my)
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
+        # -- 10G boss: base_info button + popup row hover (desc tooltip) --
+        elif self.mode == "base_info":
+            self.boss_btn.hover(mx, my)
+            self._boss_hover_row = -1
+            if self._boss_popup_open:
+                self._boss_close_btn.hover(mx, my)
+                px, py, pw, _ph = self._boss_popup_rect
+                if px + 14 <= mx < px + pw - 14 and my >= py + 48:
+                    self._boss_hover_row = (my - (py + 48)) // 20
+        # -- /10G --
 
     def handle_key(self, char, key):
         if self.preview is not None:
@@ -368,7 +393,11 @@ class BuildingUI:
             return self._construct_click(mx, my, session, buildings_balance)
         if self.mode == "upgrade":
             return self._upgrade_click(mx, my, session)
-        return contains(self.panel_rect, mx, my)  # base_info: consume inside
+        # -- 10G boss: base_info gains the BOSS CHOICES button + popup --
+        if self.mode == "base_info":
+            return self._base_info_click(mx, my)
+        # -- /10G --
+        return contains(self.panel_rect, mx, my)  # consume inside the panel
 
     def _unlock_click(self, mx, my, session):
         if self.action_btn.hit(mx, my):
@@ -416,6 +445,21 @@ class BuildingUI:
             return True
         return contains(self.panel_rect, mx, my)
 
+    def _base_info_click(self, mx, my):
+        """Base-info clicks (10G): the popup consumes clicks inside itself and
+        closes on its button; the BOSS CHOICES button opens it; anything else
+        inside the panel is consumed as before."""
+        if self._boss_popup_open:
+            if self._boss_close_btn.hit(mx, my):
+                self._boss_popup_open = False
+                return True
+            if contains(self._boss_popup_rect, mx, my):
+                return True
+        if self.boss_btn.hit(mx, my):
+            self._boss_popup_open = True
+            return True
+        return contains(self.panel_rect, mx, my)
+
     def _preview_click(self, mx, my, session, buildings_balance, scene,
                        occupancy):
         action = self.preview.handle_click(mx, my)
@@ -445,6 +489,8 @@ class BuildingUI:
     def update(self, dt):
         self.action_btn.update(dt)
         self.close_btn.update(dt)
+        self.boss_btn.update(dt)          # -- 10G boss --
+        self._boss_close_btn.update(dt)   # -- 10G boss --
         for _, btn in self.cards:
             btn.update(dt)
         if self.preview is not None:
@@ -527,3 +573,40 @@ class BuildingUI:
             submit_text(renderer, str(value), (self._right, y), "md", C_UI_TEXT,
                         align="right")
             y += 30
+        # -- 10G boss: BOSS CHOICES button + history popup --
+        self.boss_btn.submit(renderer)
+        if self._boss_popup_open:
+            self._submit_boss_popup(renderer, session)
+        # -- /10G --
+
+    def _submit_boss_popup(self, renderer, session):
+        """The small boss-history popup (prototype ``_BossHistoryPanel``): one
+        row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
+        as a tooltip line, "None yet" when empty, a Close button (10G)."""
+        from game.core.boss_bonuses import choice_desc
+
+        px, py, pw, ph = self._boss_popup_rect
+        submit_panel(renderer, self._boss_popup_rect)
+        submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
+                    C_UI_TEXT, align="center")
+        choices = session.state.boss_choices
+        y = py + 48
+        if not choices:
+            submit_text(renderer, "None yet", (px + 14, y), "md",
+                        C_UI_TEXT_DIM)
+        hover_desc = None
+        for i, (boss_num, option, outcome) in enumerate(choices):
+            hovered = i == self._boss_hover_row
+            submit_text(
+                renderer,
+                f"Boss {boss_num}: {outcome.capitalize()} {option}",
+                (px + 14, y), "md", C_GOLD if hovered else C_UI_TEXT)
+            if hovered:
+                hover_desc = choice_desc((boss_num - 1) % 3, option)
+            y += 20
+        if hover_desc is not None:
+            ty = py + ph - 80
+            for line in hover_desc.split("\n"):
+                submit_text(renderer, line, (px + 14, ty), "sm", C_UI_TEXT_DIM)
+                ty += 16
+        self._boss_close_btn.submit(renderer)

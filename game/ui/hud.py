@@ -13,6 +13,9 @@ that ``data/slots.json`` does not carry (revisit in the 10J art sweep).
 """
 import math
 
+from game.core.boss_bonuses import (
+    aoe_count, boss1b_income, boss3b_income, defence_count,
+)
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
@@ -28,11 +31,13 @@ _PHASE_LABEL = {
     GamePhase.ROUND_END: "REBUILDING",
     GamePhase.LEVELUP: "LEVEL UP",
     GamePhase.INCOME: "PAYDAY",
+    GamePhase.BOSS_CUTSCENE: "CUTSCENE",  # -- 10G boss --
 }
 _PHASE_COLOR = {
     GamePhase.ENEMY: C_RED,
     GamePhase.LEVELUP: C_GOLD,
     GamePhase.INCOME: C_GOLD,
+    GamePhase.BOSS_CUTSCENE: C_GOLD,      # -- 10G boss --
 }
 _INCOME_PINK = (214, 96, 136)
 _XP_PURPLE = (168, 105, 222)
@@ -56,6 +61,27 @@ def income_breakdown(session):
         ufn = getattr(b, "upkeep", None)
         if ufn is not None:
             upkeep += ufn()
+    # -- 10G boss-bonus story income: one bounded block so the HUD net keeps
+    # matching the next payday — the slot-3 payouts (Boss1B/3B) plus the
+    # Boss2A/2B per-recipient deltas the income sweep will fold in (counts have
+    # NO alive filter; recipients must be alive to be paid, like the sweep).
+    st = session.state
+    stacks = st.boss_stacks
+    income += (boss1b_income(st, session.tilemap)
+               + boss3b_income(st, session.tilemap))
+    if stacks["boss2a"]:
+        n_musicians = sum(
+            1 for t in session.tilemap.built_tiles()
+            if getattr(t.occupant, "building_type", None) == "economic"
+            and getattr(t.occupant, "alive", False))
+        income += defence_count(session.tilemap) * stacks["boss2a"] * n_musicians
+    if stacks["boss2b"]:
+        n_meditators = sum(
+            1 for t in session.tilemap.built_tiles()
+            if getattr(t.occupant, "building_type", None) == "meditator"
+            and getattr(t.occupant, "alive", False))
+        income += aoe_count(session.tilemap) * stacks["boss2b"] * n_meditators
+    # -- /10G --
     return income, upkeep
 
 
