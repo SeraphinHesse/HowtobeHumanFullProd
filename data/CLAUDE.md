@@ -99,7 +99,9 @@ schema, update THIS doc.**
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64. All data — edit `slots.json`.
+  64×96; map tiles 64×32; ui / vfx 64×64; backgrounds 1920×1080 (the 10J
+  `background_master` world-art slot — the slots/manifest `frame_w/h` schema
+  caps were raised to 4096 to admit it). All data — edit `slots.json`.
 - **`sprites/asset_manifest.json` (manifest v2, D-30)**:
   `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
   frame_h, offset_x, offset_y, rows[]}}}` with row =

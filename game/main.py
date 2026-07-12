@@ -746,6 +746,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
+            gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
             gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes
             gp["floaters"].submit_boss_bars(renderer, cs, world.scene,  # 10G
                                             session.state.phase, view_w, view_h)

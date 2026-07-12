@@ -9,7 +9,8 @@ is lives-based (HP mode was removed), so the base readout is a life count, never
 an HP bar.
 
 The 10A XP bar drops the prototype's mascot face: it needs an ``xp_icon`` slot
-that ``data/slots.json`` does not carry (revisit in the 10J art sweep).
+that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
+10J added ``income_sources`` + the hover breakdown tooltip on the income line.
 """
 import math
 

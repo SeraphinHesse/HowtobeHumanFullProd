@@ -90,6 +90,8 @@ _SLASH_LIFE = 0.28
 _SLASH_COLORS = ((220, 230, 255), (200, 215, 245), (255, 255, 255))
 _SPLATTER_COLOR = (180, 30, 30)  # prototype fallback red, r=4 px
 _SPLATTER_ALPHA = 170
+_PROJECTILE_STONE = (185, 180, 170)  # defender stone (prototype gray circle)
+_PROJECTILE_SHELL = (70, 60, 55)     # mortar shell (darker, larger)
 # -- /10J --
 
 
@@ -428,6 +430,24 @@ class FloaterManager:
             renderer.submit_overlay_lines(
                 pts, tuple(int(c * frac) for c in _GOLD_BORDER),
                 width=2, closed=True)
+
+    def submit_projectiles(self, renderer, cs, scene):
+        """In-flight shots (10J): the plain defender stone as a small light
+        dot, the mortar shell darker and larger (prototype's procedural
+        projectile art; 9E left them logical-only). Read live off the scene
+        like the HP bars — homing shots track their target every frame."""
+        zoom = cs.camera.zoom
+        for p in scene.by_tag("projectile"):
+            wx, wy = p.transform.world_pos
+            cx, cy = cs.world_to_screen(wx, wy)
+            shell = p.name == "shell"
+            size = max(2, int((5 if shell else 3) * zoom))
+            color = _PROJECTILE_SHELL if shell else _PROJECTILE_STONE
+            # lift the dot off the ground plane so it reads as flying
+            lift = int(cs.geometry.tile_h * zoom * 0.6)
+            renderer.submit_hud(HudRect(
+                (int(cx - size / 2), int(cy - lift - size / 2), size, size),
+                color, border_radius=size // 2))
 
     def submit_fx(self, renderer, cs):
         """Screen-space particle FX: sparks / death shards / muzzle motes as

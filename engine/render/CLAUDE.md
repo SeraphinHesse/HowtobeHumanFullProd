@@ -126,6 +126,12 @@ off the cached surface.
 - **Content-agnostic**: `ensure(view_w, view_h, ground_items_fn)` takes a callback
   `(d_min,d_max,s_min,s_max) → iterable[RenderItem]` (band form) so terrain/tint
   choices stay with the caller (game: untinted; editor: `tint_for_code`).
+- **Underlay (10J)**: `set_underlay(surface, offset_x, offset_y)` installs a
+  world-locked image painted between the bg fill and the tiles in every
+  `_paint` — it scrolls/clips with the cache for free (the cache is opaque, so
+  a host-level blit under it would be covered). Offsets are iso pixels at
+  zoom 1; a per-zoom scaled copy is cached lazily; changing it invalidates.
+  The game's background-art layer is the consumer (`main.py apply_bg_art`).
   `bg_color=<rgb>` bakes an OPAQUE cache (pixel-identical to the old
   `fill(bg)`-then-tiles path) and is REQUIRED by scroll-fill (the exposed strip is
   `fill(bg_color)`ed before repaint); `None`/SRCALPHA is for static

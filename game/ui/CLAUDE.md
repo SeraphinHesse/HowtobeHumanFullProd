@@ -1,4 +1,4 @@
-# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G + 10H + 10I UI)
+# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G + 10H + 10I + 10J UI)
 
 HUD, building panel, floaters, game over, and the top-level shell/menus. You
 reached here from `game/CLAUDE.md`. When you change UI conventions, update THIS
@@ -40,9 +40,9 @@ logic is `game/core` — see that doc.)
 - **`effects.py`** grew three fenced 10G members: `spawn_boss_events(state)`
   drains the `boss_events` announce markers (gated by
   `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
-  "SOMETHING BIG / IS APPROACHING!" banner, fading by lerping the red toward
-  the host background over `boss_announce.{fade_in,hold,fade_out}` (no HUD
-  alpha — 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
+  "SOMETHING BIG / IS APPROACHING!" banner over the
+  `boss_announce.{fade_in,hold,fade_out}` timings (a real text-alpha fade
+  since 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only) plus the 48×4 overhead
   bar (only when `hp < max_hp`; slot-frame-derived widths are 10J polish).
@@ -88,9 +88,9 @@ logic is `game/core` — see that doc.)
 - **Headless seam**: `main(autostart=True)` skips the shell straight into GAMEPLAY
   so `tools/smoke.py` + the boot tests still exercise the full `_World`/`Session`
   construction + sim the menu would otherwise defer.
-- **Deferred**: main-menu background art + the pause dim overlay (the HUD pass has
-  no per-pixel alpha) are host raw-surface concerns, not yet wired; the settings
-  audio slider is inert (no audio system beyond music).
+- **Deferred**: the main-menu background art image is 10K; the settings audio
+  slider is inert (no audio system beyond music). (The pause dim landed with
+  10J's HUD alpha.)
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
@@ -99,8 +99,9 @@ firing Sun Scorcher to the enemy its `BeamAttacker._target` names, and a fading
 world-space diamond for each `"crater"` GameObject a mortar shell left (the
 `Crater` objects age + self-despawn in the scene; the FX just draws them). This is
 the sanctioned `game/ui → game/buildings.components` read (building_ui already
-imports it). Alpha-true glow/ellipse is deferred to 10J (the HUD/overlay pass has
-no per-pixel alpha — same limit as the opaque level-up backdrop).
+imports it). 10J made the crater an alpha-filled diamond; the beam stays a
+plain line (an alpha GLOW under it remains unported — `HudLines` carries no
+alpha; accepted).
 
 ## Lightning + cheat menu UI (10H)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
@@ -128,7 +129,8 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
   fading yellow world-space diamond sized to the real blast radius (projects
-  to the prototype's 2:1 ground ellipse). The alpha impact-flash circle is 10J.
+  to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
+  expanding impact-flash polygon, and the alpha marker fade.
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
@@ -152,18 +154,74 @@ deliberately unlisted, prototype-exact); the tooltip draws last/on top.
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
 
+## QOL + FX sweep (10J)
+The engine grew per-pixel alpha (RGBA `HudRect`/`HudText` + the filled
+`submit_overlay_polys` — see `engine/render/CLAUDE.md`), which unblocked the
+parked visuals; everything below reads its trigger state live off the
+scene/state (the watcher / drained-ledger house patterns), no new core→ui
+imports:
+- **Shift multi-select batches** — selection state (`gp["sel"]`/`gp["sel_cat"]`,
+  category `built|buildable|combat`) lives in `main.py`'s BUILDING click branch
+  (prototype `game.py:440-563`): same-category shift-clicks toggle, mixed
+  categories are ignored silently, plain click restarts. `BuildingUI
+  .open_for_tile(..., selected_tiles=[primary, …])` batches: **unlock**
+  dedups 2×2 chunks (`_unlock_chunks` frozenset key, summed cost, "UNLOCK n
+  AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
+  only, **in-tier upgrade** sums `_batch_upgrade_targets`; tier ADVANCE stays
+  primary-only. Range diamond only when the selection is a single tile. The
+  base never batches.
+- **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
+  the upgrade panel's new rename row (both fill the edit buffer from
+  `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
+  (custom + rebirth ordinals visible); `_commit_rename` skips a no-op rename so
+  it can't reset the rebirth chain. `BuildingUI.name_editing` gates the host's
+  key routing.
+- **Next-tier preview** — hover-gated green in-tier stat values
+  (`_next_level_rows`, a throwaway `create()` clone copying tier cursor +
+  boost/condition/streak context) + the `_next_tier_card` (divider, "Next:
+  <name>", sprite thumb, first 3 stats) in `tier_upgrade`/`tier_locked` modes;
+  plus the red **DIED LAST ROUND** tag when `RoundStats.dmg_taken_last_round >=
+  max_hp()`.
+- **Income tooltip** — `hud.income_sources(session)` is the ordered per-source
+  list (Base/Musicians/Meditators/Story/−Upkeep); `income_breakdown` sums it so
+  pill and tooltip can't drift; hovering the income line shows the prototype's
+  coloured breakdown.
+- **Game log** (`game_log.py`) — 4 s lifetime / fade from 3 s / max 5, stacked
+  above the phase banner; fed by direct `post()` calls (unlock refusal,
+  building kills via the death watcher) and `drain(state)` over the new
+  `RunState.log_events` ledger.
+- **FX** (`effects.py`) — `spawn_building_vfx` (spark presets place/level1/
+  level2/tier + gold tile highlight, wired as `panel.on_build_vfx`),
+  `watch_buildings` (death burst + kill log; alive-flip watcher),
+  `watch_enemies` (muzzle/slash on an `EnemyCombat.cooldown` reset while
+  blocked — no core hook needed), `submit_projectiles` (stone/shell dots —
+  9E's invisible projectiles), blood splatters (`RunState.enemy_death_events`
+  ledger; double-gated `ui.FX.gore_enabled` AND the settings toggle; cleared
+  on the ENEMY-phase edge), and alpha versions of the crater / lightning
+  marker / boss-announce / floater fades + an expanding lightning impact
+  flash.
+- **Background art** — `background_master` (imported slot, 1920×1080) painted
+  as a `GroundCache` UNDERLAY (the cache is opaque — a host blit would be
+  covered); `main.py apply_bg_art()` follows `ui.FX.bg_art` + the settings
+  toggle live, and the ground-items callback skips BACKGROUND-zone tiles while
+  active so the art shows through (prototype `skip_bg`).
+- **Modal dims** are the prototype's real alphas now: levelup 185, boss
+  cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
+
 ## Known divergences (deliberate)
-The level-up window backdrop is OPAQUE — the HUD pass has no per-pixel alpha, the
-same limit that deferred 9H's pause dim (10J). The XP bar/floaters drop the
-prototype's mascot face + `xp_icon`, which has no slot in `data/slots.json` (10J).
-Lightning FX are NOT force-cleared at `_begin_round_end` (the prototype clears
-`_lightning_effects` there, `game.py:943`): like the mortar craters, the
+The XP bar/floaters drop the prototype's mascot face + `xp_icon`, which has no
+slot in `data/slots.json` (revisit at the 10L UI-editor phase / 11 parity
+audit). Lightning FX are NOT force-cleared at `_begin_round_end` (the prototype
+clears `_lightning_effects` there, `game.py:943`): like the mortar craters, the
 `"lightning_fx"` objects simply age out in the scene (`MARKER_LIFE` 1.0s ≈ the
 crater's `CRATER_LIFE`), so a strike landed in the final combat instant lingers
 ≤0.4s into REBUILDING — the same accepted behavior craters already have (10H).
-The 10I condition tint + RANGE/HEATMAP overlays render as diamond OUTLINES
-(prototype colours verbatim, alpha dropped) — the engine overlay pass draws
-outline polylines only; alpha-filled parity lands with the 10J FX sweep.
+10J's remaining approximations: the enemy low-HP sprite blood-blotches
+(`_apply_gore`) are approximated by the engine tint path rather than per-pixel
+sprite mutation; splatters/craters draw in the overlay pass, i.e. OVER sprites
+(the prototype drew them under buildings); particle velocities are eyeballed
+around the prototype's presets (life/count/colours are exact); overlay diamond
+BORDERS are opaque lines (`OverlayLines` carries no alpha — fills are exact).
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
