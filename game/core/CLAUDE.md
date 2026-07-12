@@ -1,4 +1,4 @@
-# CLAUDE.md — game/core (Phases 9F + 10A)
+# CLAUDE.md — game/core (Phases 9F + 10A + 10G)
 
 The round machine + economy + progression, porting the prototype's
 `Game._update_gameplay` / `_begin_enemy_phase` / `_begin_round_end` /
@@ -11,9 +11,9 @@ guards it). When you change core conventions, update THIS doc.
 
 ## Round loop (Phase 9F)
 Four files beside `balance.py`:
-- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/LEVELUP/INCOME driven now
-  — LEVELUP since 10A; BOSS_CUTSCENE declared at its prototype ordinal but never
-  entered — 10G) and `GameState` (GAMEPLAY/GAME_OVER; menu states 9H).
+- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/LEVELUP/INCOME —
+  LEVELUP since 10A, BOSS_CUTSCENE since 10G) and `GameState`
+  (GAMEPLAY/GAME_OVER; menu states 9H).
 - **`game_state.py`** — `RunState` dataclass: the single owner of `phase`, `state`,
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
   `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
@@ -23,8 +23,14 @@ Four files beside `balance.py`:
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
-  The remaining reserved no-op slot (boss-bonus, slot 3) stays in place for 10G.
   **Do not reorder without the user.**
+  - **10G filled slot 3** (the last reserved no-op): the Boss1B/3B story
+    payouts via `boss_bonuses.boss1b_income`/`boss3b_income` — AFTER the
+    RoundStats snapshot (Boss3B reads the `dmg_dealt_last_round` it just
+    rolled), BEFORE base income, paid silently (NO floater). The Boss2A/2B
+    per-recipient deltas fold into each `amount` INSIDE the existing step-4
+    income sweep (`defence_count`/`aoe_count` computed once, NO alive filter on
+    the counts), so floaters, totals and the HUD readout stay in lockstep.
   - **10E filled slots 8 + 10**: `_process_wall_teardown` (slot 8, BEFORE revive)
     tears down every DEAD `wall_builder`'s perimeter (`tilemap.remove_walls_for_builder`)
     — seen as `alive == False` at this point, same as painters/boosts; `tilemap.rebuild_walls()`
@@ -137,6 +143,35 @@ in `game/ui/CLAUDE.md`.
   lives-faces indicator are 10L** (the UI-editor phase) — 10F ships the mechanic
   and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
   to it.
+
+## Boss cutscene + bonuses (Phase 10G)
+- **`boss_bonuses.py`** (pure) — the prototype's `boss_bonuses.py` WITHOUT its
+  global singleton: the six stack counters live in `RunState.boss_stacks`
+  (fresh run = fresh RunState = the reset). `BOSS_CHOICES`/`choice_desc` carry
+  the exact A/B UI copy; `apply_choice(state, (boss_num-1)%3, option)` stacks;
+  `story_damage_bonus` (Boss1A per-BUILDABLE-tile + Boss3A per-10-love of the
+  End-Turn snapshot) is the flat int the HOST threads into
+  `resolve_combat(dmg_bonus=…)` each frame; `boss1b_income`/`boss3b_income`
+  are payday slot 3; `defence_count`/`aoe_count` the Boss2A/2B counts. **Bonus
+  magnitudes are code constants** (the `COMBAT_SPEEDS` precedent), everything
+  else reads balancing.
+- **Phase flow**: `end_turn` snapshots love EVERY round (Boss3A) and, on a boss
+  round (`round_num % Boss.round_interval == 0`), lives + one `boss_events`
+  announce marker. `_begin_round_end` queues
+  `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
+  At ROUND_END expiry the pending cutscene **beats** `levelup_pending`;
+  `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
+  `resolve_boss_cutscene(option, scene)` applies the stack, appends
+  `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
+  base-info popup reads; no disk persistence), then chains → LEVELUP (if
+  pending) → payday, exactly once.
+- **Death swarm handshake (layering)**: `game/core` still imports NO
+  `game/enemies`. `on_enemy_death` duck-types the boss (`ETYPE`,
+  `death_spawned`, `mark_death_spawned()` — a METHOD because the E-11 setattr
+  guard blocks public property setters) and stashes `(col, row, era)`;
+  `post_sim` flushes the stash via `spawner.spawn_death_swarm` BEFORE the
+  wave-clear check, so the round can't end between boss death and swarm.
+  Quick-skip / lives-wipe despawns never reach the callback → no swarm.
 
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to

@@ -6,9 +6,10 @@ components ``PathAgent`` + ``EnemyCombat``. All state is in components (E-11);
 the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-safe
 ``@property``s over ``Health`` / ``EnemyCombat``.
 
-``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F; ``Boss`` is a
-thin subclass present for the spawner's still-zeroed branch (10G enables it). Each
-subclass resolves its own stat subtree + slot prefix and nothing else.
+``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F, ``Boss``
+since 10G (era stats via tier-as-era, nearest-building hunting with
+re-path-on-kill, the ``"boss"`` scene tag). Each subclass resolves its own stat
+subtree + slot prefix and little else.
 
 Scale-tier stats are resolved at CONSTRUCTION into component fields (prototype
 ``enemy.py:88-108``): ``hp``/``dmg``/``speed`` = the type's base plus the
@@ -32,7 +33,9 @@ import random
 from engine.core import (
     GameObject, Health, Movement, RangeSensor, SpriteAnimator, Transform,
 )
-from game.map.pathfinder import find_path, find_path_ignoring_walls
+from game.map.pathfinder import (
+    find_path, find_path_ignoring_walls, find_path_to_nearest_building,
+)
 from .components import BossState, EnemyCombat, PathAgent
 
 
@@ -81,6 +84,7 @@ class Enemy(GameObject):
     REGISTRY_GROUP = "Walker"      # data/slots.json enemies group (era subtree)
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
     STAT_SUBTREE = ("Standard",)  # under EnemyTypes; scaled by scale_tiers
+    EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):
@@ -99,7 +103,7 @@ class Enemy(GameObject):
         ]
         super().__init__(
             name=self.ETYPE,
-            tags=("enemy",),
+            tags=("enemy",) + self.EXTRA_TAGS,
             transform=Transform(wx=float(col), wy=float(row)),
             components=components,
         )
@@ -168,13 +172,24 @@ class SiegeCannon(Enemy):
 
 
 class Boss(Enemy):
+    """The boss (LIVE since 10G). ``tier`` doubles as the ERA index — the
+    spawner passes ``round // interval - 1``, clamped to the stat table; NO
+    scale-tier bonuses ever apply (prototype ``boss.py:17-39`` overwrites the
+    ``super().__init__(tier=tier)`` stats from ``BOSS_ERAS``). It hunts the
+    nearest alive building (base included) and re-paths every time its target
+    dies; arrival only breaches when the goal IS the base (``goal_is_base``).
+    ``era``/``death_spawned`` are the duck-typed properties the Session's
+    death-swarm stash reads over ``BossState`` (game/core never imports this
+    package)."""
+
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
     DEFAULT_SLOT = "boss_era_0"
+    EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):
-        # `tier` doubles as the era index for the boss (10G refines this).
+        # `tier` doubles as the era index for the boss (spawner-threaded, 10G).
         self._era = min(max(tier, 0),
                         len(enemies_balance["EnemyTypes"]["Boss"]["stats"]) - 1)
         super().__init__(col, row, enemies_balance, tilemap, tier,
@@ -187,6 +202,42 @@ class Boss(Enemy):
         st = balance["EnemyTypes"]["Boss"]["stats"][era]
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
+
+    def on_spawn(self):
+        """Path to the nearest ALIVE building of any type — base included
+        (prototype ``boss.py:49-97`` via ``find_path_to_nearest_building``,
+        ported at ``game/map/pathfinder.py``). Arms the 10G ``PathAgent``
+        flags: re-path when the attack target dies, and never count arrival
+        at a non-base goal as a breach."""
+        path = find_path_to_nearest_building(
+            self._tilemap, self._col, self._row)
+        if not path:
+            path = find_path_ignoring_walls(
+                self._tilemap, self._col, self._row)
+        mv = self.get_component(Movement)
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        mv.index = 0
+        mv.arrived = False
+        pa = self.get_component(PathAgent)
+        pa.repath_on_kill = True
+        pa.goal_is_base = (bool(path) and path[-1] == (
+            self._tilemap.base_col, self._tilemap.base_row))
+
+    # -- duck-typed contract read by Session.on_enemy_death (10G) ----------
+
+    @property
+    def era(self):
+        return self.get_component(BossState).era
+
+    @property
+    def death_spawned(self):
+        return self.get_component(BossState).death_spawned
+
+    def mark_death_spawned(self):
+        """One-shot swarm guard setter. A method, not a property setter — the
+        E-11 ``GameObject.__setattr__`` guard intercepts public attribute
+        assignment before a data descriptor would run."""
+        self.get_component(BossState).death_spawned = True
 
 
 # etype string -> class (the spawner queues etype strings).

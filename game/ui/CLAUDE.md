@@ -1,4 +1,4 @@
-# CLAUDE.md — game/ui (Phases 9G + 9H + 10A UI)
+# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G UI)
 
 HUD, building panel, floaters, game over, and the top-level shell/menus. You
 reached here from `game/CLAUDE.md`. When you change UI conventions, update THIS
@@ -27,6 +27,37 @@ construct→layout→update→hit→submit template + `widgets.Button`.
 the gated construct list + five-mode upgrade button in `building_ui.py`. The modal
 sits at the TOP of `main.py`'s click ladder and swallows keys. (The pure roll/gate
 logic is `game/core` — see that doc.)
+
+## Boss UI (10G)
+- **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template
+  (construct→`open(boss_num, outcome)`→layout-on-open→update→hit→submit): opaque
+  near-black backdrop, win/loss headline + "How will we react?", two 180×130
+  boxes labeled `WinA/WinB` (or `LossA/LossB`) with descs from
+  `game.core.boss_bonuses.BOSS_CHOICES`. `hit` returns `"A"`/`"B"`/None — NO
+  dismiss path; it sits above `session.frozen` in `main.py`'s click ladder and
+  the frozen key-gate swallows keys. Opened by the host on the BOSS_CUTSCENE
+  phase edge from `state.pending_boss_cutscene` (the LEVELUP pattern).
+- **`effects.py`** grew three fenced 10G members: `spawn_boss_events(state)`
+  drains the `boss_events` announce markers (gated by
+  `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
+  "SOMETHING BIG / IS APPROACHING!" banner, fading by lerping the red toward
+  the host background over `boss_announce.{fade_in,hold,fade_out}` (no HUD
+  alpha — 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
+  finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
+  200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only) plus the 48×4 overhead
+  bar (only when `hp < max_hp`; slot-frame-derived widths are 10J polish).
+- **`hud.py`**: BOSS_CUTSCENE phase label/color entries, and one fenced block
+  in `income_breakdown` adding the boss-bonus story income (slot-3 payouts +
+  Boss2A/2B deltas × alive recipients) so the HUD net keeps matching payday.
+- **`building_ui.py`** base_info mode: a "BOSS CHOICES" button (10H's lightning
+  section sits ABOVE it) opening a centred history popup — one row per
+  `state.boss_choices` entry (`"Boss {n}: {Outcome} {option}"`), the hovered
+  row's bonus desc as a tooltip line, "None yet" when empty, Close; the popup
+  consumes clicks inside itself.
+- **`game/main.py`** owns the screen shake: a transient `cs.pan(ox, oy)` /
+  `cs.pan(-ox, -oy)` wrap around the world render branch (NO clamp between),
+  parameters from `Boss.shake.{interval,strength}`, active only while ENEMY
+  phase + a live `"boss"` in the scene.
 
 ## Shell + menus (9H)
 `game/ui/shell.py` wraps a run — ports the prototype's `GameState` shell

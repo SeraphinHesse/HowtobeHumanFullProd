@@ -9,8 +9,9 @@ not reorder without the user.
 
 9F drives steps 1, 2, 4, 5, 9, 11, 12 (snapshot -> base income + yield -> upkeep
 clamp-0 -> revive -> round++ -> INCOME). 10C fills step 6 (the Painter payout
-sweep, before revive). Steps 3/7/8/10 remain reserved no-ops until their
-producing buildings exist. The income + upkeep sweeps are duck-typed
+sweep, before revive); 10D step 7 (boosts); 10E steps 8 + 10 (walls); 10G fills
+step 3 (Boss1B/3B story payouts, silent) and folds the Boss2A/2B deltas into
+the step-4 income sweep. The income + upkeep sweeps are duck-typed
 (``yield_amount`` / ``upkeep``) exactly like the prototype, so future building
 types are picked up here with no edit to this loop; the ONE exception is the
 Meditator, whose streak compounding needs an ordered reset->pay->advance the
@@ -22,6 +23,9 @@ GameObject — so both are threaded from the ``Session``.
 """
 from game.buildings.components import BoostEmitter, PainterProgress, RoundStats
 from game.map.tiles import TileState
+from .boss_bonuses import (
+    aoe_count, boss1b_income, boss3b_income, defence_count,
+)
 from .phases import GamePhase
 from .xp import scaled_base_income
 
@@ -145,7 +149,13 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
         rs.dmg_taken_this_round = 0
         rs.dmg_dealt_this_round = 0
 
-    # 3. [reserved 10G] Boss-bonus payouts (Boss1B / Boss3B).
+    # 3. Boss-bonus payouts, Boss1B / Boss3B (10G). AFTER the snapshot — Boss3B
+    #    reads the ``dmg_dealt_last_round`` the snapshot JUST rolled — and
+    #    BEFORE base income. Paid silently: NO income_events floater
+    #    (prototype game.py:989-1009).
+    story = boss1b_income(state, tilemap) + boss3b_income(state, tilemap)
+    if story > 0:
+        state.add_love(story)
 
     # 4. Base income + yield sweep. Base income is always paid, scaled by the
     #    village level (10A). Then a duck-typed sweep adds each alive economy
@@ -155,6 +165,15 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     state.add_love(base_income)
     state.income_events.append(
         (tilemap.base_col, tilemap.base_row, base_income, "income"))
+    # -- 10G boss: Boss2A/2B per-building deltas, folded into each ``amount``
+    #    inside the EXISTING sweep (so floaters + totals match the prototype,
+    #    economic_building.py:32-39 / meditator_building.py:68-76). The two
+    #    occupant counts are computed ONCE, with NO alive filter.
+    boss2a = state.boss_stacks["boss2a"]
+    boss2b = state.boss_stacks["boss2b"]
+    n_defence = defence_count(tilemap) if boss2a else 0
+    n_aoe = aoe_count(tilemap) if boss2b else 0
+    # -- /10G --
     for tile, b in built:
         if not getattr(b, "alive", False):
             continue
@@ -168,8 +187,12 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
             rs = b.get_component(RoundStats)
             disturbed = rs is not None and rs.dmg_taken_last_round > 0
             amount = collect(disturbed)
+            if boss2b and getattr(b, "building_type", None) == "meditator":
+                amount += n_aoe * boss2b  # -- 10G Boss2B --
         else:
             amount = _amount(b, "yield_amount")
+            if boss2a and getattr(b, "building_type", None) == "economic":
+                amount += n_defence * boss2a  # -- 10G Boss2A --
         if amount > 0:
             state.add_love(amount)
             state.income_events.append((tile.col, tile.row, amount, "income"))

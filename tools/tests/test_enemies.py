@@ -200,7 +200,7 @@ class TestSpriteVariants(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 # Wave composition (prototype game.py:876-921) — standard + raiders + siege
-# are all live since 10F; only the boss branch is still gated off.
+# live since 10F, the boss since 10G (its rounds compose via round_counts).
 # ---------------------------------------------------------------------------
 RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
@@ -217,8 +217,16 @@ class TestSpawnComposition(unittest.TestCase):
         etypes = [et for _tile, et, _d in sp._queue]
         return sp, etypes
 
+    # Boss rounds (every Boss.round_interval-th, LIVE since 10G) take the
+    # BOSS_ROUND_COUNTS composition instead of the per-type formulas — those
+    # rounds are covered by tools/tests/test_boss.py, so the formula loops
+    # below skip them.
+    _BOSS_INTERVAL = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+
     def test_standard_count_formula(self):
         for r in range(1, 26):
+            if r % self._BOSS_INTERVAL == 0:
+                continue  # boss-round composition (10G) — see test_boss.py
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 tier = (r - 1) // SCALE["scale_every_n_levels"]
@@ -229,6 +237,8 @@ class TestSpawnComposition(unittest.TestCase):
     def test_raider_count_formula_and_start_round(self):
         start = RAIDER["start_round"]
         for r in range(1, 26):
+            if r % self._BOSS_INTERVAL == 0:
+                continue  # boss-round composition (10G) — see test_boss.py
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
@@ -241,6 +251,8 @@ class TestSpawnComposition(unittest.TestCase):
     def test_siege_count_formula_and_start_round(self):
         start = SIEGE["start_round"]
         for r in range(1, 26):
+            if r % self._BOSS_INTERVAL == 0:
+                continue  # boss-round composition (10G) — see test_boss.py
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
@@ -262,14 +274,18 @@ class TestSpawnComposition(unittest.TestCase):
         # The remainder is mixed into the shuffled body, not appended in front.
         self.assertEqual(etypes[lead:].count("siege"), n_siege - lead)
 
-    def test_boss_branch_still_gated_off(self):
-        # 10G flips ENABLE_BOSS; until then no boss is ever emitted, including
-        # on the prototype's boss rounds (every `round_interval`).
+    def test_boss_leads_every_boss_round(self):
+        # ENABLE_BOSS flipped in 10G: every `round_interval`-th round emits
+        # exactly ONE boss at the head of the queue, and non-boss rounds never
+        # emit one (the detailed composition lives in test_boss.py).
         interval = ENEM["EnemyTypes"]["Boss"]["round_interval"]
         for r in (interval, interval * 2):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
-                self.assertNotIn("boss", etypes)
+                self.assertEqual(etypes[0], "boss")
+                self.assertEqual(etypes.count("boss"), 1)
+        _sp, etypes = self._counts(interval + 1)
+        self.assertNotIn("boss", etypes)
 
     def test_spawn_tiles_from_spawning_zone(self):
         sp = Spawner()

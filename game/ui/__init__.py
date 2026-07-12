@@ -11,6 +11,7 @@ prototype's ``src/ui/*`` core onto the clean HUD pass; later phases (10A-10J)
 layer the deferred UI depth on top.
 """
 from .add_name import AddNameScreen
+from .boss_cutscene import BossCutscene
 from .building_ui import BuildingUI, ConstructPreview
 from .credits import CreditsScreen
 from .effects import FloaterManager
@@ -24,6 +25,7 @@ from .shell import Shell
 
 __all__ = [
     "Hud",
+    "BossCutscene",
     "BuildingUI",
     "ConstructPreview",
     "FloaterManager",
