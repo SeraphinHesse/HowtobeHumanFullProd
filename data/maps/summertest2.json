@@ -1,7 +1,7 @@
 {
   "base": {
     "col": 512,
-    "row": 512,
+    "row": 513,
     "slot": "base_hole"
   },
   "camera_start": {

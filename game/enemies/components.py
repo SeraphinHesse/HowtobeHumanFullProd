@@ -19,6 +19,25 @@ by ``engine.core.Movement``.
 """
 from engine.core import Component, Health, Movement, SpriteAnimator
 from game.buildings.components import RoundStats
+from game.map.pathfinder import find_path_to_nearest_building
+from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
+
+
+# -- 10I: tile-condition modifier lookup (shared by both components) --------
+
+def _condition_mods(tm, condition):
+    """The ``TileConditions.modifiers`` sub-dict for ``condition``, or ``{}``.
+    Duck-typed + fully guarded so headless tilemap stubs without ``balance``
+    (and GRASS, which has no modifiers entry) stay neutral."""
+    bal = getattr(tm, "balance", None)
+    if bal is None:
+        return {}
+    key = CONDITION_MODIFIER_KEY.get(condition)
+    if key is None:
+        return {}
+    return bal.get("TileConditions", {}).get("modifiers", {}).get(key, {})
+
+# -- /10I --
 
 
 class PathAgent(Component):
@@ -28,10 +47,24 @@ class PathAgent(Component):
     applies base damage + despawns). Gates ``Movement`` by zeroing its speed
     while blocked and restoring it on unblock — the path (``Movement.waypoints``)
     is never discarded, so no re-path is needed when the blocker dies (the route
-    already runs through that now-passable tile)."""
+    already runs through that now-passable tile).
+
+    10G adds two default-off flags (Standard/Raider/Siege stay byte-identical):
+
+    * ``goal_is_base`` — ``reached_base`` is only set on ``Movement.arrived``
+      when True. A hunter whose path ENDS on a targeted building (the boss)
+      must never count arrival there as a base breach — the phantom-base-hit
+      hazard the 10F raider/siege deferral documented.
+    * ``repath_on_kill`` — on unblocking (the blocker died) or on arriving at a
+      dead non-base goal, re-run ``find_path_to_nearest_building`` from the
+      current tile and reload the waypoints — the prototype boss's
+      ``_repath``-after-kill (``boss.py:108-114``) mapped onto the
+      block-and-attack model."""
 
     reached_base: bool = False
     blocked: bool = False
+    goal_is_base: bool = True     # arrival counts as a base breach (10G)
+    repath_on_kill: bool = False  # re-route to the next nearest building (10G)
 
     def on_added(self, owner):
         self._owner = owner
@@ -39,6 +72,13 @@ class PathAgent(Component):
         self._real_speed = 0.0    # cached move speed for block/unblock gating
         self._target = None       # the building we are stopped attacking
         self._wall_target = None  # (c1,r1,c2,r2) edge wall we are attacking, or None
+        # -- 10I: condition of the tile last ARRIVED at (prototype
+        # enemy.py:111-114 / 191-192). GRASS at spawn; the spawn tile's own
+        # condition is never applied (waypoint 0 IS the spawn tile — update()
+        # only reads arrived tiles from waypoint index 1 on).
+        self._current_condition = TileCondition.GRASS
+        self._last_index = 0
+        # -- /10I --
 
     def update(self, dt):
         owner = getattr(self, "_owner", None)
@@ -49,11 +89,29 @@ class PathAgent(Component):
         if mv is None:
             return
         if mv.arrived:
-            self.reached_base = True
+            # -- 10G boss: arrival only breaches when the path goal IS the
+            # base. A non-base goal (the hunted building died en route with no
+            # blocker contact) re-paths instead of firing a phantom base hit.
+            if self.goal_is_base:
+                self.reached_base = True
+            else:
+                self._repath(owner, tm, mv)
             return
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
             return
+        # -- 10I: refresh the current condition when a waypoint was passed —
+        # the tile ARRIVED at is waypoints[index-1]. Index 1 means "arrived at
+        # waypoint 0" = the spawn tile itself, which never applies (prototype
+        # enemy.py:191-192), hence the index >= 2 gate.
+        if mv.index != self._last_index:
+            self._last_index = mv.index
+            if mv.index >= 2:
+                pw = wps[mv.index - 1]
+                arrived = tm.get(round(pw[0]), round(pw[1]))
+                if arrived is not None:
+                    self._current_condition = arrived.condition
+        # -- /10I --
         wp = wps[mv.index]
         tc, tr = round(wp[0]), round(wp[1])
         is_base = (tc == tm.base_col and tr == tm.base_row)
@@ -86,8 +144,43 @@ class PathAgent(Component):
             self._target = None
             if self.blocked:
                 self.blocked = False
-                mv.speed = self._real_speed
                 self._set_anim(owner, "walk")
+                # -- 10G boss: the blocker died — hunt the next nearest
+                # building instead of resuming the stale route.
+                if self.repath_on_kill:
+                    self._repath(owner, tm, mv)
+            # 10I: while walking, speed is the condition-modified value every
+            # frame (mountain/forest −0.4 t/s; replaces the plain
+            # ``_real_speed`` restore — identical when the condition is GRASS).
+            mv.speed = self._condition_speed()
+
+    def _repath(self, owner, tm, mv):
+        """Re-route to the nearest alive building (base included) from the
+        current tile, reloading ``Movement`` and re-deriving ``goal_is_base``
+        (10G). No path at all (fully sealed board) leaves the agent standing —
+        the next unblock/arrival retries."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        path = find_path_to_nearest_building(tm, col, row)
+        if not path:
+            return
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        mv.index = 0
+        mv.arrived = False
+        self.goal_is_base = path[-1] == (tm.base_col, tm.base_row)
+
+    # -- 10I: condition-modified move speed ---------------------------------
+
+    def _condition_speed(self):
+        """``max(0, real − enemy_speed_penalty)`` for the tile last arrived at
+        (prototype ``enemy.py:345-354``; the −0.4×32 px was pixel-space). The
+        ``max(0, …)`` clamp is prototype-exact: a 0.5 t/s SiegeCannon crawls
+        at 0.1 on mountain/forest."""
+        mods = _condition_mods(getattr(self, "_tilemap", None),
+                               self._current_condition)
+        return max(0.0, self._real_speed - mods.get("enemy_speed_penalty", 0))
+
+    # -- /10I --
 
     @staticmethod
     def _wall_edge_ahead(tm, wps, index, tc, tr):
@@ -128,6 +221,22 @@ class EnemyCombat(Component):
     def on_added(self, owner):
         self._owner = owner
 
+    # -- 10I: condition-modified attack damage -------------------------------
+
+    def _effective_dmg(self, pa):
+        """``max(1, int(dmg × (1 + enemy_dmg_bonus)))`` for the owner's current
+        tile condition (prototype ``enemy.py:356-365``). Applied to BOTH the
+        blocking-building and edge-wall attacks — never to base hits (lives
+        mode costs one life flat)."""
+        mods = _condition_mods(getattr(pa, "_tilemap", None),
+                               getattr(pa, "_current_condition", None))
+        bonus = mods.get("enemy_dmg_bonus", 0)
+        if bonus:
+            return max(1, int(self.dmg * (1.0 + bonus)))
+        return self.dmg
+
+    # -- /10I --
+
     def update(self, dt):
         owner = getattr(self, "_owner", None)
         if owner is None:
@@ -145,7 +254,7 @@ class EnemyCombat(Component):
             if self.cooldown <= 0:
                 tm = getattr(pa, "_tilemap", None)
                 if tm is not None:
-                    tm.damage_wall(*wall, self.dmg)
+                    tm.damage_wall(*wall, self._effective_dmg(pa))  # 10I
                 self.cooldown = self.attack_speed
             return
         target = pa._target
@@ -153,17 +262,18 @@ class EnemyCombat(Component):
             return
         self.cooldown -= dt
         if self.cooldown <= 0:
-            target.get_component(Health).damage(self.dmg)
+            dmg = self._effective_dmg(pa)   # 10I: mountain/forest +10%
+            target.get_component(Health).damage(dmg)
             rs = target.get_component(RoundStats)
             if rs is not None:
-                rs.dmg_taken_this_round += self.dmg
+                rs.dmg_taken_this_round += dmg
             self.cooldown = self.attack_speed
 
 
 class BossState(Component):
-    """Boss-only state (era index + one-shot death-swarm guard). Present for the
-    zeroed boss branch; boss behaviour (era stats, swarm, announcement) lands in
-    10G. Never spawned live in 9E."""
+    """Boss-only state: the era index + the one-shot death-swarm guard. LIVE
+    since 10G — ``Session.on_enemy_death`` sets ``death_spawned`` the first
+    time the boss's death is reported, so the swarm can never double-spawn."""
 
     era: int = 0
     death_spawned: bool = False

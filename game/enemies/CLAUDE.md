@@ -1,12 +1,45 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
-here from `game/CLAUDE.md`. **Standard + Raider + SiegeCannon are all LIVE since
-10F** (`spawner.py` `ENABLE_RAIDERS`/`ENABLE_SIEGE = True`); `Boss` (+`BossState`)
-is still a thin subclass wired to a branch that never emits
-(`ENABLE_BOSS = False`; 10G flips it). When you change enemy conventions, update
-THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
+here from `game/CLAUDE.md`. **All four enemy types are LIVE**: Standard + Raider +
+SiegeCannon since 10F, `Boss` since 10G (`spawner.py`
+`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS = True`). When you change enemy
+conventions, update THIS doc. **Adding an enemy type? Use the `/add-enemy`
+skill.**
+
+## Boss (10G)
+- **Boss rounds**: every `Boss.round_interval`-th round `_compose` routes to
+  `_boss_round` — `[ONE boss] + ALL siege + shuffle(standard + raiders)`, counts
+  from `Boss.round_counts[round // interval - 1]` (beyond the 5-row table: the
+  three normal per-type formulas incl. start-round guards). NO siege lead/mix
+  split on boss rounds. The boss entry's **`tier` argument IS its era**
+  (`round // interval - 1`, clamped in `Boss.__init__`; pop-time via
+  `Spawner._boss_era`); companions keep the real scale tier.
+- **`Boss` hunts buildings**: `on_spawn` paths via
+  `find_path_to_nearest_building` (base included) and arms
+  `PathAgent.repath_on_kill=True` + `goal_is_base` (whether the path ends on the
+  base). Carries the extra `"boss"` scene tag (`Enemy.EXTRA_TAGS`) so
+  HUD-bar/shake queries need no host reference. Duck-typed contract for
+  `Session.on_enemy_death`: `era` (read property), `death_spawned` (read
+  property) + `mark_death_spawned()` — a METHOD, because the E-11
+  `GameObject.__setattr__` guard intercepts public property setters.
+- **`PathAgent` 10G flags, default-off** (Standard/Raider/Siege byte-identical):
+  `goal_is_base=True` — `Movement.arrived` sets `reached_base` only when True;
+  a non-base goal arrival `_repath`s instead (kills the phantom-base-hit hazard
+  the 10F deferral documented). `repath_on_kill=False` — on unblock (blocker
+  died) re-run `find_path_to_nearest_building` from the current tile, reload
+  waypoints, re-derive `goal_is_base` (the prototype boss's `_repath`-after-kill
+  mapped onto block-and-attack).
+- **Death swarm**: `Spawner.spawn_death_swarm(scene, col, row, era)` bursts
+  `Boss.death_spawns[era]` standard/raider/siege IMMEDIATELY into the scene at
+  the boss tile, at the CURRENT tier (standard+siege scale; raiders never).
+  Driven by the Session (stash in `on_enemy_death`, flushed in `post_sim`
+  BEFORE the wave-clear check); quick-skip / lives-wipe despawns spawn nothing.
+- **No tier scaling on the boss** — `Boss._resolve_stats` reads
+  `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
+  `resolve_combat`, default 0) is the boss-bonus story damage crossing the
+  boundary as a plain int, added at fire time in all three firing paths.
 
 ## Rules
 - **All state in components** (E-11): `components.py` holds `PathAgent`
@@ -72,16 +105,14 @@ THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
     trickle. Queue = `siege_front + shuffle(standard + raiders + siege_mixed)`.
 - **Raiders/siege seek the BASE, not their prototype prey (deliberate 10F
   divergence).** The prototype re-paths raiders onto the nearest economy building
-  and siege onto the nearest defence building (`_repath`). Here every enemy paths
-  to the base once at spawn and attacks whatever blocks it (the unified
+  and siege onto the nearest defence building (`_repath`). Here they path to the
+  base once at spawn and attack whatever blocks them (the unified
   block-and-attack model), so a raider still eats an economy building standing in
-  its lane — it just doesn't hunt one. Porting the real thing needs
-  re-path-after-kill: `PathAgent.reached_base` is driven purely by
-  `Movement.arrived`, so a path ENDING on a targeted building would fire a phantom
-  base hit the moment that building dies and the enemy steps onto its tile. The
-  goal-set queries are already ported and waiting
-  (`find_path_to_nearest_economic` / `_defence` / `_building`) — wire them
-  together with a re-path step, not alone.
+  its lane — it just doesn't hunt one. **10G shipped the re-path machinery for
+  the BOSS** (`PathAgent.goal_is_base` + `repath_on_kill`, above) — porting real
+  raider/siege prey-hunting is now just arming those flags with
+  `find_path_to_nearest_economic` / `_defence` in their `on_spawn`, if ever
+  ruled desired.
 - **`combat.py` = the type-agnostic sweep** `resolve_combat(scene, tilemap, dt,
   buildings_balance)`, called each frame AFTER `scene.update`: (1) every
   `"combat"`-tagged building keeps its sticky target if alive + in Chebyshev range,
@@ -113,6 +144,25 @@ THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   (`submit_beams`/`submit_craters`, reading `BeamAttacker._target` + `"crater"`
   scene objects) — alpha-limited by the HUD pass (10J polish).
 
+- **10I tile-condition modifiers** (keyed on the tile the enemy last ARRIVED
+  at): `PathAgent` tracks `_current_condition` (GRASS at spawn) — refreshed
+  when `Movement.index` advances, reading `waypoints[index-1]`, gated
+  `index >= 2` because waypoint 0 IS the spawn tile (whose condition never
+  applies, prototype-exact). While unblocked it writes
+  `mv.speed = _condition_speed()` every frame — `max(0, real −
+  enemy_speed_penalty)` (mountain/forest −0.4 t/s; the `max(0)` clamp is
+  prototype-exact). `EnemyCombat._effective_dmg` (`max(1, int(dmg × (1 +
+  enemy_dmg_bonus)))`) is applied at BOTH attack sites — blocking building AND
+  edge wall — but NEVER base hits (lives mode costs one life flat). POND has
+  no enemy stat modifier (only its +9 path weight). The modifiers dict is read
+  duck-typed off `PathAgent._tilemap.balance` (guarded — headless stubs stay
+  neutral) through `game.map.tiles.CONDITION_MODIFIER_KEY`. The combat sweep's
+  two targeting sites use `targeting_range_tiles()` (effective mountain +1
+  for basic/beam, RAW for the mortar — a prototype-inherited inconsistency,
+  see `game/buildings/CLAUDE.md`) via a guarded `getattr` fallback to
+  `range_tiles()`, keeping the raw/effective split (coverage + RANGE
+  overlay = raw).
+
 ## Round-loop / XP callbacks (9F / 10A) — layering trick
 `game/enemies` imports NO `game/core`. Cross-boundary needs are optional callbacks:
 - **9F** — `resolve_combat` gained `on_base_hit(enemy)`: with it,
@@ -122,8 +172,12 @@ THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   tests) it deals raw HP as before. `Spawner.clear()` drops the pending wave for a
   lives-mode round wipe.
 - **10A** — `resolve_combat(on_enemy_death=…)`, the callback the session uses to
-  count kills + award XP without importing `game/core`. Terrain/wall/death-swarm
-  hooks stay dormant.
+  count kills + award XP without importing `game/core`.
+- **10G** — the same callback carries the boss death-swarm handshake (the
+  session duck-types `era`/`death_spawned`/`mark_death_spawned` and calls
+  `Spawner.spawn_death_swarm` back); `resolve_combat(dmg_bonus=0)` threads the
+  boss-bonus story damage in as a plain int. Enemy construction never leaves
+  this package.
 
 ## Perf frontier that lives here
 `Enemy.on_spawn` runs one `find_path` Dijkstra per enemy — the next large-map

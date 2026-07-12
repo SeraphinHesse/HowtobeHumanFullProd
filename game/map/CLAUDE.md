@@ -1,4 +1,4 @@
-# CLAUDE.md — game/map (Phase 9C)
+# CLAUDE.md — game/map (Phases 9C + 10I)
 
 Runtime tile layer + pathfinder. You reached here from `game/CLAUDE.md`. Ports the
 prototype's `src/map/*` behaviour. When you change map-runtime conventions, update
@@ -26,13 +26,30 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   domain)`, the single validated loader for all five domains — 9D);
   `load_map_balance` is a thin shim over it, kept for the re-export + tests.
   `TileMap(doc, balance)` still takes the dict so tests can inject fixtures.
-- **Dormant hooks, ported but fed neutral** until their producers land: tile
-  conditions (all GRASS → +0, random roll in **10I**), damage-weight reduction
-  (`set_round`/`refresh_damage_weight_reductions` present, no building damage yet,
-  **10F**), defence-range coverage (`_defence_coverage_fn`=None, add value from the
-  *buildings* domain, **10I**), and the four building-targeting `find_path_*`
-  variants (goal by occupant `building_type`; no occupants yet → all fall back to
-  `find_path`).
+- **The 10C-era dormant weight hooks are LIVE since 10I**:
+  - **Tile conditions roll ONCE at `TileMap.__init__(doc, balance, rng=…)`** per
+    `TileConditions.spawn_chances` — every tile EXCEPT BACKGROUND-at-init and the
+    starting unlocked pocket incl. the base (both stay GRASS; a receded-into-play
+    tile stays GRASS forever, prototype-exact). `rng` is BOTH the on-switch and
+    the determinism seam: the host passes module `random` (live) or
+    `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
+    all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
+    on. Conditions never change during a run.
+  - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
+    modifiers` key table every stat-modifier consumer (buildings, enemies, UI
+    tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —
+    orchestrator ruling; the "impassable" line in MIGRATION_AGENT_READ_FIRST.md
+    is doc drift.
+  - Damage-weight reduction: `Session.end_turn` pushes `set_round(round_num)`
+    (strict gate — the discount first fires in round `min_round`+1); the
+    pathfinder's pre-query refresh recomputes the top-N flags from occupant
+    `damage_dealt_last_round` every query.
+  - Defence-range coverage: `game/buildings/coverage.py wire_defence_coverage`
+    injects `_defence_coverage_fn` + `_defence_range_add` (host, per run). The
+    map layer still imports NOTHING from `game.buildings` — it only holds the
+    callable.
+- Still dormant: the four building-targeting `find_path_*` variants are queried
+  by nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
 - **Edge walls are LIVE (10E)**: `WallEdge` (a `@dataclass`: `col_a/row_a/col_b/
   row_b/hp/max_hp/owner`) + `_wall_key` (order-independent edge key) + a
   `TileMap.wall_edges` registry back `get_wall_between` (the pathfinder's

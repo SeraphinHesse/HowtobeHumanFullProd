@@ -19,15 +19,25 @@ from game.buildings.registry import (
     BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
 )
 from game.buildings.research import buildable
+from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
-from game.map.tiles import TileState
+from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .widgets import (
     C_GOLD, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE, C_RANGE_HIGHLIGHT,
-    C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, HEART, Button, contains,
-    submit_panel, submit_tile_diamond, submit_text,
+    C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, COND_LABELS, HEART,
+    Button, contains, submit_panel, submit_tile_diamond, submit_text,
+    text_h, text_size,
 )
+
+# -- 10H: lightning + cheat menu --
+_LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
+_LIGHTNING_BTN_Y = 370             # unlock/upgrade button row (below the stats)
+# -- /10H --
+# 10I: tooltip chrome — dark panel, 1px border in the condition colour
+# (prototype building_ui.py:1440-1455).
+_COND_TOOLTIP_BG = (20, 15, 35)
 
 
 def _building_stats(b):
@@ -36,7 +46,10 @@ def _building_stats(b):
     rows = [("HP", b.max_hp())]
     if hasattr(b, "damage"):            # defence family
         rows.append(("Damage", b.damage()))
-        rows.append(("Range", b.range_tiles()))
+        # 10I: the Range row shows the EFFECTIVE (mountain-boosted) range,
+        # duck-typed so pre-10I stubs without the method keep working.
+        rows.append(("Range",
+                     getattr(b, "effective_range_tiles", b.range_tiles)()))
         rows.append(("Atk speed", f"{b.attack_speed():.1f}s"))
         rows.append(("Upkeep", b.upkeep()))
         # 10D: a booster is lifting these — show the un-boosted base for contrast.
@@ -209,6 +222,30 @@ class BuildingUI:
         self.action_btn = Button(
             (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
         self.cards = []
+        # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
+        # (10H's lightning section sits ABOVE this block in base_info.)
+        self.boss_btn = Button(
+            # y=420: below the 10H lightning section (divider 228 → button
+            # row ending 406) — merge-time relocation per the batch matrix.
+            (self.panel_x + 12, 420, self.panel_w - 24, 32),
+            "BOSS CHOICES", "md")
+        pw, ph = 340, 260
+        self._boss_popup_rect = (view_w // 2 - pw // 2,
+                                 view_h // 2 - ph // 2, pw, ph)
+        px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
+        self._boss_close_btn = Button(
+            (px + pw // 2 - 60, py + ph - 44, 120, 32), "CLOSE", "md")
+        self._boss_popup_open = False
+        self._boss_hover_row = -1
+        # -- /10G --
+        # -- 10H --
+        self.lightning_btn = None  # base_info mode only; None at max level
+        # -- /10H --
+        # -- 10I: terrain badge hover/tooltip state --
+        self._cond_badge_rect = None    # last-submitted badge rect (hit probe)
+        self._cond_hover = False
+        self._cond_tooltip = None       # (condition, color, rect, above)
+        # -- /10I --
 
     # -- open / close -----------------------------------------------------
 
@@ -229,6 +266,15 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self.cards = []
+        self._boss_popup_open = False  # -- 10G boss --
+        # -- 10H --
+        self.lightning_btn = None
+        # -- /10H --
+        # -- 10I: terrain badge state resets with the panel --
+        self._cond_badge_rect = None
+        self._cond_hover = False
+        self._cond_tooltip = None
+        # -- /10I --
 
     def open_for_tile(self, tile, session, buildings_balance):
         self.close()
@@ -247,6 +293,7 @@ class BuildingUI:
             occ = tile.occupant
             if getattr(occ, "building_type", None) == "base":
                 self.mode, self.tile = "base_info", tile
+                self._build_base_info(session)  # 10H: lightning button
             elif occ is not None:
                 self.mode, self.tile, self._selected = "upgrade", tile, occ
                 self._build_upgrade()
@@ -311,9 +358,65 @@ class BuildingUI:
             return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
         return mode, 0, "MAX TIER", None
 
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def _build_base_info(self, session):
+        """(Re)build the lightning unlock/upgrade button (prototype
+        ``building_ui.py:825-836``): ``UNLOCK LIGHTNING`` at L0, ``UPGRADE
+        LIGHTNING`` below max, absent at max level (a gold MAX LEVEL line
+        replaces it in the submit)."""
+        st = session.state
+        cost = lightning.next_cost(st, session.core_balance)
+        if cost is None:
+            self.lightning_btn = None
+            self._action_cost = 0
+            return
+        verb = "UNLOCK" if st.lightning_level <= 0 else "UPGRADE"
+        self.lightning_btn = Button(
+            (self.panel_x + 12, _LIGHTNING_BTN_Y, self.panel_w - 24, 36),
+            f"{verb} LIGHTNING  {HEART}{cost}", "md")
+        self._action_cost = cost
+
+    def _base_info_click(self, mx, my, session):
+        """Click handling for base_info mode — merged 10H + 10G (batch
+        coordination matrix: lightning above boss). 10H: the lightning button
+        buys the next level or flashes NOT ENOUGH LOVE (prototype
+        ``:804-816``/``:1235-38``). 10G: the boss-history popup consumes
+        clicks inside itself and closes on its button; the BOSS CHOICES
+        button opens it. Everything else inside the panel is consumed."""
+        # -- 10G boss popup (checked first; prototype-faithful fall-through:
+        # only the close button and clicks inside the popup rect consume) --
+        if self._boss_popup_open:
+            if self._boss_close_btn.hit(mx, my):
+                self._boss_popup_open = False
+                return True
+            if contains(self._boss_popup_rect, mx, my):
+                return True
+        # -- 10H lightning button --
+        if self.lightning_btn is not None and self.lightning_btn.hit(mx, my):
+            st = session.state
+            cost = lightning.next_cost(st, session.core_balance)
+            if cost is not None and st.love < cost:
+                self.lightning_btn.start_flash(self._flash_dur,
+                                               "NOT ENOUGH LOVE")
+            elif lightning.upgrade(st, session.core_balance):
+                self._build_base_info(session)  # next cost / MAX LEVEL
+            return True
+        # -- 10G BOSS CHOICES button --
+        if self.boss_btn.hit(mx, my):
+            self._boss_popup_open = True
+            return True
+        return contains(self.panel_rect, mx, my)
+
+    # -- /10H ---------------------------------------------------------------
+
     def _set_range_highlight(self, b, tilemap):
         hl = [(b.col, b.row, C_HIGHLIGHT)]
-        rfn = getattr(b, "range_tiles", None)
+        # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
+        # range — a consumption site of the effective value (prototype
+        # game.py:578-581); pathfinding coverage stays on the raw range.
+        rfn = getattr(b, "effective_range_tiles",
+                      getattr(b, "range_tiles", None))
         if rfn is not None:
             r = int(rfn())
             for dc in range(-r, r + 1):
@@ -328,6 +431,13 @@ class BuildingUI:
 
     def hover(self, mx, my):
         self._hover_cost = None
+        # -- 10I: terrain badge hover (rect inflated 4px, prototype
+        # building_ui.py:1121-1130); off while the modal preview is open --
+        r = self._cond_badge_rect
+        self._cond_hover = (
+            self.preview is None and r is not None
+            and contains((r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8), mx, my))
+        # -- /10I --
         if self.preview is not None:
             self.preview.hover(mx, my)
             if self.preview.confirm_hovered():
@@ -345,6 +455,22 @@ class BuildingUI:
             self.action_btn.hover(mx, my)
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
+        elif self.mode == "base_info":
+            # -- 10H --
+            if self.lightning_btn is not None:
+                self.lightning_btn.hover(mx, my)
+                if self.lightning_btn.hovered:
+                    self._hover_cost = self._action_cost
+            # -- /10H --
+            # -- 10G boss: base_info button + popup row hover (desc tooltip) --
+            self.boss_btn.hover(mx, my)
+            self._boss_hover_row = -1
+            if self._boss_popup_open:
+                self._boss_close_btn.hover(mx, my)
+                px, py, pw, _ph = self._boss_popup_rect
+                if px + 14 <= mx < px + pw - 14 and my >= py + 48:
+                    self._boss_hover_row = (my - (py + 48)) // 20
+            # -- /10G --
 
     def handle_key(self, char, key):
         if self.preview is not None:
@@ -368,7 +494,11 @@ class BuildingUI:
             return self._construct_click(mx, my, session, buildings_balance)
         if self.mode == "upgrade":
             return self._upgrade_click(mx, my, session)
-        return contains(self.panel_rect, mx, my)  # base_info: consume inside
+        # -- 10G + 10H: base_info gains lightning + BOSS CHOICES handling --
+        if self.mode == "base_info":
+            return self._base_info_click(mx, my, session)
+        # -- /10G + 10H --
+        return contains(self.panel_rect, mx, my)  # consume inside the panel
 
     def _unlock_click(self, mx, my, session):
         if self.action_btn.hit(mx, my):
@@ -416,6 +546,9 @@ class BuildingUI:
             return True
         return contains(self.panel_rect, mx, my)
 
+    # (10G's standalone _base_info_click was merged into the combined 10H+10G
+    # method in the lightning section above — batch coordination matrix.)
+
     def _preview_click(self, mx, my, session, buildings_balance, scene,
                        occupancy):
         action = self.preview.handle_click(mx, my)
@@ -445,8 +578,14 @@ class BuildingUI:
     def update(self, dt):
         self.action_btn.update(dt)
         self.close_btn.update(dt)
+        self.boss_btn.update(dt)          # -- 10G boss --
+        self._boss_close_btn.update(dt)   # -- 10G boss --
         for _, btn in self.cards:
             btn.update(dt)
+        # -- 10H --
+        if self.lightning_btn is not None:
+            self.lightning_btn.update(dt)
+        # -- /10H --
         if self.preview is not None:
             self.preview.update(dt)
 
@@ -455,6 +594,11 @@ class BuildingUI:
             submit_tile_diamond(renderer, col, row, color)
         if not self.visible:
             return
+        # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
+        # badge, so a mode without a badge must clear last frame's rect) --
+        self._cond_badge_rect = None
+        self._cond_tooltip = None
+        # -- /10I --
         submit_panel(renderer, self.panel_rect)
         self.close_btn.submit(renderer)
         if self.mode == "unlock":
@@ -465,6 +609,11 @@ class BuildingUI:
             self._submit_upgrade(renderer)
         elif self.mode == "base_info":
             self._submit_base_info(renderer, session)
+        # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
+        # (prototype building_ui.py:1121-1130) --
+        if self._cond_hover and self._cond_tooltip is not None:
+            self._submit_cond_tooltip(renderer, *self._cond_tooltip)
+        # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer)
 
@@ -477,17 +626,32 @@ class BuildingUI:
             submit_text(renderer, "Must touch your territory", (x, 196), "sm",
                         C_UI_TEXT_DIM)
         self.action_btn.submit(renderer)
+        # -- 10I: tile terrain footer badge (tooltip above) --
+        self._submit_cond_badge(renderer, self.tile.condition,
+                                self.view_h - 40, above=True)
+        # -- /10I --
 
     def _submit_construct(self, renderer):
         submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", C_UI_TEXT)
         for _, btn in self.cards:
             btn.submit(renderer)
+        # -- 10I: tile terrain footer badge (tooltip above) --
+        self._submit_cond_badge(renderer, self.tile.condition,
+                                self.view_h - 40, above=True)
+        # -- /10I --
 
     def _submit_upgrade(self, renderer):
         x, b = self.panel_x + 14, self._selected
         title = _tier_name(b)
         submit_text(renderer, title, (x, 12), "lg", C_UI_TEXT)
         submit_text(renderer, f"Level {b.level}", (x, 46), "md", C_UI_TEXT_DIM)
+        # -- 10I: terrain badge below the Level row (ALWAYS shown incl. Grass),
+        # reading the building's placement snapshot; tooltip below the badge --
+        self._submit_cond_badge(
+            renderer,
+            getattr(b, "_tile_condition", None) or TileCondition.GRASS,
+            66, above=False)
+        # -- /10I --
         y = 92
         for label, value in _building_stats(b):
             submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
@@ -510,6 +674,77 @@ class BuildingUI:
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
                         "sm", C_UI_TEXT_DIM, align="center")
 
+    # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
+    # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
+
+    def _tile_cond_effect_lines(self, condition):
+        """Human copy for a condition's effects, values read LIVE from the map
+        balancing. Prototype-exact: the enemy dmg/speed effects are
+        deliberately NOT listed."""
+        if condition == TileCondition.GRASS:
+            return ["No terrain effect"]
+        mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
+        m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
+        lines = []
+        if m.get("def_range_bonus"):
+            lines.append(f'+{m["def_range_bonus"]} range for defenders')
+        if m.get("def_attack_speed_penalty"):
+            lines.append(
+                f'-{m["def_attack_speed_penalty"] * 100:.0f}% atk speed'
+                ' for defenders')
+        if m.get("def_dmg_penalty"):
+            lines.append(
+                f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
+        if m.get("eco_yield_penalty"):
+            lines.append(
+                f'-{m["eco_yield_penalty"] * 100:.0f}% {HEART}/round'
+                ' for economy')
+        if m.get("eco_yield_bonus"):
+            lines.append(
+                f'+{m["eco_yield_bonus"] * 100:.0f}% {HEART}/round'
+                ' for economy')
+        return lines or ["No terrain effect"]
+
+    def _submit_cond_badge(self, renderer, condition, y, above):
+        """The ``Terrain: <Label>`` pill, centred in the panel, in the
+        condition colour. Records its rect (the hover probe) and the pending
+        tooltip — drawn last by ``submit`` so it sits on top."""
+        from engine.render import HudRect  # local: keep module imports lean
+
+        label, color = COND_LABELS[condition.name]
+        text = f"Terrain: {label}"
+        w = text_size(text, "sm")[0] + 16
+        h = text_h("sm") + 8
+        x = self.panel_x + (self.panel_w - w) // 2
+        rect = (x, y, w, h)
+        self._cond_badge_rect = rect
+        renderer.submit_hud(HudRect(rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(rect, color, width=1))
+        submit_text(renderer, text, (x + 8, y + 4), "sm", color)
+        self._cond_tooltip = (condition, color, rect, above)
+
+    def _submit_cond_tooltip(self, renderer, condition, color, badge_rect,
+                             above):
+        """The effect tooltip: dark panel, 1px border in the condition colour,
+        centred horizontally on the panel, above or below the badge."""
+        from engine.render import HudRect
+
+        lines = self._tile_cond_effect_lines(condition)
+        lh = text_h("sm") + 4
+        w = max(text_size(t, "sm")[0] for t in lines) + 16
+        h = lh * len(lines) + 10
+        bx, by, bw, bh = badge_rect
+        x = self.panel_x + (self.panel_w - w) // 2
+        y = by - h - 6 if above else by + bh + 6
+        renderer.submit_hud(HudRect((x, y, w, h), _COND_TOOLTIP_BG))
+        renderer.submit_hud(HudRect((x, y, w, h), color, width=1))
+        ty = y + 5
+        for t in lines:
+            submit_text(renderer, t, (x + 8, ty), "sm", C_UI_TEXT)
+            ty += lh
+
+    # -- /10I ---------------------------------------------------------------
+
     def _submit_base_info(self, renderer, session):
         x, st = self.panel_x + 14, session.state
         income = scaled_base_income(st, session.core_balance)
@@ -527,3 +762,75 @@ class BuildingUI:
             submit_text(renderer, str(value), (self._right, y), "md", C_UI_TEXT,
                         align="right")
             y += 30
+        # -- 10H: lightning strike section (prototype building_ui.py:1194-1243)
+        from engine.render import HudRect  # local: keep module import list lean
+
+        ls = session.core_balance["LightningStrike"]
+        lvl = st.lightning_level
+        y += 6
+        renderer.submit_hud(HudRect((x, y, self.panel_w - 28, 1), C_UI_BORDER))
+        y += 10
+        submit_text(renderer, "⚡ LIGHTNING STRIKE", (x, y), "md",
+                    _LIGHTNING_GOLD)
+        y += 26
+        if lvl <= 0:
+            submit_text(renderer, "LOCKED — upgrade at The Hole", (x, y), "sm",
+                        C_UI_TEXT_DIM)
+        else:
+            submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),
+                        "md", C_UI_TEXT)
+            y += 24
+            for label, value in (
+                    ("DMG", ls["damage"][lvl - 1]),
+                    ("Radius", f"{ls['radius'][lvl - 1]} tiles"),
+                    ("Atk Spd", f"{ls['cooldown'][lvl - 1]:.1f}s")):
+                submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
+                submit_text(renderer, str(value), (self._right, y), "md",
+                            C_UI_TEXT, align="right")
+                y += 24
+        if self.lightning_btn is not None:
+            self.lightning_btn.submit(renderer)
+        elif lvl >= ls["max_level"]:
+            submit_text(renderer, "MAX LEVEL",
+                        (self.panel_x + self.panel_w // 2,
+                         _LIGHTNING_BTN_Y + 8),
+                        "md", C_GOLD, align="center")
+        # -- /10H --
+        # -- 10G boss: BOSS CHOICES button + history popup (sits BELOW the
+        # 10H lightning section per the batch coordination matrix) --
+        self.boss_btn.submit(renderer)
+        if self._boss_popup_open:
+            self._submit_boss_popup(renderer, session)
+        # -- /10G --
+
+    def _submit_boss_popup(self, renderer, session):
+        """The small boss-history popup (prototype ``_BossHistoryPanel``): one
+        row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
+        as a tooltip line, "None yet" when empty, a Close button (10G)."""
+        from game.core.boss_bonuses import choice_desc
+
+        px, py, pw, ph = self._boss_popup_rect
+        submit_panel(renderer, self._boss_popup_rect)
+        submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
+                    C_UI_TEXT, align="center")
+        choices = session.state.boss_choices
+        y = py + 48
+        if not choices:
+            submit_text(renderer, "None yet", (px + 14, y), "md",
+                        C_UI_TEXT_DIM)
+        hover_desc = None
+        for i, (boss_num, option, outcome) in enumerate(choices):
+            hovered = i == self._boss_hover_row
+            submit_text(
+                renderer,
+                f"Boss {boss_num}: {outcome.capitalize()} {option}",
+                (px + 14, y), "md", C_GOLD if hovered else C_UI_TEXT)
+            if hovered:
+                hover_desc = choice_desc((boss_num - 1) % 3, option)
+            y += 20
+        if hover_desc is not None:
+            ty = py + ph - 80
+            for line in hover_desc.split("\n"):
+                submit_text(renderer, line, (px + 14, ty), "sm", C_UI_TEXT_DIM)
+                ty += 16
+        self._boss_close_btn.submit(renderer)

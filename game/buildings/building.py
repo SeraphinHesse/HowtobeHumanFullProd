@@ -60,6 +60,17 @@ class Building(GameObject):
         self._tiers = tiers
         self._col = col
         self._row = row
+        # -- 10I: tile-condition snapshot (set by registry.place_building) --
+        # Neutral defaults so `create()` previews + headless tests see plain
+        # stats: None == unplaced == GRASS-equivalent. (No module-level
+        # game.map import here — game/buildings loads inside import chains
+        # that also initialise game.map -> game.core -> game.buildings
+        # .research, so the enum-key table is looked up lazily in
+        # `_condition_mod`.) Conditions are immutable after the map roll, so
+        # snapshot == live read (prototype `b.tile_condition`).
+        self._tile_condition = None
+        self._condition_mods = {}
+        # -- /10I --
         self.apply_tier_stats()
 
     # -- balancing resolution ---------------------------------------------
@@ -75,6 +86,24 @@ class Building(GameObject):
         RangeSensor, economy adds YieldEconomy). ``tier0`` is the tier-0 dict for
         seed values. Base building family adds nothing."""
         return []
+
+    # -- 10I: tile-condition modifier lookup --------------------------------
+
+    def _condition_mod(self, key):
+        """The snapshotted tile condition's modifier value for ``key`` (e.g.
+        ``def_dmg_penalty``), or 0 — GRASS / unplaced / missing key are all
+        neutral. Keeps every family stat formula a one-liner. The enum-key
+        table import is deferred (see the ``__init__`` note); it only runs
+        after a real snapshot, i.e. once ``game.map`` is fully initialised."""
+        if self._tile_condition is None or not self._condition_mods:
+            return 0
+        from game.map.tiles import CONDITION_MODIFIER_KEY
+        ck = CONDITION_MODIFIER_KEY.get(self._tile_condition)
+        if ck is None:
+            return 0
+        return self._condition_mods.get(ck, {}).get(key, 0)
+
+    # -- /10I --
 
     # -- tier / level cursor ----------------------------------------------
 

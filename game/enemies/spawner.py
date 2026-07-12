@@ -3,12 +3,15 @@
 Ports the prototype's ``_begin_enemy_phase`` (composition + queue build) and the
 ``_update_enemy_phase`` spawn loop (``src/core/game.py``). Standard, raider and
 siege enemies are all EMITTED since 10F (raiders from ``Raider.start_round``,
-siege from ``SiegeCannon.start_round``); the boss branch is written to its exact
-prototype formula but still gated OFF by ``ENABLE_BOSS`` (10G flips it on).
-Timing is prototype-exact: a linear slow→fast ramp across the wave
+siege from ``SiegeCannon.start_round``); the boss is LIVE since 10G — every
+``Boss.round_interval``-th round composes ``[boss] + ALL siege +
+shuffle(standard + raiders)`` from the ``round_counts`` table (falling back to
+the three normal per-type formulas beyond it), and the boss entry's tier IS its
+era. Timing is prototype-exact: a linear slow→fast ramp across the wave
 with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off, a re-rolled jitter
 per spawn). The round loop that CALLS ``begin_round`` and detects wave-clear is
-9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``).
+9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``);
+``spawn_death_swarm`` (10G) is the Session-driven boss-death burst.
 
 An ``rng`` is injectable so tests are deterministic (default: the ``random``
 module).
@@ -17,10 +20,10 @@ import random
 
 from .enemy import create_enemy
 
-# Raiders + siege go live in 10F; the boss branch stays zeroed until 10G.
+# Raiders + siege went live in 10F; the boss in 10G.
 ENABLE_RAIDERS = True
 ENABLE_SIEGE = True
-ENABLE_BOSS = False
+ENABLE_BOSS = True
 
 
 class Spawner:
@@ -34,6 +37,7 @@ class Spawner:
         self._tilemap = None
         self._registry = None
         self._rng = random
+        self._boss_era = 0     # era passed as `tier` to a popping boss (10G)
 
     # -- state ------------------------------------------------------------
 
@@ -95,9 +99,14 @@ class Spawner:
     def _compose(self, round_num, balance, spawn_tiles):
         """Build the (tile, etype) list for the round: standard + raiders +
         siege (10F). Siege leads the queue; everything else is shuffled behind
-        it. The boss branch is present but gated off until 10G."""
+        it. Every ``Boss.round_interval``-th round takes the boss composition
+        instead (10G) — the lead/mix siege split applies to NON-boss rounds
+        only."""
         if not spawn_tiles:
             return []
+        if (ENABLE_BOSS and round_num
+                % balance["EnemyTypes"]["Boss"]["round_interval"] == 0):
+            return self._boss_round(round_num, balance, spawn_tiles)
         scaling = balance["EnemyScaling"]
         count = scaling["base_enemy_count"] + (round_num - 1) * (
             scaling["enemies_per_round"] + self._tier)
@@ -107,13 +116,50 @@ class Spawner:
         raiders = self._raider_group(round_num, balance, spawn_tiles)
         siege_front, siege_mixed = self._siege_groups(
             round_num, balance, spawn_tiles)
-        # Boss round is detected but composes nothing until 10G.
-        _boss_round = (ENABLE_BOSS and round_num
-                       % balance["EnemyTypes"]["Boss"]["round_interval"] == 0)
 
         rest = regular + raiders + siege_mixed
         self._rng.shuffle(rest)
         return siege_front + rest
+
+    def _boss_round(self, round_num, balance, spawn_tiles):
+        """Boss-round composition (10G, prototype ``game.py:831-874``): exactly
+        ONE boss leads, then EVERY siege cannon (no lead/mix split), then the
+        shuffled standard+raider companions. Counts come from
+        ``Boss.round_counts[boss_idx]``; beyond the table the three normal
+        per-type formulas (incl. start-round guards) take over. The boss
+        entry's tier is its ERA (``round // interval - 1``, clamped in
+        ``Boss.__init__``); companions keep the real scale tier."""
+        boss_cfg = balance["EnemyTypes"]["Boss"]
+        boss_idx = round_num // boss_cfg["round_interval"] - 1
+        self._boss_era = max(0, boss_idx)
+        counts = boss_cfg["round_counts"]
+        if boss_idx < len(counts):
+            row = counts[boss_idx]
+            n_regular = row["regular"]
+            n_raiders = row["raiders"]
+            n_siege = row["siege"]
+        else:
+            scaling = balance["EnemyScaling"]
+            n_regular = scaling["base_enemy_count"] + (round_num - 1) * (
+                scaling["enemies_per_round"] + self._tier)
+            r = balance["EnemyTypes"]["Raider"]
+            n_raiders = (
+                r["base_count"] + (round_num - r["start_round"]) * r["per_round"]
+                if ENABLE_RAIDERS and round_num >= r["start_round"] else 0)
+            s = balance["EnemyTypes"]["SiegeCannon"]
+            n_siege = (
+                s["base_count"]
+                + (round_num - s["start_round"]) // s["rounds_per_cannon"]
+                if ENABLE_SIEGE and round_num >= s["start_round"] else 0)
+        boss = [(self._rng.choice(spawn_tiles), "boss")]
+        siege = [(self._rng.choice(spawn_tiles), "siege")
+                 for _ in range(n_siege)]
+        rest = ([(self._rng.choice(spawn_tiles), "standard")
+                 for _ in range(n_regular)]
+                + [(self._rng.choice(spawn_tiles), "raider")
+                   for _ in range(n_raiders)])
+        self._rng.shuffle(rest)
+        return boss + siege + rest
 
     def _raider_group(self, round_num, balance, spawn_tiles):
         if not ENABLE_RAIDERS:
@@ -169,9 +215,12 @@ class Spawner:
         if self._timer > 0:
             return
         tile, etype, delay = self._queue.pop(0)
+        # The boss's `tier` argument IS its era (Boss.__init__ clamps it, 10G);
+        # every other entry keeps the real scale tier.
+        tier = self._boss_era if etype == "boss" else self._tier
         enemy = create_enemy(
             etype, tile.col, tile.row, self._balance, self._tilemap,
-            self._tier, self._registry, self._rng)
+            tier, self._registry, self._rng)
         scene.spawn(enemy)
         if delay is None:
             base = self._interval
@@ -180,3 +229,23 @@ class Spawner:
             self._timer = self._queue[0][2]
         else:
             self._timer = 0.0
+
+    # -- boss death swarm (10G, prototype game.py:1314-1334) ---------------
+
+    def spawn_death_swarm(self, scene, col, row, era):
+        """Burst ``Boss.death_spawns[era]`` standard/raider/siege enemies at the
+        dead boss's tile, IMMEDIATELY into the scene (never the queue) — they
+        path from that tile on spawn. Standard + siege members take the CURRENT
+        round's scale tier (raiders never scale); the Session flushes this
+        before its wave-clear check so the round can't end mid-burst. All enemy
+        construction stays in this package."""
+        cfg = self._balance["EnemyTypes"]["Boss"]
+        spawns = cfg["death_spawns"]
+        row_cfg = spawns[min(max(era, 0), len(spawns) - 1)]
+        for etype, key in (("standard", "regular"), ("raider", "raiders"),
+                           ("siege", "siege")):
+            for _ in range(row_cfg[key]):
+                enemy = create_enemy(
+                    etype, col, row, self._balance, self._tilemap,
+                    self._tier, self._registry, self._rng)
+                scene.spawn(enemy)

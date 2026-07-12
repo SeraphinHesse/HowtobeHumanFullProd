@@ -28,6 +28,8 @@ state is a full-screen shell screen with no world.
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
 import gc
+import math
+import random
 import sys
 import time
 from pathlib import Path
@@ -54,12 +56,17 @@ from engine.render import HudText, Renderer
 from engine.render.ground_cache import GroundCache
 from engine.video import VideoSource
 from game.buildings import BaseBuilding, attach_base
+# -- 10I: defence-range coverage producer (injected into the tilemap) --
+from game.buildings.coverage import wire_defence_coverage
+# -- /10I --
 from game.core import Session, append_random_name, load_balance
+from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
 from game.map import TileMap, tile_at_screen
 from game.ui import (
-    BuildingUI, FloaterManager, GameOverScreen, Hud, LevelupWindow, Shell,
+    BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameOverScreen, Hud,
+    LevelupWindow, MapOverlays, Shell,
 )
 
 BACKGROUND = (24, 20, 32)
@@ -105,7 +112,10 @@ class _World:
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
                  registry):
-        self.tile_map = TileMap(map_doc, map_bal)
+        # -- 10I: the live run rolls tile conditions (rng=None would keep the
+        # all-GRASS fixture mode the headless tests rely on) --
+        self.tile_map = TileMap(map_doc, map_bal, rng=random)
+        # -- /10I --
         self.occupancy = TileOccupancy()
         self.scene = Scene()
         # A hole-less map (editor allows it with a warning) has no base to
@@ -118,6 +128,10 @@ class _World:
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
                                       occupancy=self.occupancy)
+        # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
+        # in the pathfinder reads the injected callable) --
+        wire_defence_coverage(self.tile_map, buildings_bal)
+        # -- /10I --
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -217,7 +231,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     # gameplay bundle — None until START NEW GAME; dropped on quit-to-menu
     gp = {"world": None, "hud": None, "panel": None, "floaters": None,
-          "game_over": None, "levelup": None, "prev_phase": None}
+          "game_over": None, "levelup": None, "boss_cutscene": None,
+          "cheat": None, "overlays": None, "prev_phase": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
@@ -227,6 +242,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h)
         gp["levelup"] = LevelupWindow(view_w, view_h)
+        gp["boss_cutscene"] = BossCutscene(view_w, view_h)  # -- 10G boss --
+        gp["cheat"] = CheatMenu(view_w, view_h)  # 10H
+        # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
+        gp["overlays"] = MapOverlays(view_w, view_h)
+        # -- /10I --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -235,7 +255,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
     def teardown_gameplay():
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
-        for k in ("world", "hud", "panel", "floaters", "game_over", "levelup"):
+        for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
+                  "boss_cutscene", "cheat", "overlays"):
             gp[k] = None
         if tune_gc:
             gc.collect()
@@ -261,6 +282,38 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     len(buildings_balance["BuildingsGlobal"]["random_names"]))
             shell.report_add_name(added, name)
 
+    # -- 10H: lightning + cheat menu --------------------------------------
+    def _execute_cheat(action):
+        """Map a cheat-menu action onto the Session cheat methods. The
+        stays-open rule lives here: only close / trigger_levelup / a committed
+        goto_round close the menu (prototype cheat_menu.py:49-56). After any
+        phase-changing action that leaves LEVELUP, close the level-up window
+        so no orphaned modal lingers — ``levelup_pending`` survives, so the
+        window re-opens at the next ROUND_END (the prototype's pending-flag
+        behavior)."""
+        world = gp["world"]
+        session = world.session
+        if action == "close":
+            gp["cheat"].close()
+        elif action == "add_love":
+            session.cheat_add_love(10)
+        elif action == "skip_round":
+            session.cheat_skip_round(world.scene)
+        elif action == "inf_money":
+            session.cheat_add_love(999999)
+        elif action == "unlock_all":
+            session.cheat_unlock_all()
+        elif action == "trigger_levelup":
+            gp["cheat"].close()
+            session.cheat_trigger_levelup()
+        elif isinstance(action, tuple) and action[0] == "goto_round":
+            gp["cheat"].close()
+            session.cheat_goto_round(action[1], world.scene)
+        if (session.state.phase != GamePhase.LEVELUP
+                and gp["levelup"].visible):
+            gp["levelup"].close()  # orphan guard (pending flag survives)
+    # -- /10H ---------------------------------------------------------------
+
     def handle_world_click(mx, my):
         """The in-round click-consume priority ladder (prototype-exact order),
         entered only in GAMEPLAY/GAME_OVER."""
@@ -272,6 +325,21 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 teardown_gameplay()
                 shell.to_main_menu()
             return
+        # -- 10H: the open cheat menu consumes EVERY click (renders topmost,
+        # directly under GAME_OVER in the ladder — above every other modal) --
+        if gp["cheat"].visible:
+            _execute_cheat(gp["cheat"].hit(mx, my))
+            return
+        # -- /10H --
+        # -- 10G boss: the cutscene is fully modal — A/B or nothing (clicks
+        # elsewhere swallowed; keys are already swallowed by the frozen gate).
+        if session.state.phase == GamePhase.BOSS_CUTSCENE:
+            choice = gp["boss_cutscene"].hit(mx, my)
+            if choice is not None:
+                gp["boss_cutscene"].close()
+                session.resolve_boss_cutscene(choice, world.scene)
+            return
+        # -- /10G --
         if session.frozen:                                 # LEVELUP: fully modal
             option = gp["levelup"].hit(mx, my)
             if option is not None:
@@ -289,6 +357,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
+        if gp["overlays"].hit(mx, my):
+            return
+        # -- /10I --
         if panel.handle_click(mx, my, session, buildings_balance,
                               world.scene, world.occupancy):
             return
@@ -297,6 +369,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if session.state.phase == GamePhase.BUILDING:
             tile = tile_at_screen(world.tile_map, cs, mx, my)
             panel.open_for_tile(tile, session, buildings_balance)
+        # -- 10H: ENEMY-phase lightning click at the ladder BOTTOM (prototype
+        # game.py:426-431 — a non-drag left-up no UI element consumed) --
+        elif session.state.phase == GamePhase.ENEMY:
+            wx, wy = cs.screen_to_world(mx, my)
+            session.lightning_strike(world.scene, cs, wx, wy)
+        # -- /10H --
 
     if autostart:
         build_gameplay()  # headless seam: bypass cutscene/menu -> GAMEPLAY
@@ -338,6 +416,21 @@ def main(max_frames=None, data_dir=None, autostart=False):
             session = world.session
             panel = gp["panel"]
             if event.type == pygame.KEYDOWN:
+                # -- 10H: cheat menu — BEFORE the frozen guard (it must work
+                # over LEVELUP, prototype game.py:293-325) but never on
+                # GAME_OVER. Ctrl+L toggles (deliberate divergence from the
+                # prototype's Ctrl+P — bare P is the quick-skip key here);
+                # while open the menu consumes ALL keys. --
+                if session.state.state == GameState.GAMEPLAY:
+                    if (event.key == pygame.K_l
+                            and pygame.key.get_mods() & pygame.KMOD_CTRL):
+                        gp["cheat"].toggle()
+                        continue
+                    if gp["cheat"].visible:
+                        _execute_cheat(gp["cheat"].handle_key(
+                            event.unicode, _key_name(event.key)))
+                        continue
+                # -- /10H --
                 if session.state.state != GameState.GAMEPLAY or session.frozen:
                     continue  # the LEVELUP window owns all input
                 if panel.preview is not None:
@@ -373,6 +466,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     panel.preview is not None
                     or (panel.visible and px >= panel.panel_x)
                     or gp["hud"].hit(px, py) is not None
+                    or gp["cheat"].visible  # 10H: no pan-arming on the menu
+                    or gp["overlays"].over(px, py)   # 10I: toggle pills
                 )
                 pan_from = None if over_ui else event.pos
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _LEFT:
@@ -385,9 +480,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 pan_from = None
             elif event.type == pygame.MOUSEMOTION and (
                     event.buttons[2] or (event.buttons[0] and pan_from is not None)):
+                if gp["cheat"].visible:  # 10H: open menu swallows drag-pan
+                    continue
                 cs.pan(-event.rel[0], -event.rel[1])  # left/right-drag: map follows
                 cs.clamp(view_w, view_h)
             elif event.type == pygame.MOUSEWHEEL and event.y:
+                if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
+                    continue
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = pygame.mouse.get_pos()
@@ -410,13 +509,17 @@ def main(max_frames=None, data_dir=None, autostart=False):
             sim_dt = (dt * session.combat_speed
                       if session.state.phase == GamePhase.ENEMY else dt)
             session.pre_sim(sim_dt, world.scene)
-            # LEVELUP freezes the world entirely (no sim, no animations).
+            # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
             if session.state.state == GameState.GAMEPLAY and not session.frozen:
                 world.scene.update(sim_dt)
+                # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
+                # once per frame and threaded as a plain int.
+                dmg_bonus = story_damage_bonus(session.state, world.tile_map)
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
-                               on_enemy_death=session.on_enemy_death)
+                               on_enemy_death=session.on_enemy_death,
+                               dmg_bonus=dmg_bonus)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
@@ -429,18 +532,36 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     and gp["prev_phase"] != GamePhase.LEVELUP):
                 gp["panel"].close()  # the modal owns the screen
                 gp["levelup"].open(session.state.levelup_options)
+            # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
+            if (session.state.phase == GamePhase.BOSS_CUTSCENE
+                    and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
+                pending = session.state.pending_boss_cutscene or {}
+                gp["panel"].close()  # the modal owns the screen
+                gp["boss_cutscene"].open(pending.get("boss_num", 1),
+                                         pending.get("outcome", "win"))
+            # -- /10G --
+            # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
+            # snapshots the round's counts on the ENEMY->anything edge) --
+            gp["overlays"].track(session.state.phase, gp["prev_phase"],
+                                 world.scene)
+            # -- /10I --
             gp["prev_phase"] = session.state.phase
             gp["floaters"].spawn_xp_events(session.state)
+            gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
             # mirror a fresh game over up to the shell (never while PAUSED)
             if (st == GameState.GAMEPLAY
                     and session.state.state == GameState.GAME_OVER):
+                gp["cheat"].close()  # 10H: never hide the game-over screen
                 shell.enter_game_over()
             gp["hud"].update(dt, mx, my, session, gp["panel"])
             gp["panel"].hover(mx, my)
             gp["panel"].update(dt)
+            gp["overlays"].update(dt, mx, my)   # 10I: toggle-pill hover
             gp["floaters"].update(dt)
+            gp["cheat"].update(dt, mx, my)  # 10H (animates its own buttons)
             if session.frozen:
                 gp["levelup"].update(dt, mx, my)
+                gp["boss_cutscene"].update(dt, mx, my)  # 10G (its phase only)
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].update(dt, mx, my)
         else:  # menu states + PAUSED
@@ -462,6 +583,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
         elif st in _WORLD_STATES or st == GameState.PAUSED:
             world = gp["world"]
             session = world.session
+            # -- 10G boss: screen shake — a transient render-only camera-pan
+            # jitter while a live boss walks the ENEMY phase (prototype
+            # game.py:1879-1890). Undone right after flush, with NO clamp in
+            # between, so the offset restores exactly; sim state untouched.
+            shake_ox = shake_oy = 0
+            if (session.state.phase == GamePhase.ENEMY
+                    and any(getattr(b, "alive", False)
+                            for b in world.scene.by_tag("boss"))):
+                shake = enemies_balance["EnemyTypes"]["Boss"]["shake"]
+                t_ms = time.perf_counter() * 1000.0
+                period_ms = shake["interval"] * 1000.0
+                shake_ox = int(math.sin(t_ms / period_ms * 6.28)
+                               * shake["strength"])
+                shake_oy = int(math.cos(t_ms / period_ms * 9.42)
+                               * shake["strength"])
+            if shake_ox or shake_oy:
+                cs.pan(shake_ox, shake_oy)
+            # -- /10G --
             # Ground (static terrain) via the cached surface: blitted first,
             # once, at the current pan offset (below the entities/deco/overlay
             # the layer order guarantees draw on top). Rebuilds only on zoom /
@@ -479,21 +618,44 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)
+            # -- 10I: condition tint + RANGE/HEATMAP overlays — before the
+            # panel submit so selection highlights draw over them; reuses the
+            # visible-tile window computed above --
+            gp["overlays"].submit(renderer, world.tile_map, world.scene,
+                                  (cmin, cmax, rmin, rmax))
+            # -- /10I --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
+            gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
+            gp["floaters"].submit_boss_bars(renderer, cs, world.scene,  # 10G
+                                            session.state.phase, view_w, view_h)
+            gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
+            gp["overlays"].submit_buttons(renderer)   # 10I: RANGE/HEATMAP pills
             if gp["levelup"].visible:
                 gp["levelup"].submit(renderer, view_w, view_h)
+            # -- 10G boss: the cutscene modal draws over everything below --
+            if session.state.phase == GamePhase.BOSS_CUTSCENE:
+                gp["boss_cutscene"].submit(renderer, view_w, view_h)
+            # -- /10G --
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].submit(renderer, session.state, view_w, view_h)
             if st == GameState.PAUSED:
                 shell.submit(renderer, view_w, view_h)  # overlay on frozen world
+            # -- 10H: the cheat menu renders TOPMOST (prototype game.py:2061-62)
+            if gp["cheat"].visible:
+                gp["cheat"].submit(renderer, view_w, view_h)
+            # -- /10H --
             _t_flush_start = time.perf_counter()
             renderer.flush(window)
+            # -- 10G boss: undo the shake pan exactly (no clamp in between) --
+            if shake_ox or shake_oy:
+                cs.pan(-shake_ox, -shake_oy)
+            # -- /10G --
         else:  # menu states — full-screen shell screen, no world
             shell.submit(renderer, view_w, view_h)
             _t_flush_start = time.perf_counter()

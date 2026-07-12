@@ -53,6 +53,17 @@ _CONDITION_WEIGHT_KEY = {
     TileCondition.FOREST: "forest",
 }
 
+# -- 10I: condition -> key in TileConditions.modifiers ----------------------
+# GRASS is deliberately absent (no modifiers anywhere). Every consumer of the
+# stat-modifier subtree (buildings, enemies, tooltips) maps enum -> subtree key
+# through this ONE table so they cannot drift.
+CONDITION_MODIFIER_KEY = {
+    TileCondition.MOUNTAIN: "Mountain",
+    TileCondition.POND: "Pond",
+    TileCondition.FOREST: "Forest",
+}
+# -- /10I --
+
 
 class Tile:
     # __slots__ (not a behaviour change): a large map builds one Tile per cell

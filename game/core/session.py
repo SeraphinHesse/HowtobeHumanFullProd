@@ -26,7 +26,9 @@ skips the whole sim, so nothing animates behind the window.
 """
 import random
 
+from . import boss_bonuses as bb
 from . import levelup as lv
+from . import lightning as lt  # 10H
 from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
@@ -55,6 +57,7 @@ class Session:
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
         self._wipe_pending = False
+        self._boss_swarm_pending = None  # (col, row, era) death swarm (10G)
         # Buildings that have already paid their death XP, by id(). NEVER reset
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
         # payday and dies again pays XP only the first time.
@@ -63,6 +66,13 @@ class Session:
         # Session, which is the prototype's "reset to 1x on new game".
         self.combat_speed_idx = 0
         self._prev_combat_speed_idx = 0  # remembered speed for the pause toggle
+        # -- 10H: lightning + cheat menu --------------------------------
+        # How the NEXT level-up window resolves (set by _begin_levelup): the
+        # natural ROUND_END path runs payday; the cheat LEVEL UP path instead
+        # restores the phase it interrupted (prototype game.py:1484-1517).
+        self._levelup_run_income = True
+        self._levelup_return_phase = None
+        # -- /10H --
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
@@ -74,9 +84,9 @@ class Session:
 
     @property
     def frozen(self):
-        """LEVELUP is fully modal: no updates, no animations, no combat
-        (prototype ``_update_gameplay`` returns immediately)."""
-        return self.state.phase == GamePhase.LEVELUP
+        """LEVELUP / BOSS_CUTSCENE are fully modal: no updates, no animations,
+        no combat (prototype ``_update_gameplay`` returns immediately)."""
+        return self.state.phase in (GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE)
 
     # -- combat speed (10F) -----------------------------------------------
 
@@ -128,6 +138,87 @@ class Session:
         self._wipe_pending = False
         self._begin_round_end()
 
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def lightning_strike(self, scene, cs, wx, wy):
+        """The ENEMY-phase left-click strike (prototype dispatch game.py:426-31
+        + ``_handle_lightning_click``): only fires during a live ENEMY phase;
+        locked/cooling strikes are silent no-ops inside ``lightning.strike``.
+        Returns whether the bolt actually fired."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
+            return False
+        return lt.strike(st, self.core_balance, scene, cs, wx, wy)
+
+    def cheat_add_love(self, amount):
+        """``+10 Love`` / ``Infinite Money`` (prototype game.py:305, 313).
+        Repeatable; clamped like every currency write."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        self.state.add_love(amount)
+
+    def cheat_skip_round(self, scene):
+        """``Skip Round`` — ``quick_skip_combat``'s body WITHOUT its ENEMY
+        guard (prototype game.py:306-308 has none): from ANY phase, wipe the
+        wave paying NO XP and restart ROUND_END. The normal ROUND_END ->
+        (LEVELUP if pending) -> payday flow then runs untouched — pressing it
+        during ROUND_END/INCOME restarts ROUND_END for a second payday, a
+        cheat corner the prototype allows (kept)."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        for e in list(scene.by_tag("enemy")):
+            scene.despawn(e)
+        self.spawner.clear()
+        self._wipe_pending = False
+        self._begin_round_end()
+
+    def cheat_goto_round(self, n, scene):
+        """``Go to Round n`` (prototype game.py:311-315): clear the field +
+        queue, set the round, drop to BUILDING. NO payday runs, no love
+        changes, timers untouched; jumps go forward OR backward — everything
+        round-derived (scale tier, era gates, speed gates) simply reads the
+        new ``round_num``. Payday ordering is untouched because payday is
+        simply not invoked (prototype-exact)."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        for e in list(scene.by_tag("enemy")):
+            scene.despawn(e)
+        self.spawner.clear()
+        self._wipe_pending = False
+        self.state.round_num = n
+        self.state.phase = GamePhase.BUILDING
+
+    def cheat_trigger_levelup(self):
+        """``LEVEL UP`` (prototype ``_cheat_trigger_levelup``, game.py:1493-99):
+        always arm the pending flag; outside ENEMY/LEVELUP open the window NOW
+        with the no-payday ``return_phase`` path. Mid-ENEMY only the flag is
+        set — the window then fires at the natural ROUND_END with the normal
+        ``run_income=True`` payday path."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY:
+            return
+        st.levelup_pending = True
+        if st.phase not in (GamePhase.ENEMY, GamePhase.LEVELUP):
+            self._begin_levelup(run_income=False, return_phase=st.phase)
+
+    def cheat_unlock_all(self):
+        """``Unlock All Tech``: every RESEARCH type unlocked + ALL its tiers
+        researched. Deliberate fix of a prototype bug: its hand-written sweep
+        omitted meditator + blocker (debug tooling, not gameplay — coordination
+        ruling #6). Sweeping the RESEARCH table instead can never miss a type."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY:
+            return
+        # Local import — same pattern (and reason) as RunState.from_balance.
+        from game.buildings.research import LEAF_CLASSES, RESEARCH
+
+        for bt in RESEARCH:
+            st.unlocked_buildings[bt] = True
+            st.tiers_unlocked[bt] = len(
+                LEAF_CLASSES[bt]._resolve_tiers(self.buildings_balance))
+
+    # -- /10H ---------------------------------------------------------------
+
     # -- BUILDING -> ENEMY (prototype _begin_enemy_phase) -----------------
 
     def end_turn(self):
@@ -139,9 +230,22 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
             return
+        self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
+        # -- 10G boss: End-Turn snapshots + announcement marker --
+        # Love snapshot EVERY round (the Boss3A damage base, prototype
+        # game.py:838-839); on a boss round also snapshot lives (the cutscene's
+        # win/loss compare) and queue one announce marker (drained by the UI —
+        # the enabled gate lives in FloaterManager, session stays ui-free).
+        st.boss_love_snapshot = st.love
+        boss_interval = \
+            self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
+        if st.round_num % boss_interval == 0:
+            st.boss_lives_snapshot = st.base_lives
+            st.boss_events.append(st.round_num)
+        # -- /10G --
         st.phase = GamePhase.ENEMY
         self._wipe_pending = False
 
@@ -154,14 +258,22 @@ class Session:
         if st.state != GameState.GAMEPLAY or self.frozen:
             return
         if st.phase == GamePhase.ENEMY:
+            # 10H: the lightning cooldown drains ONLY here, on the ENEMY-phase
+            # sim dt the host already speed-scales (prototype game.py:1243-46):
+            # 2x drains it faster, the in-combat pause freezes it, and it
+            # persists frozen across BUILDING/ROUND_END/LEVELUP/INCOME.
+            lt.tick(st, dt)
             self.spawner.update(dt, scene)
             self._award_building_deaths(scene)
         elif st.phase == GamePhase.ROUND_END:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
-                # A pending level-up takes priority over payday; the window's
-                # resolve runs payday afterwards (prototype game.py:1215-1226).
-                if st.levelup_pending:
+                # A pending boss cutscene beats a pending level-up beats
+                # payday; each modal's resolve chains into the next step
+                # (prototype game.py:1215-1226 — 10G added the first arm).
+                if st.pending_boss_cutscene:  # -- 10G boss --
+                    self._begin_boss_cutscene()
+                elif st.levelup_pending:
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
@@ -176,6 +288,14 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return
+        # -- 10G boss: flush the death swarm BEFORE the wave-clear check, so
+        # the round can never end in the gap between the boss's death and its
+        # swarm hitting the field. Enemy construction stays in the Spawner.
+        if self._boss_swarm_pending is not None:
+            col, row, era = self._boss_swarm_pending
+            self._boss_swarm_pending = None
+            self.spawner.spawn_death_swarm(scene, col, row, era)
+        # -- /10G --
         if self._wipe_pending:
             self._wipe_round(scene)
             self._begin_round_end()
@@ -185,11 +305,18 @@ class Session:
 
     # -- LEVELUP (10A) ----------------------------------------------------
 
-    def _begin_levelup(self):
+    def _begin_levelup(self, run_income=True, return_phase=None):
         """Open the modal window on the rolled options (prototype
-        ``_begin_levelup(run_income=True)``; the cheat ``return_phase`` path is
-        10H). The host reads ``state.levelup_options``."""
+        ``_begin_levelup``). The natural ROUND_END call site keeps the defaults
+        (``run_income=True``); the 10H cheat LEVEL UP passes
+        ``run_income=False, return_phase=<interrupted phase>`` so the resolve
+        skips payday and restores that phase. The host reads
+        ``state.levelup_options``."""
         st = self.state
+        # -- 10H: remember how this window must resolve --
+        self._levelup_run_income = run_income
+        self._levelup_return_phase = return_phase
+        # -- /10H --
         st.levelup_options = lv.roll_levelup_options(
             st, self.buildings_balance, self.core_balance, self.rng)
         st.phase = GamePhase.LEVELUP
@@ -197,14 +324,50 @@ class Session:
     def resolve_levelup(self, option, scene=None):
         """Grant the chosen reward, advance the village level, then run the
         payday the level-up deferred (prototype ``_resolve_levelup``). ``scene``
-        lets the deferred payday's Painter slot despawn a completed painter."""
+        lets the deferred payday's Painter slot despawn a completed painter.
+        The 10H cheat path (``run_income=False``) restores the interrupted
+        phase INSTEAD of running payday — the village-level math is identical
+        on both paths (prototype game.py:1501-1517)."""
         st = self.state
         lv.apply_levelup_option(st, option, self.core_balance)
         st.levelup_pending = False
         st.levelup_options = []
         xpmod.advance_village_level(st, self.core_balance)
+        # -- 10H: the cheat return_phase path — NO payday --
+        if not self._levelup_run_income:
+            st.phase = self._levelup_return_phase or GamePhase.BUILDING
+            self._levelup_run_income = True     # one-shot: back to the default
+            self._levelup_return_phase = None
+            return
+        # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene)  # -> INCOME
+
+    # -- BOSS_CUTSCENE (10G) -----------------------------------------------
+
+    def _begin_boss_cutscene(self):
+        """Enter the fully modal A/B phase. ``pending_boss_cutscene`` stays set
+        (the host reads boss_num/outcome to open the window on the phase edge —
+        the LEVELUP pattern); ``resolve_boss_cutscene`` consumes it."""
+        self.state.phase = GamePhase.BOSS_CUTSCENE
+
+    def resolve_boss_cutscene(self, option, scene=None):
+        """Apply the ``"A"``/``"B"`` choice (choice sets cycle every 3 bosses),
+        log it to the run history, then chain into the LEVELUP the cutscene
+        deferred — or straight to payday (prototype game.py:947-963). Payday
+        runs exactly once either way."""
+        st = self.state
+        pending = st.pending_boss_cutscene or {}
+        boss_num = pending.get("boss_num", 1)
+        outcome = pending.get("outcome", "win")
+        bb.apply_choice(st, (boss_num - 1) % 3, option)
+        st.boss_choices.append((boss_num, option, outcome))
+        st.pending_boss_cutscene = None
+        if st.levelup_pending:
+            self._begin_levelup()
+        else:
+            run_payday(st, self.tilemap, self.core_balance,
+                       self.occupancy, scene)  # -> INCOME
 
     # -- XP award sites (10A) ---------------------------------------------
 
@@ -248,6 +411,18 @@ class Session:
 
     def on_enemy_death(self, enemy):
         """An enemy was killed on the field (not at the base)."""
+        # -- 10G boss: one-shot death-swarm stash (duck-typed — game/core never
+        # imports game/enemies). Flushed by post_sim BEFORE the wave-clear
+        # check; the BossState.death_spawned guard makes a second report of the
+        # same boss a no-op. A boss despawned by quick-skip / a lives wipe
+        # never reaches this callback, so it spawns no swarm (prototype clears
+        # the enemy list wholesale).
+        if (getattr(enemy, "ETYPE", "") == "boss"
+                and not getattr(enemy, "death_spawned", True)):
+            enemy.mark_death_spawned()
+            wx, wy = enemy.transform.world_pos
+            self._boss_swarm_pending = (round(wx), round(wy), enemy.era)
+        # -- /10G --
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
 
@@ -261,9 +436,21 @@ class Session:
     # -- helpers ----------------------------------------------------------
 
     def _begin_round_end(self):
-        self.state.phase = GamePhase.ROUND_END
-        self.state.phase_timer = \
-            self.core_balance["PhaseLoop"]["round_end_delay"]
+        st = self.state
+        # -- 10G boss: queue the cutscene at a boss round's end (round_num is
+        # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
+        # post_sim/on_base_hit gates stop first). Outcome compares lives to the
+        # End-Turn snapshot (prototype game.py:933-938).
+        interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
+        if st.round_num % interval == 0:
+            st.pending_boss_cutscene = {
+                "boss_num": st.round_num // interval,
+                "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
+                            else "loss"),
+            }
+        # -- /10G --
+        st.phase = GamePhase.ROUND_END
+        st.phase_timer = self.core_balance["PhaseLoop"]["round_end_delay"]
 
     def _wipe_round(self, scene):
         """A lives-mode base hit ends the round instantly: clear live enemies +

@@ -1,4 +1,4 @@
-# CLAUDE.md — game/core (Phases 9F + 10A)
+# CLAUDE.md — game/core (Phases 9F + 10A + 10F + 10G + 10H)
 
 The round machine + economy + progression, porting the prototype's
 `Game._update_gameplay` / `_begin_enemy_phase` / `_begin_round_end` /
@@ -11,9 +11,9 @@ guards it). When you change core conventions, update THIS doc.
 
 ## Round loop (Phase 9F)
 Four files beside `balance.py`:
-- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/LEVELUP/INCOME driven now
-  — LEVELUP since 10A; BOSS_CUTSCENE declared at its prototype ordinal but never
-  entered — 10G) and `GameState` (GAMEPLAY/GAME_OVER; menu states 9H).
+- **`phases.py`** — `GamePhase` (BUILDING/ENEMY/ROUND_END/LEVELUP/INCOME —
+  LEVELUP since 10A, BOSS_CUTSCENE since 10G) and `GameState`
+  (GAMEPLAY/GAME_OVER; menu states 9H).
 - **`game_state.py`** — `RunState` dataclass: the single owner of `phase`, `state`,
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
   `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
@@ -23,8 +23,14 @@ Four files beside `balance.py`:
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
-  The remaining reserved no-op slot (boss-bonus, slot 3) stays in place for 10G.
   **Do not reorder without the user.**
+  - **10G filled slot 3** (the last reserved no-op): the Boss1B/3B story
+    payouts via `boss_bonuses.boss1b_income`/`boss3b_income` — AFTER the
+    RoundStats snapshot (Boss3B reads the `dmg_dealt_last_round` it just
+    rolled), BEFORE base income, paid silently (NO floater). The Boss2A/2B
+    per-recipient deltas fold into each `amount` INSIDE the existing step-4
+    income sweep (`defence_count`/`aoe_count` computed once, NO alive filter on
+    the counts), so floaters, totals and the HUD readout stay in lockstep.
   - **10E filled slots 8 + 10**: `_process_wall_teardown` (slot 8, BEFORE revive)
     tears down every DEAD `wall_builder`'s perimeter (`tilemap.remove_walls_for_builder`)
     — seen as `alive == False` at this point, same as painters/boosts; `tilemap.rebuild_walls()`
@@ -137,6 +143,71 @@ in `game/ui/CLAUDE.md`.
   lives-faces indicator are 10L** (the UI-editor phase) — 10F ships the mechanic
   and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
   to it.
+
+## Boss cutscene + bonuses (Phase 10G)
+- **`boss_bonuses.py`** (pure) — the prototype's `boss_bonuses.py` WITHOUT its
+  global singleton: the six stack counters live in `RunState.boss_stacks`
+  (fresh run = fresh RunState = the reset). `BOSS_CHOICES`/`choice_desc` carry
+  the exact A/B UI copy; `apply_choice(state, (boss_num-1)%3, option)` stacks;
+  `story_damage_bonus` (Boss1A per-BUILDABLE-tile + Boss3A per-10-love of the
+  End-Turn snapshot) is the flat int the HOST threads into
+  `resolve_combat(dmg_bonus=…)` each frame; `boss1b_income`/`boss3b_income`
+  are payday slot 3; `defence_count`/`aoe_count` the Boss2A/2B counts. **Bonus
+  magnitudes are code constants** (the `COMBAT_SPEEDS` precedent), everything
+  else reads balancing.
+- **Phase flow**: `end_turn` snapshots love EVERY round (Boss3A) and, on a boss
+  round (`round_num % Boss.round_interval == 0`), lives + one `boss_events`
+  announce marker. `_begin_round_end` queues
+  `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
+  At ROUND_END expiry the pending cutscene **beats** `levelup_pending`;
+  `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
+  `resolve_boss_cutscene(option, scene)` applies the stack, appends
+  `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
+  base-info popup reads; no disk persistence), then chains → LEVELUP (if
+  pending) → payday, exactly once.
+- **Death swarm handshake (layering)**: `game/core` still imports NO
+  `game/enemies`. `on_enemy_death` duck-types the boss (`ETYPE`,
+  `death_spawned`, `mark_death_spawned()` — a METHOD because the E-11 setattr
+  guard blocks public property setters) and stashes `(col, row, era)`;
+  `post_sim` flushes the stash via `spawner.spawn_death_swarm` BEFORE the
+  wave-clear check, so the round can't end between boss death and swarm.
+  Quick-skip / lives-wipe despawns never reach the callback → no swarm.
+
+## Lightning strike + cheat menu (Phase 10H)
+`game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
+- **State on `RunState`**: `lightning_level` (**seeded 1** — the prototype boots
+  with lightning unlocked at L1 and never resets it; the L0 20♥ unlock branch
+  stays implemented but is unreachable from a normal boot) and
+  `lightning_cooldown`. Tunables ONLY from `core.json LightningStrike`
+  (cooldown [5,3,2] / damage [10,15,32] / radius [1,2,3] / unlock 20 /
+  upgrades [35,80] — the LIVE prototype JSON, not the stale `.py` defaults).
+- **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
+  `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
+  `game.py:505-508`): both points go through `cs.world_to_screen` and the
+  threshold is `radius_tiles * tile_w/2 * zoom` (pan cancels in the delta, zoom
+  scales linearly — no iso math outside `engine.coords`). NOT Chebyshev, NOT
+  tile-space Euclidean. The cooldown is spent UNCONDITIONALLY (a whiff still
+  pays + shows VFX); no RoundStats credit (no shooter); kills flow through the
+  next `resolve_combat` → `on_enemy_death` (normal XP/kill path). Spawns a
+  `LightningFX` (`Crater` pattern: overlay object, ages in `scene.update` on the
+  ENEMY-scaled sim dt, self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code
+  constants like `CRATER_LIFE`).
+- **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** on the host's sim dt
+  (speed-scaled, pause-frozen); never reset by round end or `upgrade`.
+- **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
+  is `game/ui/cheat_menu.py`, the host maps its action strings here):
+  `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY
+  guard — no XP, then the NORMAL ROUND_END→payday flow), `cheat_goto_round`
+  (round_num + BUILDING, **no payday invoked** — ordering untouched),
+  `cheat_trigger_levelup`, `cheat_unlock_all` (sweeps the whole `RESEARCH`
+  table — deliberately FIXES the prototype's meditator/blocker omission).
+- **The `return_phase` path is now live**: `_begin_levelup(run_income=True,
+  return_phase=None)`; the cheat LEVEL UP outside ENEMY/LEVELUP passes
+  `run_income=False, return_phase=<current phase>` so `resolve_levelup`
+  restores that phase and runs **NO payday** (village-level math identical on
+  both paths). The natural ROUND_END call site keeps the defaults — zero
+  behavior change there. Mid-ENEMY the cheat only arms `levelup_pending`; the
+  window then fires at ROUND_END on the normal payday path.
 
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to

@@ -1852,6 +1852,42 @@
       ],
       "sheet": "imported/stone_thrower_t1_lvl2.png"
     },
+    "stone_thrower_t1_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 11,
+          "hidden": [],
+          "loop_count": 3,
+          "loop_end": 2,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 8,
+          "frames": 11,
+          "hidden": [
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/stone_thrower_t1_lvl3.png"
+    },
     "sun_scorcher_t1_lvl1": {
       "frame_h": 96,
       "frame_w": 64,

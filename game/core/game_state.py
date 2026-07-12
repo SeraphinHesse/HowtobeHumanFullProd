@@ -62,6 +62,35 @@ class RunState:
     # three rolled cards the LEVELUP window renders.
     xp_events: list = field(default_factory=list)
     levelup_options: list = field(default_factory=list)
+    # -- Boss (10G) ---------------------------------------------------------
+    # The six A/B bonus stack counters (see ``game/core/boss_bonuses.py``); a
+    # fresh RunState = the prototype's new-game reset. ``boss_choices`` is the
+    # per-run history ledger of ``(boss_num, option, outcome)`` tuples — no disk
+    # persistence. The two snapshots are taken at End Turn: love EVERY round
+    # (Boss3A), lives on boss rounds only (the win/loss compare).
+    # ``pending_boss_cutscene`` is ``{"boss_num", "outcome"}`` queued at a boss
+    # round's ROUND_END and consumed by ``resolve_boss_cutscene``.
+    # ``boss_events`` is a drained-by-UI announcement ledger (same contract as
+    # ``xp_events``): one marker per boss-round End Turn.
+    boss_stacks: dict = field(default_factory=lambda: dict.fromkeys(
+        ("boss1a", "boss1b", "boss2a", "boss2b", "boss3a", "boss3b"), 0))
+    boss_choices: list = field(default_factory=list)
+    boss_lives_snapshot: int = 0
+    boss_love_snapshot: int = 0
+    pending_boss_cutscene: object = None
+    boss_events: list = field(default_factory=list)
+    # -- 10H: lightning + cheat menu ---------------------------------------
+    # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 1:
+    # the prototype's __init__ sets lightning_level = 1 (game.py:117) and
+    # _start_new_game never resets it, so every live run begins with lightning
+    # already unlocked at L1 — the L0 unlock branch stays implemented (the
+    # data key exists) but is unreachable from a normal boot. A fresh Session
+    # per run also erases the prototype's quirk of upgrades persisting across
+    # "new game" in the same app session (the 10F combat-speed treatment).
+    # The seed is structural (like combat_speed_idx), so no from_balance change.
+    lightning_level: int = 1
+    lightning_cooldown: float = 0.0
+    # -- /10H --
 
     @classmethod
     def from_balance(cls, core_balance):
