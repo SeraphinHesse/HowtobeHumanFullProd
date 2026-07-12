@@ -113,6 +113,23 @@ THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   (`submit_beams`/`submit_craters`, reading `BeamAttacker._target` + `"crater"`
   scene objects) — alpha-limited by the HUD pass (10J polish).
 
+- **10I tile-condition modifiers** (keyed on the tile the enemy last ARRIVED
+  at): `PathAgent` tracks `_current_condition` (GRASS at spawn) — refreshed
+  when `Movement.index` advances, reading `waypoints[index-1]`, gated
+  `index >= 2` because waypoint 0 IS the spawn tile (whose condition never
+  applies, prototype-exact). While unblocked it writes
+  `mv.speed = _condition_speed()` every frame — `max(0, real −
+  enemy_speed_penalty)` (mountain/forest −0.4 t/s; the `max(0)` clamp is
+  prototype-exact). `EnemyCombat._effective_dmg` (`max(1, int(dmg × (1 +
+  enemy_dmg_bonus)))`) is applied at BOTH attack sites — blocking building AND
+  edge wall — but NEVER base hits (lives mode costs one life flat). POND has
+  no enemy stat modifier (only its +9 path weight). The modifiers dict is read
+  duck-typed off `PathAgent._tilemap.balance` (guarded — headless stubs stay
+  neutral) through `game.map.tiles.CONDITION_MODIFIER_KEY`. The combat sweep's
+  two targeting sites use `effective_range_tiles()` (mountain +1) via a
+  guarded `getattr` fallback to `range_tiles()`, keeping the raw/effective
+  split (coverage + RANGE overlay = raw).
+
 ## Round-loop / XP callbacks (9F / 10A) — layering trick
 `game/enemies` imports NO `game/core`. Cross-boundary needs are optional callbacks:
 - **9F** — `resolve_combat` gained `on_base_hit(enemy)`: with it,

@@ -34,6 +34,18 @@ C_PANEL_INSET = (150, 135, 185)
 
 HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
 
+# -- 10I: tile-condition labels + colours (prototype building_ui.py:23-27) --
+# Shared by the panel badges/tooltips (building_ui) and the map overlays so
+# the two surfaces cannot drift. Keyed by the TileCondition NAME (a plain
+# string) so this module needs no game.map import.
+COND_LABELS = {
+    "GRASS": ("Grass", (100, 180, 80)),
+    "MOUNTAIN": ("Mountain", (160, 130, 90)),
+    "POND": ("Pond", (80, 160, 220)),
+    "FOREST": ("Forest", (70, 160, 70)),
+}
+# -- /10I --
+
 
 def text_size(text, font_key):
     """(w, h) of ``text`` in the given font — pure metric, no blit."""

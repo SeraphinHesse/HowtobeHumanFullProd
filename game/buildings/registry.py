@@ -80,6 +80,18 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             f"{building_type} costs {cost} love, have {love}")
     building = create(building_type, tile.col, tile.row, buildings_balance)
     tile.occupant = building
+    # -- 10I: snapshot the tile condition at placement (prototype
+    # ``b.tile_condition = tile.condition``, game.py:690). Conditions are
+    # immutable after the map roll, so snapshot == live read. The modifiers
+    # subtree rides along so stat getters need no tilemap reference.
+    building._tile_condition = tile.condition
+    building._condition_mods = (
+        tilemap.balance["TileConditions"]["modifiers"])
+    # Re-apply derived stats so condition-dependent hooks (the defence
+    # RangeSensor mirrors the mountain-boosted effective range) see the
+    # snapshot; the full-heal inside is a no-op at placement (hp == max).
+    building.apply_tier_stats()
+    # -- /10I --
     tile.content_key = building.CONTENT_KEY
     tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)

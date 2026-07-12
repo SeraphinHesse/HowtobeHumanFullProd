@@ -19,6 +19,24 @@ by ``engine.core.Movement``.
 """
 from engine.core import Component, Health, Movement, SpriteAnimator
 from game.buildings.components import RoundStats
+from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
+
+
+# -- 10I: tile-condition modifier lookup (shared by both components) --------
+
+def _condition_mods(tm, condition):
+    """The ``TileConditions.modifiers`` sub-dict for ``condition``, or ``{}``.
+    Duck-typed + fully guarded so headless tilemap stubs without ``balance``
+    (and GRASS, which has no modifiers entry) stay neutral."""
+    bal = getattr(tm, "balance", None)
+    if bal is None:
+        return {}
+    key = CONDITION_MODIFIER_KEY.get(condition)
+    if key is None:
+        return {}
+    return bal.get("TileConditions", {}).get("modifiers", {}).get(key, {})
+
+# -- /10I --
 
 
 class PathAgent(Component):
@@ -39,6 +57,13 @@ class PathAgent(Component):
         self._real_speed = 0.0    # cached move speed for block/unblock gating
         self._target = None       # the building we are stopped attacking
         self._wall_target = None  # (c1,r1,c2,r2) edge wall we are attacking, or None
+        # -- 10I: condition of the tile last ARRIVED at (prototype
+        # enemy.py:111-114 / 191-192). GRASS at spawn; the spawn tile's own
+        # condition is never applied (waypoint 0 IS the spawn tile — update()
+        # only reads arrived tiles from waypoint index 1 on).
+        self._current_condition = TileCondition.GRASS
+        self._last_index = 0
+        # -- /10I --
 
     def update(self, dt):
         owner = getattr(self, "_owner", None)
@@ -54,6 +79,18 @@ class PathAgent(Component):
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
             return
+        # -- 10I: refresh the current condition when a waypoint was passed —
+        # the tile ARRIVED at is waypoints[index-1]. Index 1 means "arrived at
+        # waypoint 0" = the spawn tile itself, which never applies (prototype
+        # enemy.py:191-192), hence the index >= 2 gate.
+        if mv.index != self._last_index:
+            self._last_index = mv.index
+            if mv.index >= 2:
+                pw = wps[mv.index - 1]
+                arrived = tm.get(round(pw[0]), round(pw[1]))
+                if arrived is not None:
+                    self._current_condition = arrived.condition
+        # -- /10I --
         wp = wps[mv.index]
         tc, tr = round(wp[0]), round(wp[1])
         is_base = (tc == tm.base_col and tr == tm.base_row)
@@ -86,8 +123,24 @@ class PathAgent(Component):
             self._target = None
             if self.blocked:
                 self.blocked = False
-                mv.speed = self._real_speed
                 self._set_anim(owner, "walk")
+            # 10I: while walking, speed is the condition-modified value every
+            # frame (mountain/forest −0.4 t/s; replaces the plain
+            # ``_real_speed`` restore — identical when the condition is GRASS).
+            mv.speed = self._condition_speed()
+
+    # -- 10I: condition-modified move speed ---------------------------------
+
+    def _condition_speed(self):
+        """``max(0, real − enemy_speed_penalty)`` for the tile last arrived at
+        (prototype ``enemy.py:345-354``; the −0.4×32 px was pixel-space). The
+        ``max(0, …)`` clamp is prototype-exact: a 0.5 t/s SiegeCannon crawls
+        at 0.1 on mountain/forest."""
+        mods = _condition_mods(getattr(self, "_tilemap", None),
+                               self._current_condition)
+        return max(0.0, self._real_speed - mods.get("enemy_speed_penalty", 0))
+
+    # -- /10I --
 
     @staticmethod
     def _wall_edge_ahead(tm, wps, index, tc, tr):
@@ -128,6 +181,22 @@ class EnemyCombat(Component):
     def on_added(self, owner):
         self._owner = owner
 
+    # -- 10I: condition-modified attack damage -------------------------------
+
+    def _effective_dmg(self, pa):
+        """``max(1, int(dmg × (1 + enemy_dmg_bonus)))`` for the owner's current
+        tile condition (prototype ``enemy.py:356-365``). Applied to BOTH the
+        blocking-building and edge-wall attacks — never to base hits (lives
+        mode costs one life flat)."""
+        mods = _condition_mods(getattr(pa, "_tilemap", None),
+                               getattr(pa, "_current_condition", None))
+        bonus = mods.get("enemy_dmg_bonus", 0)
+        if bonus:
+            return max(1, int(self.dmg * (1.0 + bonus)))
+        return self.dmg
+
+    # -- /10I --
+
     def update(self, dt):
         owner = getattr(self, "_owner", None)
         if owner is None:
@@ -145,7 +214,7 @@ class EnemyCombat(Component):
             if self.cooldown <= 0:
                 tm = getattr(pa, "_tilemap", None)
                 if tm is not None:
-                    tm.damage_wall(*wall, self.dmg)
+                    tm.damage_wall(*wall, self._effective_dmg(pa))  # 10I
                 self.cooldown = self.attack_speed
             return
         target = pa._target
@@ -153,10 +222,11 @@ class EnemyCombat(Component):
             return
         self.cooldown -= dt
         if self.cooldown <= 0:
-            target.get_component(Health).damage(self.dmg)
+            dmg = self._effective_dmg(pa)   # 10I: mountain/forest +10%
+            target.get_component(Health).damage(dmg)
             rs = target.get_component(RoundStats)
             if rs is not None:
-                rs.dmg_taken_this_round += self.dmg
+                rs.dmg_taken_this_round += dmg
             self.cooldown = self.attack_speed
 
 

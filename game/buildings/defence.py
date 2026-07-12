@@ -24,33 +24,60 @@ class DefenceBuilding(Building):
                 BoostReceiver()]
 
     def damage(self):
-        """Base tier damage, lifted by an adjacent ``boost_damage`` and halved per
-        ``boost_damage`` explosion debuff (prototype ``_effective_damage``)."""
+        """Base tier damage, lifted by an adjacent ``boost_damage``, cut by a
+        FOREST tile (10I), and halved per ``boost_damage`` explosion debuff —
+        prototype-exact order: boost → condition → debuffs → ``max(1, …)``
+        (prototype ``_effective_damage``, ``defence_building.py:125-147``)."""
         d = self.tier_data()
         base = d["base_dmg"] + self._lvl_idx * d["dmg_per_level"]
         rcv = self.get_component(BoostReceiver)
-        if rcv is None:
-            return base
-        dmg = int(base * (1.0 + rcv.damage_pct))
-        for _ in range(rcv.count_debuffs("damage")):
-            dmg = max(1, dmg // 2)
+        dmg = int(base * (1.0 + rcv.damage_pct)) if rcv is not None else base
+        # -- 10I: forest damage cut (between the boost multiply + the debuffs) --
+        pen = self._condition_mod("def_dmg_penalty")
+        if pen:
+            dmg = int(dmg * (1.0 - pen))
+        # -- /10I --
+        if rcv is not None:
+            for _ in range(rcv.count_debuffs("damage")):
+                dmg = max(1, dmg // 2)
         return max(1, dmg)
 
     def range_tiles(self):
+        """RAW tier range — NO mountain bonus. This is what feeds defence-range
+        pathfinding coverage + the RANGE overlay (10I keeps the raw/effective
+        split, prototype ``game.py:601`` / ``:2014``)."""
         return self.tier_data()["range_tiles"]
 
+    # -- 10I: effective range (targeting / panel / selection highlight) -----
+
+    def effective_range_tiles(self):
+        """Range after the MOUNTAIN +1 bonus (prototype
+        ``defence_building.py:161-168``). Consumed by target acquisition, the
+        panel Range row and the selection range highlight; pathfinding coverage
+        and the RANGE overlay read the RAW ``range_tiles()`` instead."""
+        return self.range_tiles() + self._condition_mod("def_range_bonus")
+
+    # -- /10I --
+
     def attack_speed(self):
-        """Seconds between shots, sped up by an adjacent ``boost_speed`` and slowed
-        ×1.5 per ``boost_speed`` explosion debuff (prototype
-        ``_effective_attack_speed``). The shared ``min_attack_speed`` floor is
-        applied by the combat sweep (``combat.attack_interval``)."""
+        """Seconds between shots, sped up by an adjacent ``boost_speed``, slowed
+        by a POND tile (10I, +30% interval), and slowed ×1.5 per ``boost_speed``
+        explosion debuff — prototype-exact order: boost → condition → debuffs
+        (prototype ``_effective_attack_speed``, ``defence_building.py:149-159``).
+        The shared ``min_attack_speed`` floor is applied by the combat sweep
+        (``combat.attack_interval``; the beam floors at ``BEAM_MIN_TICK``)."""
         spd = self.tier_data()["attack_speed"]
         rcv = self.get_component(BoostReceiver)
-        if rcv is None:
-            return spd
-        spd *= (1.0 - rcv.speed_pct)
-        for _ in range(rcv.count_debuffs("speed")):
-            spd *= 1.5
+        if rcv is not None:
+            spd *= (1.0 - rcv.speed_pct)
+        # -- 10I: pond slows attacks (between the boost multiply + the debuffs) --
+        pen = self._condition_mod("def_attack_speed_penalty")
+        if pen:
+            spd *= (1.0 + pen)
+        # -- /10I --
+        if rcv is not None:
+            for _ in range(rcv.count_debuffs("speed")):
+                spd *= 1.5
         return spd
 
     def boosted_stats(self):
@@ -68,6 +95,11 @@ class DefenceBuilding(Building):
             out["HP"] = d["base_hp"] + self._lvl_idx * d["hp_per_level"]
         if rcv.speed_pct:
             out["Atk speed"] = f'{d["attack_speed"]:.1f}s'
+        # -- 10I: a forest cut also shows the un-modified damage beside the
+        # cut value (prototype ``defence_building.py:117-122``) --
+        if "Damage" not in out and self._condition_mod("def_dmg_penalty"):
+            out["Damage"] = d["base_dmg"] + self._lvl_idx * d["dmg_per_level"]
+        # -- /10I --
         return out
 
     def upkeep(self):
@@ -77,4 +109,6 @@ class DefenceBuilding(Building):
     def _on_apply_stats(self):
         sensor = self.get_component(RangeSensor)
         if sensor is not None:
-            sensor.range_tiles = self.range_tiles()
+            # 10I: the sensor mirrors the EFFECTIVE (mountain-boosted) range —
+            # the targeting-side value; raw range keeps feeding pathfinding.
+            sensor.range_tiles = self.effective_range_tiles()

@@ -28,6 +28,7 @@ state is a full-screen shell screen with no world.
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
 import gc
+import random
 import sys
 import time
 from pathlib import Path
@@ -54,12 +55,16 @@ from engine.render import HudText, Renderer
 from engine.render.ground_cache import GroundCache
 from engine.video import VideoSource
 from game.buildings import BaseBuilding, attach_base
+# -- 10I: defence-range coverage producer (injected into the tilemap) --
+from game.buildings.coverage import wire_defence_coverage
+# -- /10I --
 from game.core import Session, append_random_name, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
 from game.map import TileMap, tile_at_screen
 from game.ui import (
-    BuildingUI, FloaterManager, GameOverScreen, Hud, LevelupWindow, Shell,
+    BuildingUI, FloaterManager, GameOverScreen, Hud, LevelupWindow,
+    MapOverlays, Shell,
 )
 
 BACKGROUND = (24, 20, 32)
@@ -105,7 +110,10 @@ class _World:
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
                  registry):
-        self.tile_map = TileMap(map_doc, map_bal)
+        # -- 10I: the live run rolls tile conditions (rng=None would keep the
+        # all-GRASS fixture mode the headless tests rely on) --
+        self.tile_map = TileMap(map_doc, map_bal, rng=random)
+        # -- /10I --
         self.occupancy = TileOccupancy()
         self.scene = Scene()
         # A hole-less map (editor allows it with a warning) has no base to
@@ -118,6 +126,10 @@ class _World:
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
                                       occupancy=self.occupancy)
+        # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
+        # in the pathfinder reads the injected callable) --
+        wire_defence_coverage(self.tile_map, buildings_bal)
+        # -- /10I --
 
 
 def step_zoom(cs, direction, view_w, view_h):
@@ -217,7 +229,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     # gameplay bundle — None until START NEW GAME; dropped on quit-to-menu
     gp = {"world": None, "hud": None, "panel": None, "floaters": None,
-          "game_over": None, "levelup": None, "prev_phase": None}
+          "game_over": None, "levelup": None, "overlays": None,
+          "prev_phase": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
@@ -227,6 +240,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h)
         gp["levelup"] = LevelupWindow(view_w, view_h)
+        # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
+        gp["overlays"] = MapOverlays(view_w, view_h)
+        # -- /10I --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -235,7 +251,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
     def teardown_gameplay():
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
-        for k in ("world", "hud", "panel", "floaters", "game_over", "levelup"):
+        for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
+                  "overlays"):
             gp[k] = None
         if tune_gc:
             gc.collect()
@@ -289,6 +306,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
+        if gp["overlays"].hit(mx, my):
+            return
+        # -- /10I --
         if panel.handle_click(mx, my, session, buildings_balance,
                               world.scene, world.occupancy):
             return
@@ -373,6 +394,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     panel.preview is not None
                     or (panel.visible and px >= panel.panel_x)
                     or gp["hud"].hit(px, py) is not None
+                    or gp["overlays"].over(px, py)   # 10I: toggle pills
                 )
                 pan_from = None if over_ui else event.pos
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _LEFT:
@@ -429,6 +451,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     and gp["prev_phase"] != GamePhase.LEVELUP):
                 gp["panel"].close()  # the modal owns the screen
                 gp["levelup"].open(session.state.levelup_options)
+            # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
+            # snapshots the round's counts on the ENEMY->anything edge) --
+            gp["overlays"].track(session.state.phase, gp["prev_phase"],
+                                 world.scene)
+            # -- /10I --
             gp["prev_phase"] = session.state.phase
             gp["floaters"].spawn_xp_events(session.state)
             # mirror a fresh game over up to the shell (never while PAUSED)
@@ -438,6 +465,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["hud"].update(dt, mx, my, session, gp["panel"])
             gp["panel"].hover(mx, my)
             gp["panel"].update(dt)
+            gp["overlays"].update(dt, mx, my)   # 10I: toggle-pill hover
             gp["floaters"].update(dt)
             if session.frozen:
                 gp["levelup"].update(dt, mx, my)
@@ -479,6 +507,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)
+            # -- 10I: condition tint + RANGE/HEATMAP overlays — before the
+            # panel submit so selection highlights draw over them; reuses the
+            # visible-tile window computed above --
+            gp["overlays"].submit(renderer, world.tile_map, world.scene,
+                                  (cmin, cmax, rmin, rmax))
+            # -- /10I --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
@@ -486,6 +520,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].submit(renderer, cs)
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
+            gp["overlays"].submit_buttons(renderer)   # 10I: RANGE/HEATMAP pills
             if gp["levelup"].visible:
                 gp["levelup"].submit(renderer, view_w, view_h)
             if session.state.state == GameState.GAME_OVER:

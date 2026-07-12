@@ -18,6 +18,7 @@ from .game_over import GameOverScreen
 from .hud import Hud
 from .levelup import LevelupWindow
 from .main_menu import MainMenu
+from .overlays import MapOverlays
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
 from .shell import Shell
@@ -29,6 +30,7 @@ __all__ = [
     "FloaterManager",
     "GameOverScreen",
     "LevelupWindow",
+    "MapOverlays",
     "Shell",
     "MainMenu",
     "SettingsScreen",
