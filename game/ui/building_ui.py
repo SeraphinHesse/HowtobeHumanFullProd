@@ -19,6 +19,7 @@ from game.buildings.registry import (
     BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
 )
 from game.buildings.research import buildable
+from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
 from game.map.tiles import TileState
@@ -28,6 +29,11 @@ from .widgets import (
     C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, HEART, Button, contains,
     submit_panel, submit_tile_diamond, submit_text,
 )
+
+# -- 10H: lightning + cheat menu --
+_LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
+_LIGHTNING_BTN_Y = 370             # unlock/upgrade button row (below the stats)
+# -- /10H --
 
 
 def _building_stats(b):
@@ -209,6 +215,9 @@ class BuildingUI:
         self.action_btn = Button(
             (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
         self.cards = []
+        # -- 10H --
+        self.lightning_btn = None  # base_info mode only; None at max level
+        # -- /10H --
 
     # -- open / close -----------------------------------------------------
 
@@ -229,6 +238,9 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self.cards = []
+        # -- 10H --
+        self.lightning_btn = None
+        # -- /10H --
 
     def open_for_tile(self, tile, session, buildings_balance):
         self.close()
@@ -247,6 +259,7 @@ class BuildingUI:
             occ = tile.occupant
             if getattr(occ, "building_type", None) == "base":
                 self.mode, self.tile = "base_info", tile
+                self._build_base_info(session)  # 10H: lightning button
             elif occ is not None:
                 self.mode, self.tile, self._selected = "upgrade", tile, occ
                 self._build_upgrade()
@@ -311,6 +324,42 @@ class BuildingUI:
             return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
         return mode, 0, "MAX TIER", None
 
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def _build_base_info(self, session):
+        """(Re)build the lightning unlock/upgrade button (prototype
+        ``building_ui.py:825-836``): ``UNLOCK LIGHTNING`` at L0, ``UPGRADE
+        LIGHTNING`` below max, absent at max level (a gold MAX LEVEL line
+        replaces it in the submit)."""
+        st = session.state
+        cost = lightning.next_cost(st, session.core_balance)
+        if cost is None:
+            self.lightning_btn = None
+            self._action_cost = 0
+            return
+        verb = "UNLOCK" if st.lightning_level <= 0 else "UPGRADE"
+        self.lightning_btn = Button(
+            (self.panel_x + 12, _LIGHTNING_BTN_Y, self.panel_w - 24, 36),
+            f"{verb} LIGHTNING  {HEART}{cost}", "md")
+        self._action_cost = cost
+
+    def _base_info_click(self, mx, my, session):
+        """Click handling for base_info mode (prototype ``:804-816``): the
+        lightning button buys the next level or flashes NOT ENOUGH LOVE
+        (``:1235-38``); everything else inside the panel is consumed."""
+        if self.lightning_btn is not None and self.lightning_btn.hit(mx, my):
+            st = session.state
+            cost = lightning.next_cost(st, session.core_balance)
+            if cost is not None and st.love < cost:
+                self.lightning_btn.start_flash(self._flash_dur,
+                                               "NOT ENOUGH LOVE")
+            elif lightning.upgrade(st, session.core_balance):
+                self._build_base_info(session)  # next cost / MAX LEVEL
+            return True
+        return contains(self.panel_rect, mx, my)
+
+    # -- /10H ---------------------------------------------------------------
+
     def _set_range_highlight(self, b, tilemap):
         hl = [(b.col, b.row, C_HIGHLIGHT)]
         rfn = getattr(b, "range_tiles", None)
@@ -345,6 +394,12 @@ class BuildingUI:
             self.action_btn.hover(mx, my)
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
+        # -- 10H --
+        elif self.mode == "base_info" and self.lightning_btn is not None:
+            self.lightning_btn.hover(mx, my)
+            if self.lightning_btn.hovered:
+                self._hover_cost = self._action_cost
+        # -- /10H --
 
     def handle_key(self, char, key):
         if self.preview is not None:
@@ -368,7 +423,11 @@ class BuildingUI:
             return self._construct_click(mx, my, session, buildings_balance)
         if self.mode == "upgrade":
             return self._upgrade_click(mx, my, session)
-        return contains(self.panel_rect, mx, my)  # base_info: consume inside
+        # -- 10H --
+        if self.mode == "base_info":
+            return self._base_info_click(mx, my, session)
+        # -- /10H --
+        return contains(self.panel_rect, mx, my)
 
     def _unlock_click(self, mx, my, session):
         if self.action_btn.hit(mx, my):
@@ -447,6 +506,10 @@ class BuildingUI:
         self.close_btn.update(dt)
         for _, btn in self.cards:
             btn.update(dt)
+        # -- 10H --
+        if self.lightning_btn is not None:
+            self.lightning_btn.update(dt)
+        # -- /10H --
         if self.preview is not None:
             self.preview.update(dt)
 
@@ -527,3 +590,37 @@ class BuildingUI:
             submit_text(renderer, str(value), (self._right, y), "md", C_UI_TEXT,
                         align="right")
             y += 30
+        # -- 10H: lightning strike section (prototype building_ui.py:1194-1243)
+        from engine.render import HudRect  # local: keep module import list lean
+
+        ls = session.core_balance["LightningStrike"]
+        lvl = st.lightning_level
+        y += 6
+        renderer.submit_hud(HudRect((x, y, self.panel_w - 28, 1), C_UI_BORDER))
+        y += 10
+        submit_text(renderer, "⚡ LIGHTNING STRIKE", (x, y), "md",
+                    _LIGHTNING_GOLD)
+        y += 26
+        if lvl <= 0:
+            submit_text(renderer, "LOCKED — upgrade at The Hole", (x, y), "sm",
+                        C_UI_TEXT_DIM)
+        else:
+            submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),
+                        "md", C_UI_TEXT)
+            y += 24
+            for label, value in (
+                    ("DMG", ls["damage"][lvl - 1]),
+                    ("Radius", f"{ls['radius'][lvl - 1]} tiles"),
+                    ("Atk Spd", f"{ls['cooldown'][lvl - 1]:.1f}s")):
+                submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
+                submit_text(renderer, str(value), (self._right, y), "md",
+                            C_UI_TEXT, align="right")
+                y += 24
+        if self.lightning_btn is not None:
+            self.lightning_btn.submit(renderer)
+        elif lvl >= ls["max_level"]:
+            submit_text(renderer, "MAX LEVEL",
+                        (self.panel_x + self.panel_w // 2,
+                         _LIGHTNING_BTN_Y + 8),
+                        "md", C_GOLD, align="center")
+        # -- /10H --

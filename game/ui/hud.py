@@ -3,8 +3,8 @@ banner, End Turn button.
 
 Pure logic (no pygame): reads the ``Session``/``RunState`` and the tile grid,
 emits screen-space HUD primitives via ``renderer.submit_hud``. Ports the
-prototype's ``src/ui/hud.py`` core (the speed controls, boss/lightning readouts
-and map-overlay toggles are their own later phases — 10F/10G/10H/10I). The hole
+prototype's ``src/ui/hud.py`` core (the speed controls, boss readouts
+and map-overlay toggles are their own later phases — 10F/10G/10I). The hole
 is lives-based (HP mode was removed), so the base readout is a life count, never
 an HP bar.
 
@@ -19,8 +19,13 @@ from game.core.xp import scaled_base_income
 from .widgets import (
     C_GOLD, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED, C_UI_BORDER,
     C_UI_TEXT_DIM, HEART, Button, submit_bar, submit_centered, submit_text,
-    text_h,
+    text_h, text_size,
 )
+
+# -- 10H: lightning + cheat menu --
+_LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
+_LIGHTNING_COOLING = (120, 120, 140)
+# -- /10H --
 
 _PHASE_LABEL = {
     GamePhase.BUILDING: "BUILDING",
@@ -73,6 +78,9 @@ class Hud:
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
         self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
         self._clock = 0.0  # drives the levelup-pending pulse
+        # -- 10H --
+        self._mx = self._my = 0  # cursor pos: anchors the cooldown bar
+        # -- /10H --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
@@ -82,6 +90,7 @@ class Hud:
         self.pause.rect = (view_w - pw - 16, 12, pw, ph)
 
     def update(self, dt, mx, my, session, panel):
+        self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
         self._clock += dt
         self.end_turn.enabled = (
@@ -152,6 +161,9 @@ class Hud:
         # -- pause button (top-right) -------------------------------------
         self.pause.submit(renderer)
 
+        # -- lightning readout (10H) ---------------------------------------
+        self._submit_lightning(renderer, session, view_h)
+
     def _submit_xp(self, renderer, st, x, y):
         """`LVL N`, a purple progress bar, and `xp/threshold`. When a level-up
         is pending the bar reads full and pulses gold (prototype `_render_xp`)."""
@@ -172,3 +184,34 @@ class Hud:
                    bg=_XP_TRACK, fill=color, border=C_UI_BORDER)
         submit_text(renderer, f"{st.player_xp}/{st.xp_threshold}",
                     (x, bar_y + bar_h + 2), "sm", C_UI_TEXT_DIM)
+
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def _submit_lightning(self, renderer, session, view_h):
+        """Bottom-left strike readout + a tiny cursor-attached progress bar
+        (prototype ``game.py:1829-1863``): shown only while ``phase == ENEMY``
+        and lightning is unlocked. Ready -> `⚡ CLICK TO STRIKE`; cooling ->
+        the live countdown. The backing is OPAQUE black — the HUD pass has no
+        per-pixel alpha (10J), like the level-up backdrop."""
+        from engine.render import HudRect  # local: keep module import list lean
+
+        st = session.state
+        if st.phase != GamePhase.ENEMY or st.lightning_level <= 0:
+            return
+        cooldown = session.core_balance["LightningStrike"]["cooldown"][
+            st.lightning_level - 1]
+        if st.lightning_cooldown <= 0:
+            label, color = "⚡ CLICK TO STRIKE", _LIGHTNING_READY
+        else:
+            label = f"⚡ {st.lightning_cooldown:.1f}s"
+            color = _LIGHTNING_COOLING
+        w, h = text_size(label, "md")
+        x, y = 12, view_h - 26 - h - 12  # just above the phase banner
+        renderer.submit_hud(HudRect((x - 4, y - 3, w + 8, h + 6), (0, 0, 0)))
+        submit_text(renderer, label, (x, y), "md", color)
+        # 22x3 cursor bar: black track, white fill; full = ready.
+        frac = 1.0 - (st.lightning_cooldown / cooldown if cooldown else 0.0)
+        submit_bar(renderer, self._mx - 11, self._my + 16, 22, 3, frac,
+                   bg=(0, 0, 0), fill=(255, 255, 255))
+
+    # -- /10H ---------------------------------------------------------------

@@ -8,6 +8,8 @@ that only shows when a building is damaged). Ports the prototype's
 ``IncomeFloater`` / ``Building._draw_hp_bar``. The rich VFX set (spark bursts,
 gold highlights, blood, muzzle/slash) is the 10J sweep.
 """
+import random  # 10H: per-frame bolt jitter (stdlib — pure)
+
 from engine.core import Health
 from engine.render import HudLines
 from game.buildings.components import BeamAttacker, TierState
@@ -31,6 +33,17 @@ _BOOST_WHITE = (255, 255, 255)   # prototype boost floater colour
 # yellow -> orange -> red as the line thickens with tier.
 _BEAM_COLORS = ((255, 200, 40), (255, 110, 15), (210, 20, 10))
 _CRATER_COLOR = (120, 78, 66)   # spent-shell scorch (world-space diamond)
+
+# -- 10H: lightning + cheat menu --
+# Bolt colour ramp (white -> yellow over BOLT_LIFE) + the ground-marker yellow
+# (prototype effects.py:222-289 fill (255,240,120)). 8-segment polyline, ±6 px
+# horizontal jitter re-rolled every frame — prototype-exact.
+_BOLT_SEGMENTS = 8
+_BOLT_JITTER = 6
+_BOLT_WHITE = (255, 255, 255)
+_BOLT_YELLOW = (255, 240, 80)
+_LIGHTNING_MARKER = (255, 240, 120)
+# -- /10H --
 
 
 class _Floater:
@@ -152,6 +165,46 @@ class FloaterManager:
             pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
                    (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
             renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def submit_lightning(self, renderer, cs, scene):
+        """Bolt + ground marker for each live ``"lightning_fx"`` object (Phase
+        10H, prototype ``effects.py LightningEffect``): (1) a jagged
+        screen-space polyline from the top of the screen (y=0) down to the
+        impact point — ±6 px horizontal jitter re-rolled every frame, colour
+        fading white -> yellow over the 0.5 s bolt life; (2) a fading yellow
+        world-space diamond sized to the REAL blast radius (the crater
+        pattern; a world diamond of r tiles projects to a 2:1 screen lozenge —
+        exactly the prototype's w = 2r, h = r ground ellipse). The alpha
+        impact-flash circle is 10J (no per-pixel alpha in the HUD/overlay
+        pass). The FX objects age + self-despawn in the scene on the host's
+        ENEMY-scaled sim dt; here we only draw them."""
+        for fx in scene.by_tag("lightning_fx"):
+            wx, wy = fx.transform.world_pos
+            bolt = fx.bolt_frac
+            if bolt > 0:
+                sx, sy = cs.world_to_screen(wx, wy)
+                pts = []
+                for i in range(_BOLT_SEGMENTS + 1):
+                    t = i / _BOLT_SEGMENTS
+                    jitter = (random.uniform(-_BOLT_JITTER, _BOLT_JITTER)
+                              if 0 < i < _BOLT_SEGMENTS else 0.0)
+                    pts.append((int(sx + jitter), int(sy * t)))
+                # white -> yellow along the fade, darkening out (no alpha).
+                progress = 1.0 - bolt
+                color = tuple(
+                    int((w + (yl - w) * progress) * bolt)
+                    for w, yl in zip(_BOLT_WHITE, _BOLT_YELLOW))
+                renderer.submit_hud(HudLines(tuple(pts), color, width=2))
+            frac = fx.fade_frac
+            if frac > 0:
+                r = fx.radius_tiles
+                color = tuple(int(ch * frac) for ch in _LIGHTNING_MARKER)
+                pts = [(wx, wy - r), (wx + r, wy), (wx, wy + r), (wx - r, wy)]
+                renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+
+    # -- /10H ---------------------------------------------------------------
 
     def submit_hp_bars(self, renderer, cs, scene):
         """A red/green bar over every non-base building below full HP (prototype

@@ -27,6 +27,7 @@ skips the whole sim, so nothing animates behind the window.
 import random
 
 from . import levelup as lv
+from . import lightning as lt  # 10H
 from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
@@ -63,6 +64,13 @@ class Session:
         # Session, which is the prototype's "reset to 1x on new game".
         self.combat_speed_idx = 0
         self._prev_combat_speed_idx = 0  # remembered speed for the pause toggle
+        # -- 10H: lightning + cheat menu --------------------------------
+        # How the NEXT level-up window resolves (set by _begin_levelup): the
+        # natural ROUND_END path runs payday; the cheat LEVEL UP path instead
+        # restores the phase it interrupted (prototype game.py:1484-1517).
+        self._levelup_run_income = True
+        self._levelup_return_phase = None
+        # -- /10H --
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
@@ -128,6 +136,87 @@ class Session:
         self._wipe_pending = False
         self._begin_round_end()
 
+    # -- 10H: lightning + cheat menu ---------------------------------------
+
+    def lightning_strike(self, scene, cs, wx, wy):
+        """The ENEMY-phase left-click strike (prototype dispatch game.py:426-31
+        + ``_handle_lightning_click``): only fires during a live ENEMY phase;
+        locked/cooling strikes are silent no-ops inside ``lightning.strike``.
+        Returns whether the bolt actually fired."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
+            return False
+        return lt.strike(st, self.core_balance, scene, cs, wx, wy)
+
+    def cheat_add_love(self, amount):
+        """``+10 Love`` / ``Infinite Money`` (prototype game.py:305, 313).
+        Repeatable; clamped like every currency write."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        self.state.add_love(amount)
+
+    def cheat_skip_round(self, scene):
+        """``Skip Round`` — ``quick_skip_combat``'s body WITHOUT its ENEMY
+        guard (prototype game.py:306-308 has none): from ANY phase, wipe the
+        wave paying NO XP and restart ROUND_END. The normal ROUND_END ->
+        (LEVELUP if pending) -> payday flow then runs untouched — pressing it
+        during ROUND_END/INCOME restarts ROUND_END for a second payday, a
+        cheat corner the prototype allows (kept)."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        for e in list(scene.by_tag("enemy")):
+            scene.despawn(e)
+        self.spawner.clear()
+        self._wipe_pending = False
+        self._begin_round_end()
+
+    def cheat_goto_round(self, n, scene):
+        """``Go to Round n`` (prototype game.py:311-315): clear the field +
+        queue, set the round, drop to BUILDING. NO payday runs, no love
+        changes, timers untouched; jumps go forward OR backward — everything
+        round-derived (scale tier, era gates, speed gates) simply reads the
+        new ``round_num``. Payday ordering is untouched because payday is
+        simply not invoked (prototype-exact)."""
+        if self.state.state != GameState.GAMEPLAY:
+            return
+        for e in list(scene.by_tag("enemy")):
+            scene.despawn(e)
+        self.spawner.clear()
+        self._wipe_pending = False
+        self.state.round_num = n
+        self.state.phase = GamePhase.BUILDING
+
+    def cheat_trigger_levelup(self):
+        """``LEVEL UP`` (prototype ``_cheat_trigger_levelup``, game.py:1493-99):
+        always arm the pending flag; outside ENEMY/LEVELUP open the window NOW
+        with the no-payday ``return_phase`` path. Mid-ENEMY only the flag is
+        set — the window then fires at the natural ROUND_END with the normal
+        ``run_income=True`` payday path."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY:
+            return
+        st.levelup_pending = True
+        if st.phase not in (GamePhase.ENEMY, GamePhase.LEVELUP):
+            self._begin_levelup(run_income=False, return_phase=st.phase)
+
+    def cheat_unlock_all(self):
+        """``Unlock All Tech``: every RESEARCH type unlocked + ALL its tiers
+        researched. Deliberate fix of a prototype bug: its hand-written sweep
+        omitted meditator + blocker (debug tooling, not gameplay — coordination
+        ruling #6). Sweeping the RESEARCH table instead can never miss a type."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY:
+            return
+        # Local import — same pattern (and reason) as RunState.from_balance.
+        from game.buildings.research import LEAF_CLASSES, RESEARCH
+
+        for bt in RESEARCH:
+            st.unlocked_buildings[bt] = True
+            st.tiers_unlocked[bt] = len(
+                LEAF_CLASSES[bt]._resolve_tiers(self.buildings_balance))
+
+    # -- /10H ---------------------------------------------------------------
+
     # -- BUILDING -> ENEMY (prototype _begin_enemy_phase) -----------------
 
     def end_turn(self):
@@ -154,6 +243,11 @@ class Session:
         if st.state != GameState.GAMEPLAY or self.frozen:
             return
         if st.phase == GamePhase.ENEMY:
+            # 10H: the lightning cooldown drains ONLY here, on the ENEMY-phase
+            # sim dt the host already speed-scales (prototype game.py:1243-46):
+            # 2x drains it faster, the in-combat pause freezes it, and it
+            # persists frozen across BUILDING/ROUND_END/LEVELUP/INCOME.
+            lt.tick(st, dt)
             self.spawner.update(dt, scene)
             self._award_building_deaths(scene)
         elif st.phase == GamePhase.ROUND_END:
@@ -185,11 +279,18 @@ class Session:
 
     # -- LEVELUP (10A) ----------------------------------------------------
 
-    def _begin_levelup(self):
+    def _begin_levelup(self, run_income=True, return_phase=None):
         """Open the modal window on the rolled options (prototype
-        ``_begin_levelup(run_income=True)``; the cheat ``return_phase`` path is
-        10H). The host reads ``state.levelup_options``."""
+        ``_begin_levelup``). The natural ROUND_END call site keeps the defaults
+        (``run_income=True``); the 10H cheat LEVEL UP passes
+        ``run_income=False, return_phase=<interrupted phase>`` so the resolve
+        skips payday and restores that phase. The host reads
+        ``state.levelup_options``."""
         st = self.state
+        # -- 10H: remember how this window must resolve --
+        self._levelup_run_income = run_income
+        self._levelup_return_phase = return_phase
+        # -- /10H --
         st.levelup_options = lv.roll_levelup_options(
             st, self.buildings_balance, self.core_balance, self.rng)
         st.phase = GamePhase.LEVELUP
@@ -197,12 +298,22 @@ class Session:
     def resolve_levelup(self, option, scene=None):
         """Grant the chosen reward, advance the village level, then run the
         payday the level-up deferred (prototype ``_resolve_levelup``). ``scene``
-        lets the deferred payday's Painter slot despawn a completed painter."""
+        lets the deferred payday's Painter slot despawn a completed painter.
+        The 10H cheat path (``run_income=False``) restores the interrupted
+        phase INSTEAD of running payday — the village-level math is identical
+        on both paths (prototype game.py:1501-1517)."""
         st = self.state
         lv.apply_levelup_option(st, option, self.core_balance)
         st.levelup_pending = False
         st.levelup_options = []
         xpmod.advance_village_level(st, self.core_balance)
+        # -- 10H: the cheat return_phase path — NO payday --
+        if not self._levelup_run_income:
+            st.phase = self._levelup_return_phase or GamePhase.BUILDING
+            self._levelup_run_income = True     # one-shot: back to the default
+            self._levelup_return_phase = None
+            return
+        # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
                    self.occupancy, scene)  # -> INCOME
 
