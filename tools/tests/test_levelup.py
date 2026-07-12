@@ -92,18 +92,22 @@ class TestRunStateSeeding(unittest.TestCase):
         # type is always unlocked but starts at ZERO researched tiers (tier 1
         # researched at a level-up, era-gated to round 10). 10D: the three boost
         # types start LOCKED (unlocked together by one round-10 card) but tier 1
-        # ready once unlocked.
+        # ready once unlocked. 10E: Blocker is always unlocked at tier 1
+        # (placeable from the start); WallBuilder's type is unlocked but starts at
+        # ZERO researched tiers (tier 1 researched at a level-up, era-gated to 5).
         self.assertEqual(
             st.tiers_unlocked,
             {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
              "painter": 1, "meditator": 0,
-             "boost_speed": 1, "boost_damage": 1, "boost_hp": 1})
+             "boost_speed": 1, "boost_damage": 1, "boost_hp": 1,
+             "blocker": 1, "wall_builder": 0})
         self.assertEqual(
             st.unlocked_buildings,
             {"defence": True, "economic": True,
              "aoe_defence": False, "sun_scorcher": False,
              "painter": False, "meditator": True,
-             "boost_speed": False, "boost_damage": False, "boost_hp": False})
+             "boost_speed": False, "boost_damage": False, "boost_hp": False,
+             "blocker": True, "wall_builder": True})
 
 
 # ---------------------------------------------------------------------------
@@ -181,9 +185,10 @@ class TestOptionRoll(unittest.TestCase):
 
     def test_tier_two_enters_the_pool_at_its_unlock_min_round(self):
         st = RunState.from_balance(CORE)
-        st.round_num = 9
-        # No TIER card yet (both tier-2s gated to round 10); the Maw Mortar
-        # unlock card is present but is not a tier option.
+        st.round_num = 7
+        # No TIER card yet: the defence/economic tier-2s are round-gated to 10 and
+        # the Blocker's Bulwark to round 8, so at round 7 the only cards are the
+        # two village-level unlocks (Maw Mortar / Painter) — not tier options.
         self.assertFalse(any(o["kind"] == "tier" for o in self.roll(st)))
         st.round_num = 10
         titles = {o["title"] for o in self.roll(st) if o["kind"] == "tier"}

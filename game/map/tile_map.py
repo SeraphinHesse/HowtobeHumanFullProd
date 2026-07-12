@@ -11,8 +11,33 @@ Unlock sections and the playfield window anchor at the base (the buildable min
 corner) rather than the prototype's hardcoded ``PLAYFIELD_*`` constants, so the
 math is map-driven. Pure Python — no pygame.
 """
+from dataclasses import dataclass
+
 from game.core.balance import load_balance
 from .tiles import Tile, TileState
+
+
+@dataclass
+class WallEdge:
+    """One perimeter wall segment on the shared grid edge between two tiles
+    (Phase 10E, prototype ``src/map/tile_map.py`` ``WallEdge``). Owned by a
+    WallBuilder building; removed when that builder dies. ``owner`` is the
+    building GameObject — duck-typed, no ``game.buildings`` import (keeps the map
+    layer free of the building layer, avoiding an import cycle)."""
+
+    col_a: int
+    row_a: int
+    col_b: int
+    row_b: int
+    hp: int
+    max_hp: int
+    owner: object
+
+
+def _wall_key(c1, r1, c2, r2):
+    """Order-independent key for the edge between (c1,r1) and (c2,r2) so the same
+    physical edge maps to one dict slot regardless of argument order."""
+    return (c1, r1, c2, r2) if (c1, r1) < (c2, r2) else (c2, r2, c1, r1)
 
 
 # Map-file legend code -> runtime zone state. Only the three ZONE codes carry a
@@ -70,6 +95,12 @@ class TileMap:
         # core in 10I; None keeps the range-affects-path feature dormant.
         self.round_num = 1
         self._defence_coverage_fn = None
+
+        # Perimeter edge walls placed by WallBuilder buildings (10E). Keyed by
+        # `_wall_key`. One WallEdge per edge — if two builders cover the same
+        # edge the later placement overwrites (last-placed owns it); documented
+        # as acceptable in the prototype.
+        self.wall_edges = {}
         # DEFENCE_RANGE_PATH_WEIGHT_ADD lives in the buildings domain and is
         # wired in 10I; 0 keeps the coverage add inert in 9C (and coverage is
         # empty anyway, so it never fires).
@@ -340,13 +371,126 @@ class TileMap:
         for t in self.all_tiles():
             t.defence_range_covered = (t.col, t.row) in covered_set
 
-    # -- wall hook (10E) --------------------------------------------------
+    # -- edge walls (10E, prototype tile_map.py:152-252) ------------------
 
     def get_wall_between(self, c1, r1, c2, r2):
-        """Perimeter wall on the edge between two tiles, or None. No walls
-        exist until 10E, so this always returns None (pathfinder treats every
-        edge as passable)."""
-        return None
+        """The ``WallEdge`` on the edge between two tiles, or None. The
+        pathfinder's ``_wall_blocks`` reads this; before any WallBuilder is
+        placed ``wall_edges`` is empty, so every edge stays passable."""
+        return self.wall_edges.get(_wall_key(c1, r1, c2, r2))
+
+    def damage_wall(self, c1, r1, c2, r2, amount):
+        """Reduce a wall's HP by ``amount``. Removes it + returns True if HP drops
+        to <= 0 (it broke); else False. False when there is no wall on that edge
+        (prototype ``damage_wall``)."""
+        key = _wall_key(c1, r1, c2, r2)
+        edge = self.wall_edges.get(key)
+        if edge is None:
+            return False
+        edge.hp -= amount
+        if edge.hp <= 0:
+            del self.wall_edges[key]
+            return True
+        return False
+
+    @staticmethod
+    def _is_player_territory(tile):
+        """Player territory = a BUILDABLE or BUILT tile (the same test unlocking
+        uses to seed adjacency)."""
+        return tile is not None and tile.state in (
+            TileState.BUILDABLE, TileState.BUILT)
+
+    @staticmethod
+    def _is_combat_zone(tile):
+        """COMBAT or SPAWNING — the zones enemies actually traverse. Walls are
+        only placed on player-tile edges facing these tiles."""
+        return tile is not None and tile.state in (
+            TileState.COMBAT, TileState.SPAWNING)
+
+    def _exterior_combat_tiles(self):
+        """BFS from every SPAWNING tile through COMBAT/SPAWNING tiles only, never
+        crossing player territory or BACKGROUND. Returns the set of (col, row)
+        combat tiles reachable from the spawn zone — the 'exterior' side. Combat
+        tiles enclosed by player territory are excluded (prototype
+        ``_exterior_combat_tiles``)."""
+        visited = set()
+        queue = []
+        for tile in self.spawning_tiles():
+            pos = (tile.col, tile.row)
+            if pos not in visited:
+                visited.add(pos)
+                queue.append(pos)
+        head = 0
+        while head < len(queue):
+            col, row = queue[head]
+            head += 1
+            for nc, nr in ((col + 1, row), (col - 1, row),
+                           (col, row + 1), (col, row - 1)):
+                if (nc, nr) in visited:
+                    continue
+                nb = self.get(nc, nr)
+                if nb is None or self._is_player_territory(nb):
+                    continue
+                if not self._is_combat_zone(nb):
+                    continue   # skip BACKGROUND — enemies never come from there
+                visited.add((nc, nr))
+                queue.append((nc, nr))
+        return visited
+
+    def place_walls_for_builder(self, builder):
+        """Raise walls on the outermost perimeter only: edges where a player tile
+        faces an exterior combat tile (reachable from the spawn zone). Interior
+        concavities and the base pocket's inner edges are excluded. A snapshot of
+        the placed edges is frozen onto the builder so ``rebuild_walls`` can
+        restore destroyed segments without re-deriving the perimeter (prototype
+        ``place_walls_for_builder``). ``builder`` is duck-typed: ``wall_hp()`` +
+        ``set_wall_snapshot()``."""
+        wall_hp = builder.wall_hp()
+        exterior = self._exterior_combat_tiles()
+        snapshot = []
+        for tile in self.all_tiles():
+            if not self._is_player_territory(tile):
+                continue
+            for nc, nr in ((tile.col + 1, tile.row), (tile.col - 1, tile.row),
+                           (tile.col, tile.row + 1), (tile.col, tile.row - 1)):
+                if (nc, nr) not in exterior:
+                    continue   # not exterior-facing — skip
+                key = _wall_key(tile.col, tile.row, nc, nr)
+                self.wall_edges[key] = WallEdge(
+                    tile.col, tile.row, nc, nr, wall_hp, wall_hp, builder)
+                snapshot.append([tile.col, tile.row, nc, nr])
+        builder.set_wall_snapshot(snapshot)
+
+    def remove_walls_for_builder(self, builder):
+        """Remove every wall owned by ``builder`` (called when it dies)."""
+        for key in [k for k, e in self.wall_edges.items()
+                    if e.owner is builder]:
+            del self.wall_edges[key]
+
+    def rebuild_walls(self):
+        """Restore destroyed wall segments from each alive WallBuilder's frozen
+        snapshot (missing edges recreated at full HP; surviving edges reset to
+        ``max_hp``). Never re-derives the perimeter, so walls do not expand if the
+        player unlocks more tiles after placement (prototype ``rebuild_walls``).
+        Duck-typed: ``building_type`` / ``alive`` / ``wall_hp()`` /
+        ``wall_snapshot()``."""
+        for tile in self.built_tiles():
+            b = tile.occupant
+            if (b is None or getattr(b, "building_type", None) != "wall_builder"
+                    or not getattr(b, "alive", False)):
+                continue
+            snapshot = b.wall_snapshot()
+            if not snapshot:
+                continue
+            wall_hp = b.wall_hp()
+            for c1, r1, c2, r2 in snapshot:
+                key = _wall_key(c1, r1, c2, r2)
+                edge = self.wall_edges.get(key)
+                if edge is None:
+                    self.wall_edges[key] = WallEdge(
+                        c1, r1, c2, r2, wall_hp, wall_hp, b)
+                else:
+                    edge.hp = edge.max_hp
 
     # -- occupancy sync to engine physics (E-32) --------------------------
 

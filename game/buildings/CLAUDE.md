@@ -72,6 +72,24 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   placement / reverses on death. Research: three `starts_unlocked=False` rows sharing
   `unlock_group=(the trio)` + `gate_kind="min_round"`; the roll offers ONE unlock card
   (the lead `boost_speed`), then each type researches its own tiers (see `game/core`).
+- **10E structure line** (`structure.py`: `StructureBuilding` family + thin `Blocker`
+  / `WallBuilder` leaves) subclasses `Building` directly (passive — no attack, no
+  yield), `CONTENT_KEY="economic_building"` (traversable weight — enemies attack, not
+  reroute), tag `"structure"`. Both use a SINGLE flat art slot per type (override
+  `slot_key()` → `SLOT`, matching the flat `blocker`/`wall_builder` slots in
+  `data/slots.json`; `_tier_option` in `game/core/levelup.py` reads that same flat
+  `SLOT` for the research card). **Blocker** is a pure tier-HP soak (no new enemy code
+  — the standard block-and-attack handles it). **WallBuilder** adds a `WallBuilderState`
+  component (its only field is `wall_snapshot`, the frozen `[c1,r1,c2,r2]` edge list)
+  + computed `wall_hp()` (NOT ×10) / `upkeep()`; `on_placed()` calls
+  `TileMap.place_walls_for_builder(self)` and `_on_apply_stats()` resyncs owned wall
+  HP on a tier upgrade. The edge-wall registry itself lives in `game/map` (see that
+  doc); the payday teardown/rebuild is `game/core` (slots 8/10). Research: `blocker`
+  is `ResearchSpec()` (always unlocked, placeable from round 1; Bulwark/Bastion tiers
+  round-gated); `wall_builder` is `ResearchSpec(starts_with_tier=0)` (era-gated from
+  `WallBuilder.era_unlock_round`, like the meditator). `registry.place_building` now
+  calls `building.on_placed(tilemap)` UNCONDITIONALLY (a `Building` base no-op hook —
+  boost + wall-builder override it), replacing the boost-only special-case.
 - **`registry.py` is the factory + placement seam**: `create(building_type,…)`
   (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability

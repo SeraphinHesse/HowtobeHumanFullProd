@@ -45,6 +45,9 @@ def _building_stats(b):
     if hasattr(b, "boost_value"):       # boost building (10D) — buffs neighbours
         rows.append((b._boost_label, f"{b.boost_value() * 100:.1f}%"))
         rows.append(("Upkeep", b.upkeep()))
+    if hasattr(b, "wall_hp"):           # wall builder (10E) — raises edge walls
+        rows.append(("Wall HP", b.wall_hp()))
+        rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("Progress", f"{b.progress}/{b.rounds_to_payout()}"))
         rows.append(("Payout", f"{HEART}{b.payout_amount()}"))

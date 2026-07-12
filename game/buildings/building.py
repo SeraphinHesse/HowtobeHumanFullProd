@@ -154,6 +154,12 @@ class Building(GameObject):
         """Family hook: extend derived-stat application (defence syncs the
         RangeSensor). Default no-op."""
 
+    def on_placed(self, tilemap):
+        """Post-placement hook (called once by ``registry.place_building`` after
+        the tile/occupancy/scene wiring). Families that react to placement
+        override it: boosters clear a neighbour's explosion debuff / apply their
+        flat boost, a WallBuilder raises its perimeter walls. Default no-op."""
+
     def upgrade(self):
         """Level up within the current tier (never crosses a boundary).
         Full-heals. Returns False if already at the tier's max level."""

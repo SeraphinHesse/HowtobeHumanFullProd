@@ -108,6 +108,21 @@ def _process_boosts(state, tilemap):
             emitter.exploded = True
 
 
+def _process_wall_teardown(tilemap):
+    """Reserved payday slot 8 (prototype ``Game._begin_income_phase`` teardown
+    sweep): every WallBuilder that DIED this round has its perimeter walls torn
+    down. Runs BEFORE revive so a builder about to be revived is still seen as
+    ``alive == False`` (same pattern as painters / boosts). A revived builder's
+    walls are then restored in slot 10; only a builder that stays dead (revive
+    off) loses its walls for good."""
+    for tile in list(tilemap.built_tiles()):
+        b = tile.occupant
+        if (b is not None
+                and getattr(b, "building_type", None) == "wall_builder"
+                and not getattr(b, "alive", False)):
+            tilemap.remove_walls_for_builder(b)
+
+
 def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     hole = core_balance["TheHole"]
     built = _built_tiles_with_occupant(tilemap)
@@ -178,7 +193,10 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
     #    per-turn buff, dead boosters explode their debuff onto neighbours.
     _process_boosts(state, tilemap)
-    # 8. [reserved 10E] Wall-teardown for dead wall-builders — BEFORE revive.
+    # 8. Wall-teardown for dead wall-builders — BEFORE revive (10E): a builder
+    #    that died this round loses its perimeter walls now; a revived one gets
+    #    them back in slot 10.
+    _process_wall_teardown(tilemap)
 
     # 9. Revive / heal: every non-base building full-heals (revives if dead).
     #    ``BaseBuilding.rebuild`` is a no-op — the base never revives. A Painter
@@ -200,7 +218,10 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
                 b.get_component(PainterProgress).progress = 0
             b.rebuild()
 
-    # 10. [reserved 10E] rebuild_walls().
+    # 10. Rebuild walls (10E): every alive WallBuilder restores its frozen
+    #     perimeter to full HP — walls damaged during the round regenerate, and a
+    #     builder revived at step 9 gets the walls torn down at step 8 back.
+    tilemap.rebuild_walls()
 
     # 11. round++
     state.round_num += 1

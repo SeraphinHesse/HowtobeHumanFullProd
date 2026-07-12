@@ -16,12 +16,14 @@ from .components import (
     RoundStats,
     SplashAttacker,
     TierState,
+    WallBuilderState,
     YieldEconomy,
 )
 from .defence import DefenceBuilding
 from .defender import Defender
 from .economy import EconomyBuilding
 from .musician import Musician
+from .structure import Blocker, StructureBuilding, WallBuilder
 from .sun_scorcher import SunScorcher
 from .registry import (
     BUILDING_CLASSES,
@@ -40,6 +42,9 @@ __all__ = [
     "Defender",
     "AOEDefenceBuilding",
     "SunScorcher",
+    "StructureBuilding",
+    "Blocker",
+    "WallBuilder",
     "BaseBuilding",
     "TierState",
     "Nameplate",
@@ -47,6 +52,7 @@ __all__ = [
     "Attacker",
     "SplashAttacker",
     "BeamAttacker",
+    "WallBuilderState",
     "YieldEconomy",
     "BUILDING_CLASSES",
     "PlacementError",

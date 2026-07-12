@@ -151,6 +151,23 @@ class SplashAttacker(Component):
     shared ``Attacker``. Present alongside ``Attacker`` on AOE buildings."""
 
 
+class WallBuilderState(Component):
+    """WallBuilder state (Phase 10E, prototype ``WallBuilderBuilding``). A
+    WallBuilder raises a perimeter of destructible EDGE walls when placed; the
+    edges themselves live in the map-owned ``TileMap.wall_edges`` registry, but
+    the per-builder SNAPSHOT of which edges it raised is frozen here so the
+    payday rebuild step can restore destroyed segments without re-deriving the
+    perimeter (walls never expand when the player unlocks more tiles later).
+
+    JSON-safe (E-11): a list of ``[c1, r1, c2, r2]`` edge coordinate lists (a
+    Component can't hold the prototype's tuple-keyed dict). Empty until the
+    builder is placed. No ``walls_need_removal`` flag is needed — the payday
+    wall-teardown slot sweeps dead builders directly, exactly like the painter /
+    boost slots see a building that died this round as ``alive == False``."""
+
+    wall_snapshot: list = []
+
+
 class BeamAttacker(Component):
     """Marks a ramping-beam combat building (Phase 10B, prototype
     ``SunScorcherBuilding``). Its PRESENCE routes the combat sweep to the beam
