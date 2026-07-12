@@ -54,11 +54,15 @@ def build_board(rows):
 def host_frame(session, scene, tilemap_, dt):
     """One host frame — the EXACT call order + GAME_OVER gate game/main.py uses:
     the world sim (scene.update + combat) only runs while GAMEPLAY, so on
-    GAME_OVER the world freezes instead of enemies walking into the hole."""
-    session.pre_sim(dt, scene)
+    GAME_OVER the world freezes instead of enemies walking into the hole. The
+    ENEMY phase runs on the combat-speed-scaled dt (10F; 1× by default, so this
+    is a no-op for every test that never touches the speed)."""
+    sim_dt = (dt * session.combat_speed
+              if session.state.phase == GamePhase.ENEMY else dt)
+    session.pre_sim(sim_dt, scene)
     if session.state.state == GameState.GAMEPLAY:
-        scene.update(dt)
-        resolve_combat(scene, tilemap_, dt, BUILD,
+        scene.update(sim_dt)
+        resolve_combat(scene, tilemap_, sim_dt, BUILD,
                        on_base_hit=session.on_base_hit)
         session.post_sim(scene)
 

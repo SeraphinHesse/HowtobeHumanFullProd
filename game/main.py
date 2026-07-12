@@ -352,6 +352,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif event.key == pygame.K_SPACE:
                     session.end_turn()  # dev convenience beside the button
+                elif session.state.phase == GamePhase.ENEMY:
+                    # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
+                    # round-gated inside Session, so a locked key is a no-op.
+                    # The 1x/1.5x/2x/pause BUTTONS are 10L.
+                    if event.key in (pygame.K_1, pygame.K_KP1):
+                        session.set_combat_speed(0)
+                    elif event.key in (pygame.K_2, pygame.K_KP2):
+                        session.set_combat_speed(1)   # 1.5x
+                    elif event.key in (pygame.K_3, pygame.K_KP3):
+                        session.set_combat_speed(2)   # 2x
+                    elif event.key == pygame.K_p:
+                        session.quick_skip_combat(world.scene)
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                 mouse_down = event.pos
                 # a left-press over the world (not a UI panel/HUD button) arms
@@ -391,11 +403,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
         elif st in _WORLD_STATES:
             world = gp["world"]
             session = world.session
-            session.pre_sim(dt, world.scene)
+            # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
+            # movement and the combat sweep together (prototype game.py:1211-13).
+            # ROUND_END/INCOME timers always run on real time, and the pause is
+            # just a 0.0 multiplier, so the round machine is never touched.
+            sim_dt = (dt * session.combat_speed
+                      if session.state.phase == GamePhase.ENEMY else dt)
+            session.pre_sim(sim_dt, world.scene)
             # LEVELUP freezes the world entirely (no sim, no animations).
             if session.state.state == GameState.GAMEPLAY and not session.frozen:
-                world.scene.update(dt)
-                resolve_combat(world.scene, world.tile_map, dt, buildings_balance,
+                world.scene.update(sim_dt)
+                resolve_combat(world.scene, world.tile_map, sim_dt,
+                               buildings_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=session.on_enemy_death)
                 session.post_sim(world.scene)

@@ -61,12 +61,17 @@ Perf deep-dive → `game/PERF.md`.
   tolerance covers ART only.
 - **Session wiring (9F → 10A)**: the host builds a `TileMap` +
   `engine.physics.TileOccupancy`, attaches the `BaseBuilding`, and builds a
-  `game.core.Session`. Each frame: `session.pre_sim(dt, scene)` →
-  `scene.update(dt)` → `game.enemies.resolve_combat(..., on_base_hit=…,
+  `game.core.Session`. Each frame: `session.pre_sim(sim_dt, scene)` →
+  `scene.update(sim_dt)` → `game.enemies.resolve_combat(..., on_base_hit=…,
   on_enemy_death=…)` → `session.post_sim(scene)`. `session.frozen` skips the whole
-  sim behind a modal. A minimal debug HUD (`submit_debug_hud`) draws
-  love/round/lives/phase via the engine HUD pass — NOT the real 9G HUD (that's in
-  `game/ui`).
+  sim behind a modal.
+- **Combat speed is a HOST concern (10F)**: `Session` owns the selector, `main.py`
+  owns where it lands. `sim_dt = dt * session.combat_speed` while
+  `phase == ENEMY`, else plain `dt` — and that ONE value feeds all three sim calls
+  above, so spawner, movement and combat never desync. Never scale the
+  ROUND_END/INCOME timers. Keys (gameplay, ENEMY phase only): `1`/`2`/`3` =
+  1×/1.5×/2× (round-gated inside `Session`), bare `P` = quick-skip the wave. The
+  matching HUD buttons + the lives-faces readout are **10L**.
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

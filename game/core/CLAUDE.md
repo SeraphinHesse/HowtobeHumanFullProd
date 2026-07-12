@@ -107,6 +107,37 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
 The UI half of level-up (`game/ui/levelup.py`, XP bar, gated construct list) lives
 in `game/ui/CLAUDE.md`.
 
+## Combat speed + quick-skip (Phase 10F)
+`Session` owns the combat-speed selector; the HOST decides where it applies.
+- **`COMBAT_SPEEDS = (1.0, 1.5, 2.0, 0.0)`** (module constant in `session.py`,
+  prototype `game.py:45-47`) indexed by `Session.combat_speed_idx`. Index 3 is the
+  in-combat **pause — a 0.0 multiplier, NOT a phase change**, so the round machine
+  is completely untouched while it holds. A code constant, not balancing (like
+  `AOE_TRAVEL_TIME`); the two round-gate thresholds ARE data
+  (`core.PhaseLoop.speed_1_5x_min_round` / `speed_2x_min_round`).
+- **The round-gate lives in `Session.speed_unlocked`, not the UI.** The prototype
+  gated only its HUD buttons, so its keyboard shortcuts could bypass the gate;
+  gating in the setter instead means the keys and the (10L) buttons cannot drift
+  apart. `set_combat_speed` no-ops on a locked or out-of-range index and remembers
+  the last non-pause index so `toggle_pause` restores it.
+- **Speed scales the ENEMY phase ONLY** — the host computes
+  `sim_dt = dt * session.combat_speed` while `phase == ENEMY` and feeds that ONE
+  value to `pre_sim` + `scene.update` + `resolve_combat` (spawner, movement and
+  the combat sweep must advance together, prototype `game.py:1211-13`).
+  ROUND_END/INCOME timers always tick on real `dt` — a 2× wave still gets its full
+  payday beat. Because the scaling only applies while ENEMY, passing the single
+  `sim_dt` everywhere is safe: in every other phase it IS `dt`.
+- **`quick_skip_combat(scene)`** (the bare `P` key) abandons the wave → ROUND_END:
+  despawn live enemies + `spawner.clear()`. It pays **NO XP** — neither the
+  cleared enemies nor the queued ones. That is prototype-exact and deliberately
+  UNLIKE `_wipe_round` (a lives breach), which still pays the queued enemies so a
+  life loss can't rob the player.
+- Speed **persists across rounds**; a new run builds a new `Session`, which is the
+  prototype's "reset to 1× on new game". The 1×/1.5×/2×/pause **buttons + the
+  lives-faces indicator are 10L** (the UI-editor phase) — 10F ships the mechanic
+  and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
+  to it.
+
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one

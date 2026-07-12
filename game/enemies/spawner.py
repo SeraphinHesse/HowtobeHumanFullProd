@@ -1,10 +1,11 @@
 """Spawner — the wave queue (Phase 9E).
 
 Ports the prototype's ``_begin_enemy_phase`` (composition + queue build) and the
-``_update_enemy_phase`` spawn loop (``src/core/game.py``). Standard enemies are
-the only type EMITTED in 9E; the raider / siege / boss branches are written with
-their exact prototype formulas but gated OFF by the ``ENABLE_*`` flags (10F/10G
-flip them on). Timing is prototype-exact: a linear slow→fast ramp across the wave
+``_update_enemy_phase`` spawn loop (``src/core/game.py``). Standard, raider and
+siege enemies are all EMITTED since 10F (raiders from ``Raider.start_round``,
+siege from ``SiegeCannon.start_round``); the boss branch is written to its exact
+prototype formula but still gated OFF by ``ENABLE_BOSS`` (10G flips it on).
+Timing is prototype-exact: a linear slow→fast ramp across the wave
 with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off, a re-rolled jitter
 per spawn). The round loop that CALLS ``begin_round`` and detects wave-clear is
 9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``).
@@ -16,9 +17,9 @@ import random
 
 from .enemy import create_enemy
 
-# 10F / 10G enable these branches; zeroed (no emission) in 9E.
-ENABLE_RAIDERS = False
-ENABLE_SIEGE = False
+# Raiders + siege go live in 10F; the boss branch stays zeroed until 10G.
+ENABLE_RAIDERS = True
+ENABLE_SIEGE = True
 ENABLE_BOSS = False
 
 
@@ -92,8 +93,9 @@ class Spawner:
             self._timer = 0.1
 
     def _compose(self, round_num, balance, spawn_tiles):
-        """Build the (tile, etype) list for the round. Standard-only in 9E; the
-        other branches are present but gated off."""
+        """Build the (tile, etype) list for the round: standard + raiders +
+        siege (10F). Siege leads the queue; everything else is shuffled behind
+        it. The boss branch is present but gated off until 10G."""
         if not spawn_tiles:
             return []
         scaling = balance["EnemyScaling"]

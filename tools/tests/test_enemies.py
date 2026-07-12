@@ -105,6 +105,39 @@ class TestScaling(unittest.TestCase):
         self.assertEqual(s.get_component(Health).hp,
                          ENEM["EnemyTypes"]["SiegeCannon"]["hp"])
 
+    def test_siege_scales_with_tiers_like_standard(self):
+        # Prototype siege_cannon.py adds the same cumulative tier bonuses the
+        # standard walker takes (10F).
+        tm = synth(["bbs"])
+        siege = ENEM["EnemyTypes"]["SiegeCannon"]
+        tiers = SCALE["scale_tiers"]
+        for tier in range(0, 6):
+            with self.subTest(tier=tier):
+                n = min(tier, len(tiers))
+                s = SiegeCannon(2, 0, ENEM, tm, tier=tier)
+                self.assertEqual(
+                    s.get_component(Health).hp,
+                    siege["hp"] + sum(tiers[i]["hp"] for i in range(n)))
+                self.assertEqual(
+                    s.dmg,
+                    siege["dmg"] + sum(tiers[i]["dmg"] for i in range(n)))
+                self.assertAlmostEqual(
+                    s.get_component(Movement).speed,
+                    siege["move_speed"]
+                    + sum(tiers[i]["speed"] for i in range(n)))
+
+    def test_raider_never_takes_tier_bonuses(self):
+        # Prototype raider.py overrides the stats WITHOUT adding tier bonuses.
+        tm = synth(["bbs"])
+        raider = ENEM["EnemyTypes"]["Raider"]
+        for tier in (0, 1, 3, 9):
+            with self.subTest(tier=tier):
+                r = Raider(2, 0, ENEM, tm, tier=tier)
+                self.assertEqual(r.get_component(Health).hp, raider["hp"])
+                self.assertEqual(r.dmg, raider["dmg"])
+                self.assertAlmostEqual(r.get_component(Movement).speed,
+                                       raider["move_speed"])
+
 
 # ---------------------------------------------------------------------------
 # Sprite variant selection (registry-group driven; random per spawn)
@@ -166,33 +199,77 @@ class TestSpriteVariants(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# Wave composition (prototype game.py:876-921); standard-only, others zeroed
+# Wave composition (prototype game.py:876-921) — standard + raiders + siege
+# are all live since 10F; only the boss branch is still gated off.
 # ---------------------------------------------------------------------------
+RAIDER = ENEM["EnemyTypes"]["Raider"]
+SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
+
+
 class TestSpawnComposition(unittest.TestCase):
     def setUp(self):
         self.tm = synth(["bbs", "bbs", "bbs"])
         self.spawn_tiles = {(t.col, t.row) for t in self.tm.spawning_tiles()}
 
+    def _counts(self, round_num):
+        sp = Spawner()
+        sp.begin_round(round_num, self.tm, ENEM, rng=FakeRng())
+        etypes = [et for _tile, et, _d in sp._queue]
+        return sp, etypes
+
     def test_standard_count_formula(self):
         for r in range(1, 26):
             with self.subTest(round=r):
-                sp = Spawner()
-                sp.begin_round(r, self.tm, ENEM, rng=FakeRng())
+                _sp, etypes = self._counts(r)
                 tier = (r - 1) // SCALE["scale_every_n_levels"]
                 expected = SCALE["base_enemy_count"] + (r - 1) * (
                     SCALE["enemies_per_round"] + tier)
-                etypes = [et for _tile, et, _d in sp._queue]
-                self.assertEqual(len(sp._queue), expected)
-                self.assertTrue(all(et == "standard" for et in etypes))
+                self.assertEqual(etypes.count("standard"), expected)
 
-    def test_no_raiders_or_siege_in_9e(self):
-        # Even at rounds past the prototype start_rounds, the branches are gated
-        # off in 9E, so only standard enemies appear.
-        for r in (6, 14, 20, 25):
+    def test_raider_count_formula_and_start_round(self):
+        start = RAIDER["start_round"]
+        for r in range(1, 26):
             with self.subTest(round=r):
-                sp = Spawner()
-                sp.begin_round(r, self.tm, ENEM, rng=FakeRng())
-                self.assertTrue(all(et == "standard" for _t, et, _d in sp._queue))
+                _sp, etypes = self._counts(r)
+                if r < start:
+                    expected = 0
+                else:
+                    expected = (RAIDER["base_count"]
+                                + (r - start) * RAIDER["per_round"])
+                self.assertEqual(etypes.count("raider"), expected)
+
+    def test_siege_count_formula_and_start_round(self):
+        start = SIEGE["start_round"]
+        for r in range(1, 26):
+            with self.subTest(round=r):
+                _sp, etypes = self._counts(r)
+                if r < start:
+                    expected = 0
+                else:
+                    expected = (SIEGE["base_count"]
+                                + (r - start) // SIEGE["rounds_per_cannon"])
+                self.assertEqual(etypes.count("siege"), expected)
+
+    def test_siege_lead_group_heads_the_queue(self):
+        # The lead group spawns FIRST (prototype siege_front + shuffled rest);
+        # FakeRng.shuffle is identity, so the head of the queue is exactly it.
+        r = SIEGE["start_round"] + 4
+        _sp, etypes = self._counts(r)
+        n_siege = etypes.count("siege")
+        lead = min(int(SIEGE["queue_lead_count"] * SIEGE["mix_ratio"]), n_siege)
+        self.assertGreater(lead, 0)
+        self.assertEqual(etypes[:lead], ["siege"] * lead)
+        # The remainder is mixed into the shuffled body, not appended in front.
+        self.assertEqual(etypes[lead:].count("siege"), n_siege - lead)
+
+    def test_boss_branch_still_gated_off(self):
+        # 10G flips ENABLE_BOSS; until then no boss is ever emitted, including
+        # on the prototype's boss rounds (every `round_interval`).
+        interval = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+        for r in (interval, interval * 2):
+            with self.subTest(round=r):
+                _sp, etypes = self._counts(r)
+                self.assertNotIn("boss", etypes)
 
     def test_spawn_tiles_from_spawning_zone(self):
         sp = Spawner()
