@@ -79,6 +79,18 @@ class RunState:
     boss_love_snapshot: int = 0
     pending_boss_cutscene: object = None
     boss_events: list = field(default_factory=list)
+    # -- 10H: lightning + cheat menu ---------------------------------------
+    # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 1:
+    # the prototype's __init__ sets lightning_level = 1 (game.py:117) and
+    # _start_new_game never resets it, so every live run begins with lightning
+    # already unlocked at L1 — the L0 unlock branch stays implemented (the
+    # data key exists) but is unreachable from a normal boot. A fresh Session
+    # per run also erases the prototype's quirk of upgrades persisting across
+    # "new game" in the same app session (the 10F combat-speed treatment).
+    # The seed is structural (like combat_speed_idx), so no from_balance change.
+    lightning_level: int = 1
+    lightning_cooldown: float = 0.0
+    # -- /10H --
 
     @classmethod
     def from_balance(cls, core_balance):

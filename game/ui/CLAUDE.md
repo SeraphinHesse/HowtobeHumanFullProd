@@ -1,4 +1,4 @@
-# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G UI)
+# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G + 10H UI)
 
 HUD, building panel, floaters, game over, and the top-level shell/menus. You
 reached here from `game/CLAUDE.md`. When you change UI conventions, update THIS
@@ -102,10 +102,43 @@ the sanctioned `game/ui → game/buildings.components` read (building_ui already
 imports it). Alpha-true glow/ellipse is deferred to 10J (the HUD/overlay pass has
 no per-pixel alpha — same limit as the opaque level-up backdrop).
 
+## Lightning + cheat menu UI (10H)
+The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
+`game/ui` renders + routes:
+- **`cheat_menu.py`** (`CheatMenu`, the `game_over.py` modal template) —
+  toggled by **Ctrl+L** (deliberate divergence from the prototype's Ctrl+P:
+  bare `P` is this repo's quick-skip key). It NEVER mutates game state: every
+  click/key returns an action string (`close` / `add_love` / `skip_round` /
+  `trigger_levelup` / `inf_money` / `unlock_all` / `("goto_round", n)`) that
+  `main.py _execute_cheat` maps onto `Session` cheat methods; the stays-open
+  rule lives in the host (only close / LEVEL UP / a committed goto close it).
+  Gameplay-only, works over the LEVELUP modal, not on GAME_OVER/pause/menus;
+  while open it consumes ALL input (top of the click ladder, directly under
+  GAME_OVER) and renders topmost. Click-to-focus round field: digits only,
+  max 4, Enter commits (n ≥ 1).
+- **`building_ui.py` base_info** grew the ⚡ LIGHTNING STRIKE section: level +
+  DMG/Radius/Atk-Spd rows from `core_balance["LightningStrike"]`, an
+  UNLOCK/UPGRADE button (not-enough-love flash) that disappears at max level
+  behind a gold MAX LEVEL line. Reads via `game.core.lightning` (the
+  sanctioned ui→core direction).
+- **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
+  (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
+  (`Hud.update` now stores `_mx/_my`).
+- **`effects.py submit_lightning`** — draws each `"lightning_fx"` scene object
+  (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
+  y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
+  fading yellow world-space diamond sized to the real blast radius (projects
+  to the prototype's 2:1 ground ellipse). The alpha impact-flash circle is 10J.
+
 ## Known divergences (deliberate)
 The level-up window backdrop is OPAQUE — the HUD pass has no per-pixel alpha, the
 same limit that deferred 9H's pause dim (10J). The XP bar/floaters drop the
 prototype's mascot face + `xp_icon`, which has no slot in `data/slots.json` (10J).
+Lightning FX are NOT force-cleared at `_begin_round_end` (the prototype clears
+`_lightning_effects` there, `game.py:943`): like the mortar craters, the
+`"lightning_fx"` objects simply age out in the scene (`MARKER_LIFE` 1.0s ≈ the
+crater's `CRATER_LIFE`), so a strike landed in the final combat instant lingers
+≤0.4s into REBUILDING — the same accepted behavior craters already have (10H).
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game

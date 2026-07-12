@@ -1,4 +1,4 @@
-# CLAUDE.md — game/core (Phases 9F + 10A + 10G)
+# CLAUDE.md — game/core (Phases 9F + 10A + 10F + 10G + 10H)
 
 The round machine + economy + progression, porting the prototype's
 `Game._update_gameplay` / `_begin_enemy_phase` / `_begin_round_end` /
@@ -172,6 +172,42 @@ in `game/ui/CLAUDE.md`.
   `post_sim` flushes the stash via `spawner.spawn_death_swarm` BEFORE the
   wave-clear check, so the round can't end between boss death and swarm.
   Quick-skip / lives-wipe despawns never reach the callback → no swarm.
+
+## Lightning strike + cheat menu (Phase 10H)
+`game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
+- **State on `RunState`**: `lightning_level` (**seeded 1** — the prototype boots
+  with lightning unlocked at L1 and never resets it; the L0 20♥ unlock branch
+  stays implemented but is unreachable from a normal boot) and
+  `lightning_cooldown`. Tunables ONLY from `core.json LightningStrike`
+  (cooldown [5,3,2] / damage [10,15,32] / radius [1,2,3] / unlock 20 /
+  upgrades [35,80] — the LIVE prototype JSON, not the stale `.py` defaults).
+- **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
+  `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
+  `game.py:505-508`): both points go through `cs.world_to_screen` and the
+  threshold is `radius_tiles * tile_w/2 * zoom` (pan cancels in the delta, zoom
+  scales linearly — no iso math outside `engine.coords`). NOT Chebyshev, NOT
+  tile-space Euclidean. The cooldown is spent UNCONDITIONALLY (a whiff still
+  pays + shows VFX); no RoundStats credit (no shooter); kills flow through the
+  next `resolve_combat` → `on_enemy_death` (normal XP/kill path). Spawns a
+  `LightningFX` (`Crater` pattern: overlay object, ages in `scene.update` on the
+  ENEMY-scaled sim dt, self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code
+  constants like `CRATER_LIFE`).
+- **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** on the host's sim dt
+  (speed-scaled, pause-frozen); never reset by round end or `upgrade`.
+- **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
+  is `game/ui/cheat_menu.py`, the host maps its action strings here):
+  `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY
+  guard — no XP, then the NORMAL ROUND_END→payday flow), `cheat_goto_round`
+  (round_num + BUILDING, **no payday invoked** — ordering untouched),
+  `cheat_trigger_levelup`, `cheat_unlock_all` (sweeps the whole `RESEARCH`
+  table — deliberately FIXES the prototype's meditator/blocker omission).
+- **The `return_phase` path is now live**: `_begin_levelup(run_income=True,
+  return_phase=None)`; the cheat LEVEL UP outside ENEMY/LEVELUP passes
+  `run_income=False, return_phase=<current phase>` so `resolve_levelup`
+  restores that phase and runs **NO payday** (village-level math identical on
+  both paths). The natural ROUND_END call site keeps the defaults — zero
+  behavior change there. Mid-ENEMY the cheat only arms `levelup_pending`; the
+  window then fires at ROUND_END on the normal payday path.
 
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
