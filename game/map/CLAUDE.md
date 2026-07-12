@@ -12,14 +12,15 @@ Conventions that differ from the prototype (deliberate, clean-arch):
 - **Zones seed from the map file's terrain codes**, not procedural rings —
   `b`→BUILDABLE, `c`→COMBAT, `s`→SPAWNING, `f/l/o`→BACKGROUND, `doc.base`
   tile→BUILT. The map file is the source of truth. **Anchoring:** when the map
-  carries a `start_area` marker (the editor's 2×2 "Starting Area" object), BOTH
-  the playfield window and the 2×2 unlock/section grid anchor at its min corner
-  — the marker IS section (0,0). The marker never forces tile states (painted
-  terrain wins; the editor warns if its 4 cells aren't `b`). Maps without a
-  marker fall back to the legacy base anchoring: playfield at the base corner
-  (`base_col/row` .. `dim-1`), section grid offset one row up
+  carries a `start_area` marker (the editor's 2×2 "Starting Area" object), the
+  2×2 unlock/section grid anchors at its min corner — the marker IS section
+  (0,0). The marker never forces tile states (painted terrain wins; the editor
+  warns if its 4 cells aren't `b`). Maps without a marker fall back to the
+  legacy base anchoring: section grid offset one row up
   (`_sec_row_origin = base_row-1`) so the hole is the **bottom-left** tile of
-  its own section (0,0).
+  its own section (0,0). There is NO playfield window anymore — the old
+  quarter-plane window (start corner → map max) blocked every recede left/above
+  the start area; the directional backfill rule below does the real filtering.
 - **Unlock cost is direction-agnostic**: `base_unlock_cost +
   max(0, manhattan_section_distance − 1) * unlock_cost_distance_mod` — sections
   adjacent to the start section cost exactly the base cost, each further
@@ -34,16 +35,20 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   mutating the shared map doc (a new game builds a fresh TileMap → empty
   overrides → pristine terrain). BUILT/BACKGROUND have no code and never
   write an override.
-- **Spawn recede is DUAL-AXIS**: a successful unlock converts the nearest
-  SPAWNING 2×2 row-aligned with the bought chunk AND the nearest col-aligned
-  one to COMBAT (an axis with no aligned band is skipped — no nearest-overall
-  fallback), then backfills the in-playfield BACKGROUND 2×2 CLOSEST to each
-  converted block (`_backfill_spawn_nearest` — plain nearest-by-distance, no
-  strictly-behind ring rule). Both conversions happen before either backfill
-  so the second axis can't re-find the first's block or its fresh backfill.
-  Axis alignment is expressed as `_find_2x2` anchor clamp bounds
-  (`c_bounds`/`r_bounds`), which also keep a no-match axis search O(strip),
-  never O(map).
+- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND**: a successful
+  unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk
+  AND the nearest col-aligned one to COMBAT (an axis with no aligned band is
+  skipped — no nearest-overall fallback), then each converted block backfills
+  the nearest BACKGROUND 2×2 strictly behind it (`_backfill_spawn_behind`):
+  beyond the block on the recede axis, away from the chunk, anchor pinned to
+  the block's own cross-axis anchor — a clean band translation. Nothing
+  qualifies behind (map edge) → NO backfill, the band shrinks by one block
+  (deliberately no any-background fallback — that's exactly the wrong-side
+  placement this rule removes). Both conversions happen before either
+  backfill so the second axis can't re-find the first's block or its fresh
+  backfill. Axis alignment + behindness are expressed as `_find_2x2` anchor
+  clamp bounds (`c_bounds`/`r_bounds`), which also keep every backfill and
+  no-match axis search O(strip), never O(map).
 - **Pathfinding weight is content-key driven, not `isinstance(Building)`**: each
   tile resolves to a key in `map.json` `Pathfinding.content_weights` (empty tiles
   from their zone; occupied tiles carry the key set at placement). Composition

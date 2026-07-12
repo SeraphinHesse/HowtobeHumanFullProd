@@ -7,10 +7,10 @@ logic. Balancing (``data/balancing/map.json``) is injected as a plain dict;
 generalises the loader.
 
 Grid is indexed ``_grid[row][col]`` (prototype-exact); ``get(col, row)`` swaps.
-Unlock sections and the playfield window anchor at the map's 2×2 ``start_area``
-marker when placed (its min corner is section (0,0)), falling back to the base
-(the buildable min corner) rather than the prototype's hardcoded ``PLAYFIELD_*``
-constants, so the math is map-driven. Pure Python — no pygame.
+Unlock sections anchor at the map's 2×2 ``start_area`` marker when placed (its
+min corner is section (0,0)), falling back to the base (the buildable min
+corner) rather than the prototype's hardcoded constants, so the math is
+map-driven. Pure Python — no pygame.
 """
 from dataclasses import dataclass
 
@@ -80,34 +80,26 @@ class TileMap:
         self.cols = doc.cols
         self.rows = doc.rows
         # A map may have NO hole (editor allows it with a warning). base_col/row
-        # are None then; the playfield window anchors at (0,0) and no BUILT base
-        # tile is seeded. Such a map is not winnable but must not crash.
+        # are None then and no BUILT base tile is seeded. Such a map is not
+        # winnable but must not crash.
         has_base = doc.base is not None
         self.base_col = doc.base["col"] if has_base else None
         self.base_row = doc.base["row"] if has_base else None
 
-        # Unlock sections + playfield window anchor at the map's 2×2 START
-        # AREA marker when one is placed: the marker's min corner IS section
-        # (0,0) — the starting buildable pocket the designer painted under it.
-        # Maps without a marker (editor warns, never blocks) fall back to the
-        # legacy base-derived anchoring: playfield at the base corner, section
-        # grid offset one row up so the HOLE is the BOTTOM-LEFT tile of its own
-        # section (0,0). Max index = dim-1 either way (one-tile background
-        # border convention).
+        # Unlock sections anchor at the map's 2×2 START AREA marker when one
+        # is placed: the marker's min corner IS section (0,0) — the starting
+        # buildable pocket the designer painted under it. Maps without a
+        # marker (editor warns, never blocks) fall back to the legacy
+        # base-derived anchoring: section grid offset one row up so the HOLE
+        # is the BOTTOM-LEFT tile of its own section (0,0).
         start = doc.start_area
         if start is not None:
-            self._pf_col_min = start["col"]
-            self._pf_row_min = start["row"]
             self._sec_col_origin = start["col"]
             self._sec_row_origin = start["row"]
         else:
-            self._pf_col_min = self.base_col if has_base else 0
-            self._pf_row_min = self.base_row if has_base else 0
-            self._sec_col_origin = self._pf_col_min
+            self._sec_col_origin = self.base_col if has_base else 0
             self._sec_row_origin = (
-                self._pf_row_min - 1 if has_base else self._pf_row_min)
-        self._pf_col_max = self.cols - 1
-        self._pf_row_max = self.rows - 1
+                self.base_row - 1 if has_base else 0)
 
         # Round gate for the damage-weight discount (dormant: nothing calls
         # set_round until 9F/10F). Defence-range coverage function is wired by
@@ -423,23 +415,22 @@ class TileMap:
                 return best
             radius *= 2
 
-    def _in_playfield(self, t):
-        return (self._pf_col_min <= t.col <= self._pf_col_max and
-                self._pf_row_min <= t.row <= self._pf_row_max)
-
     def _recede_spawn_after_unlock(self, chunk):
         """Push the spawn band one 2×2 block outward on BOTH axes: the nearest
         SPAWNING 2×2 horizontally aligned with the purchased chunk (block rows
         overlap the chunk's rows) AND the nearest vertically aligned one each
-        convert to COMBAT, then the in-playfield BACKGROUND 2×2 CLOSEST to
-        each converted block becomes SPAWNING. An axis with no aligned
-        spawning block is SKIPPED (a single-edge spawn band only ever recedes
-        on its own axis). Both conversions happen before either backfill so
-        the second axis can neither re-find the first axis's converted block
-        (already COMBAT) nor immediately re-convert its fresh backfill (not
-        yet SPAWNING). Never touches BUILDABLE/BUILT tiles; degrades silently
-        at the map edge (the prototype logged; a shrinking band is the
-        intended fallback)."""
+        convert to COMBAT, then each converted block backfills the nearest
+        BACKGROUND 2×2 strictly BEHIND it — on the opposite side from the
+        purchased chunk, on the block's own rows/cols (a clean band
+        translation). An axis with no aligned spawning block is SKIPPED (a
+        single-edge spawn band only ever recedes on its own axis). Both
+        conversions happen before either backfill so the second axis can
+        neither re-find the first axis's converted block (already COMBAT) nor
+        immediately re-convert its fresh backfill (not yet SPAWNING). Never
+        touches BUILDABLE/BUILT tiles; degrades silently when nothing behind
+        qualifies (map edge) — the band shrinks by one block, the intended
+        fallback (the prototype logged and fell back to ANY background block,
+        which is exactly the wrong-side placement this rule removes)."""
         if not chunk:
             return
         ref_c = sum(t.col for t in chunk) / len(chunk)
@@ -451,26 +442,49 @@ class TileMap:
         spawning = lambda t: t.state == TileState.SPAWNING
 
         converted = []
-        for axis_bounds in ({"r_bounds": (row_lo - 1, row_hi)},   # x axis
-                            {"c_bounds": (col_lo - 1, col_hi)}):  # y axis
+        for axis, axis_bounds in (
+                ("col", {"r_bounds": (row_lo - 1, row_hi)}),   # x axis
+                ("row", {"c_bounds": (col_lo - 1, col_hi)})):  # y axis
             block = self._find_2x2(spawning, ref_c, ref_r, **axis_bounds)
             if block is None:
                 continue   # no aligned spawn band on this axis — skip it
+            if axis == "col":
+                sign = (sum(t.col for t in block) / 4) - ref_c
+            else:
+                sign = (sum(t.row for t in block) / 4) - ref_r
             for t in block:
                 self.set_tile_state(t, TileState.COMBAT)
-            converted.append(block)
-        for block in converted:
-            self._backfill_spawn_nearest(block)
+            converted.append((block, axis, sign))
+        for block, axis, sign in converted:
+            self._backfill_spawn_behind(block, axis, sign)
 
-    def _backfill_spawn_nearest(self, spawn_block):
-        """Replace one converted spawn block: the in-playfield BACKGROUND 2×2
-        CLOSEST to it (squared distance to the converted block's centre)
-        becomes SPAWNING; degrades silently when no background block exists."""
+    def _backfill_spawn_behind(self, spawn_block, axis, sign):
+        """Replace one converted spawn block: the BACKGROUND 2×2 nearest to it
+        STRICTLY BEHIND it — beyond the block along the recede `axis` in the
+        `sign` direction (away from the purchased chunk), anchor pinned to the
+        block's own cross-axis anchor so the band translates cleanly. `sign`
+        == 0 (exotic painted overlap: block centred on the chunk along the
+        recede axis) keeps the cross-axis pin but drops the direction clamp.
+        Degrades silently when nothing qualifies (map edge): no backfill, the
+        band shrinks by one block."""
+        anchor_col = min(t.col for t in spawn_block)
+        anchor_row = min(t.row for t in spawn_block)
         sc = sum(t.col for t in spawn_block) / 4
         sr = sum(t.row for t in spawn_block) / 4
-        bg_pred = lambda t: (t.state == TileState.BACKGROUND
-                             and self._in_playfield(t))
-        bg_block = self._find_2x2(bg_pred, sc, sr)
+        if axis == "col":
+            bounds = {"r_bounds": (anchor_row, anchor_row)}
+            if sign > 0:
+                bounds["c_bounds"] = (anchor_col + 2, self.cols)
+            elif sign < 0:
+                bounds["c_bounds"] = (-self.cols, anchor_col - 2)
+        else:
+            bounds = {"c_bounds": (anchor_col, anchor_col)}
+            if sign > 0:
+                bounds["r_bounds"] = (anchor_row + 2, self.rows)
+            elif sign < 0:
+                bounds["r_bounds"] = (-self.rows, anchor_row - 2)
+        bg_pred = lambda t: t.state == TileState.BACKGROUND
+        bg_block = self._find_2x2(bg_pred, sc, sr, **bounds)
         if bg_block is None:
             return
         for t in bg_block:

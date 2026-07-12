@@ -100,9 +100,9 @@ class TestUnlockCost(unittest.TestCase):
 
 
 class TestStartAreaAnchoring(unittest.TestCase):
-    """A placed start_area marker anchors the 2×2 section grid (and playfield
-    window) at its OWN min corner — the marker IS section (0,0) — instead of
-    the base-derived fallback the other tests pin."""
+    """A placed start_area marker anchors the 2×2 section grid at its OWN min
+    corner — the marker IS section (0,0) — instead of the base-derived
+    fallback the other tests pin."""
 
     @staticmethod
     def _make(start=(12, 8), base=(1, 1)):
@@ -119,8 +119,6 @@ class TestStartAreaAnchoring(unittest.TestCase):
             self.assertEqual(tm._section_index(tm.get(c, r)), (0, 0))
         chunk = {(t.col, t.row) for t in tm.get_chunk_for_tile(tm.get(13, 9))}
         self.assertEqual(chunk, {(12, 8), (13, 8), (12, 9), (13, 9)})
-        # playfield window follows the marker too
-        self.assertEqual((tm._pf_col_min, tm._pf_row_min), (12, 8))
 
     def test_adjacent_section_costs_exactly_base(self):
         tm = self._make()
@@ -182,9 +180,10 @@ class TestUnlockAndRecede(unittest.TestCase):
             all(s == TileState.COMBAT for s in states(tm, receded_y)),
             states(tm, receded_y))
 
-        # 4. EACH converted block backfills: the in-playfield BACKGROUND 2×2
-        #    CLOSEST to it becomes SPAWNING — cols14-15/rows1-2 for the x
-        #    block, cols3-4/rows14-15 for the y block.
+        # 4. EACH converted block backfills: the nearest BACKGROUND 2×2
+        #    strictly BEHIND it (same rows/cols, away from the chunk) becomes
+        #    SPAWNING — cols14-15/rows1-2 for the x block, cols3-4/rows14-15
+        #    for the y block.
         for new_spawn in ([(14, 1), (15, 1), (14, 2), (15, 2)],
                           [(3, 14), (4, 14), (3, 15), (4, 15)]):
             self.assertTrue(
@@ -205,11 +204,12 @@ class TestDualAxisRecede(unittest.TestCase):
     skipped (no nearest-overall fallback)."""
 
     @staticmethod
-    def _build(paint):
-        """40×40 all-background map, base (1,1), start_area (2,2); `paint` is
-        {(anchor_c, anchor_r): TileState} of 2×2 blocks to seed."""
+    def _build(paint, start=(2, 2)):
+        """40×40 all-background map, base (1,1), start_area at `start`;
+        `paint` is {(anchor_c, anchor_r): TileState} of 2×2 blocks to seed."""
         tm = TestFind2x2WindowedMatchesFullScan._build_big(40, 40, base=(1, 1))
-        tm._doc.start_area = {"col": 2, "row": 2, "slot": "start_area"}
+        tm._doc.start_area = {"col": start[0], "row": start[1],
+                              "slot": "start_area"}
         tm = TileMap(tm._doc, BALANCE)
         for (ac, ar), state in paint.items():
             for dc in range(2):
@@ -251,12 +251,13 @@ class TestDualAxisRecede(unittest.TestCase):
         # exactly ONE conversion + ONE backfill — the y axis did nothing
         self.assertEqual(len(tm.spawning_tiles()), 4)
 
-    def test_backfill_picks_closest_background_block(self):
-        # The backfill is the background 2×2 CLOSEST to the just-converted
-        # spawn block — even when it lies IN FRONT of the band (the old rule
-        # forced a Chebyshev ring ≥ the band's, i.e. strictly behind).
+    def test_backfill_lands_strictly_behind_the_band(self):
+        # The backfill is the background 2×2 directly BEHIND the converted
+        # block — same rows, on the far side from the bought chunk — even
+        # when a background block IN FRONT of the band is closer.
         # Layout per row: bb cc ff ss c fff — the front 'f' block (cols 4-5,
-        # d²=4 from the band) beats the behind one (cols 9-10, d²=9).
+        # d²=4 from the band) is closer than the behind one (cols 9-10,
+        # d²=9), but only the behind one may become SPAWNING.
         rows = ["bbccffsscfff"] * 4
         doc = tilemap.TileMapDoc(
             map_id="synthfront", display_name="Synth Front", cols=12, rows=4,
@@ -265,11 +266,46 @@ class TestDualAxisRecede(unittest.TestCase):
             start_area={"col": 0, "row": 0, "slot": "start_area"})
         tm = TileMap(doc, BALANCE)
         self.assertTrue(tm.do_unlock(tm.get(2, 0)))
-        for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):   # band → COMBAT
+        for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):    # band → COMBAT
             self.assertEqual(tm.get(c, r).state, TileState.COMBAT)
-        for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):   # closest bg → SPAWNING
+        for c, r in ((9, 0), (10, 0), (9, 1), (10, 1)):  # behind → SPAWNING
             self.assertEqual(tm.get(c, r).state, TileState.SPAWNING)
-        self.assertEqual(tm.get(9, 0).state, TileState.BACKGROUND)  # not behind
+        for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):    # front stays bg
+            self.assertEqual(tm.get(c, r).state, TileState.BACKGROUND)
+
+    def test_backfill_skips_at_map_edge_band_shrinks(self):
+        # Band flush against the map edge: nothing behind qualifies, so the
+        # conversion happens but NO backfill — the band shrinks by one block
+        # (never a wrong-side fallback anywhere else on the map).
+        rows = ["bbccss"] * 4
+        doc = tilemap.TileMapDoc(
+            map_id="synthedge", display_name="Synth Edge", cols=6, rows=4,
+            legend={}, terrain=[list(r) for r in rows],
+            base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
+            start_area={"col": 0, "row": 0, "slot": "start_area"})
+        tm = TileMap(doc, BALANCE)
+        self.assertEqual(len(tm.spawning_tiles()), 8)
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))
+        for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):
+            self.assertEqual(tm.get(c, r).state, TileState.COMBAT)
+        self.assertEqual(len(tm.spawning_tiles()), 4)
+
+    def test_leftward_recede_backfills_further_left(self):
+        # Band WEST of the bought chunk (start area mid-map): the backfill
+        # must land further WEST — behind the band, away from the chunk.
+        # (Previously impossible twice over: plain-nearest picked a wrong-side
+        # block, and the quarter-plane playfield window excluded every tile
+        # left/above the start marker.)
+        tm = self._build({
+            (20, 20): TileState.BUILDABLE,  # the starting pocket
+            (18, 20): TileState.COMBAT,     # the chunk we buy — WEST of start
+            (12, 20): TileState.SPAWNING,   # west band — row-aligned
+        }, start=(20, 20))
+        self.assertTrue(tm.do_unlock(tm.get(18, 20)))
+        for c, r in ((12, 20), (13, 20), (12, 21), (13, 21)):  # band → COMBAT
+            self.assertEqual(tm.get(c, r).state, TileState.COMBAT)
+        for c, r in ((10, 20), (11, 20), (10, 21), (11, 21)):  # behind (west)
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING)
 
     def test_diagonal_band_recedes_once_when_aligned_both_ways(self):
         # ONE spawning block aligned with BOTH the chunk's row band and its
