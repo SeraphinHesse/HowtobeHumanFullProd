@@ -86,10 +86,11 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # Only this one tile changed — update its occupancy directly instead of the
     # full-map ``sync_occupancy`` scan (an O(map) hitch on large maps, D-20).
     occupancy.set((tile.col, tile.row), building)
-    # 10D: a placed booster clears the explosion debuffs the tile's previous
-    # occupant left on neighbours, and (flat mode) applies its one-time boost.
-    if "boost" in building.tags:
-        building.on_placed(tilemap)
+    # Post-placement family hook (Building.on_placed, default no-op): a booster
+    # clears the tile's previous occupant's explosion debuffs + (flat mode)
+    # applies its one-time boost (10D); a WallBuilder raises its perimeter walls
+    # (10E).
+    building.on_placed(tilemap)
     return building, cost
 
 

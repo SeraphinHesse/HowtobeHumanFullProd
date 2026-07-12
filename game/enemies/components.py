@@ -38,6 +38,7 @@ class PathAgent(Component):
         self._tilemap = None      # set by Enemy at construction
         self._real_speed = 0.0    # cached move speed for block/unblock gating
         self._target = None       # the building we are stopped attacking
+        self._wall_target = None  # (c1,r1,c2,r2) edge wall we are attacking, or None
 
     def update(self, dt):
         owner = getattr(self, "_owner", None)
@@ -56,6 +57,21 @@ class PathAgent(Component):
         wp = wps[mv.index]
         tc, tr = round(wp[0]), round(wp[1])
         is_base = (tc == tm.base_col and tr == tm.base_row)
+        # A standing wall on the edge we're crossing (prev -> next waypoint)
+        # blocks FIRST (it sits before the next tile): the enemy stops on the
+        # near side and attacks it (EnemyCombat drives the damage). Only the
+        # walls-ignoring path (base enclosed) ever crosses a live wall — a normal
+        # find_path already routes around them (10E).
+        wall_edge = self._wall_edge_ahead(tm, wps, mv.index, tc, tr)
+        if wall_edge is not None:
+            self._wall_target = wall_edge
+            self._target = None
+            if not self.blocked:
+                self.blocked = True
+                mv.speed = 0.0
+                self._set_anim(owner, "attack")
+            return
+        self._wall_target = None
         tile = tm.get(tc, tr)
         occ = tile.occupant if tile is not None else None
         now_blocked = (occ is not None and not is_base
@@ -72,6 +88,24 @@ class PathAgent(Component):
                 self.blocked = False
                 mv.speed = self._real_speed
                 self._set_anim(owner, "walk")
+
+    @staticmethod
+    def _wall_edge_ahead(tm, wps, index, tc, tr):
+        """The ``(c1,r1,c2,r2)`` of a live wall on the edge from the previous
+        waypoint to the next, or None. Meaningful only once the enemy has left
+        the first waypoint (``index >= 1``); guarded so a headless tilemap stub
+        without ``get_wall_between`` never trips."""
+        if index < 1:
+            return None
+        get_wall = getattr(tm, "get_wall_between", None)
+        if get_wall is None:
+            return None
+        pw = wps[index - 1]
+        pc, pr = round(pw[0]), round(pw[1])
+        w = get_wall(pc, pr, tc, tr)
+        if w is not None and getattr(w, "hp", 0) > 0:
+            return (pc, pr, tc, tr)
+        return None
 
     @staticmethod
     def _set_anim(owner, name):
@@ -100,6 +134,19 @@ class EnemyCombat(Component):
             return
         pa = owner.get_component(PathAgent)
         if pa is None or not pa.blocked:
+            return
+        wall = getattr(pa, "_wall_target", None)
+        if wall is not None:
+            # Attacking a perimeter edge wall (10E): damage goes to the map-owned
+            # WallEdge via ``TileMap.damage_wall`` (walls carry no Health /
+            # RoundStats). The wall breaking is observed by PathAgent next frame
+            # (get_wall_between -> None -> unblock, resume the same path).
+            self.cooldown -= dt
+            if self.cooldown <= 0:
+                tm = getattr(pa, "_tilemap", None)
+                if tm is not None:
+                    tm.damage_wall(*wall, self.dmg)
+                self.cooldown = self.attack_speed
             return
         target = pa._target
         if target is None or not getattr(target, "alive", False):

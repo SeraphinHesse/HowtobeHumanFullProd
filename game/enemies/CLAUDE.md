@@ -22,6 +22,18 @@ update THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   when the blocker dies (the route already runs through that now-passable tile). It
   caches the map as `PathAgent._tilemap` — a deliberate environment-reference
   transient, exactly like `Movement._owner`.
+- **Wall-attack is the SAME block-and-attack model (10E, LIVE)**: a live wall on the
+  edge being crossed (`get_wall_between(prev_waypoint, next_waypoint)`, checked once
+  `index ≥ 1`) blocks FIRST (it sits before the next tile) — `PathAgent` halts and
+  records the edge in `_wall_target`; `EnemyCombat` drains it via
+  `tilemap.damage_wall(*edge, dmg)` (no `RoundStats` — walls carry no Health). When
+  the wall breaks, `get_wall_between → None`, PathAgent unblocks and the enemy
+  resumes the SAME path. No `_path_through_walls` flag / pixel-space wall movement is
+  ported: only the walls-ignoring path (base enclosed, via `Enemy.on_spawn`'s
+  fallback) ever crosses a live wall — a normal `find_path` routes around them. The
+  prototype's degenerate nearest-wall fallback (`_try_enter_wall_attack`, fires only
+  when even `find_path_ignoring_walls` returns `[]`) is intentionally NOT ported — no
+  practical gameplay difference.
 - **Locomotion is fractional tile coords**: `move_speed` (tiles/sec) feeds
   `Movement.speed` straight — no ×32 pixel conversion (that was the prototype's
   pixel space); `find_path` output `[(col,row)…]` becomes `[[float(c),float(r)]…]`

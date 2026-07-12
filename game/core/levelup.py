@@ -82,7 +82,12 @@ def _gate_met(state, spec, buildings_balance):
 def _tier_option(btype, idx, buildings_balance):
     tiers = tiers_for(btype, buildings_balance)
     tier = tiers[idx]
-    sprites = LEAF_CLASSES[btype].TIER_SPRITES
+    leaf = LEAF_CLASSES[btype]
+    # Structure buildings (10E) use a single flat art slot per type (no
+    # tier/level suffix, matching data/slots.json); everything else keys the card
+    # art on TIER_SPRITES[idx] with the tier/level suffix.
+    flat_slot = getattr(leaf, "SLOT", "")
+    sprite_key = flat_slot or f"{leaf.TIER_SPRITES[idx]}_t{idx + 1}_lvl1"
     return {
         "kind": "tier",
         "building_type": btype,
@@ -96,7 +101,7 @@ def _tier_option(btype, idx, buildings_balance):
         # out of the previous tier's top level.
         "cost": tier.get("tier_unlock_cost", 0),
         "cost_label": "Upgrade Cost",
-        "sprite_key": f"{sprites[idx]}_t{idx + 1}_lvl1",
+        "sprite_key": sprite_key,
     }
 
 

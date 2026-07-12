@@ -23,8 +23,14 @@ Four files beside `balance.py`:
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
-  Remaining reserved no-op slots (boss-bonus, wall-teardown before revive;
-  rebuild-walls) stay in place for 10E-10G. **Do not reorder without the user.**
+  The remaining reserved no-op slot (boss-bonus, slot 3) stays in place for 10G.
+  **Do not reorder without the user.**
+  - **10E filled slots 8 + 10**: `_process_wall_teardown` (slot 8, BEFORE revive)
+    tears down every DEAD `wall_builder`'s perimeter (`tilemap.remove_walls_for_builder`)
+    — seen as `alive == False` at this point, same as painters/boosts; `tilemap.rebuild_walls()`
+    (slot 10, AFTER revive) restores every ALIVE builder's frozen snapshot to full HP
+    (walls regenerate each payday; a revived builder's torn-down walls come back, and
+    only a builder that STAYS dead — revive off — loses its walls for good).
   - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
     on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
     per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`

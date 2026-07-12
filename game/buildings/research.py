@@ -25,6 +25,7 @@ from .defender import Defender
 from .meditator import Meditator
 from .musician import Musician
 from .painter import Painter
+from .structure import Blocker, WallBuilder
 from .sun_scorcher import SunScorcher
 
 # building_type -> leaf class. 9D leaves + the 10B defence lines + the 10C
@@ -39,6 +40,8 @@ LEAF_CLASSES = {
     "boost_speed": BoostSpeed,
     "boost_damage": BoostDamage,
     "boost_hp": BoostHP,
+    "blocker": Blocker,
+    "wall_builder": WallBuilder,
 }
 
 # The boost trio unlocks together from a single level-up card; the lead type owns
@@ -113,7 +116,15 @@ RESEARCH = {
         starts_unlocked=False, gate_kind="min_round",
         gate_path=("BoostBuildings", "globals", "unlock_min_round"),
         unlock_group=_BOOST_TRIO),
-    # 10E: "blocker": no gate;  "wall_builder": starts_with_tier=0
+    # 10E — the two passive structure lines. Blocker's type is always unlocked
+    # and placeable from the start (prototype ``blocker_tiers_unlocked = 1``);
+    # its Bulwark/Bastion tiers are researched at level-ups, round-gated by their
+    # own ``unlock_min_round`` (8 / 15). WallBuilder's type is unlocked but starts
+    # at ZERO researched tiers, so its tier 1 must be researched at a level-up;
+    # the roll is era-gated from ``WallBuilder.era_unlock_round`` (5), so no
+    # gate_kind is needed here — identical shape to the Meditator row.
+    "blocker": ResearchSpec(),
+    "wall_builder": ResearchSpec(starts_with_tier=0),
 }
 
 
