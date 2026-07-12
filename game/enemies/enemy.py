@@ -6,13 +6,15 @@ components ``PathAgent`` + ``EnemyCombat``. All state is in components (E-11);
 the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-safe
 ``@property``s over ``Health`` / ``EnemyCombat``.
 
-Standard is the only walker enabled in 9E; ``Raider`` / ``SiegeCannon`` / ``Boss``
-are thin subclasses present for the spawner's (zeroed) branches — they resolve
-their own stat subtree + slot prefix and nothing else (10F/10G enable them).
+``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F; ``Boss`` is a
+thin subclass present for the spawner's still-zeroed branch (10G enables it). Each
+subclass resolves its own stat subtree + slot prefix and nothing else.
 
 Scale-tier stats are resolved at CONSTRUCTION into component fields (prototype
 ``enemy.py:88-108``): ``hp``/``dmg``/``speed`` = the type's base plus the
-cumulative sum of ``EnemyScaling.scale_tiers[0..tier)`` bonuses. Movement is in
+cumulative sum of ``EnemyScaling.scale_tiers[0..tier)`` bonuses — Standard and
+SiegeCannon scale that way, ``Raider`` deliberately does NOT, and ``Boss`` reads a
+per-era table (see ``tier_scaled_stats``). Movement is in
 fractional tile coords (``move_speed`` tiles/sec straight into ``Movement.speed``
 — no ×32 pixel conversion; that lived in the prototype's pixel space).
 
@@ -57,6 +59,23 @@ def variant_slot(registry, group_label, tier, rng=None, fallback=None):
     return (rng or random).choice(variants)
 
 
+def tier_scaled_stats(type_block, balance, tier):
+    """``type_block``'s base stats plus the cumulative sum of
+    ``EnemyScaling.scale_tiers[0..tier)`` (prototype ``enemy.py:88-100``).
+
+    Standard AND SiegeCannon scale this way; ``Raider`` deliberately does not
+    (prototype ``raider.py`` overrides the stats without adding tier bonuses),
+    and ``Boss`` reads a per-era table instead of scaling at all.
+    """
+    tiers = balance["EnemyScaling"]["scale_tiers"]
+    n = min(tier, len(tiers))
+    hp = type_block["hp"] + sum(tiers[i]["hp"] for i in range(n))
+    dmg = type_block["dmg"] + sum(tiers[i]["dmg"] for i in range(n))
+    speed = type_block["move_speed"] + sum(tiers[i]["speed"] for i in range(n))
+    return (hp, dmg, speed, type_block["attack_speed"],
+            type_block["attack_range_tiles"])
+
+
 class Enemy(GameObject):
     ETYPE = "standard"
     REGISTRY_GROUP = "Walker"      # data/slots.json enemies group (era subtree)
@@ -97,13 +116,8 @@ class Enemy(GameObject):
     # -- stat resolution (Standard scales; subclasses override) ------------
 
     def _resolve_stats(self, balance, tier):
-        std = balance["EnemyTypes"]["Standard"]
-        tiers = balance["EnemyScaling"]["scale_tiers"]
-        n = min(tier, len(tiers))
-        hp = std["hp"] + sum(tiers[i]["hp"] for i in range(n))
-        dmg = std["dmg"] + sum(tiers[i]["dmg"] for i in range(n))
-        speed = std["move_speed"] + sum(tiers[i]["speed"] for i in range(n))
-        return hp, dmg, speed, std["attack_speed"], std["attack_range_tiles"]
+        return tier_scaled_stats(
+            balance["EnemyTypes"]["Standard"], balance, tier)
 
     # -- lifecycle ---------------------------------------------------------
 
@@ -135,6 +149,7 @@ class Raider(Enemy):
     DEFAULT_SLOT = "raider_stage_1"
 
     def _resolve_stats(self, balance, tier):
+        # Raiders do NOT take the scale-tier bonuses (prototype raider.py).
         r = balance["EnemyTypes"]["Raider"]
         return (r["hp"], r["dmg"], r["move_speed"], r["attack_speed"],
                 r["attack_range_tiles"])
@@ -146,9 +161,10 @@ class SiegeCannon(Enemy):
     DEFAULT_SLOT = "siege_cannon"
 
     def _resolve_stats(self, balance, tier):
-        s = balance["EnemyTypes"]["SiegeCannon"]
-        return (s["hp"], s["dmg"], s["move_speed"], s["attack_speed"],
-                s["attack_range_tiles"])
+        # Siege scales with the tiers exactly like Standard (prototype
+        # siege_cannon.py adds the same cumulative ENEMY_SCALE_TIERS bonuses).
+        return tier_scaled_stats(
+            balance["EnemyTypes"]["SiegeCannon"], balance, tier)
 
 
 class Boss(Enemy):

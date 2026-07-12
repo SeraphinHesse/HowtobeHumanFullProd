@@ -1,12 +1,12 @@
-# CLAUDE.md — game/enemies (Phase 9E)
+# CLAUDE.md — game/enemies (Phases 9E + 10F)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
-here from `game/CLAUDE.md`. 9E ships the **Standard** walker;
-`Raider`/`SiegeCannon`/`Boss` (+`BossState`) are thin subclasses present for the
-spawner's branches but NEVER emitted (`spawner.py` `ENABLE_RAIDERS`/`ENABLE_SIEGE`/
-`ENABLE_BOSS = False`; 10F/10G flip them). When you change enemy conventions,
-update THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
+here from `game/CLAUDE.md`. **Standard + Raider + SiegeCannon are all LIVE since
+10F** (`spawner.py` `ENABLE_RAIDERS`/`ENABLE_SIEGE = True`); `Boss` (+`BossState`)
+is still a thin subclass wired to a branch that never emits
+(`ENABLE_BOSS = False`; 10G flips it). When you change enemy conventions, update
+THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
 
 ## Rules
 - **All state in components** (E-11): `components.py` holds `PathAgent`
@@ -41,7 +41,11 @@ update THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
 - **Scale-tier stats resolved at CONSTRUCTION** (prototype `enemy.py:88-108`):
   hp/dmg/speed = type base + cumulative sum of `EnemyScaling.scale_tiers[0..tier)`;
   tier = `(round-1)//scale_every_n_levels`. Values from
-  `data/balancing/enemies.json` (×10 combat scale baked in).
+  `data/balancing/enemies.json` (×10 combat scale baked in). **Who scales is
+  per-type and prototype-exact** (`tier_scaled_stats`): `Standard` AND
+  `SiegeCannon` take the cumulative bonuses; **`Raider` deliberately does NOT**
+  (it stays 32 HP / 20 DMG forever — a glass cannon that only ever grows in
+  COUNT); `Boss` ignores tiers entirely and reads its per-era stat table.
 - **Sprite slots are registry-group driven with a random variant per spawn**
   (prototype `_STAGE_SLOT_PREFIX` + `_variant`): each class names its
   `data/slots.json` enemies group via `REGISTRY_GROUP`
@@ -60,6 +64,24 @@ update THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   `uniform(0.4, 1.6)` jitter; `update(dt, scene)` pops ONE enemy per timer expiry
   into `scene.spawn`. The round LOOP that calls it + wave-clear detection is 9F; an
   injectable `rng` keeps tests deterministic.
+  - **10F composition**: raiders join from `Raider.start_round` at
+    `base_count + (round-start)*per_round`; siege from `SiegeCannon.start_round` at
+    `base_count + (round-start)//rounds_per_cannon`. Siege splits into a **lead
+    group** (`int(queue_lead_count * mix_ratio)`) that HEADS the queue and a
+    remainder mixed into the shuffled body — so cannons open the wave and then
+    trickle. Queue = `siege_front + shuffle(standard + raiders + siege_mixed)`.
+- **Raiders/siege seek the BASE, not their prototype prey (deliberate 10F
+  divergence).** The prototype re-paths raiders onto the nearest economy building
+  and siege onto the nearest defence building (`_repath`). Here every enemy paths
+  to the base once at spawn and attacks whatever blocks it (the unified
+  block-and-attack model), so a raider still eats an economy building standing in
+  its lane — it just doesn't hunt one. Porting the real thing needs
+  re-path-after-kill: `PathAgent.reached_base` is driven purely by
+  `Movement.arrived`, so a path ENDING on a targeted building would fire a phantom
+  base hit the moment that building dies and the enemy steps onto its tile. The
+  goal-set queries are already ported and waiting
+  (`find_path_to_nearest_economic` / `_defence` / `_building`) — wire them
+  together with a re-path step, not alone.
 - **`combat.py` = the type-agnostic sweep** `resolve_combat(scene, tilemap, dt,
   buildings_balance)`, called each frame AFTER `scene.update`: (1) every
   `"combat"`-tagged building keeps its sticky target if alive + in Chebyshev range,

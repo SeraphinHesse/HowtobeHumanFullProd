@@ -32,6 +32,12 @@ from .game_state import RunState
 from .payday import run_payday
 from .phases import GamePhase, GameState
 
+# Combat-phase speed multipliers, indexed by `Session.combat_speed_idx`
+# (prototype `game.py:45-47`). Index 3 is the in-combat pause — a 0.0 multiplier,
+# NOT a phase change, so the round machine is untouched while it holds.
+COMBAT_SPEEDS = (1.0, 1.5, 2.0, 0.0)
+PAUSE_SPEED_IDX = 3
+
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
@@ -53,6 +59,10 @@ class Session:
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
         # payday and dies again pays XP only the first time.
         self._xp_awarded_buildings = set()
+        # Combat speed (10F). Persists across rounds; a new run builds a new
+        # Session, which is the prototype's "reset to 1x on new game".
+        self.combat_speed_idx = 0
+        self._prev_combat_speed_idx = 0  # remembered speed for the pause toggle
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
@@ -67,6 +77,56 @@ class Session:
         """LEVELUP is fully modal: no updates, no animations, no combat
         (prototype ``_update_gameplay`` returns immediately)."""
         return self.state.phase == GamePhase.LEVELUP
+
+    # -- combat speed (10F) -----------------------------------------------
+
+    @property
+    def combat_speed(self):
+        """The multiplier the host applies to the ENEMY-phase sim tick."""
+        return COMBAT_SPEEDS[self.combat_speed_idx]
+
+    def speed_unlocked(self, idx):
+        """Is this speed index selectable at the current round? 1× and the pause
+        always are; 1.5× and 2× are round-gated by ``core.PhaseLoop`` (prototype
+        gated only the HUD buttons — gating here instead means the keys and the
+        10L buttons can't drift apart)."""
+        loop = self.core_balance["PhaseLoop"]
+        if idx == 1:
+            return self.state.round_num >= loop["speed_1_5x_min_round"]
+        if idx == 2:
+            return self.state.round_num >= loop["speed_2x_min_round"]
+        return True
+
+    def set_combat_speed(self, idx):
+        """Select the combat speed (prototype ``_set_combat_speed``). A locked or
+        out-of-range index is a no-op. Remembers the last non-pause index so
+        ``toggle_pause`` can restore it."""
+        if not 0 <= idx < len(COMBAT_SPEEDS) or not self.speed_unlocked(idx):
+            return
+        if idx != PAUSE_SPEED_IDX:
+            self._prev_combat_speed_idx = idx
+        self.combat_speed_idx = idx
+
+    def toggle_pause(self):
+        """Toggle the in-combat pause, restoring the last real speed. No key is
+        bound to this yet — the 10L HUD button is its control surface."""
+        self.set_combat_speed(
+            self._prev_combat_speed_idx
+            if self.combat_speed_idx == PAUSE_SPEED_IDX else PAUSE_SPEED_IDX)
+
+    def quick_skip_combat(self, scene):
+        """``P`` — abandon the rest of the wave and jump straight to ROUND_END
+        (prototype ``game.py:393-399``). Unlike a lives-breach ``_wipe_round``,
+        this pays NO XP: neither the enemies cleared off the field nor the ones
+        still queued (prototype awards nothing on this path)."""
+        st = self.state
+        if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
+            return
+        for e in list(scene.by_tag("enemy")):
+            scene.despawn(e)
+        self.spawner.clear()
+        self._wipe_pending = False
+        self._begin_round_end()
 
     # -- BUILDING -> ENEMY (prototype _begin_enemy_phase) -----------------
 
