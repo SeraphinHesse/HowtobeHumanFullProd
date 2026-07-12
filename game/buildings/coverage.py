@@ -14,6 +14,12 @@ Rules (prototype-exact):
   included — the map lookup ignores them), EXCEPT the Maw Mortar line
   (``building_type == "aoe_defence"``, ``game.py:599-600``). NOTE: the mortar
   exclusion is pathfinding-only — the RANGE overlay still shows it.
+* Boost buildings count too: the prototype gives boosters ``range_tiles = 1``
+  (``boost_building.py:51``) and ``game.py:601`` includes them, so every alive
+  ``"boost"``-tagged occupant adds a full 3×3 (r=1) Chebyshev square. The repo
+  booster deliberately has NO ``range_tiles()`` method (adding one would leak
+  a square into the selection highlight, where the prototype draws a
+  plus-shape) — the tag drives the square here instead.
 * RAW ``range_tiles()`` — a mountain-boosted defender covers its base range
   only (``game.py:601``); the +1 effective range is targeting-side.
 
@@ -39,9 +45,12 @@ def defence_covered_tiles(tilemap, buildings_balance):
         if getattr(b, "building_type", None) == "aoe_defence":
             continue   # Maw Mortar line: excluded from pathfinding coverage
         rfn = getattr(b, "range_tiles", None)
-        if rfn is None:
-            continue
-        r = int(rfn())   # RAW range — no mountain bonus (game.py:601)
+        if rfn is not None:
+            r = int(rfn())   # RAW range — no mountain bonus (game.py:601)
+        elif "boost" in getattr(b, "tags", ()):
+            r = 1            # prototype boosters carry range_tiles = 1
+        else:
+            r = 0
         if r <= 0:
             continue
         for dc in range(-r, r + 1):

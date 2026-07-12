@@ -9,7 +9,7 @@ Attacker firing clock. Enemy acquisition, projectiles and damage resolution are
 """
 from engine.core import RangeSensor
 from .building import Building
-from .components import Attacker, BoostReceiver
+from .components import Attacker, BoostReceiver, SplashAttacker
 
 
 class DefenceBuilding(Building):
@@ -52,10 +52,23 @@ class DefenceBuilding(Building):
 
     def effective_range_tiles(self):
         """Range after the MOUNTAIN +1 bonus (prototype
-        ``defence_building.py:161-168``). Consumed by target acquisition, the
-        panel Range row and the selection range highlight; pathfinding coverage
-        and the RANGE overlay read the RAW ``range_tiles()`` instead."""
+        ``defence_building.py:161-168``). Consumed by the panel Range row and
+        the selection range highlight (and, except for the mortar, targeting —
+        see ``targeting_range_tiles``); pathfinding coverage and the RANGE
+        overlay read the RAW ``range_tiles()`` instead."""
         return self.range_tiles() + self._condition_mod("def_range_bonus")
+
+    def targeting_range_tiles(self):
+        """Range the combat sweep ACQUIRES targets with. Basic defence + beam
+        use the effective (mountain-boosted) value (prototype
+        ``defence_building.py:264``); the mortar — selected by its
+        ``SplashAttacker`` capability marker, never by class — targets with
+        RAW range (prototype ``aoe_defence_building.py:308`` ``_in_range``
+        reads raw ``range_tiles``; the mountain bonus only ever shows in its
+        panel row). A prototype-inherited inconsistency, kept for parity."""
+        if self.get_component(SplashAttacker) is not None:
+            return self.range_tiles()
+        return self.effective_range_tiles()
 
     # -- /10I --
 
@@ -96,9 +109,13 @@ class DefenceBuilding(Building):
         if rcv.speed_pct:
             out["Atk speed"] = f'{d["attack_speed"]:.1f}s'
         # -- 10I: a forest cut also shows the un-modified damage beside the
-        # cut value (prototype ``defence_building.py:117-122``) --
+        # cut value — but only when the cut actually changes it (prototype
+        # ``defence_building.py:118-122`` gates on effective != base, so a
+        # 1-damage defender on forest shows no row) --
         if "Damage" not in out and self._condition_mod("def_dmg_penalty"):
-            out["Damage"] = d["base_dmg"] + self._lvl_idx * d["dmg_per_level"]
+            base_dmg = d["base_dmg"] + self._lvl_idx * d["dmg_per_level"]
+            if self.damage() != base_dmg:
+                out["Damage"] = base_dmg
         # -- /10I --
         return out
 
@@ -109,6 +126,7 @@ class DefenceBuilding(Building):
     def _on_apply_stats(self):
         sensor = self.get_component(RangeSensor)
         if sensor is not None:
-            # 10I: the sensor mirrors the EFFECTIVE (mountain-boosted) range —
-            # the targeting-side value; raw range keeps feeding pathfinding.
-            sensor.range_tiles = self.effective_range_tiles()
+            # 10I: the sensor mirrors the TARGETING range (effective for
+            # basic/beam, raw for the mortar); raw range keeps feeding
+            # pathfinding coverage either way.
+            sensor.range_tiles = self.targeting_range_tiles()

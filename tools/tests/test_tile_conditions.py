@@ -202,7 +202,9 @@ class TestDefenceModifiers(unittest.TestCase):
         self.assertEqual(b.range_tiles(), self.T0["range_tiles"])   # RAW
         self.assertEqual(b.effective_range_tiles(),
                          self.T0["range_tiles"] + bonus)
-        # the sensor mirrors the targeting-side (effective) value
+        # basic defence TARGETS with the effective value; the sensor mirrors it
+        self.assertEqual(b.targeting_range_tiles(),
+                         self.T0["range_tiles"] + bonus)
         self.assertEqual(b.get_component(RangeSensor).range_tiles,
                          self.T0["range_tiles"] + bonus)
 
@@ -223,6 +225,12 @@ class TestDefenceModifiers(unittest.TestCase):
         self.assertEqual(b2.range_tiles(), a0["range_tiles"])
         self.assertEqual(b2.effective_range_tiles(),
                          a0["range_tiles"] + MODS["Mountain"]["def_range_bonus"])
+        # PROTOTYPE INCONSISTENCY kept for parity: the mortar TARGETS with its
+        # RAW range (aoe_defence_building.py:308) — the mountain bonus only
+        # ever shows in its panel row; the sensor mirrors the targeting value.
+        self.assertEqual(b2.targeting_range_tiles(), a0["range_tiles"])
+        self.assertEqual(b2.get_component(RangeSensor).range_tiles,
+                         a0["range_tiles"])
 
     def test_beam_leaf_takes_the_pond_interval(self):
         s0 = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"][0]
@@ -471,6 +479,20 @@ class TestDefenceRangeCoverage(unittest.TestCase):
         wire_defence_coverage(tm, build)
         find_path(tm, 7, 1)
         self.assertEqual(tm.weight(tm.get(2, 1)), 1)
+
+    def test_booster_adds_a_3x3_coverage_square(self):
+        # Prototype boosters carry range_tiles = 1 (boost_building.py:51) and
+        # game.py:601 includes them -> every alive "boost"-tagged occupant
+        # adds a full r=1 Chebyshev square (the repo booster has NO
+        # range_tiles() method — the tag drives the square).
+        tm = synth(["bbbbbbbb", "cccccccs"])
+        place(tm, 2, 0, "boost_speed")
+        expected = {(2 + dc, dr) for dc in (-1, 0, 1) for dr in (-1, 0, 1)}
+        self.assertEqual(defence_covered_tiles(tm, BUILD), expected)
+        wire_defence_coverage(tm, BUILD)
+        find_path(tm, 7, 1)
+        self.assertEqual(tm.weight(tm.get(2, 1)), 1 + self.ADD)   # covered
+        self.assertEqual(tm.weight(tm.get(4, 1)), 1)              # outside
 
     def test_base_tile_is_exempt(self):
         tm = synth(["bbbbbbbb", "cccccccs"])

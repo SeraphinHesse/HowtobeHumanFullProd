@@ -126,9 +126,11 @@ THIS doc. **Adding an enemy type? Use the `/add-enemy` skill.**
   no enemy stat modifier (only its +9 path weight). The modifiers dict is read
   duck-typed off `PathAgent._tilemap.balance` (guarded — headless stubs stay
   neutral) through `game.map.tiles.CONDITION_MODIFIER_KEY`. The combat sweep's
-  two targeting sites use `effective_range_tiles()` (mountain +1) via a
-  guarded `getattr` fallback to `range_tiles()`, keeping the raw/effective
-  split (coverage + RANGE overlay = raw).
+  two targeting sites use `targeting_range_tiles()` (effective mountain +1
+  for basic/beam, RAW for the mortar — a prototype-inherited inconsistency,
+  see `game/buildings/CLAUDE.md`) via a guarded `getattr` fallback to
+  `range_tiles()`, keeping the raw/effective split (coverage + RANGE
+  overlay = raw).
 
 ## Round-loop / XP callbacks (9F / 10A) — layering trick
 `game/enemies` imports NO `game/core`. Cross-boundary needs are optional callbacks:

@@ -107,10 +107,14 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     the POND `def_attack_speed_penalty` slow the same way. **Raw vs effective
     range split**: `range_tiles()` stays RAW (feeds pathfinding coverage + the
     RANGE overlay); NEW `effective_range_tiles()` adds the MOUNTAIN
-    `def_range_bonus` (feeds targeting in the combat sweep, the panel Range
-    row, the selection highlight, and the RangeSensor via `_on_apply_stats`).
-    `boosted_stats()` also emits the pre-forest Damage base when the cut is
-    active.
+    `def_range_bonus` (feeds the panel Range row + the selection highlight);
+    NEW `targeting_range_tiles()` is what the combat sweep + RangeSensor use —
+    effective for basic/beam, but **RAW for the mortar** (selected by its
+    `SplashAttacker` marker): the prototype's own `_in_range` inconsistency
+    (`aoe_defence_building.py:308` reads raw while `defence_building.py:264`
+    reads effective), kept deliberately for parity — 10J/parity audits must
+    not "fix" it. `boosted_stats()` also emits the pre-forest Damage base when
+    the cut actually changes the value (prototype gate).
   - **Economy**: `EconomyBuilding.yield_amount` applies mountain
     `max(0, int(y×0.9))` / pond+forest `int(y×1.1)` ON READ (payday, HUD,
     panel all see it). Meditator + Painter override `yield_amount` and take NO
@@ -118,7 +122,10 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   - **`coverage.py`** is the defence-range pathfinding producer:
     `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range,
     `building_type == "aoe_defence"` EXCLUDED — pathfinding-only; the RANGE
-    overlay still shows the mortar; empty set when
+    overlay still shows the mortar; every alive `"boost"`-tagged occupant adds
+    an r=1 square — prototype boosters carry `range_tiles = 1`, but the repo
+    booster keeps NO `range_tiles()` method so the selection highlight stays a
+    plus-shape; empty set when
     `BuildingsGlobal.defence_range_pathfinding.enabled` is off) +
     `wire_defence_coverage` (injects callable + weight add into the tilemap —
     the host calls it once per run; the map layer never imports this package).
