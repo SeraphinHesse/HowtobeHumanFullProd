@@ -71,6 +71,24 @@ class _CameraSetCommand(QUndoCommand):
         self._doc.camera_start = dict(self._old) if self._old is not None else None
 
 
+class _StartAreaSetCommand(QUndoCommand):
+    """Place / move / remove the single 2×2 starting area. ``old`` and ``new``
+    are full dicts (``{'col','row','slot'}`` — the block's MIN corner) or
+    None — mirrors _BaseSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.start_area = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.start_area = dict(self._old) if self._old is not None else None
+
+
 class _AddBackgroundCommand(QUndoCommand):
     """Add a new BACKGROUND legend entry (code -> slot) to the open map — the
     palette's '+ Level' button. Undo drops the code again (paint commands that
@@ -270,6 +288,37 @@ class MapSession(QObject):
         command as click-placement."""
         if old is not None and new is not None:
             self.push_camera_place(new[0], new[1])
+
+    def _start_area_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.start_area_slot_from_schema(schema)
+
+    def push_start_area_place(self, col, row):
+        """Place the 2×2 starting area (if the map has none) or move it — ONE
+        undoable command either way. ``(col,row)`` is the block's MIN corner,
+        clamped so the 2×2 always fits the grid (an edge click stays saveable).
+        Mirrors push_base_place."""
+        col = max(0, min(col, self.doc.cols - 2))
+        row = max(0, min(row, self.doc.rows - 2))
+        old = self.doc.start_area
+        slot = old["slot"] if old is not None else self._start_area_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move starting area" if old is not None
+                else "place starting area")
+        self.undo_stack.push(_StartAreaSetCommand(self.doc, old, new, text))
+
+    def push_start_area_remove(self):
+        if self.doc.start_area is not None:
+            self.undo_stack.push(_StartAreaSetCommand(
+                self.doc, self.doc.start_area, None, "remove starting area"))
+
+    def push_start_area_move(self, old, new):
+        """Drag path (mirrors push_base_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_start_area_place(new[0], new[1])
 
     def push_add_background(self, slot):
         """'+ Level': claim the next free legend code for a new background type

@@ -121,8 +121,14 @@ schema, update THIS doc.**
   spawning with checkerboard `_b` alternation, f/l/o = forest/cliff/ocean
   background, no alternation — the file is self-describing, no package
   hardcodes tile vocabulary), `base` ({col,row,slot} — slot const-pinned to
-  `base_hole`), `deco` (world positions; renders ABOVE entities, E-26).
-  Spawning is a painted zone — the format has NO spawn-point objects.
+  `base_hole`), `camera_start` (nullable {col,row,slot}), `start_area`
+  (nullable {col,row,slot} — slot const-pinned to `start_area`; {col,row} is
+  the 2×2 starting area's MIN corner, spans col..col+1 × row..row+1, loader
+  cross-checks col+1 < cols / row+1 < rows; anchors the game's tile-unlock
+  section grid, never forces tile states, drawn by the editor as an outline
+  only; existing maps were migrated to `"start_area": null`), `deco` (world
+  positions; renders ABOVE entities, E-26). Spawning is a painted zone — the
+  format has NO spawn-point objects.
 - **SCHEMA-PAIRING EXCEPTION (the one directory rule)**: every
   `data/maps/*.json` EXCEPT `active_map.json` validates against
   `schemas/map_file.schema.json` (tools/smoke.py implements + tests this);

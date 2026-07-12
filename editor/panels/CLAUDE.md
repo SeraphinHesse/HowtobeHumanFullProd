@@ -225,6 +225,22 @@ import list.**
   `clicked(bool checked)`, which silently overrides a `confirm=True` kwarg
   default to `False` on connect; wrap in a lambda (`clicked.connect(lambda:
   self._on_delete())`) so a real click always shows the dialog.
+- **Starting Area (2×2 marker)**: a third single-object brush in gametiles mode
+  (registry `core`/`Start Area`, slot `start_area`) mirroring the Hole/Camera
+  Start pattern end-to-end — `palette.arm_start_area`/`start_area_armed` →
+  `viewport.arm_start_area`; paint = place/move (the clicked cell is the 2×2's
+  MIN corner, `MapSession.push_start_area_place` clamps it to
+  `[0, cols−2]×[0, rows−2]`), erase = remove; a press on ANY of its 4 covered
+  cells (eye on, no single-object brush armed) starts a drag whose release cell
+  becomes the new min corner. **It renders as a closed 2×2 OUTLINE through
+  `submit_overlay_lines` (E-24), never a sprite** — the engine emitters
+  deliberately don't emit it, and the ghost is the same outline at the clamped
+  hover cell (`_submit_start_area_outline`); ED-22-clean, same primitive as
+  grid lines. Own `start_area` layer eye. `map_requirement_warnings` adds two
+  warnings: `"starting area"` when the marker is missing and `"buildable tiles
+  under starting area"` when any covered cell isn't a `tile_buildable`-slot
+  code (the marker anchors the game's unlock grid but never forces tile
+  states — painted terrain wins).
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the

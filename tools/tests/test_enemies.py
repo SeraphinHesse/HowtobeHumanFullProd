@@ -28,6 +28,7 @@ from game.enemies import (
 from game.enemies.combat import ProjectileHoming
 from game.enemies.components import EnemyCombat, PathAgent
 from game.map.tile_map import TileMap
+from game.map.tiles import TileState
 
 MAPBAL = load_balance(REPO / "data", "map")
 BUILD = load_balance(REPO / "data", "buildings")
@@ -431,6 +432,52 @@ class TestBaseArrival(unittest.TestCase):
                          max(0, CORE["TheHole"]["base_hp"] - STD["dmg"]))
         self.assertEqual(
             base.get_component(RoundStats).dmg_taken_this_round, STD["dmg"])
+
+
+class TestSpawnTilesAreSpawningOnly(unittest.TestCase):
+    """Pin: enemies ONLY spawn on SPAWNING-state tiles — every queued spawn
+    rides one, both at seed and again after an unlock recedes the band (the
+    dual-axis recede moves the band; the spawner must follow it)."""
+
+    @staticmethod
+    def _tm():
+        # buildable pocket, combat field, an east AND a south spawn band, with
+        # forest room behind both for the recede backfills
+        return synth([
+            "bbccssff",
+            "bbccssff",
+            "ccccssff",
+            "ccccssff",
+            "ssssffff",
+            "ssssffff",
+            "ffffffff",
+            "ffffffff",
+        ])
+
+    @staticmethod
+    def _assert_queue_on_spawning(test, sp, tm):
+        spawning = {(t.col, t.row) for t in tm.spawning_tiles()}
+        queued = [tile for tile, _etype, _delay in sp._queue]
+        test.assertTrue(queued)   # a real wave, not a vacuous pass
+        for tile in queued:
+            test.assertEqual(tile.state, TileState.SPAWNING,
+                             (tile.col, tile.row))
+            test.assertIn((tile.col, tile.row), spawning)
+
+    def test_queue_rides_spawning_tiles_before_and_after_recede(self):
+        tm = self._tm()
+        sp = Spawner()
+        sp.begin_round(2, tm, ENEM, rng=random.Random(3))
+        self._assert_queue_on_spawning(self, sp, tm)
+
+        before = {(t.col, t.row) for t in tm.spawning_tiles()}
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))   # recedes both bands
+        after = {(t.col, t.row) for t in tm.spawning_tiles()}
+        self.assertNotEqual(before, after)            # the band really moved
+
+        sp2 = Spawner()
+        sp2.begin_round(2, tm, ENEM, rng=random.Random(3))
+        self._assert_queue_on_spawning(self, sp2, tm)
 
 
 class TestPurity(unittest.TestCase):

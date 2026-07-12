@@ -280,6 +280,62 @@ class TestCameraStart(unittest.TestCase):
         self.assertNotIn("camera_startpoint", [i.slot_key for i in far])
 
 
+class TestStartArea(unittest.TestCase):
+    """The 2×2 starting-area object: a single nullable movable map object whose
+    {col,row} is the block's MIN corner (spans col..col+1 × row..row+1). It
+    anchors the game's unlock-section grid; deliberately NOT emitted by the
+    render emitters (the editor draws a pure outline instead)."""
+
+    def test_defaults_to_none_and_round_trips(self):
+        doc = make_doc()
+        self.assertIsNone(doc.start_area)  # absent by default (new maps too)
+        doc.start_area = {"col": 2, "row": 3, "slot": "start_area"}
+        again = tilemap.from_dict(tilemap.to_dict(doc))
+        self.assertEqual(again.start_area,
+                         {"col": 2, "row": 3, "slot": "start_area"})
+        self.assertEqual(again, doc)
+
+    def test_disk_round_trip_with_start_area(self):
+        doc = make_doc()
+        doc.start_area = {"col": 3, "row": 2, "slot": "start_area"}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "testmap.json"
+        tilemap.save_map(doc, path, SCHEMA)
+        self.assertEqual(tilemap.load_map(path, SCHEMA), doc)
+
+    def test_slot_const_from_schema(self):
+        schema = data_io.load_json(SCHEMA)
+        self.assertEqual(
+            tilemap.start_area_slot_from_schema(schema), "start_area")
+
+    def test_new_doc_has_no_start_area(self):
+        doc = tilemap.new_doc("newmap", "New Map", 8, 8, SCHEMA)
+        self.assertIsNone(doc.start_area)
+
+    def test_2x2_bounds_fail_loud(self):
+        # min corner at cols-1 leaves no room for the second column — invalid;
+        # cols-2 is the last legal anchor.
+        doc = make_doc()
+        doc.start_area = {"col": doc.cols - 1, "row": 0, "slot": "start_area"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc.start_area = {"col": 0, "row": doc.rows - 1, "slot": "start_area"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc.start_area = {"col": doc.cols - 2, "row": doc.rows - 2,
+                          "slot": "start_area"}
+        tilemap.validate_doc(doc)  # last legal anchor passes
+
+    def test_never_emitted_by_render_emitters(self):
+        doc = make_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        full = tilemap.render_items(doc, camera=True)
+        self.assertNotIn("start_area", [i.slot_key for i in full])
+        windowed = tilemap.visible_render_items(doc, 0, 5, 0, 4, camera=True)
+        self.assertNotIn("start_area", [i.slot_key for i in windowed])
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only
@@ -314,6 +370,25 @@ class TestBandRenderItems(unittest.TestCase):
         self.assertEqual(len(positions), len(set(positions)))
         self.assertEqual(set(positions),
                          {(c, r) for r in range(6) for c in range(6)})
+
+    def test_band_code_overrides(self):
+        # A runtime caller (the game's unlock/recede) overrides single cells'
+        # codes without touching doc.terrain; the overridden cell resolves via
+        # the same legend/checker rule, everything else is byte-identical.
+        doc = make_doc(cols=6, rows=6, fill="f")
+        plain = {i.world_pos: i for i in tilemap.band_render_items(
+            doc, -100, 100, -100, 100)}
+        over = {i.world_pos: i for i in tilemap.band_render_items(
+            doc, -100, 100, -100, 100,
+            code_overrides={(2, 1): "b", (3, 1): "s"})}
+        self.assertEqual(over[(2, 1)].slot_key,
+                         tilemap.slot_for_code(doc.legend, "b", 2, 1))
+        self.assertEqual(over[(3, 1)].slot_key,
+                         tilemap.slot_for_code(doc.legend, "s", 3, 1))
+        for pos, item in plain.items():
+            if pos not in ((2, 1), (3, 1)):
+                self.assertEqual(over[pos].slot_key, item.slot_key)
+        self.assertEqual(doc.terrain[1][2], "f")   # doc untouched
 
 
 class TestNewAndDuplicate(unittest.TestCase):

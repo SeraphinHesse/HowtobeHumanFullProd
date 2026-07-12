@@ -2,9 +2,10 @@
 
 Ports and pins the prototype's src/map/tile_map.py:298-438 on the shipped
 starter map (data/maps/first_light.json, prototype-exact layout). Unlock cost =
-BASE + (col_sec + row_sec) * MOD with the live map.json values (5 / 2);
-adjacency requires a chunk COMBAT tile edge-adjacent to an unlocked tile; a
-successful unlock recedes the spawn band exactly one 2×2 section outward.
+BASE + (manhattan_section_distance − 1) * MOD (direction-agnostic, adjacent
+sections cost exactly BASE) with the live map.json values; adjacency requires a
+chunk COMBAT tile edge-adjacent to an unlocked tile; a successful unlock
+recedes the spawn band one 2×2 section outward on BOTH axes.
 """
 import unittest
 from pathlib import Path
@@ -41,22 +42,98 @@ class TestSeeding(unittest.TestCase):
         self.assertEqual(tm.get(1, 1).content_key, "base_building")
 
 
+def expected_cost(manhattan):
+    """The pinned formula: BASE for adjacent sections (distance 1), +MOD per
+    further step; distance term clamped ≥ 0. Derived from the LIVE balancing
+    values so a tuning pass never stales these tests again."""
+    u = BALANCE["TileUnlocking"]
+    return (u["base_unlock_cost"]
+            + max(0, manhattan - 1) * u["unlock_cost_distance_mod"])
+
+
 class TestUnlockCost(unittest.TestCase):
     def test_cost_scales_with_section_distance(self):
         tm = make_tilemap()
         # section (col_sec, row_sec) with the base (1,1) as the bottom-left tile
-        # of section (0,0) — col origin 1, row origin 0. Live map.json values:
-        # base_unlock_cost 0, unlock_cost_distance_mod 2 -> cost = (sc+sr)*2.
+        # of section (0,0) — col origin 1, row origin 0. Cost is keyed to the
+        # section's MANHATTAN distance from (0,0).
         cases = {
-            (1, 1): 0,   # section (0,0)
-            (3, 1): 2,   # section (1,0)
-            (1, 3): 2,   # section (0,1)
-            (3, 3): 4,   # section (1,1)
-            (7, 7): (3 + 3) * 2,  # section (3,3) -> 12
+            (1, 1): 0,  # section (0,0) — starts owned, clamped to BASE
+            (3, 1): 1,  # section (1,0)
+            (1, 3): 1,  # section (0,1)
+            (3, 3): 2,  # section (1,1)
+            (7, 7): 6,  # section (3,3)
         }
-        for (c, r), expected in cases.items():
+        for (c, r), manhattan in cases.items():
             with self.subTest(tile=(c, r)):
-                self.assertEqual(tm.unlock_cost(tm.get(c, r)), expected)
+                self.assertEqual(tm.unlock_cost(tm.get(c, r)),
+                                 expected_cost(manhattan))
+
+    def test_cost_is_direction_agnostic_and_never_below_base(self):
+        # Base mid-map: sections LEFT/ABOVE the start have negative signed
+        # offsets — the cost must mirror the positive directions exactly and
+        # never dip below base_unlock_cost (the original bug made it negative).
+        tm = TestFind2x2WindowedMatchesFullScan._build_big(40, 40, base=(20, 20))
+        base_cost = BALANCE["TileUnlocking"]["base_unlock_cost"]
+        # Section origins: col 20, row 19. Mirrored section pairs around (0,0):
+        mirrors = [
+            ((22, 20), (18, 20)),  # sections (+1,0) vs (-1,0)
+            ((20, 21), (20, 17)),  # sections (0,+1) vs (0,-1)
+            ((22, 21), (18, 17)),  # sections (+1,+1) vs (-1,-1)
+            ((26, 25), (14, 13)),  # sections (+3,+3) vs (-3,-3)
+        ]
+        for right, left in mirrors:
+            with self.subTest(pair=(right, left)):
+                # exact mirrors share |sc|+|sr| — equal cost both directions
+                sc_r, sr_r = tm._section_index(tm.get(*right))
+                sc_l, sr_l = tm._section_index(tm.get(*left))
+                self.assertEqual(abs(sc_r) + abs(sr_r), abs(sc_l) + abs(sr_l))
+                self.assertEqual(tm.unlock_cost(tm.get(*right)),
+                                 tm.unlock_cost(tm.get(*left)))
+        # section offset (-2,-2) -> manhattan 4 -> base + 3*mod
+        t = tm.get(16, 15)
+        self.assertEqual(tm._section_index(t), (-2, -2))
+        self.assertEqual(tm.unlock_cost(t), expected_cost(4))
+        # sweep: no tile anywhere costs less than base
+        for tile in tm.all_tiles():
+            self.assertGreaterEqual(tm.unlock_cost(tile), base_cost)
+
+
+class TestStartAreaAnchoring(unittest.TestCase):
+    """A placed start_area marker anchors the 2×2 section grid (and playfield
+    window) at its OWN min corner — the marker IS section (0,0) — instead of
+    the base-derived fallback the other tests pin."""
+
+    @staticmethod
+    def _make(start=(12, 8), base=(1, 1)):
+        tm = TestFind2x2WindowedMatchesFullScan._build_big(40, 40, base=base)
+        # rebuild with the marker set (doc drives __init__ anchoring)
+        doc = tm._doc
+        doc.start_area = {"col": start[0], "row": start[1],
+                          "slot": "start_area"}
+        return TileMap(doc, BALANCE)
+
+    def test_marker_is_section_0_0(self):
+        tm = self._make()
+        for c, r in ((12, 8), (13, 8), (12, 9), (13, 9)):
+            self.assertEqual(tm._section_index(tm.get(c, r)), (0, 0))
+        chunk = {(t.col, t.row) for t in tm.get_chunk_for_tile(tm.get(13, 9))}
+        self.assertEqual(chunk, {(12, 8), (13, 8), (12, 9), (13, 9)})
+        # playfield window follows the marker too
+        self.assertEqual((tm._pf_col_min, tm._pf_row_min), (12, 8))
+
+    def test_adjacent_section_costs_exactly_base(self):
+        tm = self._make()
+        base_cost = BALANCE["TileUnlocking"]["base_unlock_cost"]
+        for c, r in ((14, 8), (10, 8), (12, 6), (12, 10)):  # E/W/N/S sections
+            with self.subTest(tile=(c, r)):
+                self.assertEqual(tm.unlock_cost(tm.get(c, r)), base_cost)
+
+    def test_null_marker_keeps_base_fallback(self):
+        tm = TestFind2x2WindowedMatchesFullScan._build_big(40, 40, base=(1, 1))
+        # legacy anchoring: col origin = base col, row origin = base row - 1
+        self.assertEqual(tm._section_index(tm.get(1, 1)), (0, 0))
+        self.assertEqual((tm._sec_col_origin, tm._sec_row_origin), (1, 0))
 
 
 class TestAdjacency(unittest.TestCase):
@@ -78,7 +155,7 @@ class TestAdjacency(unittest.TestCase):
 
 
 class TestUnlockAndRecede(unittest.TestCase):
-    def test_unlock_section_1_0_and_recede(self):
+    def test_unlock_section_1_0_and_recede_on_both_axes(self):
         tm = make_tilemap()
         ok = tm.do_unlock(tm.get(3, 1))
         self.assertTrue(ok)
@@ -91,25 +168,170 @@ class TestUnlockAndRecede(unittest.TestCase):
             all(s == TileState.BUILDABLE for s in states(tm, unlocked)),
             states(tm, unlocked))
 
-        # 2. Nearest SPAWNING 2×2 (cols10-11, rows1-2) recedes to COMBAT.
-        receded_spawn = [(10, 1), (11, 1), (10, 2), (11, 2)]
+        # 2. X AXIS: nearest row-aligned SPAWNING 2×2 (cols10-11, rows1-2)
+        #    recedes to COMBAT.
+        receded_x = [(10, 1), (11, 1), (10, 2), (11, 2)]
         self.assertTrue(
-            all(s == TileState.COMBAT for s in states(tm, receded_spawn)),
-            states(tm, receded_spawn))
+            all(s == TileState.COMBAT for s in states(tm, receded_x)),
+            states(tm, receded_x))
 
-        # 3. Nearest in-playfield BACKGROUND 2×2 behind it (cols14-15, rows1-2)
-        #    becomes SPAWNING.
-        new_spawn = [(14, 1), (15, 1), (14, 2), (15, 2)]
+        # 3. Y AXIS: nearest col-aligned SPAWNING 2×2 in the southern band
+        #    (cols3-4, rows10-11) recedes to COMBAT too.
+        receded_y = [(3, 10), (4, 10), (3, 11), (4, 11)]
         self.assertTrue(
-            all(s == TileState.SPAWNING for s in states(tm, new_spawn)),
-            states(tm, new_spawn))
+            all(s == TileState.COMBAT for s in states(tm, receded_y)),
+            states(tm, receded_y))
 
-    def test_recede_conserves_nothing_outside_the_three_blocks(self):
+        # 4. EACH converted block backfills: the in-playfield BACKGROUND 2×2
+        #    CLOSEST to it becomes SPAWNING — cols14-15/rows1-2 for the x
+        #    block, cols3-4/rows14-15 for the y block.
+        for new_spawn in ([(14, 1), (15, 1), (14, 2), (15, 2)],
+                          [(3, 14), (4, 14), (3, 15), (4, 15)]):
+            self.assertTrue(
+                all(s == TileState.SPAWNING for s in states(tm, new_spawn)),
+                (new_spawn, states(tm, new_spawn)))
+
+    def test_recede_conserves_nothing_outside_the_converted_blocks(self):
         # A tile far from the action is untouched by the recede.
         tm = make_tilemap()
         before = tm.get(1, 12).state  # deep spawn band, unrelated
         tm.do_unlock(tm.get(3, 1))
         self.assertEqual(tm.get(1, 12).state, before)
+
+
+class TestDualAxisRecede(unittest.TestCase):
+    """The dual-axis recede on synthetic grids: both axes recede when both
+    have an aligned spawn band; an axis with NO aligned spawning block is
+    skipped (no nearest-overall fallback)."""
+
+    @staticmethod
+    def _build(paint):
+        """40×40 all-background map, base (1,1), start_area (2,2); `paint` is
+        {(anchor_c, anchor_r): TileState} of 2×2 blocks to seed."""
+        tm = TestFind2x2WindowedMatchesFullScan._build_big(40, 40, base=(1, 1))
+        tm._doc.start_area = {"col": 2, "row": 2, "slot": "start_area"}
+        tm = TileMap(tm._doc, BALANCE)
+        for (ac, ar), state in paint.items():
+            for dc in range(2):
+                for dr in range(2):
+                    tm.set_tile_state(tm.get(ac + dc, ar + dr), state)
+        return tm
+
+    def test_both_axes_recede_with_backfill(self):
+        tm = self._build({
+            (2, 2): TileState.BUILDABLE,    # the starting pocket (section 0,0)
+            (4, 2): TileState.COMBAT,       # the chunk we buy (section 1,0)
+            (10, 2): TileState.SPAWNING,    # east band — row-aligned
+            (4, 12): TileState.SPAWNING,    # south band — col-aligned
+        })
+        self.assertTrue(tm.do_unlock(tm.get(4, 2)))
+        for c, r in ((4, 2), (5, 2), (4, 3), (5, 3)):
+            self.assertEqual(tm.get(c, r).state, TileState.BUILDABLE)
+        # both bands converted...
+        for ac, ar in ((10, 2), (4, 12)):
+            for dc in range(2):
+                for dr in range(2):
+                    self.assertEqual(tm.get(ac + dc, ar + dr).state,
+                                     TileState.COMBAT, (ac, ar))
+        # ...and each backfilled a background block: net spawning count is
+        # conserved (8 tiles before, 8 after)
+        self.assertEqual(len(tm.spawning_tiles()), 8)
+
+    def test_axis_without_aligned_band_is_skipped(self):
+        tm = self._build({
+            (2, 2): TileState.BUILDABLE,
+            (4, 2): TileState.COMBAT,
+            (10, 2): TileState.SPAWNING,   # east band only — nothing southward
+        })
+        self.assertTrue(tm.do_unlock(tm.get(4, 2)))
+        for dc in range(2):
+            for dr in range(2):
+                self.assertEqual(tm.get(10 + dc, 2 + dr).state,
+                                 TileState.COMBAT)
+        # exactly ONE conversion + ONE backfill — the y axis did nothing
+        self.assertEqual(len(tm.spawning_tiles()), 4)
+
+    def test_backfill_picks_closest_background_block(self):
+        # The backfill is the background 2×2 CLOSEST to the just-converted
+        # spawn block — even when it lies IN FRONT of the band (the old rule
+        # forced a Chebyshev ring ≥ the band's, i.e. strictly behind).
+        # Layout per row: bb cc ff ss c fff — the front 'f' block (cols 4-5,
+        # d²=4 from the band) beats the behind one (cols 9-10, d²=9).
+        rows = ["bbccffsscfff"] * 4
+        doc = tilemap.TileMapDoc(
+            map_id="synthfront", display_name="Synth Front", cols=12, rows=4,
+            legend={}, terrain=[list(r) for r in rows],
+            base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
+            start_area={"col": 0, "row": 0, "slot": "start_area"})
+        tm = TileMap(doc, BALANCE)
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))
+        for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):   # band → COMBAT
+            self.assertEqual(tm.get(c, r).state, TileState.COMBAT)
+        for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):   # closest bg → SPAWNING
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING)
+        self.assertEqual(tm.get(9, 0).state, TileState.BACKGROUND)  # not behind
+
+    def test_diagonal_band_recedes_once_when_aligned_both_ways(self):
+        # ONE spawning block aligned with BOTH the chunk's row band and its
+        # col band (any such block overlaps the chunk corner): the x pass
+        # converts it; the y pass must NOT double-process it (COMBAT by then)
+        # — exactly one backfill.
+        tm = self._build({
+            (2, 2): TileState.BUILDABLE,
+            (4, 2): TileState.COMBAT,      # chunk; paints (5,3) too...
+            (5, 3): TileState.SPAWNING,    # ...then this block claims it back
+        })
+        self.assertTrue(tm.do_unlock(tm.get(4, 2)))
+        # the whole spawn block is COMBAT now (incl. the shared chunk tile)
+        for c, r in ((5, 3), (6, 3), (5, 4), (6, 4)):
+            self.assertEqual(tm.get(c, r).state, TileState.COMBAT, (c, r))
+        # one conversion → one backfill
+        self.assertEqual(len(tm.spawning_tiles()), 4)
+
+
+class TestZoneVisualOverrides(unittest.TestCase):
+    """Runtime zone changes must show on the ground: `set_tile_state` records
+    the tile's new zone code in `terrain_overrides` (consumed by the host's
+    `band_render_items(code_overrides=…)`) and fires `on_zone_change` — while
+    the shared map doc stays pristine for the next fresh game."""
+
+    def test_fresh_map_has_no_overrides(self):
+        tm = make_tilemap()
+        self.assertEqual(tm.terrain_overrides, {})
+
+    def test_unlock_and_recede_record_all_zone_codes(self):
+        tm = make_tilemap()
+        fired = []
+        tm.on_zone_change = lambda: fired.append(True)
+        doc_terrain_before = ["".join(r) for r in tm._doc.terrain]
+        tm.do_unlock(tm.get(3, 1))
+        expected = {}
+        for pos in ((3, 1), (4, 1)):                              # unlocked
+            expected[pos] = "b"
+        for pos in ((10, 1), (11, 1), (10, 2), (11, 2),           # x recede
+                    (3, 10), (4, 10), (3, 11), (4, 11)):          # y recede
+            expected[pos] = "c"
+        for pos in ((14, 1), (15, 1), (14, 2), (15, 2),           # x backfill
+                    (3, 14), (4, 14), (3, 15), (4, 15)):          # y backfill
+            expected[pos] = "s"
+        self.assertEqual(tm.terrain_overrides, expected)
+        self.assertEqual(len(fired), len(expected))   # one ping per write
+        # the doc itself is untouched — a fresh TileMap starts pristine
+        self.assertEqual(["".join(r) for r in tm._doc.terrain],
+                         doc_terrain_before)
+
+    def test_built_state_never_writes_an_override(self):
+        tm = make_tilemap()
+        tm.set_tile_state(tm.get(2, 1), TileState.BUILT)  # place on buildable
+        self.assertEqual(tm.terrain_overrides, {})
+
+    def test_revert_to_painted_code_drops_the_override(self):
+        tm = make_tilemap()
+        t = tm.get(3, 1)   # painted 'c'
+        tm.set_tile_state(t, TileState.BUILDABLE)
+        self.assertEqual(tm.terrain_overrides[(3, 1)], "b")
+        tm.set_tile_state(t, TileState.COMBAT)
+        self.assertNotIn((3, 1), tm.terrain_overrides)
 
 
 class TestStateIndexConsistency(unittest.TestCase):
@@ -172,18 +394,21 @@ class TestFind2x2WindowedMatchesFullScan(unittest.TestCase):
         return TileMap(doc, BALANCE)
 
     @staticmethod
-    def _full_scan(tm, predicate, ref_col, ref_row, min_ring=None):
+    def _full_scan(tm, predicate, ref_col, ref_row,
+                   c_bounds=None, r_bounds=None):
         """The pre-optimisation whole-map scan, inlined here as the oracle."""
         best, best_d = None, float("inf")
         for r in range(tm.rows - 1):
             for c in range(tm.cols - 1):
+                if c_bounds is not None and not c_bounds[0] <= c <= c_bounds[1]:
+                    continue
+                if r_bounds is not None and not r_bounds[0] <= r <= r_bounds[1]:
+                    continue
                 block = [tm.get(c, r), tm.get(c + 1, r),
                          tm.get(c, r + 1), tm.get(c + 1, r + 1)]
                 if any(t is None or not predicate(t) for t in block):
                     continue
                 cc, rr = c + 0.5, r + 0.5
-                if min_ring is not None and max(cc, rr) < min_ring:
-                    continue
                 d = (cc - ref_col) ** 2 + (rr - ref_row) ** 2
                 if d < best_d:
                     best_d, best = d, block
@@ -198,27 +423,46 @@ class TestFind2x2WindowedMatchesFullScan(unittest.TestCase):
             for dr in range(2):
                 tm.set_tile_state(tm.get(anchor_c + dc, anchor_r + dr), state)
 
-    def test_matches_full_scan_across_refs_and_min_ring(self):
+    def test_matches_full_scan_across_refs(self):
         tm = self._build_big(40, 40)
         # A few sparse SPAWNING 2×2 blocks scattered across the map, including
         # near-far and equal-distance candidates around a couple of references.
         for ac, ar in [(4, 4), (30, 6), (6, 30), (34, 34), (18, 18), (20, 18)]:
             self._paint_block(tm, ac, ar, TileState.SPAWNING)
         pred = lambda t: t.state == TileState.SPAWNING
-        cases = [
-            (5, 5, None), (19, 18, None), (33, 33, None), (19, 5, None),
-            (2, 2, None), (19, 18, 10), (5, 5, 25), (18, 19, 20),
-        ]
-        for ref_c, ref_r, ring in cases:
-            with self.subTest(ref=(ref_c, ref_r), min_ring=ring):
-                got = tm._find_2x2(pred, ref_c, ref_r, min_ring=ring)
-                want = self._full_scan(tm, pred, ref_c, ref_r, min_ring=ring)
+        cases = [(5, 5), (19, 18), (33, 33), (19, 5), (2, 2), (18, 19)]
+        for ref_c, ref_r in cases:
+            with self.subTest(ref=(ref_c, ref_r)):
+                got = tm._find_2x2(pred, ref_c, ref_r)
+                want = self._full_scan(tm, pred, ref_c, ref_r)
                 self.assertEqual(self._coords(got), self._coords(want))
 
     def test_matches_full_scan_when_no_block_qualifies(self):
         tm = self._build_big(40, 40)  # no SPAWNING blocks painted
         pred = lambda t: t.state == TileState.SPAWNING
         self.assertIsNone(tm._find_2x2(pred, 20, 20))
+
+    def test_matches_full_scan_with_anchor_clamp_bounds(self):
+        # the dual-axis recede's axis strips: anchor col/row clamped to an
+        # inclusive range must give the oracle's answer, including when the
+        # clamp excludes every block (None, without scanning the whole map)
+        tm = self._build_big(40, 40)
+        for ac, ar in [(4, 4), (30, 6), (6, 30), (34, 34), (18, 18), (20, 18)]:
+            self._paint_block(tm, ac, ar, TileState.SPAWNING)
+        pred = lambda t: t.state == TileState.SPAWNING
+        cases = [
+            {"r_bounds": (3, 6)},          # x-axis strip holding two blocks
+            {"c_bounds": (17, 21)},        # y-axis strip holding two blocks
+            {"r_bounds": (10, 12)},        # strip with NO qualifying block
+            {"c_bounds": (0, 39)},         # clamp covering everything
+            {"c_bounds": (17, 21), "r_bounds": (3, 20)},   # both axes
+        ]
+        for bounds in cases:
+            for ref_c, ref_r in ((5, 5), (19, 18), (2, 35)):
+                with self.subTest(bounds=bounds, ref=(ref_c, ref_r)):
+                    got = tm._find_2x2(pred, ref_c, ref_r, **bounds)
+                    want = self._full_scan(tm, pred, ref_c, ref_r, **bounds)
+                    self.assertEqual(self._coords(got), self._coords(want))
 
     def test_equal_distance_picks_row_major_first(self):
         # Two qualifying blocks equidistant from the reference: the full scan

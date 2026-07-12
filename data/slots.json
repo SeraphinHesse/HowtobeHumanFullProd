@@ -519,6 +519,12 @@
           "slots": [
             "camera_startpoint"
           ]
+        },
+        {
+          "label": "Start Area",
+          "slots": [
+            "start_area"
+          ]
         }
       ],
       "key": "core"

@@ -82,7 +82,10 @@ These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only he
 - **No full-map scans on routine actions** — `_find_2x2` (spawn-recede) uses an
   expanding-window search, byte-identical to the old full scan.
 - **Ground terrain draws through the scrolling `GroundCache`**, fed the
-  `band_render_items` diagonal-strip emitter (NOT `visible_render_items`).
+  `band_render_items` diagonal-strip emitter (NOT `visible_render_items`),
+  with `TileMap.terrain_overrides` as `code_overrides` so unlock/recede zone
+  changes show; `tile_map.on_zone_change = ground_cache.invalidate` (wired in
+  `build_gameplay`) repaints the cache once per zone change, never per frame.
 - **GC is frozen after `build_gameplay`** (`freeze_static`), gated to windowed runs
   (`tune_gc`) — headless boots must not have GC state mutated.
 - Open frontier (not yet done): per-spawn Dijkstra in `Enemy.on_spawn` → a shared

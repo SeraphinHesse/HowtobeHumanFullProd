@@ -33,7 +33,11 @@ engine task; if an engine change forces a caller change, tell the user
   counts/lengths vs dims, bounds, id == filename stem). NO game vocabulary: terrain
   cells are single chars resolved through the map file's own schema-pinned `legend`
   (`defaults_from_schema` digs the canonical legend/base slot out of
-  `map_file.schema.json`'s consts — schemas over convention).
+  `map_file.schema.json`'s consts — schemas over convention). `TileMapDoc` also
+  carries the nullable single-object markers `camera_start` and `start_area`
+  (the 2×2 starting area's min corner; bounds cross-checked in `validate_doc`);
+  **the emitters deliberately never render `start_area`** — the game doesn't
+  draw it and the editor draws a pure 2×2 outline via `submit_overlay_lines`.
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never
@@ -51,7 +55,10 @@ engine task; if an engine change forces a caller change, tell the user
       addressed by rotated iso coords `d = col−row`, `s = col+row`, for a thin
       diagonal on-screen strip (the ground cache's scroll-fill; a rectangular
       window for such a strip balloons to the whole viewport). See
-      `engine/render/CLAUDE.md` "Ground layer cache".
+      `engine/render/CLAUDE.md` "Ground layer cache". Optional
+      `code_overrides={(col,row): code}` consults the caller's RUNTIME zone
+      state before `doc.terrain` (the game's unlock/recede visuals) so the doc
+      stays pristine; overrides resolve through the same legend/checker rule.
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).
