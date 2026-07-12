@@ -63,6 +63,9 @@ class CheatMenu:
 
     def open(self):
         self.visible = True
+        # Fresh input state on every open (prototype clears _buf/_active).
+        self.round_text = ""
+        self.field_focused = False
 
     def close(self):
         self.visible = False

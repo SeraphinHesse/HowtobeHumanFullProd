@@ -448,9 +448,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 pan_from = None
             elif event.type == pygame.MOUSEMOTION and (
                     event.buttons[2] or (event.buttons[0] and pan_from is not None)):
+                if gp["cheat"].visible:  # 10H: open menu swallows drag-pan
+                    continue
                 cs.pan(-event.rel[0], -event.rel[1])  # left/right-drag: map follows
                 cs.clamp(view_w, view_h)
             elif event.type == pygame.MOUSEWHEEL and event.y:
+                if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
+                    continue
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = pygame.mouse.get_pos()
@@ -497,6 +501,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # mirror a fresh game over up to the shell (never while PAUSED)
             if (st == GameState.GAMEPLAY
                     and session.state.state == GameState.GAME_OVER):
+                gp["cheat"].close()  # 10H: never hide the game-over screen
                 shell.enter_game_over()
             gp["hud"].update(dt, mx, my, session, gp["panel"])
             gp["panel"].hover(mx, my)

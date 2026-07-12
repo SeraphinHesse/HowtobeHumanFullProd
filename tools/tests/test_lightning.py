@@ -467,6 +467,20 @@ class TestCheatMenuActions(unittest.TestCase):
         menu.round_text = "0"                              # n < 1
         self.assertIsNone(menu._commit())
 
+    def test_reopen_resets_the_round_field(self):
+        # Review finding: open() must clear the input state every time
+        # (prototype clears _buf/_active on open).
+        menu = CheatMenu(1280, 720)
+        menu.open()
+        menu.hit(*self._center(menu.field_rect))
+        menu.handle_key("4", None)
+        menu.handle_key("2", None)
+        self.assertEqual(menu.round_text, "42")
+        menu.close()
+        menu.open()
+        self.assertEqual(menu.round_text, "")
+        self.assertFalse(menu.field_focused)
+
     def test_escape_closes_and_all_other_keys_swallowed(self):
         menu = CheatMenu(1280, 720)
         menu.open()

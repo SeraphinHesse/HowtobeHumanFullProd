@@ -103,6 +103,11 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
 The level-up window backdrop is OPAQUE — the HUD pass has no per-pixel alpha, the
 same limit that deferred 9H's pause dim (10J). The XP bar/floaters drop the
 prototype's mascot face + `xp_icon`, which has no slot in `data/slots.json` (10J).
+Lightning FX are NOT force-cleared at `_begin_round_end` (the prototype clears
+`_lightning_effects` there, `game.py:943`): like the mortar craters, the
+`"lightning_fx"` objects simply age out in the scene (`MARKER_LIFE` 1.0s ≈ the
+crater's `CRATER_LIFE`), so a strike landed in the final combat instant lingers
+≤0.4s into REBUILDING — the same accepted behavior craters already have (10H).
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
