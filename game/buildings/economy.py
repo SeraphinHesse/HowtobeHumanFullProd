@@ -16,8 +16,20 @@ class EconomyBuilding(Building):
         return [YieldEconomy()]
 
     def yield_amount(self):
-        """Love produced per income phase (prototype ``EconomicBuilding``). Tile
-        condition + boss modifiers apply on read in the prototype; those land
-        with tile conditions (10I) — here it is the flat tier/level value."""
+        """Love produced per income phase (prototype ``EconomicBuilding``),
+        modified ON READ by the tile condition (10I, prototype
+        ``economic_building.py:26-31``): mountain −10% (clamped ≥ 0), pond /
+        forest +10%. Every consumer (payday income sweep, HUD income line,
+        panel Yield row) sees the modified value. Meditator and Painter
+        OVERRIDE this method and take no condition modifier (prototype)."""
         d = self.tier_data()
-        return d["base_yield"] + self._lvl_idx * d["yield_per_level"]
+        y = d["base_yield"] + self._lvl_idx * d["yield_per_level"]
+        # -- 10I: tile-condition yield modifiers --
+        pen = self._condition_mod("eco_yield_penalty")
+        if pen:
+            y = max(0, int(y * (1.0 - pen)))
+        bonus = self._condition_mod("eco_yield_bonus")
+        if bonus:
+            y = int(y * (1.0 + bonus))
+        # -- /10I --
+        return y

@@ -230,6 +230,7 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
             return
+        self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)

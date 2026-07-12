@@ -22,18 +22,22 @@ from game.buildings.research import buildable
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
-from game.map.tiles import TileState
+from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .widgets import (
     C_GOLD, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE, C_RANGE_HIGHLIGHT,
-    C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, HEART, Button, contains,
-    submit_panel, submit_tile_diamond, submit_text,
+    C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, COND_LABELS, HEART,
+    Button, contains, submit_panel, submit_tile_diamond, submit_text,
+    text_h, text_size,
 )
 
 # -- 10H: lightning + cheat menu --
 _LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
 _LIGHTNING_BTN_Y = 370             # unlock/upgrade button row (below the stats)
 # -- /10H --
+# 10I: tooltip chrome — dark panel, 1px border in the condition colour
+# (prototype building_ui.py:1440-1455).
+_COND_TOOLTIP_BG = (20, 15, 35)
 
 
 def _building_stats(b):
@@ -42,7 +46,10 @@ def _building_stats(b):
     rows = [("HP", b.max_hp())]
     if hasattr(b, "damage"):            # defence family
         rows.append(("Damage", b.damage()))
-        rows.append(("Range", b.range_tiles()))
+        # 10I: the Range row shows the EFFECTIVE (mountain-boosted) range,
+        # duck-typed so pre-10I stubs without the method keep working.
+        rows.append(("Range",
+                     getattr(b, "effective_range_tiles", b.range_tiles)()))
         rows.append(("Atk speed", f"{b.attack_speed():.1f}s"))
         rows.append(("Upkeep", b.upkeep()))
         # 10D: a booster is lifting these — show the un-boosted base for contrast.
@@ -234,6 +241,11 @@ class BuildingUI:
         # -- 10H --
         self.lightning_btn = None  # base_info mode only; None at max level
         # -- /10H --
+        # -- 10I: terrain badge hover/tooltip state --
+        self._cond_badge_rect = None    # last-submitted badge rect (hit probe)
+        self._cond_hover = False
+        self._cond_tooltip = None       # (condition, color, rect, above)
+        # -- /10I --
 
     # -- open / close -----------------------------------------------------
 
@@ -258,6 +270,11 @@ class BuildingUI:
         # -- 10H --
         self.lightning_btn = None
         # -- /10H --
+        # -- 10I: terrain badge state resets with the panel --
+        self._cond_badge_rect = None
+        self._cond_hover = False
+        self._cond_tooltip = None
+        # -- /10I --
 
     def open_for_tile(self, tile, session, buildings_balance):
         self.close()
@@ -395,7 +412,11 @@ class BuildingUI:
 
     def _set_range_highlight(self, b, tilemap):
         hl = [(b.col, b.row, C_HIGHLIGHT)]
-        rfn = getattr(b, "range_tiles", None)
+        # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
+        # range — a consumption site of the effective value (prototype
+        # game.py:578-581); pathfinding coverage stays on the raw range.
+        rfn = getattr(b, "effective_range_tiles",
+                      getattr(b, "range_tiles", None))
         if rfn is not None:
             r = int(rfn())
             for dc in range(-r, r + 1):
@@ -410,6 +431,13 @@ class BuildingUI:
 
     def hover(self, mx, my):
         self._hover_cost = None
+        # -- 10I: terrain badge hover (rect inflated 4px, prototype
+        # building_ui.py:1121-1130); off while the modal preview is open --
+        r = self._cond_badge_rect
+        self._cond_hover = (
+            self.preview is None and r is not None
+            and contains((r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8), mx, my))
+        # -- /10I --
         if self.preview is not None:
             self.preview.hover(mx, my)
             if self.preview.confirm_hovered():
@@ -566,6 +594,11 @@ class BuildingUI:
             submit_tile_diamond(renderer, col, row, color)
         if not self.visible:
             return
+        # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
+        # badge, so a mode without a badge must clear last frame's rect) --
+        self._cond_badge_rect = None
+        self._cond_tooltip = None
+        # -- /10I --
         submit_panel(renderer, self.panel_rect)
         self.close_btn.submit(renderer)
         if self.mode == "unlock":
@@ -576,6 +609,11 @@ class BuildingUI:
             self._submit_upgrade(renderer)
         elif self.mode == "base_info":
             self._submit_base_info(renderer, session)
+        # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
+        # (prototype building_ui.py:1121-1130) --
+        if self._cond_hover and self._cond_tooltip is not None:
+            self._submit_cond_tooltip(renderer, *self._cond_tooltip)
+        # -- /10I --
         if self.preview is not None:
             self.preview.submit(renderer)
 
@@ -588,17 +626,32 @@ class BuildingUI:
             submit_text(renderer, "Must touch your territory", (x, 196), "sm",
                         C_UI_TEXT_DIM)
         self.action_btn.submit(renderer)
+        # -- 10I: tile terrain footer badge (tooltip above) --
+        self._submit_cond_badge(renderer, self.tile.condition,
+                                self.view_h - 40, above=True)
+        # -- /10I --
 
     def _submit_construct(self, renderer):
         submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", C_UI_TEXT)
         for _, btn in self.cards:
             btn.submit(renderer)
+        # -- 10I: tile terrain footer badge (tooltip above) --
+        self._submit_cond_badge(renderer, self.tile.condition,
+                                self.view_h - 40, above=True)
+        # -- /10I --
 
     def _submit_upgrade(self, renderer):
         x, b = self.panel_x + 14, self._selected
         title = _tier_name(b)
         submit_text(renderer, title, (x, 12), "lg", C_UI_TEXT)
         submit_text(renderer, f"Level {b.level}", (x, 46), "md", C_UI_TEXT_DIM)
+        # -- 10I: terrain badge below the Level row (ALWAYS shown incl. Grass),
+        # reading the building's placement snapshot; tooltip below the badge --
+        self._submit_cond_badge(
+            renderer,
+            getattr(b, "_tile_condition", None) or TileCondition.GRASS,
+            66, above=False)
+        # -- /10I --
         y = 92
         for label, value in _building_stats(b):
             submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
@@ -620,6 +673,77 @@ class BuildingUI:
             bx, by, bw, bh = self.action_btn.rect
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
                         "sm", C_UI_TEXT_DIM, align="center")
+
+    # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
+    # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
+
+    def _tile_cond_effect_lines(self, condition):
+        """Human copy for a condition's effects, values read LIVE from the map
+        balancing. Prototype-exact: the enemy dmg/speed effects are
+        deliberately NOT listed."""
+        if condition == TileCondition.GRASS:
+            return ["No terrain effect"]
+        mods = self._session.tilemap.balance["TileConditions"]["modifiers"]
+        m = mods.get(CONDITION_MODIFIER_KEY.get(condition), {})
+        lines = []
+        if m.get("def_range_bonus"):
+            lines.append(f'+{m["def_range_bonus"]} range for defenders')
+        if m.get("def_attack_speed_penalty"):
+            lines.append(
+                f'-{m["def_attack_speed_penalty"] * 100:.0f}% atk speed'
+                ' for defenders')
+        if m.get("def_dmg_penalty"):
+            lines.append(
+                f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
+        if m.get("eco_yield_penalty"):
+            lines.append(
+                f'-{m["eco_yield_penalty"] * 100:.0f}% {HEART}/round'
+                ' for economy')
+        if m.get("eco_yield_bonus"):
+            lines.append(
+                f'+{m["eco_yield_bonus"] * 100:.0f}% {HEART}/round'
+                ' for economy')
+        return lines or ["No terrain effect"]
+
+    def _submit_cond_badge(self, renderer, condition, y, above):
+        """The ``Terrain: <Label>`` pill, centred in the panel, in the
+        condition colour. Records its rect (the hover probe) and the pending
+        tooltip — drawn last by ``submit`` so it sits on top."""
+        from engine.render import HudRect  # local: keep module imports lean
+
+        label, color = COND_LABELS[condition.name]
+        text = f"Terrain: {label}"
+        w = text_size(text, "sm")[0] + 16
+        h = text_h("sm") + 8
+        x = self.panel_x + (self.panel_w - w) // 2
+        rect = (x, y, w, h)
+        self._cond_badge_rect = rect
+        renderer.submit_hud(HudRect(rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(rect, color, width=1))
+        submit_text(renderer, text, (x + 8, y + 4), "sm", color)
+        self._cond_tooltip = (condition, color, rect, above)
+
+    def _submit_cond_tooltip(self, renderer, condition, color, badge_rect,
+                             above):
+        """The effect tooltip: dark panel, 1px border in the condition colour,
+        centred horizontally on the panel, above or below the badge."""
+        from engine.render import HudRect
+
+        lines = self._tile_cond_effect_lines(condition)
+        lh = text_h("sm") + 4
+        w = max(text_size(t, "sm")[0] for t in lines) + 16
+        h = lh * len(lines) + 10
+        bx, by, bw, bh = badge_rect
+        x = self.panel_x + (self.panel_w - w) // 2
+        y = by - h - 6 if above else by + bh + 6
+        renderer.submit_hud(HudRect((x, y, w, h), _COND_TOOLTIP_BG))
+        renderer.submit_hud(HudRect((x, y, w, h), color, width=1))
+        ty = y + 5
+        for t in lines:
+            submit_text(renderer, t, (x + 8, ty), "sm", C_UI_TEXT)
+            ty += lh
+
+    # -- /10I ---------------------------------------------------------------
 
     def _submit_base_info(self, renderer, session):
         x, st = self.panel_x + 14, session.state

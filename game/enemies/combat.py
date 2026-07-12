@@ -315,7 +315,12 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
         return
 
     center = (defender.col, defender.row)
-    rng = defender.range_tiles()
+    # 10I: targeting uses the building's TARGETING range (effective mountain
+    # +1 for basic defence; RAW for the mortar — prototype inconsistency, see
+    # DefenceBuilding.targeting_range_tiles). The raw range_tiles() keeps
+    # feeding pathfinding coverage + the RANGE overlay. Guarded so bare-bones
+    # defender stubs in tests keep working.
+    rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
     in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
 
     target = getattr(attacker, "_target", None)
@@ -350,7 +355,9 @@ def _update_beam(defender, enemies, dt, dmg_bonus=0):
     attacker = defender.get_component(Attacker)
     beam = defender.get_component(BeamAttacker)
     center = (defender.col, defender.row)
-    rng = defender.range_tiles()
+    # 10I: targeting range (= effective, mountain-boosted, for the beam),
+    # guarded for stubs.
+    rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
     in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
 
     if beam.death_cooldown > 0:

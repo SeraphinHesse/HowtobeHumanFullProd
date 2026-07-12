@@ -14,7 +14,7 @@ math is map-driven. Pure Python — no pygame.
 from dataclasses import dataclass
 
 from game.core.balance import load_balance
-from .tiles import Tile, TileState
+from .tiles import Tile, TileCondition, TileState
 
 
 @dataclass
@@ -61,7 +61,7 @@ def load_map_balance(data_dir):
 
 
 class TileMap:
-    def __init__(self, doc, balance):
+    def __init__(self, doc, balance, rng=None):
         self._doc = doc
         self._balance = balance
         self.cols = doc.cols
@@ -128,6 +128,32 @@ class TileMap:
             base_tile = self.get(self.base_col, self.base_row)
             self.set_tile_state(base_tile, TileState.BUILT)
             base_tile.content_key = BASE_CONTENT_KEY
+
+        # -- 10I: tile-condition roll (prototype tile_map.py:69-91) ---------
+        # ONE weighted draw per eligible tile, ONCE at map construction —
+        # conditions never re-roll or change during a run. Ineligible (stay
+        # GRASS): BACKGROUND-at-init tiles and the starting unlocked pocket
+        # incl. the base ("so the base is always reachable"). Prototype-exact
+        # quirk carried over: a BACKGROUND tile that later recedes into play
+        # (spawn band) stays GRASS forever — the roll never revisits it.
+        # ``rng`` is BOTH the on-switch and the determinism seam: the host
+        # passes the module ``random`` (live roll) or a ``random.Random(seed)``
+        # (deterministic tests); ``None`` skips the roll entirely, keeping
+        # every pre-10I headless fixture (which asserts exact path costs on
+        # all-GRASS grids) byte-stable. One-time O(map) init pass — NOT a
+        # per-frame scan (perf invariant).
+        if rng is not None:
+            chances = balance["TileConditions"]["spawn_chances"]
+            conds = (TileCondition.GRASS, TileCondition.MOUNTAIN,
+                     TileCondition.POND, TileCondition.FOREST)
+            weights = [chances["grass"], chances["mountain"],
+                       chances["pond"], chances["forest"]]
+            for t in self.all_tiles():
+                if (t.state == TileState.BACKGROUND
+                        or self._is_unlocked_state(t.state)):
+                    continue
+                t.condition = rng.choices(conds, weights=weights)[0]
+        # -- /10I --
 
     # -- balancing accessors ----------------------------------------------
 

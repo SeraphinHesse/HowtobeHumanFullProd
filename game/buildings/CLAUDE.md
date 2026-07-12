@@ -90,6 +90,45 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `WallBuilder.era_unlock_round`, like the meditator). `registry.place_building` now
   calls `building.on_placed(tilemap)` UNCONDITIONALLY (a `Building` base no-op hook —
   boost + wall-builder override it), replacing the boost-only special-case.
+- **10I tile conditions** — snapshot at placement, computed on read:
+  - `registry.place_building` stamps two E-11 transients after
+    `tile.occupant = building`: `_tile_condition` (the tile's rolled condition)
+    + `_condition_mods` (the `TileConditions.modifiers` subtree), then
+    re-applies stats so the RangeSensor sees the snapshot. Defaults (`None`,
+    `{}`) keep `create()` previews / headless tests neutral; the base building
+    bypasses `Building.__init__` and never gets the attrs (always
+    GRASS-neutral). `Building._condition_mod(key)` is the one lookup helper
+    (lazy `game.map.tiles` import — a module-level one would close the
+    `game.buildings.__init__` → `game.map` → `game.core` →
+    `game.buildings.research` cycle).
+  - **Defence formula order is prototype-exact: boost → condition → explosion
+    debuffs (→ floor)**: `damage()` inserts the FOREST `def_dmg_penalty` cut
+    between the boost multiply and the debuff halving; `attack_speed()` inserts
+    the POND `def_attack_speed_penalty` slow the same way. **Raw vs effective
+    range split**: `range_tiles()` stays RAW (feeds pathfinding coverage + the
+    RANGE overlay); NEW `effective_range_tiles()` adds the MOUNTAIN
+    `def_range_bonus` (feeds the panel Range row + the selection highlight);
+    NEW `targeting_range_tiles()` is what the combat sweep + RangeSensor use —
+    effective for basic/beam, but **RAW for the mortar** (selected by its
+    `SplashAttacker` marker): the prototype's own `_in_range` inconsistency
+    (`aoe_defence_building.py:308` reads raw while `defence_building.py:264`
+    reads effective), kept deliberately for parity — 10J/parity audits must
+    not "fix" it. `boosted_stats()` also emits the pre-forest Damage base when
+    the cut actually changes the value (prototype gate).
+  - **Economy**: `EconomyBuilding.yield_amount` applies mountain
+    `max(0, int(y×0.9))` / pond+forest `int(y×1.1)` ON READ (payday, HUD,
+    panel all see it). Meditator + Painter override `yield_amount` and take NO
+    condition modifier (prototype-exact).
+  - **`coverage.py`** is the defence-range pathfinding producer:
+    `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range,
+    `building_type == "aoe_defence"` EXCLUDED — pathfinding-only; the RANGE
+    overlay still shows the mortar; every alive `"boost"`-tagged occupant adds
+    an r=1 square — prototype boosters carry `range_tiles = 1`, but the repo
+    booster keeps NO `range_tiles()` method so the selection highlight stays a
+    plus-shape; empty set when
+    `BuildingsGlobal.defence_range_pathfinding.enabled` is off) +
+    `wire_defence_coverage` (injects callable + weight add into the tilemap —
+    the host calls it once per run; the map layer never imports this package).
 - **`registry.py` is the factory + placement seam**: `create(building_type,…)`
   (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability

@@ -1,4 +1,4 @@
-# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G + 10H UI)
+# CLAUDE.md — game/ui (Phases 9G + 9H + 10A + 10G + 10H + 10I UI)
 
 HUD, building panel, floaters, game over, and the top-level shell/menus. You
 reached here from `game/CLAUDE.md`. When you change UI conventions, update THIS
@@ -130,6 +130,28 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   fading yellow world-space diamond sized to the real blast radius (projects
   to the prototype's 2:1 ground ellipse). The alpha impact-flash circle is 10J.
 
+## Map overlays + terrain badges (10I)
+`game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
+ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries
+no 10I diff: two persistent bottom-left toggle pills (`RANGE`/`HEATMAP`, gold
+rim + gold label when active; clicks consumed in `main.py`'s ladder between the
+End-Turn branch and the panel, `over()` feeds the pan-arming `over_ui` check),
+the world condition tint (windowed — never a full-grid scan), the RANGE overlay
+(union Chebyshev squares from RAW `range_tiles()`, mortar INCLUDED — its
+exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
+occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
+`track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
+phase edge; blue→yellow→red ramp in `heat_color`). `widgets.COND_LABELS`
+(condition label + colour, keyed by `TileCondition.name`) is shared with
+`building_ui`'s new terrain badges: a `Terrain: <Label>` pill in the upgrade
+panel (below Level, reads the building's `_tile_condition` snapshot) and at the
+unlock/construct panel foot (reads the tile), each with a hover tooltip whose
+effect lines read LIVE from `TileConditions.modifiers` (enemy effects
+deliberately unlisted, prototype-exact); the tooltip draws last/on top.
+`base_info` shows NO badge. The panel Range row + selection range highlight use
+`effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
+raw.
+
 ## Known divergences (deliberate)
 The level-up window backdrop is OPAQUE — the HUD pass has no per-pixel alpha, the
 same limit that deferred 9H's pause dim (10J). The XP bar/floaters drop the
@@ -139,6 +161,9 @@ Lightning FX are NOT force-cleared at `_begin_round_end` (the prototype clears
 `"lightning_fx"` objects simply age out in the scene (`MARKER_LIFE` 1.0s ≈ the
 crater's `CRATER_LIFE`), so a strike landed in the final combat instant lingers
 ≤0.4s into REBUILDING — the same accepted behavior craters already have (10H).
+The 10I condition tint + RANGE/HEATMAP overlays render as diamond OUTLINES
+(prototype colours verbatim, alpha dropped) — the engine overlay pass draws
+outline polylines only; alpha-filled parity lands with the 10J FX sweep.
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
