@@ -135,6 +135,20 @@ class TileMap:
         # empty anyway, so it never fires).
         self._defence_range_add = 0
 
+        # Flow-field invalidation seam (game/PERF.md): the pathfinder caches
+        # ONE shared base flow field per `_path_version`; EVERY weight or
+        # blocking mutation must bump the counter (`_bump_path_version`) or a
+        # stale cached path becomes a correctness bug. Bumpers: zone changes
+        # (`set_tile_state`), occupant/content-key writes
+        # (`set_tile_content`), wall add/remove/death (mid-HP hits keep
+        # `_wall_blocks` true, so they do NOT bump), and the two pre-query
+        # weight producers below when their flag SETS actually change. All
+        # underscore transients — TileMap is a plain class, not a GameObject.
+        self._path_version = 0
+        self._flow_cache = None
+        self._dmg_reduced_prev = set()
+        self._defence_covered_prev = set()
+
         # Seed the runtime grid from terrain codes; the base occupies its tile.
         # An incremental per-state index (`_by_state`) is built in the SAME pass:
         # `built_tiles()` / `buildable_tiles()` / `spawning_tiles()` return from
@@ -156,7 +170,7 @@ class TileMap:
         if has_base:
             base_tile = self.get(self.base_col, self.base_row)
             self.set_tile_state(base_tile, TileState.BUILT)
-            base_tile.content_key = BASE_CONTENT_KEY
+            self.set_tile_content(base_tile, None, BASE_CONTENT_KEY)
 
         # -- 10I: tile-condition roll (prototype tile_map.py:69-91) ---------
         # ONE weighted draw per eligible tile, ONCE at map construction —
@@ -205,6 +219,24 @@ class TileMap:
             return self._grid[row][col]
         return None
 
+    def _bump_path_version(self):
+        """Invalidate the pathfinder's cached base flow field. Called by every
+        weight/blocking mutation (see the `_path_version` init note); cheap —
+        the field itself rebuilds lazily on the next `find_path` query."""
+        self._path_version += 1
+
+    def set_tile_content(self, tile, occupant, content_key):
+        """THE one seam for occupant/content-key writes (building placement,
+        base attach, tile freeing — `game/buildings/registry.py` +
+        `game/core/payday.py` route through here). A tile's content key IS
+        its base pathfinding weight, so a key change invalidates the flow
+        field; occupant-only changes don't (the two pre-query weight
+        producers self-detect theirs)."""
+        tile.occupant = occupant
+        if tile.content_key != content_key:
+            tile.content_key = content_key
+            self._bump_path_version()
+
     def set_tile_state(self, tile, new_state):
         """THE one place a tile's zone/unlock state changes. Keeps the
         `_by_state` index consistent so the state queries stay O(result), and
@@ -216,6 +248,8 @@ class TileMap:
         self._by_state[tile.state].discard(tile)
         tile.state = new_state
         self._by_state[new_state].add(tile)
+        # An empty tile's path weight derives from its zone — invalidate.
+        self._bump_path_version()
         code = _STATE_CODE.get(new_state)
         if code is not None:
             if self._doc.terrain[tile.row][tile.col] == code:
@@ -451,7 +485,12 @@ class TileMap:
         """Mark the top-N damage-dealing built tiles for a weight discount so
         later waves route over them. Dormant in 9C: no occupant reports damage
         and nothing calls ``set_round`` (round gate), so this is a no-op — but
-        it is ported whole for 9F/10F to activate by wiring its producers."""
+        it is ported whole for 9F/10F to activate by wiring its producers.
+
+        Runs before EVERY pathfinder query (`_pre_query_refresh`), so it is
+        also the flow-field invalidation point for both its inputs (round
+        gate + last-round damage): the field is bumped only when the flagged
+        SET actually changes, never per query."""
         dmg_cfg = self._balance["Pathfinding"]["damage_reduction"]
         candidates = []
         for t in self.built_tiles():
@@ -464,15 +503,31 @@ class TileMap:
             dmg = getattr(occ, "damage_dealt_last_round", 0)
             if dmg > 0:
                 candidates.append((dmg, t))
-        if self.round_num <= dmg_cfg["min_round"] or not candidates:
-            return
-        candidates.sort(key=lambda dt: dt[0], reverse=True)
-        for _, t in candidates[:int(dmg_cfg["top_n"])]:
-            t.damage_weight_reduced = True
+        flagged = set()
+        if self.round_num > dmg_cfg["min_round"] and candidates:
+            candidates.sort(key=lambda dt: dt[0], reverse=True)
+            for _, t in candidates[:int(dmg_cfg["top_n"])]:
+                t.damage_weight_reduced = True
+                flagged.add((t.col, t.row))
+        if flagged != self._dmg_reduced_prev:
+            self._dmg_reduced_prev = flagged
+            self._bump_path_version()
 
     def refresh_defence_range_coverage(self, covered_set):
-        for t in self.all_tiles():
-            t.defence_range_covered = (t.col, t.row) in covered_set
+        """Mirror ``covered_set`` into the per-tile `defence_range_covered`
+        flags. Change-detected (it runs before every pathfinder query): an
+        unchanged set — the common case — is a no-op; otherwise only the
+        symmetric difference is touched and the flow field invalidates
+        (covered tiles carry a weight add, so coverage changes re-route)."""
+        covered = set(covered_set)
+        if covered == self._defence_covered_prev:
+            return
+        for col, row in covered ^ self._defence_covered_prev:
+            t = self.get(col, row)
+            if t is not None:
+                t.defence_range_covered = (col, row) in covered
+        self._defence_covered_prev = covered
+        self._bump_path_version()
 
     # -- edge walls (10E, prototype tile_map.py:152-252) ------------------
 
@@ -493,6 +548,9 @@ class TileMap:
         edge.hp -= amount
         if edge.hp <= 0:
             del self.wall_edges[key]
+            # Only the DEATH transition changes pathing (`_wall_blocks` is
+            # hp>0) — a mid-HP hit never invalidates the flow field.
+            self._bump_path_version()
             return True
         return False
 
@@ -563,12 +621,16 @@ class TileMap:
                     tile.col, tile.row, nc, nr, wall_hp, wall_hp, builder)
                 snapshot.append([tile.col, tile.row, nc, nr])
         builder.set_wall_snapshot(snapshot)
+        if snapshot:
+            self._bump_path_version()   # new blocking edges re-route paths
 
     def remove_walls_for_builder(self, builder):
         """Remove every wall owned by ``builder`` (called when it dies)."""
-        for key in [k for k, e in self.wall_edges.items()
-                    if e.owner is builder]:
+        owned = [k for k, e in self.wall_edges.items() if e.owner is builder]
+        for key in owned:
             del self.wall_edges[key]
+        if owned:
+            self._bump_path_version()   # edges opened — paths may shorten
 
     def rebuild_walls(self):
         """Restore destroyed wall segments from each alive WallBuilder's frozen
@@ -592,6 +654,9 @@ class TileMap:
                 if edge is None:
                     self.wall_edges[key] = WallEdge(
                         c1, r1, c2, r2, wall_hp, wall_hp, b)
+                    # A destroyed edge came back — blocking changed. Healing
+                    # a surviving edge (else-branch) never does (alive→alive).
+                    self._bump_path_version()
                 else:
                     edge.hp = edge.max_hp
 

@@ -102,8 +102,19 @@ Conventions that differ from the prototype (deliberate, clean-arch):
 
 ## Perf invariants that live here
 Tile-state writes MUST route through `TileMap.set_tile_state` (keeps the
-`_by_state` index consistent); `_find_2x2` uses an expanding-window search. Full
-rationale + measured numbers → `game/PERF.md`.
+`_by_state` index consistent); `_find_2x2` uses an expanding-window search.
+**Base pathfinding is a shared flow field**: `find_path` +
+`find_path_ignoring_walls` walk one cached reverse-Dijkstra field
+(`pathfinder._build_flow_field` — reverse edges cost the weight of the tile a
+forward walker would enter, so field distances equal forward costs exactly),
+keyed by `TileMap._path_version`. EVERY weight/blocking mutation must bump the
+counter: `set_tile_state`, `set_tile_content` (the ONE occupant/content-key
+seam — never write `tile.occupant`/`tile.content_key` directly from outside
+the map layer), wall add/remove/death (mid-HP wall hits don't bump —
+`_wall_blocks` is hp>0), and the two pre-query weight producers, which
+change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev`)
+and bump only on a real difference. Goal-set `find_path_to_nearest_*` variants
+stay fresh Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base

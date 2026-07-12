@@ -79,7 +79,10 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
         raise PlacementError(
             f"{building_type} costs {cost} love, have {love}")
     building = create(building_type, tile.col, tile.row, buildings_balance)
-    tile.occupant = building
+    # Occupant + content key in one write through the TileMap seam — the
+    # content key drives the tile's path weight, so the seam invalidates the
+    # pathfinder's cached flow field (see game/map/tile_map.py).
+    tilemap.set_tile_content(tile, building, building.CONTENT_KEY)
     # -- 10I: snapshot the tile condition at placement (prototype
     # ``b.tile_condition = tile.condition``, game.py:690). Conditions are
     # immutable after the map roll, so snapshot == live read. The modifiers
@@ -92,7 +95,6 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # snapshot; the full-heal inside is a no-op at placement (hp == max).
     building.apply_tier_stats()
     # -- /10I --
-    tile.content_key = building.CONTENT_KEY
     tilemap.set_tile_state(tile, TileState.BUILT)
     scene.spawn(building)
     # Only this one tile changed — update its occupancy directly instead of the
@@ -111,7 +113,9 @@ def attach_base(tilemap, base_building, scene, occupancy):
     ``base_building`` content key from ``TileMap`` construction), spawn it, and
     sync occupancy. The 9C↔9D base contract."""
     tile = tilemap.get(tilemap.base_col, tilemap.base_row)
-    tile.occupant = base_building
+    # Content key is already BASE_CONTENT_KEY (unchanged → no path-cache
+    # invalidation); the seam just records the occupant.
+    tilemap.set_tile_content(tile, base_building, tile.content_key)
     scene.spawn(base_building)
     # Single-tile occupancy update (see place_building) — no full-map scan.
     occupancy.set((tile.col, tile.row), base_building)

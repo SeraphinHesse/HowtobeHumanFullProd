@@ -50,8 +50,9 @@ def _free_tile(tilemap, tile, occupancy, scene):
     scene (unlike the prototype, buildings are live scene objects); occupancy is
     cleared. Both ``occupancy`` and ``scene`` are optional for logic tests."""
     building = tile.occupant
-    tile.occupant = None
-    tile.content_key = None
+    # Through the TileMap seam: clearing the content key changes the tile's
+    # path weight, which must invalidate the pathfinder's cached flow field.
+    tilemap.set_tile_content(tile, None, None)
     tilemap.set_tile_state(tile, TileState.BUILDABLE)
     if occupancy is not None:
         occupancy.clear((tile.col, tile.row))
