@@ -79,6 +79,14 @@ class RunState:
     boss_love_snapshot: int = 0
     pending_boss_cutscene: object = None
     boss_events: list = field(default_factory=list)
+    # -- 10J: game log + gore -----------------------------------------------
+    # Two more drained-by-UI ledgers (the ``income_events`` contract):
+    # ``log_events`` holds plain message strings for the fading game log;
+    # ``enemy_death_events`` holds ``(wx, wy)`` death positions the splatter
+    # layer consumes (filled by the Session death/base-hit callbacks).
+    log_events: list = field(default_factory=list)
+    enemy_death_events: list = field(default_factory=list)
+    # -- /10J --
     # -- 10H: lightning + cheat menu ---------------------------------------
     # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 1:
     # the prototype's __init__ sets lightning_level = 1 (game.py:117) and
