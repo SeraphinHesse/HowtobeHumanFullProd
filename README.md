@@ -20,3 +20,26 @@ Start here:
 
 Setup: `pip install -r requirements.txt` (Python 3.11+).
 Nothing is runnable yet — see PLAN.md phase status.
+
+## Code graph (Graphify) — optional, recommended
+
+A queryable knowledge graph of `engine/` · `game/` · `editor/` · `tools/`
+(~5k symbols), built locally from tree-sitter ASTs — no LLM, no API key. Use it
+to find where something lives and what it touches, instead of grepping:
+
+```bash
+graphify explain "place_building()"     # a symbol's callers/callees
+graphify path "BaseBuilding" "TileMap"  # how two symbols connect
+graphify affected "BaseBuilding"        # blast radius before a change
+```
+
+The graph itself (`graphify-out/`) is **generated and gitignored** — everyone
+builds their own, so it always matches your checkout. First-time setup:
+
+```bash
+uv tool install git+https://github.com/Graphify-Labs/graphify.git
+graphify hook install                      # rebuilds the graph on each commit
+graphify extract . --code-only && graphify cluster-only . --no-label
+```
+
+Full agent-facing rules → [`CLAUDE.md`](CLAUDE.md) "Step 0".
