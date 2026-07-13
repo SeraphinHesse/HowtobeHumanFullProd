@@ -31,17 +31,70 @@ skill.**
   died) re-run `find_path_to_nearest_building` from the current tile, reload
   waypoints, re-derive `goal_is_base` (the prototype boss's `_repath`-after-kill
   mapped onto block-and-attack).
-- **Death swarm**: `Spawner.spawn_death_swarm(scene, col, row, era)` bursts
-  `Boss.death_spawns[era]` standard/raider/siege IMMEDIATELY into the scene at
-  the boss tile, at the CURRENT tier (standard+siege scale; raiders never).
-  Driven by the Session (stash in `on_enemy_death`, flushed in `post_sim`
-  BEFORE the wave-clear check); quick-skip / lives-wipe despawns spawn nothing.
+- **Death swarm — since ER-3 just ONE instance of the generalised
+  `death_spawn`** (below). The boss ships `at_hp_fraction: 0.0` +
+  `spawn_hp_fraction: 1.0` + `enabled: true` and its 5 per-era rows moved
+  verbatim to `Boss.death_spawn.spawns`, so the 10G burst is byte-identical:
+  same counts, same tile, same CURRENT tier (standard+siege scale; raiders
+  never), children at full HP. `Boss` itself is now just `_resolve_era` +
+  `_resolve_stats` + `on_spawn` + `era` — its `__init__` is gone.
 - **No tier scaling on the boss** — `Boss._resolve_stats` reads
   `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
 
 ## Rules
+- **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
+  `EnemyTypes/<type>` block carries a **required** `death_spawn`
+  (`at_hp_fraction` / `enabled` / `spawn_hp_fraction` / `spawns`); it is
+  resolved at CONSTRUCTION into the `DeathSpawn` component (which absorbed
+  10G's `BossState`), exactly like `Health.max_hp`.
+  - **D4 — "breaking formation IS dying."** `Enemy.alive` is
+    `hp > max_hp * at_hp_fraction`, and that is the ONE evaluation site: a unit
+    that crosses its threshold is dead in the full existing sense (despawned by
+    `resolve_combat`, XP awarded, splatter queued, kill counted). There is **no
+    separate "break" state and no second state machine** — a Formation that
+    scatters at half health just ships `at_hp_fraction: 0.5`. At the default
+    `0.0` this is exactly `not Health.is_dead` (`hp <= 0`), so every pre-ER-3
+    type is byte-identical. `Health.is_dead` itself is UNCHANGED (buildings
+    still use it; they carry no `DeathSpawn`).
+  - **`spawns` is an ARRAY of per-era rows, never a union.** It is resolved
+    `spawns[min(max(era, 0), len(spawns) - 1)]` — the Boss carries 5 rows
+    (index-aligned with its `stats`), a non-era type carries 1 and always
+    clamps to row 0. The "flat map" form is just the 1-row case. **A schema
+    `oneOf` here is unimplementable**: `editor/panels/balancing.py` reads
+    `prop.get("type")` and a type-less node raises `no widget for schema`,
+    crashing the balancing panel for the whole enemies domain. Do not
+    reintroduce one.
+  - **`enabled: false`** ⇒ dies normally, spawns nothing (the three stock
+    non-boss types). Required-not-optional because `data/` is the only value
+    store (no code-side `.get()` default) and the editor panel skips schema
+    keys absent from the doc — an optional block would be invisible to the
+    designer.
+  - **Duck-typed contract read by `Session.on_enemy_death`** (game/core imports
+    NOTHING from here): `death_spawn_plan` (a plain `{counts,
+    spawn_hp_fraction}` dict, or `None` when not enabled), `death_spawned`
+    (read property) and **`mark_death_spawned()` — a METHOD**, because the E-11
+    `GameObject.__setattr__` guard intercepts public property setters. The
+    Session stashes the plan **opaquely** and hands it straight back to
+    `Spawner.spawn_death_swarm(scene, col, row, plan)` without indexing into it.
+  - **Footgun**: a `spawn_hp_fraction` at or below a child type's own
+    `at_hp_fraction` makes the children die on the frame they appear — and
+    chain, if that child also has an enabled `death_spawn`. There is
+    deliberately NO runtime guard: data is the source of truth and the editor's
+    0..1 spinbox bounds are the fence. The schema description says so.
+  - **KNOWN LIMITATION — a death on the wave's LAST frame ends the round before
+    its children appear.** The Session flushes the burst in `post_sim` before the
+    wave-clear check, but `Scene.spawn()` only QUEUES while `by_tag()` reads
+    `_objects`, so that check cannot see children burst on the same frame: the
+    phase flips to `ROUND_END` and the children land on the next `scene.update`.
+    **Pre-existing — 10G's boss swarm does exactly the same** (this is more
+    evidence the ER-3 path is byte-identical, not a new bug), and rare for the
+    Boss because it dies mid-wave with companions still alive. **It bites much
+    harder for anything common** — an ER-4 Formation breaking as the last unit of
+    a wave drops its children into an already-ended round. The fix is to teach the
+    wave-clear check about pending spawns; ER-3 deliberately did not, being a
+    zero-behaviour-change phase.
 - **All state in components** (E-11): `components.py` holds `PathAgent`
   (navigation + the block-and-attack decision) and `EnemyCombat` (attack stats +
   the attack-a-blocking-building clock); engine
@@ -233,11 +286,15 @@ skill.**
   lives-mode round wipe.
 - **10A** — `resolve_combat(on_enemy_death=…)`, the callback the session uses to
   count kills + award XP without importing `game/core`.
-- **10G** — the same callback carries the boss death-swarm handshake (the
-  session duck-types `era`/`death_spawned`/`mark_death_spawned` and calls
-  `Spawner.spawn_death_swarm` back); `resolve_combat(dmg_bonus=0)` threads the
-  boss-bonus story damage in as a plain int. Enemy construction never leaves
-  this package.
+- **10G / ER-3** — the same callback carries the death-spawn handshake, now
+  **type-agnostic**: the session duck-types `death_spawn_plan` /
+  `death_spawned` / `mark_death_spawned()` off ANY enemy and calls
+  `Spawner.spawn_death_swarm(scene, col, row, plan)` back. What crosses the
+  boundary is an **opaque plan dict**, not `(col, row, era)` — `game/core`
+  never indexes into it, which is what keeps the layering structurally
+  impossible to violate rather than merely conventional. `resolve_combat(
+  dmg_bonus=0)` threads the boss-bonus story damage in as a plain int. Enemy
+  construction never leaves this package.
 
 ## Perf note that lives here
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)

@@ -210,7 +210,7 @@ class TestDeathSwarm(unittest.TestCase):
         boss.get_component(Health).damage(10 ** 9)
         frame(session, scene, tm, 0.0)   # death -> stash -> post_sim flush
         scene.update(0.0)
-        spawns = BOSS["death_spawns"][0]
+        spawns = BOSS["death_spawn"]["spawns"][0]
         enemies = [e for e in scene.by_tag("enemy") if e.alive]
         counts = Counter(e.ETYPE for e in enemies)
         self.assertEqual(counts, Counter({"standard": spawns["regular"],
@@ -233,6 +233,19 @@ class TestDeathSwarm(unittest.TestCase):
         session.post_sim(scene)
         scene.update(0.0)
         self.assertEqual(len([e for e in scene.by_tag("enemy") if e.alive]), n)
+
+    def test_swarm_children_spawn_at_full_hp(self):
+        """spawn_hp_fraction is 1.0 for the boss, so the burst never touches
+        Health — every child arrives at its own full max HP (ER-3)."""
+        tm, scene, session, boss = self._setup()
+        boss.get_component(Health).damage(10 ** 9)
+        frame(session, scene, tm, 0.0)
+        scene.update(0.0)
+        children = [e for e in scene.by_tag("enemy") if e.alive]
+        self.assertTrue(children)
+        for e in children:
+            health = e.get_component(Health)
+            self.assertEqual(health.hp, health.max_hp)
 
     def test_quick_skip_despawns_boss_without_swarm(self):
         tm, scene, session, _boss = self._setup()

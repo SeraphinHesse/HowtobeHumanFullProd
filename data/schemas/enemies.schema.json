@@ -50,6 +50,43 @@
       ],
       "type": "object"
     },
+    "death_spawn": {
+      "additionalProperties": false,
+      "description": "Optional-mechanic block (ER-3, D4): when this unit's HP falls to or below at_hp_fraction of its max it DIES (one code path - breaking formation is dying) and, if enabled, bursts the spawns row for its era at the tile it died on. at_hp_fraction 0.0 + enabled false is an inert unit that dies at zero HP and leaves nothing.",
+      "properties": {
+        "at_hp_fraction": {
+          "description": "Death threshold as a fraction of max HP: the unit dies when hp <= max_hp * this. 0.0 = the normal die-at-zero rule. 0.5 = a formation that scatters at half health. Values at or above 1.0 kill the unit the instant it spawns - do not.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "enabled": {
+          "description": "Toggle: false means this unit dies at its at_hp_fraction threshold but spawns nothing.",
+          "type": "boolean"
+        },
+        "spawn_hp_fraction": {
+          "description": "Children spawn at this fraction of their OWN max HP. 1.0 = full health (the Boss's 10G swarm). Keep it above every child type's own at_hp_fraction or the children die on the frame they appear.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "spawns": {
+          "description": "What this unit bursts into, ONE ROW PER ERA, index-aligned with the type's era table (the Boss's stats/round_counts). A type with no eras carries a single row; the era index clamps into the array, so row 0 always applies. This is the era table and the flat per-type table in one shape - there is deliberately no union here.",
+          "items": {
+            "$ref": "#/$defs/spawn_counts"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "at_hp_fraction",
+        "enabled",
+        "spawn_hp_fraction",
+        "spawns"
+      ],
+      "type": "object"
+    },
     "scale_tier": {
       "additionalProperties": false,
       "description": "Additive stat scaling applied to non-boss enemies once per scale tier.",
@@ -188,16 +225,10 @@
       "properties": {
         "Boss": {
           "additionalProperties": false,
-          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawns[N], round_counts[N].",
+          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawn.spawns[N], round_counts[N].",
           "properties": {
-            "death_spawns": {
-              "description": "Enemies spawned where the boss dies, per era.",
-              "items": {
-                "$ref": "#/$defs/spawn_counts"
-              },
-              "maxItems": 5,
-              "minItems": 5,
-              "type": "array"
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
             },
             "footprint": {
               "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
@@ -260,7 +291,7 @@
             }
           },
           "required": [
-            "death_spawns",
+            "death_spawn",
             "footprint",
             "round_counts",
             "round_interval",
@@ -291,6 +322,9 @@
               "maximum": 10000,
               "minimum": 0,
               "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
             },
             "dmg": {
               "description": "Damage per hit (x10 combat scale, D-12).",
@@ -339,6 +373,7 @@
             "attack_range_tiles",
             "attack_speed",
             "base_count",
+            "death_spawn",
             "dmg",
             "footprint",
             "hp",
@@ -370,6 +405,9 @@
               "maximum": 10000,
               "minimum": 0,
               "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
             },
             "dmg": {
               "description": "Damage per hit (x10 combat scale, D-12).",
@@ -430,6 +468,7 @@
             "attack_range_tiles",
             "attack_speed",
             "base_count",
+            "death_spawn",
             "dmg",
             "footprint",
             "hp",
@@ -457,6 +496,9 @@
               "maximum": 60,
               "minimum": 0,
               "type": "number"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
             },
             "dmg": {
               "description": "Damage per hit (x10 combat scale, D-12).",
@@ -492,6 +534,7 @@
           "required": [
             "attack_range_tiles",
             "attack_speed",
+            "death_spawn",
             "dmg",
             "footprint",
             "hp",
