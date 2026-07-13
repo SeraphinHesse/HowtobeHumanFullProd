@@ -4,6 +4,10 @@ Self-contained guide for `data/` — the single source of truth every other
 package reads. Requirements: SPEC.md §5 (`D-*`). **When you change a format or
 schema, update THIS doc.**
 
+**Adding or changing a balancing tunable? Use the `/add-balancing-value` skill**
+— it keys into `balancing/<domain>.json` + the schema mirror through the
+validating writer; don't hand-edit the JSON.
+
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
 - `slots.json` — the slot registry (which asset slots exist per category,

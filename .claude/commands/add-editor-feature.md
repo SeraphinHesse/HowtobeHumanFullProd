@@ -1,5 +1,5 @@
 ---
-description: Add an editor feature/panel — hang it off the single-selection model, one render path (ED-22), all writes via write_validated, add the module to TestPurity.
+description: Use when the task is to add an editor feature or panel. Hangs it off the single-selection model, one render path (ED-22), all writes via write_validated, adds the module to TestPurity.
 argument-hint: <feature, e.g. "per-level balancing focus in the details panel">
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
 ---

@@ -90,12 +90,28 @@ read both docs. Within `game/`, the prototype's five balancing domains
 
 Each package doc is a **router** to per-subsystem docs
 (`<package>/<subfolder>/CLAUDE.md`) that auto-load when you edit inside that
-folder — read the ONE that matches your task, not the whole package. Reusable
-task openers (add a building/enemy/balancing value, port a domain, fix a bug)
-live in [`docs/prompt-templates.md`](docs/prompt-templates.md); the matching
-skills are `/add-building`, `/add-enemy`, `/add-balancing-value`,
-`/add-engine-component`, `/add-editor-feature`, `/add-asset-importer`,
-`/add-skill`.
+folder — read the ONE that matches your task, not the whole package.
+
+### If your task matches one of these, INVOKE the skill — don't hand-roll it
+
+These skills encode the full pattern (files to touch, order, verify gate) for
+their task. When a request matches a row, **invoke the skill** rather than
+editing by hand; it is the source of truth and keeps changes consistent. This
+applies to dispatched subagents too — if a phase/brief hands you one of these
+tasks, open with the skill.
+
+| When the task is…                                  | Invoke            |
+|----------------------------------------------------|-------------------|
+| Add / create a building type                       | `/add-building`   |
+| Add / create an enemy type                         | `/add-enemy`      |
+| Add / change a balancing tunable                   | `/add-balancing-value` |
+| Add an engine Component                             | `/add-engine-component` |
+| Add an editor feature/panel                        | `/add-editor-feature` |
+| Wire a new renderable category into asset import   | `/add-asset-importer` |
+| Scaffold a new command/skill                       | `/add-skill`      |
+
+Copy-paste task openers (that themselves point at these skills) live in
+[`docs/prompt-templates.md`](docs/prompt-templates.md).
 
 ## Data source of truth
 `data/` JSON is the ONLY value store (no py+json dual system — do not

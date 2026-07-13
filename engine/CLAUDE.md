@@ -11,6 +11,10 @@ them. **When you change a subsystem's architecture, update THAT subsystem's doc*
 (not this router, not another package's doc); change a top-level module or a
 cross-cutting rule → update this file.
 
+**Adding a new engine Component? Use the `/add-engine-component` skill** — it
+encodes the JSON-safe-fields + `on_added` seam + auto-registration + module-purity
+pattern; don't hand-roll it.
+
 ## File scope you may edit
 `engine/**` and engine-focused tests. Never edit `game/**` or `editor/**` from an
 engine task; if an engine change forces a caller change, tell the user

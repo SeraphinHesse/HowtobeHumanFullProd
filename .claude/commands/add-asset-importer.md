@@ -1,5 +1,5 @@
 ---
-description: Wire a NEW renderable game-element category into the editor's asset pipeline so a designer can import its spritesheet (registry category + slots + selector + import path).
+description: Use when the task is to wire a new renderable game-element category into the editor's asset pipeline so a designer can import its spritesheet (registry category + slots + selector + import path).
 argument-hint: <element category, e.g. "projectiles" or "boss cutscene frames">
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
 ---

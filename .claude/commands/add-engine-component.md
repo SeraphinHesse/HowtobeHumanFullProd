@@ -1,5 +1,5 @@
 ---
-description: Add a new engine Component (declared JSON-safe fields, on_added seam, auto-registration, keep the module pure) per the engine/core conventions.
+description: Use when the task is to add a new engine Component. Produces declared JSON-safe fields, on_added seam, auto-registration, keeping the module pure per the engine/core conventions.
 argument-hint: <component name + what state it holds>
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
 ---

@@ -1,5 +1,5 @@
 ---
-description: Add a new tunable to a balancing domain — key into data/balancing/<domain>.json + schema mirror; the recursive editor form renders it for free.
+description: Use when the task is to add or change a balancing tunable/value in a domain (buildings/enemies/map/ui/core). Keys into data/balancing/<domain>.json + schema mirror; the recursive editor form renders it for free.
 argument-hint: <domain + value, e.g. "core: xp reward per boss kill">
 allowed-tools: Read, Edit, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
 ---

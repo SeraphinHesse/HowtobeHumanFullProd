@@ -35,7 +35,12 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
 1. `git switch main` → `git pull`. Create the umbrella branch.
 2. For each domain with queued work, spawn a subagent with `isolation:
    "worktree"`, scoped to that domain's files only (give it the domain's
-   `DOMAIN_SCOPE` list). Run domains that share `game/core/**` in separate waves
+   `DOMAIN_SCOPE` list). **In each subagent's brief, instruct it: if the item
+   adds a building / enemy / balancing tunable / engine component / editor
+   feature / asset-import category, invoke the matching `/add-*` skill
+   (`/add-building`, `/add-enemy`, `/add-balancing-value`, `/add-engine-component`,
+   `/add-editor-feature`, `/add-asset-importer`) rather than hand-rolling the
+   edits.** Run domains that share `game/core/**` in separate waves
    to avoid host-file conflicts; independent domains may run in parallel.
 3. Each agent's exit gate is this repo's: `py -m unittest discover -s tools/tests
    -t .` and `py tools/smoke.py`, both green. Balancing JSON edits go through

@@ -11,6 +11,11 @@ details, palette, map-details). The panels doc auto-loads when you edit inside
 `editor/panels/`. **When you change a panel's architecture, update the panels
 doc**; change a top-level module or a cross-cutting rule → update this file.
 
+**Adding an editor feature or panel? Use the `/add-editor-feature` skill.**
+**Wiring a new renderable game-element category into the asset-import pipeline?
+Use the `/add-asset-importer` skill.** Both encode the full pattern; don't
+hand-roll them.
+
 ## File scope you may edit
 `editor/**`. Never import or edit `game/**`. The editor talks to `engine/`
 (rendering, assets, coords) and `data/` (through the validating writer) — nothing
