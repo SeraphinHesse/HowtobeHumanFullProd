@@ -25,3 +25,6 @@ graphify-out/
 .idea/
 Thumbs.db
 .DS_Store
+
+# Environment doctor output (tools/doctor.py)
+doctor_report.txt

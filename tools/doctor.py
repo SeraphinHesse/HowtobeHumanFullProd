@@ -126,7 +126,45 @@ def check_new_game():
     return True
 
 
+class _Tee:
+    """Writes every print() to the real stdout AND a log file, so a broken
+    machine can send one file instead of copy-pasting a scrolled terminal."""
+
+    def __init__(self, stream, logfile):
+        self._stream = stream
+        self._log = logfile
+
+    def write(self, text):
+        self._stream.write(text)
+        self._log.write(text)
+
+    def flush(self):
+        self._stream.flush()
+        self._log.flush()
+
+
 def main():
+    log_path = os.path.join(_ROOT, "doctor_report.txt")
+    real_stdout = sys.stdout
+    try:
+        logfile = open(log_path, "w", encoding="utf-8")
+    except Exception:
+        logfile = None  # read-only dir: still print to screen, just no file
+    if logfile is not None:
+        sys.stdout = _Tee(real_stdout, logfile)
+
+    try:
+        code = _run()
+    finally:
+        sys.stdout = real_stdout
+        if logfile is not None:
+            logfile.close()
+            print(f"\nFull report written to: {log_path}")
+            print("If problems were found, send that file.")
+    return code
+
+
+def _run():
     print("=" * 60)
     print(" How To Be Human - environment doctor")
     print("=" * 60)
