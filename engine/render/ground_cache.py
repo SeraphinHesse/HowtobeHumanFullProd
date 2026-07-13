@@ -57,26 +57,10 @@ class GroundCache:
         self._view_size = None                # (view_w, view_h) it was sized for
         self._generation = 0                  # bumped by invalidate()
         self._seen_generation = -1            # generation baked into the surface
-        # -- 10J underlay (world-locked background art): painted between the
-        # bg fill and the tiles in every _paint, so it scrolls/clips with the
-        # cache for free. (surface, world_px_x, world_px_y) at zoom 1; a
-        # per-zoom scaled copy is cached lazily.
-        self._underlay = None
-        self._underlay_scaled = {}            # zoom -> scaled surface
 
     def invalidate(self):
         """Force a full rebuild on the next ``ensure`` (ground content changed)."""
         self._generation += 1
-
-    def set_underlay(self, surface, offset_x=0, offset_y=0):
-        """Install (or clear, with ``surface=None``) a world-locked underlay
-        image (10J background art): drawn under every ground tile, anchored at
-        iso-pixel ``(offset_x, offset_y)`` at zoom 1 and scaled with the zoom.
-        Invalidates the cache."""
-        self._underlay = (surface, offset_x, offset_y) if surface is not None \
-            else None
-        self._underlay_scaled = {}
-        self.invalidate()
 
     def ensure(self, view_w, view_h, ground_items_fn):
         """Bring the cached ground surface up to date for the current camera.
@@ -162,18 +146,6 @@ class GroundCache:
         prev = self._surface.get_clip()
         self._surface.set_clip(clip_rect)
         self._surface.fill(self._fill, clip_rect)
-        if self._underlay is not None:  # 10J world-locked background art
-            surf, ox, oy = self._underlay
-            scaled = self._underlay_scaled.get(z)
-            if scaled is None:
-                size = (max(1, round(surf.get_width() * z)),
-                        max(1, round(surf.get_height() * z)))
-                scaled = surf if size == surf.get_size() \
-                    else pygame.transform.scale(surf, size)
-                self._underlay_scaled[z] = scaled
-            # screen = iso_px*zoom - pan; the clip confines it to the strip
-            self._surface.blit(
-                scaled, (round(ox * z - cam.pan_x), round(oy * z - cam.pan_y)))
         for item in ground_items_fn(d_min, d_max, s_min, s_max):
             self._renderer.submit(item)
         self._renderer.flush(self._surface)

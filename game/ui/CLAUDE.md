@@ -210,11 +210,6 @@ imports:
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
   marker / boss-announce / floater fades + an expanding lightning impact
   flash.
-- **Background art** — `background_master` (imported slot, 1920×1080) painted
-  as a `GroundCache` UNDERLAY (the cache is opaque — a host blit would be
-  covered); `main.py apply_bg_art()` follows `ui.FX.bg_art` + the settings
-  toggle live, and the ground-items callback skips BACKGROUND-zone tiles while
-  active so the art shows through (prototype `skip_bg`).
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 

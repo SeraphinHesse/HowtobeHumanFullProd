@@ -77,14 +77,14 @@
             "type": "string"
           },
           "frame_h": {
-            "description": "Sprite frame height in pixels for every slot in this category (4096 admits full-screen background art, 10J).",
-            "maximum": 4096,
+            "description": "Sprite frame height in pixels for every slot in this category.",
+            "maximum": 1024,
             "minimum": 1,
             "type": "integer"
           },
           "frame_w": {
-            "description": "Sprite frame width in pixels for every slot in this category (4096 admits full-screen background art, 10J).",
-            "maximum": 4096,
+            "description": "Sprite frame width in pixels for every slot in this category.",
+            "maximum": 1024,
             "minimum": 1,
             "type": "integer"
           },
