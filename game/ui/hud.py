@@ -104,6 +104,10 @@ class Hud:
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
         self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
         self._clock = 0.0  # drives the levelup-pending pulse
+        # The building panel is a full-height right sidebar and the HUD submits
+        # AFTER it, so both right-edge buttons would paint on top of it. While
+        # it is open they are neither drawn nor hit-tested.
+        self._panel_open = False
         # -- 10H --
         self._mx = self._my = 0  # cursor pos: anchors the cooldown bar
         # -- /10H --
@@ -119,17 +123,23 @@ class Hud:
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
         self._clock += dt
+        # unlock / construct / upgrade / base_info, plus the construct preview
+        # modal — any of them owns the right column.
+        self._panel_open = panel.visible or panel.preview is not None
         self.end_turn.enabled = (
             st.state == GameState.GAMEPLAY
             and st.phase == GamePhase.BUILDING
-            and not panel.visible)
+            and not self._panel_open)
         self.end_turn.hover(mx, my)
         self.end_turn.update(dt)
-        self.pause.enabled = st.state == GameState.GAMEPLAY
+        self.pause.enabled = (st.state == GameState.GAMEPLAY
+                              and not self._panel_open)
         self.pause.hover(mx, my)
         self.pause.update(dt)
 
     def hit(self, mx, my):
+        if self._panel_open:
+            return None
         if self.pause.hit(mx, my):
             return "pause"
         return "end_turn" if self.end_turn.hit(mx, my) else None
@@ -176,16 +186,18 @@ class Hud:
         color = _PHASE_COLOR.get(st.phase, C_UI_TEXT_DIM)
         submit_text(renderer, label, (12, view_h - 26), "hud_phase", color)
 
-        # -- End Turn button + round (bottom-right) -----------------------
-        bx, by, bw, bh = self.end_turn.rect
-        submit_centered(renderer, f"ROUND {st.round_num}", bx + bw // 2,
-                        by - text_h("md") - 4, "md", C_UI_TEXT_DIM)
-        self.end_turn.submit(renderer)
-        # a faint separator under the round text keeps the corner legible
-        renderer.submit_hud(HudRect((bx, by - 2, bw, 1), C_UI_BORDER))
-
-        # -- pause button (top-right) -------------------------------------
-        self.pause.submit(renderer)
+        # -- right-edge cluster: pause (top), round + End Turn (bottom) ----
+        # The whole column lives under the building panel, so it is skipped
+        # wholesale while that panel is open — drawing only part of it would
+        # leave the round label floating over the panel.
+        if not self._panel_open:
+            bx, by, bw, bh = self.end_turn.rect
+            submit_centered(renderer, f"ROUND {st.round_num}", bx + bw // 2,
+                            by - text_h("md") - 4, "md", C_UI_TEXT_DIM)
+            self.end_turn.submit(renderer)
+            # a faint separator under the round text keeps the corner legible
+            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), C_UI_BORDER))
+            self.pause.submit(renderer)
 
         # -- lightning readout (10H) ---------------------------------------
         self._submit_lightning(renderer, session, view_h)
