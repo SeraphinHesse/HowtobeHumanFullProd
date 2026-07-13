@@ -88,9 +88,15 @@ logic is `game/core` — see that doc.)
 - **Headless seam**: `main(autostart=True)` skips the shell straight into GAMEPLAY
   so `tools/smoke.py` + the boot tests still exercise the full `_World`/`Session`
   construction + sim the menu would otherwise defer.
-- **Deferred**: main-menu background art + the pause dim overlay (the HUD pass has
-  no per-pixel alpha) are host raw-surface concerns, not yet wired; the settings
-  audio slider is inert (no audio system beyond music).
+- **Main-menu background (10K)**: `main_menu.py` submits a full-view
+  `HudSprite("main_menu_bg", (0, 0), (view_w, view_h))` between the solid fill
+  (kept as the missing-art fallback) and the widgets. The art comes from the
+  asset-only `backgrounds` slot category through the normal import pipeline —
+  no host raw-surface code; SDL `SCALED` letterboxes the logical surface, so
+  the full-view sprite is letterbox-safe by construction.
+- **Deferred**: the pause dim overlay (the HUD pass has no per-pixel alpha) is a
+  host raw-surface concern, not yet wired; the settings audio slider is inert
+  (no audio system beyond music).
 
 ## Defence FX (10B)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from

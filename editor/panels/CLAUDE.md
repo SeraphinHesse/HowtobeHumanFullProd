@@ -99,8 +99,9 @@ import list.**
 
 ## Phase 5 — merged tree / details / entity preview
 - **Merged tree** (`panels/selector.py`): top-level nodes = registry categories in
-  `data/slots.json` order (first five double as balancing domains; vfx is
-  asset-only; `deco` is asset-only, nested as a CHILD of the "map" node — Phase 6
+  `data/slots.json` order (first five double as balancing domains; vfx and
+  `backgrounds` (10K menu art) are asset-only; `deco` is asset-only, nested as a
+  CHILD of the "map" node — Phase 6
   follow-up). Children come from registry groups; the tree STOPS at the deepest
   group whose children are all leaf groups (a building TYPE like "Defender") —
   tiers/levels never appear in the tree. Signals: `node_selected(category,

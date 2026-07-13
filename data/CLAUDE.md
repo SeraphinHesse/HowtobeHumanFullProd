@@ -83,7 +83,7 @@ schema, update THIS doc.**
   `data/slots.json` with `schemas/slots.schema.json`.
 - **`slots.json` shape**: ordered `categories[]` (array — order survives
   D-3 sorted-keys dumps and IS the editor tree order; the first five keys
-  mirror the D-10 domains, then asset-only `vfx`/`deco`), each with
+  mirror the D-10 domains, then asset-only `vfx`/`deco`/`backgrounds`), each with
   `key/display_name/frame_w/frame_h/animations/groups`. `animations[0]` is
   always `idle` (schema-enforced). `groups` is a recursive tree of
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
@@ -99,7 +99,9 @@ schema, update THIS doc.**
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64. All data — edit `slots.json`.
+  64×96; map tiles 64×32; ui / vfx 64×64; backgrounds 480×270 (10K full-frame
+  menu art, drawn as a screen-space `HudSprite` — not a world sprite). All
+  data — edit `slots.json`.
 - **`sprites/asset_manifest.json` (manifest v2, D-30)**:
   `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
   frame_h, offset_x, offset_y, rows[]}}}` with row =
