@@ -2017,6 +2017,33 @@
       ],
       "sheet": "imported/tile_background_1.png"
     },
+    "tile_background_3": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_3.png"
+    },
     "tile_buildable": {
       "frame_h": 32,
       "frame_w": 64,
