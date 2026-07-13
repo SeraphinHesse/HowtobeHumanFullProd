@@ -30,7 +30,7 @@ schema, update THIS doc.**
 - All five domains exist: `balancing/{buildings,enemies,map,ui,core}.json`,
   each with `schemas/<domain>.schema.json`. Since **Phase 9A** they hold the
   prototype's live tuning verbatim, restructured into the REPLAN nested
-  feature tree (see MIGRATION_PLAN.md): PascalCase group objects
+  feature tree (see planning/MIGRATION_PLAN.md): PascalCase group objects
   (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
   tier struct-lists under a `tiers` key with the prototype's field names
   verbatim. `_lock` stays top-level. The prototype's 4 stringified

@@ -12,14 +12,14 @@ the phase's outcome back into it.
 ## Step 0 — Preconditions gate (abort with a clear report on any failure)
 - The plan doc exists and contains the phase — quote its bullet/section verbatim.
 - Working tree clean; base branch `Development` pulled and up to date.
-- If the plan doc names a spec/prototype repo (e.g. `MIGRATION_PLAN.md` →
-  `MIGRATION_AGENT_READ_FIRST.md` + the prototype repo): it is **READ-ONLY** —
-  cite it, never edit it.
+- If the plan doc names a spec/prototype repo (e.g. `planning/MIGRATION_PLAN.md`
+  → `planning/MIGRATION_AGENT_READ_FIRST.md` + the prototype repo): it is
+  **READ-ONLY** — cite it, never edit it.
 
 ## Read first (token-light)
 1. Root `CLAUDE.md` router → the ONE package doc matching the phase's scope
    (if the phase truly spans packages, that becomes a Step-2 user question).
-2. For `MIGRATION_PLAN.md` phases: `MIGRATION_AGENT_READ_FIRST.md`.
+2. For `planning/MIGRATION_PLAN.md` phases: `planning/MIGRATION_AGENT_READ_FIRST.md`.
 
 ## Steps
 1. **Plan mode.** Enter plan mode. Audit what the phase needs vs what already
@@ -37,7 +37,7 @@ the phase's outcome back into it.
    vs baseline; run the Quick Test live. Report exactly what was verified.
 6. **Plan-doc status (ALWAYS).** Edit the phase's entry in the plan doc:
    `*(LANDED)*` on completion, with any deferrals/accepted divergences as
-   sub-bullets (mirror 10F's style in `MIGRATION_PLAN.md`). If the phase was
+   sub-bullets (mirror 10F's style in `planning/MIGRATION_PLAN.md`). If the phase was
    aborted or partially landed, write that instead — the doc must state
    reality either way. This edit is part of the phase's diff.
 7. **Report + PR.** Final report, then commit → push → PR to `Development`

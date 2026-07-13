@@ -3,8 +3,18 @@
 First-read router for agents on **How To Be Human — Full Production**
 (isometric tower-defence; you spend *love* to unlock tiles and place
 musicians/defenders that protect "the hole" from enemy waves). This file stays
-slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md`.
-Requirements → `SPEC.md` (referenced as E-*/D-*/G-*/ED-*/T-*).
+slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
+**active-plan mirror** — see below). Requirements → `SPEC.md` (referenced as
+E-*/D-*/G-*/ED-*/T-*).
+
+**Planning:** every plan doc lives in `planning/` (the sources of truth:
+`MIGRATION_PLAN.md`, `EngineBuildPLAN.md`, `AgentDispatchPLAN.md`,
+`UI_EDITOR_PLAN.md`, …). Root `PLAN.md` is a **generated mirror** of whichever
+one is currently active (its line-1 `<!-- active-plan: … -->` marker names the
+source). Read `PLAN.md` for the current plan; never hand-edit it — edit the
+source in `planning/` and re-run `/setcurrentplan <name>` to re-mirror. Author a
+new phased plan with `/createplan`. The editor's **Summon a Drunken Robot**
+screen shows the active plan and can switch it too.
 
 ## Project identity & status
 - **Stack:** Python 3.11+, pygame-ce (game), PySide6 (editor). Deps:
