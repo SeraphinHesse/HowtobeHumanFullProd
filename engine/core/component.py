@@ -16,9 +16,25 @@ Every Component subclass auto-registers by class name for deserialization
 (component_from_dict). Pure Python — no pygame.
 """
 
+import inspect
+
 _JSON_FIELD_TYPES = (bool, int, float, str, list, dict)
 
 _REGISTRY = {}
+
+
+def _own_annotations(cls):
+    """This class's OWN declared field annotations (never inherited).
+
+    Python 3.14 (PEP 649/749) evaluates annotations lazily: a class's
+    annotations no longer live eagerly in ``cls.__dict__["__annotations__"]``
+    (they sit behind ``__annotate__``), so the old ``__dict__.get`` read
+    returned ``{}`` on 3.14 and no fields registered — every component with
+    declared fields then raised "has no field". ``inspect.get_annotations``
+    reads the correct source on every supported version and, for a class,
+    returns only that class's own annotations (does NOT fall through the MRO
+    the way plain ``cls.__annotations__`` does)."""
+    return inspect.get_annotations(cls)
 
 
 class Component:
@@ -27,7 +43,7 @@ class Component:
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         fields = dict(cls._fields)  # inherit parent declarations
-        for name, ftype in cls.__dict__.get("__annotations__", {}).items():
+        for name, ftype in _own_annotations(cls).items():
             if ftype not in _JSON_FIELD_TYPES:
                 raise TypeError(
                     f"{cls.__name__}.{name}: field type {ftype!r} is not "
