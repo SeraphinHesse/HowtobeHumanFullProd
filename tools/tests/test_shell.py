@@ -9,7 +9,7 @@ from pathlib import Path
 
 from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
-from engine.render import Renderer
+from engine.render import DrawCall, HudRect, HudText, Renderer
 from game.core import load_balance
 from game.core.phases import GameState
 from game.ui import Shell
@@ -35,7 +35,8 @@ def _renderer():
     geo = Geometry(tile_w=64, tile_h=32, map_cols=20, map_rows=20,
                    zoom_levels=(1.0,))
     cs = CoordinateSystem(geo, Camera())
-    return Renderer(cs, _FakeAssets(), backend=_RecordingBackend())
+    backend = _RecordingBackend()
+    return Renderer(cs, _FakeAssets(), backend=backend), backend
 
 
 def center(rect):
@@ -207,7 +208,7 @@ class TestScreenRender(unittest.TestCase):
         s = make_shell(state)
         if state == GameState.ADD_NAME:
             s.add_name_screen.reset(5)
-        r = _renderer()
+        r, _ = _renderer()
         s.submit(r, VW, VH)
         n = r.flush(target=None)
         self.assertGreater(n, 0, f"{state} rendered nothing")
@@ -230,9 +231,29 @@ class TestScreenRender(unittest.TestCase):
     def test_world_states_render_nothing_from_shell(self):
         # GAMEPLAY/GAME_OVER: the host owns the HUD; the shell draws nothing.
         s = make_shell(GameState.GAMEPLAY)
-        r = _renderer()
+        r, _ = _renderer()
         s.submit(r, VW, VH)
         self.assertEqual(r.flush(target=None), 0)
+
+    def test_main_menu_bg_art_between_fill_and_text(self):
+        # 10K: the full-view main_menu_bg DrawCall sits over the solid
+        # fallback fill and under every text/button primitive
+        s = make_shell(GameState.MAIN_MENU)
+        r, backend = _renderer()
+        s.submit(r, VW, VH)
+        r.flush(target=None)
+        calls = backend.calls
+        bg_i = next(i for i, c in enumerate(calls)
+                    if isinstance(c, DrawCall)
+                    and c.surface == "SURF:main_menu_bg")
+        self.assertEqual(calls[bg_i].dest, (0, 0))
+        self.assertEqual(calls[bg_i].size, (VW, VH))
+        fill_i = next(i for i, c in enumerate(calls)
+                      if isinstance(c, HudRect) and c.rect == (0, 0, VW, VH))
+        first_text_i = next(i for i, c in enumerate(calls)
+                            if isinstance(c, HudText))
+        self.assertLess(fill_i, bg_i)
+        self.assertLess(bg_i, first_text_i)
 
 
 class TestPurity(unittest.TestCase):

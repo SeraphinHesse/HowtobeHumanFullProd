@@ -5,14 +5,17 @@ prototype's ``src/ui/main_menu.py`` button set (START NEW GAME / ADD A NAME /
 SETTINGS / CREDITS / QUIT) onto the ``game_over.py`` full-screen template: a
 solid ``HudRect`` backdrop, a centred title, and a vertical stack of
 ``widgets.Button`` click targets. ``hit`` returns the prototype's action strings.
-The hand-painted background art is a host raw-surface concern (deferred); a solid
-fill is the shippable menu bg.
+The hand-painted background art draws as a full-view ``HudSprite`` from the
+``main_menu_bg`` slot (10K, asset-pipeline sourced; letterbox-safe because the
+host's SCALED logical surface is what gets letterboxed); the solid fill stays
+beneath it as the missing-art fallback.
 """
-from engine.render import HudRect
+from engine.render import HudRect, HudSprite
 
 from .widgets import C_GOLD, C_UI_TEXT, Button, submit_centered
 
 _BG = (18, 30, 20)
+_BG_SLOT = "main_menu_bg"
 _TITLE = "HOW TO BE HUMAN"
 
 # (label, action) top-to-bottom
@@ -54,6 +57,7 @@ class MainMenu:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
         submit_centered(renderer, _TITLE, view_w // 2, view_h // 2 - 150,
                         "xxl", C_UI_TEXT)
         submit_centered(renderer, "defend the munckins",
