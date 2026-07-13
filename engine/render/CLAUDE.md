@@ -58,6 +58,12 @@ that feed these):
   before ER-1, plus a table-driven pin against the old formula).
 - Manifest `offset_x/offset_y` are authored in FRAME pixels, so they ride `s`
   too (a no-op at `s == 1`).
+- **`fit_factor(frame_w, tile_w, fit_tiles)` is exported** as THE one expression
+  for the fit. Anything that must place a HUD element over a drawn sprite (the
+  game's overhead HP bars) has to size that sprite exactly as `flush()` does, so
+  it calls this instead of restating the formula — a second copy would drift the
+  moment the rule changes. `Renderer.assets` exposes the store for the frame size
+  that goes with it (`frame_size()` is pure metadata — it loads no surface).
 
 ## Overlay primitives (E-24 + 10J)
 `Renderer.submit_overlay_lines(points_world, color, width, closed)` →

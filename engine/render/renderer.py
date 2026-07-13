@@ -25,6 +25,20 @@ from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys
 _HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
 
 
+def fit_factor(frame_w, tile_w, fit_tiles):
+    """Downscale-only footprint fit: the factor that makes a `frame_w`-wide
+    frame span at most `fit_tiles` tiles, never magnifying it. `fit_tiles` 0
+    means "no fit" -> 1.0.
+
+    THE one expression for it. A HUD element that must sit over a drawn sprite
+    (an overhead bar) has to size that sprite exactly as flush() will, so it
+    calls this rather than restating the formula.
+    """
+    if fit_tiles > 0.0 and frame_w > 0:
+        return min(1.0, (fit_tiles * tile_w) / frame_w)
+    return 1.0
+
+
 class Renderer:
     def __init__(self, coords, assets, backend=None):
         self._coords = coords
@@ -33,6 +47,12 @@ class Renderer:
         self._queue = []
         self._overlay = []
         self._hud = []
+
+    @property
+    def assets(self):
+        """The store slots resolve through — exposed so a caller can ask a
+        frame's size (to place something over the sprite it will draw)."""
+        return self._assets
 
     def submit(self, item):
         if item.layer not in LAYERS:
@@ -85,10 +105,7 @@ class Renderer:
         for item in ordered:
             frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
             px, py = coords.world_to_screen(*item.world_pos)
-            fit = 1.0
-            if item.fit_tiles > 0.0 and frame.frame_w > 0:
-                fit = min(1.0, (item.fit_tiles * tile_w) / frame.frame_w)
-            s = fit * item.scale
+            s = fit_factor(frame.frame_w, tile_w, item.fit_tiles) * item.scale
             w = frame.frame_w * zoom * s
             h = frame.frame_h * zoom * s
             draw_calls.append(

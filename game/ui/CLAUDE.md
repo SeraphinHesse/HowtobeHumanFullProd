@@ -28,7 +28,17 @@ hiding the bar at full HP (the prototype rule):
   the `"enemy"` tag via `Enemy.EXTRA_TAGS`, so this is the ONLY place an overhead
   enemy bar is drawn). Width/height are the `HP_BAR_W`/`HP_BAR_H` class attrs on
   the enemy classes (walker/raider 14×2, siege 24×2, boss 48×4 — see
-  `game/enemies/CLAUDE.md`), read duck-typed with a fallback. Bars from enemies
+  `game/enemies/CLAUDE.md`), read duck-typed with a fallback.
+  **The LIFT is computed, not a constant (ER-1).** Since a sprite's on-screen
+  size derives from its tile footprint rather than its sheet
+  (`engine/render/CLAUDE.md`), a lift baked from sheet pixels floats: the boss's
+  124×96 era-4 sheet now DRAWS ~50px tall, half its old height. `_sprite_top`
+  therefore measures the sprite's real drawn top edge — `cy − drawn_h/2`, where
+  `cy` (`world_to_screen(wx+.5, wy+.5)`) IS the renderer's centre anchor and
+  `drawn_h` comes from `renderer.assets.frame_size(slot)` through the engine's
+  own `fit_factor` (imported, never restated — one source of truth for the fit).
+  `HP_BAR_PAD` (4px, base class) is only the gap above the head. A 2-tile
+  Formation gets a correct bar for free. Bars from enemies
   sharing a tile **stack upward** 4 px per slot (prototype `game.py:1901-1922`
   `bar_slot`); grouping is a plain `round(wx), round(wy)` because our
   `transform.wx/wy` are already fractional TILE coords, where the prototype had

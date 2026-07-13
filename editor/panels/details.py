@@ -305,12 +305,15 @@ class DetailsPanel(QWidget):
             self._load_sheet(destination, entry)
         finally:
             self._loading = False
-        if was_padded:
-            self._info.setText(
-                f"padded {src_w}×{src_h} → {w}×{h} "
-                f"(centred in the {fw}×{fh} frame)")
-        self._emit_draft()
         even = (w % fw == 0) and (h % fh == 0)
+        if was_padded:
+            note = (f"padded {src_w}×{src_h} → {w}×{h} "
+                    f"(centred in the {fw}×{fh} frame)")
+            # An off-grid pad still crops a remainder — keep _load_sheet's ⚠
+            # rather than replacing it with the neutral padding note.
+            warning = "" if even else self._info.text()
+            self._info.setText(f"{warning} — {note}" if warning else note)
+        self._emit_draft()
         return (cols, rows, even)
 
     def draft_entry(self):

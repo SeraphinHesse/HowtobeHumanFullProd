@@ -92,6 +92,17 @@ class TestImportSheet(DetailsCase):
         self.assertIn("padded", self.panel._info.text())
         self.assertEqual(len(self.panel._row_editors), 1)
 
+    def test_padded_off_grid_sheet_keeps_the_cropped_warning(self):
+        """Padding vertically doesn't make the sheet a clean grid — a 100px-wide
+        strip in a 64x96 frame still crops 36px, and the designer must be told."""
+        src = make_png(self.png_dir / "art.png", 100, 16)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.assertEqual(self.panel.import_sheet(src), (1, 1, False))
+        info = self.panel._info.text()
+        self.assertIn("⚠", info)         # the remainder-cropped warning survives
+        self.assertIn("cropped", info)
+        self.assertIn("padded", info)    # ...alongside the padding note
+
     def test_tiles_slot_uses_its_category_frame_size(self):
         """ED-41: same panel drives every category at its own frame size."""
         src = make_png(self.png_dir / "tile.png", 2 * 64, 1 * 32)
