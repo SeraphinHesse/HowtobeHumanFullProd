@@ -8,6 +8,7 @@ data/ so panel writes never touch the repo's files — which is why all
 editor modules take a data_dir parameter.
 """
 import copy
+import json
 import os
 import shutil
 import sys
@@ -21,6 +22,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -31,7 +33,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
-from editor import balancing_history, locks
+from editor import balancing_history, locks, theme
 from editor.panels.balancing import BalancingPanel
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
@@ -670,6 +672,62 @@ class TestMainWindowWiring(TempDataCase):
         self.assertEqual(window.viewport.preview_animations(), ())
         painter_item = window.selector._find_item("buildings", ("Painter",))
         self.assertFalse(painter_item.text(0).startswith("● "))
+
+
+class TestThemeSwitch(TempDataCase):
+    """The toolbar switch repaints the app chrome and remembers the choice."""
+
+    def make_window(self, prefs_path):
+        from editor.main import MainWindow
+
+        window = MainWindow(data_dir=self.data_dir, prefs_path=prefs_path)
+        self.addCleanup(window.close)
+        window._timer.stop()
+        return window
+
+    def setUp(self):
+        super().setUp()
+        self.prefs = Path(self.data_dir).parent / ".editor_prefs.json"
+        # the theme is application-wide: hand the next test a light app back
+        self.addCleanup(theme.apply_theme, QApplication.instance(), "light")
+
+    def is_dark(self):
+        window_color = QApplication.instance().palette().color(
+            QPalette.ColorRole.Window)
+        return window_color.lightness() < 128
+
+    def test_toggle_applies_and_persists(self):
+        window = self.make_window(self.prefs)
+        self.assertFalse(window.theme_switch.isChecked())
+        self.assertFalse(self.is_dark())
+
+        window.theme_switch.setChecked(True)
+        self.assertEqual(window.theme, "dark")
+        self.assertTrue(self.is_dark())
+        self.assertEqual(theme.load_theme(self.prefs), "dark")
+
+        window.theme_switch.setChecked(False)
+        self.assertEqual(window.theme, "light")
+        self.assertFalse(self.is_dark())
+        self.assertEqual(theme.load_theme(self.prefs), "light")
+
+    def test_saved_theme_restored_on_next_launch(self):
+        theme.save_theme(self.prefs, "dark")
+        window = self.make_window(self.prefs)
+        self.assertEqual(window.theme, "dark")
+        self.assertTrue(window.theme_switch.isChecked())
+        self.assertTrue(self.is_dark())
+
+    def test_prefs_file_keeps_unrelated_keys(self):
+        self.prefs.write_text('{"layout": "abc"}', encoding="utf-8")
+        theme.save_theme(self.prefs, "dark")
+        prefs = json.loads(self.prefs.read_text(encoding="utf-8"))
+        self.assertEqual(prefs, {"layout": "abc", "theme": "dark"})
+
+    def test_unreadable_prefs_fall_back_to_light(self):
+        self.prefs.write_text("not json", encoding="utf-8")
+        self.assertEqual(theme.load_theme(self.prefs), "light")
+        self.assertEqual(theme.load_theme(self.prefs.parent / "nope.json"), "light")
 
 
 if __name__ == "__main__":

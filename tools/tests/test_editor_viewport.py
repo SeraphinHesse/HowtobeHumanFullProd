@@ -196,7 +196,7 @@ class TestPurity(unittest.TestCase):
             "import editor.main, editor.locks, editor.selection, "
             "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.registry_ops, editor.balancing_history, "
-            "editor.run_controls, editor.spawnclaude, "
+            "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "

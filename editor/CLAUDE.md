@@ -25,6 +25,8 @@ else.
   never runs game logic in-process (§ below).
 - `spawnclaude.py` — dispatch a `claude` session with a domain lock or in
   small-tweak (no-lock) mode (§ below).
+- `theme.py` — THE light/dark chrome theme (§ below). The only place the app's
+  Qt palette/style is set.
 - `locks.py` — read/enforce `_lock` on `data/balancing/*`; the editor obeys the
   same lock rules as agents (ED-62) and **NEVER force-unlocks**.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
@@ -108,6 +110,24 @@ Full narrative in `PLAN.md`'s phase-8 row; the invariants:
   "deny"` JSON), wired in `.claude/settings.json` on `Edit|Write|MultiEdit`. Lock
   writes go through `engine.data_io.write_validated` (the lock is a D-11 object).
   Integration branch = `main`.
+
+## Theme (`theme.py`) — light / dark chrome
+- The **"Dark mode" checkbox on the Agents toolbar**, next to "Summon a Drunken
+  Robot", is the switch. `MainWindow._on_theme_toggled` → `theme.apply_theme` +
+  `theme.save_theme`; nothing else in the editor may call `setPalette`/`setStyle`
+  on the QApplication.
+- **Chrome only** — the viewport keeps drawing through `engine/render` (ED-22); a
+  theme switch must never reach into how game content is rendered.
+- **Dark forces Fusion**; light restores the platform's startup style + palette
+  (captured on the first `apply_theme`). The native Windows style ignores a dark
+  palette on several widgets, so a dark theme without Fusion half-applies.
+- Persisted to `.editor_prefs.json` (gitignored, repo root — the same file ED-1's
+  layout persistence will use, so `save_theme` read-modify-writes and preserves
+  other keys). Missing/corrupt file → light. `MainWindow(prefs_path=…)` is
+  injectable so tests never write the repo's prefs.
+- Panel-local `setStyleSheet` colors (the balancing dirty dot, the map-details
+  warning banner) are deliberately theme-independent — keep any new hardcoded
+  color legible on BOTH backgrounds, or read it from the palette.
 
 ## Verify before finishing
 Launch `py editor/main.py` and exercise the changed panel/control; for
