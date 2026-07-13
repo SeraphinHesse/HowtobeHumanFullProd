@@ -158,7 +158,7 @@ class ProjectileArc(Component):
         for enemy in scene.by_tag("enemy"):
             if not getattr(enemy, "alive", False):
                 continue
-            ex, ey = enemy.transform.world_pos
+            ex, ey = _enemy_center_world(enemy)   # the body's centre (ER-2)
             if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
                 enemy.get_component(Health).damage(self.dmg)
                 if rs is not None:
@@ -228,19 +228,67 @@ class Crater(GameObject):
 
 # -- targeting helpers ----------------------------------------------------
 
-def _enemy_tile(enemy):
+def _enemy_footprint(enemy):
+    """The enemy's footprint, guard-safe for the bare-bones stub enemies the
+    combat tests build (no PathAgent -> 1)."""
+    get = getattr(enemy, "get_component", None)
+    pa = get(PathAgent) if get is not None else None
+    return getattr(pa, "footprint", 1) or 1
+
+
+def _fp_offset(enemy):
+    """(N-1)/2 — the anchor->block-centre offset on each axis. N=1 -> 0.0.
+
+    MEMOISED on the enemy as an underscore transient (E-11 allows those). The
+    footprint is a static per-enemy constant, but ``_chebyshev`` runs once per
+    (defender x enemy) PAIR per frame and ``get_component`` is a linear
+    isinstance scan of the component list — resolving it pairwise costs ~9 ms
+    on a 16.7 ms frame at footprint 1, i.e. for TODAY's enemies. Never recompute
+    it in the pairwise loop (``game/PERF.md``)."""
+    off = getattr(enemy, "_fp_off", None)
+    if off is None:
+        off = (_enemy_footprint(enemy) - 1) / 2.0
+        enemy._fp_off = off
+    return off
+
+
+def _enemy_center_world(enemy):
+    """The block centre in world coords (un-rounded). N=1 -> world_pos itself,
+    not ``world_pos + 0.0`` — the zero offset is skipped so the single-tile
+    value stays bit-for-bit what it was."""
     wx, wy = enemy.transform.world_pos
-    return (round(wx), round(wy))
+    off = _fp_offset(enemy)
+    if not off:
+        return (wx, wy)
+    return (wx + off, wy + off)
 
 
-def _chebyshev(center_tile, enemy):
-    ec, er = _enemy_tile(enemy)
+def _chebyshev(center_tile, enemy, off=0.0):
+    """Defender tile -> the enemy's FOOTPRINT CENTRE (ER-2), so a 2×2 is not
+    engaged from an unfair corner. The ``round()`` of the anchor is KEPT —
+    dropping it would change the in-range set for existing 1×1 enemies
+    mid-tile. N=1: the anchor IS the centre and the value is numerically
+    identical to today's int Chebyshev.
+
+    THE hot path — one call per (defender x enemy) PAIR per frame. ``off`` is
+    passed IN (resolved once per enemy per frame by ``resolve_combat``), never
+    looked up here, and a zero offset is skipped rather than added so the N=1
+    expression stays INTEGER arithmetic. At 50 defenders x 300 enemies, a
+    component lookup — or floats where ints used to be — in this function is
+    milliseconds of a 16.7 ms frame (``game/PERF.md``)."""
+    wx, wy = enemy.transform.world_pos
+    ec, er = round(wx), round(wy)
+    if off:
+        ec += off
+        er += off
     return max(abs(ec - center_tile[0]), abs(er - center_tile[1]))
 
 
-def _euclid_sq(a, b):
-    ax, ay = a.transform.world_pos
-    bx, by = b.transform.world_pos
+def _euclid_sq_to_enemy(defender, enemy):
+    """Squared world distance from the defender to the enemy's block centre —
+    the acquisition tiebreak. N=1 -> today's world_pos-to-world_pos value."""
+    ax, ay = defender.transform.world_pos
+    bx, by = _enemy_center_world(enemy)
     return (ax - bx) ** 2 + (ay - by) ** 2
 
 
@@ -257,12 +305,19 @@ def _predict_lead(target, travel_time):
     would reach/pass that waypoint within the flight time, aim exactly at the
     waypoint (clamp, no overshoot); with no next waypoint, aim at its current
     position. Predictive targeting is always on (prototype
-    ``MORTAR_PREDICTIVE_TARGETING = True``)."""
-    px, py = target.transform.world_pos
+    ``MORTAR_PREDICTIVE_TARGETING = True``).
+
+    ER-2: both the position and the read waypoint are the enemy's block CENTRE
+    (anchor + ``off``), so the shell lands on the body the splash test measures
+    from — leaving the lead on the anchor would bias every shell half a tile off
+    a formation. N=1 -> ``off = 0`` -> unchanged."""
+    off = _fp_offset(target)
+    px, py = _enemy_center_world(target)
     mv = target.get_component(Movement)
     if mv is None or not mv.waypoints or mv.index >= len(mv.waypoints):
         return px, py
     wx, wy = mv.waypoints[mv.index]
+    wx, wy = wx + off, wy + off
     dx, dy = wx - px, wy - py
     dist = math.hypot(dx, dy)
     if dist < 1e-9:
@@ -287,8 +342,12 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
     proj_speed = globals_["projectile_speed_tiles"]
 
     enemies = [e for e in scene.by_tag("enemy") if e.alive]
+    # ER-2: the footprint offset is a per-enemy CONSTANT. Resolve it once per
+    # enemy per frame here — never inside the (defender x enemy) pairwise loop
+    # below, where it would cost a component scan per pair (game/PERF.md).
+    targets = [(e, _fp_offset(e)) for e in enemies]
     for defender in scene.by_tag("combat"):
-        _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
+        _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                          dmg_bonus)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
@@ -303,15 +362,17 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
             scene.despawn(enemy)
 
 
-def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
+def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                      dmg_bonus=0):
+    """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
+    resolved once per frame by ``resolve_combat`` (ER-2)."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
     # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
     # tick model — handle them wholesale, then bail.
     if defender.get_component(BeamAttacker) is not None:
-        _update_beam(defender, enemies, dt, dmg_bonus)
+        _update_beam(defender, targets, dt, dmg_bonus)
         return
 
     center = (defender.col, defender.row)
@@ -321,13 +382,13 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
     # feeding pathfinding coverage + the RANGE overlay. Guarded so bare-bones
     # defender stubs in tests keep working.
     rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
-    in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
+    in_range = [e for e, off in targets if _chebyshev(center, e, off) <= rng]
 
     target = getattr(attacker, "_target", None)
     if target is not None and target not in in_range:
         target = None
     if target is None and in_range:
-        target = min(in_range, key=lambda e: _euclid_sq(defender, e))
+        target = min(in_range, key=lambda e: _euclid_sq_to_enemy(defender, e))
     attacker._target = target
     attacker.has_target = target is not None
     # Play the attack animation while engaging a target (e.g. the stone
@@ -347,7 +408,7 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
-def _update_beam(defender, enemies, dt, dmg_bonus=0):
+def _update_beam(defender, targets, dt, dmg_bonus=0):
     """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
     highest-HP enemy in range, ramp damage while focused, reset the ramp on any
     target change, and pause re-acquiring for ``target_death_cooldown`` after a
@@ -358,7 +419,7 @@ def _update_beam(defender, enemies, dt, dmg_bonus=0):
     # 10I: targeting range (= effective, mountain-boosted, for the beam),
     # guarded for stubs.
     rng = getattr(defender, "targeting_range_tiles", defender.range_tiles)()
-    in_range = [e for e in enemies if _chebyshev(center, e) <= rng]
+    in_range = [e for e, off in targets if _chebyshev(center, e, off) <= rng]
 
     if beam.death_cooldown > 0:
         beam.death_cooldown -= dt

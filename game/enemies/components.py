@@ -19,7 +19,10 @@ by ``engine.core.Movement``.
 """
 from engine.core import Component, Health, Movement, SpriteAnimator
 from game.buildings.components import RoundStats
-from game.map.pathfinder import find_path_to_nearest_building
+from game.map.pathfinder import (
+    _wall_blocks, block_covers, block_tiles, face_edges,
+    find_path_to_nearest_building, internal_edges,
+)
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
 
@@ -65,6 +68,7 @@ class PathAgent(Component):
     blocked: bool = False
     goal_is_base: bool = True     # arrival counts as a base breach (10G)
     repath_on_kill: bool = False  # re-route to the next nearest building (10G)
+    footprint: int = 1            # the unit occupies footprint × footprint tiles
 
     def on_added(self, owner):
         self._owner = owner
@@ -114,8 +118,7 @@ class PathAgent(Component):
         # -- /10I --
         wp = wps[mv.index]
         tc, tr = round(wp[0]), round(wp[1])
-        is_base = (tc == tm.base_col and tr == tm.base_row)
-        # A standing wall on the edge we're crossing (prev -> next waypoint)
+        # A standing wall on the face we're crossing (prev -> next waypoint)
         # blocks FIRST (it sits before the next tile): the enemy stops on the
         # near side and attacks it (EnemyCombat drives the damage). Only the
         # walls-ignoring path (base enclosed) ever crosses a live wall — a normal
@@ -130,10 +133,8 @@ class PathAgent(Component):
                 self._set_anim(owner, "attack")
             return
         self._wall_target = None
-        tile = tm.get(tc, tr)
-        occ = tile.occupant if tile is not None else None
-        now_blocked = (occ is not None and not is_base
-                       and getattr(occ, "alive", False))
+        occ = self._blocker_ahead(tm, tc, tr)
+        now_blocked = occ is not None
         if now_blocked:
             self._target = occ
             if not self.blocked:
@@ -154,6 +155,23 @@ class PathAgent(Component):
             # ``_real_speed`` restore — identical when the condition is GRASS).
             mv.speed = self._condition_speed()
 
+    def _blocker_ahead(self, tm, tc, tr):
+        """The first live, non-base building standing anywhere in the
+        DESTINATION BLOCK — the tiles the body will occupy once it steps onto
+        the next anchor (ER-2). Scan order is row-major and deterministic.
+        The base exemption is per TILE of the block, not per waypoint: a
+        footprint-2 unit whose block covers the base must attack the other
+        occupant in its block, never the BaseBuilding. footprint=1 -> exactly
+        today's single-tile ``tm.get(tc, tr)`` test."""
+        for c, r in block_tiles(tc, tr, self.footprint):
+            if c == tm.base_col and r == tm.base_row:
+                continue
+            tile = tm.get(c, r)
+            occ = tile.occupant if tile is not None else None
+            if occ is not None and getattr(occ, "alive", False):
+                return occ
+        return None
+
     def _repath(self, owner, tm, mv):
         """Re-route to the nearest alive building (base included) from the
         current tile, reloading ``Movement`` and re-deriving ``goal_is_base``
@@ -161,13 +179,18 @@ class PathAgent(Component):
         the next unblock/arrival retries."""
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
-        path = find_path_to_nearest_building(tm, col, row)
+        path = find_path_to_nearest_building(tm, col, row,
+                                             footprint=self.footprint)
         if not path:
             return
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0
         mv.arrived = False
-        self.goal_is_base = path[-1] == (tm.base_col, tm.base_row)
+        # The goal is reached when the BLOCK covers the base, not when the
+        # anchor sits on it (ER-2). footprint=1 -> path[-1] == (base) exactly.
+        self.goal_is_base = block_covers(path[-1][0], path[-1][1],
+                                         self.footprint,
+                                         tm.base_col, tm.base_row)
 
     # -- 10I: condition-modified move speed ---------------------------------
 
@@ -182,22 +205,29 @@ class PathAgent(Component):
 
     # -- /10I --
 
-    @staticmethod
-    def _wall_edge_ahead(tm, wps, index, tc, tr):
-        """The ``(c1,r1,c2,r2)`` of a live wall on the edge from the previous
-        waypoint to the next, or None. Meaningful only once the enemy has left
-        the first waypoint (``index >= 1``); guarded so a headless tilemap stub
-        without ``get_wall_between`` never trips."""
+    def _wall_edge_ahead(self, tm, wps, index, tc, tr):
+        """The ``(c1,r1,c2,r2)`` of the FIRST live wall the body would cross or
+        straddle stepping to the next anchor: the FACE edges first (they sit in
+        front of it), then the destination block's INTERNAL edges. Returning
+        only the first makes a 2×2 chew through a face one segment at a time —
+        ``EnemyCombat`` drains ``_wall_target``, and when that edge dies the next
+        frame's scan returns the next one. footprint=1 -> exactly today's single
+        prev->next edge. Meaningful only once the enemy has left the first
+        waypoint (``index >= 1``); guarded so a headless tilemap stub without
+        ``get_wall_between`` never trips."""
         if index < 1:
             return None
-        get_wall = getattr(tm, "get_wall_between", None)
-        if get_wall is None:
+        if getattr(tm, "get_wall_between", None) is None:
             return None
         pw = wps[index - 1]
         pc, pr = round(pw[0]), round(pw[1])
-        w = get_wall(pc, pr, tc, tr)
-        if w is not None and getattr(w, "hp", 0) > 0:
-            return (pc, pr, tc, tr)
+        n = self.footprint
+        if n == 1:      # the face IS the single crossed edge; no internals
+            return ((pc, pr, tc, tr)
+                    if _wall_blocks(tm, pc, pr, tc, tr) else None)
+        for e in face_edges(pc, pr, tc, tr, n) + internal_edges(tc, tr, n):
+            if _wall_blocks(tm, *e):
+                return e
         return None
 
     @staticmethod

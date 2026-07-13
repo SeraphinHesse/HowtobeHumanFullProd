@@ -105,14 +105,60 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `TileMap.sync_occupancy(occupancy)` is the full-grid rebuild variant (**not on
   the placement path** — see `game/PERF.md`).
 
+## Footprints — the N×N block convention (ER-2)
+Every `find_path*` (and `_dijkstra`) takes a trailing `footprint` (N, default
+**1**). `pathfinder.py` holds the ONE definition — `block_tiles`,
+`block_covers`, `internal_edges`, `face_edges`, `block_passable`, `block_weight`
+are **public** because `game/enemies` (`components.py`, `spawner.py`) imports
+them; never re-derive the rules anywhere else.
+- **Anchor = the block's MIN corner.** A size-N unit at `(c,r)` occupies
+  `{(c+i, r+j) | 0 ≤ i,j < N}` — the body extends **right and down**. Same
+  convention as `_find_2x2`, the `start_area` marker and unlock chunks; it is
+  the only one that works for an even N (no centre tile) and keeps every
+  coordinate an integer. Paths, waypoints and spawn tiles are all **anchors**.
+- **Passable** = every block tile in bounds and under `impassable_weight`, AND
+  (unless `ignore_walls`) no live wall on an **internal** edge of the block. A
+  **step** to a 4-adjacent anchor additionally clears the whole leading **face**
+  (N edges, not one). `face_edges` is symmetric in its two anchors, so the
+  forward `_dijkstra` and the reverse `_build_flow_field` share it and their
+  edge rules stay identical (the flow-field equivalence proof depends on that).
+- **Entering a block costs `max(weight)` under the body** — a 2×2 avoids a pond
+  even if only one of its four tiles is the pond.
+- **A goal is reached when the block COVERS it**, not when the anchor sits on
+  it: the field is seeded at every base-covering anchor and `_dijkstra` expands
+  its goal set the same way. A 2×2 beside the hole IS on the hole. (Requiring it
+  to *anchor* on the base would strand every 2×2 whenever the block at the base
+  is not clear — which no map guarantees.)
+- **N = 1 collapses every rule to its pre-ER-2 expression** (block = the tile, no
+  internal edges, face = the single crossed edge, block weight = tile weight,
+  goal set = the goal), so the single-tile path is unchanged. **This is a PERF
+  contract, not just a semantic one:** `_dijkstra` / `_build_flow_field` hoist
+  their loop invariants and take an inline `single = footprint == 1` branch, so
+  at footprint 1 they do exactly the pre-ER-2 work — one `get`, one `weight`, one
+  `_wall_blocks` per edge. Calling the block helpers per node/edge instead
+  (they allocate a `block_tiles`/`face_edges` list and re-read the
+  `impassable_weight` property) made a 300×300 rebuild **2.1× slower at
+  footprint 1**. Do not "simplify" that branch away.
+- **Seeding is multi-source and `best` MUST be pre-seeded to 0.** For N>1 the
+  covering anchors are 4-adjacent to each other, so without it the first seed
+  popped relaxes its siblings and writes a back-pointer into itself — their
+  `dist` still settles to 0, but the bogus `next_step` survives and a unit that
+  already covers the base walks on to the lex-min covering anchor instead of
+  stopping.
+- Footprints are a **pathfinding** property only (D5): enemies never enter
+  `TileOccupancy` and do not block each other.
+
 ## Perf invariants that live here
 Tile-state writes MUST route through `TileMap.set_tile_state` (keeps the
 `_by_state` index consistent); `_find_2x2` uses an expanding-window search.
 **Base pathfinding is a shared flow field**: `find_path` +
 `find_path_ignoring_walls` walk one cached reverse-Dijkstra field
-(`pathfinder._build_flow_field` — reverse edges cost the weight of the tile a
+(`pathfinder._build_flow_field` — reverse edges cost the weight of the *block* a
 forward walker would enter, so field distances equal forward costs exactly),
-keyed by `TileMap._path_version`. EVERY weight/blocking mutation must bump the
+keyed by `TileMap._path_version`. Since ER-2 the field is **footprint-aware**
+and the per-version cache is keyed on **`(ignore_walls, footprint)`** — so the
+invariant is now **ONE Dijkstra per topology change PER FOOTPRINT, never one per
+enemy**. EVERY weight/blocking mutation must bump the
 counter: `set_tile_state`, `set_tile_content` (the ONE occupant/content-key
 seam — never write `tile.occupant`/`tile.content_key` directly from outside
 the map layer), wall add/remove/death (mid-HP wall hits don't bump —
