@@ -30,10 +30,17 @@
           "type": "string"
         },
         "slots": {
-          "description": "Slot keys in this group, in display order. The same key may appear under two groups of one category (shared art, e.g. meditators reuse musician sheets) but never in two categories.",
+          "description": "Slot entries in this group, in display order. Either a bare key (inherits the category frame size) or a {key, frame_w, frame_h} object that overrides it (D1: slicing != drawing). The same key may appear under two groups of ONE category (shared art, e.g. meditators reuse musician sheets) but never in two categories, and every occurrence must agree on its frame size (loader-enforced: uniqueItems compares whole values, so it cannot catch a key repeated in both forms).",
           "items": {
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
+            "oneOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/slot_entry"
+              }
+            ]
           },
           "minItems": 1,
           "type": "array",
@@ -42,6 +49,35 @@
       },
       "required": [
         "label"
+      ],
+      "type": "object"
+    },
+    "slot_entry": {
+      "additionalProperties": false,
+      "description": "A slot key that overrides its category's frame size (D1): how the SHEET is sliced. Use the bare-string form to inherit the category size.",
+      "properties": {
+        "frame_h": {
+          "description": "Sprite frame height in pixels for this slot, overriding the category's.",
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "frame_w": {
+          "description": "Sprite frame width in pixels for this slot, overriding the category's.",
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "key": {
+          "description": "The slot key.",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "frame_w",
+        "frame_h"
       ],
       "type": "object"
     }

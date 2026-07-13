@@ -37,6 +37,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import selection
+from editor.asset_import import pad_to_frame
 from engine import data_io
 from engine.assets import load_manifest, load_registry
 
@@ -280,22 +281,23 @@ class DetailsPanel(QWidget):
 
     def import_sheet(self, png_path):
         """Copy a sheet PNG in (AT IMPORT TIME, prototype parity) and build
-        the row editors. Returns (cols, rows, clean_grid) or None when the
-        image is smaller than one frame. Off-grid sheets warn but import —
-        the remainder is cropped, exactly like the prototype."""
+        the row editors. Returns (cols, rows, clean_grid), or None when no slot
+        is selected. Art smaller than one frame is padded onto a transparent
+        frame-sized canvas and centred (ED-40), never rejected. Off-grid sheets
+        warn but import — the remainder is cropped, exactly like the prototype."""
         if self.slot_key is None:
             return None
         fw, fh = self.registry.frame_size(self.slot_key)
         with Image.open(png_path) as image:
-            w, h = image.size
+            src_w, src_h = image.size
+            padded, was_padded = pad_to_frame(image, fw, fh)
+            w, h = padded.size
         cols, rows = w // fw, h // fh
-        if cols < 1 or rows < 1:
-            self._info.setText(
-                f"⚠ image is smaller than one {fw}×{fh} frame — not imported.")
-            return None
         destination = self._sheet_path(self.slot_key)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        if Path(png_path).resolve() != destination.resolve():
+        if was_padded:
+            padded.save(destination)
+        elif Path(png_path).resolve() != destination.resolve():
             shutil.copyfile(png_path, destination)
         entry = self._read_doc()["entries"].get(self.slot_key)
         self._loading = True
@@ -303,6 +305,10 @@ class DetailsPanel(QWidget):
             self._load_sheet(destination, entry)
         finally:
             self._loading = False
+        if was_padded:
+            self._info.setText(
+                f"padded {src_w}×{src_h} → {w}×{h} "
+                f"(centred in the {fw}×{fh} frame)")
         self._emit_draft()
         even = (w % fw == 0) and (h % fh == 0)
         return (cols, rows, even)

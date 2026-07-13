@@ -19,15 +19,45 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever
   interleaves layers, the ground cache breaks.
 
-## Anchor convention
-A frame blits centred horizontally on its world position. A 64x32 tile frame
-anchors its bottom on the bottom of that tile's diamond (`world_to_screen(...)y +
-tile_h*zoom`), covering it exactly. A frame TALLER than the tile
-(64x96 buildings/enemies/deco) anchors one extra tile-height lower (bottom at `y +
-2*tile_h*zoom`) — the prototype's building-sheet convention
-(`src/buildings/building.py`: art is authored centred in the 96px frame, so this
-"sits the figure ON the tile, not above it"). Per-entry manifest
-`offset_x/offset_y` nudge from there.
+## Anchor convention (ER-1)
+A frame blits **centred on the tile**: horizontally on its world position,
+vertically on the tile diamond's CENTRE — `world_to_screen(...)y +
+(tile_h/2)*zoom`. So `dest_y = py + (tile_h/2)*z − h/2`, **continuous in
+`frame_h`**. Per-entry manifest `offset_x/offset_y` nudge from there.
+
+This is not a new convention — it is the old one, derived. The old rule had two
+branches (a 64x32 tile frame anchored its bottom at `y + tile_h*z`; anything
+taller anchored one extra tile-height lower, at `y + 2*tile_h*z` — the prototype
+`src/buildings/building.py` sheet convention, art authored centred in the 96px
+frame). Write both out and each puts the frame's centre on `py + tile_h/2`:
+they were the SAME rule spelled out for `frame_h == tile_h` and `frame_h ==
+3*tile_h`, with a 32px cliff for everything in between. Every non-enemy world
+frame that ships is 96 or 32 tall, so the new rule is **byte-identical** for
+buildings / tiles / deco / core; the enemy sheets (18/26/28/56/84/88 tall) are
+the intended moves — they used to hang above their tile.
+
+## Sizing: `fit_tiles` / `scale` (ER-1, downscale-only)
+`RenderItem`/`SpriteAnimator` carry two engine-generic sizing fields (**no game
+vocabulary here** — never `footprint`/`sprite_scale`, those are the `game/` names
+that feed these):
+
+    fit  = min(1.0, (fit_tiles * tile_w) / frame_w)   if fit_tiles > 0 else 1.0
+    s    = fit * scale                                # w,h,offsets all ride s
+
+- `fit_tiles` = how many TILES wide the thing may span. The sprite is scaled DOWN
+  to fit and **never up** — a 124x96 boss sheet at `fit_tiles=1` draws 64px wide;
+  a 16x16 frame stays 16px (art smaller than its footprint is padded at import,
+  not magnified). Sizing therefore derives from the tile footprint, never from
+  raw sheet pixels.
+- `scale` multiplies AFTER the fit — the deliberate knob for low-res art, and it
+  may exceed 1.
+- **Hard invariant:** `fit_tiles == 0.0 and scale == 1.0` (the defaults) ⇒
+  `s == 1.0` ⇒ output is pixel-identical to pre-ER-1. Buildings, tiles, deco and
+  the HUD pass are provably untouched — pinned by `test_render.TestAnchoring`
+  (`test_ground_tile_anchor` / `test_tall_entity_anchor` are unchanged from
+  before ER-1, plus a table-driven pin against the old formula).
+- Manifest `offset_x/offset_y` are authored in FRAME pixels, so they ride `s`
+  too (a no-op at `s == 1`).
 
 ## Overlay primitives (E-24 + 10J)
 `Renderer.submit_overlay_lines(points_world, color, width, closed)` →

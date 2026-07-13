@@ -39,6 +39,13 @@ schema, update THIS doc.**
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
+- **Enemy sizing leaves (ER-1)**: each `enemies.json` `EnemyTypes/*` block carries
+  a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
+  its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
+  `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
+  art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
+  `Boss/stats` row were deleted from content AND schema in the same change:
+  nothing read them, and render size now derives from the footprint.
 - **Parity gate**: `tools/tests/balancing_parity_map.json` (committed,
   deliberately NOT under `data/` — smoke stem-pairs everything here) maps
   EVERY prototype live-JSON key to its new path, `MERGED:<target>`, or
@@ -89,6 +96,20 @@ schema, update THIS doc.**
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
   ONE category (meditators reuse musician art) but never across categories
   (frame size would be ambiguous — loader rejects it).
+- **`slots[]` entries: bare key OR frame-size override (ER-1, D1)**. An entry is
+  either a bare key string (inherits the category's `frame_w`/`frame_h`) or
+  `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm —
+  no committed entry uses the object form yet; it exists for art whose sheet is
+  cut at a different size than its category (a 128×128 formation sheet in the
+  64×96 `enemies` category). It describes **slicing, not drawing** — on-screen
+  size comes from the render fit (`engine/render/CLAUDE.md`).
+  - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
+    so `"foo"` and `{"key": "foo", …}` are two distinct items. It is kept (it
+    still catches literal duplicates, and it is the D-3 house style), and
+    `SlotRegistry.__init__` picks up the slack — a key repeated within a category
+    must AGREE on its frame size or the loader raises `ValueError`. Schemas for
+    what schemas can express; loader cross-checks for what they cannot (the
+    `engine/tilemap.py` precedent).
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`) and `deco` prop TYPES (`Props → Rock → [deco_rock,

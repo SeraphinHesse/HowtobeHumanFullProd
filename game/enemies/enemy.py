@@ -96,6 +96,9 @@ class Enemy(GameObject):
             enemies_balance, tier)
         slot = variant_slot(registry, self.REGISTRY_GROUP, tier, rng,
                             self.DEFAULT_SLOT)
+        block = enemies_balance["EnemyTypes"]
+        for seg in self.STAT_SUBTREE:
+            block = block[seg]
         components = [
             Health(max_hp=hp, hp=hp),
             PathAgent(),
@@ -103,7 +106,9 @@ class Enemy(GameObject):
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
             SpriteAnimator(slot_key=slot, animation="walk",
-                           phase_ms=(col * 137 + row * 251) % 2000),
+                           phase_ms=(col * 137 + row * 251) % 2000,
+                           fit_tiles=float(block["footprint"]),
+                           scale=float(block["sprite_scale"])),
         ]
         super().__init__(
             name=self.ETYPE,
@@ -155,6 +160,7 @@ class Raider(Enemy):
     ETYPE = "raider"
     REGISTRY_GROUP = "Raider"
     DEFAULT_SLOT = "raider_stage_1"
+    STAT_SUBTREE = ("Raider",)
 
     def _resolve_stats(self, balance, tier):
         # Raiders do NOT take the scale-tier bonuses (prototype raider.py).
@@ -167,6 +173,7 @@ class SiegeCannon(Enemy):
     ETYPE = "siege"
     REGISTRY_GROUP = "Siege Cannon"
     DEFAULT_SLOT = "siege_cannon"
+    STAT_SUBTREE = ("SiegeCannon",)
     HP_BAR_W, HP_BAR_LIFT = 24, 28   # prototype siege_cannon.py:145-152
 
     def _resolve_stats(self, balance, tier):
@@ -190,6 +197,7 @@ class Boss(Enemy):
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
     DEFAULT_SLOT = "boss_era_0"
+    STAT_SUBTREE = ("Boss",)
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
     # prototype boss.py:136-143 — the max(48, …) width floor, and a lift of
     # `sprite_h - 8` (the boss sheet is 72x56, so 48) to clear the big sprite.

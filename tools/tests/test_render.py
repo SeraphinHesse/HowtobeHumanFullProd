@@ -30,13 +30,30 @@ def make_cs(**camera):
 class FakeAssets:
     """Resolves every slot to a token 'surface' so tests stay pygame-free."""
 
-    def __init__(self, sizes=None, default=(64, 32)):
+    def __init__(self, sizes=None, default=(64, 32), offsets=None):
         self.sizes = sizes or {}
         self.default = default
+        self.offsets = offsets or {}
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0):
         w, h = self.sizes.get(slot_key, self.default)
-        return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h)
+        offset_x, offset_y = self.offsets.get(slot_key, (0, 0))
+        return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
+                     offset_x=offset_x, offset_y=offset_y)
+
+
+def old_anchor_dest(px, py, frame_w, frame_h, zoom=1.0, tile_h=32):
+    """The pre-ER-1 two-branch anchor, kept verbatim as the pixel-pin oracle:
+    a frame taller than the tile anchored one extra tile-height lower."""
+    w, h = frame_w * zoom, frame_h * zoom
+    anchor = tile_h * (2 if frame_h > tile_h else 1)
+    return (px - w / 2, py + anchor * zoom - h)
+
+
+def only_call(renderer, backend, item):
+    renderer.submit(item)
+    renderer.flush(target=None)
+    return backend.calls[-1]
 
 
 class RecordingBackend:
@@ -118,6 +135,106 @@ class TestAnchoring(unittest.TestCase):
         call = backend.calls[0]
         self.assertEqual(call.dest, (-64.0, 0.0))
         self.assertEqual(call.size, (128.0, 64.0))
+
+    def test_anchor_is_continuous_across_the_old_32px_cliff(self):
+        """ER-1 D3: the frame's centre sits on the tile diamond's centre, so
+        dest_y falls smoothly with frame_h. The old two-branch rule jumped a
+        whole tile_h (32px) between frame_h 32 and 33."""
+        backend = RecordingBackend()
+        r = Renderer(
+            make_cs(),
+            FakeAssets(sizes={f"h{h}": (64, h) for h in range(1, 129)}),
+            backend=backend,
+        )
+        for h in range(1, 129):
+            r.submit(RenderItem(f"h{h}", (0, 0), layer="entities"))
+        r.flush(target=None)
+        ys = [c.dest[1] for c in backend.calls]
+        self.assertEqual(len(ys), 128)
+        for previous, current in zip(ys, ys[1:]):
+            self.assertLessEqual(current, previous)          # monotone
+            self.assertLessEqual(previous - current, 1.0)    # no cliff
+
+    def test_non_enemy_world_frames_are_pixel_identical_to_the_old_rule(self):
+        """The D3 safety proof: at fit_tiles=0/scale=1 every frame size that
+        actually ships for a tile / building / deco / core sheet (32 or 96
+        tall) lands byte-identically on the old two-branch formula."""
+        sizes = {"tile": (64, 32), "building": (64, 96),
+                 "wide_building": (68, 96), "boss_sheet": (124, 96)}
+        for zoom in (1.0, 2.0):
+            for slot, (fw, fh) in sizes.items():
+                backend = RecordingBackend()
+                cs = make_cs()
+                cs.set_zoom(zoom)
+                r = Renderer(cs, FakeAssets(sizes=sizes), backend=backend)
+                call = only_call(r, backend, RenderItem(slot, (2, 3)))
+                px, py = cs.world_to_screen(2, 3)
+                with self.subTest(slot=slot, zoom=zoom):
+                    self.assertEqual(
+                        call.dest, old_anchor_dest(px, py, fw, fh, zoom))
+                    self.assertEqual(call.size, (fw * zoom, fh * zoom))
+
+
+class TestFootprintFit(unittest.TestCase):
+    """ER-1 D2: an item with fit_tiles > 0 is DOWNSCALED to span at most
+    fit_tiles tiles horizontally; `scale` multiplies on top. Never upscaled."""
+
+    def render(self, sizes, item, **kwargs):
+        backend = RecordingBackend()
+        cs = make_cs()
+        r = Renderer(cs, FakeAssets(sizes=sizes, **kwargs), backend=backend)
+        return only_call(r, backend, item)
+
+    def test_oversized_boss_sheet_shrinks_to_one_tile_wide(self):
+        # The bug ER-1 exists to fix: a 124x96 boss sheet overflowed its tile.
+        call = self.render({"boss": (124, 96)},
+                           RenderItem("boss", (0, 0), fit_tiles=1.0))
+        self.assertAlmostEqual(call.size[0], 64.0)
+        self.assertAlmostEqual(call.size[1], 96.0 * (64.0 / 124.0))
+
+    def test_two_tile_footprint_fits_a_128_sheet_exactly(self):
+        call = self.render({"form": (128, 128)},
+                           RenderItem("form", (0, 0), fit_tiles=2.0))
+        self.assertEqual(call.size, (128.0, 128.0))
+
+    def test_small_frame_is_never_upscaled(self):
+        call = self.render({"tiny": (16, 16)},
+                           RenderItem("tiny", (0, 0), fit_tiles=1.0))
+        self.assertEqual(call.size, (16.0, 16.0))
+
+    def test_scale_is_the_knob_for_low_res_art(self):
+        call = self.render({"tiny": (16, 16)},
+                           RenderItem("tiny", (0, 0), fit_tiles=1.0, scale=2.0))
+        self.assertEqual(call.size, (32.0, 32.0))
+
+    def test_scale_applies_without_a_fit(self):
+        call = self.render({"ent": (64, 96)},
+                           RenderItem("ent", (0, 0), scale=0.5))
+        self.assertEqual(call.size, (32.0, 48.0))
+
+    def test_fit_keeps_the_frame_centred_on_the_tile(self):
+        call = self.render({"boss": (124, 96)},
+                           RenderItem("boss", (0, 0), fit_tiles=1.0))
+        w, h = call.size
+        self.assertAlmostEqual(call.dest[0], -w / 2)      # centred on (0,0)
+        self.assertAlmostEqual(call.dest[1], 16.0 - h / 2)  # on the tile centre
+
+    def test_defaults_are_todays_behaviour(self):
+        plain = self.render({"ent": (64, 96)}, RenderItem("ent", (1, 1)))
+        item = RenderItem("ent", (1, 1))
+        self.assertEqual((item.fit_tiles, item.scale), (0.0, 1.0))
+        self.assertEqual(plain.dest, (-32.0, 0.0))
+        self.assertEqual(plain.size, (64.0, 96.0))
+
+    def test_manifest_offsets_nudge_and_ride_the_scale(self):
+        sizes = {"ent": (64, 96)}
+        offsets = {"ent": (4, -6)}
+        plain = self.render(sizes, RenderItem("ent", (0, 0)), offsets=offsets)
+        self.assertEqual(plain.dest, (-32.0 + 4, 16.0 - 48.0 - 6))
+
+        halved = self.render(sizes, RenderItem("ent", (0, 0), scale=0.5),
+                             offsets=offsets)
+        self.assertEqual(halved.dest, (-16.0 + 4 * 0.5, 16.0 - 24.0 - 6 * 0.5))
 
 
 class TestOverlayLines(unittest.TestCase):

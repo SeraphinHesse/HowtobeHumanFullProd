@@ -22,6 +22,13 @@ from engine import data_io
 _TRAILING_VARIANT = re.compile(r"^(?P<stem>.+)_v(?P<n>\d+)$")
 
 
+def _slot_key(entry):
+    """A slots[] entry is a bare key string, or {key, frame_w, frame_h} (a
+    per-slot frame-size override). Kept local: this module stays pure
+    engine.data_io, with no engine.assets coupling."""
+    return entry if isinstance(entry, str) else entry["key"]
+
+
 def _stem(slot_key):
     """slot_key with a trailing ``_v<N>`` stripped — the base name a family of
     variants shares (``enemy_stage_1_v2`` -> ``enemy_stage_1``; a slot with no
@@ -32,11 +39,12 @@ def _stem(slot_key):
 
 def next_variant_key(existing_slots, taken):
     """Lowest ``<stem>_v<k>`` (k >= 2) that collides with neither the era's
-    ``existing_slots`` nor any ``taken`` key elsewhere in the registry. The stem
-    comes from the era's first slot; a bare (suffix-less) slot is treated as v1,
-    so the first added variant is ``_v2``."""
-    stem = _stem(existing_slots[0])
-    blocked = set(existing_slots) | set(taken)
+    ``existing_slots`` (bare keys or override objects) nor any ``taken`` key
+    elsewhere in the registry. The stem comes from the era's first slot; a bare
+    (suffix-less) slot is treated as v1, so the first added variant is ``_v2``."""
+    keys = [_slot_key(s) for s in existing_slots]
+    stem = _stem(keys[0])
+    blocked = set(keys) | set(taken)
     k = 2
     while f"{stem}_v{k}" in blocked:
         k += 1
@@ -47,7 +55,7 @@ def _all_slots(doc):
     out = set()
 
     def walk(node):
-        out.update(node.get("slots", ()))
+        out.update(_slot_key(s) for s in node.get("slots", ()))
         for child in node.get("children", ()):
             walk(child)
 

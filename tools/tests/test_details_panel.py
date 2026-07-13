@@ -77,12 +77,20 @@ class TestImportSheet(DetailsCase):
         self.assertIn("cropped", self.panel._info.text())
         self.assertEqual(len(self.panel._row_editors), 1)
 
-    def test_too_small_sheet_rejected(self):
-        src = make_png(self.png_dir / "art.png", 10, 10)
+    def test_sub_frame_sheet_is_padded_and_centred(self):
+        """ED-40 (ER-1): undersized art imports padded + centred instead of
+        being rejected — a (cols, rows, clean) tuple, and no warning."""
+        src = make_png(self.png_dir / "art.png", 16, 16)
         self.panel.set_slot("painter_t1_lvl1")
-        self.assertIsNone(self.panel.import_sheet(src))
+        self.assertEqual(self.panel.import_sheet(src), (1, 1, True))
         copied = self.data_dir / "sprites" / "imported" / "painter_t1_lvl1.png"
-        self.assertFalse(copied.exists())
+        self.assertTrue(copied.exists())
+        with Image.open(copied) as image:
+            self.assertEqual(image.size, (64, 96))
+            self.assertEqual(image.getbbox(), (24, 40, 40, 56))
+        self.assertNotIn("⚠", self.panel._info.text())
+        self.assertIn("padded", self.panel._info.text())
+        self.assertEqual(len(self.panel._row_editors), 1)
 
     def test_tiles_slot_uses_its_category_frame_size(self):
         """ED-41: same panel drives every category at its own frame size."""

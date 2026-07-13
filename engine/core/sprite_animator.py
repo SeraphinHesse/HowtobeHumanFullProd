@@ -1,7 +1,8 @@
 """SpriteAnimator (E-12/E-20): the visual-presence component.
 
-Holds the asset slot key, current animation name, and a phase offset (so
-identical entities don't animate in lockstep). update(dt) advances the
+Holds the asset slot key, current animation name, a phase offset (so
+identical entities don't animate in lockstep) and the item's sizing
+(`fit_tiles`/`scale` — see engine/render). update(dt) advances the
 animation clock; render_items(transform) emits one RenderItem per frame —
 world space only, no pixels, no pygame.
 """
@@ -15,6 +16,8 @@ class SpriteAnimator(Component):
     animation: str = "idle"
     phase_ms: int = 0
     anim_time_ms: float = 0.0
+    fit_tiles: float = 0.0
+    scale: float = 1.0
 
     def update(self, dt):
         self.anim_time_ms += dt * 1000.0
@@ -31,4 +34,6 @@ class SpriteAnimator(Component):
             layer=transform.layer,
             animation=self.animation,
             anim_time_ms=self.anim_time_ms + self.phase_ms,
+            fit_tiles=self.fit_tiles,
+            scale=self.scale,
         )

@@ -121,5 +121,86 @@ class TestSyntheticRegistry(unittest.TestCase):
         self.assertEqual(reg.slot_keys(), ("thing",))
 
 
+class TestPerSlotFrameSize(unittest.TestCase):
+    """D1: a slots[] entry may be an object overriding the category's frame
+    size. The object form is normalised away at parse time — it must never
+    leak out of the registry as anything but a key string."""
+
+    def doc(self, slots):
+        return {"categories": [
+            {"key": "a", "display_name": "A", "frame_w": 64, "frame_h": 96,
+             "animations": ["idle"],
+             "groups": [{"label": "G", "slots": slots}]},
+        ]}
+
+    def test_override_beats_the_category_size(self):
+        reg = SlotRegistry(self.doc(
+            [{"key": "big", "frame_w": 128, "frame_h": 128}]))
+        self.assertEqual(reg.frame_size("big"), (128, 128))
+
+    def test_bare_string_in_the_same_group_still_inherits(self):
+        reg = SlotRegistry(self.doc(
+            ["normal", {"key": "big", "frame_w": 128, "frame_h": 128}]))
+        self.assertEqual(reg.frame_size("normal"), (64, 96))
+        self.assertEqual(reg.frame_size("big"), (128, 128))
+
+    def test_unknown_slot_still_raises(self):
+        reg = SlotRegistry(self.doc(
+            [{"key": "big", "frame_w": 128, "frame_h": 128}]))
+        with self.assertRaises(KeyError):
+            reg.frame_size("no_such_slot")
+
+    def test_group_slots_stay_plain_key_strings(self):
+        """The anti-leak pin: editor/selection, palette and the game's variant
+        roll all consume GroupNode.slots as a tuple of key strings."""
+        reg = SlotRegistry(self.doc(
+            ["normal", {"key": "big", "frame_w": 128, "frame_h": 128}]))
+        self.assertEqual(reg.group("a", ("G",)).slots, ("normal", "big"))
+        self.assertEqual(reg.group_slots("a", ("G",)), ("normal", "big"))
+        self.assertEqual(reg.slot_keys(), ("normal", "big"))
+
+    def test_conflicting_overrides_for_one_key_rejected(self):
+        doc = {"categories": [
+            {"key": "a", "display_name": "A", "frame_w": 64, "frame_h": 96,
+             "animations": ["idle"],
+             "groups": [
+                 {"label": "G", "slots": [
+                     {"key": "shared", "frame_w": 128, "frame_h": 128}]},
+                 {"label": "H", "slots": [
+                     {"key": "shared", "frame_w": 64, "frame_h": 64}]},
+             ]},
+        ]}
+        with self.assertRaises(ValueError):
+            SlotRegistry(doc)
+
+    def test_same_key_once_bare_once_overridden_rejected(self):
+        doc = {"categories": [
+            {"key": "a", "display_name": "A", "frame_w": 64, "frame_h": 96,
+             "animations": ["idle"],
+             "groups": [
+                 {"label": "G", "slots": ["shared"]},
+                 {"label": "H", "slots": [
+                     {"key": "shared", "frame_w": 128, "frame_h": 128}]},
+             ]},
+        ]}
+        with self.assertRaises(ValueError):
+            SlotRegistry(doc)
+
+    def test_shared_art_agreeing_on_its_override_is_allowed(self):
+        doc = {"categories": [
+            {"key": "a", "display_name": "A", "frame_w": 64, "frame_h": 96,
+             "animations": ["idle"],
+             "groups": [
+                 {"label": "G", "slots": [
+                     {"key": "shared", "frame_w": 128, "frame_h": 128}]},
+                 {"label": "H", "slots": [
+                     {"key": "shared", "frame_w": 128, "frame_h": 128}]},
+             ]},
+        ]}
+        reg = SlotRegistry(doc)
+        self.assertEqual(reg.slot_keys(), ("shared",))
+        self.assertEqual(reg.frame_size("shared"), (128, 128))
+
+
 if __name__ == "__main__":
     unittest.main()

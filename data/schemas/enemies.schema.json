@@ -38,18 +38,6 @@
           "description": "Boss display name for this era (used by the boss announcement).",
           "minLength": 1,
           "type": "string"
-        },
-        "sprite_h": {
-          "description": "Canonical boss sprite canvas height in pixels.",
-          "maximum": 4096,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "sprite_w": {
-          "description": "Canonical boss sprite canvas width in pixels.",
-          "maximum": 4096,
-          "minimum": 1,
-          "type": "integer"
         }
       },
       "required": [
@@ -58,32 +46,7 @@
         "dmg",
         "hp",
         "move_speed",
-        "name",
-        "sprite_h",
-        "sprite_w"
-      ],
-      "type": "object"
-    },
-    "era_size": {
-      "additionalProperties": false,
-      "description": "Per-era boss sprite render size in pixels (sprite is generated at canonical size then scaled to w x h at startup).",
-      "properties": {
-        "h": {
-          "description": "Rendered boss sprite height in pixels.",
-          "maximum": 4096,
-          "minimum": 1,
-          "type": "integer"
-        },
-        "w": {
-          "description": "Rendered boss sprite width in pixels.",
-          "maximum": 4096,
-          "minimum": 1,
-          "type": "integer"
-        }
-      },
-      "required": [
-        "h",
-        "w"
+        "name"
       ],
       "type": "object"
     },
@@ -158,7 +121,7 @@
   "$id": "enemies.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Enemies balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, pixels 1-4096.",
+  "description": "Enemies balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, pixels 1-4096; footprint tiles 1-8; sprite_scale multiplier 0.1-8.",
   "properties": {
     "EnemyScaling": {
       "additionalProperties": false,
@@ -225,7 +188,7 @@
       "properties": {
         "Boss": {
           "additionalProperties": false,
-          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawns[N], era_sizes[N], round_counts[N].",
+          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawns[N], round_counts[N].",
           "properties": {
             "death_spawns": {
               "description": "Enemies spawned where the boss dies, per era.",
@@ -236,14 +199,11 @@
               "minItems": 5,
               "type": "array"
             },
-            "era_sizes": {
-              "description": "Per-era boss sprite render sizes.",
-              "items": {
-                "$ref": "#/$defs/era_size"
-              },
-              "maxItems": 5,
-              "minItems": 5,
-              "type": "array"
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
             },
             "round_counts": {
               "description": "Boss-round wave composition, per era.",
@@ -283,6 +243,12 @@
               ],
               "type": "object"
             },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
             "stats": {
               "description": "Per-era boss combat stats.",
               "items": {
@@ -295,10 +261,11 @@
           },
           "required": [
             "death_spawns",
-            "era_sizes",
+            "footprint",
             "round_counts",
             "round_interval",
             "shake",
+            "sprite_scale",
             "stats"
           ],
           "type": "object"
@@ -331,6 +298,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
             "hp": {
               "description": "Hit points (x10 combat scale, D-12).",
               "maximum": 100000,
@@ -349,6 +322,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
             "start_round": {
               "description": "First round raiders appear.",
               "maximum": 1000,
@@ -361,9 +340,11 @@
             "attack_speed",
             "base_count",
             "dmg",
+            "footprint",
             "hp",
             "move_speed",
             "per_round",
+            "sprite_scale",
             "start_round"
           ],
           "type": "object"
@@ -396,6 +377,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
             "hp": {
               "description": "Hit points (x10 combat scale, D-12).",
               "maximum": 100000,
@@ -426,6 +413,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
             "start_round": {
               "description": "First round siege cannons appear.",
               "maximum": 1000,
@@ -438,11 +431,13 @@
             "attack_speed",
             "base_count",
             "dmg",
+            "footprint",
             "hp",
             "mix_ratio",
             "move_speed",
             "queue_lead_count",
             "rounds_per_cannon",
+            "sprite_scale",
             "start_round"
           ],
           "type": "object"
@@ -469,6 +464,12 @@
               "minimum": 0,
               "type": "integer"
             },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
             "hp": {
               "description": "Hit points (x10 combat scale, D-12).",
               "maximum": 100000,
@@ -480,14 +481,22 @@
               "maximum": 60,
               "minimum": 0,
               "type": "number"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
             }
           },
           "required": [
             "attack_range_tiles",
             "attack_speed",
             "dmg",
+            "footprint",
             "hp",
-            "move_speed"
+            "move_speed",
+            "sprite_scale"
           ],
           "type": "object"
         }

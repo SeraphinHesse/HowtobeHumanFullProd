@@ -108,7 +108,7 @@
     "BOSS_DEATH_REGULAR": "DROPPED:superseded-by-BOSS_ERAS: unread in src/ (game.py:1322 reads per-era death_* from BOSS_ERAS)",
     "BOSS_DEATH_SIEGE": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
     "BOSS_DMG": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
-    "BOSS_ERA_SIZES": "enemies:EnemyTypes/Boss/era_sizes",
+    "BOSS_ERA_SIZES": "DROPPED:dead data - nothing read era_sizes; render size now derives from the tile footprint (ER-1 D2 fit), not a baked per-era pixel size.",
     "BOSS_HP": "DROPPED:superseded-by-BOSS_ERAS: unread in src/ (boss.py reads per-era stats from the py-only BOSS_ERAS list)",
     "BOSS_MOVE_SPEED": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
     "BOSS_ROUND_COUNTS": "enemies:EnemyTypes/Boss/round_counts",
@@ -241,14 +241,6 @@
       "expect": "Bandit Chieftain",
       "path": "enemies:EnemyTypes/Boss/stats/0/name"
     },
-    "BOSS_ERAS[0].sprite_h": {
-      "expect": 56,
-      "path": "enemies:EnemyTypes/Boss/stats/0/sprite_h"
-    },
-    "BOSS_ERAS[0].sprite_w": {
-      "expect": 72,
-      "path": "enemies:EnemyTypes/Boss/stats/0/sprite_w"
-    },
     "BOSS_ERAS[1].attack_range_tiles": {
       "expect": 2,
       "path": "enemies:EnemyTypes/Boss/stats/1/attack_range_tiles"
@@ -284,14 +276,6 @@
     "BOSS_ERAS[1].name": {
       "expect": "Cannon Fortress",
       "path": "enemies:EnemyTypes/Boss/stats/1/name"
-    },
-    "BOSS_ERAS[1].sprite_h": {
-      "expect": 84,
-      "path": "enemies:EnemyTypes/Boss/stats/1/sprite_h"
-    },
-    "BOSS_ERAS[1].sprite_w": {
-      "expect": 108,
-      "path": "enemies:EnemyTypes/Boss/stats/1/sprite_w"
     },
     "BOSS_ERAS[2].attack_range_tiles": {
       "expect": 2,
@@ -329,14 +313,6 @@
       "expect": "Wrecking Ball",
       "path": "enemies:EnemyTypes/Boss/stats/2/name"
     },
-    "BOSS_ERAS[2].sprite_h": {
-      "expect": 84,
-      "path": "enemies:EnemyTypes/Boss/stats/2/sprite_h"
-    },
-    "BOSS_ERAS[2].sprite_w": {
-      "expect": 108,
-      "path": "enemies:EnemyTypes/Boss/stats/2/sprite_w"
-    },
     "BOSS_ERAS[3].attack_range_tiles": {
       "expect": 3,
       "path": "enemies:EnemyTypes/Boss/stats/3/attack_range_tiles"
@@ -373,14 +349,6 @@
       "expect": "Iron Drill",
       "path": "enemies:EnemyTypes/Boss/stats/3/name"
     },
-    "BOSS_ERAS[3].sprite_h": {
-      "expect": 88,
-      "path": "enemies:EnemyTypes/Boss/stats/3/sprite_h"
-    },
-    "BOSS_ERAS[3].sprite_w": {
-      "expect": 116,
-      "path": "enemies:EnemyTypes/Boss/stats/3/sprite_w"
-    },
     "BOSS_ERAS[4].attack_range_tiles": {
       "expect": 3,
       "path": "enemies:EnemyTypes/Boss/stats/4/attack_range_tiles"
@@ -416,14 +384,6 @@
     "BOSS_ERAS[4].name": {
       "expect": "Siege Tank",
       "path": "enemies:EnemyTypes/Boss/stats/4/name"
-    },
-    "BOSS_ERAS[4].sprite_h": {
-      "expect": 96,
-      "path": "enemies:EnemyTypes/Boss/stats/4/sprite_h"
-    },
-    "BOSS_ERAS[4].sprite_w": {
-      "expect": 124,
-      "path": "enemies:EnemyTypes/Boss/stats/4/sprite_w"
     }
   }
 }

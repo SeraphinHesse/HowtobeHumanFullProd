@@ -4,14 +4,20 @@
 Pure orchestration — no pygame imports here; the default pygame backend is
 resolved lazily inside flush(), and tests inject a recording backend.
 
-Anchor convention: a frame is blitted centred horizontally on its world
-position. A tile-height frame (64x32) has its BOTTOM edge on the bottom of the
-tile's diamond (world_to_screen y + tile_h·zoom) — covering the diamond exactly.
-A frame TALLER than the tile (64x96 buildings/enemies/deco) is anchored one more
-tile-height lower (bottom at y + 2·tile_h·zoom): the prototype's building-sheet
-convention (src/buildings/building.py — "so the figure sits ON the tile, not
-above it"), since the art is authored centred in the 96px frame. Per-entry
-manifest offset_x/offset_y nudge from there.
+Anchor convention: a frame is blitted CENTRED on the tile — horizontally on
+its world position, vertically on the tile diamond's centre (world_to_screen y
++ tile_h/2·zoom). Continuous in frame_h, and byte-identical to the old
+two-branch rule (bottom at tile_h·zoom for a 64x32 tile, at 2·tile_h·zoom for a
+taller frame), which was this same rule spelled out for frame_h == tile_h and
+frame_h == 3·tile_h — the prototype's building-sheet convention
+(src/buildings/building.py — "so the figure sits ON the tile, not above it"),
+since the art is authored centred in the 96px frame.
+
+Sizing: an item with fit_tiles > 0 is downscaled — never upscaled — so it spans
+at most fit_tiles tiles horizontally; `scale` multiplies on top of that (it is
+the knob for art that IS smaller than its footprint). Per-entry manifest
+offset_x/offset_y nudge from the anchor, riding the same scale (they are
+authored in frame pixels).
 """
 from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys
@@ -73,23 +79,24 @@ class Renderer:
             ),
         )
         zoom = coords.camera.zoom
-        tile_h = coords.geometry.tile_h
+        tile_w = coords.geometry.tile_w
+        half_h = coords.geometry.tile_h / 2
         draw_calls = []
         for item in ordered:
             frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
             px, py = coords.world_to_screen(*item.world_pos)
-            w = frame.frame_w * zoom
-            h = frame.frame_h * zoom
-            # Frames taller than the tile anchor one extra tile-height lower so
-            # the (centred) figure sits ON the tile, not above it — the
-            # prototype's 64x96 building-sheet convention (bottom at 2·tile_h).
-            anchor = tile_h * (2 if frame.frame_h > tile_h else 1)
+            fit = 1.0
+            if item.fit_tiles > 0.0 and frame.frame_w > 0:
+                fit = min(1.0, (item.fit_tiles * tile_w) / frame.frame_w)
+            s = fit * item.scale
+            w = frame.frame_w * zoom * s
+            h = frame.frame_h * zoom * s
             draw_calls.append(
                 DrawCall(
                     surface=frame.surface,
                     dest=(
-                        px - w / 2 + frame.offset_x * zoom,
-                        py + anchor * zoom - h + frame.offset_y * zoom,
+                        px - w / 2 + frame.offset_x * zoom * s,
+                        py + half_h * zoom - h / 2 + frame.offset_y * zoom * s,
                     ),
                     size=(w, h),
                     tint=item.tint,
