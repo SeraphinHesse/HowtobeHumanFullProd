@@ -1,12 +1,12 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
-here from `game/CLAUDE.md`. **All four enemy types are LIVE**: Standard + Raider +
-SiegeCannon since 10F, `Boss` since 10G (`spawner.py`
-`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS = True`). When you change enemy
-conventions, update THIS doc. **Adding an enemy type? Use the `/add-enemy`
-skill.**
+here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider +
+SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
+`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`). When you
+change enemy conventions, update THIS doc. **Adding an enemy type? Use the
+`/add-enemy` skill.**
 
 ## Boss (10G)
 - **Boss rounds**: every `Boss.round_interval`-th round `_compose` routes to
@@ -31,17 +31,121 @@ skill.**
   died) re-run `find_path_to_nearest_building` from the current tile, reload
   waypoints, re-derive `goal_is_base` (the prototype boss's `_repath`-after-kill
   mapped onto block-and-attack).
-- **Death swarm**: `Spawner.spawn_death_swarm(scene, col, row, era)` bursts
-  `Boss.death_spawns[era]` standard/raider/siege IMMEDIATELY into the scene at
-  the boss tile, at the CURRENT tier (standard+siege scale; raiders never).
-  Driven by the Session (stash in `on_enemy_death`, flushed in `post_sim`
-  BEFORE the wave-clear check); quick-skip / lives-wipe despawns spawn nothing.
+- **Death swarm — since ER-3 just ONE instance of the generalised
+  `death_spawn`** (below). The boss ships `at_hp_fraction: 0.0` +
+  `spawn_hp_fraction: 1.0` + `enabled: true` and its 5 per-era rows moved
+  verbatim to `Boss.death_spawn.spawns`, so the 10G burst is byte-identical:
+  same counts, same tile, same CURRENT tier (standard+siege scale; raiders
+  never), children at full HP. `Boss` itself is now just `_resolve_era` +
+  `_resolve_stats` + `on_spawn` + `era` — its `__init__` is gone.
 - **No tier scaling on the boss** — `Boss._resolve_stats` reads
   `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
 
+## Formation (ER-4)
+The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
+ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
+(`death_spawn`), all three driven purely from `data/balancing/enemies.json`.
+- **The subclass is four class attrs + `_resolve_stats`.** No `__init__`, no
+  `on_spawn`, no `EXTRA_TAGS`, no component wiring, no break state machine.
+- **`_resolve_stats` MUST be overridden — and that is a trap, not a style
+  choice.** The base `Enemy._resolve_stats` reads
+  `balance["EnemyTypes"]["Standard"]` **literally**; `STAT_SUBTREE` drives the
+  balancing-block lookup in `__init__` (and `Spawner._footprint_of`) but **not**
+  `_resolve_stats`. An un-overridden subclass silently ships walker stats — a
+  bug with no symptom but wrong numbers. Pinned by
+  `test_enemies.TestFormation.test_stats_come_from_the_formation_block_not_standard`.
+  Formation takes the scale-tier bonuses (like Standard/Siege, unlike Raider).
+- **It does NOT override `_resolve_era`**: it is not era-indexed, so it inherits
+  row 0 and ships a **single-row** `death_spawn.spawns` array. The clamp
+  (`spawns[min(max(era,0), len-1)]`) does the rest.
+- **D4 — there is no "break" state; breaking formation IS dying.**
+  `at_hp_fraction: 0.5` makes `Enemy.alive` False at half HP, and from there the
+  existing ER-3 pipeline runs untouched (`resolve_combat` → `on_enemy_death` →
+  `Session` stash → `Spawner.spawn_death_swarm`). The children are regulars at
+  `spawn_hp_fraction` (0.8) of their OWN max HP. XP, kill count and splatter all
+  fire exactly as for any other death, because it *is* one.
+- **Composition: the siege ACCRETION formula, but body-mixed.**
+  `_formation_group` emits `base_count + (round − start_round) //
+  rounds_per_formation` from `start_round`, mixed into the shuffled body —
+  **never `siege_front`**, because a 2×2 at the head of the queue would wall the
+  choke point before anything else arrived. It is called **LAST** among the
+  composition groups so every earlier group's rng draw sequence stays
+  byte-identical (the deterministic-wave fixtures depend on this).
+- **Formations never spawn on a boss round — DELIBERATE, do not "fix" it.**
+  `_boss_round` composes from `Boss.round_counts`, a `$defs/spawn_counts` table
+  **shared with every `death_spawn.spawns` row**. Adding a `"formation"` key to
+  that `$def` would change every `round_counts` dict and fail
+  `test_balancing_parity::test_migrated_values_equal_prototype_values` (it
+  asserts whole-value equality against the prototype), and force a meaningless
+  formation count into every death-spawn row. If formations on boss rounds are
+  ever wanted, it is a one-line `+ self._formation_group(...)` into
+  `_boss_round`'s `rest` — computed from the formula, never from the table.
+- **Known cosmetic caveat, INHERITED not introduced.** For an EVEN footprint the
+  sprite draws 16px (half a tile-height) ABOVE the block's logical centre, with
+  zero horizontal error: `Renderer.flush` centres the frame on the *anchor
+  tile's* diamond, and the 2×2's centre is at `anchor + (0.5, 0.5)`, which is
+  `+16px` in iso screen space at zoom 1. The HP bar rides the sprite so it stays
+  consistent; pathing uses the anchor and combat measures from the block centre,
+  so **nothing is mis-simulated**. The fix is engine-side (in `Renderer.flush`,
+  centre on `wx + (fit_tiles−1)/2` when `fit_tiles > 0` — a provable no-op at
+  `fit_tiles` 0 and 1, i.e. every sprite that ships today), plus a re-derived
+  `game/ui/effects.py::_sprite_top`. It is a cross-package change against the
+  surface ER-1 pixel-pinned, so it wants its own phase.
+
 ## Rules
+- **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
+  `EnemyTypes/<type>` block carries a **required** `death_spawn`
+  (`at_hp_fraction` / `enabled` / `spawn_hp_fraction` / `spawns`); it is
+  resolved at CONSTRUCTION into the `DeathSpawn` component (which absorbed
+  10G's `BossState`), exactly like `Health.max_hp`.
+  - **D4 — "breaking formation IS dying."** `Enemy.alive` is
+    `hp > max_hp * at_hp_fraction`, and that is the ONE evaluation site: a unit
+    that crosses its threshold is dead in the full existing sense (despawned by
+    `resolve_combat`, XP awarded, splatter queued, kill counted). There is **no
+    separate "break" state and no second state machine** — a Formation that
+    scatters at half health just ships `at_hp_fraction: 0.5`. At the default
+    `0.0` this is exactly `not Health.is_dead` (`hp <= 0`), so every pre-ER-3
+    type is byte-identical. `Health.is_dead` itself is UNCHANGED (buildings
+    still use it; they carry no `DeathSpawn`).
+  - **`spawns` is an ARRAY of per-era rows, never a union.** It is resolved
+    `spawns[min(max(era, 0), len(spawns) - 1)]` — the Boss carries 5 rows
+    (index-aligned with its `stats`), a non-era type carries 1 and always
+    clamps to row 0. The "flat map" form is just the 1-row case. **A schema
+    `oneOf` here is unimplementable**: `editor/panels/balancing.py` reads
+    `prop.get("type")` and a type-less node raises `no widget for schema`,
+    crashing the balancing panel for the whole enemies domain. Do not
+    reintroduce one.
+  - **`enabled: false`** ⇒ dies normally, spawns nothing (the three stock
+    non-boss types). Required-not-optional because `data/` is the only value
+    store (no code-side `.get()` default) and the editor panel skips schema
+    keys absent from the doc — an optional block would be invisible to the
+    designer.
+  - **Duck-typed contract read by `Session.on_enemy_death`** (game/core imports
+    NOTHING from here): `death_spawn_plan` (a plain `{counts,
+    spawn_hp_fraction}` dict, or `None` when not enabled), `death_spawned`
+    (read property) and **`mark_death_spawned()` — a METHOD**, because the E-11
+    `GameObject.__setattr__` guard intercepts public property setters. The
+    Session stashes the plan **opaquely** and hands it straight back to
+    `Spawner.spawn_death_swarm(scene, col, row, plan)` without indexing into it.
+  - **Footgun**: a `spawn_hp_fraction` at or below a child type's own
+    `at_hp_fraction` makes the children die on the frame they appear — and
+    chain, if that child also has an enabled `death_spawn`. There is
+    deliberately NO runtime guard: data is the source of truth and the editor's
+    0..1 spinbox bounds are the fence. The schema description says so.
+  - **KNOWN LIMITATION — a death on the wave's LAST frame ends the round before
+    its children appear.** The Session flushes the burst in `post_sim` before the
+    wave-clear check, but `Scene.spawn()` only QUEUES while `by_tag()` reads
+    `_objects`, so that check cannot see children burst on the same frame: the
+    phase flips to `ROUND_END` and the children land on the next `scene.update`.
+    **Pre-existing — 10G's boss swarm does exactly the same** (this is more
+    evidence the ER-3 path is byte-identical, not a new bug), and rare for the
+    Boss because it dies mid-wave with companions still alive. **It bites much
+    harder for anything common** — an ER-4 Formation breaking as the last unit of
+    a wave drops its children into an already-ended round. The fix is to teach the
+    wave-clear check about pending spawns; ER-3 deliberately did not, being a
+    zero-behaviour-change phase.
 - **All state in components** (E-11): `components.py` holds `PathAgent`
   (navigation + the block-and-attack decision) and `EnemyCombat` (attack stats +
   the attack-a-blocking-building clock); engine
@@ -50,7 +154,12 @@ skill.**
   `@property`s.
 - **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
   (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
-  the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Read
+  the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Its
+  HEIGHT above the enemy is **not** a class attr: `HP_BAR_PAD` (4px, base class
+  only) is just the gap above the sprite's head, and the head is found from the
+  sprite as actually DRAWN — since ER-1 that is the footprint fit, not the sheet
+  size, so a lift baked in sheet pixels would float (see `game/ui/CLAUDE.md`).
+  Read
   duck-typed by `game/ui/effects.py submit_enemy_hp_bars`, which draws the bar
   for EVERY enemy below full HP (boss included) — this package needs no other
   change for it. A new enemy type just declares its own width.
@@ -61,6 +170,53 @@ skill.**
   when the blocker dies (the route already runs through that now-passable tile). It
   caches the map as `PathAgent._tilemap` — a deliberate environment-reference
   transient, exactly like `Movement._owner`.
+- **`PathAgent.footprint` (ER-2)** — an `int` field fed from
+  `EnemyTypes.<type>.footprint` (G-7; `Enemy.__init__` reads it off the resolved
+  `STAT_SUBTREE` block, no code-side default). The unit occupies an N×N block
+  whose **anchor is the MIN corner** (the body extends right and down); the whole
+  rule set + the helper functions live in `game/map/CLAUDE.md` / `pathfinder.py`
+  and are imported, never re-derived. Consequences in this package:
+  - `Enemy.on_spawn` threads the footprint into `find_path` /
+    `find_path_ignoring_walls`; `_repath` threads it into
+    `find_path_to_nearest_building` and re-derives `goal_is_base` with
+    `block_covers` (the block COVERS the base — it need not anchor on it).
+  - **The blocker scan is block-wide** (`_blocker_ahead`): the first live,
+    non-base occupant anywhere in the DESTINATION block stops the unit, scanned
+    row-major. The base exemption is per **tile** of the block, so a body that
+    covers the hole attacks the other occupant in it, never the BaseBuilding.
+  - **The wall scan is face + internal** (`_wall_edge_ahead`): the whole leading
+    face first, then the destination block's internal edges; it returns the FIRST
+    live edge, so a 2×2 chews through a face one segment at a time.
+  - The **spawner filters spawn tiles by clearance** (`_pick_spawn_tile` — the
+    ONE choke point all seven composition sites now route through): a footprint-N
+    enemy only spawns where its whole N×N block is spawn zone, cached once per
+    round per footprint (`_clear_cache`, reset in `begin_round`). No qualifying
+    tile → **unfiltered fallback**, so an enemy is never dropped from a wave. The
+    filter consumes **zero rng**, and `footprint == 1` takes the byte-identical
+    single `rng.choice(spawn_tiles)` draw — which is what keeps the deterministic
+    composition fixtures green.
+  - The **combat sweep measures from the footprint CENTRE**
+    (`anchor + (N−1)/2`): Chebyshev range, Euclidean acquisition, mortar splash
+    and predictive lead all use `_enemy_center_world` / `_fp_offset`, so a 2×2 is
+    not engaged from an unfair corner and shells are not biased half a tile off
+    it. N=1 → offset 0 → numerically identical to before.
+    **PERF (load-bearing):** the offset is a per-enemy constant and is resolved
+    ONCE PER ENEMY PER FRAME — `resolve_combat` builds `targets =
+    [(enemy, off), …]` and passes `off` into `_chebyshev`. Never resolve it
+    inside the (defender × enemy) pairwise loop: `get_component` is a linear
+    isinstance scan, and doing it per pair cost ~9 ms of a 16.7 ms frame at 50
+    defenders × 300 enemies. `_chebyshev` also SKIPS a zero offset rather than
+    adding it, keeping the N=1 expression in integer arithmetic (float ops there
+    allocate per pair). Both are pinned by `game/PERF.md`.
+  - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
+    property only — enemies do not block each other, and two footprint-2 units
+    may overlap. That is intended.
+  - **Known cosmetic gap — ER-4 INHERITED it, deliberately**: ER-1 draws the
+    sprite centred on the *anchor tile's* diamond, scaled to `N × tile_w`, so for
+    an even N the logical block sits half a tile down-right of where the sprite's
+    centre lands (16px vertical, zero horizontal). Fixable only in the render
+    layer — see the `## Formation (ER-4)` section above for the exact fix and why
+    it wants its own phase.
 - **Wall-attack is the SAME block-and-attack model (10E, LIVE)**: a live wall on the
   edge being crossed (`get_wall_between(prev_waypoint, next_waypoint)`, checked once
   `index ≥ 1`) blocks FIRST (it sits before the next tile) — `PathAgent` halts and
@@ -183,17 +339,25 @@ skill.**
   lives-mode round wipe.
 - **10A** — `resolve_combat(on_enemy_death=…)`, the callback the session uses to
   count kills + award XP without importing `game/core`.
-- **10G** — the same callback carries the boss death-swarm handshake (the
-  session duck-types `era`/`death_spawned`/`mark_death_spawned` and calls
-  `Spawner.spawn_death_swarm` back); `resolve_combat(dmg_bonus=0)` threads the
-  boss-bonus story damage in as a plain int. Enemy construction never leaves
-  this package.
+- **10G / ER-3** — the same callback carries the death-spawn handshake, now
+  **type-agnostic**: the session duck-types `death_spawn_plan` /
+  `death_spawned` / `mark_death_spawned()` off ANY enemy and calls
+  `Spawner.spawn_death_swarm(scene, col, row, plan)` back. What crosses the
+  boundary is an **opaque plan dict**, not `(col, row, era)` — `game/core`
+  never indexes into it, which is what keeps the layering structurally
+  impossible to violate rather than merely conventional. `resolve_combat(
+  dmg_bonus=0)` threads the boss-bonus story damage in as a plain int. Enemy
+  construction never leaves this package.
 
 ## Perf note that lives here
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)
 now walk the shared base flow field — a wave of hundreds of spawns pays ONE
 Dijkstra per map-topology change, not one each, and `spawn_death_swarm`'s
-burst rides it for free. `Boss.on_spawn`'s `find_path_to_nearest_building`
+burst rides it for free. Since ER-2 the field caches on
+**`(ignore_walls, footprint)`**, so the invariant is one Dijkstra per topology
+change **per footprint** — still NEVER one per enemy. Passing a footprint into
+`find_path` must therefore stay a plain argument; do not add a per-enemy search.
+`Boss.on_spawn`'s `find_path_to_nearest_building`
 stays a fresh Dijkstra (~one per wave). Nothing in this package invalidates
 the field directly — all mutations route through `TileMap`. Detail →
 `game/PERF.md`.

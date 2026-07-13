@@ -13,27 +13,48 @@ from PIL import Image
 from engine import data_io
 
 
+def pad_to_frame(image, fw, fh):
+    """Grow `image` (a PIL Image) so it is at least one fw x fh frame, with the
+    original art CENTRED on a fully transparent canvas. Never upscales, never
+    shrinks, never crops. Returns (image, padded: bool) — `padded` False means
+    the image already covered a frame in both axes and is byte-untouched.
+
+    Per-axis: an axis that already spans a frame is left alone, so a wide short
+    strip pads only vertically and keeps its column count.
+    """
+    w, h = image.size
+    if w >= fw and h >= fh:
+        return image, False
+    pad_w, pad_h = max(w, fw), max(h, fh)
+    canvas = Image.new("RGBA", (pad_w, pad_h), (0, 0, 0, 0))
+    canvas.paste(image.convert("RGBA"), ((pad_w - w) // 2, (pad_h - h) // 2))
+    return canvas, True
+
+
 def import_idle_sheet(data_dir, registry, slot_key, png_path):
     """Copy png_path -> data/sprites/imported/<slot_key>.png and write/replace
     its manifest v2 entry as ONE idle row (frames = detected columns of the
     first row; additional detected rows are ignored — idle is the only
     animation these slots ever use). Off-grid sheets crop the remainder,
     same semantics as DetailsPanel's import (warn-but-import is the
-    caller's job; this just reports the detected grid). Returns
-    (cols, rows). Raises ValueError if the image is smaller than one frame.
+    caller's job; this just reports the detected grid). Art smaller than one
+    frame is padded onto a transparent frame-sized canvas and centred (ED-40),
+    never rejected and never upscaled. Returns (cols, rows).
     """
     data_dir = Path(data_dir)
     fw, fh = registry.frame_size(slot_key)
     with Image.open(png_path) as image:
-        w, h = image.size
+        padded, was_padded = pad_to_frame(image, fw, fh)
+        w, h = padded.size
     cols, rows = w // fw, h // fh
-    if cols < 1 or rows < 1:
-        raise ValueError(
-            f"image {w}x{h} is smaller than one {fw}x{fh} frame")
 
     destination = data_dir / "sprites" / "imported" / f"{slot_key}.png"
     destination.parent.mkdir(parents=True, exist_ok=True)
-    if Path(png_path).resolve() != destination.resolve():
+    if was_padded:
+        padded.save(destination)
+    elif Path(png_path).resolve() != destination.resolve():
+        # A byte-identical copy — migrate_prototype_assets.py's idempotency
+        # depends on an already-big-enough sheet staying untouched.
         shutil.copyfile(png_path, destination)
 
     manifest_path = data_dir / "sprites" / "asset_manifest.json"

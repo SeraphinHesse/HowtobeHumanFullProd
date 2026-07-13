@@ -114,9 +114,9 @@ class TestCacheReuse(unittest.TestCase):
         calls = []
         orig = pathfinder._build_flow_field
 
-        def counted(tm, ignore_walls):
+        def counted(tm, ignore_walls, footprint=1):
             calls.append(1)
-            return orig(tm, ignore_walls)
+            return orig(tm, ignore_walls, footprint)
 
         return calls, orig, counted
 

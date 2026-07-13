@@ -7,23 +7,47 @@ siege from ``SiegeCannon.start_round``); the boss is LIVE since 10G — every
 ``Boss.round_interval``-th round composes ``[boss] + ALL siege +
 shuffle(standard + raiders)`` from the ``round_counts`` table (falling back to
 the three normal per-type formulas beyond it), and the boss entry's tier IS its
-era. Timing is prototype-exact: a linear slow→fast ramp across the wave
-with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off, a re-rolled jitter
-per spawn). The round loop that CALLS ``begin_round`` and detects wave-clear is
-9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``);
-``spawn_death_swarm`` (10G) is the Session-driven boss-death burst.
+era. Formations join since ER-4 (from ``Formation.start_round``, accreting one
+per ``rounds_per_formation``, mixed into the shuffled body — never leading the
+queue, never on a boss round). Timing is prototype-exact: a linear slow→fast
+ramp across the wave with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off,
+a re-rolled jitter per spawn). The round loop that CALLS ``begin_round`` and
+detects wave-clear is 9F; 9E exposes the pieces (``begin_round`` / ``update`` /
+``active`` / ``done``);
+``spawn_death_swarm`` (ER-3) is the Session-driven death burst for ANY type
+carrying an enabled ``death_spawn`` (10G's boss swarm is one instance of it).
 
 An ``rng`` is injectable so tests are deterministic (default: the ``random``
 module).
 """
 import random
 
-from .enemy import create_enemy
+from engine.core import Health
+from game.map.pathfinder import block_tiles
 
-# Raiders + siege went live in 10F; the boss in 10G.
+from .enemy import ENEMY_CLASSES, create_enemy
+
+# Raiders + siege went live in 10F; the boss in 10G; the formation in ER-4.
 ENABLE_RAIDERS = True
 ENABLE_SIEGE = True
 ENABLE_BOSS = True
+ENABLE_FORMATION = True
+
+# spawn_counts key -> the etype it spawns. The iteration ORDER is load-bearing:
+# it fixes how many draws each burst takes from the injected `rng` (variant
+# picks), so it must stay standard -> raider -> siege (prototype
+# game.py:1314-34).
+_SWARM_TYPES = (("standard", "regular"), ("raider", "raiders"),
+                ("siege", "siege"))
+
+
+def _footprint_of(balance, etype):
+    """The etype's footprint from balancing (G-7), resolved through the class's
+    ``STAT_SUBTREE`` — so a new enemy type needs no change here."""
+    block = balance["EnemyTypes"]
+    for seg in ENEMY_CLASSES[etype].STAT_SUBTREE:
+        block = block[seg]
+    return block["footprint"]
 
 
 class Spawner:
@@ -38,6 +62,7 @@ class Spawner:
         self._registry = None
         self._rng = random
         self._boss_era = 0     # era passed as `tier` to a popping boss (10G)
+        self._clear_cache = {}  # footprint -> spawn tiles with a clear block
 
     # -- state ------------------------------------------------------------
 
@@ -77,6 +102,7 @@ class Spawner:
         self._balance = enemies_balance
         self._registry = registry
         self._rng = rng if rng is not None else random
+        self._clear_cache = {}   # the spawn zone recedes between rounds
 
         scaling = enemies_balance["EnemyScaling"]
         tiers = scaling["scale_tiers"]
@@ -96,12 +122,45 @@ class Spawner:
         else:
             self._timer = 0.1
 
+    # -- spawn-tile clearance (ER-2) --------------------------------------
+
+    def _pick_spawn_tile(self, spawn_tiles, etype):
+        """THE one spawn-tile pick. A footprint-N enemy needs its whole N×N
+        block inside the spawn zone; if nothing qualifies it falls back to the
+        unfiltered pick, so an enemy is never dropped from the wave. footprint 1
+        takes the byte-identical unfiltered choice — same list, same single rng
+        draw, so the deterministic composition fixtures are untouched. The
+        clearance filter itself consumes NO rng."""
+        fp = _footprint_of(self._balance, etype)
+        if fp <= 1:
+            return self._rng.choice(spawn_tiles)
+        clear = self._clear_spawn_tiles(spawn_tiles, fp)
+        return self._rng.choice(clear or spawn_tiles)
+
+    def _clear_spawn_tiles(self, spawn_tiles, footprint):
+        """Spawn tiles whose whole N×N block is itself spawn zone (membership
+        implies in-bounds and passable — a spawning tile weighs 1). Computed
+        ONCE per round per footprint: a spawn band can be thousands of tiles."""
+        hit = self._clear_cache.get(footprint)
+        if hit is None:
+            zone = {(t.col, t.row) for t in spawn_tiles}
+            hit = [t for t in spawn_tiles
+                   if all(b in zone
+                          for b in block_tiles(t.col, t.row, footprint))]
+            self._clear_cache[footprint] = hit
+        return hit
+
     def _compose(self, round_num, balance, spawn_tiles):
         """Build the (tile, etype) list for the round: standard + raiders +
-        siege (10F). Siege leads the queue; everything else is shuffled behind
-        it. Every ``Boss.round_interval``-th round takes the boss composition
-        instead (10G) — the lead/mix siege split applies to NON-boss rounds
-        only."""
+        siege (10F) + formations (ER-4). Siege leads the queue; everything else
+        is shuffled behind it. Every ``Boss.round_interval``-th round takes the
+        boss composition instead (10G) — the lead/mix siege split applies to
+        NON-boss rounds only, and formations do not appear at all (see
+        ``_formation_group``).
+
+        ``_formation_group`` is called LAST on purpose: every earlier group's
+        rng draw sequence then stays byte-identical, so the standard/raider/
+        siege counts and picks are unchanged at every round."""
         if not spawn_tiles:
             return []
         if (ENABLE_BOSS and round_num
@@ -110,14 +169,15 @@ class Spawner:
         scaling = balance["EnemyScaling"]
         count = scaling["base_enemy_count"] + (round_num - 1) * (
             scaling["enemies_per_round"] + self._tier)
-        regular = [(self._rng.choice(spawn_tiles), "standard")
+        regular = [(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
                    for _ in range(count)]
 
         raiders = self._raider_group(round_num, balance, spawn_tiles)
         siege_front, siege_mixed = self._siege_groups(
             round_num, balance, spawn_tiles)
+        formations = self._formation_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed
+        rest = regular + raiders + siege_mixed + formations
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -151,12 +211,12 @@ class Spawner:
                 s["base_count"]
                 + (round_num - s["start_round"]) // s["rounds_per_cannon"]
                 if ENABLE_SIEGE and round_num >= s["start_round"] else 0)
-        boss = [(self._rng.choice(spawn_tiles), "boss")]
-        siege = [(self._rng.choice(spawn_tiles), "siege")
+        boss = [(self._pick_spawn_tile(spawn_tiles, "boss"), "boss")]
+        siege = [(self._pick_spawn_tile(spawn_tiles, "siege"), "siege")
                  for _ in range(n_siege)]
-        rest = ([(self._rng.choice(spawn_tiles), "standard")
+        rest = ([(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
                  for _ in range(n_regular)]
-                + [(self._rng.choice(spawn_tiles), "raider")
+                + [(self._pick_spawn_tile(spawn_tiles, "raider"), "raider")
                    for _ in range(n_raiders)])
         self._rng.shuffle(rest)
         return boss + siege + rest
@@ -168,7 +228,8 @@ class Spawner:
         if round_num < r["start_round"]:
             return []
         n = r["base_count"] + (round_num - r["start_round"]) * r["per_round"]
-        return [(self._rng.choice(spawn_tiles), "raider") for _ in range(n)]
+        return [(self._pick_spawn_tile(spawn_tiles, "raider"), "raider")
+                for _ in range(n)]
 
     def _siege_groups(self, round_num, balance, spawn_tiles):
         if not ENABLE_SIEGE:
@@ -178,9 +239,33 @@ class Spawner:
             return [], []
         n = (s["base_count"]
              + (round_num - s["start_round"]) // s["rounds_per_cannon"])
-        siege = [(self._rng.choice(spawn_tiles), "siege") for _ in range(n)]
+        siege = [(self._pick_spawn_tile(spawn_tiles, "siege"), "siege")
+                 for _ in range(n)]
         lead = min(int(s["queue_lead_count"] * s["mix_ratio"]), len(siege))
         return siege[:lead], siege[lead:]
+
+    def _formation_group(self, round_num, balance, spawn_tiles):
+        """Formations from ``Formation.start_round``, one more every
+        ``rounds_per_formation`` rounds — the SiegeCannon ACCRETION formula (a
+        heavy that trickles in), not the Raider one (a swarm that grows
+        linearly). Mixed into the shuffled body: unlike siege they do NOT lead
+        the queue, because a 2×2 body at the head of the wave would wall the
+        choke point before anything else arrived.
+
+        Formations never appear on a boss round — ``_boss_round`` composes from
+        ``Boss.round_counts``, a ``$defs/spawn_counts`` table with exactly
+        regular/raiders/siege. Adding a formation key there would change every
+        death_spawn row too (they share the $def) and break balancing parity.
+        Deliberate; see game/enemies/CLAUDE.md."""
+        if not ENABLE_FORMATION:
+            return []
+        f = balance["EnemyTypes"]["Formation"]
+        if round_num < f["start_round"]:
+            return []
+        n = (f["base_count"]
+             + (round_num - f["start_round"]) // f["rounds_per_formation"])
+        return [(self._pick_spawn_tile(spawn_tiles, "formation"), "formation")
+                for _ in range(n)]
 
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear
@@ -230,22 +315,25 @@ class Spawner:
         else:
             self._timer = 0.0
 
-    # -- boss death swarm (10G, prototype game.py:1314-1334) ---------------
+    # -- death spawn (ER-3; 10G's boss swarm generalised) ------------------
 
-    def spawn_death_swarm(self, scene, col, row, era):
-        """Burst ``Boss.death_spawns[era]`` standard/raider/siege enemies at the
-        dead boss's tile, IMMEDIATELY into the scene (never the queue) — they
-        path from that tile on spawn. Standard + siege members take the CURRENT
-        round's scale tier (raiders never scale); the Session flushes this
-        before its wave-clear check so the round can't end mid-burst. All enemy
-        construction stays in this package."""
-        cfg = self._balance["EnemyTypes"]["Boss"]
-        spawns = cfg["death_spawns"]
-        row_cfg = spawns[min(max(era, 0), len(spawns) - 1)]
-        for etype, key in (("standard", "regular"), ("raider", "raiders"),
-                           ("siege", "siege")):
-            for _ in range(row_cfg[key]):
+    def spawn_death_swarm(self, scene, col, row, plan):
+        """Burst ``plan`` — an enemy's resolved ``death_spawn_plan`` — at
+        ``(col, row)``, IMMEDIATELY into the scene (never the queue), so the
+        children path from that tile on spawn. Members take the CURRENT round's
+        scale tier (standard + siege scale; raiders never do). Each child is
+        seeded to ``plan["spawn_hp_fraction"]`` of its own max HP; at 1.0 (the
+        Boss's 10G swarm) ``Health`` is not touched at all, so that path is
+        byte-identical. The Session flushes this before its wave-clear check;
+        all enemy construction stays in this package."""
+        counts = plan["counts"]
+        frac = plan["spawn_hp_fraction"]
+        for etype, key in _SWARM_TYPES:
+            for _ in range(counts[key]):
                 enemy = create_enemy(
                     etype, col, row, self._balance, self._tilemap,
                     self._tier, self._registry, self._rng)
+                if frac < 1.0:
+                    health = enemy.get_component(Health)
+                    health.hp = max(1, int(health.max_hp * frac))
                 scene.spawn(enemy)

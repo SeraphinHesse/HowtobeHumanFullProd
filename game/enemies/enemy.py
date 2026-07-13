@@ -8,7 +8,9 @@ the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-saf
 
 ``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F, ``Boss``
 since 10G (era stats via tier-as-era, nearest-building hunting with
-re-path-on-kill, the ``"boss"`` scene tag). Each subclass resolves its own stat
+re-path-on-kill, the ``"boss"`` scene tag), ``Formation`` since ER-4 (the 2×2
+marching column that dies at half HP and scatters regulars — pure data over the
+ER-1/ER-2/ER-3 mechanics, no new code path). Each subclass resolves its own stat
 subtree + slot prefix and little else.
 
 Scale-tier stats are resolved at CONSTRUCTION into component fields (prototype
@@ -36,7 +38,7 @@ from engine.core import (
 from game.map.pathfinder import (
     find_path, find_path_ignoring_walls, find_path_to_nearest_building,
 )
-from .components import BossState, EnemyCombat, PathAgent
+from .components import DeathSpawn, EnemyCombat, PathAgent
 
 
 def variant_slot(registry, group_label, tier, rng=None, fallback=None):
@@ -85,10 +87,11 @@ class Enemy(GameObject):
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
     STAT_SUBTREE = ("Standard",)  # under EnemyTypes; scaled by scale_tiers
     EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
-    # Overhead HP bar, read by game/ui/effects.py. Sizes are base-zoom px and
-    # prototype-exact; LIFT is how far above the tile centre the bar floats and
-    # must clear THIS type's sprite (`enemy.py:444` — `by = cy - 26`).
-    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 14, 2, 26
+    # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
+    # prototype-exact. PAD is only the GAP above the sprite's head — how high
+    # the bar actually floats is measured off the sprite as the renderer draws
+    # it (footprint-fitted since ER-1), never off the sheet's raw pixels.
+    HP_BAR_W, HP_BAR_H, HP_BAR_PAD = 14, 2, 4
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):
@@ -96,14 +99,28 @@ class Enemy(GameObject):
             enemies_balance, tier)
         slot = variant_slot(registry, self.REGISTRY_GROUP, tier, rng,
                             self.DEFAULT_SLOT)
+        block = enemies_balance["EnemyTypes"]
+        for seg in self.STAT_SUBTREE:
+            block = block[seg]
+        ds = block["death_spawn"]
+        era = self._resolve_era(enemies_balance, tier)
+        rows = ds["spawns"]
+        spawn_row = rows[min(max(era, 0), len(rows) - 1)]
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(),
+            PathAgent(footprint=int(block["footprint"])),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
             SpriteAnimator(slot_key=slot, animation="walk",
-                           phase_ms=(col * 137 + row * 251) % 2000),
+                           phase_ms=(col * 137 + row * 251) % 2000,
+                           fit_tiles=float(block["footprint"]),
+                           scale=float(block["sprite_scale"])),
+            DeathSpawn(era=era,
+                       enabled=ds["enabled"],
+                       at_hp_fraction=float(ds["at_hp_fraction"]),
+                       spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
+                       counts=dict(spawn_row)),
         ]
         super().__init__(
             name=self.ETYPE,
@@ -127,14 +144,22 @@ class Enemy(GameObject):
         return tier_scaled_stats(
             balance["EnemyTypes"]["Standard"], balance, tier)
 
+    def _resolve_era(self, balance, tier):
+        """Which row of ``death_spawn.spawns`` (and, for the Boss, of
+        ``stats``) this unit uses. Types with no era table are always row 0."""
+        return 0
+
     # -- lifecycle ---------------------------------------------------------
 
     def on_spawn(self):
-        """Request a path to the base and load it as tile-coord waypoints."""
-        path = find_path(self._tilemap, self._col, self._row)
+        """Request a path to the base and load it as tile-coord waypoints. The
+        footprint is read back off the component (E-11: state lives in
+        components, never a stashed ``self._footprint``)."""
+        fp = self.get_component(PathAgent).footprint
+        path = find_path(self._tilemap, self._col, self._row, footprint=fp)
         if not path:
             path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row)
+                self._tilemap, self._col, self._row, footprint=fp)
         mv = self.get_component(Movement)
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0
@@ -144,17 +169,50 @@ class Enemy(GameObject):
 
     @property
     def alive(self):
-        return not self.get_component(Health).is_dead
+        """Dead once HP falls to or below ``at_hp_fraction`` of max (ER-3 / D4:
+        breaking formation IS dying — one code path, no separate break state).
+        At the default ``at_hp_fraction`` 0.0 this is exactly
+        ``not Health.is_dead`` (``hp <= 0``), so every pre-ER-3 type is
+        byte-identical."""
+        h = self.get_component(Health)
+        ds = self.get_component(DeathSpawn)
+        return h.hp > h.max_hp * ds.at_hp_fraction
 
     @property
     def dmg(self):
         return self.get_component(EnemyCombat).dmg
+
+    # -- duck-typed contract read by Session.on_enemy_death (ER-3) ----------
+
+    @property
+    def death_spawn_plan(self):
+        """The burst this unit leaves behind, or ``None`` when it carries no
+        ENABLED ``death_spawn``. Plain, already-resolved data: the Session
+        stashes it and hands it straight back to
+        ``Spawner.spawn_death_swarm`` without ever inspecting it, so
+        ``game/core`` still imports nothing from ``game/enemies``."""
+        ds = self.get_component(DeathSpawn)
+        if not ds.enabled:
+            return None
+        return {"counts": dict(ds.counts),
+                "spawn_hp_fraction": ds.spawn_hp_fraction}
+
+    @property
+    def death_spawned(self):
+        return self.get_component(DeathSpawn).death_spawned
+
+    def mark_death_spawned(self):
+        """One-shot burst guard setter. A METHOD, not a property setter — the
+        E-11 ``GameObject.__setattr__`` guard intercepts public attribute
+        assignment before a data descriptor would run."""
+        self.get_component(DeathSpawn).death_spawned = True
 
 
 class Raider(Enemy):
     ETYPE = "raider"
     REGISTRY_GROUP = "Raider"
     DEFAULT_SLOT = "raider_stage_1"
+    STAT_SUBTREE = ("Raider",)
 
     def _resolve_stats(self, balance, tier):
         # Raiders do NOT take the scale-tier bonuses (prototype raider.py).
@@ -167,13 +225,42 @@ class SiegeCannon(Enemy):
     ETYPE = "siege"
     REGISTRY_GROUP = "Siege Cannon"
     DEFAULT_SLOT = "siege_cannon"
-    HP_BAR_W, HP_BAR_LIFT = 24, 28   # prototype siege_cannon.py:145-152
+    STAT_SUBTREE = ("SiegeCannon",)
+    HP_BAR_W = 24                    # prototype siege_cannon.py:145-152
 
     def _resolve_stats(self, balance, tier):
         # Siege scales with the tiers exactly like Standard (prototype
         # siege_cannon.py adds the same cumulative ENEMY_SCALE_TIERS bonuses).
         return tier_scaled_stats(
             balance["EnemyTypes"]["SiegeCannon"], balance, tier)
+
+
+class Formation(Enemy):
+    """A marching column — many soldiers moving as one body (ER-4). Two tiles
+    square (``footprint: 2``, ER-2 clearance pathing: it only stands where all
+    four tiles are clear, so it cannot thread a one-tile gap a walker slips
+    through). It takes the scale-tier bonuses exactly like Standard/Siege.
+
+    It has NO break state: ``death_spawn.at_hp_fraction`` 0.5 makes ``alive``
+    False at half HP (D4 — breaking formation IS dying), and the ER-3 pipeline
+    bursts its ``spawns`` row of regulars at ``spawn_hp_fraction`` of their own
+    max HP. One code path, one editor form — hence no ``__init__``, no
+    ``on_spawn``, no ``_resolve_era`` (it is not era-indexed: it inherits row 0
+    and ships a single ``spawns`` row)."""
+
+    ETYPE = "formation"
+    REGISTRY_GROUP = "Formation"
+    DEFAULT_SLOT = "formation_stage_1"
+    STAT_SUBTREE = ("Formation",)
+    HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
+
+    def _resolve_stats(self, balance, tier):
+        # MANDATORY override: the base Enemy._resolve_stats reads the
+        # `Standard` block LITERALLY (STAT_SUBTREE does not drive it), so an
+        # un-overridden Formation would silently ship walker stats. Scales with
+        # the tiers exactly like Standard and SiegeCannon.
+        return tier_scaled_stats(
+            balance["EnemyTypes"]["Formation"], balance, tier)
 
 
 class Boss(Enemy):
@@ -184,30 +271,26 @@ class Boss(Enemy):
     nearest alive building (base included) and re-paths every time its target
     dies; arrival only breaches when the goal IS the base (``goal_is_base``).
     ``era``/``death_spawned`` are the duck-typed properties the Session's
-    death-swarm stash reads over ``BossState`` (game/core never imports this
-    package)."""
+    death-spawn stash reads over ``DeathSpawn`` (game/core never imports this
+    package). Its 10G swarm is now just the generalised ER-3 mechanic with
+    ``at_hp_fraction`` 0.0 + ``spawn_hp_fraction`` 1.0 — same counts, same
+    tile, same tier."""
 
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
     DEFAULT_SLOT = "boss_era_0"
+    STAT_SUBTREE = ("Boss",)
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
-    # prototype boss.py:136-143 — the max(48, …) width floor, and a lift of
-    # `sprite_h - 8` (the boss sheet is 72x56, so 48) to clear the big sprite.
-    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 48, 4, 48
+    HP_BAR_W, HP_BAR_H = 48, 4   # prototype boss.py:136-143 max(48, …) floor
 
-    def __init__(self, col, row, enemies_balance, tilemap, tier=0,
-                 registry=None, rng=None):
+    def _resolve_era(self, balance, tier):
         # `tier` doubles as the era index for the boss (spawner-threaded, 10G).
-        self._era = min(max(tier, 0),
-                        len(enemies_balance["EnemyTypes"]["Boss"]["stats"]) - 1)
-        super().__init__(col, row, enemies_balance, tilemap, tier,
-                         registry, rng)
-        self.add_component(BossState(era=self._era))
+        return min(max(tier, 0),
+                   len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
 
     def _resolve_stats(self, balance, tier):
-        era = min(max(tier, 0),
-                  len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
-        st = balance["EnemyTypes"]["Boss"]["stats"][era]
+        st = balance["EnemyTypes"]["Boss"]["stats"][
+            self._resolve_era(balance, tier)]
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
 
@@ -231,21 +314,10 @@ class Boss(Enemy):
         pa.goal_is_base = (bool(path) and path[-1] == (
             self._tilemap.base_col, self._tilemap.base_row))
 
-    # -- duck-typed contract read by Session.on_enemy_death (10G) ----------
-
     @property
     def era(self):
-        return self.get_component(BossState).era
-
-    @property
-    def death_spawned(self):
-        return self.get_component(BossState).death_spawned
-
-    def mark_death_spawned(self):
-        """One-shot swarm guard setter. A method, not a property setter — the
-        E-11 ``GameObject.__setattr__`` guard intercepts public attribute
-        assignment before a data descriptor would run."""
-        self.get_component(BossState).death_spawned = True
+        """The era index (read by tests + any future era-keyed UI)."""
+        return self.get_component(DeathSpawn).era
 
 
 # etype string -> class (the spawner queues etype strings).
@@ -253,6 +325,7 @@ ENEMY_CLASSES = {
     "standard": Enemy,
     "raider": Raider,
     "siege": SiegeCannon,
+    "formation": Formation,
     "boss": Boss,
 }
 

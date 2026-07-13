@@ -14,6 +14,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
+from engine.assets import load_manifest, load_registry
+from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import Health
 from engine.render import HudRect
@@ -25,12 +27,40 @@ ENEMIES_BAL = load_balance(REPO / "data", "enemies")
 CORE_BAL = load_balance(REPO / "data", "core")
 UI_BAL = load_balance(REPO / "data", "ui")
 
+# The real store, so the bar pass sizes each sprite off the SHIPPED sheets
+# (walker 22x26, raider 12x18, siege 36x28, boss era 0 72x56) exactly as the
+# renderer will. frame_size() is pure metadata — no surface is ever loaded.
+ASSETS = AssetStore(
+    manifest=load_manifest(REPO / "data" / "sprites" / "asset_manifest.json"),
+    registry=load_registry(REPO / "data"),
+    sprites_dir=REPO / "data" / "sprites")
+TILE_W = 64
+
+
+def drawn_sprite_h(cls, zoom=1):
+    """The on-screen height `cls`'s sprite renders at — re-derived here from the
+    sheet + balance rather than by calling the engine, so this test really pins
+    ER-1's rule: downscale-only footprint fit, never the raw sheet height."""
+    block = ENEMIES_BAL["EnemyTypes"]
+    for seg in cls.STAT_SUBTREE:
+        block = block[seg]
+    frame_w, frame_h = ASSETS.frame_size(cls.DEFAULT_SLOT)
+    fit = min(1.0, (block["footprint"] * TILE_W) / frame_w)
+    return frame_h * zoom * fit * block["sprite_scale"]
+
+
+def expected_bar_bottom(cls, cy, zoom=1):
+    """Where the bar's BOTTOM edge must land: HP_BAR_PAD above the drawn head."""
+    return int(cy - drawn_sprite_h(cls, zoom) / 2 - cls.HP_BAR_PAD * zoom)
+
 
 class RecordingRenderer:
-    """``submit_bar`` only ever emits through ``submit_hud``."""
+    """``submit_bar`` only ever emits through ``submit_hud``; ``assets`` is what
+    the bar pass asks for a slot's frame size (the real Renderer exposes it)."""
 
-    def __init__(self):
+    def __init__(self, assets=ASSETS):
         self.items = []
+        self.assets = assets
 
     def submit_hud(self, item):
         self.items.append(item)
@@ -112,7 +142,8 @@ class TestBarGeometry(unittest.TestCase):
         r, cs = submit([e])
         (x, y, w, h), _ = r.bars()
         cx, cy = cs.world_to_screen(4.5, 4.5)
-        self.assertEqual((x, y), (int(cx - w / 2), int(cy) - Enemy.HP_BAR_LIFT))
+        self.assertEqual(x, int(cx - w / 2))
+        self.assertEqual(y + h, expected_bar_bottom(Enemy, cy))
         self.assertEqual((w, h), (Enemy.HP_BAR_W, Enemy.HP_BAR_H))
 
     def test_lift_scales_with_zoom_but_the_bar_does_not(self):
@@ -127,23 +158,41 @@ class TestBarGeometry(unittest.TestCase):
             fm.submit_enemy_hp_bars(r, cs, FakeScene([e]))
             x, y, w, h = r.bars()[0]
             cy = cs.world_to_screen(4.5, 4.5)[1]
+            self.assertEqual(y + h, expected_bar_bottom(Enemy, cy, zoom))
             seen[zoom] = (int(cy) - y, w, h)
-        self.assertEqual(seen[1], (Enemy.HP_BAR_LIFT, 14, 2))
-        self.assertEqual(seen[2], (Enemy.HP_BAR_LIFT * 2, 14, 2))
+        self.assertEqual(seen[1][1:], (14, 2))
+        self.assertEqual(seen[2][1:], (14, 2))       # bar stays fixed-size
+        self.assertGreater(seen[2][0], seen[1][0])   # ...but lifts further
 
-    def test_per_type_widths_and_lifts(self):
-        """Each type's bar is sized and lifted for ITS sprite — the shipped
-        walker sheet is 22x26, the boss's 72x56 (prototype values)."""
-        got = {}
+    def test_bar_hangs_off_the_DRAWN_sprite_not_the_sheet(self):
+        """ER-1 regression: sizes come from the tile footprint now, so the lift
+        must be measured off the sprite as drawn. A per-class constant tuned to
+        sheet pixels (the old HP_BAR_LIFT) leaves the boss's bar floating."""
         for cls, col, row in ((Enemy, 2, 2), (Raider, 4, 4),
                               (SiegeCannon, 6, 6), (Boss, 8, 8)):
             e = make_enemy(cls, col, row, hp=1)
             r, cs = submit([e])
             x, y, w, h = r.bars()[0]
-            got[cls.__name__] = (w, h, int(cs.world_to_screen(
-                col + 0.5, row + 0.5)[1]) - y)
-        self.assertEqual(got, {"Enemy": (14, 2, 26), "Raider": (14, 2, 26),
-                               "SiegeCannon": (24, 2, 28), "Boss": (48, 4, 48)})
+            cy = cs.world_to_screen(col + 0.5, row + 0.5)[1]
+            with self.subTest(enemy=cls.__name__):
+                self.assertEqual((w, h), (cls.HP_BAR_W, cls.HP_BAR_H))
+                self.assertEqual(y + h, expected_bar_bottom(cls, cy))
+                # and it really does hug the head — never floats off it
+                gap = (cy - drawn_sprite_h(cls) / 2) - (y + h)
+                self.assertAlmostEqual(gap, cls.HP_BAR_PAD, delta=1.0)
+
+    def test_boss_bar_follows_its_era_sprite(self):
+        """The boss sheet grows per era (72x56 -> 124x96) but every era now FITS
+        to one tile, so the drawn heights converge — and the bar tracks that,
+        instead of the old 48px constant that assumed the 56px era-0 sheet."""
+        boss = make_enemy(Boss, 6, 6, hp=1)
+        r, cs = submit([boss])
+        _x, y, _w, h = r.bars()[0]
+        cy = cs.world_to_screen(6.5, 6.5)[1]
+        sprite_top = cy - drawn_sprite_h(Boss) / 2
+        self.assertLess(abs((y + h) - (sprite_top - Boss.HP_BAR_PAD)), 1.0)
+        # the pre-ER-1 constant would have parked it ~23px above the head
+        self.assertGreater(y + h, int(cy) - 48 + 10)
 
 
 class TestStacking(unittest.TestCase):
@@ -176,10 +225,10 @@ class TestStacking(unittest.TestCase):
                         make_enemy(Enemy, 8, 2, hp=1)])
         unders = r.bars()[::2]
         self.assertEqual(len(unders), 2)
-        for (x, y, _, _), (col, row) in zip(unders, ((5, 5), (8, 2))):
+        for (x, y, _, h), (col, row) in zip(unders, ((5, 5), (8, 2))):
             cx, cy = cs.world_to_screen(col + 0.5, row + 0.5)
             # slot 0 of its own stack — no neighbour's offset applied
-            self.assertEqual(y, int(cy) - Enemy.HP_BAR_LIFT)
+            self.assertEqual(y + h, expected_bar_bottom(Enemy, cy))
             self.assertEqual(x, int(cx - Enemy.HP_BAR_W / 2))
 
     def test_grouping_rounds_to_the_nearest_tile(self):

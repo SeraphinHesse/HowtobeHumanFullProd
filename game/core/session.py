@@ -57,7 +57,11 @@ class Session:
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
         self._wipe_pending = False
-        self._boss_swarm_pending = None  # (col, row, era) death swarm (10G)
+        # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
+        # 10G single-slot `_boss_swarm_pending` generalised — several units can
+        # die in one frame). `plan` is an OPAQUE payload from the enemy's
+        # `death_spawn_plan`; core never inspects it, it just hands it back.
+        self._death_spawns_pending = []
         # Buildings that have already paid their death XP, by id(). NEVER reset
         # (prototype `_buildings_xp_awarded`): a building that dies, revives at
         # payday and dies again pays XP only the first time.
@@ -288,14 +292,20 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return
-        # -- 10G boss: flush the death swarm BEFORE the wave-clear check, so
-        # the round can never end in the gap between the boss's death and its
-        # swarm hitting the field. Enemy construction stays in the Spawner.
-        if self._boss_swarm_pending is not None:
-            col, row, era = self._boss_swarm_pending
-            self._boss_swarm_pending = None
-            self.spawner.spawn_death_swarm(scene, col, row, era)
-        # -- /10G --
+        # -- ER-3: flush every death-spawn burst BEFORE the wave-clear check, so
+        # the burst is submitted to the Spawner while the round is still live.
+        # KNOWN LIMITATION: `Scene.spawn` only QUEUES, and `by_tag` reads
+        # `_objects`, so the wave-clear check below CANNOT see children burst on
+        # this frame — a death on the final frame of a wave ends the round and
+        # the children materialise on the next `scene.update`. Pre-existing (10G
+        # behaves identically); rare for the Boss, common once ER-4's Formations
+        # land. Enemy construction stays in the Spawner.
+        if self._death_spawns_pending:
+            pending = self._death_spawns_pending
+            self._death_spawns_pending = []
+            for col, row, plan in pending:
+                self.spawner.spawn_death_swarm(scene, col, row, plan)
+        # -- /ER-3 --
         if self._wipe_pending:
             self._wipe_round(scene)
             self._begin_round_end()
@@ -415,18 +425,18 @@ class Session:
 
     def on_enemy_death(self, enemy):
         """An enemy was killed on the field (not at the base)."""
-        # -- 10G boss: one-shot death-swarm stash (duck-typed — game/core never
-        # imports game/enemies). Flushed by post_sim BEFORE the wave-clear
-        # check; the BossState.death_spawned guard makes a second report of the
-        # same boss a no-op. A boss despawned by quick-skip / a lives wipe
-        # never reaches this callback, so it spawns no swarm (prototype clears
-        # the enemy list wholesale).
-        if (getattr(enemy, "ETYPE", "") == "boss"
-                and not getattr(enemy, "death_spawned", True)):
+        # -- ER-3 death spawn: one-shot stash for ANY type carrying an ENABLED
+        # `death_spawn` (10G's boss swarm is now just one instance of it).
+        # Duck-typed — game/core imports nothing from game/enemies. The
+        # DeathSpawn.death_spawned guard makes a second report of the same unit
+        # a no-op. A unit despawned by quick-skip / a lives wipe / a cheat never
+        # reaches this callback, so it spawns nothing.
+        plan = getattr(enemy, "death_spawn_plan", None)
+        if plan is not None and not getattr(enemy, "death_spawned", True):
             enemy.mark_death_spawned()
             wx, wy = enemy.transform.world_pos
-            self._boss_swarm_pending = (round(wx), round(wy), enemy.era)
-        # -- /10G --
+            self._death_spawns_pending.append((round(wx), round(wy), plan))
+        # -- /ER-3 --
         # 10J: every field kill leaves a ground splatter (drained-by-UI
         # ledger; the gore gates live in the FX layer, prototype game.py:1340)
         transform = getattr(enemy, "transform", None)

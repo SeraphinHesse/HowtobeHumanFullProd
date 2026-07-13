@@ -149,11 +149,37 @@ Exploration of the live code, not assumption:
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| ER-1 | Render sizing: per-slot frame size, footprint fit, anchor fix, pad-and-centre import | not started |
-| ER-2 | Footprint clearance pathing (2×2 enemies) | not started |
-| ER-3 | Generalised toggleable `death_spawn` (Boss re-expressed) | not started |
-| ER-4 | The `Formation` enemy type (128×128, footprint 2, breaks at 50%) | not started |
+| ER-1 | Render sizing: per-slot frame size, footprint fit, anchor fix, pad-and-centre import | done |
+| ER-2 | Footprint clearance pathing (2×2 enemies) | done |
+| ER-3 | Generalised toggleable `death_spawn` (Boss re-expressed) | done |
+| ER-4 | The `Formation` enemy type (128×128, footprint 2, breaks at 50%) | done |
 | ER-5 | Editor surfacing + docs | not started |
+
+**ER-1..ER-4 shipped together** (branch `phase-ER-1-ER-4-umbrella`). Three
+corrections to this document that the phases made, recorded so the text below is
+not read as still authoritative:
+
+- **D3's anchor rule as written was unimplementable.** "Keep the art's bottom on
+  the tile" would move every 64×96 building UP 32px. The rule actually shipped is
+  the one the old two-branch cliff was already expressing: **the frame's centre
+  sits on the tile's centre**. It is continuous in `frame_h` and byte-identical at
+  `frame_h ∈ {32, 96}` — i.e. at every non-enemy world frame that exists.
+- **ER-3's `spawns` is NOT a `oneOf` union.** A type-less schema node crashes
+  `editor/panels/balancing.py` for the whole enemies domain. `spawns` is always an
+  ARRAY of per-era rows; the flat map is just the 1-row case.
+- **ER-1's parity-map instruction was wrong for `_py_only`.** `DROPPED:` strings
+  are only understood by the main mapping table; the `_py_only` consumer indexes
+  `entry["path"]` and raises on a string. Those entries were deleted, not retagged.
+
+Known issues carried out of this batch (neither is a regression — both are
+pre-existing or cosmetic, and both are candidates for ER-5 or a follow-up):
+
+- **A death on a wave's LAST frame ends the round before its children appear.**
+  `Scene.spawn()` only queues, so the wave-clear check cannot see them. The Boss
+  has always done this; ER-4's Formations will hit it far more often.
+- **Even footprints draw 16px above their logical block centre** (zero horizontal
+  error). Cosmetic only — pathing uses the anchor, combat the block centre. The fix
+  is engine-side and wants its own phase.
 
 ---
 

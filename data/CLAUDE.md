@@ -43,6 +43,27 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
+- **Enemy sizing leaves (ER-1)**: each `enemies.json` `EnemyTypes/*` block carries
+  a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
+  its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
+  `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
+  art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
+  `Boss/stats` row were deleted from content AND schema in the same change:
+  nothing read them, and render size now derives from the footprint.
+- **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
+  **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
+  once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`
+  (bool: false = dies normally, spawns nothing), `spawn_hp_fraction` (number
+  0–1: children spawn at this fraction of their OWN max HP; `1.0` = full) and
+  `spawns` — **always an ARRAY of `$defs/spawn_counts` rows, one per era**,
+  resolved `spawns[clamp(era)]`. The Boss carries 5 rows (index-aligned with its
+  `stats`); a type with no eras carries a single row and always clamps to row 0,
+  which IS the "flat per-type table" case. There is deliberately **no `oneOf`
+  union** — a type-less schema node crashes the editor's balancing panel for the
+  whole domain. Required-not-optional because `data/` is the only value store (a
+  code-side default is banned) and the editor panel skips schema keys absent from
+  the doc. `Boss/death_spawns` was REPLACED by `Boss/death_spawn` (the 5 rows
+  moved verbatim under `spawns`).
 - **Parity gate**: `tools/tests/balancing_parity_map.json` (committed,
   deliberately NOT under `data/` — smoke stem-pairs everything here) maps
   EVERY prototype live-JSON key to its new path, `MERGED:<target>`, or
@@ -50,8 +71,22 @@ validating writer; don't hand-edit the JSON.
   coverage both ways + value equality (skips whole if the prototype
   checkout is absent). The py-only live `BOSS_ERAS` list is committed as
   literal `_py_only` expectations (reshaped into `Boss/stats` +
-  `Boss/death_spawns`; its dead `swarm_*` fields not migrated). When you
+  `Boss/death_spawn/spawns`; its dead `swarm_*` fields not migrated). When you
   move/rename a balancing key, update the mapping in the same change.
+  - **The two tables have DIFFERENT semantics — do not confuse them.** The
+    **main** table's consumer skips values that are `"DROPPED:<reason>"`
+    strings. **`_py_only` is a literal-expectation table** (`{path, expect}`)
+    whose consumer (`test_py_only_boss_eras_expectations`) has **NO `DROPPED:`
+    branch** — a bare string there raises `TypeError: string indices must be
+    integers`. So when a `_py_only` key MOVES you **re-path it**; never retag it
+    `DROPPED:`, never delete it (it is the parity proof the value is unchanged).
+    ER-3 re-pathed all 15 `Boss/death_*` entries that way — a pure prefix swap —
+    leaving `_py_only` at 45 entries.
+  - **The parity test SKIPS SILENTLY inside a git worktree**: it derives the
+    prototype path from `REPO.parent`, which `.claude/worktrees/agent-XXX/`
+    lacks, so the whole class skips — it looks green and proves nothing. Run it
+    from a worktree that is a **SIBLING of the repo** and confirm the 4 tests
+    actually RAN.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
@@ -93,6 +128,20 @@ validating writer; don't hand-edit the JSON.
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
   ONE category (meditators reuse musician art) but never across categories
   (frame size would be ambiguous — loader rejects it).
+- **`slots[]` entries: bare key OR frame-size override (ER-1, D1)**. An entry is
+  either a bare key string (inherits the category's `frame_w`/`frame_h`) or
+  `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm —
+  no committed entry uses the object form yet; it exists for art whose sheet is
+  cut at a different size than its category (a 128×128 formation sheet in the
+  64×96 `enemies` category). It describes **slicing, not drawing** — on-screen
+  size comes from the render fit (`engine/render/CLAUDE.md`).
+  - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
+    so `"foo"` and `{"key": "foo", …}` are two distinct items. It is kept (it
+    still catches literal duplicates, and it is the D-3 house style), and
+    `SlotRegistry.__init__` picks up the slack — a key repeated within a category
+    must AGREE on its frame size or the loader raises `ValueError`. Schemas for
+    what schemas can express; loader cross-checks for what they cannot (the
+    `engine/tilemap.py` precedent).
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`) and `deco` prop TYPES (`Props → Rock → [deco_rock,

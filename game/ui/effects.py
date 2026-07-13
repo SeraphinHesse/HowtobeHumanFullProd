@@ -19,8 +19,8 @@ an ``EnemyCombat.cooldown`` reset while blocked as "an attack just landed"
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
-from engine.core import Health
-from engine.render import HudLines, HudRect
+from engine.core import Health, SpriteAnimator
+from engine.render import HudLines, HudRect, fit_factor
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
@@ -51,12 +51,14 @@ _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
 _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
-# Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`; its
-# width/height/lift are the `HP_BAR_W`/`HP_BAR_H`/`HP_BAR_LIFT` class attrs on
-# the enemy classes (base-zoom px), because each has to clear a different-sized
-# sprite — the walker sheet is 22x26, the boss's 72x56.
+# Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`. Width
+# and height are the `HP_BAR_W`/`HP_BAR_H` class attrs on the enemy classes
+# (base-zoom px). The LIFT is NOT a constant: since ER-1 a sprite's on-screen
+# size derives from its tile footprint, not its sheet, so the bar is placed
+# against the sprite's real DRAWN top edge (`_sprite_top`) and `HP_BAR_PAD` is
+# only the gap above its head.
 _ENEMY_BAR_STACK = 4       # px between stacked bars (prototype `bar_slot * 4`)
-_ENEMY_BAR_FALLBACK = (14, 2, 26)   # a stub enemy with no HP_BAR_* attrs
+_ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
 # -- 10H: lightning + cheat menu --
 # Bolt colour ramp (white -> yellow over BOLT_LIFE) + the ground-marker yellow
 # (prototype effects.py:222-289 fill (255,240,120)). 8-segment polyline, ±6 px
@@ -98,6 +100,28 @@ _SPLATTER_ALPHA = 170
 _PROJECTILE_STONE = (185, 180, 170)  # defender stone (prototype gray circle)
 _PROJECTILE_SHELL = (70, 60, 55)     # mortar shell (darker, larger)
 # -- /10J --
+
+
+def _sprite_top(renderer, cs, enemy, cy, zoom):
+    """Screen y of the TOP edge of `enemy`'s sprite as the renderer will draw it
+    this frame.
+
+    The renderer centres a frame on the tile diamond's centre and fits it to the
+    unit's footprint (`engine/render`), and `cy` — `world_to_screen(wx+0.5,
+    wy+0.5)` — IS that centre, so the top edge is half the DRAWN height above it.
+    The drawn height is the frame's, through the SAME `fit_factor` flush() uses:
+    a sheet's raw pixels no longer say how big it renders.
+
+    Falls back to `cy` (the tile centre) when there is no sprite or no store to
+    size it from — a stub enemy in a headless test still gets a bar.
+    """
+    assets = getattr(renderer, "assets", None)
+    anim = enemy.get_component(SpriteAnimator)
+    if assets is None or anim is None or not anim.slot_key:
+        return cy
+    frame_w, frame_h = assets.frame_size(anim.slot_key)
+    s = fit_factor(frame_w, cs.geometry.tile_w, anim.fit_tiles) * anim.scale
+    return cy - (frame_h * zoom * s) / 2
 
 
 class _Floater:
@@ -620,15 +644,16 @@ class FloaterManager:
                     continue
                 w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
                 h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
-                # The sprite grows with the camera, so the lift must too — but
-                # the bar itself stays a fixed screen size (every other bar in
-                # this file does).
-                lift = int(getattr(e, "HP_BAR_LIFT",
-                                   _ENEMY_BAR_FALLBACK[2]) * zoom)
+                pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
                 cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
                                             e.transform.wy + 0.5)
+                # Hang the bar off the sprite's head: its BOTTOM edge sits `pad`
+                # above the drawn top edge. The sprite grows with the camera, so
+                # both terms ride the zoom — but the bar itself stays a fixed
+                # screen size (every other bar in this file does).
+                top = _sprite_top(renderer, cs, e, cy, zoom)
                 x = int(cx - w / 2)
-                y = int(cy) - lift - slot * _ENEMY_BAR_STACK
+                y = int(top - pad * zoom) - h - slot * _ENEMY_BAR_STACK
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                            bg=C_HP_RED, fill=C_HP_GREEN)
                 slot += 1

@@ -41,55 +41,39 @@
   },
   "EnemyTypes": {
     "Boss": {
-      "death_spawns": [
-        {
-          "raiders": 5,
-          "regular": 10,
-          "siege": 1
-        },
-        {
-          "raiders": 7,
-          "regular": 14,
-          "siege": 2
-        },
-        {
-          "raiders": 10,
-          "regular": 20,
-          "siege": 3
-        },
-        {
-          "raiders": 13,
-          "regular": 26,
-          "siege": 4
-        },
-        {
-          "raiders": 16,
-          "regular": 34,
-          "siege": 5
-        }
-      ],
-      "era_sizes": [
-        {
-          "h": 28,
-          "w": 36
-        },
-        {
-          "h": 42,
-          "w": 54
-        },
-        {
-          "h": 84,
-          "w": 108
-        },
-        {
-          "h": 88,
-          "w": 116
-        },
-        {
-          "h": 96,
-          "w": 124
-        }
-      ],
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": true,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "raiders": 5,
+            "regular": 10,
+            "siege": 1
+          },
+          {
+            "raiders": 7,
+            "regular": 14,
+            "siege": 2
+          },
+          {
+            "raiders": 10,
+            "regular": 20,
+            "siege": 3
+          },
+          {
+            "raiders": 13,
+            "regular": 26,
+            "siege": 4
+          },
+          {
+            "raiders": 16,
+            "regular": 34,
+            "siege": 5
+          }
+        ]
+      },
+      "footprint": 1,
       "round_counts": [
         {
           "raiders": 22,
@@ -122,6 +106,7 @@
         "interval": 0.12,
         "strength": 0.6
       },
+      "sprite_scale": 1.0,
       "stats": [
         {
           "attack_range_tiles": 2,
@@ -129,9 +114,7 @@
           "dmg": 200,
           "hp": 2000,
           "move_speed": 0.3,
-          "name": "Bandit Chieftain",
-          "sprite_h": 56,
-          "sprite_w": 72
+          "name": "Bandit Chieftain"
         },
         {
           "attack_range_tiles": 2,
@@ -139,9 +122,7 @@
           "dmg": 320,
           "hp": 3800,
           "move_speed": 0.33,
-          "name": "Cannon Fortress",
-          "sprite_h": 84,
-          "sprite_w": 108
+          "name": "Cannon Fortress"
         },
         {
           "attack_range_tiles": 2,
@@ -149,9 +130,7 @@
           "dmg": 480,
           "hp": 6500,
           "move_speed": 0.36,
-          "name": "Wrecking Ball",
-          "sprite_h": 84,
-          "sprite_w": 108
+          "name": "Wrecking Ball"
         },
         {
           "attack_range_tiles": 3,
@@ -159,9 +138,7 @@
           "dmg": 700,
           "hp": 10000,
           "move_speed": 0.4,
-          "name": "Iron Drill",
-          "sprite_h": 88,
-          "sprite_w": 116
+          "name": "Iron Drill"
         },
         {
           "attack_range_tiles": 3,
@@ -169,40 +146,104 @@
           "dmg": 1000,
           "hp": 15000,
           "move_speed": 0.45,
-          "name": "Siege Tank",
-          "sprite_h": 96,
-          "sprite_w": 124
+          "name": "Siege Tank"
         }
       ]
+    },
+    "Formation": {
+      "attack_range_tiles": 1,
+      "attack_speed": 1.4,
+      "base_count": 1,
+      "death_spawn": {
+        "at_hp_fraction": 0.5,
+        "enabled": true,
+        "spawn_hp_fraction": 0.8,
+        "spawns": [
+          {
+            "raiders": 0,
+            "regular": 4,
+            "siege": 0
+          }
+        ]
+      },
+      "dmg": 30,
+      "footprint": 2,
+      "hp": 440,
+      "move_speed": 0.9,
+      "rounds_per_formation": 3,
+      "sprite_scale": 1.0,
+      "start_round": 16
     },
     "Raider": {
       "attack_range_tiles": 1,
       "attack_speed": 0.8,
       "base_count": 3,
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
       "dmg": 20,
+      "footprint": 1,
       "hp": 32,
       "move_speed": 2.7,
       "per_round": 2,
+      "sprite_scale": 1.0,
       "start_round": 6
     },
     "SiegeCannon": {
       "attack_range_tiles": 2,
       "attack_speed": 1.9,
       "base_count": 1,
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
       "dmg": 100,
+      "footprint": 1,
       "hp": 280,
       "mix_ratio": 0.5,
       "move_speed": 1.0,
       "queue_lead_count": 5,
       "rounds_per_cannon": 1,
+      "sprite_scale": 1.0,
       "start_round": 14
     },
     "Standard": {
       "attack_range_tiles": 1,
       "attack_speed": 1.0,
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
       "dmg": 10,
+      "footprint": 1,
       "hp": 55,
-      "move_speed": 1.2
+      "move_speed": 1.2,
+      "sprite_scale": 1.0
     }
   },
   "MortarTargeting": {

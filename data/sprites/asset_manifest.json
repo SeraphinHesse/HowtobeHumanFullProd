@@ -1,5 +1,23 @@
 {
   "entries": {
+    "base_hole": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/base_hole.png"
+    },
     "base_level_1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -695,8 +713,8 @@
       "sheet": "imported/boss_era_4.png"
     },
     "enemy_stage_1_v1": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -713,8 +731,8 @@
       "sheet": "imported/enemy_stage_1_v1.png"
     },
     "enemy_stage_1_v2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -731,8 +749,8 @@
       "sheet": "imported/enemy_stage_1_v2.png"
     },
     "enemy_stage_2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -749,8 +767,8 @@
       "sheet": "imported/enemy_stage_2.png"
     },
     "enemy_stage_3": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -767,8 +785,8 @@
       "sheet": "imported/enemy_stage_3.png"
     },
     "enemy_stage_4_v1": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -785,8 +803,8 @@
       "sheet": "imported/enemy_stage_4_v1.png"
     },
     "enemy_stage_4_v2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -2016,6 +2034,33 @@
         }
       ],
       "sheet": "imported/tile_background_1.png"
+    },
+    "tile_background_3": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 9,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_3.png"
     },
     "tile_buildable": {
       "frame_h": 32,
