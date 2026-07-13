@@ -32,6 +32,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QDockWidget,
     QLabel,
     QMainWindow,
@@ -43,7 +44,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import registry_ops, selection
+from editor import registry_ops, selection, theme
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.spawnclaude import SpawnClaudeDialog
@@ -58,11 +59,13 @@ from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "drunken_donuts_logo.png"
+PREFS_PATH = REPO / ".editor_prefs.json"
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, max_frames=None, data_dir=None):
+    def __init__(self, max_frames=None, data_dir=None, prefs_path=None):
         super().__init__()
+        self._prefs_path = Path(prefs_path) if prefs_path is not None else PREFS_PATH
         self.setWindowTitle("How To Be Human — editor")
         self.resize(1280, 720)
 
@@ -174,6 +177,17 @@ class MainWindow(QMainWindow):
         self.spawnclaude_action = QAction("Summon a Drunken Robot", self)
         agents_toolbar.addAction(self.spawnclaude_action)
         self.spawnclaude_action.triggered.connect(self._on_spawnclaude)
+
+        # Chrome theme switch, next to the summon button. Chrome only — the
+        # viewport still draws through engine/render (ED-22).
+        agents_toolbar.addSeparator()
+        self.theme = theme.load_theme(self._prefs_path)
+        theme.apply_theme(QApplication.instance(), self.theme)
+        self.theme_switch = QCheckBox("Dark mode")
+        self.theme_switch.setToolTip("Light / dark editor chrome")
+        self.theme_switch.setChecked(self.theme == "dark")
+        self.theme_switch.toggled.connect(self._on_theme_toggled)
+        agents_toolbar.addWidget(self.theme_switch)
 
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the
@@ -520,6 +534,17 @@ class MainWindow(QMainWindow):
         dialog = SpawnClaudeDialog(
             data_dir=self._data_dir, repo=REPO, parent=self)
         dialog.exec()
+
+    # -- theme switch --------------------------------------------------------
+
+    def _on_theme_toggled(self, dark):
+        self.theme = theme.apply_theme(
+            QApplication.instance(), "dark" if dark else "light")
+        try:
+            theme.save_theme(self._prefs_path, self.theme)
+        except OSError as exc:
+            self.statusBar().showMessage(
+                f"Theme applied but not saved: {exc}", 5000)
 
     # -- frame drive ---------------------------------------------------------
 
