@@ -40,3 +40,13 @@ class OverlayLines:
     color: tuple
     width: int = 1
     closed: bool = False
+
+
+@dataclass(frozen=True)
+class OverlayPolys:
+    """Filled polygon overlay (10J). Same world→screen contract as
+    OverlayLines; color may be RGBA — an alpha < 255 alpha-blends onto the
+    target (tile fills, splatters, glows)."""
+
+    points: tuple  # ((x, y), ...) — world at submit, screen in the backend
+    color: tuple  # RGB or RGBA

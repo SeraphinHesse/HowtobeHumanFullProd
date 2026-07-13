@@ -126,8 +126,12 @@ skill.**
   still alive (prototype `Projectile`): a shot in flight is wasted only if its
   target dies first — never a collision/accuracy miss. Travel time = `distance /
   DefenceBuildings.globals.projectile_speed_tiles` (new 9E key = 3.75 = prototype
-  120 px/s ÷ 32). Logical GameObjects with no sprite in 9E — projectile/muzzle/
-  blood art is the 10J FX sweep.
+  120 px/s ÷ 32). Projectiles stay LOGICAL GameObjects (no SpriteAnimator);
+  since 10J the UI draws them live off the `"projectile"` tag
+  (`FloaterManager.submit_projectiles` — stone dot / darker mortar shell), and
+  muzzle/slash/blood FX are watcher-driven in `game/ui/effects.py` (an
+  `EnemyCombat.cooldown` reset while blocked = an attack landed) — this package
+  needed NO change for 10J.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`

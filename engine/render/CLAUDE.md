@@ -29,12 +29,19 @@ tile_h*zoom`), covering it exactly. A frame TALLER than the tile
 "sits the figure ON the tile, not above it"). Per-entry manifest
 `offset_x/offset_y` nudge from there.
 
-## Overlay primitive (E-24)
+## Overlay primitives (E-24 + 10J)
 `Renderer.submit_overlay_lines(points_world, color, width, closed)` →
 `OverlayLines` (item.py). Points convert via coords at flush; overlay entries are
 appended AFTER every sprite DrawCall in the same flat list (overlays always draw
 last); the backend dispatches on isinstance. Grid lines in the editor use exactly
 this.
+
+`Renderer.submit_overlay_polys(points_world, color)` → `OverlayPolys` (10J): a
+FILLED polygon, same world→screen contract, interleaved with lines in submission
+order. `color` may be **RGBA** — alpha < 255 alpha-blends onto the target (the
+backend draws it onto a bounding-box `SRCALPHA` scratch surface and blits; opaque
+colors take the direct `pygame.draw.polygon` path). Tile fills, splatters, and
+glows use this; ellipses are caller-side polygon approximations.
 
 ## Backend throughput (perf, for hundreds of entities/projectiles)
 `render/backend.py`:
@@ -61,6 +68,11 @@ Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
   `pos`, `align` left/center/right shifts x by text width). `HudSprite` is
   resolved by the renderer and never reaches the backend. HUD coords are already
   screen-space — the backend does NOT convert them.
+- **RGBA colors (10J)**: `HudRect` and `HudText` accept a 4-tuple color; alpha
+  < 255 alpha-blends (rect via an `SRCALPHA` scratch surface, text via
+  `set_alpha` on the rendered run). 3-tuples keep the original direct paths —
+  callers that don't need alpha pay nothing. `HudLines`/`OverlayLines` stay
+  RGB-only. Tests: `test_alpha_render.py`.
 - **`render/fonts.py`** — a lazy `SysFont("monospace", …)` cache keyed by font_key
   (`sm/md/lg/xl/xxl` = prototype `src/ui/fonts.py` 1:1, lg/xl/xxl bold; plus
   `hud_phase=14`, `hud_lvl=12`). `get_font(key)` builds on first use (unknown key
