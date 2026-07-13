@@ -8,7 +8,9 @@ the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-saf
 
 ``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F, ``Boss``
 since 10G (era stats via tier-as-era, nearest-building hunting with
-re-path-on-kill, the ``"boss"`` scene tag). Each subclass resolves its own stat
+re-path-on-kill, the ``"boss"`` scene tag), ``Formation`` since ER-4 (the 2×2
+marching column that dies at half HP and scatters regulars — pure data over the
+ER-1/ER-2/ER-3 mechanics, no new code path). Each subclass resolves its own stat
 subtree + slot prefix and little else.
 
 Scale-tier stats are resolved at CONSTRUCTION into component fields (prototype
@@ -233,6 +235,34 @@ class SiegeCannon(Enemy):
             balance["EnemyTypes"]["SiegeCannon"], balance, tier)
 
 
+class Formation(Enemy):
+    """A marching column — many soldiers moving as one body (ER-4). Two tiles
+    square (``footprint: 2``, ER-2 clearance pathing: it only stands where all
+    four tiles are clear, so it cannot thread a one-tile gap a walker slips
+    through). It takes the scale-tier bonuses exactly like Standard/Siege.
+
+    It has NO break state: ``death_spawn.at_hp_fraction`` 0.5 makes ``alive``
+    False at half HP (D4 — breaking formation IS dying), and the ER-3 pipeline
+    bursts its ``spawns`` row of regulars at ``spawn_hp_fraction`` of their own
+    max HP. One code path, one editor form — hence no ``__init__``, no
+    ``on_spawn``, no ``_resolve_era`` (it is not era-indexed: it inherits row 0
+    and ships a single ``spawns`` row)."""
+
+    ETYPE = "formation"
+    REGISTRY_GROUP = "Formation"
+    DEFAULT_SLOT = "formation_stage_1"
+    STAT_SUBTREE = ("Formation",)
+    HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
+
+    def _resolve_stats(self, balance, tier):
+        # MANDATORY override: the base Enemy._resolve_stats reads the
+        # `Standard` block LITERALLY (STAT_SUBTREE does not drive it), so an
+        # un-overridden Formation would silently ship walker stats. Scales with
+        # the tiers exactly like Standard and SiegeCannon.
+        return tier_scaled_stats(
+            balance["EnemyTypes"]["Formation"], balance, tier)
+
+
 class Boss(Enemy):
     """The boss (LIVE since 10G). ``tier`` doubles as the ERA index — the
     spawner passes ``round // interval - 1``, clamped to the stat table; NO
@@ -295,6 +325,7 @@ ENEMY_CLASSES = {
     "standard": Enemy,
     "raider": Raider,
     "siege": SiegeCannon,
+    "formation": Formation,
     "boss": Boss,
 }
 

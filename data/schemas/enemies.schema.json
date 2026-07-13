@@ -301,6 +301,89 @@
           ],
           "type": "object"
         },
+        "Formation": {
+          "additionalProperties": false,
+          "description": "A marching column of soldiers that moves as one 2x2 body (ER-4). It breaks at half health - death_spawn.at_hp_fraction 0.5 means it DIES at 50% HP (D4: breaking formation is dying) and scatters its spawns row of regulars at spawn_hp_fraction of their own max HP. Takes the scale-tier bonuses like Standard/SiegeCannon. Never spawns on a boss round (Boss.round_counts carries no formation key, deliberately).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Formations in the first formation round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "rounds_per_formation": {
+              "description": "Rounds between each additional formation added to the wave.",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round formations appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "death_spawn",
+            "dmg",
+            "footprint",
+            "hp",
+            "move_speed",
+            "rounds_per_formation",
+            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
         "Raider": {
           "additionalProperties": false,
           "description": "Fast, fragile flanker (from round start_round).",
@@ -546,6 +629,7 @@
       },
       "required": [
         "Boss",
+        "Formation",
         "Raider",
         "SiegeCannon",
         "Standard"
