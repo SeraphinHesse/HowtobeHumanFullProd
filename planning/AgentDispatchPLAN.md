@@ -2,7 +2,7 @@
 
 Phased, agent-executable plan (same family as `EngineBuildPLAN.md` /
 `MIGRATION_PLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases AgentDispatchPLAN.md AD-1-AD-6` or phase-by-phase.
+`/execute-plan-phases planning/AgentDispatchPLAN.md AD-1-AD-7` or phase-by-phase.
 
 ## 1. Vision
 
@@ -310,6 +310,7 @@ edits outside what the target skill's own scope needs; `_lock` writes.
 | AD-4  | Form roster + suspension cleanup | not started |
 | AD-5  | Meta-extensibility: the add-form-spec form | not started |
 | AD-6  | Category addition + selector integration + DOMAINS derivation | not started |
+| AD-7  | Plan management: active-plan mirror + planning-agent spawn | not started |
 
 ### Phase AD-1 — Form-spec + handoff data layer (pure)
 
@@ -459,6 +460,76 @@ mapped form id; add-category spec passes the AD-4 sweep.
 New Enemy opens the form; dispatch add-category for a toy category on a
 branch, confirm the editor shows it after the PR branch is checked out.
 
+### Phase AD-7 — Plan management: active-plan mirror + planning-agent spawn
+
+**Goal**: the launcher dialog surfaces the **active plan**, lets the designer
+**switch** it or **open the planning folder**, and can **spawn the planning
+agent** (`/createplan`) as a new drunken-robot mode — closing the loop between
+the `planning/` sources, the generated root `PLAN.md` mirror, and the editor.
+
+**Background (already built, pre-AD)**: `planning/` holds every plan doc
+(sources of truth); root `PLAN.md` is a generated mirror of the active one with
+a line-1 marker `<!-- active-plan: <name>.md | set: <date> -->`. Skills
+`/setcurrentplan <name>` (re-mirror a plan) and `/createplan` (author a new
+phased plan) exist in `.claude/commands/`. AD-7 only adds the **editor surface**
+and the **form-spec** wiring — it does not re-invent the skills.
+
+**Files** — new: `editor/plans.py` (pure, Qt-free — added to
+`test_editor_viewport.TestPurity`), `data/agent_forms/create-plan.json`,
+`.claude/commands/` unchanged (skills already exist). Modified:
+`editor/spawnclaude.py` (`SpawnClaudeDialog` launcher gains a Plans group —
+this lands with the AD-3 launcher rewrite, or as an increment on it),
+`tools/tests/test_spawnclaude.py` + `tools/tests/test_editor_viewport.py`
+(purity list), `editor/CLAUDE.md` (spawnclaude invariants note the Plans group).
+
+- **`editor/plans.py`** (pure helpers, unit-testable, no Qt/pygame):
+  - `planning_dir(repo)` → `<repo>/planning`.
+  - `list_plans(repo)` → sorted list of `planning/*.md` stems/names.
+  - `active_plan(repo)` → parse root `PLAN.md` line 1 for the
+    `active-plan: <name>` marker; return the name or `None` (no `PLAN.md` / no
+    marker). Single source of truth — no second pointer file.
+  - `reveal_command(path)` → cross-platform folder-open argv: Windows
+    `["explorer", path]`, macOS `["open", path]`, else `["xdg-open", path]`.
+    (The repo has **no** existing folder-open helper — this is the one place it
+    is introduced; `run_controls.start_detached` remains the launch primitive.)
+  - `set_current_plan_prompt(name)` → `f"/setcurrentplan {name}"`;
+    `create_plan_prompt(text)` → `"/createplan"` (+ text if given).
+- **`SpawnClaudeDialog` launcher — Plans group** (reuses the AD-3 dialog
+  idioms + the injectable `detach`):
+  - an **active-plan `QLabel`** ("Active plan: MIGRATION_PLAN.md", from
+    `plans.active_plan`; "— none set" when absent);
+  - a **plan-picker `QComboBox`** (from `plans.list_plans`) + a **"Set as
+    current"** button → `spawnclaude.dispatch` with
+    `plans.set_current_plan_prompt(pick)` (spawns a robot running
+    `/setcurrentplan <pick>`); the label refreshes on next open;
+  - an **"Open planning folder"** `QPushButton` → launches
+    `plans.reveal_command(plans.planning_dir(repo))` through the same
+    injectable `detach` (`run_controls.start_detached`) so tests capture argv
+    and no real explorer opens;
+  - a **"Create a new plan"** entry (radio, alongside Small tweak / Admin) →
+    dispatches `/createplan` (the planning agent) — a new drunken-robot spawn
+    mode. Precedence stays admin > handoff/plan > tweak.
+- **Form-spec integration**: `data/agent_forms/create-plan.json`
+  (`schema_version: 1`, `id: "create-plan"`, `skill: "createplan"`,
+  `git_default: "current"`, one `string` field `plan_name` + the built-in
+  free-text box carrying the plan brief) so the planning agent also appears as
+  a first-class form entry in the launcher and passes the AD-4 all-specs sweep.
+  `/setcurrentplan` stays a **direct** picker-driven spawn (parametric on the
+  selected plan, not a form).
+
+**Tests** (offscreen Qt, temp repo dir): `plans.active_plan` parses the marker
+(and returns `None` on a missing/markerless `PLAN.md`); `list_plans` reflects a
+temp `planning/`; `reveal_command` branches per platform; the dialog's label
+shows the active plan, the picker lists `planning/*.md`, "Set as current" and
+"Open planning folder" and "Create a new plan" each dispatch the expected argv
+via the injected fake detach; `create-plan.json` passes the AD-4 sweep.
+
+**Exit gate**: suite + smoke (now also validating `create-plan.json`); **live**:
+`py editor/main.py` → Summon a Drunken Robot shows the active plan; "Open
+planning folder" reveals `planning/`; "Set as current" on a different plan
+re-mirrors root `PLAN.md`; "Create a new plan" opens a terminal on
+`/createplan`.
+
 ## 7. Risks / open items
 
 - **Command-line length**: solved by design — the spawned prompt is exactly
@@ -485,3 +556,9 @@ branch, confirm the editor shows it after the PR branch is checked out.
   everything. Flagged for review.
 - **Spec evolution**: `schema_version: 1` in both schemas; the renderer
   rejects unknown versions loudly.
+- **AD-7 active-plan marker (single source)**: the editor reads the active
+  plan from root `PLAN.md`'s line-1 marker only — if a hand-edit strips the
+  marker, `active_plan` returns `None` and the label shows "— none set" (never
+  crashes); re-run `/setcurrentplan` to restore it. `reveal_command` is the one
+  new folder-open path; it is argv-only (captured in tests), so no real
+  explorer launches under the offscreen test harness.

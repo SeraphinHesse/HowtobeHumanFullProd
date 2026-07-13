@@ -60,8 +60,8 @@ Read game/CLAUDE.md "Porting protocol" + the target domain's game/<domain>/
 CLAUDE.md. Follow: acceptance checklist -> runnable test -> implement -> iterate
 green -> live playtest. Payday ordering is SACROSANCT (don't reorder without me).
 
-Acceptance: per-phase Quick Test from MIGRATION_PLAN.md, live; state what you
-verified (smoke vs live round vs static read).
+Acceptance: per-phase Quick Test from planning/MIGRATION_PLAN.md, live; state
+what you verified (smoke vs live round vs static read).
 ```
 
 ## Fix a bug
@@ -101,6 +101,31 @@ fields only, on_added owner seam, keep the module pure (no pygame), add to
 TestPurity.
 
 Acceptance: serialization round-trip + behavior test green.
+```
+
+## Switch the active plan
+
+```txt
+Make [PLAN_NAME] the current plan.
+
+Use the /setcurrentplan skill with planning/[PLAN_NAME]. It mirrors that plan
+into the root PLAN.md (line-1 active-plan marker + verbatim body); CLAUDE.md,
+agents, and the editor's Summon a Drunken Robot screen all follow it.
+
+Acceptance: root PLAN.md line 1 names the chosen plan; body matches the source.
+```
+
+## Create a new plan
+
+```txt
+Draft a new phased plan: [name] — [one-line purpose].
+
+Use the /createplan skill (the planning agent). It reads a sibling in planning/
+to match the plan-doc family shape (Context -> numbered sections -> phase table
+with a Status column -> per-phase Goal/Files/Tests/Exit-gate -> Risks), then
+writes planning/[Name]PLAN.md. Optionally /setcurrentplan it afterwards.
+
+Acceptance: planning/[Name]PLAN.md exists with a phased build-order table.
 ```
 
 ---
