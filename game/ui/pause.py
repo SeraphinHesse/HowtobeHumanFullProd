@@ -2,10 +2,9 @@
 
 Pure logic. Ports the prototype's ``src/ui/pause_menu.py`` four-button panel
 (RESUME / SETTINGS / QUIT TO MENU / QUIT GAME). Drawn OVER the frozen gameplay
-(the host freezes the sim in PAUSED), so this is an opaque centred panel rather
-than a full-screen fill — the still board stays visible around it (the HUD pass
-has no per-pixel alpha, so a translucent dim isn't available; a solid panel over
-the frozen world reads as paused-in-place).
+(the host freezes the sim in PAUSED). Since 10J the full-screen
+``(0, 0, 0, 150)`` alpha dim from the prototype draws behind the panel (the
+9H deferral), so the still board reads as paused-in-place.
 """
 from engine.render import HudRect
 
@@ -53,6 +52,8 @@ class PauseScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         px, py, pw, ph = self.rect
+        # 10J: the prototype's (0,0,0,150) pause dim over the frozen world
+        renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, 150)))
         renderer.submit_hud(HudRect(self.rect, (24, 20, 40), border_radius=6))
         renderer.submit_hud(HudRect(self.rect, (80, 65, 120), border_radius=6,
                                     width=2))

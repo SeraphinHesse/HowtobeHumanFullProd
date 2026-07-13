@@ -2,19 +2,26 @@
 four modes (unlock / construct / upgrade / base_info) + the ConstructPreview
 modal.
 
-Pure logic. Ports the core of the prototype's ``src/ui/building_ui.py`` for the
-two building lines that exist (Defender / Musician). The deferred depth — shift
-multi-select, next-tier preview, terrain badges, name dice, lightning +
-boss-history sections — lands with its owning phase (10B-10J). Costs are gated
-against ``session.state.love`` here and spent by this module (the 9D/9F split:
-``place_building`` / ``upgrade`` never touch RunState).
+Pure logic. Ports the prototype's ``src/ui/building_ui.py``: panel modes +
+terrain badges (10I), lightning + boss-history sections (10H/10G), and the 10J
+depth — shift multi-select batches (unlock chunk-dedup / construct ×count /
+in-tier upgrade sums; tier advance stays primary-only), the name dice, the
+upgrade-panel rename row (custom names + rebirth ordinals finally render),
+the hover-gated green in-tier stat preview + next-tier card, and the DIED
+LAST ROUND tag. Costs are gated against ``session.state.love`` here and spent
+by this module (the 9D/9F split: ``place_building`` / ``upgrade`` never touch
+RunState).
 
 10A wired the research gates: the construct list only offers types the run has
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
 classifier — a tier can only be ADVANCED into once it has been researched on a
 level-up, and it stays unnamed until its ``unlock_min_round``.
 """
-from game.buildings.components import RoundStats
+import random  # 10J: the name-dice reroll (stdlib — pure)
+
+from game.buildings.components import (
+    BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
+)
 from game.buildings.registry import (
     BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
 )
@@ -25,10 +32,10 @@ from game.core.xp import scaled_base_income
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .widgets import (
-    C_GOLD, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE, C_RANGE_HIGHLIGHT,
-    C_UI_BORDER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM, COND_LABELS, HEART,
-    Button, contains, submit_panel, submit_tile_diamond, submit_text,
-    text_h, text_size,
+    C_GOLD, C_GREEN_STAT, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE,
+    C_RANGE_HIGHLIGHT, C_RED, C_UI_BORDER, C_UI_PANEL, C_UI_TEXT,
+    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, contains, submit_panel,
+    submit_tile_diamond, submit_text, text_h, text_size,
 )
 
 # -- 10H: lightning + cheat menu --
@@ -38,6 +45,21 @@ _LIGHTNING_BTN_Y = 370             # unlock/upgrade button row (below the stats)
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
 # (prototype building_ui.py:1440-1455).
 _COND_TOOLTIP_BG = (20, 15, 35)
+# -- 10J: the name-dice glyph (prototype building_ui.py:106) --
+_DICE_GLYPH = "⚄"
+
+
+def _display_name(b):
+    """Custom name if the player set one, else the tier display name — the 10J
+    upgrade-panel title (shows the rebirth ordinals a revive appends)."""
+    np = b.get_component(Nameplate)
+    if np is not None and np.custom_name:
+        return np.custom_name
+    return _tier_name(b)
+
+
+def _random_names(buildings_balance):
+    return buildings_balance["BuildingsGlobal"]["random_names"]
 
 
 def _building_stats(b):
@@ -86,13 +108,16 @@ class ConstructPreview:
     clicks/keys here while it is open."""
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
-                 view_w, view_h):
+                 view_w, view_h, count=1):
         self.building_type = building_type
-        self.cost = cost
+        self.cost = cost          # per-building cost
+        self.count = count        # 10J: batch size (shift multi-select)
         self.view_w = view_w
         self.view_h = view_h
+        self._names = _random_names(buildings_balance)
         temp = create(building_type, 0, 0, buildings_balance)
-        self.title = _tier_name(temp)
+        self.title = (_tier_name(temp) if count == 1
+                      else f"{_tier_name(temp)}  × {count}")
         self.stats = _building_stats(temp)
         self.name = ""
         self.editing = False
@@ -100,7 +125,11 @@ class ConstructPreview:
         pw, ph = 340, 300
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
-        self.name_rect = (x + 16, y + 96, pw - 32, 30)
+        # 10J: the name row shrinks to make room for the dice reroll button
+        # (prototype building_ui.py:136, 243-247).
+        self.name_rect = (x + 16, y + 96, pw - 32 - 36, 30)
+        self.dice_btn = Button((x + pw - 16 - 30, y + 96, 30, 30),
+                               _DICE_GLYPH, "md")
         self.close_btn = Button((x + pw - 26, y + 6, 20, 18), "X", "md")
         btn_y, bw, bh = y + ph - 48, 140, 34
         left = Button((x + 16, btn_y, bw, bh), "", "lg")
@@ -118,12 +147,17 @@ class ConstructPreview:
             self.cancel_btn = None
 
     @property
+    def total_cost(self):
+        return self.cost * self.count
+
+    @property
     def chosen_name(self):
         return self.name.strip() or f"Unnamed {self.title}"
 
     def hover(self, mx, my):
         self.confirm_btn.hover(mx, my)
         self.close_btn.hover(mx, my)
+        self.dice_btn.hover(mx, my)
         if self.cancel_btn is not None:
             self.cancel_btn.hover(mx, my)
 
@@ -133,6 +167,7 @@ class ConstructPreview:
     def update(self, dt):
         self.confirm_btn.update(dt)
         self.close_btn.update(dt)
+        self.dice_btn.update(dt)
         if self.cancel_btn is not None:
             self.cancel_btn.update(dt)
 
@@ -145,6 +180,12 @@ class ConstructPreview:
             return "cancel"
         if self.confirm_btn.hit(mx, my):
             return "confirm"
+        if self.dice_btn.hit(mx, my) and self._names:
+            # 10J name dice: always REPLACES the current text (prototype
+            # building_ui.py:243-247).
+            self.name = random.choice(self._names)
+            self.editing = True
+            return "name"
         if contains(self.name_rect, mx, my):
             if not self.editing:
                 self.editing = True
@@ -170,8 +211,8 @@ class ConstructPreview:
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 12), "lg", C_UI_TEXT,
                     align="center")
-        submit_text(renderer, f"Cost  {HEART}{self.cost}", (cx, y + 44), "md",
-                    C_GOLD, align="center")
+        submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
+                    "md", C_GOLD, align="center")
         submit_text(renderer, "Name:", (x + 16, y + 76), "sm", C_UI_TEXT_DIM)
         nx, ny, nw, nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, C_PANEL_STONE))
@@ -185,6 +226,7 @@ class ConstructPreview:
             shown = "click to name"
             tcol = C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
+        self.dice_btn.submit(renderer)
         sy = y + 138
         for label, value in self.stats:
             submit_text(renderer, label, (x + 16, sy), "sm", C_UI_TEXT_DIM)
@@ -217,6 +259,18 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self._action_cost = 0
+        # -- 10J: shift multi-select batch (prototype game.py:189-191) --
+        self.selected_tiles = []      # primary first; same category only
+        # -- 10J: upgrade-panel rename row + dice; host callbacks --
+        self._name_editing = False
+        self._name_buf = ""
+        self._name_box_rect = (self.panel_x + 14, 40, self.panel_w - 64, 22)
+        self._dice_up = Button(
+            (self.panel_x + 14 + self.panel_w - 64 + 6, 40, 24, 22),
+            _DICE_GLYPH, "md")
+        self.log = None               # GameLog, wired by the host
+        self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
+        # -- /10J --
         self.close_btn = Button(
             (self.panel_x + self.panel_w - 28, 8, 20, 18), "X", "md")
         self.action_btn = Button(
@@ -257,6 +311,12 @@ class BuildingUI:
     def hover_cost(self):
         return self._hover_cost
 
+    @property
+    def name_editing(self):
+        """True while the upgrade panel's rename row is capturing keys (10J) —
+        the host routes keyboard input here instead of the shortcut keys."""
+        return self._name_editing
+
     def close(self):
         self.mode = None
         self.tile = None
@@ -266,6 +326,11 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self.cards = []
+        # -- 10J --
+        self.selected_tiles = []
+        self._name_editing = False
+        self._name_buf = ""
+        # -- /10J --
         self._boss_popup_open = False  # -- 10G boss --
         # -- 10H --
         self.lightning_btn = None
@@ -276,12 +341,18 @@ class BuildingUI:
         self._cond_tooltip = None
         # -- /10I --
 
-    def open_for_tile(self, tile, session, buildings_balance):
+    def open_for_tile(self, tile, session, buildings_balance,
+                      selected_tiles=None):
+        """Open for the PRIMARY tile; ``selected_tiles`` (10J shift
+        multi-select, primary first, same category) batches the unlock /
+        construct / in-tier-upgrade actions. The base never batches."""
         self.close()
         if tile is None:
             return
         self._buildings_balance = buildings_balance
         self._session = session
+        self.selected_tiles = (list(selected_tiles) if selected_tiles
+                               else [tile])
         st = tile.state
         if st == TileState.COMBAT:
             self.mode, self.tile = "unlock", tile
@@ -293,28 +364,56 @@ class BuildingUI:
             occ = tile.occupant
             if getattr(occ, "building_type", None) == "base":
                 self.mode, self.tile = "base_info", tile
+                self.selected_tiles = [tile]  # base never batches
                 self._build_base_info(session)  # 10H: lightning button
             elif occ is not None:
                 self.mode, self.tile, self._selected = "upgrade", tile, occ
                 self._build_upgrade()
-                self._set_range_highlight(occ, session.tilemap)
+                if len(self.selected_tiles) == 1:
+                    self._set_range_highlight(occ, session.tilemap)
+                else:
+                    # range diamond only on a single selection (prototype
+                    # game.py:552-556); a batch highlights its tiles.
+                    self._highlight_tiles = [
+                        (t.col, t.row, C_HIGHLIGHT)
+                        for t in self.selected_tiles]
         # SPAWNING / BACKGROUND / empty BUILT -> stays closed
 
     # -- per-mode builders ------------------------------------------------
 
+    def _unlock_chunks(self, session):
+        """The DISTINCT 2×2 chunks the selection covers, as ``(rep_tile,
+        cost)`` — two selected tiles in the same chunk unlock (and cost) once
+        (prototype ``_unlock_cost`` frozenset dedup, building_ui.py:1277-97)."""
+        tm = session.tilemap
+        chunks = {}
+        for t in self.selected_tiles:
+            key = frozenset((c.col, c.row) for c in tm.get_chunk_for_tile(t))
+            if key not in chunks:
+                chunks[key] = (t, tm.unlock_cost(t))
+        return list(chunks.values())
+
     def _build_unlock(self, session):
         tm = session.tilemap
-        cost = tm.unlock_cost(self.tile)
-        adjacent = tm.can_unlock(self.tile)
+        chunks = self._unlock_chunks(session)
+        cost = sum(c for _, c in chunks)
+        adjacent = all(tm.can_unlock(t) for t, _ in chunks)
         self._action_cost = cost
         self.action_btn.rect = (self.panel_x + 12, 150, self.panel_w - 24, 36)
         self.action_btn.enabled = adjacent
-        self.action_btn.label = (
-            f"UNLOCK  {HEART}{cost}" if adjacent else "NOT ADJACENT")
-        hl = [(self.tile.col, self.tile.row, C_HIGHLIGHT)]
-        for t in tm.get_chunk_for_tile(self.tile):
-            if t is not self.tile:
-                hl.append((t.col, t.row, C_HIGHLIGHT2))
+        n = len(chunks)
+        if not adjacent:
+            self.action_btn.label = "NOT ADJACENT"
+        elif n > 1:
+            self.action_btn.label = f"UNLOCK {n} AREAS  {HEART}{cost}"
+        else:
+            self.action_btn.label = f"UNLOCK  {HEART}{cost}"
+        hl = []
+        for sel in self.selected_tiles:
+            hl.append((sel.col, sel.row, C_HIGHLIGHT))
+            for t in tm.get_chunk_for_tile(sel):
+                if t is not sel:
+                    hl.append((t.col, t.row, C_HIGHLIGHT2))
         self._highlight_tiles = hl
 
     def _build_construct(self):
@@ -331,10 +430,29 @@ class BuildingUI:
                          f"{name}  {HEART}{cost}", "md")
             self.cards.append((btype, btn))
             y += 50
-        self._highlight_tiles = [(self.tile.col, self.tile.row, C_HIGHLIGHT)]
+        self._highlight_tiles = [(t.col, t.row, C_HIGHLIGHT)
+                                 for t in self.selected_tiles]
+
+    def _batch_upgrade_targets(self):
+        """``[(building, cost)]`` across the selection whose upgrade state is
+        ``in_tier`` (prototype building_ui.py:767-791). A single selection is
+        a 1-batch; tier ADVANCE never batches (primary only)."""
+        out = []
+        for t in self.selected_tiles:
+            b = t.occupant
+            if b is None or getattr(b, "building_type", None) == "base":
+                continue
+            mode, cost, _, _ = self._upgrade_state(b)
+            if mode == "in_tier" and cost > 0:
+                out.append((b, cost))
+        return out
 
     def _build_upgrade(self):
         mode, cost, label, hint = self._upgrade_state(self._selected)
+        if mode == "in_tier" and len(self.selected_tiles) > 1:
+            targets = self._batch_upgrade_targets()
+            cost = sum(c for _, c in targets)
+            label = f"UPGRADE ×{len(targets)}  {HEART}{cost}"
         self.action_btn.rect = (
             self.panel_x + 12, self.view_h - 120, self.panel_w - 24, 36)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
@@ -447,14 +565,18 @@ class BuildingUI:
             return
         self.close_btn.hover(mx, my)
         if self.mode == "construct":
+            count = max(1, len(self.selected_tiles))  # 10J batch
             for btype, btn in self.cards:
                 btn.hover(mx, my)
                 if btn.hovered:
-                    self._hover_cost = build_cost(btype, self._buildings_balance)
+                    self._hover_cost = (
+                        build_cost(btype, self._buildings_balance) * count)
         elif self.mode in ("unlock", "upgrade"):
             self.action_btn.hover(mx, my)
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
+            if self.mode == "upgrade":
+                self._dice_up.hover(mx, my)  # 10J rename dice
         elif self.mode == "base_info":
             # -- 10H --
             if self.lightning_btn is not None:
@@ -475,6 +597,18 @@ class BuildingUI:
     def handle_key(self, char, key):
         if self.preview is not None:
             self.preview.handle_key(char, key)
+            return
+        # -- 10J: upgrade-panel rename row (the ConstructPreview key model) --
+        if self._name_editing:
+            if key == "return":
+                self._commit_rename()
+            elif key == "escape":
+                self._name_editing = False
+                self._name_buf = ""
+            elif key == "backspace":
+                self._name_buf = self._name_buf[:-1]
+            elif char and char.isprintable() and len(self._name_buf) < 20:
+                self._name_buf += char
 
     def handle_click(self, mx, my, session, buildings_balance, scene, occupancy):
         """Return True if the click was consumed by the UI (host must then NOT
@@ -503,13 +637,19 @@ class BuildingUI:
     def _unlock_click(self, mx, my, session):
         if self.action_btn.hit(mx, my):
             tm, st = session.tilemap, session.state
-            cost = tm.unlock_cost(self.tile)
-            if not tm.can_unlock(self.tile):
+            chunks = self._unlock_chunks(session)  # re-check live (10J batch)
+            cost = sum(c for _, c in chunks)
+            if not all(tm.can_unlock(t) for t, _ in chunks):
                 self.action_btn.start_flash(self._flash_dur, "NOT ADJACENT")
+                if self.log is not None:
+                    self.log.post(
+                        "Can only unlock tiles touching your territory")
             elif st.love < cost:
                 self.action_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
-            elif tm.do_unlock(self.tile):
-                st.spend_love(cost)
+            else:
+                for tile, chunk_cost in chunks:
+                    if tm.do_unlock(tile):
+                        st.spend_love(chunk_cost)
                 self.close()
             return True
         return contains(self.panel_rect, mx, my)
@@ -518,31 +658,82 @@ class BuildingUI:
         for btype, btn in self.cards:
             if btn.hit(mx, my):
                 cost = build_cost(btype, buildings_balance)
-                if session.state.love < cost:
+                count = max(1, len(self.selected_tiles))
+                # 10J batch: the whole batch must be affordable up front
+                # (prototype building_ui.py:704-708).
+                if session.state.love < cost * count:
                     btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
-                        self.view_w, self.view_h)
+                        self.view_w, self.view_h, count=count)
                 return True
         return contains(self.panel_rect, mx, my)
 
+    def _commit_rename(self):
+        """Apply the rename buffer to the primary building. A no-op rename is
+        deliberately skipped so it can't reset the rebirth chain (prototype
+        ``_commit_upgrade_name``, building_ui.py:1264-75)."""
+        self._name_editing = False
+        name, self._name_buf = self._name_buf.strip(), ""
+        b = self._selected
+        if b is None or not name:
+            return
+        np = b.get_component(Nameplate)
+        if np is not None and name == np.custom_name:
+            return
+        b.set_name(name)
+
     def _upgrade_click(self, mx, my, session):
         b, st = self._selected, session.state
+        # -- 10J: rename row — dice fills the buffer, the box click-to-clears,
+        # a click anywhere else while editing commits (defocus) --
+        if self._dice_up.hit(mx, my):
+            names = _random_names(self._buildings_balance)
+            if names:
+                self._name_buf = random.choice(names)
+                self._name_editing = True
+            return True
+        if contains(self._name_box_rect, mx, my):
+            if not self._name_editing:
+                self._name_editing = True
+                self._name_buf = ""
+            return True
+        if self._name_editing:
+            self._commit_rename()
+        # -- /10J --
         if self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
             if mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
-            if st.love < cost:
-                self.action_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
-                return True
-            st.spend_love(cost)
             if mode == "tier_upgrade":
+                # Tier research advances ONE building only (prototype
+                # building_ui.py:757-766) — never the batch.
+                if st.love < cost:
+                    self.action_btn.start_flash(self._flash_dur,
+                                                "NOT ENOUGH LOVE")
+                    return True
+                st.spend_love(cost)
                 b.advance_tier()
+                if self.on_build_vfx is not None:
+                    self.on_build_vfx(b.col, b.row, "tier")
             else:
-                b.upgrade()
+                targets = self._batch_upgrade_targets()
+                total = sum(c for _, c in targets)
+                if st.love < total:
+                    self.action_btn.start_flash(self._flash_dur,
+                                                "NOT ENOUGH LOVE")
+                    return True
+                st.spend_love(total)
+                for tb, _c in targets:
+                    tb.upgrade()
+                    if self.on_build_vfx is not None:
+                        lvl = tb.get_component(TierState).current_level_in_tier
+                        self.on_build_vfx(tb.col, tb.row,
+                                          "level1" if lvl == 2 else "level2")
             self._build_upgrade()
-            self._set_range_highlight(b, session.tilemap)
+            if len(self.selected_tiles) == 1:
+                self._set_range_highlight(b, session.tilemap)
             return True
         return contains(self.panel_rect, mx, my)
 
@@ -559,25 +750,42 @@ class BuildingUI:
         return True  # modal consumes every click
 
     def _do_place(self, session, buildings_balance, scene, occupancy):
+        """Place on every selected tile (10J batch; single tile = a 1-batch).
+        The chosen name applies to the FIRST tile only (prototype
+        building_ui.py:591-619); a tile that fails placement is skipped."""
         p, st = self.preview, session.state
-        try:
-            building, cost = place_building(
-                session.tilemap, self.tile, p.building_type, st.love,
-                buildings_balance, scene, occupancy, state=st)
-        except PlacementError:
+        if st.love < p.total_cost:
             p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
             return
-        st.spend_love(cost)
-        st.buildings_placed += 1
-        building.set_name(p.chosen_name)
+        placed_any = False
+        for i, tile in enumerate(self.selected_tiles or [self.tile]):
+            try:
+                building, cost = place_building(
+                    session.tilemap, tile, p.building_type, st.love,
+                    buildings_balance, scene, occupancy, state=st)
+            except PlacementError:
+                continue
+            st.spend_love(cost)
+            st.buildings_placed += 1
+            placed_any = True
+            if i == 0:
+                building.set_name(p.chosen_name)
+            if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
+                self.on_build_vfx(tile.col, tile.row, "place")
+        if not placed_any:
+            p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
+            return
         self.preview = None
-        self.open_for_tile(self.tile, session, buildings_balance)  # -> upgrade
+        selection = list(self.selected_tiles)  # keep the batch selected
+        self.open_for_tile(self.tile, session, buildings_balance,
+                           selected_tiles=selection)  # -> upgrade
 
     # -- per-frame --------------------------------------------------------
 
     def update(self, dt):
         self.action_btn.update(dt)
         self.close_btn.update(dt)
+        self._dice_up.update(dt)  # 10J rename dice
         self.boss_btn.update(dt)          # -- 10G boss --
         self._boss_close_btn.update(dt)   # -- 10G boss --
         for _, btn in self.cards:
@@ -640,23 +848,91 @@ class BuildingUI:
                                 self.view_h - 40, above=True)
         # -- /10I --
 
+    def _next_level_rows(self, b):
+        """``_building_stats`` at the NEXT in-tier level, computed on a
+        throwaway clone that copies the tier cursor + boost/condition/streak
+        context (the prototype's ``b.stats_preview()``, hover-gated green
+        values). None at the tier max."""
+        temp = create(b.building_type, b.col, b.row, self._buildings_balance)
+        ts = b.get_component(TierState)
+        tts = temp.get_component(TierState)
+        tts.current_tier = ts.current_tier
+        tts.current_level_in_tier = ts.current_level_in_tier
+        temp._tile_condition = getattr(b, "_tile_condition", None)
+        temp._condition_mods = getattr(b, "_condition_mods", {})
+        rcv = b.get_component(BoostReceiver)
+        trcv = temp.get_component(BoostReceiver)
+        if rcv is not None and trcv is not None:
+            trcv.damage_pct = rcv.damage_pct
+            trcv.speed_pct = rcv.speed_pct
+            trcv.hp_pct = rcv.hp_pct
+            trcv.explosion_debuffs = list(rcv.explosion_debuffs)
+        ye = b.get_component(YieldEconomy)
+        tye = temp.get_component(YieldEconomy)
+        if ye is not None and tye is not None:
+            tye.streak = ye.streak
+        if not temp.upgrade():
+            return None
+        return _building_stats(temp)
+
+    def _next_tier_card(self, b):
+        """``(slot_key, "Next: <name>", first-3 stat rows)`` for tier+1 level 1
+        (prototype ``_draw_next_tier_preview``), or None at the last tier."""
+        if not b.has_next_tier():
+            return None
+        temp = create(b.building_type, b.col, b.row, self._buildings_balance)
+        tts = temp.get_component(TierState)
+        tts.current_tier = b.get_component(TierState).current_tier + 1
+        tts.current_level_in_tier = 1
+        temp.apply_tier_stats()
+        return temp.slot_key(), f"Next: {_tier_name(temp)}", \
+            _building_stats(temp)[:3]
+
     def _submit_upgrade(self, renderer):
+        from engine.render import HudRect, HudSprite
+
         x, b = self.panel_x + 14, self._selected
-        title = _tier_name(b)
-        submit_text(renderer, title, (x, 12), "lg", C_UI_TEXT)
-        submit_text(renderer, f"Level {b.level}", (x, 46), "md", C_UI_TEXT_DIM)
-        # -- 10I: terrain badge below the Level row (ALWAYS shown incl. Grass),
-        # reading the building's placement snapshot; tooltip below the badge --
+        up_mode, _, _, _ = self._upgrade_state(b)
+        # 10J: the title is the DISPLAY name — custom names + rebirth ordinals
+        # finally show; the tier name moves to the Level row.
+        submit_text(renderer, _display_name(b), (x, 10), "lg", C_UI_TEXT)
+        # -- 10J rename row: input box + dice --
+        nx, ny, nw, nh = self._name_box_rect
+        renderer.submit_hud(HudRect(self._name_box_rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(
+            self._name_box_rect,
+            C_HIGHLIGHT if self._name_editing else C_UI_BORDER, width=1))
+        if self._name_buf or self._name_editing:
+            shown, tcol = self._name_buf + "_", C_UI_TEXT
+        else:
+            shown, tcol = "click here to change name", C_UI_TEXT_DIM
+        submit_text(renderer, shown, (nx + 6, ny + 4), "sm", tcol)
+        self._dice_up.submit(renderer)
+        # -- /10J --
+        submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 68),
+                    "md", C_UI_TEXT_DIM)
+        # -- 10I: terrain badge (ALWAYS shown incl. Grass), reading the
+        # building's placement snapshot; tooltip below the badge --
         self._submit_cond_badge(
             renderer,
             getattr(b, "_tile_condition", None) or TileCondition.GRASS,
-            66, above=False)
+            90, above=False)
         # -- /10I --
-        y = 92
+        # 10J: hovering an enabled in-tier UPGRADE button previews the next
+        # level's stats in green (prototype building_ui.py:1021, 1057-58).
+        preview = None
+        if up_mode == "in_tier" and self.action_btn.hovered:
+            preview = dict(self._next_level_rows(b) or ())
+        y = 116
         for label, value in _building_stats(b):
             submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (self._right, y), "md", C_UI_TEXT,
-                        align="right")
+            pv = preview.get(label) if preview else None
+            if pv is not None and pv != value:
+                submit_text(renderer, str(pv), (self._right, y), "md",
+                            C_GREEN_STAT, align="right")
+            else:
+                submit_text(renderer, str(value), (self._right, y), "md",
+                            C_UI_TEXT, align="right")
             y += 24
         rs = b.get_component(RoundStats)
         if rs is not None:
@@ -668,6 +944,33 @@ class BuildingUI:
             submit_text(renderer, "Damage taken", (x, y), "sm", C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_taken_last_round), (self._right, y),
                         "sm", C_UI_TEXT, align="right")
+            y += 18
+            # -- 10J: a building whose last-round damage covered its full HP
+            # died last round (prototype building_ui.py:1083-86) --
+            if rs.dmg_taken_last_round >= b.max_hp():
+                submit_text(renderer, "DIED LAST ROUND",
+                            (self.panel_x + self.panel_w // 2, y), "sm",
+                            C_RED, align="center")
+                y += 18
+        # -- 10J: next-tier card when a tier advance is on the table
+        # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --
+        if up_mode in ("tier_upgrade", "tier_locked"):
+            card = self._next_tier_card(b)
+            if card is not None:
+                slot, header, rows = card
+                y += 8
+                renderer.submit_hud(HudRect(
+                    (x, y, self.panel_w - 28, 1), C_UI_BORDER))
+                y += 8
+                submit_text(renderer, header, (x, y), "md", C_GREEN_STAT)
+                y += 22
+                if slot:
+                    renderer.submit_hud(HudSprite(slot, (x, y), (38, 38)))
+                ry = y
+                for label, value in rows:
+                    submit_text(renderer, f"{label}  {value}", (x + 46, ry),
+                                "sm", C_UI_TEXT_DIM)
+                    ry += 16
         self.action_btn.submit(renderer)
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect

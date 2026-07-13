@@ -400,6 +400,10 @@ class Session:
         # the fatal hit, before the game-over check (prototype game.py:1293-99).
         if self.core_balance["XP"]["xp_on_base_damage_kill"]:
             self._award_enemy_xp(enemy)
+        # 10J: a base-reach kill splatters too (prototype game.py:1295)
+        transform = getattr(enemy, "transform", None)
+        if transform is not None:
+            st.enemy_death_events.append(transform.world_pos)
         st.enemies_killed += 1
         st.base_lives -= 1
         if st.base_lives <= 0:
@@ -423,6 +427,11 @@ class Session:
             wx, wy = enemy.transform.world_pos
             self._boss_swarm_pending = (round(wx), round(wy), enemy.era)
         # -- /10G --
+        # 10J: every field kill leaves a ground splatter (drained-by-UI
+        # ledger; the gore gates live in the FX layer, prototype game.py:1340)
+        transform = getattr(enemy, "transform", None)
+        if transform is not None:
+            self.state.enemy_death_events.append(transform.world_pos)
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
 

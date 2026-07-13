@@ -1,18 +1,26 @@
-"""World-anchored UI: income/upkeep floaters + building HP bars (Phase 9G).
+"""World-anchored UI: income/upkeep floaters + building HP bars (Phase 9G) +
+the 10J FX sweep (spark bursts, gold tile highlights, building death bursts,
+muzzle/slash attack FX, blood splatters).
 
 Pure logic. World-anchored elements compute their screen position through the
 coords authority (``cs.world_to_screen``) — so they track the camera — and are
 emitted as screen-space HUD primitives (always drawn on top; non-sprite HP bars
 are not depth-sorted against buildings, an accepted "HUD on top" simplification
 that only shows when a building is damaged). Ports the prototype's
-``IncomeFloater`` / ``Building._draw_hp_bar``. The rich VFX set (spark bursts,
-gold highlights, blood, muzzle/slash) is the 10J sweep.
+``IncomeFloater`` / ``Building._draw_hp_bar`` / ``src/effects.py`` VFX set.
+
+10J particles simulate in BASE-ZOOM screen pixels relative to their anchor's
+world point (offsets scale with ``cs.camera.zoom`` at draw), which keeps the
+prototype's pixel velocities/gravity meaningful without iso math outside
+``engine.coords``. Enemy attack FX need no core hook: ``watch_enemies`` treats
+an ``EnemyCombat.cooldown`` reset while blocked as "an attack just landed"
+(the drained-ledger/watcher house pattern).
 """
-import random  # 10H: per-frame bolt jitter (stdlib — pure)
+import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health
-from engine.render import HudLines
-from game.buildings.components import BeamAttacker, TierState
+from engine.render import HudLines, HudRect
+from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
 from .widgets import (
@@ -37,8 +45,7 @@ _BEAM_COLORS = ((255, 200, 40), (255, 110, 15), (210, 20, 10))
 _CRATER_COLOR = (120, 78, 66)   # spent-shell scorch (world-space diamond)
 
 # -- 10G boss: announcement + HP-bar constants ------------------------------
-_ANNOUNCE_RED = (220, 40, 40)      # prototype banner colour
-_ANNOUNCE_BG = (24, 20, 32)        # host BACKGROUND — the fade lerps toward it
+_ANNOUNCE_RED = (220, 40, 40)      # prototype banner colour (10J: alpha fade)
 _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
@@ -56,6 +63,37 @@ _BOLT_YELLOW = (255, 240, 80)
 _LIGHTNING_MARKER = (255, 240, 120)
 # -- /10H --
 
+# -- 10J FX presets (prototype src/effects.py; timings/counts verbatim, the
+# spark/shard velocities are px/s in the prototype's world-pixel space) ------
+_SPARK_PRESETS = {          # kind: (life s, particle count)
+    "place": (0.75, 10),
+    "level1": (0.55, 7),
+    "level2": (0.88, 16),
+    "tier": (1.20, 26),
+}
+_SPARK_GRAVITY = 55.0       # px/s^2 (prototype SparkBurst)
+_SPARK_RAMP = (             # colour by age: yellow -> orange -> red
+    (255, 230, 80), (255, 150, 40), (210, 60, 30))
+_GOLD_LIFE = 1.20           # TileGoldHighlight: in 0.15 / hold 0.35 / out 0.70
+_GOLD_IN, _GOLD_HOLD = 0.15, 0.35
+_GOLD_FILL = (255, 215, 0)      # alpha <= 90 (needs the 10J overlay alpha)
+_GOLD_BORDER = (255, 240, 80)   # alpha <= 200
+_DEATH_LIFE = 0.65          # BuildingDeathEffect: 14 purple shards
+_DEATH_COUNT = 14
+_DEATH_GRAVITY = 60.0
+_DEATH_COLORS = ((150, 90, 200), (120, 70, 170), (180, 120, 230))
+_MUZZLE_LIFE, _MUZZLE_LIFE_STRONG = 0.20, 0.32
+_MUZZLE_COUNT, _MUZZLE_COUNT_STRONG = 8, 13
+_MUZZLE_RAMP = ((255, 230, 120), (220, 90, 50), (130, 30, 20))
+_MUZZLE_SMOKE = (100, 80, 80)   # 25% of particles
+_SLASH_LIFE = 0.28
+_SLASH_COLORS = ((220, 230, 255), (200, 215, 245), (255, 255, 255))
+_SPLATTER_COLOR = (180, 30, 30)  # prototype fallback red, r=4 px
+_SPLATTER_ALPHA = 170
+_PROJECTILE_STONE = (185, 180, 170)  # defender stone (prototype gray circle)
+_PROJECTILE_SHELL = (70, 60, 55)     # mortar shell (darker, larger)
+# -- /10J --
+
 
 class _Floater:
     __slots__ = ("wx", "wy", "text", "color", "age", "life")
@@ -67,6 +105,77 @@ class _Floater:
         self.color = color
         self.age = 0.0
         self.life = life
+
+
+class _Particle:
+    """One 10J spark/shard/muzzle mote: a world anchor + a base-zoom pixel
+    offset integrated with velocity + gravity. ``ramp`` colours by age;
+    ``size`` is the base-zoom rect size."""
+
+    __slots__ = ("wx", "wy", "ox", "oy", "vx", "vy", "gravity", "age", "life",
+                 "ramp", "size")
+
+    def __init__(self, wx, wy, vx, vy, gravity, life, ramp, size=(2, 2)):
+        self.wx = wx
+        self.wy = wy
+        self.ox = 0.0
+        self.oy = 0.0
+        self.vx = vx
+        self.vy = vy
+        self.gravity = gravity
+        self.age = 0.0
+        self.life = life
+        self.ramp = ramp
+        self.size = size
+
+    def step(self, dt):
+        self.age += dt
+        self.vy += self.gravity * dt
+        self.ox += self.vx * dt
+        self.oy += self.vy * dt
+
+    def color(self):
+        frac = min(0.999, self.age / self.life) if self.life else 0.999
+        return self.ramp[int(frac * len(self.ramp))]
+
+
+class _GoldHighlight:
+    """A fading gold diamond on a just-built / tier-advanced tile (prototype
+    ``TileGoldHighlight``): fade in 0.15 s, hold 0.35 s, fade out 0.70 s."""
+
+    __slots__ = ("col", "row", "age")
+
+    def __init__(self, col, row):
+        self.col = col
+        self.row = row
+        self.age = 0.0
+
+    def frac(self):
+        if self.age < _GOLD_IN:
+            return self.age / _GOLD_IN
+        if self.age < _GOLD_IN + _GOLD_HOLD:
+            return 1.0
+        out = _GOLD_LIFE - _GOLD_IN - _GOLD_HOLD
+        return max(0.0, 1.0 - (self.age - _GOLD_IN - _GOLD_HOLD) / out)
+
+
+class _Slash:
+    """2-3 diagonal white/blue lines over a melee attacker (prototype
+    ``SlashEffect``); ``large`` for the boss."""
+
+    __slots__ = ("wx", "wy", "age", "lines")
+
+    def __init__(self, wx, wy, large, rng=random):
+        self.wx = wx
+        self.wy = wy
+        self.age = 0.0
+        size = 11 if large else 7
+        self.lines = []
+        for _ in range(rng.randint(2, 3)):
+            ox = rng.uniform(-6, 6)
+            oy = rng.uniform(-10, 2)
+            self.lines.append((ox - size, oy - size, ox + size, oy + size,
+                               rng.choice(_SLASH_COLORS)))
 
 
 class FloaterManager:
@@ -86,6 +195,16 @@ class FloaterManager:
         # clock is None while no announcement runs.
         self._announce = ui_balance["FX"]["boss_announce"]
         self._announce_age = None
+        # -- 10J FX state --
+        self._gore_enabled = ui_balance["FX"]["gore_enabled"]
+        self._particles = []      # sparks / death shards / muzzle motes
+        self._gold = []           # _GoldHighlight diamonds
+        self._slashes = []        # _Slash melee FX
+        self._splatters = []      # (wx, wy) blood marks; cleared per round
+        self._building_alive = {} # id(building) -> alive (death watcher)
+        self._enemy_cooldowns = {}  # id(enemy) -> last EnemyCombat.cooldown
+        self.log = None           # GameLog, wired by the host
+        # -- /10J --
 
     def spawn_income_events(self, state):
         if not self._enabled:
@@ -114,6 +233,8 @@ class FloaterManager:
             color = _PAINTER_FINISHED if kind == "finished" else _PAINTER_LOST
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, _PAINTER_LIFE))
+            if self.log is not None and kind == "lost":  # 10J game log
+                self.log.post(text)
         state.painter_events.clear()
 
     def spawn_boost_events(self, state):
@@ -125,9 +246,123 @@ class FloaterManager:
                 _Floater(col + 0.5, row + 0.5, text, _BOOST_WHITE, self._life))
         state.boost_events.clear()
 
+    # -- 10J FX: sparks, gold highlights, death bursts, muzzle/slash, blood --
+
+    def spawn_building_vfx(self, col, row, kind):
+        """Placement/upgrade celebration (prototype ``spawn_building_vfx``,
+        game.py:619-626): always a spark burst; ``place``/``tier`` add the
+        gold tile highlight. ``kind`` in place / level1 / level2 / tier."""
+        life, count = _SPARK_PRESETS.get(kind, _SPARK_PRESETS["place"])
+        wx, wy = col + 0.5, row + 0.5
+        for _ in range(count):
+            # upward-biased gold spray (prototype SparkBurst)
+            self._particles.append(_Particle(
+                wx, wy, random.uniform(-28, 28), random.uniform(-70, -20),
+                _SPARK_GRAVITY, life, _SPARK_RAMP,
+                size=(2, 2)))
+        if kind in ("place", "tier"):
+            self._gold.append(_GoldHighlight(col, row))
+
+    def watch_buildings(self, scene, log=None):
+        """Building-death watcher (called every frame): a non-base building
+        whose ``alive`` flipped to False this frame bursts 14 purple shards
+        (prototype ``BuildingDeathEffect``) and logs the kill when it carries
+        a custom name (prototype game.py:710-717)."""
+        seen = set()
+        for b in scene.by_tag("building"):
+            if getattr(b, "building_type", None) == "base":
+                continue
+            key = id(b)
+            seen.add(key)
+            alive = getattr(b, "alive", True)
+            was_alive = self._building_alive.get(key, True)
+            self._building_alive[key] = alive
+            if alive or not was_alive:
+                continue
+            wx, wy = b.transform.wx + 0.5, b.transform.wy + 0.5
+            for _ in range(_DEATH_COUNT):
+                self._particles.append(_Particle(
+                    wx, wy, random.uniform(-45, 45), random.uniform(-80, -10),
+                    _DEATH_GRAVITY, _DEATH_LIFE,
+                    (random.choice(_DEATH_COLORS),),
+                    size=(random.randint(2, 4), random.randint(2, 5))))
+            np = b.get_component(Nameplate)
+            if log is not None and np is not None and np.custom_name:
+                log.post(f"{np.custom_name} has been killed")
+        # drop stale ids so a long run can't grow the map unbounded
+        if len(self._building_alive) > 2 * len(seen) + 16:
+            self._building_alive = {
+                k: v for k, v in self._building_alive.items() if k in seen}
+
+    def watch_enemies(self, scene):
+        """Enemy attack FX watcher (called every frame during ENEMY): an
+        ``EnemyCombat.cooldown`` that RESET (grew) while the enemy is blocked
+        means an attack just landed — raider/boss show a melee slash, the
+        rest a muzzle spray, strong for the siege cannon (prototype
+        enemy.py:222 / siege_cannon.py:109 / raider.py:48 / boss.py:104)."""
+        from game.enemies.components import EnemyCombat, PathAgent
+
+        seen = set()
+        for e in scene.by_tag("enemy"):
+            key = id(e)
+            seen.add(key)
+            ec = e.get_component(EnemyCombat)
+            pa = e.get_component(PathAgent)
+            if ec is None:
+                continue
+            last = self._enemy_cooldowns.get(key)
+            self._enemy_cooldowns[key] = ec.cooldown
+            if (last is None or ec.cooldown <= last
+                    or pa is None or not pa.blocked):
+                continue
+            wx, wy = e.transform.world_pos
+            etype = getattr(e, "ETYPE", "standard")
+            if etype in ("raider", "boss"):
+                self._slashes.append(_Slash(wx, wy, large=(etype == "boss")))
+            else:
+                strong = etype == "siege"
+                life = _MUZZLE_LIFE_STRONG if strong else _MUZZLE_LIFE
+                count = _MUZZLE_COUNT_STRONG if strong else _MUZZLE_COUNT
+                for _ in range(count):
+                    ramp = (_MUZZLE_SMOKE,) if random.random() < 0.25 \
+                        else _MUZZLE_RAMP
+                    # leftward spray toward the attacked building (prototype
+                    # angle band pi*0.65..1.35)
+                    self._particles.append(_Particle(
+                        wx, wy, random.uniform(-90, -30),
+                        random.uniform(-35, 35), 0.0, life, ramp))
+        if len(self._enemy_cooldowns) > 2 * len(seen) + 16:
+            self._enemy_cooldowns = {
+                k: v for k, v in self._enemy_cooldowns.items() if k in seen}
+
+    def spawn_death_events(self, state, gore_on):
+        """Drain ``state.enemy_death_events`` (filled by the Session death /
+        base-hit callbacks) into ground blood splatters. Gated by
+        ``ui.FX.gore_enabled`` AND the settings toggle — both must be on
+        (prototype game.py:1898-99); the ledger drains either way."""
+        if not state.enemy_death_events:
+            return
+        events, state.enemy_death_events = state.enemy_death_events, []
+        if not (self._gore_enabled and gore_on):
+            return
+        self._splatters.extend(events)
+
+    def clear_splatters(self):
+        """Previous round's blood clears when the next wave starts (prototype
+        ``clear_splatters`` on End Turn, game.py:815)."""
+        self._splatters.clear()
+
+    # -- /10J -----------------------------------------------------------------
+
     def clear(self):
         self._floaters.clear()
         self._announce_age = None
+        # -- 10J --
+        self._particles.clear()
+        self._gold.clear()
+        self._slashes.clear()
+        self._splatters.clear()
+        # -- /10J --
 
     def update(self, dt):
         for f in self._floaters:
@@ -139,6 +374,17 @@ class FloaterManager:
             a = self._announce
             if self._announce_age >= a["fade_in"] + a["hold"] + a["fade_out"]:
                 self._announce_age = None
+        # -- 10J particles / highlights / slashes --
+        for p in self._particles:
+            p.step(dt)
+        self._particles = [p for p in self._particles if p.age < p.life]
+        for g in self._gold:
+            g.age += dt
+        self._gold = [g for g in self._gold if g.age < _GOLD_LIFE]
+        for s in self._slashes:
+            s.age += dt
+        self._slashes = [s for s in self._slashes if s.age < _SLASH_LIFE]
+        # -- /10J --
 
     @property
     def active(self):
@@ -149,7 +395,79 @@ class FloaterManager:
             frac = f.age / f.life if f.life else 1.0
             cx, cy = cs.world_to_screen(f.wx, f.wy)
             y = int(cy) - 20 - int(36 * frac)  # rise over its lifetime
-            submit_centered(renderer, f.text, int(cx), y, "md", f.color)
+            # 10J: alpha fade over the last third (prototype fade = life/3)
+            color = f.color
+            if frac > 2 / 3:
+                color = tuple(color[:3]) + (
+                    int(255 * max(0.0, (1.0 - frac) * 3)),)
+            submit_centered(renderer, f.text, int(cx), y, "md", color)
+
+    # -- 10J FX draw --------------------------------------------------------
+
+    def submit_splatters(self, renderer, cs):
+        """Ground blood marks: a small red alpha ellipse per death (polygon
+        approximation of the prototype's r=4 px fallback circle, projected to
+        the 2:1 iso ground plane). World-space overlay — drawn under the HUD
+        but over the tiles."""
+        r = 4.0 / (cs.geometry.tile_w / 2.0)  # 4 px at zoom 1 -> world units
+        for wx, wy in self._splatters:
+            pts = [(wx, wy - r), (wx + r, wy), (wx, wy + r), (wx - r, wy),
+                   (wx + r * 0.6, wy - r * 0.6), (wx - r * 0.6, wy + r * 0.6)]
+            # diamond + two jitter points ~= a blobby ellipse after projection
+            pts = [pts[0], pts[4], pts[1], pts[2], pts[5], pts[3]]
+            renderer.submit_overlay_polys(
+                pts, _SPLATTER_COLOR + (_SPLATTER_ALPHA,))
+
+    def submit_gold_highlights(self, renderer):
+        """The gold diamond fill + border on freshly built / tier-advanced
+        tiles (prototype fill alpha <= 90, border alpha <= 200)."""
+        for g in self._gold:
+            frac = g.frac()
+            pts = [(g.col, g.row), (g.col + 1, g.row),
+                   (g.col + 1, g.row + 1), (g.col, g.row + 1)]
+            renderer.submit_overlay_polys(
+                pts, _GOLD_FILL + (int(90 * frac),))
+            renderer.submit_overlay_lines(
+                pts, tuple(int(c * frac) for c in _GOLD_BORDER),
+                width=2, closed=True)
+
+    def submit_projectiles(self, renderer, cs, scene):
+        """In-flight shots (10J): the plain defender stone as a small light
+        dot, the mortar shell darker and larger (prototype's procedural
+        projectile art; 9E left them logical-only). Read live off the scene
+        like the HP bars — homing shots track their target every frame."""
+        zoom = cs.camera.zoom
+        for p in scene.by_tag("projectile"):
+            wx, wy = p.transform.world_pos
+            cx, cy = cs.world_to_screen(wx, wy)
+            shell = p.name == "shell"
+            size = max(2, int((5 if shell else 3) * zoom))
+            color = _PROJECTILE_SHELL if shell else _PROJECTILE_STONE
+            # lift the dot off the ground plane so it reads as flying
+            lift = int(cs.geometry.tile_h * zoom * 0.6)
+            renderer.submit_hud(HudRect(
+                (int(cx - size / 2), int(cy - lift - size / 2), size, size),
+                color, border_radius=size // 2))
+
+    def submit_fx(self, renderer, cs):
+        """Screen-space particle FX: sparks / death shards / muzzle motes as
+        small filled rects, melee slashes as diagonal lines. Offsets are
+        base-zoom pixels around the anchor, scaled by the live zoom."""
+        zoom = cs.camera.zoom
+        for p in self._particles:
+            cx, cy = cs.world_to_screen(p.wx, p.wy)
+            w = max(1, int(p.size[0] * zoom))
+            h = max(1, int(p.size[1] * zoom))
+            renderer.submit_hud(HudRect(
+                (int(cx + p.ox * zoom), int(cy + p.oy * zoom), w, h),
+                p.color()))
+        for s in self._slashes:
+            cx, cy = cs.world_to_screen(s.wx, s.wy)
+            for x1, y1, x2, y2, color in s.lines:
+                renderer.submit_hud(HudLines(
+                    ((int(cx + x1 * zoom), int(cy + y1 * zoom)),
+                     (int(cx + x2 * zoom), int(cy + y2 * zoom))),
+                    color, width=2))
 
     def submit_beams(self, renderer, cs, scene):
         """A per-tier colored line from each firing Sun Scorcher to its target
@@ -175,18 +493,18 @@ class FloaterManager:
                 color, width=2 + tier))
 
     def submit_craters(self, renderer, cs, scene):
-        """A fading world-space diamond where each mortar shell landed (Phase
+        """A fading world-space scorch where each mortar shell landed (Phase
         10B). Purely cosmetic — the ``Crater`` GameObjects age + self-despawn in
-        the scene; here we just draw them, fading the colour toward black over
-        the crater's life (the HUD/overlay pass has no alpha — 10J)."""
+        the scene; since 10J the diamond is alpha-FILLED and fades by alpha
+        (prototype's SRCALPHA ground ellipse)."""
         for c in scene.by_tag("crater"):
             frac = c.fade_frac
             r = c.radius
             cx, cy = c.transform.world_pos
-            color = tuple(int(ch * frac) for ch in _CRATER_COLOR)
             pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
                    (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
-            renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+            renderer.submit_overlay_polys(
+                pts, _CRATER_COLOR + (int(150 * frac),))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -219,12 +537,29 @@ class FloaterManager:
                     int((w + (yl - w) * progress) * bolt)
                     for w, yl in zip(_BOLT_WHITE, _BOLT_YELLOW))
                 renderer.submit_hud(HudLines(tuple(pts), color, width=2))
+            if bolt > 0:
+                # 10J: the expanding alpha impact flash (prototype
+                # effects.py:222-290 — flash radius grows to ~20 px). An
+                # 8-gon in world units projects to the 2:1 ground ellipse.
+                fr = (1.0 - bolt) * (20.0 / (cs.geometry.tile_w / 2.0))
+                if fr > 0:
+                    k = 0.7071 * fr
+                    pts = [(wx, wy - fr), (wx + k, wy - k), (wx + fr, wy),
+                           (wx + k, wy + k), (wx, wy + fr), (wx - k, wy + k),
+                           (wx - fr, wy), (wx - k, wy - k)]
+                    renderer.submit_overlay_polys(
+                        pts, (255, 250, 200, int(200 * bolt)))
             frac = fx.fade_frac
             if frac > 0:
                 r = fx.radius_tiles
-                color = tuple(int(ch * frac) for ch in _LIGHTNING_MARKER)
                 pts = [(wx, wy - r), (wx + r, wy), (wx, wy + r), (wx - r, wy)]
-                renderer.submit_overlay_lines(pts, color, width=2, closed=True)
+                # 10J: alpha-filled ground marker fading out (prototype fill);
+                # the outline keeps the old colour-fade (lines carry no alpha)
+                renderer.submit_overlay_polys(
+                    pts, _LIGHTNING_MARKER + (int(120 * frac),))
+                renderer.submit_overlay_lines(
+                    pts, tuple(int(ch * frac) for ch in _LIGHTNING_MARKER),
+                    width=2, closed=True)
 
     # -- /10H ---------------------------------------------------------------
 
@@ -264,10 +599,9 @@ class FloaterManager:
     def submit_announce(self, renderer, view_w, view_h):
         """The screen-centred "SOMETHING BIG / IS APPROACHING!" banner
         (prototype ``effects.py:292-337``): fade in -> hold -> fade out on the
-        ``ui.FX.boss_announce`` timings. The HUD pass has no per-pixel alpha,
-        so the fade lerps the text colour toward the host background — the
-        same documented divergence as craters / the levelup backdrop (10J).
-        Ignores the camera; drawn over the game surface."""
+        ``ui.FX.boss_announce`` timings. Since 10J the fade is a real text
+        alpha (RGBA ``HudText``). Ignores the camera; drawn over the game
+        surface."""
         if self._announce_age is None:
             return
         a = self._announce
@@ -280,8 +614,7 @@ class FloaterManager:
             out = t - a["fade_in"] - a["hold"]
             k = 1.0 - out / a["fade_out"] if a["fade_out"] > 0 else 0.0
         k = max(0.0, min(1.0, k))
-        color = tuple(int(bg + (fg - bg) * k)
-                      for fg, bg in zip(_ANNOUNCE_RED, _ANNOUNCE_BG))
+        color = _ANNOUNCE_RED + (int(255 * k),)
         cx = view_w // 2
         cy = view_h // 2 - text_h("xl") - 6
         submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)

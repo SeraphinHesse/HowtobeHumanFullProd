@@ -72,6 +72,16 @@ Perf deep-dive → `game/PERF.md`.
   ROUND_END/INCOME timers. Keys (gameplay, ENEMY phase only): `1`/`2`/`3` =
   1×/1.5×/2× (round-gated inside `Session`), bare `P` = quick-skip the wave. The
   matching HUD buttons + the lives-faces readout are **10L**.
+- **10J host wiring**: the BUILDING click branch runs the shift multi-select
+  (`update_selection` + `gp["sel"]`/`gp["sel_cat"]`); `panel.name_editing`
+  routes keys to the upgrade-panel rename row before the shortcut keys;
+  the game log + FX watchers run in the world update block and splatters clear
+  on the ENEMY-phase edge. Detail → `game/ui/CLAUDE.md`.
+  - **No world background art**: 10J's `background_master` ground-cache underlay
+    was CUT before merge — it suppressed every `BACKGROUND`-zone tile so the art
+    could show through. The world background is built from background tiles +
+    deco props; `BACKGROUND` tiles always render. `ui.FX.bg_art` survives only as
+    a balancing-parity key (nothing reads it at render time).
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

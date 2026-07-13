@@ -7,9 +7,8 @@ overlay, a win/loss headline, "How will we react?", and TWO option boxes
 **No cancel — the player must pick A or B**; the host swallows every other
 click and all keys (``Session.frozen`` covers BOSS_CUTSCENE).
 
-Divergence: the prototype dims the world with an alpha-210 overlay; the HUD
-pass has no per-pixel alpha, so the backdrop is OPAQUE near-black — the same
-accepted limitation as ``LevelupWindow`` (true alpha is the 10J FX sweep).
+Since 10J the backdrop is the prototype's real alpha-210 dim (RGBA
+``HudRect``) — the frozen board stays faintly visible behind the choice.
 """
 from engine.render import HudRect
 
@@ -20,7 +19,7 @@ from .widgets import (
     contains, submit_centered, text_h,
 )
 
-_BG = (8, 6, 12)               # near-black (prototype alpha 210, opaque here)
+_BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
 _LOSS_RED = (220, 100, 100)
 _BOX_W, _BOX_H, _GAP = 180, 130, 20

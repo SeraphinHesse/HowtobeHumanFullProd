@@ -16,6 +16,7 @@ from .building_ui import BuildingUI, ConstructPreview
 from .cheat_menu import CheatMenu  # 10H
 from .credits import CreditsScreen
 from .effects import FloaterManager
+from .game_log import GameLog  # 10J
 from .game_over import GameOverScreen
 from .hud import Hud
 from .levelup import LevelupWindow
@@ -32,6 +33,7 @@ __all__ = [
     "CheatMenu",
     "ConstructPreview",
     "FloaterManager",
+    "GameLog",
     "GameOverScreen",
     "LevelupWindow",
     "MapOverlays",
