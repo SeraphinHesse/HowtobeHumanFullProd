@@ -16,6 +16,8 @@ dist/
 .editor_prefs.json
 *.log
 .claude/active_domain
+.claude/dispatch/
+.claude/worktrees/
 
 # ── Graphify code graph — generated, rebuild with `graphify update .` ──
 graphify-out/

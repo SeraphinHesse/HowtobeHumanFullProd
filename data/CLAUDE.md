@@ -9,7 +9,12 @@ schema, update THIS doc.**
 validating writer; don't hand-edit the JSON.
 
 ## What lives here
-- `schemas/` — one JSON Schema per file type.
+- `schemas/` — one JSON Schema per file type. Two of them pair with no `data/`
+  content file at all, which is legal (`tools/smoke.py::validate_data` skips
+  `data/schemas/` entirely): `map_file.schema.json` (validates the `maps/`
+  directory) and `dispatch_handoff.schema.json` (validates the agent-dispatch
+  handoff payloads the editor writes to gitignored `.claude/dispatch/`, still
+  through `write_validated` — the single write path holds).
 - `slots.json` — the slot registry (which asset slots exist per category,
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
@@ -18,13 +23,21 @@ validating writer; don't hand-edit the JSON.
 - `balancing_history/` — one file per domain (`buildings.json`, …, matching
   `balancing/`'s stems), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
-  action (`editor/balancing_history.py`, `editor/panels/balancing.py`). A
-  **second schema-pairing exception** (see the map files entry below): every
-  `data/balancing_history/*.json` validates against
+  action (`editor/balancing_history.py`, `editor/panels/balancing.py`). The
+  **second schema-pairing exception** (see the three-exception rule below):
+  every `data/balancing_history/*.json` validates against
   `schemas/balancing_history.schema.json`, not `schemas/<domain>.schema.json`
   — its filename stem intentionally collides with the real domain file's stem,
   so `tools/smoke.py` special-cases the directory the same way it already does
   for `maps/`.
+- `agent_forms/` — one agent-dispatch **form spec** per game thing-type
+  (`add-enemy.json`, …), the data the editor renders its "Add new X" dialog
+  from (AD-1). The **third schema-pairing exception**: every
+  `data/agent_forms/*.json` validates against `schemas/agent_form.schema.json`
+  regardless of its stem (the stem is the form `id`, cross-checked by
+  `editor/agent_forms.load_form_specs`, which the schema cannot express). Read
+  ONLY through `editor.agent_forms`; the handoff a submitted form writes is NOT
+  data/ content — it goes to gitignored `.claude/dispatch/`.
 - `maps/` — map files (terrain/zone grid with spawning as a painted zone,
   deco layer, base position) + `active_map.json` pointer (D-20/21).
 - `sprites/` — `asset_manifest.json` (manifest v2, D-30) + `imported/` sheet
@@ -184,11 +197,16 @@ validating writer; don't hand-edit the JSON.
   only; existing maps were migrated to `"start_area": null`), `deco` (world
   positions; renders ABOVE entities, E-26). Spawning is a painted zone — the
   format has NO spawn-point objects.
-- **SCHEMA-PAIRING EXCEPTION (the one directory rule)**: every
-  `data/maps/*.json` EXCEPT `active_map.json` validates against
-  `schemas/map_file.schema.json` (tools/smoke.py implements + tests this);
-  `active_map.json` keeps normal stem pairing via `active_map.schema.json`.
-  The stem `map` still belongs to the BALANCING domain (`balancing/map.json`).
+- **SCHEMA-PAIRING EXCEPTIONS (the directory rule — there are THREE)**: the
+  default is stem pairing (`data/foo.json` ↔ `schemas/foo.schema.json`, missing
+  schema fails loud). `tools/smoke.py::validate_data` implements + tests exactly
+  three directory exceptions: (1) every `data/maps/*.json` EXCEPT
+  `active_map.json` → `schemas/map_file.schema.json` (`active_map.json` keeps
+  normal stem pairing via `active_map.schema.json`; the stem `map` still belongs
+  to the BALANCING domain, `balancing/map.json`); (2) every
+  `data/balancing_history/*.json` → `schemas/balancing_history.schema.json`;
+  (3) every `data/agent_forms/*.json` → `schemas/agent_form.schema.json`.
+  Adding a fourth means editing that `if/elif` chain and pinning it in a test.
 - Dimension consistency (terrain row count/lengths, base/deco in bounds)
   is beyond JSON Schema → `engine.tilemap.load_map` cross-checks and fails
   LOUD (D-2). Read/write map files ONLY through `engine.tilemap`.
