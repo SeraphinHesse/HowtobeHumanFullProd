@@ -1,6 +1,6 @@
 {
   "EnemyScaling": {
-    "base_enemy_count": 5,
+    "base_enemy_count": 4,
     "enemies_per_round": 2,
     "scale_every_n_levels": 9,
     "scale_tiers": [

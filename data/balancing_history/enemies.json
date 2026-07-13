@@ -1,5 +1,223 @@
 [
   {
+    "description": "",
+    "id": "20abcbb2-f2a6-4d1e-911e-6624944be06c",
+    "name": "Testjoel",
+    "snapshot": {
+      "EnemyScaling": {
+        "base_enemy_count": 4,
+        "enemies_per_round": 2,
+        "scale_every_n_levels": 9,
+        "scale_tiers": [
+          {
+            "dmg": 5,
+            "hp": 30,
+            "spawn_interval": 0.065,
+            "speed": 0.05
+          },
+          {
+            "dmg": 5,
+            "hp": 40,
+            "spawn_interval": 0.08,
+            "speed": 0.1
+          },
+          {
+            "dmg": 10,
+            "hp": 60,
+            "spawn_interval": 0.09,
+            "speed": 0.2
+          },
+          {
+            "dmg": 15,
+            "hp": 90,
+            "spawn_interval": 0.1,
+            "speed": 0.2
+          },
+          {
+            "dmg": 30,
+            "hp": 155,
+            "spawn_interval": 0.15,
+            "speed": 0.25
+          }
+        ],
+        "spawn_interval": 0.7,
+        "spawn_ramp_enabled": true,
+        "spawn_ramp_range": 0.6
+      },
+      "EnemyTypes": {
+        "Boss": {
+          "death_spawns": [
+            {
+              "raiders": 5,
+              "regular": 10,
+              "siege": 1
+            },
+            {
+              "raiders": 7,
+              "regular": 14,
+              "siege": 2
+            },
+            {
+              "raiders": 10,
+              "regular": 20,
+              "siege": 3
+            },
+            {
+              "raiders": 13,
+              "regular": 26,
+              "siege": 4
+            },
+            {
+              "raiders": 16,
+              "regular": 34,
+              "siege": 5
+            }
+          ],
+          "era_sizes": [
+            {
+              "h": 28,
+              "w": 36
+            },
+            {
+              "h": 42,
+              "w": 54
+            },
+            {
+              "h": 84,
+              "w": 108
+            },
+            {
+              "h": 88,
+              "w": 116
+            },
+            {
+              "h": 96,
+              "w": 124
+            }
+          ],
+          "round_counts": [
+            {
+              "raiders": 22,
+              "regular": 12,
+              "siege": 0
+            },
+            {
+              "raiders": 75,
+              "regular": 40,
+              "siege": 6
+            },
+            {
+              "raiders": 125,
+              "regular": 280,
+              "siege": 31
+            },
+            {
+              "raiders": 170,
+              "regular": 400,
+              "siege": 46
+            },
+            {
+              "raiders": 215,
+              "regular": 700,
+              "siege": 61
+            }
+          ],
+          "round_interval": 10,
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "stats": [
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.5,
+              "dmg": 200,
+              "hp": 2000,
+              "move_speed": 0.3,
+              "name": "Bandit Chieftain",
+              "sprite_h": 56,
+              "sprite_w": 72
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.4,
+              "dmg": 320,
+              "hp": 3800,
+              "move_speed": 0.33,
+              "name": "Cannon Fortress",
+              "sprite_h": 84,
+              "sprite_w": 108
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.3,
+              "dmg": 480,
+              "hp": 6500,
+              "move_speed": 0.36,
+              "name": "Wrecking Ball",
+              "sprite_h": 84,
+              "sprite_w": 108
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.15,
+              "dmg": 700,
+              "hp": 10000,
+              "move_speed": 0.4,
+              "name": "Iron Drill",
+              "sprite_h": 88,
+              "sprite_w": 116
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.0,
+              "dmg": 1000,
+              "hp": 15000,
+              "move_speed": 0.45,
+              "name": "Siege Tank",
+              "sprite_h": 96,
+              "sprite_w": 124
+            }
+          ]
+        },
+        "Raider": {
+          "attack_range_tiles": 1,
+          "attack_speed": 0.8,
+          "base_count": 3,
+          "dmg": 20,
+          "hp": 32,
+          "move_speed": 2.7,
+          "per_round": 2,
+          "start_round": 6
+        },
+        "SiegeCannon": {
+          "attack_range_tiles": 2,
+          "attack_speed": 1.9,
+          "base_count": 1,
+          "dmg": 100,
+          "hp": 280,
+          "mix_ratio": 0.5,
+          "move_speed": 1.0,
+          "queue_lead_count": 5,
+          "rounds_per_cannon": 1,
+          "start_round": 14
+        },
+        "Standard": {
+          "attack_range_tiles": 1,
+          "attack_speed": 1.0,
+          "dmg": 10,
+          "hp": 55,
+          "move_speed": 1.2
+        }
+      },
+      "MortarTargeting": {
+        "predictive_targeting": true
+      },
+      "_lock": "UNLOCKED"
+    },
+    "timestamp": "2026-07-13T18:36:54"
+  },
+  {
     "description": "a",
     "id": "e98e6f83-34a9-4aaf-999b-68070afdbcd6",
     "name": "a",
