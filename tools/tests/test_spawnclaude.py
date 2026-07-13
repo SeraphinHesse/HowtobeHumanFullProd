@@ -1,11 +1,11 @@
-"""Phase 8 acceptance tests: spawnclaude pure builders + lock-read greying
-(ED-60/61/62).
+"""Phase 8 / AD-2 acceptance tests: spawnclaude pure builders + dispatch modes
+(ED-60/61/62, T-1; AD-2 D5/D6).
 
 Same headless conventions as the other editor tests (offscreen Qt + SDL dummy
 before any Qt import; one QApplication per process). The pure builders are
 tested directly; dispatch() is exercised with an injected fake launcher so no
-real terminal is spawned. Locked-domain greying runs against a tempfile copy of
-data/ (never mutates the repo).
+real terminal is spawned. The `/start-domain` path is gone from spawnclaude
+(D6) — no lock reads, no domain radios, so these tests need no temp data dir.
 """
 import os
 import sys
@@ -18,8 +18,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 from PySide6.QtWidgets import QApplication
 
-from editor import locks, spawnclaude
-from tools.tests.test_editor_panels import TempDataCase, lock_domain
+from editor import spawnclaude
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -33,7 +32,7 @@ class TestSpawnCommand(unittest.TestCase):
             argv, ["wt", "-d", r"C:\repo", "cmd", "/k", "claude", "hello"])
 
     def test_prompt_is_a_single_argv_element(self):
-        prompt = "/start-domain map"
+        prompt = "/dispatch .claude/dispatch/x.json"
         argv = spawnclaude.spawn_command(prompt, repo=r"C:\repo")
         self.assertEqual(argv[-1], prompt)  # spaces stay in one element
 
@@ -55,9 +54,17 @@ class TestSpawnCommand(unittest.TestCase):
 
 
 class TestPrompts(unittest.TestCase):
-    def test_start_domain_prompt_is_the_literal_slash_command(self):
-        self.assertEqual(
-            spawnclaude.start_domain_prompt("buildings"), "/start-domain buildings")
+    def test_dispatch_prompt_is_the_literal_slash_command(self):
+        relpath = ".claude/dispatch/20260713-140322-add-enemy.json"
+        self.assertEqual(spawnclaude.dispatch_prompt(relpath),
+                         f"/dispatch {relpath}")
+
+    def test_dispatch_prompt_survives_spawn_command_as_one_argv_element(self):
+        relpath = ".claude/dispatch/20260713-140322-add-enemy.json"
+        prompt = spawnclaude.dispatch_prompt(relpath)
+        argv = spawnclaude.spawn_command(prompt, repo=r"C:\repo")
+        self.assertEqual(argv[-1], prompt)
+        self.assertEqual(len(argv), 7)  # prompt is ONE element, not split
 
     def test_small_tweak_prompt_with_text(self):
         text = spawnclaude.small_tweak_prompt("nudge the base 1 tile")
@@ -67,59 +74,51 @@ class TestPrompts(unittest.TestCase):
         self.assertEqual(spawnclaude.small_tweak_prompt(""), "/smalltweak")
 
 
-class TestDomainChoices(TempDataCase):
-    def test_all_domains_unlocked_by_default(self):
-        choices = spawnclaude.domain_choices(self.data_dir)
-        self.assertEqual([c["domain"] for c in choices], list(locks.DOMAINS))
-        self.assertTrue(all(not c["locked"] for c in choices))
-        self.assertTrue(all(c["owner"] is None for c in choices))
-
-    def test_locked_domain_carries_owner_and_since(self):
-        lock_domain(self.data_dir, "enemies", "featureEnemies")
-        by_name = {c["domain"]: c for c in spawnclaude.domain_choices(self.data_dir)}
-        self.assertTrue(by_name["enemies"]["locked"])
-        self.assertEqual(by_name["enemies"]["owner"], "featureEnemies")
-        self.assertEqual(by_name["enemies"]["since"], "2026-07-03")
-        self.assertFalse(by_name["buildings"]["locked"])
-
-
-class TestDispatch(TempDataCase):
-    def test_dispatch_domain_uses_injected_launcher(self):
-        calls = []
+class TestDispatch(unittest.TestCase):
+    def setUp(self):
+        self.calls = []
 
         def fake_detach(program, arguments, working_dir):
-            calls.append((program, list(arguments), str(working_dir)))
+            self.calls.append((program, list(arguments), str(working_dir)))
             return True
 
-        ok = spawnclaude.dispatch(domain="map", repo=REPO, detach=fake_detach)
+        self.fake_detach = fake_detach
+
+    def test_dispatch_handoff_uses_injected_launcher(self):
+        relpath = ".claude/dispatch/20260713-140322-add-enemy.json"
+        ok = spawnclaude.dispatch(handoff=relpath, repo=REPO,
+                                  detach=self.fake_detach)
         self.assertTrue(ok)
-        self.assertEqual(len(calls), 1)
-        program, arguments, _wd = calls[0]
+        self.assertEqual(len(self.calls), 1)
+        program, arguments, _wd = self.calls[0]
         self.assertEqual(program, "wt")
-        self.assertEqual(arguments[-1], "/start-domain map")
+        self.assertEqual(arguments[-1], f"/dispatch {relpath}")
 
     def test_dispatch_small_tweak_loads_the_skill_directly(self):
-        captured = {}
-
-        def fake_detach(program, arguments, working_dir):
-            captured["args"] = arguments
-            return True
-
-        spawnclaude.dispatch(tweak_prompt="tiny fix", repo=REPO, detach=fake_detach)
-        self.assertEqual(captured["args"][-1], "/smalltweak tiny fix")
+        spawnclaude.dispatch(tweak_prompt="tiny fix", repo=REPO,
+                             detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "/smalltweak tiny fix")
 
     def test_dispatch_admin_launches_blank_claude(self):
-        captured = {}
-
-        def fake_detach(program, arguments, working_dir):
-            captured["args"] = arguments
-            return True
-
-        spawnclaude.dispatch(admin=True, repo=REPO, detach=fake_detach)
+        spawnclaude.dispatch(admin=True, repo=REPO, detach=self.fake_detach)
+        arguments = self.calls[0][1]
         # blank session: claude is the last arg, no slash command appended
-        self.assertEqual(captured["args"][-1], "claude")
-        self.assertNotIn("/start-domain", " ".join(captured["args"]))
-        self.assertNotIn("/smalltweak", " ".join(captured["args"]))
+        self.assertEqual(arguments[-1], "claude")
+        self.assertNotIn("/dispatch", " ".join(arguments))
+        self.assertNotIn("/smalltweak", " ".join(arguments))
+
+    def test_admin_beats_handoff_and_tweak(self):
+        """Precedence (D5): admin > handoff > small tweak."""
+        spawnclaude.dispatch(handoff=".claude/dispatch/x.json",
+                             tweak_prompt="tiny fix", admin=True,
+                             repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "claude")
+
+    def test_handoff_beats_tweak(self):
+        spawnclaude.dispatch(handoff=".claude/dispatch/x.json",
+                             tweak_prompt="tiny fix",
+                             repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "/dispatch .claude/dispatch/x.json")
 
 
 class TestNoLockWriteAPI(unittest.TestCase):
@@ -133,21 +132,7 @@ class TestNoLockWriteAPI(unittest.TestCase):
             self.assertNotIn("release", lowered)
 
 
-class TestDialogGreying(TempDataCase):
-    def test_locked_domain_button_disabled(self):
-        lock_domain(self.data_dir, "core", "featureCore")
-        dialog = spawnclaude.SpawnClaudeDialog(data_dir=self.data_dir)
-        self.assertFalse(dialog._domain_buttons["core"].isEnabled())
-        self.assertTrue(dialog._domain_buttons["buildings"].isEnabled())
-        self.assertIn("locked by featureCore",
-                      dialog._domain_buttons["core"].text())
-
-    def test_default_selection_skips_locked_domain(self):
-        lock_domain(self.data_dir, "buildings", "featureBuildings")
-        dialog = spawnclaude.SpawnClaudeDialog(data_dir=self.data_dir)
-        # buildings is first in D-10 order but locked -> enemies should be default
-        self.assertEqual(dialog.selected_domain(), "enemies")
-
+class TestDialog(unittest.TestCase):
     def test_admin_mode_dispatches_blank(self):
         captured = {}
 
@@ -155,12 +140,28 @@ class TestDialogGreying(TempDataCase):
             captured["args"] = arguments
             return True
 
-        dialog = spawnclaude.SpawnClaudeDialog(
-            data_dir=self.data_dir, detach=fake_detach)
+        dialog = spawnclaude.SpawnClaudeDialog(detach=fake_detach)
         dialog._admin_radio.setChecked(True)
-        self.assertIsNone(dialog.selected_domain())
         dialog._on_dispatch()
         self.assertEqual(captured["args"][-1], "claude")
+
+    def test_small_tweak_is_the_default_mode(self):
+        captured = {}
+
+        def fake_detach(program, arguments, working_dir):
+            captured["args"] = arguments
+            return True
+
+        dialog = spawnclaude.SpawnClaudeDialog(detach=fake_detach)
+        self.assertTrue(dialog._tweak_radio.isChecked())
+        dialog._tweak_edit.setText("nudge the base")
+        dialog._on_dispatch()
+        self.assertEqual(captured["args"][-1], "/smalltweak nudge the base")
+
+    def test_dialog_still_accepts_data_dir_kwarg(self):
+        """main.py:534 passes data_dir= (AD-3 rewires it); accepted-and-unused."""
+        dialog = spawnclaude.SpawnClaudeDialog(data_dir=REPO / "data")
+        self.assertTrue(dialog._tweak_radio.isChecked())
 
 
 if __name__ == "__main__":
