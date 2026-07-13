@@ -150,6 +150,30 @@
         }
       ]
     },
+    "Formation": {
+      "attack_range_tiles": 1,
+      "attack_speed": 1.4,
+      "base_count": 1,
+      "death_spawn": {
+        "at_hp_fraction": 0.5,
+        "enabled": true,
+        "spawn_hp_fraction": 0.8,
+        "spawns": [
+          {
+            "raiders": 0,
+            "regular": 4,
+            "siege": 0
+          }
+        ]
+      },
+      "dmg": 30,
+      "footprint": 2,
+      "hp": 440,
+      "move_speed": 0.9,
+      "rounds_per_formation": 3,
+      "sprite_scale": 1.0,
+      "start_round": 16
+    },
     "Raider": {
       "attack_range_tiles": 1,
       "attack_speed": 0.8,

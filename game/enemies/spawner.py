@@ -7,10 +7,13 @@ siege from ``SiegeCannon.start_round``); the boss is LIVE since 10G — every
 ``Boss.round_interval``-th round composes ``[boss] + ALL siege +
 shuffle(standard + raiders)`` from the ``round_counts`` table (falling back to
 the three normal per-type formulas beyond it), and the boss entry's tier IS its
-era. Timing is prototype-exact: a linear slow→fast ramp across the wave
-with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off, a re-rolled jitter
-per spawn). The round loop that CALLS ``begin_round`` and detects wave-clear is
-9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``);
+era. Formations join since ER-4 (from ``Formation.start_round``, accreting one
+per ``rounds_per_formation``, mixed into the shuffled body — never leading the
+queue, never on a boss round). Timing is prototype-exact: a linear slow→fast
+ramp across the wave with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off,
+a re-rolled jitter per spawn). The round loop that CALLS ``begin_round`` and
+detects wave-clear is 9F; 9E exposes the pieces (``begin_round`` / ``update`` /
+``active`` / ``done``);
 ``spawn_death_swarm`` (ER-3) is the Session-driven death burst for ANY type
 carrying an enabled ``death_spawn`` (10G's boss swarm is one instance of it).
 
@@ -24,10 +27,11 @@ from game.map.pathfinder import block_tiles
 
 from .enemy import ENEMY_CLASSES, create_enemy
 
-# Raiders + siege went live in 10F; the boss in 10G.
+# Raiders + siege went live in 10F; the boss in 10G; the formation in ER-4.
 ENABLE_RAIDERS = True
 ENABLE_SIEGE = True
 ENABLE_BOSS = True
+ENABLE_FORMATION = True
 
 # spawn_counts key -> the etype it spawns. The iteration ORDER is load-bearing:
 # it fixes how many draws each burst takes from the injected `rng` (variant
@@ -148,10 +152,15 @@ class Spawner:
 
     def _compose(self, round_num, balance, spawn_tiles):
         """Build the (tile, etype) list for the round: standard + raiders +
-        siege (10F). Siege leads the queue; everything else is shuffled behind
-        it. Every ``Boss.round_interval``-th round takes the boss composition
-        instead (10G) — the lead/mix siege split applies to NON-boss rounds
-        only."""
+        siege (10F) + formations (ER-4). Siege leads the queue; everything else
+        is shuffled behind it. Every ``Boss.round_interval``-th round takes the
+        boss composition instead (10G) — the lead/mix siege split applies to
+        NON-boss rounds only, and formations do not appear at all (see
+        ``_formation_group``).
+
+        ``_formation_group`` is called LAST on purpose: every earlier group's
+        rng draw sequence then stays byte-identical, so the standard/raider/
+        siege counts and picks are unchanged at every round."""
         if not spawn_tiles:
             return []
         if (ENABLE_BOSS and round_num
@@ -166,8 +175,9 @@ class Spawner:
         raiders = self._raider_group(round_num, balance, spawn_tiles)
         siege_front, siege_mixed = self._siege_groups(
             round_num, balance, spawn_tiles)
+        formations = self._formation_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed
+        rest = regular + raiders + siege_mixed + formations
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -233,6 +243,29 @@ class Spawner:
                  for _ in range(n)]
         lead = min(int(s["queue_lead_count"] * s["mix_ratio"]), len(siege))
         return siege[:lead], siege[lead:]
+
+    def _formation_group(self, round_num, balance, spawn_tiles):
+        """Formations from ``Formation.start_round``, one more every
+        ``rounds_per_formation`` rounds — the SiegeCannon ACCRETION formula (a
+        heavy that trickles in), not the Raider one (a swarm that grows
+        linearly). Mixed into the shuffled body: unlike siege they do NOT lead
+        the queue, because a 2×2 body at the head of the wave would wall the
+        choke point before anything else arrived.
+
+        Formations never appear on a boss round — ``_boss_round`` composes from
+        ``Boss.round_counts``, a ``$defs/spawn_counts`` table with exactly
+        regular/raiders/siege. Adding a formation key there would change every
+        death_spawn row too (they share the $def) and break balancing parity.
+        Deliberate; see game/enemies/CLAUDE.md."""
+        if not ENABLE_FORMATION:
+            return []
+        f = balance["EnemyTypes"]["Formation"]
+        if round_num < f["start_round"]:
+            return []
+        n = (f["base_count"]
+             + (round_num - f["start_round"]) // f["rounds_per_formation"])
+        return [(self._pick_spawn_tile(spawn_tiles, "formation"), "formation")
+                for _ in range(n)]
 
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear

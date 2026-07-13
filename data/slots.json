@@ -392,6 +392,51 @@
         {
           "children": [
             {
+              "label": "Era 1",
+              "slots": [
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "formation_stage_1"
+                }
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "formation_stage_2"
+                }
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "formation_stage_3"
+                }
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "formation_stage_4"
+                }
+              ]
+            }
+          ],
+          "label": "Formation"
+        },
+        {
+          "children": [
+            {
               "label": "Era 0",
               "slots": [
                 "boss_era_0"

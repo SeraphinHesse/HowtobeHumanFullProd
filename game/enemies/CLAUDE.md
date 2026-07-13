@@ -1,12 +1,12 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
-here from `game/CLAUDE.md`. **All four enemy types are LIVE**: Standard + Raider +
-SiegeCannon since 10F, `Boss` since 10G (`spawner.py`
-`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS = True`). When you change enemy
-conventions, update THIS doc. **Adding an enemy type? Use the `/add-enemy`
-skill.**
+here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider +
+SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
+`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`). When you
+change enemy conventions, update THIS doc. **Adding an enemy type? Use the
+`/add-enemy` skill.**
 
 ## Boss (10G)
 - **Boss rounds**: every `Boss.round_interval`-th round `_compose` routes to
@@ -42,6 +42,57 @@ skill.**
   `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
+
+## Formation (ER-4)
+The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
+ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
+(`death_spawn`), all three driven purely from `data/balancing/enemies.json`.
+- **The subclass is four class attrs + `_resolve_stats`.** No `__init__`, no
+  `on_spawn`, no `EXTRA_TAGS`, no component wiring, no break state machine.
+- **`_resolve_stats` MUST be overridden — and that is a trap, not a style
+  choice.** The base `Enemy._resolve_stats` reads
+  `balance["EnemyTypes"]["Standard"]` **literally**; `STAT_SUBTREE` drives the
+  balancing-block lookup in `__init__` (and `Spawner._footprint_of`) but **not**
+  `_resolve_stats`. An un-overridden subclass silently ships walker stats — a
+  bug with no symptom but wrong numbers. Pinned by
+  `test_enemies.TestFormation.test_stats_come_from_the_formation_block_not_standard`.
+  Formation takes the scale-tier bonuses (like Standard/Siege, unlike Raider).
+- **It does NOT override `_resolve_era`**: it is not era-indexed, so it inherits
+  row 0 and ships a **single-row** `death_spawn.spawns` array. The clamp
+  (`spawns[min(max(era,0), len-1)]`) does the rest.
+- **D4 — there is no "break" state; breaking formation IS dying.**
+  `at_hp_fraction: 0.5` makes `Enemy.alive` False at half HP, and from there the
+  existing ER-3 pipeline runs untouched (`resolve_combat` → `on_enemy_death` →
+  `Session` stash → `Spawner.spawn_death_swarm`). The children are regulars at
+  `spawn_hp_fraction` (0.8) of their OWN max HP. XP, kill count and splatter all
+  fire exactly as for any other death, because it *is* one.
+- **Composition: the siege ACCRETION formula, but body-mixed.**
+  `_formation_group` emits `base_count + (round − start_round) //
+  rounds_per_formation` from `start_round`, mixed into the shuffled body —
+  **never `siege_front`**, because a 2×2 at the head of the queue would wall the
+  choke point before anything else arrived. It is called **LAST** among the
+  composition groups so every earlier group's rng draw sequence stays
+  byte-identical (the deterministic-wave fixtures depend on this).
+- **Formations never spawn on a boss round — DELIBERATE, do not "fix" it.**
+  `_boss_round` composes from `Boss.round_counts`, a `$defs/spawn_counts` table
+  **shared with every `death_spawn.spawns` row**. Adding a `"formation"` key to
+  that `$def` would change every `round_counts` dict and fail
+  `test_balancing_parity::test_migrated_values_equal_prototype_values` (it
+  asserts whole-value equality against the prototype), and force a meaningless
+  formation count into every death-spawn row. If formations on boss rounds are
+  ever wanted, it is a one-line `+ self._formation_group(...)` into
+  `_boss_round`'s `rest` — computed from the formula, never from the table.
+- **Known cosmetic caveat, INHERITED not introduced.** For an EVEN footprint the
+  sprite draws 16px (half a tile-height) ABOVE the block's logical centre, with
+  zero horizontal error: `Renderer.flush` centres the frame on the *anchor
+  tile's* diamond, and the 2×2's centre is at `anchor + (0.5, 0.5)`, which is
+  `+16px` in iso screen space at zoom 1. The HP bar rides the sprite so it stays
+  consistent; pathing uses the anchor and combat measures from the block centre,
+  so **nothing is mis-simulated**. The fix is engine-side (in `Renderer.flush`,
+  centre on `wx + (fit_tiles−1)/2` when `fit_tiles > 0` — a provable no-op at
+  `fit_tiles` 0 and 1, i.e. every sprite that ships today), plus a re-derived
+  `game/ui/effects.py::_sprite_top`. It is a cross-package change against the
+  surface ER-1 pixel-pinned, so it wants its own phase.
 
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
@@ -160,10 +211,12 @@ skill.**
   - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
     property only — enemies do not block each other, and two footprint-2 units
     may overlap. That is intended.
-  - **Known cosmetic gap (open for ER-4/ER-5)**: ER-1 draws the sprite centred on
-    the *anchor tile's* diamond, scaled to `N × tile_w`, so for an even N the
-    logical block sits half a tile down-right of where the sprite's centre lands.
-    Fixable only in the render layer.
+  - **Known cosmetic gap — ER-4 INHERITED it, deliberately**: ER-1 draws the
+    sprite centred on the *anchor tile's* diamond, scaled to `N × tile_w`, so for
+    an even N the logical block sits half a tile down-right of where the sprite's
+    centre lands (16px vertical, zero horizontal). Fixable only in the render
+    layer — see the `## Formation (ER-4)` section above for the exact fix and why
+    it wants its own phase.
 - **Wall-attack is the SAME block-and-attack model (10E, LIVE)**: a live wall on the
   edge being crossed (`get_wall_between(prev_waypoint, next_waypoint)`, checked once
   `index ≥ 1`) blocks FIRST (it sits before the next tile) — `PathAgent` halts and
