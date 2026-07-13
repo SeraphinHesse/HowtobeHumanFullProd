@@ -21,8 +21,8 @@ architecture:
 **Projectiles** travel then deal GUARANTEED damage on arrival if the target is
 still alive (prototype ``defence_building.Projectile``): a shot in flight is
 wasted only if its target dies first — never a collision/accuracy miss. Travel
-time = ``distance / projectile_speed_tiles``. They are logical GameObjects with
-no sprite in 9E (real stone art is the 10J FX sweep).
+time = ``distance / projectile_speed_tiles``. They stay logical GameObjects
+(no sprite); the UI layer draws them off the ``"projectile"`` tag (10J).
 """
 import math
 

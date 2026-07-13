@@ -76,14 +76,14 @@
           "description": "One imported sheet: where it lives, its frame grid size, placement offset, and its animation rows.",
           "properties": {
             "frame_h": {
-              "description": "Frame height in pixels this sheet is sliced at.",
-              "maximum": 1024,
+              "description": "Frame height in pixels this sheet is sliced at (4096 admits full-screen background art, 10J).",
+              "maximum": 4096,
               "minimum": 1,
               "type": "integer"
             },
             "frame_w": {
-              "description": "Frame width in pixels this sheet is sliced at.",
-              "maximum": 1024,
+              "description": "Frame width in pixels this sheet is sliced at (4096 admits full-screen background art, 10J).",
+              "maximum": 4096,
               "minimum": 1,
               "type": "integer"
             },

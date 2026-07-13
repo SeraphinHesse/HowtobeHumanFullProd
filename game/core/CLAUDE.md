@@ -209,6 +209,13 @@ in `game/ui/CLAUDE.md`.
   behavior change there. Mid-ENEMY the cheat only arms `levelup_pending`; the
   window then fires at ROUND_END on the normal payday path.
 
+## 10J ledgers
+`RunState` grew two more drained-by-UI ledgers (the `income_events` contract):
+`log_events` (plain strings for the fading game log — `GameLog.drain`) and
+`enemy_death_events` (`(wx, wy)` splatter positions, appended by BOTH
+`Session.on_enemy_death` and `on_base_hit`; the gore gates live in the FX
+layer, core stays ui-free). No phase/payday ordering change.
+
 ## Names write (9H)
 `game/core/names.py append_random_name` persists the add-name menu's typed name to
 `buildings.json` `BuildingsGlobal.random_names` via `write_validated` — the one

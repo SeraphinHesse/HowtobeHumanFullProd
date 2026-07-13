@@ -14,7 +14,7 @@ above it"), since the art is authored centred in the 96px frame. Per-entry
 manifest offset_x/offset_y nudge from there.
 """
 from .hud import HudLines, HudRect, HudSprite, HudText
-from .item import LAYERS, DrawCall, OverlayLines
+from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys
 
 _HUD_TYPES = (HudRect, HudText, HudSprite, HudLines)
 
@@ -40,6 +40,15 @@ class Renderer:
         if len(points) < 2:
             raise ValueError("overlay polyline needs at least 2 points")
         self._overlay.append(OverlayLines(tuple(points), color, width, closed))
+
+    def submit_overlay_polys(self, points, color):
+        """Filled-polygon overlay (10J): WORLD points, RGB or RGBA color —
+        alpha < 255 blends onto the target. Converted via coords at flush,
+        drawn in the overlay pass alongside submit_overlay_lines, in
+        submission order."""
+        if len(points) < 3:
+            raise ValueError("overlay polygon needs at least 3 points")
+        self._overlay.append(OverlayPolys(tuple(points), color))
 
     def submit_hud(self, item):
         """HUD pass (E-12): a screen-space primitive (HudRect / HudText /
@@ -87,13 +96,17 @@ class Renderer:
                     flip=item.flip,
                 )
             )
-        for lines in self._overlay:
-            draw_calls.append(OverlayLines(
-                points=tuple(coords.world_to_screen(*p) for p in lines.points),
-                color=lines.color,
-                width=lines.width,
-                closed=lines.closed,
-            ))
+        for entry in self._overlay:
+            screen_points = tuple(coords.world_to_screen(*p) for p in entry.points)
+            if isinstance(entry, OverlayPolys):
+                draw_calls.append(OverlayPolys(points=screen_points, color=entry.color))
+            else:
+                draw_calls.append(OverlayLines(
+                    points=screen_points,
+                    color=entry.color,
+                    width=entry.width,
+                    closed=entry.closed,
+                ))
         # HUD pass (E-12): screen space already — no coords conversion, no
         # depth sort. Sprites resolve to DrawCalls; the rest pass through for
         # the backend to isinstance-dispatch (like OverlayLines).

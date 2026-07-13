@@ -64,9 +64,10 @@ from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, resolve_combat
 from game.map import TileMap, tile_at_screen
+from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
-    BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameOverScreen, Hud,
-    LevelupWindow, MapOverlays, Shell,
+    BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
+    GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
 )
 
 BACKGROUND = (24, 20, 32)
@@ -209,6 +210,29 @@ def main(max_frames=None, data_dir=None, autostart=False):
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
                                  caption)
     clock = pygame.time.Clock()
+
+    # -- 10J: world-locked background art, painted INTO the ground cache as an
+    # underlay (the cache is opaque, so a host-level blit would be covered).
+    # The slot key is the configured filename's stem (ui.FX.bg_art.file stays
+    # the balancing-parity key). Re-applied cheaply each frame so the settings
+    # toggle takes effect live; set_underlay invalidates the cache itself. --
+    bg_cfg = ui_balance["FX"]["bg_art"]
+    bg_state = {"on": None}
+
+    def apply_bg_art():
+        on = bool(bg_cfg["enabled"] and shell.settings.bg_art)
+        if on == bg_state["on"]:
+            return
+        bg_state["on"] = on
+        if on:
+            frame = assets.frame(Path(bg_cfg["file"]).stem)
+            ground_cache.set_underlay(frame.surface, bg_cfg["offset_x"],
+                                      bg_cfg["offset_y"])
+        else:
+            ground_cache.set_underlay(None)
+
+    apply_bg_art()
+    # -- /10J --
     if max_frames is None:  # windowed run only — headless tests stay silent/fast
         play_music(data_dir / "audio" / "Bass_and_drum_Duo.wav", loop=True)
 
@@ -232,7 +256,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
     # gameplay bundle — None until START NEW GAME; dropped on quit-to-menu
     gp = {"world": None, "hud": None, "panel": None, "floaters": None,
           "game_over": None, "levelup": None, "boss_cutscene": None,
-          "cheat": None, "overlays": None, "prev_phase": None}
+          "cheat": None, "overlays": None, "prev_phase": None,
+          # -- 10J: game log + shift multi-select state --
+          "game_log": None, "sel": [], "sel_cat": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
@@ -253,6 +279,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h)
         # -- /10I --
+        # -- 10J: game log + VFX wiring + a fresh multi-selection --
+        gp["game_log"] = GameLog()
+        gp["sel"], gp["sel_cat"] = [], None
+        gp["panel"].log = gp["game_log"]
+        gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
+        gp["floaters"].log = gp["game_log"]
+        # -- /10J --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -262,8 +295,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
-                  "boss_cutscene", "cheat", "overlays"):
+                  "boss_cutscene", "cheat", "overlays", "game_log"):
             gp[k] = None
+        gp["sel"], gp["sel_cat"] = [], None  # 10J
         if tune_gc:
             gc.collect()
 
@@ -374,13 +408,49 @@ def main(max_frames=None, data_dir=None, autostart=False):
             return
         if session.state.phase == GamePhase.BUILDING:
             tile = tile_at_screen(world.tile_map, cs, mx, my)
-            panel.open_for_tile(tile, session, buildings_balance)
+            # -- 10J: shift multi-select (prototype game.py:440-490) --
+            shift = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
+            update_selection(tile, shift, session)
+            # -- /10J --
         # -- 10H: ENEMY-phase lightning click at the ladder BOTTOM (prototype
         # game.py:426-431 — a non-drag left-up no UI element consumed) --
         elif session.state.phase == GamePhase.ENEMY:
             wx, wy = cs.screen_to_world(mx, my)
             session.lightning_strike(world.scene, cs, wx, wy)
         # -- /10H --
+
+    # -- 10J: shift multi-select (prototype _handle_tile_click,
+    # game.py:440-490): same-category shift-clicks toggle tiles in/out of the
+    # batch; a different category is ignored SILENTLY; a plain click starts a
+    # fresh single selection; background/spawning/no tile clears + closes. --
+    _SEL_CATEGORY = {TileState.BUILT: "built", TileState.BUILDABLE: "buildable",
+                     TileState.COMBAT: "combat"}
+
+    def update_selection(tile, shift, session):
+        panel = gp["panel"]
+        if not panel.visible:   # panel closed elsewhere -> selection is stale
+            gp["sel"], gp["sel_cat"] = [], None
+        cat = _SEL_CATEGORY.get(tile.state) if tile is not None else None
+        if cat is None:
+            gp["sel"], gp["sel_cat"] = [], None
+            panel.close()
+            return
+        if shift and gp["sel"] and cat == gp["sel_cat"]:
+            if tile in gp["sel"]:
+                gp["sel"].remove(tile)
+                if not gp["sel"]:
+                    gp["sel_cat"] = None
+                    panel.close()
+                    return
+            else:
+                gp["sel"].append(tile)
+        elif shift and gp["sel"] and cat != gp["sel_cat"]:
+            return  # mixed categories: ignored silently (prototype :481-482)
+        else:
+            gp["sel"], gp["sel_cat"] = [tile], cat
+        panel.open_for_tile(gp["sel"][0], session, buildings_balance,
+                            selected_tiles=gp["sel"])
+    # -- /10J --
 
     if autostart:
         build_gameplay()  # headless seam: bypass cutscene/menu -> GAMEPLAY
@@ -444,6 +514,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         panel.preview = None
                     else:
                         panel.handle_key(event.unicode, _key_name(event.key))
+                elif panel.name_editing:  # 10J: upgrade-panel rename capture
+                    panel.handle_key(event.unicode, _key_name(event.key))
                 elif event.key == pygame.K_ESCAPE:
                     if panel.visible:
                         panel.close()
@@ -533,6 +605,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 gp["floaters"].spawn_income_events(session.state)
                 gp["floaters"].spawn_painter_events(session.state)
                 gp["floaters"].spawn_boost_events(session.state)
+            # -- 10J: the previous round's blood clears when the next wave
+            # starts (prototype clear_splatters on End Turn, game.py:815) --
+            if (session.state.phase == GamePhase.ENEMY
+                    and gp["prev_phase"] != GamePhase.ENEMY):
+                gp["floaters"].clear_splatters()
+            # -- /10J --
             # pre_sim rolled the cards when it entered LEVELUP; open on the edge
             if (session.state.phase == GamePhase.LEVELUP
                     and gp["prev_phase"] != GamePhase.LEVELUP):
@@ -564,6 +642,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["panel"].update(dt)
             gp["overlays"].update(dt, mx, my)   # 10I: toggle-pill hover
             gp["floaters"].update(dt)
+            # -- 10J: game log + FX watchers (building deaths -> purple burst
+            # + kill message; enemy attack cadence -> muzzle/slash; enemy
+            # deaths -> blood splatters, double-gated on gore) --
+            gp["floaters"].watch_buildings(world.scene, gp["game_log"])
+            gp["floaters"].watch_enemies(world.scene)
+            gp["floaters"].spawn_death_events(session.state,
+                                              shell.settings.gore)
+            gp["game_log"].drain(session.state)
+            gp["game_log"].update(dt)
+            # -- /10J --
             gp["cheat"].update(dt, mx, my)  # 10H (animates its own buttons)
             if session.frozen:
                 gp["levelup"].update(dt, mx, my)
@@ -614,11 +702,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # fires tile_map.on_zone_change -> invalidate) — not every frame.
             # The runtime zone overrides keep unlocked/receded tiles' ground
             # visuals in sync WITHOUT mutating the shared map_doc.
-            ground_cache.ensure(
-                view_w, view_h,
-                lambda dmn, dmx, smn, smx: tilemap.band_render_items(
+            apply_bg_art()  # 10J: follow the settings toggle live
+
+            def ground_items(dmn, dmx, smn, smx, world=world):
+                items = tilemap.band_render_items(
                     map_doc, dmn, dmx, smn, smx,
-                    code_overrides=world.tile_map.terrain_overrides))
+                    code_overrides=world.tile_map.terrain_overrides)
+                if not bg_state["on"]:
+                    return items
+                # 10J: with background art active, BACKGROUND-zone tiles are
+                # skipped so the art shows through (prototype skip_bg,
+                # tile_map.py:458-464).
+                tm = world.tile_map
+                return [it for it in items
+                        if (t := tm.get(int(it.world_pos[0]),
+                                        int(it.world_pos[1]))) is None
+                        or t.state != TileState.BACKGROUND]
+
+            ground_cache.ensure(view_w, view_h, ground_items)
             ground_cache.blit(window)
             # Base + deco stay dynamic (their own layers, above ground); windowed.
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
@@ -634,17 +735,25 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["overlays"].submit(renderer, world.tile_map, world.scene,
                                   (cmin, cmax, rmin, rmax))
             # -- /10I --
+            # -- 10J: blood + gold-highlight fills (world overlay, before the
+            # panel's selection highlights) --
+            gp["floaters"].submit_splatters(renderer, cs)
+            gp["floaters"].submit_gold_highlights(renderer)
+            # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
+            gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
+            gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes
             gp["floaters"].submit_boss_bars(renderer, cs, world.scene,  # 10G
                                             session.state.phase, view_w, view_h)
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
+            gp["game_log"].submit(renderer, view_h)   # 10J: fading log lines
             gp["overlays"].submit_buttons(renderer)   # 10I: RANGE/HEATMAP pills
             if gp["levelup"].visible:
                 gp["levelup"].submit(renderer, view_w, view_h)

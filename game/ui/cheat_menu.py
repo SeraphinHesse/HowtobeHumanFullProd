@@ -17,8 +17,8 @@ in-menu appliers): every click/key returns an ACTION the host maps onto
 ``close``, ``trigger_levelup`` and a committed ``goto_round`` — the other
 four leave it open for repeat presses.
 
-Divergence: opaque backdrop instead of the prototype's (0, 0, 0, 150) alpha
-dim — the HUD pass has no per-pixel alpha (10J), same as the level-up window.
+Since 10J the backdrop is the prototype's real ``(0, 0, 0, 150)`` alpha dim
+(RGBA ``HudRect``).
 """
 from engine.render import HudRect
 
@@ -27,7 +27,7 @@ from .widgets import (
     contains, submit_centered, submit_panel, submit_text,
 )
 
-_BG = (10, 5, 15)
+_BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
 _PANEL_W, _PANEL_H = 220, 258
 _TITLE = "CHEATS"
 _MAX_DIGITS = 4  # prototype round-field cap

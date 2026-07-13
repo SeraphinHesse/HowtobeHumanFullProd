@@ -15,7 +15,7 @@ import weakref
 import pygame
 
 from . import fonts
-from .item import OverlayLines
+from .item import OverlayLines, OverlayPolys
 
 try:
     # The HUD primitive dataclasses are the parallel 9B half (pure Python in
@@ -47,15 +47,50 @@ def _scaled(surface, size):
     return scaled
 
 
+def _has_alpha(color):
+    return len(color) == 4 and color[3] < 255
+
+
 def _draw_hud_text(target, call):
     font = fonts.get_font(call.font_key)
-    surface = font.render(call.text, True, call.color)
+    surface = font.render(call.text, True, call.color[:3])
+    if _has_alpha(call.color):
+        surface.set_alpha(call.color[3])
     x, y = call.pos
     if call.align == "center":
         x -= surface.get_width() / 2
     elif call.align == "right":
         x -= surface.get_width()
     target.blit(surface, (round(x), round(y)))
+
+
+def _draw_hud_rect(target, call):
+    if not _has_alpha(call.color):
+        pygame.draw.rect(target, call.color, call.rect, call.width,
+                         border_radius=call.border_radius)
+        return
+    x, y, w, h = call.rect
+    w, h = max(1, round(w)), max(1, round(h))
+    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.rect(scratch, call.color, scratch.get_rect(), call.width,
+                     border_radius=call.border_radius)
+    target.blit(scratch, (round(x), round(y)))
+
+
+def _draw_polys(target, call):
+    points = [(round(x), round(y)) for x, y in call.points]
+    if not _has_alpha(call.color):
+        pygame.draw.polygon(target, call.color, points)
+        return
+    xs = [p[0] for p in points]
+    ys = [p[1] for p in points]
+    min_x, min_y = min(xs), min(ys)
+    w = max(1, max(xs) - min_x + 1)
+    h = max(1, max(ys) - min_y + 1)
+    scratch = pygame.Surface((w, h), pygame.SRCALPHA)
+    pygame.draw.polygon(scratch, call.color,
+                        [(x - min_x, y - min_y) for x, y in points])
+    target.blit(scratch, (min_x, min_y))
 
 
 def draw(target, draw_calls):
@@ -65,7 +100,7 @@ def draw(target, draw_calls):
     # tuple is built here (not a module constant) so it reads the CURRENT module
     # names — the pre-merge HUD test patches backend.HudRect/HudText/HudLines and
     # relies on isinstance seeing the swap. One tuple per draw() call is nothing.
-    non_sprite = (OverlayLines, HudRect, HudLines, HudText)
+    non_sprite = (OverlayLines, OverlayPolys, HudRect, HudLines, HudText)
     batch = []
     for call in draw_calls:
         if isinstance(call, non_sprite):
@@ -76,11 +111,10 @@ def draw(target, draw_calls):
                 points = [(round(x), round(y)) for x, y in call.points]
                 pygame.draw.lines(target, call.color, call.closed, points,
                                   call.width)
+            elif isinstance(call, OverlayPolys):
+                _draw_polys(target, call)
             elif isinstance(call, HudRect):
-                pygame.draw.rect(
-                    target, call.color, call.rect, call.width,
-                    border_radius=call.border_radius,
-                )
+                _draw_hud_rect(target, call)
             elif isinstance(call, HudLines):
                 points = [(round(x), round(y)) for x, y in call.points]
                 pygame.draw.lines(target, call.color, call.closed, points,

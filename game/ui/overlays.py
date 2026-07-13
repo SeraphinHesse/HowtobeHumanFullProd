@@ -17,10 +17,10 @@ diff:
   927-932``). ``track`` accumulates during the ENEMY phase and snapshots on
   the phase edge, so the overlay is empty before the first wave.
 
-**Known divergence (deliberate):** the engine overlay pass draws outline
-polylines only — no per-pixel-alpha fills — so both overlays and the tint are
-diamond OUTLINES (colours prototype-verbatim, alpha dropped). Filled parity
-lands with the 10J FX sweep, same limit as the opaque level-up backdrop.
+Since the 10J FX sweep the overlays are alpha-FILLED diamonds with the
+prototype's exact alphas (tint fill 70 / border 140, RANGE fill 55, heatmap
+fill 50+130·t) via ``submit_overlay_polys``; outlines remain only where the
+prototype drew them.
 
 Cost profile (large-map invariant): O(viewport) tint + O(defenders·r²)
 coverage + O(visited tiles) heatmap — never a full-map per-frame scan.
@@ -31,7 +31,7 @@ from game.map.tiles import TileCondition, TileState
 
 from .widgets import (
     C_GOLD, C_RANGE_HIGHLIGHT, C_UI_BTN, Button, contains,
-    submit_tile_diamond,
+    submit_tile_diamond_fill,
 )
 
 # World condition tint per condition (prototype tile.py:25-30, verbatim RGB).
@@ -46,12 +46,14 @@ _PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 
 
 def heat_color(t):
-    """The prototype's blue→yellow→red heat ramp (``hud.py:452-464``), alpha
-    dropped: t=0 → (0,100,200), t=0.5 → (255,255,0), t=1 → (255,0,0)."""
+    """The prototype's blue→yellow→red heat ramp (``hud.py:452-465``) WITH its
+    alpha (10J): t=0 → (0,100,200,50), t=0.5 → (255,255,0,115),
+    t=1 → (255,0,0,180)."""
+    a = int(50 + 130 * t)
     if t < 0.5:
         return (int(255 * 2 * t), int(100 + 155 * 2 * t),
-                int(200 - 200 * 2 * t))
-    return (255, int(255 - 255 * (2 * t - 1)), 0)
+                int(200 - 200 * 2 * t), a)
+    return (255, int(255 - 255 * (2 * t - 1)), 0, a)
 
 
 class MapOverlays:
@@ -157,15 +159,22 @@ class MapOverlays:
                     continue
                 tint = _COND_TINT.get(t.condition)
                 if tint is not None:
-                    submit_tile_diamond(renderer, c, r, tint, width=2)
+                    # prototype tile.py:169-172: fill alpha 70 (the border is
+                    # an opaque line — OverlayLines carries no alpha)
+                    submit_tile_diamond_fill(
+                        renderer, c, r, tint + (70,),
+                        border=tint, border_width=2)
         if self.show_range:
             for (c, r) in self.range_coverage(tilemap):
-                submit_tile_diamond(renderer, c, r, C_RANGE_HIGHLIGHT)
+                # prototype hud.py:424-425: fill alpha 55
+                submit_tile_diamond_fill(
+                    renderer, c, r, C_RANGE_HIGHLIGHT + (55,),
+                    border=C_RANGE_HIGHLIGHT, border_width=1)
         if self.show_heatmap and self.path_heatmap:
             max_count = max(self.path_heatmap.values())
             for (c, r), count in self.path_heatmap.items():
                 t = min(1.0, count / max_count) if max_count else 0.0
-                submit_tile_diamond(renderer, c, r, heat_color(t))
+                submit_tile_diamond_fill(renderer, c, r, heat_color(t))
 
     def submit_buttons(self, renderer):
         """The HUD-pass toggle pills; an active toggle gets a gold rim + gold

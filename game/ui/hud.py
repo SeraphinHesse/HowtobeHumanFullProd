@@ -9,7 +9,8 @@ is lives-based (HP mode was removed), so the base readout is a life count, never
 an HP bar.
 
 The 10A XP bar drops the prototype's mascot face: it needs an ``xp_icon`` slot
-that ``data/slots.json`` does not carry (revisit in the 10J art sweep).
+that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
+10J added ``income_sources`` + the hover breakdown tooltip on the income line.
 """
 import math
 
@@ -20,9 +21,9 @@ from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
 from .widgets import (
-    C_GOLD, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED, C_UI_BORDER,
-    C_UI_TEXT_DIM, HEART, Button, submit_bar, submit_centered, submit_text,
-    text_h, text_size,
+    C_GOLD, C_HP_GREEN, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED,
+    C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, contains, submit_bar,
+    submit_centered, submit_text, text_h, text_size,
 )
 
 # -- 10H: lightning + cheat menu --
@@ -47,22 +48,30 @@ _PHASE_COLOR = {
 _INCOME_PINK = (214, 96, 136)
 _XP_PURPLE = (168, 105, 222)
 _XP_TRACK = (48, 34, 66)
+# -- 10J income tooltip (prototype hud.py:519-554 colours) --
+_TOOLTIP_BG = (20, 15, 35)
+_TOOLTIP_RED = (180, 80, 80)
+_TOOLTIP_GOLD = (220, 180, 80)
 
 
-def income_breakdown(session):
-    """(gross_income, total_upkeep) this HUD would pay next payday — the
-    village-scaled base income plus every alive building's duck-typed
-    ``yield_amount`` / ``upkeep`` (mirrors the payday sweep, so the readout
-    can't drift)."""
-    income = scaled_base_income(session.state, session.core_balance)
-    upkeep = 0
+def income_sources(session):
+    """Ordered ``[(label, amount)]`` this HUD would pay next payday — the 10J
+    income-tooltip breakdown (prototype ``game.py:1998-2006`` ``_income_sources``):
+    ``Base`` always, then ``Musicians`` / ``Meditators`` / ``Story`` when
+    nonzero, then a NEGATIVE ``Upkeep`` when nonzero. Mirrors the payday sweep
+    so the readout can't drift; ``income_breakdown`` sums it, keeping the pill
+    and the tooltip in lockstep."""
+    musicians = meditators = upkeep = 0
     for t in session.tilemap.built_tiles():
         b = t.occupant
         if b is None or not getattr(b, "alive", False):
             continue
         yfn = getattr(b, "yield_amount", None)
         if yfn is not None:
-            income += yfn()
+            if getattr(b, "building_type", None) == "meditator":
+                meditators += yfn()
+            else:
+                musicians += yfn()
         ufn = getattr(b, "upkeep", None)
         if ufn is not None:
             upkeep += ufn()
@@ -72,21 +81,38 @@ def income_breakdown(session):
     # NO alive filter; recipients must be alive to be paid, like the sweep).
     st = session.state
     stacks = st.boss_stacks
-    income += (boss1b_income(st, session.tilemap)
-               + boss3b_income(st, session.tilemap))
+    story = boss1b_income(st, session.tilemap) + boss3b_income(st, session.tilemap)
     if stacks["boss2a"]:
         n_musicians = sum(
             1 for t in session.tilemap.built_tiles()
             if getattr(t.occupant, "building_type", None) == "economic"
             and getattr(t.occupant, "alive", False))
-        income += defence_count(session.tilemap) * stacks["boss2a"] * n_musicians
+        story += defence_count(session.tilemap) * stacks["boss2a"] * n_musicians
     if stacks["boss2b"]:
         n_meditators = sum(
             1 for t in session.tilemap.built_tiles()
             if getattr(t.occupant, "building_type", None) == "meditator"
             and getattr(t.occupant, "alive", False))
-        income += aoe_count(session.tilemap) * stacks["boss2b"] * n_meditators
+        story += aoe_count(session.tilemap) * stacks["boss2b"] * n_meditators
     # -- /10G --
+    sources = [("Base", scaled_base_income(st, session.core_balance))]
+    if musicians:
+        sources.append(("Musicians", musicians))
+    if meditators:
+        sources.append(("Meditators", meditators))
+    if story:
+        sources.append(("Story", story))
+    if upkeep:
+        sources.append(("Upkeep", -upkeep))
+    return sources
+
+
+def income_breakdown(session):
+    """(gross_income, total_upkeep) — summed off ``income_sources`` so the net
+    pill and the 10J tooltip can never disagree."""
+    sources = income_sources(session)
+    income = sum(v for _, v in sources if v > 0)
+    upkeep = -sum(v for _, v in sources if v < 0)
     return income, upkeep
 
 
@@ -167,12 +193,15 @@ class Hud:
         # -- XP bar + village level (right of the love pill) ---------------
         self._submit_xp(renderer, st, pill[0] + pill[2] + 12, pill[1])
 
-        # -- income line --------------------------------------------------
-        income, upkeep = income_breakdown(session)
-        net = income - upkeep
+        # -- income line (hover -> 10J breakdown tooltip) -------------------
+        sources = income_sources(session)
+        net = sum(v for _, v in sources)
         sign = "+" if net >= 0 else ""
         submit_text(renderer, f"{sign}{net}{HEART}/round", (pill[0] + 4, 50),
                     "sm", _INCOME_PINK)
+        income_pill = (pill[0] - 10, 48, 118, 18)  # prototype pill2 hover zone
+        if sources and contains(income_pill, self._mx, self._my):
+            self._submit_income_tooltip(renderer, sources, income_pill)
 
         # -- lives + tile counter -----------------------------------------
         submit_text(renderer, f"LIVES {st.base_lives}", (pill[0] + 4, 66),
@@ -201,6 +230,33 @@ class Hud:
 
         # -- lightning readout (10H) ---------------------------------------
         self._submit_lightning(renderer, session, view_h)
+
+    def _submit_income_tooltip(self, renderer, sources, anchor):
+        """The 10J per-source breakdown below the income line (prototype
+        ``hud.py:519-554``): green income rows, red ``Upkeep: -N``, gold
+        ``Story upgrades: +N``; dark panel + border, left-aligned under the
+        anchor."""
+        from engine.render import HudRect  # local: keep module import list lean
+
+        rows = []
+        for label, amount in sources:
+            if label == "Upkeep":
+                rows.append((f"Upkeep: {amount}", _TOOLTIP_RED))
+            elif label == "Story":
+                rows.append((f"Story upgrades: +{amount}", _TOOLTIP_GOLD))
+            else:
+                rows.append((f"{label}: +{amount}", C_HP_GREEN))
+        lh = text_h("sm") + 3
+        w = max(text_size(t, "sm")[0] for t, _ in rows) + 8
+        h = lh * len(rows) + 8
+        x = max(2, anchor[0])
+        y = anchor[1] + anchor[3] + 2
+        renderer.submit_hud(HudRect((x, y, w, h), _TOOLTIP_BG))
+        renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=1))
+        ty = y + 4
+        for text, color in rows:
+            submit_text(renderer, text, (x + 4, ty), "sm", color)
+            ty += lh
 
     def _submit_xp(self, renderer, st, x, y):
         """`LVL N`, a purple progress bar, and `xp/threshold`. When a level-up
