@@ -19,6 +19,29 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## Overhead HP bars
+`effects.py` draws them in TWO passes, both reading live scene state and both
+hiding the bar at full HP (the prototype rule):
+- **`submit_hp_bars`** — buildings (`scene.by_tag("building")`, base excluded),
+  fixed 28×4.
+- **`submit_enemy_hp_bars`** — **every** enemy, boss included (the boss carries
+  the `"enemy"` tag via `Enemy.EXTRA_TAGS`, so this is the ONLY place an overhead
+  enemy bar is drawn). Width/height are the `HP_BAR_W`/`HP_BAR_H` class attrs on
+  the enemy classes (walker/raider 14×2, siege 24×2, boss 48×4 — see
+  `game/enemies/CLAUDE.md`), read duck-typed with a fallback. Bars from enemies
+  sharing a tile **stack upward** 4 px per slot (prototype `game.py:1901-1922`
+  `bar_slot`); grouping is a plain `round(wx), round(wy)` because our
+  `transform.wx/wy` are already fractional TILE coords, where the prototype had
+  to divide pixel coords by the tile half-dims. **Divergence:** the prototype
+  gave a slot to every enemy in a group, full-HP ones included (leaving gaps),
+  because that index also drove its sprite-spread ellipse; we don't port the
+  spread, so slots go out compactly — only a bar-drawing enemy takes one.
+
+Both are fixed screen-pixel sizes (never zoom-scaled), anchored through
+`cs.world_to_screen(wx + 0.5, wy + 0.5)` so they track the camera, and emitted on
+the HUD pass — i.e. always on top, never depth-sorted (the accepted "HUD on top"
+simplification). Covered by `tools/tests/test_enemy_hp_bars.py`.
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -44,8 +67,10 @@ logic is `game/core` — see that doc.)
   `boss_announce.{fade_in,hold,fade_out}` timings (a real text-alpha fade
   since 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
-  200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only) plus the 48×4 overhead
-  bar (only when `hp < max_hp`; slot-frame-derived widths are 10J polish).
+  200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
+  NOT drawn here — see the enemy HP bars below, which own every overhead bar in
+  the game (the boss is tagged `"enemy"` too, so it comes along for free and can
+  never double up).
 - **`hud.py`**: BOSS_CUTSCENE phase label/color entries, and one fenced block
   in `income_breakdown` adding the boss-bonus story income (slot-3 payouts +
   Boss2A/2B deltas × alive recipients) so the HUD net keeps matching payday.

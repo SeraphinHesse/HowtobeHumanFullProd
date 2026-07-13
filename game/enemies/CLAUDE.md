@@ -48,6 +48,12 @@ skill.**
   `Health`/`Movement`/`SpriteAnimator`/`RangeSensor` carry the rest. The
   duck-typed values the combat sweep reads (`alive`/`dmg`) are guard-safe
   `@property`s.
+- **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
+  (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
+  the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Read
+  duck-typed by `game/ui/effects.py submit_enemy_hp_bars`, which draws the bar
+  for EVERY enemy below full HP (boss included) — this package needs no other
+  change for it. A new enemy type just declares its own width.
 - **`PathAgent` runs BEFORE `Movement`** in the component list so its halt
   decision takes effect the same frame (no drift into a blocked tile). It gates
   locomotion by zeroing `Movement.speed` while blocked and restoring it on unblock
