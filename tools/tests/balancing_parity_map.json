@@ -203,7 +203,7 @@
     "GORE_ENABLED": "ui:FX/gore_enabled",
     "NOT_ENOUGH_LOVE_DURATION": "ui:Timing/not_enough_love_duration"
   },
-  "_policy": "Phase 9A committed mapping: every non-underscore key in each prototype Balancing_*.json appears exactly once below. Underscore-prefixed prototype keys (_lock/_comment/_section_*/..., loader-ignored markers) are excluded by rule. Entry shapes: '<domain>:<slash/path>' asserts value equality; {path, transform:'literal_eval'} parses the prototype's stringified list first; 'DROPPED:<reason>' documents a deliberate drop; 'MERGED:<domain>:<path>' points a redundant flag at its canonical home (equality still asserted). _py_only holds literal expectations for the prototype's live py-only BOSS_ERAS (balancing_enemies.py) reshaped into Boss/stats + Boss/death_spawns; its swarm_* fields were dead (round composition reads BOSS_ROUND_COUNTS) and are not migrated.",
+  "_policy": "Phase 9A committed mapping: every non-underscore key in each prototype Balancing_*.json appears exactly once below. Underscore-prefixed prototype keys (_lock/_comment/_section_*/..., loader-ignored markers) are excluded by rule. Entry shapes: '<domain>:<slash/path>' asserts value equality; {path, transform:'literal_eval'} parses the prototype's stringified list first; 'DROPPED:<reason>' documents a deliberate drop; 'MERGED:<domain>:<path>' points a redundant flag at its canonical home (equality still asserted). _py_only holds literal expectations for the prototype's live py-only BOSS_ERAS (balancing_enemies.py) reshaped into Boss/stats + Boss/death_spawn/spawns; its swarm_* fields were dead (round composition reads BOSS_ROUND_COUNTS) and are not migrated.",
   "_py_only": {
     "BOSS_ERAS[0].attack_range_tiles": {
       "expect": 2,
@@ -215,15 +215,15 @@
     },
     "BOSS_ERAS[0].death_raiders": {
       "expect": 5,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/0/raiders"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/0/raiders"
     },
     "BOSS_ERAS[0].death_regular": {
       "expect": 10,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/0/regular"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/0/regular"
     },
     "BOSS_ERAS[0].death_siege": {
       "expect": 1,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/0/siege"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/0/siege"
     },
     "BOSS_ERAS[0].dmg": {
       "expect": 200,
@@ -251,15 +251,15 @@
     },
     "BOSS_ERAS[1].death_raiders": {
       "expect": 7,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/1/raiders"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/1/raiders"
     },
     "BOSS_ERAS[1].death_regular": {
       "expect": 14,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/1/regular"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/1/regular"
     },
     "BOSS_ERAS[1].death_siege": {
       "expect": 2,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/1/siege"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/1/siege"
     },
     "BOSS_ERAS[1].dmg": {
       "expect": 320,
@@ -287,15 +287,15 @@
     },
     "BOSS_ERAS[2].death_raiders": {
       "expect": 10,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/2/raiders"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/2/raiders"
     },
     "BOSS_ERAS[2].death_regular": {
       "expect": 20,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/2/regular"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/2/regular"
     },
     "BOSS_ERAS[2].death_siege": {
       "expect": 3,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/2/siege"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/2/siege"
     },
     "BOSS_ERAS[2].dmg": {
       "expect": 480,
@@ -323,15 +323,15 @@
     },
     "BOSS_ERAS[3].death_raiders": {
       "expect": 13,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/3/raiders"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/3/raiders"
     },
     "BOSS_ERAS[3].death_regular": {
       "expect": 26,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/3/regular"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/3/regular"
     },
     "BOSS_ERAS[3].death_siege": {
       "expect": 4,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/3/siege"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/3/siege"
     },
     "BOSS_ERAS[3].dmg": {
       "expect": 700,
@@ -359,15 +359,15 @@
     },
     "BOSS_ERAS[4].death_raiders": {
       "expect": 16,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/4/raiders"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/4/raiders"
     },
     "BOSS_ERAS[4].death_regular": {
       "expect": 34,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/4/regular"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/4/regular"
     },
     "BOSS_ERAS[4].death_siege": {
       "expect": 5,
-      "path": "enemies:EnemyTypes/Boss/death_spawns/4/siege"
+      "path": "enemies:EnemyTypes/Boss/death_spawn/spawns/4/siege"
     },
     "BOSS_ERAS[4].dmg": {
       "expect": 1000,

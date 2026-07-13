@@ -270,10 +270,27 @@ class EnemyCombat(Component):
             self.cooldown = self.attack_speed
 
 
-class BossState(Component):
-    """Boss-only state: the era index + the one-shot death-swarm guard. LIVE
-    since 10G — ``Session.on_enemy_death`` sets ``death_spawned`` the first
-    time the boss's death is reported, so the swarm can never double-spawn."""
+class DeathSpawn(Component):
+    """The generalised death-spawn mechanic (ER-3, plan D4) — absorbs 10G's
+    ``BossState``. Balancing (``EnemyTypes/<type>/death_spawn``) is resolved
+    into these fields at construction, exactly like ``Health.max_hp`` /
+    ``EnemyCombat.dmg``.
+
+    * ``at_hp_fraction`` — the unit is dead once ``hp <= max_hp * this``.
+      ``Enemy.alive`` is the ONE evaluation site (``enemy.py``). 0.0 restores
+      the plain ``Health.is_dead`` rule byte-for-byte.
+    * ``counts`` — the RESOLVED spawn row for THIS unit's era, already clamped
+      at construction ({"raiders": n, "regular": n, "siege": n}).
+    * ``era`` — the era index the unit resolved (the Boss's; 0 for everything
+      else). Kept because the Boss still reads it (``Boss.era``).
+    * ``death_spawned`` — the one-shot burst guard. ``Session.on_enemy_death``
+      sets it through ``Enemy.mark_death_spawned()`` the first time a death is
+      reported, so a double-death frame can never double-burst.
+    """
 
     era: int = 0
+    enabled: bool = False
+    at_hp_fraction: float = 0.0
+    spawn_hp_fraction: float = 1.0
+    counts: dict = {}
     death_spawned: bool = False

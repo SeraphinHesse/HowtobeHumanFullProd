@@ -6,7 +6,7 @@ exactly once, as a migrated path, a MERGED pointer, or a DROPPED entry with
 a reason. This test asserts that coverage both ways and value equality for
 every migrated/merged key, plus the _py_only expectations for the
 prototype's live py-only BOSS_ERAS list (reshaped into Boss stats +
-death_spawns).
+death_spawn/spawns).
 
 Skips whole if the prototype checkout is absent (other machines / CI).
 """

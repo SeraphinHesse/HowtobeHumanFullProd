@@ -36,7 +36,7 @@ from engine.core import (
 from game.map.pathfinder import (
     find_path, find_path_ignoring_walls, find_path_to_nearest_building,
 )
-from .components import BossState, EnemyCombat, PathAgent
+from .components import DeathSpawn, EnemyCombat, PathAgent
 
 
 def variant_slot(registry, group_label, tier, rng=None, fallback=None):
@@ -100,6 +100,10 @@ class Enemy(GameObject):
         block = enemies_balance["EnemyTypes"]
         for seg in self.STAT_SUBTREE:
             block = block[seg]
+        ds = block["death_spawn"]
+        era = self._resolve_era(enemies_balance, tier)
+        rows = ds["spawns"]
+        spawn_row = rows[min(max(era, 0), len(rows) - 1)]
         components = [
             Health(max_hp=hp, hp=hp),
             PathAgent(),
@@ -110,6 +114,11 @@ class Enemy(GameObject):
                            phase_ms=(col * 137 + row * 251) % 2000,
                            fit_tiles=float(block["footprint"]),
                            scale=float(block["sprite_scale"])),
+            DeathSpawn(era=era,
+                       enabled=ds["enabled"],
+                       at_hp_fraction=float(ds["at_hp_fraction"]),
+                       spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
+                       counts=dict(spawn_row)),
         ]
         super().__init__(
             name=self.ETYPE,
@@ -133,6 +142,11 @@ class Enemy(GameObject):
         return tier_scaled_stats(
             balance["EnemyTypes"]["Standard"], balance, tier)
 
+    def _resolve_era(self, balance, tier):
+        """Which row of ``death_spawn.spawns`` (and, for the Boss, of
+        ``stats``) this unit uses. Types with no era table are always row 0."""
+        return 0
+
     # -- lifecycle ---------------------------------------------------------
 
     def on_spawn(self):
@@ -150,11 +164,43 @@ class Enemy(GameObject):
 
     @property
     def alive(self):
-        return not self.get_component(Health).is_dead
+        """Dead once HP falls to or below ``at_hp_fraction`` of max (ER-3 / D4:
+        breaking formation IS dying — one code path, no separate break state).
+        At the default ``at_hp_fraction`` 0.0 this is exactly
+        ``not Health.is_dead`` (``hp <= 0``), so every pre-ER-3 type is
+        byte-identical."""
+        h = self.get_component(Health)
+        ds = self.get_component(DeathSpawn)
+        return h.hp > h.max_hp * ds.at_hp_fraction
 
     @property
     def dmg(self):
         return self.get_component(EnemyCombat).dmg
+
+    # -- duck-typed contract read by Session.on_enemy_death (ER-3) ----------
+
+    @property
+    def death_spawn_plan(self):
+        """The burst this unit leaves behind, or ``None`` when it carries no
+        ENABLED ``death_spawn``. Plain, already-resolved data: the Session
+        stashes it and hands it straight back to
+        ``Spawner.spawn_death_swarm`` without ever inspecting it, so
+        ``game/core`` still imports nothing from ``game/enemies``."""
+        ds = self.get_component(DeathSpawn)
+        if not ds.enabled:
+            return None
+        return {"counts": dict(ds.counts),
+                "spawn_hp_fraction": ds.spawn_hp_fraction}
+
+    @property
+    def death_spawned(self):
+        return self.get_component(DeathSpawn).death_spawned
+
+    def mark_death_spawned(self):
+        """One-shot burst guard setter. A METHOD, not a property setter — the
+        E-11 ``GameObject.__setattr__`` guard intercepts public attribute
+        assignment before a data descriptor would run."""
+        self.get_component(DeathSpawn).death_spawned = True
 
 
 class Raider(Enemy):
@@ -192,8 +238,10 @@ class Boss(Enemy):
     nearest alive building (base included) and re-paths every time its target
     dies; arrival only breaches when the goal IS the base (``goal_is_base``).
     ``era``/``death_spawned`` are the duck-typed properties the Session's
-    death-swarm stash reads over ``BossState`` (game/core never imports this
-    package)."""
+    death-spawn stash reads over ``DeathSpawn`` (game/core never imports this
+    package). Its 10G swarm is now just the generalised ER-3 mechanic with
+    ``at_hp_fraction`` 0.0 + ``spawn_hp_fraction`` 1.0 — same counts, same
+    tile, same tier."""
 
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
@@ -202,19 +250,14 @@ class Boss(Enemy):
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
     HP_BAR_W, HP_BAR_H = 48, 4   # prototype boss.py:136-143 max(48, …) floor
 
-    def __init__(self, col, row, enemies_balance, tilemap, tier=0,
-                 registry=None, rng=None):
+    def _resolve_era(self, balance, tier):
         # `tier` doubles as the era index for the boss (spawner-threaded, 10G).
-        self._era = min(max(tier, 0),
-                        len(enemies_balance["EnemyTypes"]["Boss"]["stats"]) - 1)
-        super().__init__(col, row, enemies_balance, tilemap, tier,
-                         registry, rng)
-        self.add_component(BossState(era=self._era))
+        return min(max(tier, 0),
+                   len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
 
     def _resolve_stats(self, balance, tier):
-        era = min(max(tier, 0),
-                  len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
-        st = balance["EnemyTypes"]["Boss"]["stats"][era]
+        st = balance["EnemyTypes"]["Boss"]["stats"][
+            self._resolve_era(balance, tier)]
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
 
@@ -238,21 +281,10 @@ class Boss(Enemy):
         pa.goal_is_base = (bool(path) and path[-1] == (
             self._tilemap.base_col, self._tilemap.base_row))
 
-    # -- duck-typed contract read by Session.on_enemy_death (10G) ----------
-
     @property
     def era(self):
-        return self.get_component(BossState).era
-
-    @property
-    def death_spawned(self):
-        return self.get_component(BossState).death_spawned
-
-    def mark_death_spawned(self):
-        """One-shot swarm guard setter. A method, not a property setter — the
-        E-11 ``GameObject.__setattr__`` guard intercepts public attribute
-        assignment before a data descriptor would run."""
-        self.get_component(BossState).death_spawned = True
+        """The era index (read by tests + any future era-keyed UI)."""
+        return self.get_component(DeathSpawn).era
 
 
 # etype string -> class (the spawner queues etype strings).

@@ -11,12 +11,15 @@ era. Timing is prototype-exact: a linear slow→fast ramp across the wave
 with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off, a re-rolled jitter
 per spawn). The round loop that CALLS ``begin_round`` and detects wave-clear is
 9F; 9E exposes the pieces (``begin_round`` / ``update`` / ``active`` / ``done``);
-``spawn_death_swarm`` (10G) is the Session-driven boss-death burst.
+``spawn_death_swarm`` (ER-3) is the Session-driven death burst for ANY type
+carrying an enabled ``death_spawn`` (10G's boss swarm is one instance of it).
 
 An ``rng`` is injectable so tests are deterministic (default: the ``random``
 module).
 """
 import random
+
+from engine.core import Health
 
 from .enemy import create_enemy
 
@@ -24,6 +27,13 @@ from .enemy import create_enemy
 ENABLE_RAIDERS = True
 ENABLE_SIEGE = True
 ENABLE_BOSS = True
+
+# spawn_counts key -> the etype it spawns. The iteration ORDER is load-bearing:
+# it fixes how many draws each burst takes from the injected `rng` (variant
+# picks), so it must stay standard -> raider -> siege (prototype
+# game.py:1314-34).
+_SWARM_TYPES = (("standard", "regular"), ("raider", "raiders"),
+                ("siege", "siege"))
 
 
 class Spawner:
@@ -230,22 +240,25 @@ class Spawner:
         else:
             self._timer = 0.0
 
-    # -- boss death swarm (10G, prototype game.py:1314-1334) ---------------
+    # -- death spawn (ER-3; 10G's boss swarm generalised) ------------------
 
-    def spawn_death_swarm(self, scene, col, row, era):
-        """Burst ``Boss.death_spawns[era]`` standard/raider/siege enemies at the
-        dead boss's tile, IMMEDIATELY into the scene (never the queue) — they
-        path from that tile on spawn. Standard + siege members take the CURRENT
-        round's scale tier (raiders never scale); the Session flushes this
-        before its wave-clear check so the round can't end mid-burst. All enemy
-        construction stays in this package."""
-        cfg = self._balance["EnemyTypes"]["Boss"]
-        spawns = cfg["death_spawns"]
-        row_cfg = spawns[min(max(era, 0), len(spawns) - 1)]
-        for etype, key in (("standard", "regular"), ("raider", "raiders"),
-                           ("siege", "siege")):
-            for _ in range(row_cfg[key]):
+    def spawn_death_swarm(self, scene, col, row, plan):
+        """Burst ``plan`` — an enemy's resolved ``death_spawn_plan`` — at
+        ``(col, row)``, IMMEDIATELY into the scene (never the queue), so the
+        children path from that tile on spawn. Members take the CURRENT round's
+        scale tier (standard + siege scale; raiders never do). Each child is
+        seeded to ``plan["spawn_hp_fraction"]`` of its own max HP; at 1.0 (the
+        Boss's 10G swarm) ``Health`` is not touched at all, so that path is
+        byte-identical. The Session flushes this before its wave-clear check;
+        all enemy construction stays in this package."""
+        counts = plan["counts"]
+        frac = plan["spawn_hp_fraction"]
+        for etype, key in _SWARM_TYPES:
+            for _ in range(counts[key]):
                 enemy = create_enemy(
                     etype, col, row, self._balance, self._tilemap,
                     self._tier, self._registry, self._rng)
+                if frac < 1.0:
+                    health = enemy.get_component(Health)
+                    health.hp = max(1, int(health.max_hp * frac))
                 scene.spawn(enemy)

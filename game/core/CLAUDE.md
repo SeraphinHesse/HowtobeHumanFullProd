@@ -165,13 +165,21 @@ in `game/ui/CLAUDE.md`.
   `(boss_num, option, outcome)` to `boss_choices` (the per-run history the
   base-info popup reads; no disk persistence), then chains → LEVELUP (if
   pending) → payday, exactly once.
-- **Death swarm handshake (layering)**: `game/core` still imports NO
-  `game/enemies`. `on_enemy_death` duck-types the boss (`ETYPE`,
-  `death_spawned`, `mark_death_spawned()` — a METHOD because the E-11 setattr
-  guard blocks public property setters) and stashes `(col, row, era)`;
-  `post_sim` flushes the stash via `spawner.spawn_death_swarm` BEFORE the
-  wave-clear check, so the round can't end between boss death and swarm.
-  Quick-skip / lives-wipe despawns never reach the callback → no swarm.
+- **Death spawn handshake (layering) — GENERALISED in ER-3**: `game/core` still
+  imports NO `game/enemies`. The gate is **no longer `ETYPE == "boss"`** (that
+  was a G-3 violation): `on_enemy_death` duck-types `death_spawn_plan` off ANY
+  enemy — `None` unless that type carries an ENABLED `death_spawn` — plus
+  `death_spawned` / `mark_death_spawned()` (a METHOD, because the E-11 setattr
+  guard blocks public property setters). The stash is a **LIST**
+  (`_death_spawns_pending`), not 10G's single slot: several units can die in one
+  frame (ER-4's Formations will) and a single slot would silently drop all but
+  the last. The stashed `plan` is an **OPAQUE payload** — core never inspects or
+  indexes into it, it just hands it back to
+  `spawner.spawn_death_swarm(scene, col, row, plan)`. `post_sim` drains the list
+  (rebinding it to `[]` **before** iterating, so a re-entrant death can't lose or
+  double-run a burst) BEFORE the wave-clear check, so the round can't end between
+  a death and its children hitting the field. Quick-skip / lives-wipe / cheat
+  despawns never reach the callback → they spawn nothing.
 
 ## Lightning strike + cheat menu (Phase 10H)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
