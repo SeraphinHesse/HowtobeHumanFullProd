@@ -83,6 +83,18 @@ skill.**
     chain, if that child also has an enabled `death_spawn`. There is
     deliberately NO runtime guard: data is the source of truth and the editor's
     0..1 spinbox bounds are the fence. The schema description says so.
+  - **KNOWN LIMITATION — a death on the wave's LAST frame ends the round before
+    its children appear.** The Session flushes the burst in `post_sim` before the
+    wave-clear check, but `Scene.spawn()` only QUEUES while `by_tag()` reads
+    `_objects`, so that check cannot see children burst on the same frame: the
+    phase flips to `ROUND_END` and the children land on the next `scene.update`.
+    **Pre-existing — 10G's boss swarm does exactly the same** (this is more
+    evidence the ER-3 path is byte-identical, not a new bug), and rare for the
+    Boss because it dies mid-wave with companions still alive. **It bites much
+    harder for anything common** — an ER-4 Formation breaking as the last unit of
+    a wave drops its children into an already-ended round. The fix is to teach the
+    wave-clear check about pending spawns; ER-3 deliberately did not, being a
+    zero-behaviour-change phase.
 - **All state in components** (E-11): `components.py` holds `PathAgent`
   (navigation + the block-and-attack decision) and `EnemyCombat` (attack stats +
   the attack-a-blocking-building clock); engine

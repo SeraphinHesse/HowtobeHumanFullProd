@@ -115,16 +115,23 @@ class TestThresholdDeath(unittest.TestCase):
             spawns=[{"raiders": 0, "regular": 4, "siege": 0}])
 
     def test_alive_boundary_is_at_or_below_the_threshold(self):
+        """The boundary is `<=`: hp EXACTLY at the threshold is DEAD, one point
+        above it is alive. max_hp is forced even so the 0.5 threshold is an
+        integer and equality is genuinely exercised (the stock Standard's 55
+        gives 27.5, which an int hp can never hit)."""
         balance = self._balance()
         tm = synth(["bs"])
         enemy = create_enemy("standard", 1, 0, balance, tm)
         health = enemy.get_component(Health)
-        threshold = health.max_hp * 0.5
+        health.max_hp = 60
+        threshold = 30                      # 60 * at_hp_fraction 0.5, exactly
 
-        health.hp = int(threshold) + 1
+        health.hp = threshold + 1
         self.assertTrue(enemy.alive)
-        health.hp = int(threshold)
-        self.assertFalse(enemy.alive)      # `<=` — hp > threshold is alive
+        health.hp = threshold               # EXACT equality -> dead
+        self.assertFalse(enemy.alive)
+        health.hp = threshold - 1
+        self.assertFalse(enemy.alive)
 
     def test_breaks_once_into_four_children_at_80_percent_hp(self):
         balance = self._balance()

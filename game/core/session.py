@@ -293,8 +293,13 @@ class Session:
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return
         # -- ER-3: flush every death-spawn burst BEFORE the wave-clear check, so
-        # the round can never end in the gap between a unit's death and its
-        # children hitting the field. Enemy construction stays in the Spawner.
+        # the burst is submitted to the Spawner while the round is still live.
+        # KNOWN LIMITATION: `Scene.spawn` only QUEUES, and `by_tag` reads
+        # `_objects`, so the wave-clear check below CANNOT see children burst on
+        # this frame — a death on the final frame of a wave ends the round and
+        # the children materialise on the next `scene.update`. Pre-existing (10G
+        # behaves identically); rare for the Boss, common once ER-4's Formations
+        # land. Enemy construction stays in the Spawner.
         if self._death_spawns_pending:
             pending = self._death_spawns_pending
             self._death_spawns_pending = []
