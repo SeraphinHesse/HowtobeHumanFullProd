@@ -102,7 +102,7 @@ class Enemy(GameObject):
             block = block[seg]
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(),
+            PathAgent(footprint=int(block["footprint"])),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
@@ -136,11 +136,14 @@ class Enemy(GameObject):
     # -- lifecycle ---------------------------------------------------------
 
     def on_spawn(self):
-        """Request a path to the base and load it as tile-coord waypoints."""
-        path = find_path(self._tilemap, self._col, self._row)
+        """Request a path to the base and load it as tile-coord waypoints. The
+        footprint is read back off the component (E-11: state lives in
+        components, never a stashed ``self._footprint``)."""
+        fp = self.get_component(PathAgent).footprint
+        path = find_path(self._tilemap, self._col, self._row, footprint=fp)
         if not path:
             path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row)
+                self._tilemap, self._col, self._row, footprint=fp)
         mv = self.get_component(Movement)
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0

@@ -158,7 +158,7 @@ class ProjectileArc(Component):
         for enemy in scene.by_tag("enemy"):
             if not getattr(enemy, "alive", False):
                 continue
-            ex, ey = enemy.transform.world_pos
+            ex, ey = _enemy_center_world(enemy)   # the body's centre (ER-2)
             if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
                 enemy.get_component(Health).damage(self.dmg)
                 if rs is not None:
@@ -228,19 +228,48 @@ class Crater(GameObject):
 
 # -- targeting helpers ----------------------------------------------------
 
+def _enemy_footprint(enemy):
+    """The enemy's footprint, guard-safe for the bare-bones stub enemies the
+    combat tests build (no PathAgent -> 1)."""
+    get = getattr(enemy, "get_component", None)
+    pa = get(PathAgent) if get is not None else None
+    return getattr(pa, "footprint", 1) or 1
+
+
+def _fp_offset(enemy):
+    """(N-1)/2 — the anchor->block-centre offset on each axis. N=1 -> 0.0."""
+    return (_enemy_footprint(enemy) - 1) / 2.0
+
+
 def _enemy_tile(enemy):
+    """The enemy's ANCHOR tile (the block's min corner)."""
     wx, wy = enemy.transform.world_pos
     return (round(wx), round(wy))
 
 
+def _enemy_center_world(enemy):
+    """The block centre in world coords (un-rounded). N=1 -> world_pos."""
+    wx, wy = enemy.transform.world_pos
+    off = _fp_offset(enemy)
+    return (wx + off, wy + off)
+
+
 def _chebyshev(center_tile, enemy):
+    """Defender tile -> the enemy's FOOTPRINT CENTRE (ER-2), so a 2×2 is not
+    engaged from an unfair corner. The ``round()`` of the anchor is KEPT —
+    dropping it would change the in-range set for existing 1×1 enemies
+    mid-tile. N=1: the anchor IS the centre and the value is numerically
+    identical to today's int Chebyshev."""
     ec, er = _enemy_tile(enemy)
-    return max(abs(ec - center_tile[0]), abs(er - center_tile[1]))
+    off = _fp_offset(enemy)
+    return max(abs(ec + off - center_tile[0]), abs(er + off - center_tile[1]))
 
 
-def _euclid_sq(a, b):
-    ax, ay = a.transform.world_pos
-    bx, by = b.transform.world_pos
+def _euclid_sq_to_enemy(defender, enemy):
+    """Squared world distance from the defender to the enemy's block centre —
+    the acquisition tiebreak. N=1 -> today's world_pos-to-world_pos value."""
+    ax, ay = defender.transform.world_pos
+    bx, by = _enemy_center_world(enemy)
     return (ax - bx) ** 2 + (ay - by) ** 2
 
 
@@ -257,12 +286,19 @@ def _predict_lead(target, travel_time):
     would reach/pass that waypoint within the flight time, aim exactly at the
     waypoint (clamp, no overshoot); with no next waypoint, aim at its current
     position. Predictive targeting is always on (prototype
-    ``MORTAR_PREDICTIVE_TARGETING = True``)."""
-    px, py = target.transform.world_pos
+    ``MORTAR_PREDICTIVE_TARGETING = True``).
+
+    ER-2: both the position and the read waypoint are the enemy's block CENTRE
+    (anchor + ``off``), so the shell lands on the body the splash test measures
+    from — leaving the lead on the anchor would bias every shell half a tile off
+    a formation. N=1 -> ``off = 0`` -> unchanged."""
+    off = _fp_offset(target)
+    px, py = _enemy_center_world(target)
     mv = target.get_component(Movement)
     if mv is None or not mv.waypoints or mv.index >= len(mv.waypoints):
         return px, py
     wx, wy = mv.waypoints[mv.index]
+    wx, wy = wx + off, wy + off
     dx, dy = wx - px, wy - py
     dist = math.hypot(dx, dy)
     if dist < 1e-9:
@@ -327,7 +363,7 @@ def _update_defender(defender, scene, enemies, dt, min_atk, proj_speed,
     if target is not None and target not in in_range:
         target = None
     if target is None and in_range:
-        target = min(in_range, key=lambda e: _euclid_sq(defender, e))
+        target = min(in_range, key=lambda e: _euclid_sq_to_enemy(defender, e))
     attacker._target = target
     attacker.has_target = target is not None
     # Play the attack animation while engaging a target (e.g. the stone

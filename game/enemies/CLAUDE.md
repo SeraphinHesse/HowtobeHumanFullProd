@@ -66,6 +66,43 @@ skill.**
   when the blocker dies (the route already runs through that now-passable tile). It
   caches the map as `PathAgent._tilemap` — a deliberate environment-reference
   transient, exactly like `Movement._owner`.
+- **`PathAgent.footprint` (ER-2)** — an `int` field fed from
+  `EnemyTypes.<type>.footprint` (G-7; `Enemy.__init__` reads it off the resolved
+  `STAT_SUBTREE` block, no code-side default). The unit occupies an N×N block
+  whose **anchor is the MIN corner** (the body extends right and down); the whole
+  rule set + the helper functions live in `game/map/CLAUDE.md` / `pathfinder.py`
+  and are imported, never re-derived. Consequences in this package:
+  - `Enemy.on_spawn` threads the footprint into `find_path` /
+    `find_path_ignoring_walls`; `_repath` threads it into
+    `find_path_to_nearest_building` and re-derives `goal_is_base` with
+    `block_covers` (the block COVERS the base — it need not anchor on it).
+  - **The blocker scan is block-wide** (`_blocker_ahead`): the first live,
+    non-base occupant anywhere in the DESTINATION block stops the unit, scanned
+    row-major. The base exemption is per **tile** of the block, so a body that
+    covers the hole attacks the other occupant in it, never the BaseBuilding.
+  - **The wall scan is face + internal** (`_wall_edge_ahead`): the whole leading
+    face first, then the destination block's internal edges; it returns the FIRST
+    live edge, so a 2×2 chews through a face one segment at a time.
+  - The **spawner filters spawn tiles by clearance** (`_pick_spawn_tile` — the
+    ONE choke point all seven composition sites now route through): a footprint-N
+    enemy only spawns where its whole N×N block is spawn zone, cached once per
+    round per footprint (`_clear_cache`, reset in `begin_round`). No qualifying
+    tile → **unfiltered fallback**, so an enemy is never dropped from a wave. The
+    filter consumes **zero rng**, and `footprint == 1` takes the byte-identical
+    single `rng.choice(spawn_tiles)` draw — which is what keeps the deterministic
+    composition fixtures green.
+  - The **combat sweep measures from the footprint CENTRE**
+    (`anchor + (N−1)/2`): Chebyshev range, Euclidean acquisition, mortar splash
+    and predictive lead all use `_enemy_center_world` / `_fp_offset`, so a 2×2 is
+    not engaged from an unfair corner and shells are not biased half a tile off
+    it. N=1 → offset 0 → numerically identical to before.
+  - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
+    property only — enemies do not block each other, and two footprint-2 units
+    may overlap. That is intended.
+  - **Known cosmetic gap (open for ER-4/ER-5)**: ER-1 draws the sprite centred on
+    the *anchor tile's* diamond, scaled to `N × tile_w`, so for an even N the
+    logical block sits half a tile down-right of where the sprite's centre lands.
+    Fixable only in the render layer.
 - **Wall-attack is the SAME block-and-attack model (10E, LIVE)**: a live wall on the
   edge being crossed (`get_wall_between(prev_waypoint, next_waypoint)`, checked once
   `index ≥ 1`) blocks FIRST (it sits before the next tile) — `PathAgent` halts and
@@ -198,7 +235,11 @@ skill.**
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)
 now walk the shared base flow field — a wave of hundreds of spawns pays ONE
 Dijkstra per map-topology change, not one each, and `spawn_death_swarm`'s
-burst rides it for free. `Boss.on_spawn`'s `find_path_to_nearest_building`
+burst rides it for free. Since ER-2 the field caches on
+**`(ignore_walls, footprint)`**, so the invariant is one Dijkstra per topology
+change **per footprint** — still NEVER one per enemy. Passing a footprint into
+`find_path` must therefore stay a plain argument; do not add a per-enemy search.
+`Boss.on_spawn`'s `find_path_to_nearest_building`
 stays a fresh Dijkstra (~one per wave). Nothing in this package invalidates
 the field directly — all mutations route through `TileMap`. Detail →
 `game/PERF.md`.
