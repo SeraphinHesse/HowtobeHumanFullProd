@@ -85,10 +85,11 @@ class Enemy(GameObject):
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
     STAT_SUBTREE = ("Standard",)  # under EnemyTypes; scaled by scale_tiers
     EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
-    # Overhead HP bar, read by game/ui/effects.py. Sizes are base-zoom px and
-    # prototype-exact; LIFT is how far above the tile centre the bar floats and
-    # must clear THIS type's sprite (`enemy.py:444` — `by = cy - 26`).
-    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 14, 2, 26
+    # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
+    # prototype-exact. PAD is only the GAP above the sprite's head — how high
+    # the bar actually floats is measured off the sprite as the renderer draws
+    # it (footprint-fitted since ER-1), never off the sheet's raw pixels.
+    HP_BAR_W, HP_BAR_H, HP_BAR_PAD = 14, 2, 4
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):
@@ -96,6 +97,9 @@ class Enemy(GameObject):
             enemies_balance, tier)
         slot = variant_slot(registry, self.REGISTRY_GROUP, tier, rng,
                             self.DEFAULT_SLOT)
+        block = enemies_balance["EnemyTypes"]
+        for seg in self.STAT_SUBTREE:
+            block = block[seg]
         components = [
             Health(max_hp=hp, hp=hp),
             PathAgent(),
@@ -103,7 +107,9 @@ class Enemy(GameObject):
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
             SpriteAnimator(slot_key=slot, animation="walk",
-                           phase_ms=(col * 137 + row * 251) % 2000),
+                           phase_ms=(col * 137 + row * 251) % 2000,
+                           fit_tiles=float(block["footprint"]),
+                           scale=float(block["sprite_scale"])),
         ]
         super().__init__(
             name=self.ETYPE,
@@ -155,6 +161,7 @@ class Raider(Enemy):
     ETYPE = "raider"
     REGISTRY_GROUP = "Raider"
     DEFAULT_SLOT = "raider_stage_1"
+    STAT_SUBTREE = ("Raider",)
 
     def _resolve_stats(self, balance, tier):
         # Raiders do NOT take the scale-tier bonuses (prototype raider.py).
@@ -167,7 +174,8 @@ class SiegeCannon(Enemy):
     ETYPE = "siege"
     REGISTRY_GROUP = "Siege Cannon"
     DEFAULT_SLOT = "siege_cannon"
-    HP_BAR_W, HP_BAR_LIFT = 24, 28   # prototype siege_cannon.py:145-152
+    STAT_SUBTREE = ("SiegeCannon",)
+    HP_BAR_W = 24                    # prototype siege_cannon.py:145-152
 
     def _resolve_stats(self, balance, tier):
         # Siege scales with the tiers exactly like Standard (prototype
@@ -190,10 +198,9 @@ class Boss(Enemy):
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
     DEFAULT_SLOT = "boss_era_0"
+    STAT_SUBTREE = ("Boss",)
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
-    # prototype boss.py:136-143 — the max(48, …) width floor, and a lift of
-    # `sprite_h - 8` (the boss sheet is 72x56, so 48) to clear the big sprite.
-    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 48, 4, 48
+    HP_BAR_W, HP_BAR_H = 48, 4   # prototype boss.py:136-143 max(48, …) floor
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):

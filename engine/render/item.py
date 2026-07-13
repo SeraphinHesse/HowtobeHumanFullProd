@@ -19,6 +19,8 @@ class RenderItem:
     anim_time_ms: int = 0
     tint: tuple = None
     flip: bool = False
+    fit_tiles: float = 0.0   # 0 = no fit: draw at the raw frame size
+    scale: float = 1.0       # extra multiplier applied after the fit
 
 
 @dataclass(frozen=True)

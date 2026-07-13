@@ -29,9 +29,23 @@ crashes boot.** When you change asset conventions, update THIS doc.
   warn + skip that entry. `load_registry` fails LOUD (the registry is
   infrastructure, like geometry.json). `tools/smoke.py` still fails loud on an
   invalid COMMITTED manifest — separate concern.
+- **Per-slot frame size (ER-1, D1)**: a `data/slots.json` group's `slots[]` entry
+  is EITHER a bare key string (inherits the category's `frame_w`/`frame_h`) or an
+  object `{key, frame_w, frame_h}` that overrides it. `SlotRegistry.frame_size`
+  returns the override when present, else the category size. **Slicing is not
+  drawing**: this says how the SHEET is cut into frames — how big the thing draws
+  is the renderer's `fit_tiles`/`scale` (see `engine/render/CLAUDE.md`).
+  - The object form is **normalised away at parse time**: `GroupNode.slots` stays
+    a tuple of key STRINGS everywhere downstream (editor tree, palette, the game's
+    variant roll). It must never leak.
+  - **Fail-loud cross-check** the schema cannot express (`uniqueItems` compares
+    whole values, so a bare `"foo"` and a `{"key": "foo", …}` are two distinct
+    items): a key repeated across groups of one category must AGREE on its frame
+    size — two different overrides, or once bare and once overridden, raises
+    `ValueError` at load (same pattern as the "slot in two categories" check).
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
-  sprites_dir)`; frame-size precedence manifest entry > registry > frame_sizes >
-  default. Sheets load via `pygame.image.load` with NO
+  sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
+  override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO
   `convert()`/`convert_alpha()` (they need a display; the editor runs SDL dummy).
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the

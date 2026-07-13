@@ -66,10 +66,35 @@ class TestImportIdleSheet(AssetImportCase):
             self.data_dir, self.registry, "tile_forest", src)
         self.assertEqual((cols, rows), (1, 1))
 
-    def test_image_smaller_than_one_frame_raises(self):
-        src = make_png(self.png_dir / "tiny.png", 4, 4)
-        with self.assertRaises(ValueError):
-            import_idle_sheet(self.data_dir, self.registry, "tile_ocean", src)
+    def test_sub_frame_art_is_padded_and_centred_not_rejected(self):
+        """ED-40 (ER-1): undersized art imports — padded onto a transparent
+        frame-sized canvas, centred, never upscaled."""
+        src = make_png(self.png_dir / "tiny.png", 16, 16)
+        cols, rows = import_idle_sheet(
+            self.data_dir, self.registry, "enemy_stage_1_v1", src)
+        self.assertEqual((cols, rows), (1, 1))
+        copied = self.data_dir / "sprites" / "imported" / "enemy_stage_1_v1.png"
+        with Image.open(copied) as image:
+            self.assertEqual(image.size, (64, 96))       # one whole frame
+            self.assertEqual(image.getbbox(), (24, 40, 40, 56))  # centred 16x16
+
+    def test_padding_is_per_axis(self):
+        """A wide short strip pads only vertically and keeps its columns."""
+        src = make_png(self.png_dir / "strip.png", 128, 16)
+        cols, rows = import_idle_sheet(
+            self.data_dir, self.registry, "enemy_stage_1_v1", src)
+        self.assertEqual((cols, rows), (2, 1))
+        copied = self.data_dir / "sprites" / "imported" / "enemy_stage_1_v1.png"
+        with Image.open(copied) as image:
+            self.assertEqual(image.size, (128, 96))
+
+    def test_big_enough_sheet_is_copied_byte_identically(self):
+        """The shutil.copyfile path stays untouched — migrate_prototype_assets
+        is idempotent only because an already-big-enough sheet is not re-encoded."""
+        src = make_png(self.png_dir / "tile.png", 64, 32)
+        import_idle_sheet(self.data_dir, self.registry, "tile_ocean", src)
+        copied = self.data_dir / "sprites" / "imported" / "tile_ocean.png"
+        self.assertEqual(copied.read_bytes(), src.read_bytes())
 
     def test_reimport_overwrites_existing_entry(self):
         src = make_png(self.png_dir / "a.png", 64, 32)

@@ -50,7 +50,12 @@ skill.**
   `@property`s.
 - **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
   (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
-  the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Read
+  the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Its
+  HEIGHT above the enemy is **not** a class attr: `HP_BAR_PAD` (4px, base class
+  only) is just the gap above the sprite's head, and the head is found from the
+  sprite as actually DRAWN — since ER-1 that is the footprint fit, not the sheet
+  size, so a lift baked in sheet pixels would float (see `game/ui/CLAUDE.md`).
+  Read
   duck-typed by `game/ui/effects.py submit_enemy_hp_bars`, which draws the bar
   for EVERY enemy below full HP (boss included) — this package needs no other
   change for it. A new enemy type just declares its own width.

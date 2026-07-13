@@ -7,6 +7,7 @@ re-loaded to prove the write validates and the game-side variant pool grows.
 import unittest
 
 from editor import registry_ops
+from engine import data_io
 from engine.assets import load_registry
 from game.enemies.enemy import variant_slot
 from tools.tests.test_editor_panels import TempDataCase
@@ -83,6 +84,31 @@ class TestAddVariant(TempDataCase):
         with self.assertRaises(KeyError):
             registry_ops.add_variant(
                 self.data_dir, "enemies", ("Walker",), "Era 9")
+
+    def test_object_form_entries_do_not_break_the_variant_walk(self):
+        """D1 lets a slots[] entry be {key, frame_w, frame_h}. registry_ops
+        must read the KEY out of it (a dict in a set / through the stem regex
+        would crash) and keep appending a plain string."""
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        enemies = next(c for c in doc["categories"] if c["key"] == "enemies")
+        walker = next(g for g in enemies["groups"] if g["label"] == "Walker")
+        era2 = next(c for c in walker["children"] if c["label"] == "Era 2")
+        era2["slots"] = [{"key": "enemy_stage_2", "frame_w": 128,
+                          "frame_h": 128}]
+        data_io.write_validated(
+            doc, self.data_dir / "slots.json",
+            self.data_dir / "schemas" / "slots.schema.json")
+
+        new_key = registry_ops.add_variant(
+            self.data_dir, "enemies", ("Walker",), "Era 2")
+        self.assertEqual(new_key, "enemy_stage_2_v2")
+
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.group_slots("enemies", ("Walker", "Era 2")),
+                         ("enemy_stage_2", "enemy_stage_2_v2"))
+        # the override survives the write; the appended variant inherits
+        self.assertEqual(reg.frame_size("enemy_stage_2"), (128, 128))
+        self.assertEqual(reg.frame_size("enemy_stage_2_v2"), (64, 96))
 
 
 if __name__ == "__main__":

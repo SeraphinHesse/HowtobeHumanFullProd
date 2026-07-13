@@ -77,12 +77,31 @@ class TestImportSheet(DetailsCase):
         self.assertIn("cropped", self.panel._info.text())
         self.assertEqual(len(self.panel._row_editors), 1)
 
-    def test_too_small_sheet_rejected(self):
-        src = make_png(self.png_dir / "art.png", 10, 10)
+    def test_sub_frame_sheet_is_padded_and_centred(self):
+        """ED-40 (ER-1): undersized art imports padded + centred instead of
+        being rejected — a (cols, rows, clean) tuple, and no warning."""
+        src = make_png(self.png_dir / "art.png", 16, 16)
         self.panel.set_slot("painter_t1_lvl1")
-        self.assertIsNone(self.panel.import_sheet(src))
+        self.assertEqual(self.panel.import_sheet(src), (1, 1, True))
         copied = self.data_dir / "sprites" / "imported" / "painter_t1_lvl1.png"
-        self.assertFalse(copied.exists())
+        self.assertTrue(copied.exists())
+        with Image.open(copied) as image:
+            self.assertEqual(image.size, (64, 96))
+            self.assertEqual(image.getbbox(), (24, 40, 40, 56))
+        self.assertNotIn("⚠", self.panel._info.text())
+        self.assertIn("padded", self.panel._info.text())
+        self.assertEqual(len(self.panel._row_editors), 1)
+
+    def test_padded_off_grid_sheet_keeps_the_cropped_warning(self):
+        """Padding vertically doesn't make the sheet a clean grid — a 100px-wide
+        strip in a 64x96 frame still crops 36px, and the designer must be told."""
+        src = make_png(self.png_dir / "art.png", 100, 16)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.assertEqual(self.panel.import_sheet(src), (1, 1, False))
+        info = self.panel._info.text()
+        self.assertIn("⚠", info)         # the remainder-cropped warning survives
+        self.assertIn("cropped", info)
+        self.assertIn("padded", info)    # ...alongside the padding note
 
     def test_tiles_slot_uses_its_category_frame_size(self):
         """ED-41: same panel drives every category at its own frame size."""
