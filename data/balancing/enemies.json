@@ -170,7 +170,7 @@
       "footprint": 2,
       "hp": 440,
       "move_speed": 0.9,
-      "rounds_per_formation": 3,
+      "rounds_per_formation": 1,
       "sprite_scale": 1.0,
       "start_round": 16
     },

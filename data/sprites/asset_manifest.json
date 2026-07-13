@@ -713,8 +713,8 @@
       "sheet": "imported/boss_era_4.png"
     },
     "enemy_stage_1_v1": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -731,8 +731,8 @@
       "sheet": "imported/enemy_stage_1_v1.png"
     },
     "enemy_stage_1_v2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -749,8 +749,8 @@
       "sheet": "imported/enemy_stage_1_v2.png"
     },
     "enemy_stage_2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -767,8 +767,8 @@
       "sheet": "imported/enemy_stage_2.png"
     },
     "enemy_stage_3": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -785,8 +785,8 @@
       "sheet": "imported/enemy_stage_3.png"
     },
     "enemy_stage_4_v1": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -803,8 +803,8 @@
       "sheet": "imported/enemy_stage_4_v1.png"
     },
     "enemy_stage_4_v2": {
-      "frame_h": 26,
-      "frame_w": 22,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
