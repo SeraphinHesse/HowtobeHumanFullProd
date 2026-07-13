@@ -85,6 +85,10 @@ class Enemy(GameObject):
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
     STAT_SUBTREE = ("Standard",)  # under EnemyTypes; scaled by scale_tiers
     EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
+    # Overhead HP bar, read by game/ui/effects.py. Sizes are base-zoom px and
+    # prototype-exact; LIFT is how far above the tile centre the bar floats and
+    # must clear THIS type's sprite (`enemy.py:444` — `by = cy - 26`).
+    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 14, 2, 26
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):
@@ -163,6 +167,7 @@ class SiegeCannon(Enemy):
     ETYPE = "siege"
     REGISTRY_GROUP = "Siege Cannon"
     DEFAULT_SLOT = "siege_cannon"
+    HP_BAR_W, HP_BAR_LIFT = 24, 28   # prototype siege_cannon.py:145-152
 
     def _resolve_stats(self, balance, tier):
         # Siege scales with the tiers exactly like Standard (prototype
@@ -186,6 +191,9 @@ class Boss(Enemy):
     REGISTRY_GROUP = "Boss"
     DEFAULT_SLOT = "boss_era_0"
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
+    # prototype boss.py:136-143 — the max(48, …) width floor, and a lift of
+    # `sprite_h - 8` (the boss sheet is 72x56, so 48) to clear the big sprite.
+    HP_BAR_W, HP_BAR_H, HP_BAR_LIFT = 48, 4, 48
 
     def __init__(self, col, row, enemies_balance, tilemap, tier=0,
                  registry=None, rng=None):

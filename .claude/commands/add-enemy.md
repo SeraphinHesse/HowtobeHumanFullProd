@@ -17,7 +17,9 @@ it.
 
 ## Steps
 1. **Subclass** `Enemy(GameObject)` — keep it thin: `ETYPE`, `REGISTRY_GROUP`
-   (`"Walker"`/`"Raider"`/`"Siege Cannon"`/`"Boss"`), `DEFAULT_SLOT`, component
+   (`"Walker"`/`"Raider"`/`"Siege Cannon"`/`"Boss"`), `DEFAULT_SLOT`,
+   `HP_BAR_W`/`HP_BAR_H` (overhead HP-bar px — override only if the sprite is
+   bigger than a walker's; the base 14×2 is the default), component
    wiring (`PathAgent` + `EnemyCombat` + engine `Health`/`Movement`/`SpriteAnimator`/
    `RangeSensor`). **All state in components**; the duck-typed `alive`/`dmg` are
    guard-safe `@property`s. `PathAgent` runs BEFORE `Movement` in the component list.

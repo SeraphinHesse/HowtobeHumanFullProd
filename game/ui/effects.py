@@ -1,13 +1,14 @@
-"""World-anchored UI: income/upkeep floaters + building HP bars (Phase 9G) +
-the 10J FX sweep (spark bursts, gold tile highlights, building death bursts,
-muzzle/slash attack FX, blood splatters).
+"""World-anchored UI: income/upkeep floaters + building & enemy HP bars (Phase
+9G) + the 10J FX sweep (spark bursts, gold tile highlights, building death
+bursts, muzzle/slash attack FX, blood splatters).
 
 Pure logic. World-anchored elements compute their screen position through the
 coords authority (``cs.world_to_screen``) — so they track the camera — and are
 emitted as screen-space HUD primitives (always drawn on top; non-sprite HP bars
 are not depth-sorted against buildings, an accepted "HUD on top" simplification
 that only shows when a building is damaged). Ports the prototype's
-``IncomeFloater`` / ``Building._draw_hp_bar`` / ``src/effects.py`` VFX set.
+``IncomeFloater`` / ``Building._draw_hp_bar`` / ``Enemy._draw_hp_bar`` /
+``src/effects.py`` VFX set.
 
 10J particles simulate in BASE-ZOOM screen pixels relative to their anchor's
 world point (offsets scale with ``cs.camera.zoom`` at draw), which keeps the
@@ -50,8 +51,12 @@ _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
 _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
-_BOSS_OVERHEAD_W, _BOSS_OVERHEAD_H = 48, 4   # prototype minimum width; frame-
-                                             # derived widths are 10J polish
+# Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`; its
+# width/height/lift are the `HP_BAR_W`/`HP_BAR_H`/`HP_BAR_LIFT` class attrs on
+# the enemy classes (base-zoom px), because each has to clear a different-sized
+# sprite — the walker sheet is 22x26, the boss's 72x56.
+_ENEMY_BAR_STACK = 4       # px between stacked bars (prototype `bar_slot * 4`)
+_ENEMY_BAR_FALLBACK = (14, 2, 26)   # a stub enemy with no HP_BAR_* attrs
 # -- 10H: lightning + cheat menu --
 # Bolt colour ramp (white -> yellow over BOLT_LIFE) + the ground-marker yellow
 # (prototype effects.py:222-289 fill (255,240,120)). 8-segment polyline, ±6 px
@@ -179,7 +184,7 @@ class _Slash:
 
 
 class FloaterManager:
-    """Income/upkeep floaters spawned at payday + per-building HP bars.
+    """Income/upkeep floaters spawned at payday + per-building/per-enemy HP bars.
 
     ``spawn_income_events`` is called once when the phase enters INCOME; it reads
     ``state.income_events`` (filled by ``run_payday``) so it never re-derives the
@@ -582,6 +587,52 @@ class FloaterManager:
             submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                        bg=C_HP_RED, fill=C_HP_GREEN, border=(0, 0, 0))
 
+    def submit_enemy_hp_bars(self, renderer, cs, scene):
+        """A red/green bar over every live enemy below full HP — the boss
+        included (its ``"enemy"`` tag comes free with ``Enemy.EXTRA_TAGS``, and
+        its ``HP_BAR_W/H`` make it the wide 48x4 bar it has always had).
+
+        Enemies bunch up hard at a choke point, so bars from enemies sharing a
+        tile STACK upward instead of smearing over each other (prototype
+        ``game.py:1901-1922`` groups by nearest tile and hands each enemy a
+        ``bar_slot``). Grouping is a plain ``round()`` here — the prototype
+        divided pixel coords by the tile half-dims; ``transform.wx/wy`` are
+        already fractional TILE coords.
+
+        Divergence: the prototype gave a slot to EVERY enemy in a group,
+        full-HP ones included (leaving gaps in the stack), because that index
+        also drove its sprite-spread ellipse. We do not port the spread, so
+        slots are handed out COMPACTLY — only a bar-drawing enemy takes one.
+        """
+        groups = {}
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            key = (round(e.transform.wx), round(e.transform.wy))
+            groups.setdefault(key, []).append(e)
+
+        zoom = cs.camera.zoom
+        for group in groups.values():
+            slot = 0
+            for e in group:
+                health = e.get_component(Health)
+                if health is None or health.hp >= health.max_hp:
+                    continue
+                w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
+                h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+                # The sprite grows with the camera, so the lift must too — but
+                # the bar itself stays a fixed screen size (every other bar in
+                # this file does).
+                lift = int(getattr(e, "HP_BAR_LIFT",
+                                   _ENEMY_BAR_FALLBACK[2]) * zoom)
+                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                            e.transform.wy + 0.5)
+                x = int(cx - w / 2)
+                y = int(cy) - lift - slot * _ENEMY_BAR_STACK
+                submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
+                           bg=C_HP_RED, fill=C_HP_GREEN)
+                slot += 1
+
     # -- 10G boss: announcement + boss HP bars ------------------------------
 
     def spawn_boss_events(self, state):
@@ -622,14 +673,13 @@ class FloaterManager:
                         "xl", color)
 
     def submit_boss_bars(self, renderer, cs, scene, phase, view_w, view_h):
-        """Two bars while a live boss walks (prototype ``hud.py:356-368`` +
-        ``boss.py:136-143``), found via the ``"boss"`` scene tag (no host ref):
-
-        * HUD bar — bottom-centre 200x12 at ``view_h - 55``, red under-bar +
-          green fill + 1px border, red "BOSS" label left, ``hp/max`` right.
-          ENEMY phase only; vanishes the moment the boss dies.
-        * Overhead bar — 48x4 above the boss sprite, only when ``hp < max_hp``
-          (the building-bar rule)."""
+        """The bottom-centre boss HUD bar while a live boss walks (prototype
+        ``hud.py:356-368``), found via the ``"boss"`` scene tag (no host ref):
+        200x12 at ``view_h - 55``, red under-bar + green fill + 1px border, red
+        "BOSS" label left, ``hp/max`` right. ENEMY phase only; vanishes the
+        moment the boss dies. The boss's OVERHEAD bar is not drawn here — it
+        comes from ``submit_enemy_hp_bars`` with every other enemy's, so the two
+        can never double up and it stacks against a death swarm."""
         if phase != GamePhase.ENEMY:
             return
         boss = next((b for b in scene.by_tag("boss")
@@ -647,10 +697,3 @@ class FloaterManager:
                     align="right")
         submit_text(renderer, f"{health.hp}/{health.max_hp}",
                     (x + w + 10, y - 2), "md", C_UI_TEXT)
-        if health.hp < health.max_hp:
-            bx, by = cs.world_to_screen(boss.transform.wx + 0.5,
-                                        boss.transform.wy + 0.5)
-            lift = int(cs.geometry.tile_h * cs.camera.zoom * 1.5)
-            submit_bar(renderer, int(bx) - _BOSS_OVERHEAD_W // 2,
-                       int(by) - lift, _BOSS_OVERHEAD_W, _BOSS_OVERHEAD_H,
-                       ratio, bg=C_HP_RED, fill=C_HP_GREEN)

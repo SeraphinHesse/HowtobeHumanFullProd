@@ -1990,7 +1990,7 @@
       ],
       "sheet": "imported/sun_scorcher_t1_lvl3.png"
     },
-    "tile_background_3": {
+    "tile_background_1": {
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -2015,7 +2015,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_background_3.png"
+      "sheet": "imported/tile_background_1.png"
     },
     "tile_buildable": {
       "frame_h": 32,
