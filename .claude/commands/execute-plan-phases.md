@@ -27,7 +27,12 @@ isolation comes from git worktrees under one umbrella branch.
    non-overlapping insertion blocks, then commits all briefs to the umbrella.
 3. **Wave 2 — CODERS** (one per phase, parallel, `isolation: "worktree"`, branch
    `phase-<id>-<slug>` off the umbrella). The brief is the contract; §3 is a hard
-   file boundary. Each runs the exit gate (`py tools/smoke.py` + suite vs
+   file boundary. **If the phase adds a building / enemy / balancing tunable /
+   engine component / editor feature / asset-import category, the coder MUST
+   invoke the matching `/add-*` skill (`/add-building`, `/add-enemy`,
+   `/add-balancing-value`, `/add-engine-component`, `/add-editor-feature`,
+   `/add-asset-importer`) instead of hand-rolling the edits** — the skill is the
+   canonical pattern. Each runs the exit gate (`py tools/smoke.py` + suite vs
    baseline) and commits. Coders never push or open PRs.
 4. **Wave 3 — REVIEWERS** (one per phase, parallel). Review the diff against the
    brief (behavior + cited numbers), repo conventions, test quality, scope

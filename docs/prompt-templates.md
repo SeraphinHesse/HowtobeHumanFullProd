@@ -4,6 +4,10 @@ Reusable task openers for Claude Code sessions on this repo. They point the agen
 at the ONE subsystem doc to read and the skill to invoke, so a session doesn't
 re-read the whole codebase. Copy a block, fill the `[brackets]`, delete the rest.
 
+**Where a block names a `/add-*` skill, that skill is the source of truth for the
+steps and the acceptance gate — the block only adds routing hints (which doc to
+read, task-specific caveats). Invoke the skill; don't hand-roll from the block.**
+
 The routing chain is always: **root `CLAUDE.md` → the package router → the ONE
 subsystem doc → a few source files → narrow edit → narrow verify.** Sub-docs
 (`<package>/<subfolder>/CLAUDE.md`) auto-load when the matching files are edited.
@@ -16,13 +20,9 @@ subsystem doc → a few source files → narrow edit → narrow verify.** Sub-do
 Add a new building: [name] ([defence/economy/boost/structure]).
 Behavior: [what it does].
 
-Use the /add-building skill. Read game/buildings/CLAUDE.md first; don't scan
-enemies/ui/asset folders unless the building touches them.
-
-Acceptance:
-- leaf class ≤ ~30 lines (parents compute derived stats), research row added,
-  buildings.json + schema mirror + slots.json group in place
-- headless tier-max test green, py tools/smoke.py OK, live: build + upgrade works
+Use the /add-building skill (it owns the steps + acceptance gate). Read
+game/buildings/CLAUDE.md first; don't scan enemies/ui/asset folders unless the
+building touches them.
 ```
 
 ## Add an enemy
@@ -30,12 +30,9 @@ Acceptance:
 ```txt
 Add a new enemy: [name]. Behavior: [movement/targeting].
 
-Use the /add-enemy skill. Read game/enemies/CLAUDE.md first. If it's a high-count
-swarm, also read game/PERF.md (per-spawn pathfinding).
-
-Acceptance:
-- thin subclass, spawner branch enabled, scale-tier stats resolved at spawn,
-  slots added; scripted-round HP ledger matches the prototype; smoke OK
+Use the /add-enemy skill (it owns the steps + acceptance gate). Read
+game/enemies/CLAUDE.md first. If it's a high-count swarm, also read game/PERF.md
+(per-spawn pathfinding).
 ```
 
 ## Add / change a balancing value
@@ -43,11 +40,9 @@ Acceptance:
 ```txt
 Add a tunable: [domain] — [value].
 
-Use the /add-balancing-value skill. Touch only data/balancing/[domain].json +
-data/schemas/[domain].schema.json; the editor form renders it for free.
-
-Acceptance: schema-valid (py tools/smoke.py), respects the domain _lock, ×10 scale
-where applicable.
+Use the /add-balancing-value skill (it owns the steps + acceptance gate). Touch
+only data/balancing/[domain].json + data/schemas/[domain].schema.json; the editor
+form renders it for free.
 ```
 
 ## Port a prototype domain/feature (phase 9x/10x)
@@ -83,12 +78,8 @@ of payday / no bypass of TileMap.set_tile_state.
 ```txt
 Add editor feature: [feature].
 
-Use the /add-editor-feature skill. Read editor/CLAUDE.md + editor/panels/CLAUDE.md.
-Hang it off the single selection, one render path (ED-22), writes via
-write_validated, add the module to test_editor_viewport.TestPurity.
-
-Acceptance: py editor/main.py exercise (or QT_QPA_PLATFORM=offscreen), JSON
-validates, a Play subprocess loads it.
+Use the /add-editor-feature skill (it owns the steps + acceptance gate). Read
+editor/CLAUDE.md + editor/panels/CLAUDE.md first.
 ```
 
 ## Add an engine component
@@ -96,11 +87,8 @@ validates, a Play subprocess loads it.
 ```txt
 Add engine component: [name] holding [state].
 
-Use the /add-engine-component skill. Read engine/core/CLAUDE.md. Declared JSON-safe
-fields only, on_added owner seam, keep the module pure (no pygame), add to
-TestPurity.
-
-Acceptance: serialization round-trip + behavior test green.
+Use the /add-engine-component skill (it owns the steps + acceptance gate). Read
+engine/core/CLAUDE.md first.
 ```
 
 ## Switch the active plan

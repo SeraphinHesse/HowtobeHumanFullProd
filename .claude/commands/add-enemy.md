@@ -1,5 +1,5 @@
 ---
-description: Add a new enemy type — thin Enemy subclass + spawner branch + scale-tier stats + registry-group slots — following the 10F/10G pattern.
+description: Use when the task is to add or create a new enemy type. Produces a thin Enemy subclass + spawner branch + scale-tier stats + registry-group slots, following the 10F/10G pattern.
 argument-hint: <enemy name + behavior, e.g. "Siege Cannon (ranged, targets buildings)">
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
 ---

@@ -1,5 +1,5 @@
 ---
-description: Add a new building type (defence/economy/boost/structure) — leaf class + research row + registry + balancing subtree + slots — following the 10B-10E pattern.
+description: Use when the task is to add or create a new building type (defence/economy/boost/structure). Produces leaf class + research row + registry + balancing subtree + slots, following the 10B-10E pattern.
 argument-hint: <building name + type, e.g. "Sun Scorcher (beam defence)">
 allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
 ---
