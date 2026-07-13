@@ -43,6 +43,15 @@ class TestResolver(unittest.TestCase):
         self.assertEqual(resolve_slot(self.reg, "buildings", ("Blocker",), 0, 0),
                          "blocker")
 
+    def test_backgrounds_flat_single_slot(self):
+        # 10K: the Backgrounds category resolves like any flat group, so the
+        # DetailsPanel import flow reaches main_menu_bg with no editor code
+        subs = subcategories(self.reg, "backgrounds", ("Main Menu",))
+        self.assertEqual(subs, ("main_menu_bg",))
+        self.assertEqual(
+            resolve_slot(self.reg, "backgrounds", ("Main Menu",), 0, 0),
+            "main_menu_bg")
+
     def test_walker_era_subgroups_with_variants(self):
         # Walker is a leaf-children group (like Tiles): era subgroups, each
         # holding its sprite variants. Subcategories are the eras; the level

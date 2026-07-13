@@ -28,11 +28,16 @@ class TestRealRegistry(unittest.TestCase):
     def test_category_order_is_domain_order_plus_asset_only(self):
         self.assertEqual(tuple(c.key for c in self.reg.categories()),
                          ("buildings", "enemies", "map", "ui", "core",
-                          "vfx", "deco"))
+                          "vfx", "deco", "backgrounds"))
 
     def test_carried_over_frame_sizes(self):
         self.assertEqual(self.reg.frame_size("stone_thrower_t1_lvl1"), (64, 96))
         self.assertEqual(self.reg.frame_size("ground_tile"), (64, 32))
+
+    def test_main_menu_background_slot(self):
+        # 10K: full-frame menu art — one idle-only 480x270 slot
+        self.assertEqual(self.reg.frame_size("main_menu_bg"), (480, 270))
+        self.assertEqual(self.reg.animations("main_menu_bg"), ("idle",))
 
     def test_tile_animation_vocabulary_is_idle_only(self):
         self.assertEqual(self.reg.animations("tile_buildable"), ("idle",))

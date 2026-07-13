@@ -586,6 +586,23 @@
         }
       ],
       "key": "deco"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Backgrounds",
+      "frame_h": 270,
+      "frame_w": 480,
+      "groups": [
+        {
+          "label": "Main Menu",
+          "slots": [
+            "main_menu_bg"
+          ]
+        }
+      ],
+      "key": "backgrounds"
     }
   ]
 }
