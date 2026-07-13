@@ -17,6 +17,9 @@ dist/
 *.log
 .claude/active_domain
 
+# ── Graphify code graph — generated, rebuild with `graphify update .` ──
+graphify-out/
+
 # ── IDE / OS noise ───────────────────────────────────────
 .vscode/
 .idea/

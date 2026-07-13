@@ -24,6 +24,47 @@ Requirements → `SPEC.md` (referenced as E-*/D-*/G-*/ED-*/T-*).
 3. **Editor is the designer interface** — humans never hand-edit `data/`
    JSON; agents may, but only schema-valid writes.
 
+## Step 0 — Orient with the code graph (Graphify)
+
+Before grepping for "where does X live", ask the graph. It is a real traversable
+graph of every symbol in `engine/`, `game/`, `editor/`, `tools/` (~5k nodes /
+~10k edges), built locally from tree-sitter ASTs — no LLM, no embeddings. Use it
+to *locate* code and see call/import fan-out; then read the actual files. It
+does not replace the package docs below.
+
+```bash
+graphify explain "place_building()"    # a symbol's neighbours, in/out edges
+graphify path "BaseBuilding" "TileMap" # how two symbols connect
+graphify affected "BaseBuilding"       # blast radius before you change a thing
+graphify query "how is balancing json loaded?" --budget 800
+graphify update .                      # rebuild after you add/move/delete code
+```
+
+Rules:
+- **The graph rebuilds itself on every commit.** A `post-commit` / `post-checkout`
+  git hook (`graphify hook install`) re-extracts *only the changed files* in a
+  detached process, so `git commit` never blocks. You normally never run
+  `graphify update` by hand. It logs to `~/.cache/graphify-rebuild.log` — check
+  there if the graph looks stale. `GRAPHIFY_SKIP_HOOK=1 git commit …` skips it.
+  The hook self-skips during rebase/merge/cherry-pick.
+- **`graphify-out/` is generated and gitignored** — never hand-edit it, never
+  commit it. If it is missing or stale, rebuild:
+  `graphify extract . --code-only && graphify cluster-only . --no-label`.
+- **Keep `GRAPHIFY_VIZ_NODE_LIMIT` above the node count** (set to 8000 at user
+  scope; we are at ~5k). The viz caps at 5000 by default, and a rebuild that
+  cannot regenerate `graph.html` *deletes* it rather than leaving it stale.
+- **`--code-only` is deliberate.** Semantic extraction of `docs/`, `SPEC.md` etc.
+  needs an LLM API key (`ANTHROPIC_API_KEY`/`GEMINI_API_KEY`); we don't set one,
+  so the graph is code-only and community names are `Community N` placeholders.
+  Node/edge data is unaffected — only the labels are cosmetic.
+- The graph is a **map, not the source of truth.** `data/` JSON + the package
+  docs still win; edges tagged `INFERRED` are guesses, `EXTRACTED` are literal.
+- Install (once, per machine — `.git/hooks/` is not committed, so a fresh clone
+  has no auto-rebuild until you run step 2):
+  1. `uv tool install git+https://github.com/Graphify-Labs/graphify.git`
+  2. `graphify hook install` — then build the first graph with the two commands
+     in the rebuild bullet above.
+
 ## Step 1 — Classify the task, then read ONE package doc
 
 | Package | Read this doc      | May edit (file scope)                          |
