@@ -315,6 +315,11 @@ class TestUnpathableStandsStill(unittest.TestCase):
 
 class TestBlockCoversTheGoal(unittest.TestCase):
     OPEN_5x5 = ["ccccc"] * 5
+    OPEN_7x7 = ["ccccccc"] * 7
+
+    def _seeds(self, tm, footprint):
+        return [(tm.base_col - i, tm.base_row - j)
+                for i in range(footprint) for j in range(footprint)]
 
     def test_2x2_reaches_a_base_it_can_never_anchor_on(self):
         # Base in the far corner: the 2x2 block anchored AT the base runs off
@@ -333,10 +338,66 @@ class TestBlockCoversTheGoal(unittest.TestCase):
         # At footprint 1 the last anchor IS the base tile, exactly as before.
         self.assertEqual(find_path(tm, 0, 0)[-1], (4, 4))
 
-    def test_a_start_already_covering_the_base_is_a_one_anchor_path(self):
-        tm = synth(self.OPEN_5x5, base=(4, 4))
-        self.assertEqual(find_path(tm, 3, 3, footprint=2), [(3, 3)])
-        self.assertEqual(find_path(tm, 4, 4), [(4, 4)])
+    def test_every_covering_anchor_is_a_terminal_one_anchor_path(self):
+        # INTERIOR base: all four covering anchors are legal placements, so all
+        # four are seeds. Each is ALREADY on the hole -> a path of just itself.
+        # (A corner base hides this: only one seed is legal there, so a seed
+        # that wrongly back-points at another seed cannot show up.)
+        tm = synth(self.OPEN_7x7, base=(3, 3))
+        for anchor in self._seeds(tm, 2):
+            with self.subTest(anchor=anchor):
+                self.assertTrue(block_covers(*anchor, 2, 3, 3))
+                self.assertEqual(find_path(tm, *anchor, footprint=2), [anchor])
+        self.assertEqual(find_path(tm, 3, 3), [(3, 3)])       # N=1 identity
+
+    def test_no_seed_ever_gets_a_back_pointer(self):
+        # White-box: the seeds are 4-adjacent to one another for N>1, so the
+        # first one popped must NOT be allowed to relax its siblings. If it is,
+        # their `dist` still settles to 0 but the bogus `next_step` survives and
+        # _field_path walks a unit that already covers the base onward to the
+        # lex-min covering anchor.
+        tm = synth(self.OPEN_7x7, base=(3, 3))
+        dist, next_step = pathfinder._build_flow_field(tm, False, 2)
+        for seed in self._seeds(tm, 2):
+            with self.subTest(seed=seed):
+                self.assertEqual(dist[seed], 0)
+                self.assertNotIn(seed, next_step)
+
+    def test_a_2x2_on_the_hole_breaches_even_with_a_tower_beside_it(self):
+        # END-TO-END. Base (2,2); a tower at (1,2) sits inside the block of the
+        # lex-min covering anchor (1,1). A 2x2 walking in from (4,2) reaches
+        # (2,2) — its body COVERS the hole — and must breach there. If the path
+        # runs on past the hole toward (1,1), the tower lands in the destination
+        # block, PathAgent blocks on it and reached_base never fires: one
+        # well-placed tower would neuter every 2x2 for the whole round.
+        tm = synth(self.OPEN_5x5, base=(2, 2))
+        tower = types.SimpleNamespace(alive=True)
+        tm.set_tile_content(tm.get(1, 2), tower, "defence_building")
+
+        path = find_path(tm, 4, 2, footprint=2)
+        self.assertTrue(path)
+        self.assertTrue(block_covers(path[-1][0], path[-1][1], 2, 2, 2))
+
+        unit = GameObject(
+            name="formation",
+            tags=("enemy",),
+            transform=Transform(wx=4.0, wy=2.0),
+            components=[PathAgent(footprint=2), Movement(speed=2.0)],
+        )
+        pa = unit.get_component(PathAgent)
+        pa._tilemap = tm
+        pa._real_speed = 2.0
+        mv = unit.get_component(Movement)
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        # A real frame step: the per-tick move must stay under Movement's 0.06
+        # arrival_threshold or the unit overshoots every waypoint and oscillates.
+        for _ in range(300):
+            unit.update(1.0 / 60.0)
+            if pa.reached_base:
+                break
+        self.assertIsNone(pa._target, "must not stop to attack the tower")
+        self.assertFalse(pa.blocked)
+        self.assertTrue(pa.reached_base, "a 2x2 covering the hole must breach")
 
 
 # -- 7. PathAgent scans the whole destination block for a blocker -----------

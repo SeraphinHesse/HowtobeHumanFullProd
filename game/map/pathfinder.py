@@ -138,27 +138,55 @@ def block_passable(tilemap, col, row, footprint=1, ignore_walls=False):
     """Every tile of the block is in bounds and under the impassable threshold,
     and (unless ignore_walls) no live wall sits on an internal edge. N=1
     collapses to ``tile is not None and weight(tile) < impassable``."""
-    impassable = tilemap.impassable_weight
-    for c, r in block_tiles(col, row, footprint):
-        tile = tilemap.get(c, r)
-        if tile is None or tilemap.weight(tile) >= impassable:
-            return False
-    if not ignore_walls and footprint > 1:
-        for e in internal_edges(col, row, footprint):
-            if _wall_blocks(tilemap, *e):
-                return False
-    return True
+    return _block_entry_weight(
+        tilemap, col, row, footprint, ignore_walls) is not None
 
 
 def block_weight(tilemap, col, row, footprint=1):
     """Cost of ENTERING the block: the worst tile under the body, so a 2×2
     avoids a pond even if only one of its four tiles is the pond. N=1 -> exactly
     ``tilemap.weight(tilemap.get(col, row))``."""
+    if footprint == 1:
+        return tilemap.weight(tilemap.get(col, row))
     return max(tilemap.weight(tilemap.get(c, r))
                for c, r in block_tiles(col, row, footprint))
 
 
+def _block_entry_weight(tilemap, col, row, footprint=1, ignore_walls=False):
+    """``block_weight`` if the body may stand here, else None — ``block_passable``
+    and ``block_weight`` FUSED into one pass. The Dijkstra relax needs both for
+    every candidate anchor, and each is a get+weight sweep over the block; run
+    apart they walk it twice. At N=1 this is one ``get`` + one ``weight``, i.e.
+    exactly the pre-ER-2 inner loop — the flow field rebuilds on every
+    building placement / wall change / tile unlock, so this stays hot
+    (``game/PERF.md``)."""
+    impassable = tilemap.impassable_weight
+    if footprint == 1:
+        tile = tilemap.get(col, row)
+        if tile is None:
+            return None
+        w = tilemap.weight(tile)
+        return None if w >= impassable else w
+    worst = 0
+    for c, r in block_tiles(col, row, footprint):
+        tile = tilemap.get(c, r)
+        if tile is None:
+            return None
+        w = tilemap.weight(tile)
+        if w >= impassable:
+            return None
+        if w > worst:
+            worst = w
+    if not ignore_walls:
+        for e in internal_edges(col, row, footprint):
+            if _wall_blocks(tilemap, *e):
+                return None
+    return worst
+
+
 def _face_blocked(tilemap, col, row, ncol, nrow, footprint=1):
+    if footprint == 1:      # the face IS the single crossed edge — no list
+        return _wall_blocks(tilemap, col, row, ncol, nrow)
     return any(_wall_blocks(tilemap, *e)
                for e in face_edges(col, row, ncol, nrow, footprint))
 
@@ -191,6 +219,13 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
     the one exception is a start that is already a goal anchor (mirroring
     today's ``find_path(tm, base_col, base_row) == [(base)]``)."""
     goals = _expand_goals(goals, footprint)
+    # Hot loop: hoist every invariant and take the N=1 branch inline. The helper
+    # calls (one per node + one per EDGE) are pure overhead at footprint 1 and
+    # cost more than the work they do — see game/PERF.md.
+    single = footprint == 1
+    impassable = tilemap.impassable_weight
+    tm_get = tilemap.get
+    tm_weight = tilemap.weight
     dist = {}
     prev = {}
     heap = [(0, start_col, start_row)]
@@ -206,12 +241,24 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
         for nc, nr in _neighbors(col, row, tilemap):
             if (nc, nr) in dist:
                 continue
-            if not ignore_walls and _face_blocked(
-                    tilemap, col, row, nc, nr, footprint):
-                continue
-            if not block_passable(tilemap, nc, nr, footprint, ignore_walls):
-                continue
-            nd = cost + block_weight(tilemap, nc, nr, footprint)
+            if not ignore_walls:
+                if single:
+                    if _wall_blocks(tilemap, col, row, nc, nr):
+                        continue
+                elif _face_blocked(tilemap, col, row, nc, nr, footprint):
+                    continue
+            if single:
+                tile = tm_get(nc, nr)
+                if tile is None:
+                    continue
+                w = tm_weight(tile)
+                if w >= impassable:
+                    continue
+            else:
+                w = _block_entry_weight(tilemap, nc, nr, footprint, ignore_walls)
+                if w is None:
+                    continue
+            nd = cost + w
             if nd < dist.get((nc, nr), float("inf")):
                 prev[(nc, nr)] = (col, row)
                 heapq.heappush(heap, (nd, nc, nr))
@@ -246,24 +293,50 @@ def _build_flow_field(tilemap, ignore_walls, footprint=1):
     next_step = {}
     if tilemap.base_col is None or tilemap.base_row is None:
         return dist, next_step  # base-less map: nothing is base-reachable
-    best = {}   # tentative costs, so only a strictly better relax re-parents
-    heap = [(0, tilemap.base_col - i, tilemap.base_row - j)
-            for i in range(footprint) for j in range(footprint)]
+    seeds = [(tilemap.base_col - i, tilemap.base_row - j)
+             for i in range(footprint) for j in range(footprint)]
+    # Seeds are the goal — cost 0, and NOTHING may re-parent them. Pre-seeding
+    # `best` is load-bearing, not tidiness: the seeds are 4-adjacent to each
+    # other for N>1, so the first one popped would otherwise relax its siblings
+    # (still absent from `dist`, `best` = inf, and any nd >= 0) and write a
+    # back-pointer INTO itself. The sibling's `dist` would still settle to 0,
+    # but the bogus `next_step` survives — and `_field_path` would then walk a
+    # unit that already covers the base onward to the lex-min covering anchor
+    # instead of stopping. N=1 has one seed and no sibling, hence unaffected.
+    best = {s: 0 for s in seeds}   # only a STRICTLY better relax re-parents
+    heap = [(0, c, r) for c, r in seeds]
     heapq.heapify(heap)
+    # Hot loop — see _dijkstra: hoist the invariants, inline the N=1 branch.
+    # This rebuilds on EVERY building placement / wall change / tile unlock.
+    single = footprint == 1
+    impassable = tilemap.impassable_weight
+    tm_get = tilemap.get
+    tm_weight = tilemap.weight
     while heap:
         cost, col, row = heapq.heappop(heap)
         if (col, row) in dist:
             continue
         dist[(col, row)] = cost
-        if not block_passable(tilemap, col, row, footprint, ignore_walls):
-            continue   # a start-only leaf: no forward edge may enter it
-        w = block_weight(tilemap, col, row, footprint)
+        if single:
+            tile = tm_get(col, row)
+            if tile is None:
+                continue   # a start-only leaf: no forward edge may enter it
+            w = tm_weight(tile)
+            if w >= impassable:
+                continue
+        else:
+            w = _block_entry_weight(tilemap, col, row, footprint, ignore_walls)
+            if w is None:
+                continue
         for nc, nr in _neighbors(col, row, tilemap):
             if (nc, nr) in dist:
                 continue
-            if not ignore_walls and _face_blocked(
-                    tilemap, col, row, nc, nr, footprint):
-                continue
+            if not ignore_walls:
+                if single:
+                    if _wall_blocks(tilemap, col, row, nc, nr):
+                        continue
+                elif _face_blocked(tilemap, col, row, nc, nr, footprint):
+                    continue
             nd = cost + w
             if nd < best.get((nc, nr), float("inf")):
                 best[(nc, nr)] = nd

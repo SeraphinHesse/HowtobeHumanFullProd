@@ -96,6 +96,14 @@ skill.**
     and predictive lead all use `_enemy_center_world` / `_fp_offset`, so a 2×2 is
     not engaged from an unfair corner and shells are not biased half a tile off
     it. N=1 → offset 0 → numerically identical to before.
+    **PERF (load-bearing):** the offset is a per-enemy constant and is resolved
+    ONCE PER ENEMY PER FRAME — `resolve_combat` builds `targets =
+    [(enemy, off), …]` and passes `off` into `_chebyshev`. Never resolve it
+    inside the (defender × enemy) pairwise loop: `get_component` is a linear
+    isinstance scan, and doing it per pair cost ~9 ms of a 16.7 ms frame at 50
+    defenders × 300 enemies. `_chebyshev` also SKIPS a zero offset rather than
+    adding it, keeping the N=1 expression in integer arithmetic (float ops there
+    allocate per pair). Both are pinned by `game/PERF.md`.
   - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
     property only — enemies do not block each other, and two footprint-2 units
     may overlap. That is intended.

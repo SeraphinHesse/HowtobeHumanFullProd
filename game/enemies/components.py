@@ -222,6 +222,9 @@ class PathAgent(Component):
         pw = wps[index - 1]
         pc, pr = round(pw[0]), round(pw[1])
         n = self.footprint
+        if n == 1:      # the face IS the single crossed edge; no internals
+            return ((pc, pr, tc, tr)
+                    if _wall_blocks(tm, pc, pr, tc, tr) else None)
         for e in face_edges(pc, pr, tc, tr, n) + internal_edges(tc, tr, n):
             if _wall_blocks(tm, *e):
                 return e

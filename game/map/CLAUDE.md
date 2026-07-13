@@ -131,7 +131,20 @@ them; never re-derive the rules anywhere else.
   is not clear — which no map guarantees.)
 - **N = 1 collapses every rule to its pre-ER-2 expression** (block = the tile, no
   internal edges, face = the single crossed edge, block weight = tile weight,
-  goal set = the goal), so the single-tile path is unchanged.
+  goal set = the goal), so the single-tile path is unchanged. **This is a PERF
+  contract, not just a semantic one:** `_dijkstra` / `_build_flow_field` hoist
+  their loop invariants and take an inline `single = footprint == 1` branch, so
+  at footprint 1 they do exactly the pre-ER-2 work — one `get`, one `weight`, one
+  `_wall_blocks` per edge. Calling the block helpers per node/edge instead
+  (they allocate a `block_tiles`/`face_edges` list and re-read the
+  `impassable_weight` property) made a 300×300 rebuild **2.1× slower at
+  footprint 1**. Do not "simplify" that branch away.
+- **Seeding is multi-source and `best` MUST be pre-seeded to 0.** For N>1 the
+  covering anchors are 4-adjacent to each other, so without it the first seed
+  popped relaxes its siblings and writes a back-pointer into itself — their
+  `dist` still settles to 0, but the bogus `next_step` survives and a unit that
+  already covers the base walks on to the lex-min covering anchor instead of
+  stopping.
 - Footprints are a **pathfinding** property only (D5): enemies never enter
   `TileOccupancy` and do not block each other.
 
