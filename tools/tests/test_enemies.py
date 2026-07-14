@@ -5,6 +5,7 @@ Pure-Python, headless (no SDL) — mirrors the 9C/9D map/building tests: a synth
 The ledger tests step a ``Scene`` at fixed dt and pin HP against the prototype's
 migrated values (×10 scale).
 """
+import copy
 import math
 import os
 import random
@@ -45,6 +46,20 @@ ENEM = load_balance(REPO / "data", "enemies")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
+
+
+def footprint_balance(etype, footprint):
+    """A copy of the enemies balance with ONE type's `footprint` pinned.
+
+    `footprint` is designer content (ER-1) and every type sits at 1 today. A test
+    that reads it live to prove multi-tile behaviour degrades into a tautology the
+    moment a designer flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the
+    claim these tests make. Pin the number so they keep testing the WIRING
+    (balance -> PathAgent.footprint -> pathfinder / sprite fit); the live value has
+    its own guard in the schema."""
+    enem = copy.deepcopy(ENEM)
+    enem["EnemyTypes"][etype]["footprint"] = footprint
+    return enem
 
 
 def synth(rows, base=(0, 0)):
@@ -587,11 +602,12 @@ class TestFormation(unittest.TestCase):
                               Formation)
 
     def test_construction_threads_footprint_and_sprite_fit(self):
+        enem = footprint_balance("Formation", 2)
         tm = synth(["bbs"])
-        f = create_enemy("formation", 2, 0, ENEM, tm)
+        f = create_enemy("formation", 2, 0, enem, tm)
         self.assertEqual(f.get_component(PathAgent).footprint, 2)
         anim = f.get_component(SpriteAnimator)
-        self.assertEqual(anim.fit_tiles, 2.0)      # from EnemyTypes.Formation
+        self.assertEqual(anim.fit_tiles, 2.0)      # threaded from the balance
         self.assertEqual(anim.scale, 1.0)
         self.assertEqual(f.get_component(Health).max_hp, FORM["hp"])
 
@@ -630,16 +646,21 @@ class TestFormation(unittest.TestCase):
 
     def test_the_type_itself_refuses_a_one_tile_gap_a_walker_threads(self):
         """End-to-end proof that balancing -> PathAgent -> pathfinder is wired:
-        it is the TYPE (footprint 2 in enemies.json), not a raw footprint=2
-        argument, that seals the gap. Wall down col 2 with a ONE-tile hole."""
+        it is the TYPE's footprint in the balance, not a raw footprint=2 argument,
+        that seals the gap. Wall down col 2 with a ONE-tile hole.
+
+        The footprint is PINNED, not read live: `footprint` is designer content and
+        every type sits at 1 today, which would quietly turn this into "a 1x1 walks
+        through a 1x1 hole" — a tautology that proves none of the wiring it names."""
+        enem = footprint_balance("Formation", 2)
         tm = synth(["ccfcc", "ccfcc", "ccccc", "ccfcc", "ccfcc"], base=(0, 2))
-        walker = create_enemy("standard", 4, 2, ENEM, tm)
+        walker = create_enemy("standard", 4, 2, enem, tm)
         walker.on_spawn()
         wp = walker.get_component(Movement).waypoints
         self.assertTrue(wp, "a 1x1 must thread the one-tile hole")
         self.assertIn([2.0, 2.0], wp)               # it goes through the gap
 
-        form = create_enemy("formation", 4, 2, ENEM, tm)
+        form = create_enemy("formation", 4, 2, enem, tm)
         form.on_spawn()
         # No 2x2 anchor can cover col 2 — the hole is one tile tall, so the body
         # would always straddle background. Both path variants come back empty;
