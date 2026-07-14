@@ -146,6 +146,18 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`
   + payload translation, then drives the target `add-*` skill unmodified);
   `dispatch/` holds live handoffs and `dispatch/done/` the archived ones (both
   gitignored). Integration branch = `Development`.
+- **Plans group (AD-7, `editor/plans.py` — pure)**: the launcher shows the ACTIVE
+  PLAN (root `PLAN.md`'s line-1 `<!-- active-plan: … -->` marker — the single
+  source of truth; stripped marker → `None` → "— none set", never a crash) and a
+  picker over `planning/*.md`, both read FRESH on every open. **The editor never
+  writes root `PLAN.md` or anything under `planning/`** — "Set as current" and the
+  "Create a new plan" radio spawn `/setcurrentplan <name>` / `/createplan <brief>`
+  to do the writing (same delegation model as locks), via `dispatch()`'s
+  `plan_prompt=` keyword (precedence **admin > handoff > plan > tweak**; the
+  prompt is always built by a `plans.*_prompt` builder, never hand-assembled).
+  `plans.reveal_command` is the ONE folder-open path (argv, branching on
+  `sys.platform`); `spawnclaude.open_planning_folder` splits that argv for the
+  same injectable `detach`, so tests capture it and no real explorer opens.
 
 ## Theme (`theme.py`) — light / dark chrome
 - The **"Dark mode" checkbox on the Agents toolbar**, next to "Summon a Drunken
