@@ -54,6 +54,13 @@ v1 — they exist in `game/ui` now).
   vacuously passes ("0 ran") for phases whose tests are all non-`core` tier —
   `affected_modules()` always ANDs `-m core` onto the selected files. Run the
   explicit pytest on your test modules until fixed.
+- **Carry-over (High, UNCONFIRMED — from A8's interrupted review)**: in
+  `engine/assets/nine_slice.py` + `store.hit_opaque`, when clamped slice
+  margins sum EXACTLY to a source dimension but the dest still has a centre
+  band, `dest_to_source` maps into a band `_nine_patch` never paints —
+  `hit_opaque` may return True over on-screen transparency. Traced in code,
+  no live reproducer run. Confirm + fix (return False for the vanished band,
+  or paint it) before A5' wires the seam.
 - **Contract rulings already baked into the briefs**: screen `ids` map is
   `{name: (kind, widget)}`; `kind` enum = `button|panel|label|backdrop|bar|field`;
   defaults doc is FLAT (`{<screen_id>: {widgets, mock_note}}`) validating
