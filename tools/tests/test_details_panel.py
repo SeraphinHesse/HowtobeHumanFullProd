@@ -173,6 +173,20 @@ class TestDraftSaveClear(DetailsCase):
         self.assertEqual(self.panel._row_editors, [])
 
     def test_existing_migrated_entry_loads_into_editors(self):
+        # Pin the entry's row values instead of inheriting whatever the artist
+        # last imported: commit 380ab4a re-imported this sheet, reset its
+        # hidden flags, and the old live-value asserts went red for reasons
+        # that had nothing to do with the panel. The subject here is "manifest
+        # state loads into the editors", so the test supplies that state.
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        row = doc["entries"]["stone_thrower_t1_lvl1"]["rows"][1]
+        row["fps"] = 6
+        row["hidden"] = [3]
+        data_io.write_validated(
+            doc, path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+
         self.panel.set_slot("stone_thrower_t1_lvl1")
         self.assertEqual(len(self.panel._row_editors), 2)
         row1 = self.panel._row_editors[1]

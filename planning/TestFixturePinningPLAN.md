@@ -128,3 +128,33 @@ class of failure is structurally unwritable.
 - The old migration-tier reflex ("compare against the prototype") must not
   sneak back in via the fixture: the fixture is a *pin*, not an authority —
   `data/` + schemas remain the source of truth (root `CLAUDE.md`).
+
+## 5. Post-execution addendum (2026-07-15) — the gate was lying, and the plan's own failure class was hiding under it
+
+CI on the PR exposed three things the execution-day record must correct:
+
+1. **`testgate` printed PASS over red in color-forced shells.** Agent shells
+   export `FORCE_COLOR`; pytest then colors its summary even when piped, and
+   `[31mFAILED` never matched `^FAILED` while the tally regex still
+   counted. Every phase gate above therefore reported PASS while the suite
+   carried 2 failures. Fixed in `tools/testgate.py` (child env gets
+   `NO_COLOR=1`/`PY_COLORS=0`, escapes stripped before parsing) — verified
+   RED first against the real failures, then green. The third gate-lied
+   sibling, after silent skips (TG-2) and subtests.
+2. **The 2 hidden failures were this plan's own class, pre-existing on
+   `Development`**: commit `380ab4a` (an artist re-import) rewrote
+   `stone_thrower_t1_lvl1`'s manifest row and `deco_rock` variants;
+   `test_details_panel` and `test_editor_panels` asserted the old live
+   values through TempDataCase copies — the §4 editor-tier risk, real.
+   Both now pin their fixture (`drop_slot_variants`, an explicit manifest
+   row write). Not caused by FP-1..FP-5; fixed under the same doctrine.
+3. **Unrelated `Development` breakage, also inherited**: the producer
+   easter egg imported `PySide6.QtMultimedia` at module scope, which needs
+   `libpulse.so.0` — absent on CI runners, so `editor.main` could not even
+   import there (16 failures + 2 collection errors on every push since
+   `785fd17`). Import is now lazy + guarded in
+   `editor/thats_my_producer.py`; `tests.yml` installs `libpulse0` so the
+   runner exercises the audio path.
+
+Honest final state: `GATE PASS 1203 ran | 0 known | 0 new | 0 fixed |
+0 unexpected skips` from the FIXED gate, exit 0, on 2026-07-15.
