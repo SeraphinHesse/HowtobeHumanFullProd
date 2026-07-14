@@ -122,6 +122,14 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   at any dest size** (down to 1×1, and including negatives) — the editor feeds
   this unsaved draft margins straight from the slice spinboxes, and rendering
   degrades rather than raising (E-37).
+- **`_clamp_pair` moved to `engine/assets/nine_slice.py` (A8)**, imported here as
+  `from engine.assets.nine_slice import clamp_pair as _clamp_pair` — the two
+  `_clamp_pair(...)` calls inside `_nine_patch` are otherwise unchanged (same
+  algorithm, same object, not a reimplementation). It moved so the pixel
+  hit-mask (`AssetStore.hit_opaque`, `engine/assets/CLAUDE.md` "Pixel
+  hit-mask") can share the exact same clamp from a pure module (no pygame)
+  when it inverts this same band layout via `nine_slice.dest_to_source` — the
+  forward composite and the hit-test inverse can never drift apart.
 - **No-ops take the plain `_scaled` path** (and so share its cache entry):
   `slice is None`, an all-zero slice, and a 1:1 draw. The grey-X placeholder
   never carries a slice, so it stays on that path — `test_placeholder_surfaces_
