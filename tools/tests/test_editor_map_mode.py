@@ -635,5 +635,56 @@ class TestPaletteImport(MapModeCase):
         spy.assert_called_once()
 
 
+class TestKeybindShortcuts(MapModeCase):
+    """ED settings panel: window-level QActions drive tool switching and
+    Game-tiles brush arming; number-key brushes are positional
+    (_gametiles_brush_order()) and Game-tiles-mode-only."""
+
+    def test_default_tool_shortcuts_match_spec(self):
+        expected = {"none": "P", "paint": "B", "erase": "N", "line": "L",
+                    "rect": "M", "bucket": "G", "picker": "I"}
+        for name, key in expected.items():
+            self.assertEqual(
+                self.window._tool_actions[name].shortcut().toString(), key)
+
+    def test_default_brush_shortcuts_are_1_through_5(self):
+        for i in range(5):
+            self.assertEqual(
+                self.window._brush_actions[i].shortcut().toString(), str(i + 1))
+
+    def test_tool_action_switches_tool(self):
+        self.open_map()
+        self.window._tool_actions["bucket"].trigger()
+        self.assertEqual(self.window.palette.current_tool(), "bucket")
+
+    def test_brush_action_arms_the_right_brush_in_gametiles_mode(self):
+        """first_light's zone codes sort to b(uildable)/c(ombat)/s(pawning)
+        — brush indices 0/1/2 (keys 1/2/3)."""
+        self.open_map()
+        self.window.palette.set_mode("gametiles")
+        self.window._brush_actions[1].trigger()   # key "2" -> Combat
+        self.assertEqual(self.window.palette.armed_code(), "c")
+
+    def test_brush_action_is_a_no_op_outside_gametiles_mode(self):
+        self.open_map()
+        self.window.palette.set_mode("background")
+        before = self.window.palette.armed_code()
+        self.window._brush_actions[0].trigger()
+        self.assertEqual(self.window.palette.armed_code(), before)
+
+    def test_out_of_range_brush_index_is_a_no_op(self):
+        self.open_map()
+        self.window.palette.set_mode("gametiles")
+        self.window.palette.arm_gametiles_brush_by_index(99)   # no crash
+
+    def test_labels_show_bound_keys(self):
+        self.open_map()
+        self.window.palette.set_mode("gametiles")
+        buildable_btn = self.window.palette._brush_buttons[("code", "b")]
+        self.assertEqual(buildable_btn.text(), "Buildable (1)")
+        paint_btn = self.window.palette._tool_buttons["paint"]
+        self.assertEqual(paint_btn.text(), "Paint (B)")
+
+
 if __name__ == "__main__":
     unittest.main()

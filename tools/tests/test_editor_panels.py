@@ -22,7 +22,7 @@ from pathlib import Path
 from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QPalette
+from PySide6.QtGui import QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
-from editor import balancing_history, domains, theme
+from editor import balancing_history, domains, keybinds, theme
 from editor.panels.balancing import BalancingPanel
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
@@ -866,7 +866,9 @@ class TestMainWindowWiring(TempDataCase):
 
 
 class TestThemeSwitch(TempDataCase):
-    """The toolbar switch repaints the app chrome and remembers the choice."""
+    """The settings dialog's dark-mode checkbox repaints the app chrome and
+    remembers the choice (ED settings panel — moved off the old toolbar
+    QCheckBox)."""
 
     def make_window(self, prefs_path):
         from editor.main import MainWindow
@@ -889,15 +891,16 @@ class TestThemeSwitch(TempDataCase):
 
     def test_toggle_applies_and_persists(self):
         window = self.make_window(self.prefs)
-        self.assertFalse(window.theme_switch.isChecked())
+        dialog = self.track(window._build_settings_dialog())
+        self.assertFalse(dialog._dark_box.isChecked())
         self.assertFalse(self.is_dark())
 
-        window.theme_switch.setChecked(True)
+        dialog._dark_box.setChecked(True)
         self.assertEqual(window.theme, "dark")
         self.assertTrue(self.is_dark())
         self.assertEqual(theme.load_theme(self.prefs), "dark")
 
-        window.theme_switch.setChecked(False)
+        dialog._dark_box.setChecked(False)
         self.assertEqual(window.theme, "light")
         self.assertFalse(self.is_dark())
         self.assertEqual(theme.load_theme(self.prefs), "light")
@@ -906,7 +909,8 @@ class TestThemeSwitch(TempDataCase):
         theme.save_theme(self.prefs, "dark")
         window = self.make_window(self.prefs)
         self.assertEqual(window.theme, "dark")
-        self.assertTrue(window.theme_switch.isChecked())
+        dialog = self.track(window._build_settings_dialog())
+        self.assertTrue(dialog._dark_box.isChecked())
         self.assertTrue(self.is_dark())
 
     def test_prefs_file_keeps_unrelated_keys(self):
@@ -919,6 +923,118 @@ class TestThemeSwitch(TempDataCase):
         self.prefs.write_text("not json", encoding="utf-8")
         self.assertEqual(theme.load_theme(self.prefs), "light")
         self.assertEqual(theme.load_theme(self.prefs.parent / "nope.json"), "light")
+
+
+class TestKeybindsPersistence(TempDataCase):
+    """editor/keybinds.py — Qt-free load/save, mirrors theme.py's
+    read-modify-write + default-backfill contract."""
+
+    def setUp(self):
+        super().setUp()
+        self.prefs = Path(self.data_dir).parent / ".editor_prefs.json"
+
+    def test_defaults_when_missing(self):
+        loaded = keybinds.load_keybinds(self.prefs)
+        self.assertEqual(loaded["tools"], keybinds.DEFAULT_TOOL_KEYBINDS)
+        self.assertEqual(loaded["brushes"], keybinds.DEFAULT_BRUSH_KEYBINDS)
+        self.assertFalse(loaded["undo_redo_swapped"])
+
+    def test_round_trip_preserves_theme_key(self):
+        theme.save_theme(self.prefs, "dark")
+        tools = dict(keybinds.DEFAULT_TOOL_KEYBINDS, paint="K")
+        brushes = dict(keybinds.DEFAULT_BRUSH_KEYBINDS, brush_1="6")
+        keybinds.save_keybinds(self.prefs, tools, brushes, True)
+
+        loaded = keybinds.load_keybinds(self.prefs)
+        self.assertEqual(loaded["tools"]["paint"], "K")
+        self.assertEqual(loaded["brushes"]["brush_1"], "6")
+        self.assertTrue(loaded["undo_redo_swapped"])
+        self.assertEqual(theme.load_theme(self.prefs), "dark")   # untouched
+
+    def test_partial_file_backfills_missing_tools(self):
+        self.prefs.write_text(
+            json.dumps({"keybinds": {"tools": {"paint": "K"}}}),
+            encoding="utf-8")
+        loaded = keybinds.load_keybinds(self.prefs)
+        self.assertEqual(loaded["tools"]["paint"], "K")
+        self.assertEqual(loaded["tools"]["erase"],
+                         keybinds.DEFAULT_TOOL_KEYBINDS["erase"])
+
+    def test_corrupt_file_falls_back_to_defaults(self):
+        self.prefs.write_text("not json", encoding="utf-8")
+        loaded = keybinds.load_keybinds(self.prefs)
+        self.assertEqual(loaded["tools"], keybinds.DEFAULT_TOOL_KEYBINDS)
+
+
+class TestSettingsDialog(TempDataCase):
+    """The settings dialog rebinds tool/brush keys and the undo/redo swap
+    live, updates the window's QActions + palette labels, and persists."""
+
+    def make_window(self):
+        from editor.main import MainWindow
+
+        self.prefs = Path(self.data_dir).parent / ".editor_prefs.json"
+        window = self.track(MainWindow(data_dir=self.data_dir,
+                                       prefs_path=self.prefs))
+        window._timer.stop()
+        return window
+
+    def test_rebinding_a_tool_key_updates_action_label_and_persists(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        dialog._tool_edits["paint"].setKeySequence(QKeySequence("K"))
+        dialog._on_tool_key_edited("paint")
+
+        self.assertEqual(window.tool_keybinds["paint"], "K")
+        self.assertEqual(window._tool_actions["paint"].shortcut().toString(), "K")
+        self.assertEqual(window.palette._tool_buttons["paint"].text(), "Paint (K)")
+        self.assertEqual(keybinds.load_keybinds(self.prefs)["tools"]["paint"], "K")
+
+    def test_rebinding_a_brush_key_updates_action_and_persists(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        dialog._brush_edits[0].setKeySequence(QKeySequence("6"))
+        dialog._on_brush_key_edited(0)
+
+        self.assertEqual(window.brush_keybinds["brush_1"], "6")
+        self.assertEqual(window._brush_actions[0].shortcut().toString(), "6")
+        self.assertEqual(
+            keybinds.load_keybinds(self.prefs)["brushes"]["brush_1"], "6")
+
+    def test_undo_redo_swap_updates_shortcuts_and_persists(self):
+        window = self.make_window()
+        self.assertEqual(window.undo_action.shortcut().toString(), "Ctrl+Z")
+        self.assertEqual(window.redo_action.shortcut().toString(), "Ctrl+Y")
+
+        dialog = self.track(window._build_settings_dialog())
+        dialog._swap_btn.click()
+
+        self.assertTrue(window.undo_redo_swapped)
+        self.assertEqual(window.undo_action.shortcut().toString(), "Ctrl+Y")
+        self.assertEqual(window.redo_action.shortcut().toString(), "Ctrl+Z")
+        self.assertTrue(keybinds.load_keybinds(self.prefs)["undo_redo_swapped"])
+
+    def test_colliding_key_is_rejected_and_reverts(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        # "paint" already owns "B" (default) — binding "erase" to "B" too
+        # would leave two QActions sharing one ambiguous shortcut.
+        dialog._tool_edits["erase"].setKeySequence(QKeySequence("B"))
+        dialog._on_tool_key_edited("erase")
+
+        self.assertEqual(
+            dialog._tool_edits["erase"].keySequence().toString(), "N")
+        self.assertEqual(window.tool_keybinds["erase"], "N")
+
+    def test_modifier_key_is_rejected(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        dialog._tool_edits["paint"].setKeySequence(QKeySequence("Ctrl+K"))
+        dialog._on_tool_key_edited("paint")
+
+        self.assertEqual(
+            dialog._tool_edits["paint"].keySequence().toString(), "B")
+        self.assertEqual(window.tool_keybinds["paint"], "B")
 
 
 if __name__ == "__main__":
