@@ -1,0 +1,59 @@
+{
+  "$id": "https://example.com/schemas/screen_defaults.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "patternProperties": {
+    "^[a-z][a-z0-9_]*$": {
+      "additionalProperties": false,
+      "properties": {
+        "mock_note": {
+          "type": "string"
+        },
+        "widgets": {
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "enum": [
+                    "button",
+                    "panel",
+                    "label",
+                    "backdrop",
+                    "bar",
+                    "field"
+                  ],
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "rect": {
+                  "items": {
+                    "type": "integer"
+                  },
+                  "maxItems": 4,
+                  "minItems": 4,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "rect",
+                "kind",
+                "label"
+              ],
+              "type": "object"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "widgets"
+      ],
+      "type": "object"
+    }
+  },
+  "type": "object"
+}
