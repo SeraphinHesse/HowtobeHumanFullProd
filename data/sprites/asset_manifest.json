@@ -730,6 +730,24 @@
       ],
       "sheet": "imported/deco_bush.png"
     },
+    "deco_bush_v10": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_bush_v10.png"
+    },
     "deco_bush_v2": {
       "frame_h": 96,
       "frame_w": 64,
@@ -856,6 +874,24 @@
       ],
       "sheet": "imported/deco_bush_v8.png"
     },
+    "deco_bush_v9": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_bush_v9.png"
+    },
     "deco_prop_1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -946,6 +982,24 @@
       ],
       "sheet": "imported/deco_prop_1_v5.png"
     },
+    "deco_prop_1_v6": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v6.png"
+    },
     "deco_prop_2": {
       "frame_h": 96,
       "frame_w": 64,
@@ -999,6 +1053,60 @@
         }
       ],
       "sheet": "imported/deco_prop_2_v11.png"
+    },
+    "deco_prop_2_v12": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_2_v12.png"
+    },
+    "deco_prop_2_v13": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_2_v13.png"
+    },
+    "deco_prop_2_v14": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_2_v14.png"
     },
     "deco_prop_2_v2": {
       "frame_h": 96,
@@ -1216,6 +1324,24 @@
       ],
       "sheet": "imported/deco_tree.png"
     },
+    "deco_tree_v10": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v10.png"
+    },
     "deco_tree_v2": {
       "frame_h": 96,
       "frame_w": 64,
@@ -1287,6 +1413,78 @@
         }
       ],
       "sheet": "imported/deco_tree_v5.png"
+    },
+    "deco_tree_v6": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v6.png"
+    },
+    "deco_tree_v7": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v7.png"
+    },
+    "deco_tree_v8": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v8.png"
+    },
+    "deco_tree_v9": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
     },
     "enemy_stage_1_v1": {
       "frame_h": 96,
