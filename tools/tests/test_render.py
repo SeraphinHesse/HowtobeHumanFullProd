@@ -15,7 +15,7 @@ import pathlib
 
 from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
-from engine.render import LAYERS, OverlayLines, RenderItem, Renderer
+from engine.render import LAYERS, HudSprite, OverlayLines, RenderItem, Renderer
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
@@ -30,16 +30,18 @@ def make_cs(**camera):
 class FakeAssets:
     """Resolves every slot to a token 'surface' so tests stay pygame-free."""
 
-    def __init__(self, sizes=None, default=(64, 32), offsets=None):
+    def __init__(self, sizes=None, default=(64, 32), offsets=None, slices=None):
         self.sizes = sizes or {}
         self.default = default
         self.offsets = offsets or {}
+        self.slices = slices or {}
 
     def frame(self, slot_key, animation="idle", anim_time_ms=0):
         w, h = self.sizes.get(slot_key, self.default)
         offset_x, offset_y = self.offsets.get(slot_key, (0, 0))
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
-                     offset_x=offset_x, offset_y=offset_y)
+                     offset_x=offset_x, offset_y=offset_y,
+                     slice=self.slices.get(slot_key))
 
 
 def old_anchor_dest(px, py, frame_w, frame_h, zoom=1.0, tile_h=32):
@@ -419,6 +421,38 @@ class TestBackendThroughput(unittest.TestCase):
         _gc.collect()
         self.assertLessEqual(len(backend._scale_cache), 1,
                              "transient surfaces must evict from the scale cache")
+
+
+class TestNineSliceThrough(unittest.TestCase):
+    """A2: the manifest's slice margins ride Frame -> DrawCall for HUD sprites
+    only. Nothing between the manifest and the backend interprets them."""
+
+    def assets(self):
+        return FakeAssets(sizes={"btn": (16, 16)},
+                          slices={"btn": (2, 2, 2, 2)})
+
+    def test_hud_sprite_drawcall_carries_slice(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), self.assets(), backend=backend)
+        r.submit_hud(HudSprite("btn", (0, 0), (64, 32)))
+        r.flush(target=None)
+        self.assertEqual(backend.calls[0].slice, (2, 2, 2, 2))
+
+    def test_world_sprite_drawcall_never_sets_slice(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), self.assets(), backend=backend)
+        r.submit(RenderItem("btn", (0, 0)))   # same slot, world path
+        r.flush(target=None)
+        self.assertIsNone(backend.calls[0].slice,
+                          "world sprites keep uniform zoom scaling")
+
+    def test_unsliced_hud_sprite_has_no_slice(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), FakeAssets(sizes={"icon": (16, 16)}),
+                     backend=backend)
+        r.submit_hud(HudSprite("icon", (0, 0), (16, 16)))
+        r.flush(target=None)
+        self.assertIsNone(backend.calls[0].slice)
 
 
 class TestPurity(unittest.TestCase):

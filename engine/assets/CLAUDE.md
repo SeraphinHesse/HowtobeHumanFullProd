@@ -43,6 +43,15 @@ crashes boot.** When you change asset conventions, update THIS doc.
     items): a key repeated across groups of one category must AGREE on its frame
     size — two different overrides, or once bare and once overridden, raises
     `ValueError` at load (same pattern as the "slot in two categories" check).
+- **Optional `slice` (A2)**: a manifest entry may carry
+  `slice: [left, top, right, bottom]` — nine-slice margins in FRAME pixels (same
+  convention as `offset_x`/`offset_y`), ints ≥ 0. `entry_from_dict` parses it to a
+  4-tuple and **raises** on anything else (wrong length, negative, non-numeric, a
+  bare string) — `load_manifest` is the E-37 layer that turns that into warn+skip.
+  It rides `ManifestEntry → Frame → DrawCall` uninterpreted; only
+  `engine/render/backend.py` gives it geometry, and only for **HUD sprites**
+  (world sprites keep uniform zoom scaling). Omitted ⇒ plain scale. The grey-X
+  placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO

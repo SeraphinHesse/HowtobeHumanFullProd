@@ -81,6 +81,7 @@ class ManifestEntry:
     offset_x: int
     offset_y: int
     animations: dict  # {name: Track}, insertion order = row order
+    slice: tuple = None   # (left, top, right, bottom) frame-px, or None
 
 
 def entry_from_dict(slot_key, raw):
@@ -129,6 +130,20 @@ def entry_from_dict(slot_key, raw):
     if not animations:
         raise ValueError(f"{slot_key}: no visible frames in any row")
 
+    margins = raw.get("slice")
+    if margins is not None:
+        # a JSON array, never a bare string: "1234" would otherwise iterate into
+        # four perfectly valid-looking margins
+        if not isinstance(margins, (list, tuple)):
+            raise ValueError(f"{slot_key}: slice must be 4 integers")
+        try:
+            margins = tuple(int(v) for v in margins)
+        except (TypeError, ValueError):
+            raise ValueError(f"{slot_key}: slice must be 4 integers")
+        if len(margins) != 4 or any(v < 0 for v in margins):
+            raise ValueError(
+                f"{slot_key}: slice must be [left, top, right, bottom], all >= 0")
+
     return ManifestEntry(
         slot_key=slot_key,
         sheet=sheet,
@@ -137,6 +152,7 @@ def entry_from_dict(slot_key, raw):
         offset_x=int(raw.get("offset_x", 0)),
         offset_y=int(raw.get("offset_y", 0)),
         animations=animations,
+        slice=margins,
     )
 
 

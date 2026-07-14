@@ -164,6 +164,36 @@ class TestEntryFromDict(unittest.TestCase):
         with self.assertRaises(ValueError):
             entry_from_dict("s", entry_dict([row(hidden=(0, 1, 2))]))
 
+    def test_slice_parsed_as_int_tuple(self):
+        raw = entry_dict([row()])
+        raw["slice"] = [1, 2, 3, 4]
+        self.assertEqual(entry_from_dict("s", raw).slice, (1, 2, 3, 4))
+
+    def test_slice_absent_is_none(self):
+        self.assertIsNone(entry_from_dict("s", entry_dict([row()])).slice)
+
+    def test_bad_slice_raises(self):
+        # wrong length, negative, non-numeric, and a bare string (which would
+        # otherwise iterate into four plausible-looking margins)
+        for bad in ([1, 2, 3], [1, 2, 3, 4, 5], [1, -2, 3, 4], ["a", "b", "c", "d"],
+                    "1234", 4):
+            raw = entry_dict([row()])
+            raw["slice"] = bad
+            with self.subTest(slice=bad), self.assertRaises(ValueError):
+                entry_from_dict("s", raw)
+
+    def test_bad_slice_is_warn_and_skip_through_load_manifest(self):
+        # entry_from_dict raises; load_manifest is the E-37 tolerance layer
+        doc = {"version": 2, "entries": {"bad": entry_dict([row()])}}
+        doc["entries"]["bad"]["slice"] = [1, 2, 3]
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "asset_manifest.json"
+        path.write_text(json.dumps(doc), encoding="utf-8")
+        with self.assertLogs("engine.assets.manifest", level="WARNING"):
+            m = load_manifest(path)
+        self.assertEqual(m.slots(), ())
+
 
 class TestCurrentFrame(unittest.TestCase):
     def manifest(self):

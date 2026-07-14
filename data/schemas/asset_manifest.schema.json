@@ -127,6 +127,17 @@
               "description": "Sheet path relative to data/sprites (always imported/<slot>.png, D-31).",
               "pattern": "^imported/[a-z][a-z0-9_]*\\.png$",
               "type": "string"
+            },
+            "slice": {
+              "description": "Optional nine-slice margins in FRAME pixels [left, top, right, bottom]. When a HUD sprite is drawn at a size other than its frame size, corners blit 1:1, edges stretch on one axis and the centre on both. Omit for plain uniform scaling (world sprites ignore it).",
+              "items": {
+                "maximum": 1024,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "minItems": 4,
+              "type": "array"
             }
           },
           "required": [

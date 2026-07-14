@@ -144,6 +144,7 @@ class Renderer:
                     size=hud.size,
                     tint=hud.tint,
                     flip=hud.flip,
+                    slice=frame.slice,
                 ))
             else:
                 draw_calls.append(hud)

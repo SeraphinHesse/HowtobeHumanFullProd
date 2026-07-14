@@ -90,6 +90,34 @@ glows use this; ellipses are caller-side polygon approximations.
    whenever a non-sprite (overlay/HUD) call must land in order.
 Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
 
+## Nine-slice (A2) — `DrawCall.slice`, HUD only
+A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
+in FRAME pixels, authored on the manifest entry and carried
+`ManifestEntry → Frame → DrawCall` untouched. **Only the backend interprets
+them**; `renderer.py` copies `frame.slice` onto the HUD `DrawCall` and the
+world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
+- `_nine_patch` composites corners **1:1 (never resampled)**, edges stretched on
+  one axis, the centre on both. `_clamp_pair` clamps the opposite margins
+  proportionally into the source and then the destination, so on overflow they
+  fill the axis exactly: the centre band vanishes and the corners *squeeze*
+  instead of producing a negative rect. Any dest size is safe, down to 1×1.
+- **No-ops take the plain `_scaled` path** (and so share its cache entry):
+  `slice is None`, an all-zero slice, and a 1:1 draw. The grey-X placeholder
+  never carries a slice, so it stays on that path — `test_placeholder_surfaces_
+  do_not_leak` is unaffected.
+- **Cache**: composites live in the SAME `WeakKeyDictionary`, in the source
+  surface's inner dict, under a `("9p", size, margins)` key. A 3-tuple can never
+  collide with a plain scale's bare `size` key, and weak eviction still holds
+  (the inner dict hangs off the source surface). Margins are IN the key because
+  the editor re-draws one cached frame at many margins while the designer drags
+  the slice spinboxes.
+- **`transform.scale`, not `smoothscale`** — our sheets are pixel art with
+  per-pixel alpha and no `convert_alpha()`; smoothscale filters RGB across alpha
+  edges (fringing) and blurs pixel art. It is also already what every world
+  sprite goes through at zoom ≠ 1, so HUD skins stay consistent with the world.
+  Revisit by eye if real UI art turns out to be high-res: only the 4 edges + the
+  centre are ever resampled, so it is a one-line swap. Tests: `test_nine_slice.py`.
+
 ## HUD pass + fonts (Phase 9B)
 - **`render/hud.py`** (E-12) — four frozen, pure, screen-space dataclasses:
   `HudRect`, `HudText`, `HudSprite`, `HudLines`. The host calls
