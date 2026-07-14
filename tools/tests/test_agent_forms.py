@@ -296,5 +296,60 @@ class TestSmokePairing(TempTreeCase):
         self.assertGreater(smoke.validate_data(), 0)
 
 
+class TestFormSpecFreshLoad(TempTreeCase):
+    """AD-5's load-bearing property: a spec file that lands in agent_forms/ is
+    picked up by the NEXT load_form_specs call, in the same process, with no
+    reload and no editor restart. That is what makes "add a form" a pure data
+    change — the launcher re-reads the directory on every open, so a new spec
+    file IS a new feature."""
+
+    def test_committed_add_form_spec_is_the_meta_form(self):
+        spec = next(s for s in agent_forms.load_form_specs()
+                    if s["id"] == "add-form-spec")
+        self.assertEqual(spec["skill"], "add-form-spec")
+        self.assertEqual(spec["slug_field"], "thing_name")
+        self.assertEqual([f["key"] for f in spec["fields"]],
+                         ["thing_name", "target_skill", "needs_new_skill",
+                          "git_default"])
+        # the two git_defaults are DIFFERENT things and must both survive:
+        # top-level = this form's own pre-selected radio; the field = the
+        # default the GENERATED form will carry.
+        self.assertEqual(spec["git_default"], "branch")
+        field = next(f for f in spec["fields"] if f["key"] == "git_default")
+        self.assertEqual(field["type"], "enum")
+        self.assertEqual(field["options"], ["branch", "current"])
+
+    def test_a_spec_dropped_on_disk_appears_on_the_next_load(self):
+        schema = self.data_dir / "schemas" / "agent_form.schema.json"
+        forms = self.data_dir / "agent_forms"
+        forms.mkdir(parents=True, exist_ok=True)
+        self.write_spec("add-enemy", valid_spec())
+
+        before = [s["id"] for s in agent_forms.load_form_specs(self.data_dir)]
+        self.assertEqual(before, ["add-enemy"])
+
+        # the generated spec goes down the same sanctioned path the skill uses
+        generated = valid_spec("add-sound-effect", title="Add New Sound Effect",
+                               skill="add-sound-effect")
+        data_io.write_validated(generated, forms / "add-sound-effect.json", schema)
+
+        after = [s["id"] for s in agent_forms.load_form_specs(self.data_dir)]
+        self.assertIn("add-sound-effect", after)        # no restart, no reload
+        self.assertEqual(after, sorted(after))          # still sorted by id
+        self.assertEqual(after, ["add-enemy", "add-sound-effect"])
+
+    def test_an_invalid_generated_spec_never_reaches_disk(self):
+        schema = self.data_dir / "schemas" / "agent_form.schema.json"
+        forms = self.data_dir / "agent_forms"
+        forms.mkdir(parents=True, exist_ok=True)
+        bad = valid_spec("add-sound-effect")
+        bad["fields"] = [{"key": "gain", "label": "Gain", "type": "number",
+                          "description": "Volume."}]  # no minimum/maximum
+        with self.assertRaises(jsonschema.ValidationError):
+            data_io.write_validated(bad, forms / "add-sound-effect.json", schema)
+        self.assertEqual(list(forms.glob("*.json")), [])
+        self.assertEqual(agent_forms.load_form_specs(self.data_dir), [])
+
+
 if __name__ == "__main__":
     unittest.main()
