@@ -202,6 +202,19 @@ import list.**
   — the E-35 rule is UNREPRESENTABLE in the UI, not a save-time error. Frame sizes +
   animation vocabularies come from the registry per slot. No pygame here; Pillow
   reads sheet dimensions.
+  - **Nine-slice margins (10L-A)**: 4 spinboxes (L/T/R/B), **ui category only**
+    (gated on `self._context[0]`, `_slice_applies`), bounded by the slot's frame
+    size (`registry.frame_size`, L/R capped at `frame_w`, T/B at `frame_h`),
+    writing the optional manifest `slice` field. **All-zero ⇒ the key is
+    omitted** — a slot with no nine-slice keeps a byte-identical entry, and
+    zeroing the four spins and re-saving un-slices a previously-sliced slot
+    (`save()` replaces the whole entry). Nine-slice is drawn on the HUD path
+    only — the entity preview (`RenderItem`) deliberately ignores it; a
+    `slice`-carrying draft still parses and previews as a plain scaled sprite.
+  - **`ui` variants = skins**: the `ui` category's leaves offer "+ Variant"
+    (`MainWindow._VARIANT_TARGETS`, added in A3) → `ui_button_v2`, …, i.e. one
+    slot per button skin; its 4-row vocab is `idle/hover/pressed/disabled` (row
+    0 locked to idle as everywhere).
   - **A slot's sheet is NOT `imported/<slot>.png`.** "Use Spritesheet…"
     (`panels/sheet_picker.py`) LINKS a slot to art already imported: the entry's
     `sheet` points at another slot's PNG and no bytes are copied, so one file backs
