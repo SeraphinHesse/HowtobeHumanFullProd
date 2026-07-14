@@ -47,9 +47,9 @@
         "spawn_hp_fraction": 1.0,
         "spawns": [
           {
-            "raiders": 5,
-            "regular": 10,
-            "siege": 1
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
           },
           {
             "raiders": 7,
@@ -167,7 +167,7 @@
         ]
       },
       "dmg": 30,
-      "footprint": 2,
+      "footprint": 1,
       "hp": 440,
       "move_speed": 0.9,
       "rounds_per_formation": 3,
