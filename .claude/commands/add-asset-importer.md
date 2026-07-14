@@ -45,8 +45,8 @@ use the editor's `+ Variant` button; for swapping one slot's art, use
 
 ## Verify
 - `py tools/smoke.py` — registry + manifest validate.
-- `py tools/testgate.py check` — TestPurity + any registry/import
-  test.
+- `py tools/testgate.py check --affected` — TestPurity + any registry/import
+  test (targeted, not the full suite).
 - Live: `py editor/main.py` — the category's node appears in the tree; import a sheet
   onto a slot; it previews in the viewport; grey-X before import; and (if game-facing)
   `py game/main.py` shows it.

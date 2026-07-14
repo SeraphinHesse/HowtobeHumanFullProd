@@ -21,6 +21,9 @@ too small to warrant a plan phase or a dispatched form.
    dispatch the matching "Add new X" form via the editor) instead.
 2. Run the exit gate: `py tools/testgate.py check` and
    `py tools/smoke.py`. The suite is GREEN — 0 failures; smoke green.
+   (This full run is deliberate — the tweak ships directly, so this is the
+   once-at-handoff check from CLAUDE.md Step 2. If you're still iterating,
+   use `--affected` and save the full check for here.)
 3. `git status`, summarize, and **wait for explicit confirmation** before
    committing.
 4. On confirmation, commit + push per the branch logic above. Report what

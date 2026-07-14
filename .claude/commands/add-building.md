@@ -48,7 +48,8 @@ roll").
 
 ## Verify
 - Headless: a tier-max test upgrades the line asserting hp/dmg/yield per the
-  balancing tables at each step: `py tools/testgate.py check`.
+  balancing tables at each step: `py tools/testgate.py check --affected`
+  (targeted; the single full check happens at handoff, per CLAUDE.md Step 2).
 - Data: `py tools/smoke.py` (schema validation).
 - Live: `py game/main.py` — build it, upgrade it, confirm cost/effect + it appears
   in the construct list once its gate opens.

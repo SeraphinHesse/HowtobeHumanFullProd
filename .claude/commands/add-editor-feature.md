@@ -34,7 +34,7 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
    appropriate).
 
 ## Verify
-- `py tools/testgate.py check` — TestPurity + the panel's test
+- `py tools/testgate.py check --affected` — TestPurity + the panel's test
   (drive it with synthetic `QTest` events, one `QApplication` per process).
 - Live: `py editor/main.py` (or headless under `QT_QPA_PLATFORM=offscreen`) — exercise
   the feature; for data-writing features confirm the JSON validates and a Play

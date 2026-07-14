@@ -179,6 +179,13 @@ ways. `planning/TestGatePLAN.md` records how that was fixed.)
 - While iterating, `py tools/testgate.py check --affected` runs only the blast
   radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
   before handing work back.
+- **Do NOT run the full suite for verification unless explicitly asked or you
+  are handing work back.** `--affected` is the default; the full `check` runs
+  exactly once, at the end — never as a mid-task sanity run, never twice.
+- **A red test clearly outside your diff's blast radius: note it in your report
+  and stop** — do not burn the session investigating it. The gate is still ZERO
+  (it must be resolved before handoff), but the first move is to surface it to
+  the user, not to silently dig.
 - Tiers: `py -m pytest -m core` (fast, ~800) · `-m editor` (Qt, slow) ·
   `-m meta` (agent scaffolding). **CI runs the whole suite** — there is no
   excluded tier. (The old `migration` tier compared `data/` against the

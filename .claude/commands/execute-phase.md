@@ -1,7 +1,7 @@
 ---
 description: Execute ONE phase from a plan document interactively — plan mode first, then user questions, then implementation — and always update that plan doc's phase status.
 argument-hint: <plan-doc> <phase-id e.g. 10J>
-allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion, EnterPlanMode, ExitPlanMode, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*), Bash(py game/main.py*)
+allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion, EnterPlanMode, ExitPlanMode, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py game/main.py*)
 ---
 
 Execute one plan phase: **$ARGUMENTS** — `<plan-doc> <phase-id>`. Interactive
@@ -34,9 +34,12 @@ writing the phase's outcome back into it.
 3. **Approval.** ExitPlanMode. On approval: branch `phase-<id>-<slug>` off
    `Development`. The suite is GREEN on `Development`; there is no baseline to
    record.
-4. **Implement** the approved plan in small commits.
-5. **Exit gate:** `py tools/smoke.py` green; test suite **0 failures, 0
-   errors**; run the Quick Test live. Report exactly what was verified.
+4. **Implement** the approved plan in small commits. While iterating, verify
+   with `py tools/testgate.py check --affected` — never the full suite mid-task.
+5. **Exit gate:** `py tools/smoke.py` green; ONE full `py tools/testgate.py
+   check` — **0 failures** (the single full-suite run of the phase, since this
+   skill hands the work back); run the Quick Test live. Report exactly what was
+   verified.
 6. **Plan-doc status (ALWAYS).** Edit the phase's entry in the plan doc:
    `*(LANDED)*` on completion, with any deferrals/accepted divergences as
    sub-bullets (mirror 10F's style in `planning/MIGRATION_PLAN.md`). If the phase was

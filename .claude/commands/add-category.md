@@ -65,8 +65,9 @@ data + the checklist and hands off.
 
 ## Verify
 - `py tools/smoke.py` — slots.json + the new balancing file validate.
-- `py tools/testgate.py check` — zero new failures (item 1 of the
-  checklist is the one that bites).
+- `py tools/testgate.py check --affected` — zero failures (item 1 of the
+  checklist is the one that bites). Not the full suite — the one full check
+  belongs to whoever hands the work back (CLAUDE.md Step 2).
 - Live: `py editor/main.py` → the new category is a top-level tree node; a balancing
   domain also shows its form. State exactly what you ran.
 
