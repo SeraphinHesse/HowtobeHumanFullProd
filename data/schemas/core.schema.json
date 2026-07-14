@@ -260,32 +260,6 @@
         "xp_per_standard_enemy"
       ],
       "type": "object"
-    },
-    "_lock": {
-      "description": "Branch+lock protocol state (D-11): the literal string UNLOCKED, or {locked_by, since} while a feature<Domain> branch exists. Set by /start-domain and cleared ONLY by /merge-domain (Phase 8, T-1) - never by the editor.",
-      "oneOf": [
-        {
-          "const": "UNLOCKED"
-        },
-        {
-          "additionalProperties": false,
-          "properties": {
-            "locked_by": {
-              "minLength": 1,
-              "type": "string"
-            },
-            "since": {
-              "pattern": "^\\d{4}-\\d{2}-\\d{2}",
-              "type": "string"
-            }
-          },
-          "required": [
-            "locked_by",
-            "since"
-          ],
-          "type": "object"
-        }
-      ]
     }
   },
   "required": [
@@ -293,8 +267,7 @@
     "LightningStrike",
     "PhaseLoop",
     "TheHole",
-    "XP",
-    "_lock"
+    "XP"
   ],
   "title": "core",
   "type": "object"

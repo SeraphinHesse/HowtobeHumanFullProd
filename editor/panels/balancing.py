@@ -14,7 +14,7 @@ QLineEdit (empty input is restored, not written, when the schema demands
 minLength >= 1). Tier-shape subschemas live in each schema's $defs and are
 resolved via local #/$defs/ refs only. Each widget's tooltip carries the
 leaf's schema description (units / x10 combat-scale hints, D-12).
-Underscore keys (_lock) never appear as fields at any depth.
+Underscore-prefixed keys never appear as fields at any depth.
 
 Widgets register in self._widgets keyed by '/'-joined paths, e.g.
 "DefenceBuildings/BasicDefence/tiers/0/base_dmg". The numeric/enum widgets
@@ -36,9 +36,7 @@ past snapshot into the live widgets (staged, not written — the dirty dots
 reappear for whatever differs from the current baseline) and the user must
 Save again to persist it.
 
-A locked domain (editor.locks) renders the form disabled with the owner in a
-banner (ED-32); lock state is read at selection time. Undo via the global
-QUndoStack (ED-24) remains deferred.
+Undo via the global QUndoStack (ED-24) remains deferred.
 """
 import copy
 from pathlib import Path
@@ -64,7 +62,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import balancing_history, locks
+from editor import balancing_history, domains
 from engine import data_io
 
 REPO = Path(__file__).resolve().parents[2]
@@ -234,15 +232,11 @@ class BalancingPanel(QWidget):
         toolbar.addWidget(history_btn)
         toolbar.addStretch(1)
 
-        self._banner = QLabel()
-        self._banner.setStyleSheet("font-weight: bold; color: #b5651d;")
-        self._banner.hide()
         self._scroll = QScrollArea()
         self._scroll.setWidgetResizable(True)
         self._scroll.setFrameShape(QScrollArea.NoFrame)
         layout = QVBoxLayout(self)
         layout.addLayout(toolbar)
-        layout.addWidget(self._banner)
         layout.addWidget(self._scroll)
 
     # -- selection drives content (ED-3) ------------------------------------
@@ -250,25 +244,16 @@ class BalancingPanel(QWidget):
     def set_domain(self, domain):
         self.domain = domain
         self._doc = data_io.load_validated(
-            locks.balancing_path(domain, self._data_dir),
-            locks.schema_path(domain, self._data_dir),
+            domains.balancing_path(domain, self._data_dir),
+            domains.schema_path(domain, self._data_dir),
         )
         self._baseline = copy.deepcopy(self._doc)
         self._dirty = set()
-        self._schema = data_io.load_json(locks.schema_path(domain, self._data_dir))
-        locked = locks.is_locked(domain, self._data_dir)
-        self._rebuild_form(self._schema, locked)
+        self._schema = data_io.load_json(domains.schema_path(domain, self._data_dir))
+        self._rebuild_form(self._schema)
         self._save_btn.setEnabled(False)
-        if locked:
-            self._banner.setText(
-                f"Locked by {locks.owner(domain, self._data_dir)} "
-                f"since {locks.since(domain, self._data_dir)} — read-only"
-            )
-            self._banner.show()
-        else:
-            self._banner.hide()
 
-    def _rebuild_form(self, schema, locked):
+    def _rebuild_form(self, schema):
         self._widgets = {}
         self._dots = {}
         old = self._scroll.takeWidget()
@@ -277,7 +262,7 @@ class BalancingPanel(QWidget):
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 0, 0, 0)
-        self._build_object(schema, self._doc, (), content_layout, locked, depth=0)
+        self._build_object(schema, self._doc, (), content_layout, depth=0)
         content_layout.addStretch(1)
         self._scroll.setWidget(content)
 
@@ -292,7 +277,7 @@ class BalancingPanel(QWidget):
             node = self._schema["$defs"][ref.removeprefix("#/$defs/")]
         return node
 
-    def _build_object(self, node, value, path, parent_layout, locked, depth):
+    def _build_object(self, node, value, path, parent_layout, depth):
         """One object level: scalar leaves collect into QFormLayouts, nested
         objects/arrays become CollapsibleSections, in sorted key order."""
         form = None
@@ -311,21 +296,21 @@ class BalancingPanel(QWidget):
                 if kind == "object":
                     self._build_object(
                         prop, value[key], path + (key,),
-                        section.content_layout, locked, depth + 1,
+                        section.content_layout, depth + 1,
                     )
                 else:
                     self._build_array(
                         prop, value[key], path + (key,),
-                        section.content_layout, locked, depth + 1,
+                        section.content_layout, depth + 1,
                     )
                 parent_layout.addWidget(section)
             else:
                 if form is None:
                     form = QFormLayout()
                     parent_layout.addLayout(form)
-                self._add_leaf_row(form, key, prop, value[key], path + (key,), locked)
+                self._add_leaf_row(form, key, prop, value[key], path + (key,))
 
-    def _build_array(self, node, items, path, parent_layout, locked, depth):
+    def _build_array(self, node, items, path, parent_layout, depth):
         item_schema = self._deref(node["items"])
         if item_schema.get("type") == "object":
             for i, item in enumerate(items):
@@ -337,7 +322,7 @@ class BalancingPanel(QWidget):
                 )
                 self._build_object(
                     item_schema, item, path + (str(i),),
-                    section.content_layout, locked, depth + 1,
+                    section.content_layout, depth + 1,
                 )
                 parent_layout.addWidget(section)
         else:
@@ -345,13 +330,12 @@ class BalancingPanel(QWidget):
             parent_layout.addLayout(form)
             for i, item in enumerate(items):
                 self._add_leaf_row(
-                    form, f"[{i}]", item_schema, item, path + (str(i),), locked
+                    form, f"[{i}]", item_schema, item, path + (str(i),)
                 )
 
-    def _add_leaf_row(self, form, label, prop, value, path, locked):
+    def _add_leaf_row(self, form, label, prop, value, path):
         widget = self._make_widget(path, prop, value)
         widget.setToolTip(prop.get("description", ""))
-        widget.setEnabled(not locked)
         dot = QLabel("●")
         dot.setStyleSheet("color: white;")
         dot.setFixedWidth(12)
@@ -478,8 +462,8 @@ class BalancingPanel(QWidget):
         """Write the staged document to disk and record a history snapshot."""
         data_io.write_validated(
             self._doc,
-            locks.balancing_path(self.domain, self._data_dir),
-            locks.schema_path(self.domain, self._data_dir),
+            domains.balancing_path(self.domain, self._data_dir),
+            domains.schema_path(self.domain, self._data_dir),
         )
         balancing_history.save_session(
             self.domain, name, description, copy.deepcopy(self._doc), self._data_dir

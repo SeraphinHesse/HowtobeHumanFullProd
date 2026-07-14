@@ -248,6 +248,5 @@
   },
   "MortarTargeting": {
     "predictive_targeting": true
-  },
-  "_lock": "UNLOCKED"
+  }
 }

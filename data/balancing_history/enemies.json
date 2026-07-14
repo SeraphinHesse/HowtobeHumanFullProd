@@ -253,8 +253,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-14T00:24:00"
   },
@@ -512,8 +511,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-14T00:20:25"
   },
@@ -730,8 +728,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:44:03"
   },
@@ -948,8 +945,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:43:56"
   },
@@ -1166,8 +1162,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:43:44"
   },
@@ -1384,8 +1379,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:43:34"
   },
@@ -1602,8 +1596,7 @@
       },
       "MortarTargeting": {
         "predictive_targeting": true
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:43:22"
   }

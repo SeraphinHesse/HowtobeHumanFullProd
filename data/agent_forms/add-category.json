@@ -24,7 +24,7 @@
     },
     {
       "default": false,
-      "description": "True = also a balancing domain: creates data/balancing/<key>.json (_lock UNLOCKED) + data/schemas/<key>.schema.json, and the category gets a balancing form in the editor. False = asset-only (like vfx/deco/backgrounds).",
+      "description": "True = also a balancing domain: creates data/balancing/<key>.json + data/schemas/<key>.schema.json, and the category gets a balancing form in the editor. False = asset-only (like vfx/deco/backgrounds).",
       "key": "is_balancing_domain",
       "label": "Is a balancing domain",
       "type": "boolean"

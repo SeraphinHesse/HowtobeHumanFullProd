@@ -23,11 +23,8 @@ that skill directly (no wordy natural-language wrapper):
 Admin and small tweak bypass the dispatch path entirely (D5) — no handoff.
 Precedence in `dispatch()`: admin > handoff > plan > tweak.
 
-**The branch+lock protocol is SUSPENDED** (root `CLAUDE.md`, AD plan D6): the
-old domain → `/start-domain` mode is gone from this module, and this module
-writes NO lock and no `.claude/active_domain` (a test asserts it exposes no
-set/clear/unlock symbol). `editor/locks.py` survives for the balancing panel's
-read-only `_lock` display.
+This module writes no repo state beyond the handoff; `editor/domains.py`
+serves the balancing panel's domain derivation.
 
 Pure command/prompt builders are Qt-free and unit-testable; the detached launch
 reuses `editor.run_controls.start_detached`, which already strips the editor's
@@ -145,8 +142,7 @@ def open_planning_folder(repo=None, detach=None):
 
 class SpawnClaudeDialog(QDialog):
     """The launcher (AD-3): one button per form spec, plus the two prompt-only
-    modes (small tweak / admin). Writes no lock and no `.claude/active_domain`
-    (protocol suspended, D6).
+    modes (small tweak / admin).
 
     Built from small `_build_*_group()` helpers appended to ONE `QVBoxLayout`,
     with the button box built LAST — a deliberate seam so AD-7 can insert its

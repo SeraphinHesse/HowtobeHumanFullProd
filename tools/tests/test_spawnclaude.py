@@ -6,8 +6,7 @@ Same headless conventions as the other editor tests (offscreen Qt + SDL dummy
 before any Qt import; one QApplication per process). The pure builders are
 tested directly; every dispatch is exercised with an injected fake launcher, so
 NO real terminal is ever spawned. Handoffs are written into a throwaway temp
-repo, never the real `.claude/dispatch/`. The `/start-domain` path is gone from
-spawnclaude (D6) — no lock reads, no domain radios.
+repo, never the real `.claude/dispatch/`.
 """
 import json
 import os
@@ -178,18 +177,6 @@ class TestDispatch(unittest.TestCase):
                              tweak_prompt="tiny fix",
                              repo=REPO, detach=self.fake_detach)
         self.assertEqual(self.calls[0][1][-1], "/dispatch .claude/dispatch/x.json")
-
-
-class TestNoLockWriteAPI(unittest.TestCase):
-    def test_spawnclaude_exposes_no_lock_writer(self):
-        """ED-61/62/T-1: spawnclaude exposes no way to set, clear, or
-        force-unlock a domain lock. It no longer reads locks either (AD-2 D6 —
-        the protocol is suspended); this guard keeps it that way."""
-        for name in dir(spawnclaude):
-            lowered = name.lower()
-            self.assertNotIn("unlock", lowered)
-            self.assertNotIn("set_lock", lowered)
-            self.assertNotIn("release", lowered)
 
 
 class TestDialog(unittest.TestCase):
