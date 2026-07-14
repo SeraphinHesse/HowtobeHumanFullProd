@@ -25,6 +25,22 @@ frame size (64x96, distinct from map tiles' 64x32), and its category_key
 the map palette's Deco section) — only where its root QTreeWidgetItem gets
 parented changes.
 
+Balancing domains are DERIVED, never hardcoded (AD-6): `locks.domains()`
+is slots.json's category order ∩ the categories carrying a
+data/balancing/<key>.json, cached here as `self._domains` (re-derived on
+reload_registry) because _emit_selection consults it on every click. A
+category is *intended* as a domain iff it has a data/schemas/<key>.schema.json
+(`locks.is_domain_category`) — an intended domain with no balancing file is
+omitted from the tree WHOLE, which is what keeps "no balancing file, no
+domain node" expressible now that the domain list is derived from those very
+files.
+
+AD-6 context menu: right-clicking a CATEGORY root (payload path == ()) pops
+an "Add New X…" entry per form spec whose `selector_context` is that
+category; right-clicking empty space offers "Add New Category…". Triggering
+one emits add_requested(form_id); the shell opens the AgentFormDialog. Specs
+are re-read on every menu open, so a newly written spec needs no restart.
+
 Plain Qt widget; imports only the PURE half of engine.assets (registry +
 manifest metadata — no pygame) and engine.tilemap. Exactly one node
 selected at a time (ED-3); selection is broadcast as
@@ -33,12 +49,19 @@ when the category is a balancing domain — the Phase 4 contract the
 balancing panel still hangs off, now fired at any depth so clicking a
 building type also shows the buildings form.
 """
+import sys
 from pathlib import Path
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QAbstractItemView, QTreeWidget, QTreeWidgetItem
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import (
+    QAbstractItemView,
+    QMenu,
+    QTreeWidget,
+    QTreeWidgetItem,
+)
 
-from editor import locks
+from editor import agent_forms, locks
 from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 
@@ -50,24 +73,35 @@ _MAP_ROLE = Qt.ItemDataRole.UserRole + 2        # map_id (Maps-branch leaves)
 
 _MAPS_BRANCH_LABEL = "Maps"
 
+# The one form reachable from EMPTY tree space: it creates a category, so it
+# belongs to no category node and carries no selector_context.
+_ADD_CATEGORY_FORM_ID = "add-category"
+
 
 class SelectorPanel(QTreeWidget):
     domain_selected = Signal(str)
     node_selected = Signal(str, tuple)
     map_selected = Signal(str)
+    add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self.registry = load_registry(self._data_dir)
+        self._domains = locks.domains(self._data_dir)
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
         map_root = None
         for category in self.registry.categories():
-            if category.key in locks.DOMAINS and \
+            if locks.is_domain_category(category.key, self._data_dir) and \
                     not locks.balancing_path(category.key, self._data_dir).exists():
-                continue  # Phase 4 behavior: no balancing file, no domain node
+                # Intended as a domain (it has a schema) but its balancing file
+                # is gone: omit the node WHOLE rather than degrade it to an
+                # asset-only category — every leaf under a domain emits
+                # domain_selected, which would drive the balancing panel into a
+                # missing file (Phase 4 behavior, preserved).
+                continue
             if category.key == "deco" and map_root is not None:
                 # Deco lives under the "Map" node in the TREE only (user
                 # request: browsing/import feel like part of map editing,
@@ -122,7 +156,7 @@ class SelectorPanel(QTreeWidget):
         out = []
         for i in range(self.topLevelItemCount()):
             key, _path = self.topLevelItem(i).data(0, _PAYLOAD_ROLE)
-            if key in locks.DOMAINS:
+            if key in self._domains:
                 out.append(key)
         return tuple(out)
 
@@ -233,8 +267,11 @@ class SelectorPanel(QTreeWidget):
     def reload_registry(self):
         """Re-read data/slots.json after a registry edit (a new enemy variant).
         The tree STOPS above variant slots, so its shape is unchanged — only
-        the cached registry the shell reads for level resolution is refreshed."""
+        the cached registry the shell reads for level resolution is refreshed.
+        The derived domain list is refreshed too: a registry edit can add a
+        category, and a new category can be a balancing domain."""
         self.registry = load_registry(self._data_dir)
+        self._domains = locks.domains(self._data_dir)
 
     # -- selection broadcast ---------------------------------------------------
 
@@ -251,5 +288,52 @@ class SelectorPanel(QTreeWidget):
             return
         category_key, path = items[0].data(0, _PAYLOAD_ROLE)
         self.node_selected.emit(category_key, tuple(path))
-        if category_key in locks.DOMAINS:
+        if category_key in self._domains:
             self.domain_selected.emit(category_key)
+
+    # -- "Add new X…" context menu (AD-6) --------------------------------------
+
+    def _add_entries(self, category_key):
+        """[(label, form_id)] offered for a node. category_key=None → the
+        empty-space menu (Add New Category). Specs are read FRESH so a spec an
+        agent just wrote is offered without an editor restart; a broken spec
+        must never kill a right-click, so load failures degrade to no menu."""
+        try:
+            specs = agent_forms.load_form_specs(self._data_dir)
+        except Exception as exc:   # noqa: BLE001 - a bad spec must not raise
+            print(f"selector: could not load form specs: {exc}", file=sys.stderr)
+            return []
+        if category_key is None:
+            specs = [s for s in specs if s["id"] == _ADD_CATEGORY_FORM_ID]
+        else:
+            specs = [s for s in specs
+                     if s.get("selector_context") == category_key]
+        return [(f"{spec['title']}…", spec["id"]) for spec in specs]
+
+    def _context_menu(self, item):
+        """The QMenu for a right-clicked item (None = empty space), or None
+        when nothing is on offer — never shows an empty popup, and never
+        exec()s (the caller does), so tests can drive it headlessly."""
+        if item is None:
+            category_key = None
+        else:
+            category_key, path = item.data(0, _PAYLOAD_ROLE)
+            if tuple(path) != ():
+                return None   # only a category ROOT offers "Add new X…"
+        entries = self._add_entries(category_key)
+        if not entries:
+            return None
+        menu = QMenu(self)   # parented: dies with the panel
+        for label, form_id in entries:
+            action = QAction(label, menu)
+            # bind form_id per action (late-binding closures) and absorb
+            # triggered(checked: bool)
+            action.triggered.connect(
+                lambda _checked=False, fid=form_id: self.add_requested.emit(fid))
+            menu.addAction(action)
+        return menu
+
+    def contextMenuEvent(self, event):
+        menu = self._context_menu(self.itemAt(event.pos()))
+        if menu is not None:
+            menu.exec(event.globalPos())

@@ -92,23 +92,62 @@ import list.**
   to UNLOCKED in its temp copy (repo files are legitimately locked while a feature
   branch exists).
 - **`locks.py` is read-only** (in `editor/`, not `panels/`, but governs the form):
-  `DOMAINS` (D-10 order), `balancing_path`/`schema_path`,
-  `lock_info`/`is_locked`/`owner`/`since`. **No set/clear/force-unlock anywhere in
-  the editor** (a test asserts this); `/start-domain` + `/merge-domain` are the
-  only lock writers.
+  `domains(data_dir)`, `category_keys`/`is_domain_category`,
+  `balancing_path`/`schema_path`, `lock_info`/`is_locked`/`owner`/`since`. **No
+  set/clear/force-unlock anywhere in the editor** (a test asserts this); the
+  branch+lock protocol is SUSPENDED (root `CLAUDE.md`) and nothing in the editor
+  writes a lock.
+  - **The domain list is DERIVED, never hardcoded** (AD-6; the `DOMAINS` constant
+    is GONE): `domains(data_dir)` = slots.json's category order ∩ the categories
+    carrying a `data/balancing/<key>.json` (D-10 order preserved). A new balancing
+    domain therefore appears in selector + balancing form with **zero editor
+    edits** — that is the whole point; do not re-introduce a list. It is a
+    **function, not a module constant**, because every editor module is
+    `data_dir`-injectable (tests run against a temp copy of `data/`) and a
+    constant derived at import from the repo's `data/` would be silently wrong for
+    any other tree.
+  - **`is_domain_category(key)` (schema exists) is a DIFFERENT question from
+    "is in `domains()`" (balancing file exists)** — keep them apart. A category
+    *intended* as a domain (it has a `data/schemas/<key>.schema.json`) whose
+    balancing file is missing is omitted from the tree **whole**, not degraded to
+    an asset-only node: every leaf under a domain emits `domain_selected`, which
+    would drive `BalancingPanel.set_domain` into a missing file. That rule is what
+    keeps "no balancing file, no domain node" expressible now that the domain list
+    is derived from those very files.
 
 ## Phase 5 — merged tree / details / entity preview
 - **Merged tree** (`panels/selector.py`): top-level nodes = registry categories in
-  `data/slots.json` order (first five double as balancing domains; vfx and
-  `backgrounds` (10K menu art) are asset-only; `deco` is asset-only, nested as a
-  CHILD of the "map" node — Phase 6
+  `data/slots.json` order (the ones with a balancing file double as balancing
+  domains — DERIVED, see `locks.py` above; vfx and `backgrounds` (10K menu art)
+  are asset-only; `deco` is asset-only, nested as a CHILD of the "map" node —
+  Phase 6
   follow-up). Children come from registry groups; the tree STOPS at the deepest
   group whose children are all leaf groups (a building TYPE like "Defender") —
   tiers/levels never appear in the tree. Signals: `node_selected(category,
   group_path)` on every selection, plus `domain_selected(str)` at ANY depth of a
   domain category, so balancing follows while browsing types. ● markers (ED-11)
   from `refresh_markers()` (pure `load_manifest`; clean label in UserRole+1). A
-  domain category with no balancing file is omitted whole.
+  domain category with no balancing file is omitted whole. The derived domain list
+  is cached as `self._domains` (`_emit_selection` consults it on every click) and
+  re-derived in `reload_registry()`.
+- **"Add new X…" context menu** (AD-6, `add_requested = Signal(str)` → the form
+  spec's `id`): right-clicking a **category ROOT** (payload `path == ()`) pops one
+  entry per form spec whose `selector_context` is that category key; right-clicking
+  **empty space** offers the single **Add New Category…** entry (`add-category` —
+  that spec deliberately carries NO `selector_context`, since it *creates* a
+  category and so belongs to no node). Group nodes, the Maps branch and map leaves
+  offer **no menu**, and a category with no matching spec shows nothing rather than
+  an empty popup. `editor/main.py::_on_add_requested` opens the `AgentFormDialog`
+  for that spec — so **adding a form is still just adding a JSON file**; the
+  selector hardcodes no form list.
+  - Conventions worth keeping: the DEFAULT context-menu policy +
+    `contextMenuEvent` (not `CustomContextMenu`); construction (`_context_menu`,
+    returns `QMenu | None`) is split from display so tests never `exec()` a modal
+    popup (`QAction.trigger()` is the test path); specs load FRESH per menu open
+    (same rule as the launcher — a spec an agent just wrote needs no restart); and
+    a spec-load failure degrades to **no menu** plus one stderr line, because an
+    unhandled exception raised inside a Qt event handler can abort the process — a
+    right-click must never be able to kill the editor.
 - **Composite selection** (user-confirmed): tree node × Details subcategory
   dropdown (tier — or the concrete slot for flat groups) × LevelBar index resolve
   to ONE slot key via the PURE `editor/selection.py` (`subcategories` /

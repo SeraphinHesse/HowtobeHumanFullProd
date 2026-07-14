@@ -79,7 +79,7 @@ class TempDataCase(unittest.TestCase):
         history_dir = self.data_dir / "balancing_history"
         if history_dir.exists():
             shutil.rmtree(history_dir)
-        for domain in locks.DOMAINS:
+        for domain in locks.domains(self.data_dir):
             doc = read_domain(self.data_dir, domain)
             if doc["_lock"] != "UNLOCKED":
                 doc["_lock"] = "UNLOCKED"
@@ -107,15 +107,151 @@ class TestLocks(TempDataCase):
             self.assertNotIn("release", name.lower())
 
 
+class TestDomainsDerivation(TempDataCase):
+    """AD-6: the domain list is DERIVED (slots.json category order ∩ the
+    categories with a data/balancing/<key>.json), never hardcoded — a new
+    balancing domain reaches the editor with zero editor edits."""
+
+    CANONICAL = ("buildings", "enemies", "map", "ui", "core")
+
+    def add_domain_files(self, key):
+        """A new balancing domain in the temp tree: schema + content, content
+        through the validating writer (tests obey D-2 too)."""
+        schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$id": f"{key}.schema.json",
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["_lock"],
+            "properties": {
+                "_lock": {
+                    "description": "D-11 lock: UNLOCKED or {locked_by, since}.",
+                    "oneOf": [
+                        {"const": "UNLOCKED"},
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "required": ["locked_by", "since"],
+                            "properties": {
+                                "locked_by": {"type": "string"},
+                                "since": {
+                                    "type": "string",
+                                    "pattern": r"^\d{4}-\d{2}-\d{2}$",
+                                },
+                            },
+                        },
+                    ],
+                },
+            },
+        }
+        schema_path = self.data_dir / "schemas" / f"{key}.schema.json"
+        schema_path.write_text(data_io.dumps_deterministic(schema), encoding="utf-8")
+        data_io.write_validated(
+            {"_lock": "UNLOCKED"},
+            self.data_dir / "balancing" / f"{key}.json",
+            schema_path,
+        )
+
+    def test_derivation_reproduces_the_canonical_tuple(self):
+        self.assertEqual(locks.domains(self.data_dir), self.CANONICAL)
+
+    def test_real_data_dir_derives_the_canonical_tuple(self):
+        """No data_dir → the repo's own data/. The regression guard for the
+        deleted DOMAINS constant."""
+        self.assertEqual(locks.domains(), self.CANONICAL)
+
+    def test_removing_a_balancing_file_drops_the_domain(self):
+        (self.data_dir / "balancing" / "map.json").unlink()
+        self.assertEqual(
+            locks.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+
+    def test_new_balancing_file_adds_a_domain_in_slots_order(self):
+        """vfx is an asset-only category TODAY; give it balancing files and it
+        becomes a domain — positioned where slots.json puts it (after core),
+        with no editor edit anywhere."""
+        self.add_domain_files("vfx")
+        self.assertEqual(
+            locks.domains(self.data_dir), self.CANONICAL + ("vfx",))
+
+    def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
+        self.assertNotIn("vfx", SelectorPanel(data_dir=self.data_dir).domains())
+        self.add_domain_files("vfx")
+        self.assertIn("vfx", SelectorPanel(data_dir=self.data_dir).domains())
+
+
+class TestSelectorContextMenu(TempDataCase):
+    """AD-6: right-click a CATEGORY root → one "Add New X…" per form spec whose
+    selector_context is that category; empty space → Add New Category. Never
+    exec()s a menu (it would block); QAction.trigger() is the test path."""
+
+    def make(self):
+        panel = SelectorPanel(data_dir=self.data_dir)
+        self.addCleanup(panel.deleteLater)
+        return panel
+
+    def test_entries_come_from_the_specs_selector_context(self):
+        ids = [fid for _label, fid in self.make()._add_entries("enemies")]
+        self.assertIn("add-enemy", ids)
+
+    def test_category_menu_emits_the_mapped_form_id(self):
+        panel = self.make()
+        ids = [fid for _label, fid in panel._add_entries("enemies")]
+        menu = panel._context_menu(panel._find_item("enemies", ()))
+        self.assertIsNotNone(menu)
+        seen = []
+        panel.add_requested.connect(seen.append)
+        menu.actions()[ids.index("add-enemy")].trigger()
+        self.assertEqual(seen, ["add-enemy"])
+
+    def test_empty_space_offers_add_category(self):
+        panel = self.make()
+        self.assertEqual(
+            [fid for _label, fid in panel._add_entries(None)], ["add-category"])
+        menu = panel._context_menu(None)
+        seen = []
+        panel.add_requested.connect(seen.append)
+        menu.actions()[0].trigger()
+        self.assertEqual(seen, ["add-category"])
+
+    def test_group_and_maps_nodes_offer_no_menu(self):
+        panel = self.make()
+        group = panel._find_item("enemies", ()).child(0)   # a group node
+        self.assertIsNone(panel._context_menu(group))
+        self.assertIsNone(panel._context_menu(panel._maps_branch))
+
+    def test_category_without_a_spec_offers_no_menu(self):
+        panel = self.make()
+        self.assertEqual(panel._add_entries("vfx"), [])
+        self.assertIsNone(panel._context_menu(panel._find_item("vfx", ())))
+
+    def test_broken_spec_does_not_break_right_click(self):
+        """An unhandled exception in a Qt event handler can abort the process:
+        a bad spec must degrade to 'no menu', never raise."""
+        (self.data_dir / "agent_forms" / "broken.json").write_text(
+            "{ not json", encoding="utf-8")
+        panel = self.make()
+        self.assertEqual(panel._add_entries("enemies"), [])
+        self.assertIsNone(panel._context_menu(panel._find_item("enemies", ())))
+
+
 class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = SelectorPanel(data_dir=self.data_dir)
-        self.assertEqual(panel.domains(), locks.DOMAINS)
+        # the LITERAL canonical tuple, not locks.domains(...) — both sides
+        # derive now, so comparing them would be a tautology
+        self.assertEqual(
+            panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
 
     def test_domain_without_file_is_omitted(self):
+        """A category INTENDED as a domain (it has a schema) whose balancing
+        file is gone is omitted WHOLE — not degraded to an asset-only node.
+        Every leaf under it emits domain_selected, which would drive the
+        balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
         panel = SelectorPanel(data_dir=self.data_dir)
-        self.assertEqual(panel.domains(), tuple(d for d in locks.DOMAINS if d != "map"))
+        self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
+        with self.assertRaises(KeyError):
+            panel._find_item("map", ())   # no node at all, not just no domain
 
     def test_selection_emits_domain_and_is_single(self):
         panel = SelectorPanel(data_dir=self.data_dir)
@@ -526,9 +662,35 @@ class TestMainWindowWiring(TempDataCase):
         window._timer.stop()  # no frame drive needed here
         return window
 
+    def test_add_requested_opens_the_form_dialog_for_that_spec(self):
+        """AD-6: selector "Add New X…" → MainWindow opens the AgentFormDialog
+        for that spec. The real dialog is STUBBED — exec()ing it would block."""
+        from editor import main as editor_main
+
+        window = self.make_window()
+        seen = []
+
+        class StubDialog:
+            def __init__(self, spec, data_dir=None, repo=None, parent=None):
+                seen.append((spec["id"], data_dir, repo))
+
+            def exec(self):
+                return 0
+
+        original = editor_main.AgentFormDialog
+        editor_main.AgentFormDialog = StubDialog
+        self.addCleanup(setattr, editor_main, "AgentFormDialog", original)
+
+        window.selector.add_requested.emit("add-enemy")
+        self.assertEqual(
+            seen, [("add-enemy", self.data_dir, editor_main.REPO)])
+
+        window.selector.add_requested.emit("no-such-form")   # no spec: no crash
+        self.assertEqual(len(seen), 1)
+
     def test_select_and_edit_through_the_shell(self):
         window = self.make_window()
-        self.assertEqual(window.balancing.domain, locks.DOMAINS[0])
+        self.assertEqual(window.balancing.domain, locks.domains(self.data_dir)[0])
         window.selector.select_domain("ui")
         self.assertEqual(window.balancing.domain, "ui")
         window.balancing._widgets["Timing/not_enough_love_duration"].setValue(2.5)
