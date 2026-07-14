@@ -14,6 +14,7 @@ import os
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from pathlib import Path
 
 import jsonschema
@@ -31,7 +32,7 @@ from PySide6.QtWidgets import (
     QPlainTextEdit,
 )
 
-from editor import agent_forms, spawnclaude
+from editor import agent_forms, plans, spawnclaude
 from editor.agent_form_dialog import AgentFormDialog
 from editor.panels.balancing import (
     _NoWheelComboBox,
@@ -488,6 +489,247 @@ class TestFormDialogDispatch(FormCase):
         QTest.keyClicks(dialog._branch_edit, "agent/hand-named")
         dialog._on_dispatch()
         self.assertEqual(self.payload()["git"]["branch"], "agent/hand-named")
+
+
+# -- AD-7: plan management (pure helpers + the launcher's Plans group) -------
+
+MARKER = "<!-- active-plan: MIGRATION_PLAN.md | set: 2026-07-13 -->\n"
+
+
+class TempRepoCase(unittest.TestCase):
+    """A throwaway repo with a `planning/` dir and a root `PLAN.md` — the real
+    repo's PLAN.md is live data and no test may write it."""
+
+    PLANS = ["AlphaPLAN.md", "BetaPLAN.md"]
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name)
+        self.planning = self.repo / "planning"
+        self.planning.mkdir()
+        for name in self.PLANS:
+            (self.planning / name).write_text("# plan\n", encoding="utf-8")
+        (self.planning / "notes.pdf").write_bytes(b"%PDF-")  # non-.md: excluded
+        self.write_mirror(f"<!-- active-plan: {self.PLANS[0]} | set: 2026-07-13 -->\n")
+
+    def write_mirror(self, text):
+        (self.repo / "PLAN.md").write_text(text, encoding="utf-8")
+
+
+class TestPlansPure(TempRepoCase):
+    def test_active_plan_parses_the_line_1_marker(self):
+        self.assertEqual(plans.active_plan(self.repo), "AlphaPLAN.md")
+
+    def test_active_plan_is_none_when_plan_md_is_missing(self):
+        (self.repo / "PLAN.md").unlink()
+        self.assertIsNone(plans.active_plan(self.repo))  # and raises nothing
+
+    def test_active_plan_is_none_on_an_empty_plan_md(self):
+        self.write_mirror("")
+        self.assertIsNone(plans.active_plan(self.repo))
+
+    def test_active_plan_is_none_when_a_hand_edit_stripped_the_marker(self):
+        self.write_mirror("# Some plan\n\n<!-- active-plan: AlphaPLAN.md -->\n")
+        # Line 1 only — the marker is pinned there by /setcurrentplan step 4.
+        self.assertIsNone(plans.active_plan(self.repo))
+
+    def test_the_real_repo_mirror_names_a_real_plan(self):
+        """The live contract: root PLAN.md's marker must name a planning/ doc."""
+        active = plans.active_plan(REPO)
+        self.assertIsNotNone(active)
+        self.assertIn(active, plans.list_plans(REPO))
+
+    def test_list_plans_is_sorted_md_names_only(self):
+        self.assertEqual(plans.list_plans(self.repo), sorted(self.PLANS))
+
+    def test_list_plans_is_empty_when_planning_is_missing(self):
+        empty = self.repo / "nothing-here"
+        empty.mkdir()
+        self.assertEqual(plans.list_plans(empty), [])
+
+    def test_reveal_command_branches_per_platform(self):
+        path = self.planning
+        with unittest.mock.patch.object(plans.sys, "platform", "win32"):
+            self.assertEqual(plans.reveal_command(path), ["explorer", str(path)])
+        with unittest.mock.patch.object(plans.sys, "platform", "darwin"):
+            self.assertEqual(plans.reveal_command(path), ["open", str(path)])
+        with unittest.mock.patch.object(plans.sys, "platform", "linux"):
+            self.assertEqual(plans.reveal_command(path), ["xdg-open", str(path)])
+
+    def test_planning_dir_hangs_off_the_repo(self):
+        self.assertEqual(plans.planning_dir(self.repo), self.repo / "planning")
+        self.assertEqual(plans.plan_mirror_path(self.repo), self.repo / "PLAN.md")
+
+    def test_prompts_are_the_literal_slash_commands(self):
+        self.assertEqual(plans.set_current_plan_prompt("MIGRATION_PLAN.md"),
+                         "/setcurrentplan MIGRATION_PLAN.md")
+        self.assertEqual(plans.create_plan_prompt("AudioPLAN — port audio"),
+                         "/createplan AudioPLAN — port audio")
+        self.assertEqual(plans.create_plan_prompt(""), "/createplan")
+        self.assertEqual(plans.create_plan_prompt(None), "/createplan")
+
+
+class TestDispatchPlanPrompt(unittest.TestCase):
+    """AD-2's precedence, extended: admin > handoff > plan > tweak."""
+
+    def setUp(self):
+        self.calls = []
+
+        def fake_detach(program, arguments, working_dir):
+            self.calls.append((program, list(arguments), str(working_dir)))
+            return True
+
+        self.fake_detach = fake_detach
+
+    def test_plan_prompt_is_passed_through_verbatim(self):
+        spawnclaude.dispatch(plan_prompt="/setcurrentplan AlphaPLAN.md",
+                             repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "/setcurrentplan AlphaPLAN.md")
+
+    def test_admin_still_beats_a_plan_prompt(self):
+        spawnclaude.dispatch(admin=True, plan_prompt="/createplan",
+                             repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "claude")
+
+    def test_handoff_still_beats_a_plan_prompt(self):
+        spawnclaude.dispatch(handoff=".claude/dispatch/x.json",
+                             plan_prompt="/createplan",
+                             repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1],
+                         "/dispatch .claude/dispatch/x.json")
+
+    def test_a_plan_prompt_beats_a_tweak(self):
+        spawnclaude.dispatch(plan_prompt="/createplan AudioPLAN",
+                             tweak_prompt="x", repo=REPO, detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "/createplan AudioPLAN")
+
+    def test_no_plan_prompt_leaves_the_ad_2_chain_untouched(self):
+        spawnclaude.dispatch(tweak_prompt="tiny fix", repo=REPO,
+                             detach=self.fake_detach)
+        self.assertEqual(self.calls[0][1][-1], "/smalltweak tiny fix")
+
+
+class TestOpenPlanningFolder(TempRepoCase):
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def fake_detach(program, arguments, working_dir):
+            self.calls.append((program, list(arguments), str(working_dir)))
+            return True
+
+        self.detach = fake_detach
+
+    def test_argv_is_split_into_program_and_arguments(self):
+        with unittest.mock.patch.object(plans.sys, "platform", "win32"):
+            ok = spawnclaude.open_planning_folder(repo=self.repo,
+                                                  detach=self.detach)
+        self.assertTrue(ok)
+        self.assertEqual(self.calls,
+                         [("explorer", [str(self.planning)], str(self.repo))])
+
+    def test_it_honours_the_platform(self):
+        with unittest.mock.patch.object(plans.sys, "platform", "linux"):
+            spawnclaude.open_planning_folder(repo=self.repo, detach=self.detach)
+        self.assertEqual(self.calls[0][0], "xdg-open")
+
+
+class TestPlansGroup(TempRepoCase):
+    """The launcher's Plans group, offscreen, with a fake launcher — no real
+    terminal and no real explorer ever opens."""
+
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+
+        def fake_detach(program, arguments, working_dir):
+            self.calls.append((program, list(arguments), str(working_dir)))
+            return True
+
+        self.detach = fake_detach
+
+    def launcher(self):
+        return spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=self.detach)
+
+    def combo_items(self, dialog):
+        combo = dialog._plan_combo
+        return [combo.itemText(i) for i in range(combo.count())]
+
+    def test_label_shows_the_active_plan(self):
+        dialog = self.launcher()
+        self.assertEqual(dialog._active_plan_label.text(),
+                         "Active plan: AlphaPLAN.md")
+
+    def test_label_says_none_set_when_the_marker_is_absent(self):
+        self.write_mirror("# hand-edited, marker stripped\n")
+        dialog = self.launcher()
+        self.assertEqual(dialog._active_plan_label.text(),
+                         "Active plan: — none set")
+
+    def test_picker_lists_exactly_the_planning_md_files(self):
+        dialog = self.launcher()
+        self.assertEqual(self.combo_items(dialog), sorted(self.PLANS))
+        self.assertEqual(dialog._plan_combo.currentText(), "AlphaPLAN.md")  # active
+        self.assertTrue(dialog._plan_combo.isEnabled())
+
+    def test_an_empty_planning_dir_disables_the_picker_and_the_button(self):
+        for name in self.PLANS:
+            (self.planning / name).unlink()
+        dialog = self.launcher()
+        self.assertEqual(self.combo_items(dialog), [])
+        self.assertFalse(dialog._plan_combo.isEnabled())
+        self.assertFalse(dialog._set_plan_button.isEnabled())
+        dialog._on_set_current_plan()  # no-op, not a crash
+        self.assertEqual(self.calls, [])
+
+    def test_set_as_current_spawns_setcurrentplan_and_writes_no_plan_md(self):
+        before = (self.repo / "PLAN.md").read_text(encoding="utf-8")
+        dialog = self.launcher()
+        dialog._plan_combo.setCurrentIndex(1)  # BetaPLAN.md
+        dialog._on_set_current_plan()
+        self.assertEqual(len(self.calls), 1)
+        program, arguments, working_dir = self.calls[0]
+        self.assertEqual(program, "wt")
+        self.assertEqual(arguments[-1], "/setcurrentplan BetaPLAN.md")
+        self.assertEqual(working_dir, str(self.repo))
+        self.assertEqual(dialog.result(), QDialog.Accepted)
+        # The editor delegates the write to the spawned skill.
+        self.assertEqual((self.repo / "PLAN.md").read_text(encoding="utf-8"),
+                         before)
+
+    def test_open_planning_folder_reveals_and_leaves_the_dialog_open(self):
+        dialog = self.launcher()
+        with unittest.mock.patch.object(plans.sys, "platform", "win32"):
+            dialog._on_open_planning_folder()
+        self.assertEqual(self.calls,
+                         [("explorer", [str(self.planning)], str(self.repo))])
+        self.assertNotEqual(dialog.result(), QDialog.Accepted)  # stays open
+
+    def test_create_a_new_plan_radio_dispatches_createplan_with_the_brief(self):
+        dialog = self.launcher()
+        dialog._create_plan_radio.setChecked(True)
+        dialog._create_plan_edit.setText("AudioPLAN — port the prototype's audio")
+        dialog._on_dispatch()
+        self.assertEqual(self.calls[0][1][-1],
+                         "/createplan AudioPLAN — port the prototype's audio")
+
+    def test_a_blank_brief_still_loads_the_skill(self):
+        dialog = self.launcher()
+        dialog._create_plan_radio.setChecked(True)
+        dialog._on_dispatch()
+        self.assertEqual(self.calls[0][1][-1], "/createplan")
+
+    def test_the_create_plan_radio_is_exclusive_with_tweak_and_admin(self):
+        dialog = self.launcher()
+        self.assertTrue(dialog._tweak_radio.isChecked())  # unchanged default
+        dialog._create_plan_radio.setChecked(True)
+        self.assertFalse(dialog._tweak_radio.isChecked())
+        self.assertFalse(dialog._admin_radio.isChecked())
+        dialog._admin_radio.setChecked(True)
+        self.assertFalse(dialog._create_plan_radio.isChecked())
+        dialog._on_dispatch()
+        self.assertEqual(self.calls[0][1][-1], "claude")  # admin still wins
 
 
 if __name__ == "__main__":
