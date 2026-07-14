@@ -338,7 +338,7 @@ class TestBossPathing(unittest.TestCase):
 class TestBossBonuses(unittest.TestCase):
     def test_story_damage_bonus(self):
         tm, _scene, _occ = build_board(["bbbb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss1a"] = 2
         st.boss_stacks["boss3a"] = 1
         st.boss_love_snapshot = 57
@@ -378,7 +378,7 @@ class TestBossBonuses(unittest.TestCase):
                                      BUILD, scene, occ)
         defender.upgrade()
         defender.upgrade()                       # in-tier level 3 -> +1/stack
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss1b"] = 1
         love0 = st.love
         expected = (bb.boss1b_income(st, tm)
@@ -395,7 +395,7 @@ class TestBossBonuses(unittest.TestCase):
         defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
                                      BUILD, scene, occ)
         defender.get_component(RoundStats).dmg_dealt_this_round = 37
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss3b"] = 2
         love0 = st.love
         net = HOLE["base_income"] - defender.upkeep() + (37 // 10) * 2
@@ -412,7 +412,7 @@ class TestBossBonuses(unittest.TestCase):
         defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
                                      BUILD, scene, occ)
         defender.get_component(Health).hp = 0     # dead — STILL counts
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss2a"] = 1
         base_yield = musician.yield_amount()
         run_payday(st, tm, CORE)
@@ -428,7 +428,7 @@ class TestBossBonuses(unittest.TestCase):
                        occ)
         self.assertEqual(bb.aoe_count(tm), 1)
         self.assertEqual(bb.defence_count(tm), 0)  # aoe is NOT "defence"
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss2b"] = 1
         base_payout = meditator.yield_amount()     # pure (streak 0)
         run_payday(st, tm, CORE)
@@ -437,7 +437,7 @@ class TestBossBonuses(unittest.TestCase):
         self.assertEqual(amounts[(1, 0)], base_payout + 1)
 
     def test_stacking_and_set_cycling(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         bb.apply_choice(st, 0, "A")
         bb.apply_choice(st, 0, "A")               # same pick twice = doubled
         self.assertEqual(st.boss_stacks["boss1a"], 2)

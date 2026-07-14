@@ -15,10 +15,14 @@ from engine import tilemap
 from engine.core import Scene
 from engine.physics import TileOccupancy
 from game.buildings import PlacementError, place_building
+from game.buildings.components import TierState
 from game.core.balance import load_balance
+from game.core.game_state import RunState
 from game.map import find_path_to_nearest_defence
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
+
+CORE = load_balance(REPO / "data", "core")
 
 MAPBAL = load_balance(REPO / "data", "map")
 BAL = load_balance(REPO / "data", "buildings")
@@ -85,6 +89,37 @@ class TestPlacement(unittest.TestCase):
         self.assertTrue(path)
         self.assertEqual(path[0], (0, 2))
         self.assertEqual(path[-1], (4, 2))
+
+    def test_places_at_the_researched_tier(self):
+        """Once tier 2 (index 1) is researched, a FRESH placement builds a
+        Slinger directly -- not a Stone Thrower -- and charges tier 1's own
+        build_cost, not tier 0's."""
+        tm = synth(["bbb", "bbb", "bbb"])
+        scene, occ = Scene(), TileOccupancy()
+        state = RunState.from_balance(CORE, BAL)
+        state.tiers_unlocked["defence"] = 2  # tier index 1 researched
+        tier1_cost = BAL["DefenceBuildings"]["BasicDefence"]["tiers"][1]["build_cost"]
+        state.love = tier1_cost
+
+        building, cost = place_building(
+            tm, tm.get(1, 1), "defence", state.love, BAL, scene, occ,
+            state=state)
+
+        self.assertEqual(cost, tier1_cost)
+        self.assertNotEqual(cost,
+            BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]["build_cost"])
+        self.assertEqual(building.get_component(TierState).current_tier, 1)
+
+    def test_state_none_still_places_at_tier_zero(self):
+        """Logic tests that predate RunState (state=None) keep today's
+        tier-0-only placement behavior."""
+        tm = synth(["bbb", "bbb", "bbb"])
+        scene, occ = Scene(), TileOccupancy()
+        building, cost = place_building(
+            tm, tm.get(1, 1), "defence", 9999, BAL, scene, occ, state=None)
+        self.assertEqual(
+            cost, BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]["build_cost"])
+        self.assertEqual(building.get_component(TierState).current_tier, 0)
 
 
 if __name__ == "__main__":

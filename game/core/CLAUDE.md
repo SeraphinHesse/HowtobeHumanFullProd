@@ -16,8 +16,10 @@ Four files beside `balance.py`:
   (GAMEPLAY/GAME_OVER; menu states 9H).
 - **`game_state.py`** — `RunState` dataclass: the single owner of `phase`, `state`,
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
-  `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
-  `add_love`/`spend_love` clamp at ≥0 (prototype clamps every currency write).
+  `base_lives`, `phase_timer`, run stats. `from_balance(core, buildings)` seeds
+  it — `buildings` decides which types start unlocked (`starts_unlocked_for`,
+  data-driven; see `game/buildings/CLAUDE.md`); `add_love`/`spend_love` clamp
+  at ≥0 (prototype clamps every currency write).
 - **`payday.py`** — `run_payday(state, tilemap, core, occupancy=None, scene=None)`
   mirrors `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`

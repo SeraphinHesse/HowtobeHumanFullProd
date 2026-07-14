@@ -18,7 +18,7 @@ constructor (core balance) and is attached to its pre-seeded tile via
 ``attach_base`` during bootstrap.
 """
 from game.map.tiles import TileState
-from .research import LEAF_CLASSES, RESEARCH, buildable
+from .research import LEAF_CLASSES, RESEARCH, buildable, tiers_unlocked_for
 
 # building_type -> leaf class. Only the 9D leaves; families grow in 10x.
 BUILDING_CLASSES = LEAF_CLASSES
@@ -28,15 +28,16 @@ class PlacementError(Exception):
     """A building could not be placed (non-buildable tile or not enough love)."""
 
 
-def create(building_type, col, row, buildings_balance):
-    """Construct a placeable building of ``building_type`` at ``(col, row)``."""
-    return BUILDING_CLASSES[building_type](col, row, buildings_balance)
+def create(building_type, col, row, buildings_balance, tier_idx=0):
+    """Construct a placeable building of ``building_type`` at ``(col, row)``,
+    starting at ``tier_idx`` (0 = the type's first tier)."""
+    return BUILDING_CLASSES[building_type](col, row, buildings_balance, tier_idx)
 
 
-def build_cost(building_type, buildings_balance):
-    """Tier-0 build cost for ``building_type`` (the placement price)."""
+def build_cost(building_type, buildings_balance, tier_idx=0):
+    """Build cost for ``building_type`` at ``tier_idx`` (the placement price)."""
     tiers = BUILDING_CLASSES[building_type]._resolve_tiers(buildings_balance)
-    return tiers[0]["build_cost"]
+    return tiers[tier_idx]["build_cost"]
 
 
 def place_building(tilemap, tile, building_type, love, buildings_balance,
@@ -74,11 +75,18 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
                     and "boost" in adj.occupant.tags):
                 raise PlacementError(
                     f"a boost building is already next to ({tile.col},{tile.row})")
-    cost = build_cost(building_type, buildings_balance)
+    # A fresh placement builds at the type's CURRENT research ceiling, not
+    # always tier 0 (10A follow-up): once a higher tier is researched, the
+    # lower tier is simply never placed again — no separate gate needed.
+    # ``state=None`` (logic tests that predate RunState) keeps tier 0.
+    tier_idx = (tiers_unlocked_for(state, building_type) - 1
+                if state is not None else 0)
+    cost = build_cost(building_type, buildings_balance, tier_idx)
     if love < cost:
         raise PlacementError(
             f"{building_type} costs {cost} love, have {love}")
-    building = create(building_type, tile.col, tile.row, buildings_balance)
+    building = create(building_type, tile.col, tile.row, buildings_balance,
+                      tier_idx)
     # Occupant + content key in one write through the TileMap seam — the
     # content key drives the tile's path weight, so the seam invalidates the
     # pathfinder's cached flow field (see game/map/tile_map.py).

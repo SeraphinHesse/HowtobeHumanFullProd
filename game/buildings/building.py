@@ -39,16 +39,16 @@ class Building(GameObject):
     TIER_SPRITES = ()         # per-tier slot-key prefixes
     EXTRA_TAGS = ()           # family capability tags (e.g. "combat", "economy")
 
-    def __init__(self, col, row, buildings_balance):
+    def __init__(self, col, row, buildings_balance, tier_idx=0):
         tiers = self._resolve_tiers(buildings_balance)
         components = [
-            TierState(building_type=self.BUILDING_TYPE),
+            TierState(building_type=self.BUILDING_TYPE, current_tier=tier_idx),
             Nameplate(),
             RoundStats(),
             Health(max_hp=1, hp=1),
             SpriteAnimator(slot_key="", phase_ms=(col * 137 + row * 251) % 2000),
         ]
-        components.extend(self._extra_components(tiers[0]))
+        components.extend(self._extra_components(tiers[tier_idx]))
         super().__init__(
             name=self.BUILDING_TYPE,
             tags=("building",) + tuple(self.EXTRA_TAGS),

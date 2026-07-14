@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -45,6 +46,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import agent_forms, registry_ops, selection, theme
+from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
@@ -232,6 +234,10 @@ class MainWindow(QMainWindow):
         split.setSizes([220, 760, 300])
         self.setCentralWidget(split)
         self.statusBar().showMessage("")   # ED-23 world-coordinate readout
+
+        producer_btn = QPushButton("thats my prod")
+        producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
+        self.statusBar().addWidget(producer_btn)
 
         domains = self.selector.domains()
         if domains:

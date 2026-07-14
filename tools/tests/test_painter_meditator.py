@@ -49,7 +49,7 @@ def board(rows):
 
 def run_state(**unlocks):
     """A RunState with the given types force-unlocked/researched for placement."""
-    st = RunState.from_balance(CORE)
+    st = RunState.from_balance(CORE, BUILD)
     for btype in unlocks.get("unlocked", ()):
         st.unlocked_buildings[btype] = True
     for btype, n in unlocks.get("tiers", {}).items():
@@ -96,7 +96,7 @@ class TestMeditatorStreak(unittest.TestCase):
         """End-to-end: a meditator that took damage last round pays base at the
         next payday (payday derives ``disturbed`` from RoundStats)."""
         tm, scene, occ = board(["bb"])
-        st = run_state(tiers={"meditator": 1})
+        st = run_state(unlocked=("meditator",), tiers={"meditator": 1})
         m, _ = place_building(tm, tm.get(1, 0), "meditator", 9999, BUILD,
                               scene, occ, state=st)
         love0 = st.love

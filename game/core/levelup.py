@@ -97,9 +97,10 @@ def _tier_option(btype, idx, buildings_balance):
         "title": tier["name"],
         "prev_name": tiers[idx - 1]["name"] if idx > 0 else None,
         "explanation": tier.get("explanation", ""),
-        # tier_unlock_cost IS what building_ui charges to advance one building
-        # out of the previous tier's top level.
-        "cost": tier.get("tier_unlock_cost", 0),
+        # build_cost is the ONE price for this tier -- placement, this
+        # research card, and the upgrade panel's advance button all charge
+        # the same number (no separate tier_unlock_cost anymore).
+        "cost": tier.get("build_cost", 0),
         "cost_label": "Upgrade Cost",
         "sprite_key": sprite_key,
     }
@@ -110,6 +111,11 @@ def _unlock_option(btype, spec, buildings_balance):
     FREE; ``display_cost`` previews the tier-1 build price (prototype)."""
     tiers = tiers_for(btype, buildings_balance)
     types = spec.unlock_group or (btype,)
+    leaf = LEAF_CLASSES[btype]
+    # Same flat-vs-tiered art convention as _tier_option (structure buildings
+    # key one slot for the whole type, no tier/level suffix).
+    flat_slot = getattr(leaf, "SLOT", "")
+    sprite_key = flat_slot or f"{leaf.TIER_SPRITES[0]}_t1_lvl1"
     return {
         "kind": "unlock_building",
         "building_type": btype,
@@ -120,7 +126,7 @@ def _unlock_option(btype, spec, buildings_balance):
         "cost": 0,
         "display_cost": tiers[0].get("build_cost", 0),
         "cost_label": "Build Cost",
-        "sprite_key": f"{LEAF_CLASSES[btype].TIER_SPRITES[0]}_t1_lvl1",
+        "sprite_key": sprite_key,
     }
 
 
@@ -217,7 +223,7 @@ def upgrade_gate(state, building, buildings_balance):
         return ("tier_hidden", None,
                 tier_unlock_min_round(btype, next_idx, buildings_balance))
     tier = tiers_for(btype, buildings_balance)[next_idx]
-    cost = tier.get("tier_unlock_cost", 0)
+    cost = tier.get("build_cost", 0)
     if tiers_unlocked_for(state, btype) > next_idx:
         return ("tier_upgrade", tier["name"], cost)
     return ("tier_locked", tier["name"], cost)

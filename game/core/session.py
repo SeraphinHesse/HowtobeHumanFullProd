@@ -82,9 +82,9 @@ class Session:
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
                buildings_balance, registry=None, rng=None, occupancy=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
-        return cls(RunState.from_balance(core_balance), spawner, tilemap,
-                   enemies_balance, core_balance, buildings_balance, registry,
-                   rng, occupancy)
+        return cls(RunState.from_balance(core_balance, buildings_balance),
+                   spawner, tilemap, enemies_balance, core_balance,
+                   buildings_balance, registry, rng, occupancy)
 
     @property
     def frozen(self):

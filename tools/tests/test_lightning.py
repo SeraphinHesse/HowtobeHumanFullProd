@@ -98,12 +98,12 @@ class TestSeedAndCosts(unittest.TestCase):
         self.assertEqual(LS["upgrade_costs"], [35, 80])
 
     def test_fresh_run_starts_at_level_1_no_cooldown(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         self.assertEqual(st.lightning_level, 1)   # prototype game.py:117
         self.assertEqual(st.lightning_cooldown, 0.0)
 
     def test_cost_ladder_and_upgrades(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 35 + 80
         self.assertEqual(lt.next_cost(st, CORE), 35)      # L1 -> L2
         self.assertTrue(lt.upgrade(st, CORE))
@@ -115,7 +115,7 @@ class TestSeedAndCosts(unittest.TestCase):
         self.assertEqual(st.love, 0)
 
     def test_max_level_no_op(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = LS["max_level"]
         st.love = 9999
         self.assertIsNone(lt.next_cost(st, CORE))
@@ -124,14 +124,14 @@ class TestSeedAndCosts(unittest.TestCase):
         self.assertEqual(st.love, 9999)                   # no love spent
 
     def test_insufficient_love_refused(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 34
         self.assertFalse(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 1)
         self.assertEqual(st.love, 34)
 
     def test_unlock_branch_reachable_at_level_0(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 0
         self.assertEqual(lt.next_cost(st, CORE), LS["unlock_cost"])  # 20
         st.love = LS["unlock_cost"]
@@ -145,7 +145,7 @@ class TestSeedAndCosts(unittest.TestCase):
 class TestCooldown(unittest.TestCase):
     def test_strike_spends_cooldown_and_upgrade_never_resets_it(self):
         tm, scene, occ = build_board(FIELD)
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         cs = make_cs()
         self.assertTrue(lt.strike(st, CORE, scene, cs, 3.0, 3.0))  # whiff ok
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
@@ -155,7 +155,7 @@ class TestCooldown(unittest.TestCase):
 
     def test_strike_while_cooling_is_a_silent_noop(self):
         tm, scene, occ = build_board(FIELD)
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         cs = make_cs()
         e = spawn_enemy(scene, tm, 3, 3)
         scene.update(0.0)
@@ -171,7 +171,7 @@ class TestCooldown(unittest.TestCase):
 
     def test_whiff_still_spends_full_cooldown_and_plays_fx(self):
         tm, scene, occ = build_board(FIELD)   # no enemies at all
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         cs = make_cs()
         self.assertTrue(lt.strike(st, CORE, scene, cs, 4.0, 4.0))
         scene.update(0.0)
@@ -179,7 +179,7 @@ class TestCooldown(unittest.TestCase):
         self.assertEqual(len(scene.by_tag("lightning_fx")), 1)
 
     def test_tick_drains_linearly_and_clamps_at_zero(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.lightning_cooldown = 3.0
         lt.tick(st, 1.0)
         self.assertAlmostEqual(st.lightning_cooldown, 2.0)
@@ -206,7 +206,7 @@ class TestCooldown(unittest.TestCase):
 
     def test_fx_ages_and_self_despawns(self):
         tm, scene, occ = build_board(FIELD)
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         lt.strike(st, CORE, scene, make_cs(), 4.0, 4.0)
         scene.update(0.0)
         fx = scene.by_tag("lightning_fx")[0]
@@ -254,7 +254,7 @@ class TestRadiusGeometry(unittest.TestCase):
     def test_radius_1_boundary_hit_and_near_miss(self, zoom=1.0):
         scene, cs, (wx, wy), (center, diag, adj) = self._board_with(
             [(0, 0), (1, 1), (1, 0)], zoom=zoom)
-        st = RunState.from_balance(CORE)          # level 1, radius 1
+        st = RunState.from_balance(CORE, BUILD)          # level 1, radius 1
         dealt = self._strike(st, scene, cs, wx, wy)
         dmg = LS["damage"][0]
         self.assertEqual(dealt[id(center)], dmg)  # on the strike point
@@ -268,7 +268,7 @@ class TestRadiusGeometry(unittest.TestCase):
     def test_radius_2_and_3_widen_the_circle(self):
         scene, cs, (wx, wy), (center, adj, two) = self._board_with(
             [(0, 0), (1, 0), (2, 0)])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 2                     # radius 2 -> 64 px
         dealt = self._strike(st, scene, cs, wx, wy)
         dmg2 = LS["damage"][1]
@@ -282,7 +282,7 @@ class TestRadiusGeometry(unittest.TestCase):
 
     def test_all_in_radius_take_full_flat_damage(self):
         scene, cs, (wx, wy), (a, b) = self._board_with([(0, 0), (1, 1)])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         dealt = self._strike(st, scene, cs, wx, wy)
         self.assertEqual(dealt[id(a)], LS["damage"][0])   # no falloff
         self.assertEqual(dealt[id(b)], LS["damage"][0])   # no target cap

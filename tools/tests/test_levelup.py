@@ -77,7 +77,7 @@ def frame(session, scene, tilemap_, dt):
 # ---------------------------------------------------------------------------
 class TestRunStateSeeding(unittest.TestCase):
     def test_xp_fields_seeded_from_core(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         self.assertEqual(st.player_xp, 0)
         self.assertEqual(st.village_level, 1)
         self.assertEqual(st.xp_threshold, XP["village_xp_base_threshold"])
@@ -85,16 +85,14 @@ class TestRunStateSeeding(unittest.TestCase):
         self.assertFalse(st.levelup_pending)
 
     def test_research_seeded_from_table(self):
-        st = RunState.from_balance(CORE)
-        # 9D lines start unlocked at tier 1; the 10B defence lines start LOCKED
-        # (earned via a level-up unlock card) but with tier 1 ready once unlocked.
-        # 10C: Painter is a LOCKED type (tier 1 ready once unlocked); Meditator's
-        # type is always unlocked but starts at ZERO researched tiers (tier 1
-        # researched at a level-up, era-gated to round 10). 10D: the three boost
-        # types start LOCKED (unlocked together by one round-10 card) but tier 1
-        # ready once unlocked. 10E: Blocker is always unlocked at tier 1
-        # (placeable from the start); WallBuilder's type is unlocked but starts at
-        # ZERO researched tiers (tier 1 researched at a level-up, era-gated to 5).
+        st = RunState.from_balance(CORE, BUILD)
+        # 9D lines start unlocked at tier 1. Every other type starts LOCKED
+        # (data-driven via buildings.json starts_unlocked -- only Stone
+        # Thrower/defence and Flute Player/economic start unlocked), earned
+        # via a level-up unlock card; ``starts_with_tier`` is unaffected and
+        # still governs how many tiers are pre-researched once a type IS
+        # unlocked: 1 for most, 0 for meditator/wall_builder (their own first
+        # tier must also be researched, era-gated to round 10/5).
         self.assertEqual(
             st.tiers_unlocked,
             {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
@@ -105,9 +103,9 @@ class TestRunStateSeeding(unittest.TestCase):
             st.unlocked_buildings,
             {"defence": True, "economic": True,
              "aoe_defence": False, "sun_scorcher": False,
-             "painter": False, "meditator": True,
+             "painter": False, "meditator": False,
              "boost_speed": False, "boost_damage": False, "boost_hp": False,
-             "blocker": True, "wall_builder": True})
+             "blocker": False, "wall_builder": False})
 
 
 # ---------------------------------------------------------------------------
@@ -122,7 +120,7 @@ class TestXpMath(unittest.TestCase):
         self.assertEqual(xpmod.xp_for_etype("gribbly", CORE), 1)
 
     def test_award_arms_pending_once_at_threshold(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         xpmod.award_xp(st, 49)
         self.assertFalse(st.levelup_pending)
         xpmod.award_xp(st, 1)
@@ -130,7 +128,7 @@ class TestXpMath(unittest.TestCase):
         self.assertEqual(st.player_xp, 50)
 
     def test_award_records_floater_event_only_with_a_position(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         xpmod.award_xp(st, 3)
         self.assertEqual(st.xp_events, [])
         xpmod.award_xp(st, 2, (4.0, 5.0))
@@ -138,7 +136,7 @@ class TestXpMath(unittest.TestCase):
 
     def test_threshold_curve(self):
         """50 -> 65 -> 85 -> 110 -> 140: the increment itself grows by 5."""
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         seen = [st.xp_threshold]
         for _ in range(4):
             xpmod.advance_village_level(st, CORE)
@@ -147,14 +145,14 @@ class TestXpMath(unittest.TestCase):
         self.assertEqual(st.village_level, 5)
 
     def test_surplus_xp_carries_forward(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         xpmod.award_xp(st, 63)            # threshold 50, surplus 13
         xpmod.advance_village_level(st, CORE)
         self.assertEqual(st.player_xp, 13)
         self.assertEqual(st.xp_threshold, 65)
 
     def test_scaled_base_income(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         base = CORE["TheHole"]["base_income"]
         self.assertEqual(xpmod.scaled_base_income(st, CORE), base)
         st.village_level = 3
@@ -168,23 +166,35 @@ class TestOptionRoll(unittest.TestCase):
 
     def test_early_pool_offers_unlocks_then_pads(self):
         # Round 1, village level 1: the tier-2s are round-gated to 10, Sun
-        # Scorcher is era-gated to 14 and the Meditator to 10 — so the only real
-        # cards are the two village-level-gated unlocks whose gate is met from
-        # the start: Maw Mortar (min_village_level 1) and Painter (0). The roll
-        # pads the remaining slot with a love fallback.
-        st = RunState.from_balance(CORE)
+        # Scorcher is era-gated to 14 and the Meditator to 10 — so the real
+        # cards are every UNGATED-or-met unlock: Maw Mortar (min_village_level
+        # 1), Painter (min_village_level 0), and Blocker (starts locked, no
+        # gate at all). That already fills all three slots — no fallback pad
+        # needed at round 1 anymore (Blocker has no unlock_title, so its card
+        # falls back to its tier-0 name).
+        st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
         self.assertEqual(len(options), 3)
         unlocks = [o for o in options if o["kind"] == "unlock_building"]
         fallbacks = [o for o in options if o["kind"] == "fallback"]
         self.assertEqual([o["title"] for o in unlocks],
-                         ["Unlock Maw Mortar", "Unlock Painter"])
-        self.assertEqual(len(fallbacks), 1)
+                         ["Unlock Maw Mortar", "Unlock Painter", "Blocker"])
+        self.assertEqual(len(fallbacks), 0)
+
+    def test_fully_researched_pool_pads_with_fallbacks(self):
+        """With every type unlocked and every tier maxed, nothing real is left
+        to offer — the roll pads all three slots with the love fallback."""
+        st = RunState.from_balance(CORE, BUILD)
+        st.unlocked_buildings = dict.fromkeys(st.unlocked_buildings, True)
+        st.tiers_unlocked = dict.fromkeys(st.tiers_unlocked, 3)
+        options = self.roll(st)
+        self.assertEqual(len(options), 3)
+        self.assertTrue(all(o["kind"] == "fallback" for o in options))
         self.assertTrue(all(o["amount"] == XP["levelup_love_reward"]
-                            for o in fallbacks))
+                            for o in options))
 
     def test_tier_two_enters_the_pool_at_its_unlock_min_round(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 7
         # No TIER card yet: the defence/economic tier-2s are round-gated to 10 and
         # the Blocker's Bulwark to round 8, so at round 7 the only cards are the
@@ -197,7 +207,7 @@ class TestOptionRoll(unittest.TestCase):
     def test_only_the_single_next_locked_tier_is_offered(self):
         """With Slinger researched, Pistoleer (round 30) is the only defence
         candidate — and it stays out of the pool until round 30."""
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         st.tiers_unlocked["defence"] = 2
         tiers = [o for o in self.roll(st) if o["kind"] == "tier"]
@@ -209,7 +219,7 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(titles, {"Pistoleer", "Harp Player"})
 
     def test_tier_option_shape(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         option = next(o for o in self.roll(st)
                       if o.get("building_type") == "defence")
@@ -218,7 +228,7 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(option["tier_no"], 2)
         self.assertEqual(option["tier_max"], 3)
         self.assertEqual(option["prev_name"], "Stone Thrower")
-        self.assertEqual(option["cost"], 20)          # tier_unlock_cost
+        self.assertEqual(option["cost"], 20)          # BasicDefence.tiers[1].build_cost
         self.assertEqual(option["sprite_key"], "slinger_t2_lvl1")
 
     def test_era_gate_excludes_a_type_entirely(self):
@@ -226,7 +236,7 @@ class TestOptionRoll(unittest.TestCase):
         when its next tier's own unlock_min_round has passed."""
         bal = copy.deepcopy(BUILD)
         bal["DefenceBuildings"]["BasicDefence"]["era_unlock_round"] = 20
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         titles = {o["title"] for o in lv.roll_levelup_options(
             st, bal, CORE, NoShuffle) if o["kind"] == "tier"}
@@ -252,20 +262,20 @@ class TestOptionRoll(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestUnlockOptions(unittest.TestCase):
-    """The generic type-unlock machinery. No shipped type uses it yet (both 9D
-    lines start unlocked), so it is driven through a synthetic RESEARCH row —
-    exactly the shape 10B-10E will add."""
+    """The generic type-unlock machinery, driven through a synthetic RESEARCH
+    row so the gate mechanics (ungated / village-level / round / grouped) are
+    tested in isolation from whichever shipped types happen to be locked."""
 
     def synthetic(self, spec):
         return mock.patch.dict(lv.RESEARCH, {"economic": spec}, clear=False)
 
     def locked_state(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.unlocked_buildings["economic"] = False
         return st
 
     def test_ungated_locked_type_offers_an_unlock_card(self):
-        spec = ResearchSpec(starts_unlocked=False, unlock_title="Unlock Music")
+        spec = ResearchSpec(unlock_title="Unlock Music")
         with self.synthetic(spec):
             options = lv.roll_levelup_options(
                 self.locked_state(), BUILD, CORE, NoShuffle)
@@ -277,7 +287,7 @@ class TestUnlockOptions(unittest.TestCase):
 
     def test_village_level_gate_withholds_the_card(self):
         spec = ResearchSpec(
-            starts_unlocked=False, gate_kind="min_village_level",
+            gate_kind="min_village_level",
             gate_path=("EconomyBuildings", "Painters",
                        "unlock_min_village_level"))
         bal = copy.deepcopy(BUILD)
@@ -296,7 +306,7 @@ class TestUnlockOptions(unittest.TestCase):
 
     def test_round_gate_withholds_the_card(self):
         spec = ResearchSpec(
-            starts_unlocked=False, gate_kind="min_round",
+            gate_kind="min_round",
             gate_path=("BoostBuildings", "globals", "unlock_min_round"))
         st = self.locked_state()
         with self.synthetic(spec):
@@ -310,8 +320,7 @@ class TestUnlockOptions(unittest.TestCase):
                                     st, BUILD, CORE, NoShuffle)))
 
     def test_group_unlock_frees_every_type_in_the_group(self):
-        spec = ResearchSpec(starts_unlocked=False,
-                            unlock_group=("economic", "defence"))
+        spec = ResearchSpec(unlock_group=("economic", "defence"))
         st = self.locked_state()
         st.unlocked_buildings["defence"] = False
         with self.synthetic(spec):
@@ -326,7 +335,7 @@ class TestUnlockOptions(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestApplyOption(unittest.TestCase):
     def test_tier_option_researches_and_charges(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         st.love = 100
         option = next(o for o in lv.roll_levelup_options(st, BUILD, CORE,
@@ -337,7 +346,7 @@ class TestApplyOption(unittest.TestCase):
         self.assertEqual(st.love, 80)                 # 100 - 20
 
     def test_tier_cost_clamps_love_at_zero(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         st.love = 5
         option = next(o for o in lv.roll_levelup_options(st, BUILD, CORE,
@@ -347,15 +356,19 @@ class TestApplyOption(unittest.TestCase):
         self.assertEqual(st.love, 0)
 
     def test_fallback_pays_love(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 0
+        # Every type unlocked + maxed -> nothing real to offer -> a fallback
+        # is guaranteed in the pool.
+        st.unlocked_buildings = dict.fromkeys(st.unlocked_buildings, True)
+        st.tiers_unlocked = dict.fromkeys(st.tiers_unlocked, 3)
         fallback = next(o for o in lv.roll_levelup_options(
             st, BUILD, CORE, NoShuffle) if o["kind"] == "fallback")
         lv.apply_levelup_option(st, fallback, CORE)
         self.assertEqual(st.love, XP["levelup_love_reward"])
 
     def test_unknown_kind_raises(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         with self.assertRaises(ValueError):
             lv.apply_levelup_option(st, {"kind": "nonsense"}, CORE)
 
@@ -366,7 +379,7 @@ class TestUpgradeGate(unittest.TestCase):
 
     def defender(self):
         tm, scene, occ = build_board(["bb", "bb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 1000
         b, _ = place_building(tm, tm.get(1, 1), "defence", st.love, BUILD,
                               scene, occ, state=st)
@@ -414,7 +427,7 @@ class TestUpgradeGate(unittest.TestCase):
 class TestPlacementGate(unittest.TestCase):
     def test_unresearched_type_cannot_be_placed(self):
         tm, scene, occ = build_board(["bb", "bb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 1000
         st.tiers_unlocked["defence"] = 0              # tier 1 not researched
         with self.assertRaises(PlacementError):
@@ -424,7 +437,7 @@ class TestPlacementGate(unittest.TestCase):
 
     def test_locked_type_cannot_be_placed(self):
         tm, scene, occ = build_board(["bb", "bb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 1000
         st.unlocked_buildings["economic"] = False
         with self.assertRaises(PlacementError):
@@ -449,7 +462,7 @@ class TestDefence10BGates(unittest.TestCase):
         return lv.roll_levelup_options(st, BUILD, CORE, NoShuffle)
 
     def test_maw_mortar_unlock_offered_from_village_level_one(self):
-        st = RunState.from_balance(CORE)          # village level 1, round 1
+        st = RunState.from_balance(CORE, BUILD)          # village level 1, round 1
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "aoe_defence")
         self.assertEqual(card["kind"], "unlock_building")
@@ -464,7 +477,7 @@ class TestDefence10BGates(unittest.TestCase):
     def test_maw_mortar_gate_reads_the_village_level_key(self):
         bal = copy.deepcopy(BUILD)
         bal["DefenceBuildings"]["AOEDefence"]["unlock_min_village_level"] = 4
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         self.assertFalse(any(o.get("building_type") == "aoe_defence"
                              for o in lv.roll_levelup_options(
                                  st, bal, CORE, NoShuffle)))
@@ -474,7 +487,7 @@ class TestDefence10BGates(unittest.TestCase):
                                 st, bal, CORE, NoShuffle)))
 
     def test_sun_scorcher_is_era_gated_to_round_14(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         # Drop the tier competition so both locked-type unlock cards fit the
         # three-card pool regardless of order.
         st.tiers_unlocked["defence"] = 3
@@ -491,7 +504,7 @@ class TestDefence10BGates(unittest.TestCase):
 
     def test_unlocking_lets_the_type_be_placed(self):
         tm, scene, occ = build_board(["bb", "bb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.love = 1000
         with self.assertRaises(PlacementError):           # locked initially
             place_building(tm, tm.get(1, 1), "aoe_defence", st.love, BUILD,
@@ -546,8 +559,12 @@ class TestLevelupPhase(unittest.TestCase):
 
     def test_resolve_grants_the_reward_then_runs_payday(self):
         session, tm, scene = self.at_round_end(True)
-        frame(session, scene, tm, 0.1)
+        # Every type unlocked + maxed -> nothing real to offer -> a fallback
+        # is guaranteed in the rolled pool.
         st = session.state
+        st.unlocked_buildings = dict.fromkeys(st.unlocked_buildings, True)
+        st.tiers_unlocked = dict.fromkeys(st.tiers_unlocked, 3)
+        frame(session, scene, tm, 0.1)
         before = st.love
         fallback = next(o for o in st.levelup_options if o["kind"] == "fallback")
         session.resolve_levelup(fallback)                # a +25 Love fallback
