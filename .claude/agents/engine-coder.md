@@ -34,7 +34,7 @@ it as a cross-package finding — never cross the boundary yourself.
 
 ## Exit gate (before reporting done)
 - `py tools/smoke.py` green.
-- `py -m unittest discover -s tools/tests -t .` — **0 failures, 0 errors.**
+- `py tools/testgate.py check` — **0 failures, 0 errors.**
   The suite is green; there is no baseline and no tolerated failure.
 
 ## Report format

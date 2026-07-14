@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add or create a new building type (defence/economy/boost/structure). Produces leaf class + research row + registry + balancing subtree + slots, following the 10B-10E pattern.
 argument-hint: <building name + type, e.g. "Sun Scorcher (beam defence)">
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 ---
 
 Add a new building: **$ARGUMENTS**. This follows the migration plan's 10B–10E
@@ -48,7 +48,7 @@ roll").
 
 ## Verify
 - Headless: a tier-max test upgrades the line asserting hp/dmg/yield per the
-  balancing tables at each step: `py -m unittest discover -s tools/tests -t .`.
+  balancing tables at each step: `py tools/testgate.py check`.
 - Data: `py tools/smoke.py` (schema validation).
 - Live: `py game/main.py` — build it, upgrade it, confirm cost/effect + it appears
   in the construct list once its gate opens.

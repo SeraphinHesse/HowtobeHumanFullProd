@@ -1,7 +1,7 @@
 ---
 description: Execute a range of phases from an implementation-plan document by orchestrating parallel planner/coder/reviewer subagent waves under an umbrella branch.
 argument-hint: <plan-file> <phase-range e.g. 10G-10I> [spec-repo-path]
-allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*)
+allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 disable-model-invocation: true
 ---
 
@@ -17,7 +17,7 @@ umbrella branch.
 
 ## Steps
 1. **Umbrella.** Branch `phase-<range>-umbrella` off the base branch. Record the
-   suite is GREEN (`py -m unittest discover -s tools/tests -t .` → 0 failures).
+   suite is GREEN (`py tools/testgate.py check` → 0 failures).
    There is no baseline to record: every later gate requires **zero failures**.
 2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase, parallel). Each reads the router
    `CLAUDE.md` → the relevant package/subsystem docs → current source (+ spec

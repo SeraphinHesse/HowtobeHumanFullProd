@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add a new engine Component. Produces declared JSON-safe fields, on_added seam, auto-registration, keeping the module pure per the engine/core conventions.
 argument-hint: <component name + what state it holds>
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py tools/smoke.py*)
 ---
 
 Add an engine component: **$ARGUMENTS**. Components are what the editor sees and the
@@ -40,7 +40,7 @@ that's a cross-package task — tell the user.
   `game/`.
 
 ## Verify
-- `py -m unittest discover -s tools/tests -t .` — field collection, serialization
+- `py tools/testgate.py check` — field collection, serialization
   round-trip, and the component's own behavior test.
 - `py tools/smoke.py` if anything render/asset-facing.
 

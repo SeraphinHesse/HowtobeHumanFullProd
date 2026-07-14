@@ -44,6 +44,7 @@ TIERS = {
     "test_qt_harness": "meta",
     "test_smoke_pairing": "meta",
     "test_spawnclaude": "meta",
+    "test_testgate": "meta",
     "test_tiers": "meta",
 
     # --- editor: PySide6; the slow tier ------------------------------------

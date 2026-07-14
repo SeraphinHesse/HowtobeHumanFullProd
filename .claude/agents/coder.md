@@ -26,7 +26,7 @@ You are a coder: you implement ONE scoped task and verify it.
 
 ## Exit gate (before reporting done)
 - `py tools/smoke.py` green.
-- `py -m unittest discover -s tools/tests -t .` — **0 failures, 0 errors.**
+- `py tools/testgate.py check` — **0 failures, 0 errors.**
   The suite is green; there is no baseline and no tolerated failure. If a test
   is red, you broke it — fix it, don't explain it away.
 
