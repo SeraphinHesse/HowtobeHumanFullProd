@@ -6,7 +6,7 @@ re-loaded to prove the write validates and the game-side variant pool grows.
 """
 import unittest
 
-from editor import registry_ops
+from editor import registry_ops, selection
 from engine import data_io
 from engine.assets import load_registry
 from game.enemies.enemy import variant_slot
@@ -84,6 +84,23 @@ class TestAddVariant(TempDataCase):
         with self.assertRaises(KeyError):
             registry_ops.add_variant(
                 self.data_dir, "enemies", ("Walker",), "Era 9")
+
+    def test_ui_skin_variant(self):
+        """10L-A: a ui leaf subcategory is a SKIN family, so "+ Variant" adds
+        another skin. This only works because the ui groups are nested parents
+        with leaf children — a flat `slots` group would make variant_target()
+        return None (dead button) and add_variant() raise."""
+        new_key = registry_ops.add_variant(
+            self.data_dir, "ui", ("Buttons",), "Button")
+        self.assertEqual(new_key, "ui_button_v2")
+
+        reg = load_registry(self.data_dir)      # proves the write validated
+        self.assertEqual(reg.group_slots("ui", ("Buttons", "Button")),
+                         ("ui_button", "ui_button_v2"))
+
+        # the structural claim: the nested shape is what makes "+ Variant" live
+        self.assertEqual(
+            selection.variant_target(reg, "ui", ("Buttons",), 0), "Button")
 
     def test_object_form_entries_do_not_break_the_variant_walk(self):
         """D1 lets a slots[] entry be {key, frame_w, frame_h}. registry_ops

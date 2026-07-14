@@ -345,8 +345,10 @@ class MainWindow(QMainWindow):
     # deco types hold interchangeable art, whereas a building tier's levels
     # (lvl1/2/3) are distinct gameplay steps. Under "map" only Background
     # qualifies: a tile_buildable_v2 would silently break the checkerboard
-    # `_b` pairing of the zone kinds.
-    _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"}}
+    # `_b` pairing of the zone kinds. For "ui" every leaf subcategory is a SKIN
+    # family (Buttons/Button, Panels/Panel, …) — a variant is another skin.
+    _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
+                        "ui": None}
     _DECO_CATEGORY = "deco"
 
     def _variant_target(self):
