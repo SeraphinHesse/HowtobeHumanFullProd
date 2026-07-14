@@ -14,6 +14,7 @@ class Frame:
     frame_h: int
     offset_x: int = 0
     offset_y: int = 0
+    slice: tuple = None   # nine-slice margins from the manifest entry, or None
 
 
 class _Placeholder:

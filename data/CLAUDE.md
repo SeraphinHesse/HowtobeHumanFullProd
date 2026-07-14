@@ -176,6 +176,14 @@ validating writer; don't hand-edit the JSON.
   `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written
   ONLY by the editor's import panel and `tools/migrate_prototype_assets.py`
   — both through `write_validated`.
+  - **`slice` (A2) is the one OPTIONAL per-entry key** — everything else is
+    `required`. `"slice": [left, top, right, bottom]`, ints 0..1024, nine-slice
+    margins in FRAME pixels (same convention as `offset_x`/`offset_y`). It exists
+    so a UI panel/button skin can be drawn at any size with its corners intact:
+    corners blit 1:1, edges stretch on one axis, the centre on both. **HUD sprites
+    only** — world sprites ignore it and keep uniform zoom scaling. Omit it for
+    plain scaling; no committed entry carries one yet. The geometry lives in
+    `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
   import time (editor) or by the migration tool. Never gitignore them.
 
