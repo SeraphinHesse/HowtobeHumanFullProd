@@ -596,5 +596,103 @@ class TestLevelBar(QtCase):
         self.assertEqual(seen, [1])
 
 
+class TestFrameSizeOverride(DetailsCase):
+    """ER-5: the per-slot frame size — the one property of a slot the editor could
+    not express. Frame size is a CATEGORY value; a slot may override it (ER-1's
+    object form in slots.json).
+
+    `enemy_stage_1_v1` is an `enemies` slot, so it inherits the category's 64x96.
+    """
+
+    SLOT = "enemy_stage_1_v1"
+    UNASSIGN = (SLOT,)
+
+    def slots_entry(self):
+        """The raw slots.json entry for SLOT: a bare string (inherits) or the
+        {key, frame_w, frame_h} override object."""
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        for category in doc["categories"]:
+            found = self._walk(category["groups"])
+            if found is not None:
+                return found
+        self.fail(f"{self.SLOT} not in slots.json")
+
+    def _walk(self, groups):
+        for node in groups:
+            for entry in node.get("slots", ()):
+                key = entry if isinstance(entry, str) else entry["key"]
+                if key == self.SLOT:
+                    return entry
+            found = self._walk(node.get("children", ()))
+            if found is not None:
+                return found
+        return None
+
+    def set_frame_size(self, w, h):
+        self.panel._frame_w.setValue(w)
+        self.panel._frame_h.setValue(h)
+        self.panel._on_frame_size_changed()
+
+    def test_the_spinboxes_show_the_slots_effective_frame_size(self):
+        self.panel.set_slot(self.SLOT)
+        self.assertEqual(
+            (self.panel._frame_w.value(), self.panel._frame_h.value()), (64, 96))
+        self.assertIsInstance(self.slots_entry(), str)   # inherits, no override yet
+
+    def test_writing_an_override_needs_no_sheet(self):
+        """Declaring the frame size BEFORE importing is the point — it is what the
+        importer slices and pads against."""
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertEqual(self.slots_entry(),
+                         {"key": self.SLOT, "frame_w": 128, "frame_h": 128})
+        self.assertEqual(self.panel.registry.frame_size(self.SLOT), (128, 128))
+
+    def test_the_category_size_removes_the_override(self):
+        """Writing the category's own size back is how 'reset to default' is
+        expressed — the entry returns to the bare-string form rather than carrying
+        an override that overrides nothing."""
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertIsInstance(self.slots_entry(), dict)
+        self.set_frame_size(64, 96)
+        self.assertEqual(self.slots_entry(), self.SLOT)
+
+    def test_an_imported_sheet_is_resliced_and_the_manifest_follows(self):
+        """THE trap: AssetStore.frame_size resolves manifest entry > registry, so
+        an imported slot carries its own frame_w/frame_h. Change the override and
+        forget to re-slice, and the entry keeps shadowing the registry — the slot
+        renders at the OLD size and the two files disagree on disk."""
+        src = make_png(self.png_dir / "art.png", 128, 128)   # 2x1 at 64x96... 1x1 at 128
+        self.panel.set_slot(self.SLOT)
+        self.panel.import_sheet(src)
+        self.panel.save()
+        self.assertEqual(self.manifest_doc()["entries"][self.SLOT]["frame_w"], 64)
+
+        self.set_frame_size(128, 128)
+
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual((entry["frame_w"], entry["frame_h"]), (128, 128))
+        self.assertEqual(self.panel.registry.frame_size(self.SLOT), (128, 128))
+        # Re-cut: the 128x128 sheet is now ONE 128x128 frame, not 2 cols x 1 row
+        # of 64x96 (with a cropped remainder).
+        self.assertEqual(len(self.panel._row_editors), 1)
+        self.assertEqual(self.panel._row_editors[0].num_cols, 1)
+
+    def test_the_shell_is_told_to_reload_its_registries(self):
+        seen = []
+        self.panel.registry_changed.connect(seen.append)
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertEqual(seen, [self.SLOT])
+
+    def test_no_write_when_the_size_is_unchanged(self):
+        self.panel.set_slot(self.SLOT)
+        before = (self.data_dir / "slots.json").read_text(encoding="utf-8")
+        self.set_frame_size(64, 96)          # already the effective size
+        self.assertEqual((self.data_dir / "slots.json").read_text(encoding="utf-8"),
+                         before)
+
+
 if __name__ == "__main__":
     unittest.main()

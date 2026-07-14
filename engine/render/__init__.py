@@ -5,7 +5,7 @@ engine.render.backend (loaded lazily on first flush, or injected).
 """
 from .hud import HudLines, HudRect, HudSprite, HudText
 from .item import LAYERS, DrawCall, OverlayLines, OverlayPolys, RenderItem
-from .renderer import Renderer, fit_factor
+from .renderer import Renderer, block_center_offset, fit_factor
 
 __all__ = [
     "LAYERS",
@@ -18,5 +18,6 @@ __all__ = [
     "OverlayPolys",
     "RenderItem",
     "Renderer",
+    "block_center_offset",
     "fit_factor",
 ]

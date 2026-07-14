@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import asset_import, selection
+from editor import asset_import, registry_ops, selection
 from editor.asset_import import pad_to_frame
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
@@ -263,6 +263,7 @@ class DetailsPanel(QWidget):
     draft_changed = Signal(str, object)     # (slot_key, entry_dict | None)
     entry_saved = Signal(str)
     entry_cleared = Signal(str)
+    registry_changed = Signal(str)          # slots.json was written (frame size)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -316,6 +317,23 @@ class DetailsPanel(QWidget):
         offsets.addWidget(QLabel("(−Y = up)"))
         offsets.addStretch(1)
 
+        # Per-slot frame size (ER-5). Frame size is a CATEGORY property; this is
+        # the per-slot override, and the ONE thing about a slot the editor could
+        # not express. Committed on editingFinished, not valueChanged, so typing
+        # "128" does not write three times on the way there.
+        frames = QHBoxLayout()
+        frames.addWidget(QLabel("Frame  W:"))
+        self._frame_w = QSpinBox()
+        self._frame_h = QSpinBox()
+        for spin in (self._frame_w, self._frame_h):
+            spin.setRange(1, 1024)          # slots.schema.json bounds (ED-30)
+            spin.editingFinished.connect(self._on_frame_size_changed)
+        frames.addWidget(self._frame_w)
+        frames.addWidget(QLabel("H:"))
+        frames.addWidget(self._frame_h)
+        frames.addWidget(QLabel("(how the sheet is SLICED)"))
+        frames.addStretch(1)
+
         self._preview = SheetPreview(interactive=True)
         self._preview.frame_clicked.connect(self._on_frame_clicked)
 
@@ -332,6 +350,7 @@ class DetailsPanel(QWidget):
         layout.addLayout(buttons)
         layout.addWidget(self._preview)
         layout.addLayout(offsets)
+        layout.addLayout(frames)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
@@ -406,6 +425,11 @@ class DetailsPanel(QWidget):
                 return
             fw, fh = self.registry.frame_size(slot_key)
             self._header.setText(f"[{slot_key}]  {fw}×{fh}/frame")
+            # Populated even with no sheet imported: declaring the frame size
+            # BEFORE the import is the point — it is what the importer slices
+            # (and pads) against.
+            self._frame_w.setValue(fw)
+            self._frame_h.setValue(fh)
             entry = self._read_doc()["entries"].get(slot_key)
             if entry:
                 self._offset_x.setValue(int(entry.get("offset_x", 0)))
@@ -519,6 +543,42 @@ class DetailsPanel(QWidget):
             "offset_y": self._offset_y.value(),
             "rows": [editor.to_dict() for editor in self._row_editors],
         }
+
+    def _on_frame_size_changed(self):
+        """Commit a per-slot frame-size override, and RE-SLICE against it.
+
+        The two-file part is not optional. `AssetStore.frame_size` resolves
+        manifest entry > registry, so a slot that already has an entry carries its
+        own frame_w/frame_h and would keep rendering at the OLD size no matter what
+        slots.json says. So: write the registry override, reload every cached
+        registry, then re-cut the sheet at the new size and persist the refreshed
+        entry. Leaving the two disagreeing on disk is the failure mode this method
+        exists to prevent.
+
+        Row count follows the new slicing (a taller frame yields fewer rows);
+        `_load_sheet` already warns on an unclean grid.
+        """
+        if self._loading or self.slot_key is None:
+            return
+        fw, fh = self._frame_w.value(), self._frame_h.value()
+        if (fw, fh) == self.registry.frame_size(self.slot_key):
+            return                                   # nothing to do
+        registry_ops.set_slot_frame_size(self._data_dir, self.slot_key, fw, fh)
+        self.registry_changed.emit(self.slot_key)    # shell reloads every registry
+        self.reload_registry()
+
+        self._header.setText(f"[{self.slot_key}]  {fw}×{fh}/frame")
+        entry = self._read_doc()["entries"].get(self.slot_key)
+        sheet = self._sheet_file(self._sheet_ref) if self._sheet_ref else None
+        if entry is None or sheet is None or not sheet.exists():
+            self._emit_draft()
+            return
+        self._loading = True
+        try:
+            self._load_sheet(sheet, entry)           # re-cut at the new frame size
+        finally:
+            self._loading = False
+        self.save()                                  # entry + registry agree again
 
     def save(self):
         """Write the draft into the manifest through the validating writer."""

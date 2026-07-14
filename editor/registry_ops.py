@@ -78,6 +78,49 @@ def _find_group(groups, path):
     return node
 
 
+def set_slot_frame_size(data_dir, slot_key, frame_w, frame_h):
+    """Set (or clear) ONE slot's per-slot frame-size override in data/slots.json.
+
+    Frame size is a CATEGORY property; ER-1 added an optional per-slot override so
+    one enemy can be sliced 128x128 while the rest of `enemies` stays 64x96. A
+    slots[] entry is therefore either a bare key string (inherit the category) or
+    `{key, frame_w, frame_h}`.
+
+    Passing the owning category's OWN size writes the bare string back — that is
+    how "reset to the category default" is expressed, and it keeps slots.json free
+    of overrides that override nothing. Returns True when an override is now in
+    place, False when the slot inherits.
+
+    Raises KeyError for an unknown slot.
+    """
+    data_dir = Path(data_dir)
+    slots_path = data_dir / "slots.json"
+    schema_path = data_dir / "schemas" / "slots.schema.json"
+    doc = data_io.load_json(slots_path)
+    frame_w, frame_h = int(frame_w), int(frame_h)
+
+    for category in doc["categories"]:
+        inherits = (frame_w == category["frame_w"]
+                    and frame_h == category["frame_h"])
+        entry = {"key": slot_key, "frame_w": frame_w, "frame_h": frame_h}
+
+        def walk(node):
+            slots = node.get("slots")
+            if slots is None:
+                return any(walk(child) for child in node.get("children", ()))
+            for i, existing in enumerate(slots):
+                if _slot_key(existing) == slot_key:
+                    slots[i] = slot_key if inherits else dict(entry)
+                    return True
+            return False
+
+        if any(walk(group) for group in category["groups"]):
+            data_io.write_validated(doc, slots_path, schema_path)
+            return not inherits
+
+    raise KeyError(f"no slot {slot_key!r} in the registry")
+
+
 def add_variant(data_dir, category_key, group_path, subcat_label):
     """Append a fresh variant slot to one era subgroup of data/slots.json and
     return the new slot key.

@@ -15,7 +15,9 @@ import pathlib
 
 from engine.assets.types import Frame
 from engine.coords import Camera, CoordinateSystem, Geometry
-from engine.render import LAYERS, HudSprite, OverlayLines, RenderItem, Renderer
+from engine.render import (
+    LAYERS, HudSprite, OverlayLines, RenderItem, Renderer, block_center_offset,
+)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
 
@@ -220,6 +222,40 @@ class TestFootprintFit(unittest.TestCase):
         w, h = call.size
         self.assertAlmostEqual(call.dest[0], -w / 2)      # centred on (0,0)
         self.assertAlmostEqual(call.dest[1], 16.0 - h / 2)  # on the tile centre
+
+    def test_a_two_tile_unit_draws_on_its_block_centre_not_its_anchor(self):
+        # ER-5: a footprint-N unit is ADDRESSED by its anchor (the block's min
+        # corner) but must DRAW on the block's centre — (N-1)/2 tiles along both
+        # axes. In iso that cancels horizontally and drops it (N-1)*tile_h/2.
+        anchor = self.render({"form": (128, 128)},
+                             RenderItem("form", (0, 0), fit_tiles=1.0))
+        block = self.render({"form": (128, 128)},
+                            RenderItem("form", (0, 0), fit_tiles=2.0))
+        self.assertAlmostEqual(block.dest[0] + block.size[0] / 2,
+                               anchor.dest[0] + anchor.size[0] / 2)  # no x shift
+        centre_of = lambda c: c.dest[1] + c.size[1] / 2
+        self.assertAlmostEqual(centre_of(block) - centre_of(anchor), 16.0)
+
+    def test_a_three_tile_unit_drops_a_full_tile_height(self):
+        two = self.render({"big": (64, 64)},
+                          RenderItem("big", (0, 0), fit_tiles=2.0))
+        three = self.render({"big": (64, 64)},
+                            RenderItem("big", (0, 0), fit_tiles=3.0))
+        centre_of = lambda c: c.dest[1] + c.size[1] / 2
+        self.assertAlmostEqual(centre_of(three) - centre_of(two), 16.0)
+        self.assertAlmostEqual(three.dest[0] + three.size[0] / 2,
+                               two.dest[0] + two.size[0] / 2)
+
+    def test_one_tile_and_no_fit_do_not_move(self):
+        # The whole safety argument for the block-centre shift: it is a provable
+        # no-op at fit_tiles 1, and gated off entirely at 0 — so buildings, tiles,
+        # deco and every 1-tile enemy are untouched.
+        self.assertEqual(block_center_offset(0.0), 0.0)
+        self.assertEqual(block_center_offset(1.0), 0.0)
+        self.assertEqual(block_center_offset(2.0), 0.5)
+        one = self.render({"e": (64, 96)}, RenderItem("e", (2, 3), fit_tiles=1.0))
+        none = self.render({"e": (64, 96)}, RenderItem("e", (2, 3)))
+        self.assertEqual(one.dest, none.dest)
 
     def test_defaults_are_todays_behaviour(self):
         plain = self.render({"ent": (64, 96)}, RenderItem("ent", (1, 1)))
