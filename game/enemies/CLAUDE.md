@@ -16,21 +16,56 @@ change enemy conventions, update THIS doc. **Adding an enemy type? Use the
   split on boss rounds. The boss entry's **`tier` argument IS its era**
   (`round // interval - 1`, clamped in `Boss.__init__`; pop-time via
   `Spawner._boss_era`); companions keep the real scale tier.
-- **`Boss` hunts buildings**: `on_spawn` paths via
-  `find_path_to_nearest_building` (base included) and arms
-  `PathAgent.repath_on_kill=True` + `goal_is_base` (whether the path ends on the
-  base). Carries the extra `"boss"` scene tag (`Enemy.EXTRA_TAGS`) so
-  HUD-bar/shake queries need no host reference. Duck-typed contract for
-  `Session.on_enemy_death`: `era` (read property), `death_spawned` (read
-  property) + `mark_death_spawned()` — a METHOD, because the E-11
-  `GameObject.__setattr__` guard intercepts public property setters.
+- **`Boss` hunts buildings, hole LAST (BP-2 / D2)**: `on_spawn` paths via
+  `find_path_to_nearest_non_base_building` and arms
+  `PathAgent.repath_on_kill=True`, then `PathAgent.adopt_goal(path, tm)`. Carries
+  the extra `"boss"` scene tag (`Enemy.EXTRA_TAGS`) so HUD-bar/shake queries need
+  no host reference. Duck-typed contract for `Session.on_enemy_death`: `era`
+  (read property), `death_spawned` (read property) + `mark_death_spawned()` — a
+  METHOD, because the E-11 `GameObject.__setattr__` guard intercepts public
+  property setters.
+  - **The base is NOT in the goal set while anything else stands.** It used to
+    be (`find_path_to_nearest_building`'s predicate is `lambda b: True`), and
+    `content_weights.base_building` is **0** — cheaper than any real building
+    (1–2) — so a weighted search walked the boss straight past its prey and
+    parked it on the hole. It destroyed 2 of 8 buildings on a scripted board;
+    it now destroys 8 of 8. The fallback to `find_path` when no non-base
+    building is alive is the ONE way `goal_is_base` ever flips True.
 - **`PathAgent` 10G flags, default-off** (Standard/Raider/Siege byte-identical):
   `goal_is_base=True` — `Movement.arrived` sets `reached_base` only when True;
   a non-base goal arrival `_repath`s instead (kills the phantom-base-hit hazard
-  the 10F deferral documented). `repath_on_kill=False` — on unblock (blocker
-  died) re-run `find_path_to_nearest_building` from the current tile, reload
-  waypoints, re-derive `goal_is_base` (the prototype boss's `_repath`-after-kill
-  mapped onto block-and-attack).
+  the 10F deferral documented). `repath_on_kill=False` — re-run
+  `find_path_to_nearest_non_base_building` from the current tile, reload
+  waypoints, re-derive the goal (the prototype boss's `_repath`-after-kill mapped
+  onto block-and-attack).
+- **`PathAgent.target_col`/`target_row` — the COMMITTED victim (BP-3 / D3)**,
+  `-1` = none (walking at the base), which is the default-off sentinel keeping
+  the other four types byte-identical. Two rules hang off it:
+  - **Choose by DISTANCE, route by COST.** `nearest_non_base_building_tile` picks
+    the victim by plain geometric distance — what the player sees — while the
+    route to it stays the weighted Dijkstra, so the boss still walks around
+    ponds. One weighted search used to do both jobs and the two requirements
+    fight: terrain, defence coverage (+1/tile) and the round-11 damage discount
+    (×0.5) all bend the cost field, so the "nearest" building could be across the
+    map.
+  - **The target is watched every frame, not just on the blocked→unblocked
+    edge.** `update()` re-paths the moment the target dies — to us OR to a
+    defender while we were still walking to it, which on a crowded boss round is
+    the common case. It used to march on to the corpse and only notice on
+    arrival. Gated on `not blocked`, so while the boss is punching something the
+    unblock branch stays the single re-path site.
+  - `adopt_goal(path, tm)` is the ONE site deriving `goal_is_base` + the target
+    from a fresh path; `on_spawn` and `_repath` both call it so they cannot
+    drift. No path at all clears the target — that is what stops the
+    dead-target watch from re-pathing every frame forever.
+- **`_repath` does not REWIND (BP-4).** It snaps the start to `round(wx)`, but
+  the body is somewhere *inside* that tile, not on its centre — so aiming at
+  `path[0]` walked the boss BACKWARD to the centre before setting off (measured:
+  col 11.000 → 10.705 in the second after a kill). It now starts at `index = 1`
+  whenever the path has one: we are already inside `path[0]` and `path[1]` is
+  4-adjacent, so heading straight there is always a legal step. A re-path is also
+  the one place `_current_condition` genuinely went stale, so `_repath` re-reads
+  it from the tile underfoot and resyncs `_last_index`.
 - **Death swarm — since ER-3 just ONE instance of the generalised
   `death_spawn`** (below). The boss ships `at_hp_fraction: 0.0` +
   `spawn_hp_fraction: 1.0` + `enabled: true` and its 5 per-era rows moved
@@ -178,8 +213,9 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   and are imported, never re-derived. Consequences in this package:
   - `Enemy.on_spawn` threads the footprint into `find_path` /
     `find_path_ignoring_walls`; `_repath` threads it into
-    `find_path_to_nearest_building` and re-derives `goal_is_base` with
-    `block_covers` (the block COVERS the base — it need not anchor on it).
+    `find_path_to_nearest_non_base_building`, and `adopt_goal` re-derives
+    `goal_is_base` with `block_covers` (the block COVERS the base — it need not
+    anchor on it).
   - **The blocker scan is block-wide** (`_blocker_ahead`): the first live,
     non-base occupant anywhere in the DESTINATION block stops the unit, scanned
     row-major. The base exemption is per **tile** of the block, so a body that
@@ -314,10 +350,25 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   at): `PathAgent` tracks `_current_condition` (GRASS at spawn) — refreshed
   when `Movement.index` advances, reading `waypoints[index-1]`, gated
   `index >= 2` because waypoint 0 IS the spawn tile (whose condition never
-  applies, prototype-exact). While unblocked it writes
-  `mv.speed = _condition_speed()` every frame — `max(0, real −
-  enemy_speed_penalty)` (mountain/forest −0.4 t/s; the `max(0)` clamp is
-  prototype-exact). `EnemyCombat._effective_dmg` (`max(1, int(dmg × (1 +
+  applies, prototype-exact); `_repath` additionally re-reads it from the tile
+  underfoot, the one place it went stale (BP-4). While unblocked it writes
+  `mv.speed = _condition_speed()` every frame — since BP-1
+  **`max(real × TileConditions.min_speed_fraction, real − enemy_speed_penalty)`**
+  (mountain/forest −0.4 t/s).
+  - **The floor is not a nicety — the old `max(0, …)` clamp was a LATCH.** The
+    penalty is a flat 0.4 t/s and the boss moves at 0.3–0.45, so eras 0–3
+    computed *exactly* 0.0 — and a unit at speed 0 never advances
+    `Movement.index`, which is the only thing that refreshes
+    `_current_condition`, so it stayed 0 forever. The boss was the one unit in
+    the game slower than its own terrain penalty, and it froze solid on the
+    first forest tile. Flooring at a fraction of the unit's **own** speed fixes
+    it where a multiplicative penalty would have moved everyone's numbers: at
+    the shipped `0.5` the four normal types are byte-identical (their
+    `real − 0.4` still wins — walker 0.8, raider 2.3, siege 0.6, formation 0.5)
+    and only the boss moves, off 0.0 and onto 0.15–0.225. **Anything above
+    ~0.55 starts overriding the penalty for Formation too** — the fence is
+    `test_boss.TestConditionSpeedFloor`.
+  `EnemyCombat._effective_dmg` (`max(1, int(dmg × (1 +
   enemy_dmg_bonus)))`) is applied at BOTH attack sites — blocking building AND
   edge wall — but NEVER base hits (lives mode costs one life flat). POND has
   no enemy stat modifier (only its +9 path weight). The modifiers dict is read
@@ -357,9 +408,13 @@ burst rides it for free. Since ER-2 the field caches on
 **`(ignore_walls, footprint)`**, so the invariant is one Dijkstra per topology
 change **per footprint** — still NEVER one per enemy. Passing a footprint into
 `find_path` must therefore stay a plain argument; do not add a per-enemy search.
-`Boss.on_spawn`'s `find_path_to_nearest_building`
-stays a fresh Dijkstra (~one per wave). Nothing in this package invalidates
-the field directly — all mutations route through `TileMap`. Detail →
+`Boss.on_spawn`'s `find_path_to_nearest_non_base_building` stays a fresh
+Dijkstra, as every goal-set variant does — but note BP-3 makes the boss re-path
+**once per kill** rather than once per wave, plus once when a target dies to
+someone else. That is still a handful of searches per boss per round (there is
+one boss), not one per enemy, so the flow-field invariant holds. If a future
+enemy type ever arms `repath_on_kill`, re-measure. Nothing in this package
+invalidates the field directly — all mutations route through `TileMap`. Detail →
 `game/PERF.md`.
 
 ## Verify

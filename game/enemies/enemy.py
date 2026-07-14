@@ -36,7 +36,8 @@ from engine.core import (
     GameObject, Health, Movement, RangeSensor, SpriteAnimator, Transform,
 )
 from game.map.pathfinder import (
-    find_path, find_path_ignoring_walls, find_path_to_nearest_building,
+    find_path, find_path_ignoring_walls,
+    find_path_to_nearest_non_base_building,
 )
 from .components import DeathSpawn, EnemyCombat, PathAgent
 
@@ -267,9 +268,11 @@ class Boss(Enemy):
     """The boss (LIVE since 10G). ``tier`` doubles as the ERA index — the
     spawner passes ``round // interval - 1``, clamped to the stat table; NO
     scale-tier bonuses ever apply (prototype ``boss.py:17-39`` overwrites the
-    ``super().__init__(tier=tier)`` stats from ``BOSS_ERAS``). It hunts the
-    nearest alive building (base included) and re-paths every time its target
-    dies; arrival only breaches when the goal IS the base (``goal_is_base``).
+    ``super().__init__(tier=tier)`` stats from ``BOSS_ERAS``). It grinds through
+    the player's buildings one at a time — nearest alive NON-BASE building, the
+    hole strictly last (D2) — re-pathing every time its target dies, whoever
+    killed it; arrival only breaches when the goal IS the base
+    (``goal_is_base``).
     ``era``/``death_spawned`` are the duck-typed properties the Session's
     death-spawn stash reads over ``DeathSpawn`` (game/core never imports this
     package). Its 10G swarm is now just the generalised ER-3 mechanic with
@@ -295,12 +298,11 @@ class Boss(Enemy):
                 st["attack_range_tiles"])
 
     def on_spawn(self):
-        """Path to the nearest ALIVE building of any type — base included
-        (prototype ``boss.py:49-97`` via ``find_path_to_nearest_building``,
-        ported at ``game/map/pathfinder.py``). Arms the 10G ``PathAgent``
-        flags: re-path when the attack target dies, and never count arrival
-        at a non-base goal as a breach."""
-        path = find_path_to_nearest_building(
+        """Hunt the nearest alive NON-BASE building (BP-2 / D2 — the hole is
+        the last thing it touches, and only once the board is clear). Arms the
+        10G ``PathAgent`` flags: re-path when the target dies, and never count
+        arrival at a non-base goal as a breach."""
+        path = find_path_to_nearest_non_base_building(
             self._tilemap, self._col, self._row)
         if not path:
             path = find_path_ignoring_walls(
@@ -311,8 +313,7 @@ class Boss(Enemy):
         mv.arrived = False
         pa = self.get_component(PathAgent)
         pa.repath_on_kill = True
-        pa.goal_is_base = (bool(path) and path[-1] == (
-            self._tilemap.base_col, self._tilemap.base_row))
+        pa.adopt_goal(path, self._tilemap)
 
     @property
     def era(self):

@@ -27,6 +27,7 @@ from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import EnemyCombat, PathAgent
 from game.enemies.enemy import tier_scaled_stats
 from game.map.tile_map import TileMap
+from game.map.tiles import TileCondition
 
 MAPBAL = load_balance(REPO / "data", "map")
 BUILD = load_balance(REPO / "data", "buildings")
@@ -547,6 +548,259 @@ class TestBossXP(unittest.TestCase):
         session.on_enemy_death(boss)
         self.assertEqual(session.state.player_xp - xp0,
                          CORE["XP"]["xp_per_boss"])
+
+
+# ---------------------------------------------------------------------------
+# 8. BP-1 — the terrain speed floor. The boss can cross forest/mountain.
+# ---------------------------------------------------------------------------
+class TestConditionSpeedFloor(unittest.TestCase):
+    """``TileConditions.min_speed_fraction`` floors a terrain-penalised speed at
+    a fraction of the unit's OWN base speed.
+
+    The old ``max(0, real − enemy_speed_penalty)`` was not a slowdown but a
+    LATCH: the penalty is a flat 0.4 t/s and the boss moves at 0.3–0.45, so
+    eras 0–3 computed exactly 0.0 — and a unit at speed 0 never advances
+    ``Movement.index``, which is the only thing that refreshes
+    ``_current_condition``, so the speed stayed 0 forever."""
+
+    PEN = MAPBAL["TileConditions"]["modifiers"]["Forest"]["enemy_speed_penalty"]
+    FRAC = MAPBAL["TileConditions"]["min_speed_fraction"]
+
+    def _speed_on(self, enemy, condition):
+        pa = enemy.get_component(PathAgent)
+        pa._current_condition = condition
+        return pa._condition_speed()
+
+    def test_every_boss_era_moves_on_forest(self):
+        """Eras 0–3 are the ones the old clamp welded to a dead 0.0 (era 3 by
+        the hair of 0.4 − 0.4); era 4 merely crawled at 0.05. The floor lifts
+        all five to a fraction of their own speed — it is the LARGER term for
+        every era, so the boss is the one type the floor governs outright."""
+        tm = synth(["bs"])
+        for era, st in enumerate(BOSS["stats"]):
+            with self.subTest(era=era):
+                real = st["move_speed"]
+                self.assertLessEqual(real - self.PEN,
+                                     0.0 if era <= 3 else 0.05)
+                speed = self._speed_on(create_enemy("boss", 1, 0, ENEM, tm,
+                                                    era), TileCondition.FOREST)
+                self.assertGreater(speed, 0.0)
+                self.assertAlmostEqual(speed, real * self.FRAC)
+                self.assertGreater(real * self.FRAC, real - self.PEN)
+
+    def test_the_four_normal_types_are_byte_identical(self):
+        """D1's fence: the floor must move ONLY the boss. Each normal type is
+        FASTER than its own floor even after the penalty, so ``real − penalty``
+        still wins and the number does not budge. If this goes red the floor has
+        leaked into the rest of the roster — that is a bug, not a rebalance."""
+        tm = synth(["bs"])
+        for etype, key, expect in (("standard", "Standard", 0.8),
+                                   ("raider", "Raider", 2.3),
+                                   ("siege", "SiegeCannon", 0.6),
+                                   ("formation", "Formation", 0.5)):
+            with self.subTest(etype=etype):
+                real = ENEM["EnemyTypes"][key]["move_speed"]
+                speed = self._speed_on(create_enemy(etype, 1, 0, ENEM, tm),
+                                       TileCondition.FOREST)
+                self.assertAlmostEqual(speed, real - self.PEN)
+                self.assertAlmostEqual(speed, expect)   # hand-computed
+
+    def test_grass_is_still_the_unpenalised_speed(self):
+        tm = synth(["bs"])
+        boss = create_enemy("boss", 1, 0, ENEM, tm, 0)
+        self.assertAlmostEqual(self._speed_on(boss, TileCondition.GRASS),
+                               BOSS["stats"][0]["move_speed"])
+
+    def test_boss_crosses_a_forest_lane_instead_of_welding_to_it(self):
+        """The end-to-end repro: an era-0 boss (0.3 t/s) spawned behind three
+        forest tiles used to freeze on the first one. Now it walks through."""
+        tm, scene, _occ = build_board(["bcccs"])
+        for col in (1, 2, 3):
+            tm.get(col, 0).condition = TileCondition.FOREST
+        boss = create_enemy("boss", 4, 0, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        for _ in range(4000):            # 0.15 t/s over 4 tiles ≈ 27 s
+            scene.update(0.05)
+            if pa.reached_base:
+                break
+        self.assertTrue(pa.reached_base)
+        self.assertEqual(pa._current_condition, TileCondition.FOREST)
+
+
+# ---------------------------------------------------------------------------
+# 9. BP-2/BP-3/BP-4 — the boss grinds through the buildings, hole LAST.
+# ---------------------------------------------------------------------------
+def place_defence(tm, scene, occ, col, row, hp=None):
+    b, _ = place_building(tm, tm.get(col, row), "defence", 10 ** 9, BUILD,
+                          scene, occ)
+    if hp is not None:
+        health = b.get_component(Health)
+        health.max_hp, health.hp = hp, hp
+    return b
+
+
+class TestBossHuntsBuildingsBaseLast(unittest.TestCase):
+    """D2: the base leaves the boss's goal set until no other building is alive.
+
+    Before BP-2 the goal predicate was ``lambda b: True`` — the base was IN the
+    goal set — and ``content_weights.base_building`` is 0, cheaper than any real
+    building (1–2). So the weighted search walked the boss past its prey and
+    parked it on the hole."""
+
+    def test_the_base_is_not_the_goal_while_a_building_stands(self):
+        tm, scene, occ = build_board(["bbbbs"])
+        # The base is at (0,0) and the boss at (2,0) is strictly NEARER to it
+        # than to the defender at (4,0)... but a building is alive, so the
+        # boss must turn its back on the hole and hunt.
+        place_defence(tm, scene, occ, 3, 0)
+        boss = create_enemy("boss", 2, 0, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        self.assertFalse(pa.goal_is_base)
+        self.assertEqual((pa.target_col, pa.target_row), (3, 0))
+        self.assertEqual(boss.get_component(Movement).waypoints[-1], [3.0, 0.0])
+
+    def test_the_base_becomes_the_goal_once_the_board_is_clear(self):
+        tm, scene, occ = build_board(["bbs"])
+        boss = create_enemy("boss", 2, 0, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        self.assertTrue(pa.goal_is_base)               # nothing else alive
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
+
+    def test_it_destroys_every_building_before_it_touches_the_hole(self):
+        """The plan's headline gate. The pre-fix run destroyed 2 of 8."""
+        tm, scene, occ = build_board(["bbbbbbbbbccss"] * 7)
+        spots = [(2, 1), (3, 4), (5, 2), (6, 5), (1, 3), (7, 1), (4, 6), (8, 3)]
+        built = [place_defence(tm, scene, occ, c, r, hp=60) for c, r in spots]
+        scene.update(0.0)
+        boss = create_enemy("boss", 12, 6, ENEM, tm, 4)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        for _ in range(100000):
+            scene.update(0.02)
+            if pa.reached_base:
+                break
+        self.assertTrue(pa.reached_base)
+        self.assertEqual([b for b in built if b.alive], [])   # all eight
+        self.assertTrue(pa.goal_is_base)
+
+
+class TestBossCommittedTarget(unittest.TestCase):
+    """BP-3: remember the victim; notice it dying; choose it by DISTANCE."""
+
+    def test_a_target_killed_by_someone_else_repaths_immediately(self):
+        """Boss rounds are crowded, so 'a defender shot my target while I was
+        walking to it' is the common case, not an edge one. The boss used to
+        march on to the corpse and only re-path on arrival."""
+        tm, scene, occ = build_board(["bbbbbbbbs"])
+        near = place_defence(tm, scene, occ, 7, 0)
+        far = place_defence(tm, scene, occ, 2, 0)
+        boss = create_enemy("boss", 8, 0, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        self.assertEqual((pa.target_col, pa.target_row), (7, 0))   # the near one
+        # Something else kills it while the boss is still en route.
+        near.get_component(Health).damage(10 ** 9)
+        self.assertFalse(near.alive)
+        scene.update(0.05)                     # ONE frame — no arrival needed
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))   # re-committed
+        self.assertFalse(pa.goal_is_base)
+        self.assertEqual(boss.get_component(Movement).waypoints[-1], [2.0, 0.0])
+        self.assertTrue(far.alive)
+
+    def test_the_route_still_walks_around_a_pond(self):
+        """D3's second half: the ROUTE stays a weighted Dijkstra. A pond costs
+        +9, so the boss goes the long way round rather than wading, even though
+        the water is the straight line to its target."""
+        tm, scene, occ = build_board(["bbbbb", "bbbbb", "bbbbb"])
+        place_defence(tm, scene, occ, 2, 1)
+        tm.get(3, 1).condition = TileCondition.POND    # dead ahead
+        boss = create_enemy("boss", 4, 1, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        path = [tuple(w) for w in boss.get_component(Movement).waypoints]
+        self.assertEqual(path[-1], (2.0, 1.0))         # same target
+        self.assertNotIn((3.0, 1.0), path)             # but not through water
+
+    def test_the_target_is_the_nearest_by_DISTANCE_even_when_it_costs_more(self):
+        """D3's first half, and the whole reason the two jobs were split.
+
+        The near building is ringed by pond, so REACHING it costs 12 while the
+        building four tiles further away costs only 10 — a weighted search (what
+        the boss used to choose with) picks the far one. The player, looking at
+        the screen, expects the boss to go for the one right next to it. Choice
+        is geometric; only the route is weighted."""
+        tm, scene, occ = build_board(["bbbbbbb"] * 5)
+        near = place_defence(tm, scene, occ, 4, 2)     # 2 tiles away, cost 12
+        far = place_defence(tm, scene, occ, 1, 2)      # 5 tiles away, cost 10
+        for c, r in ((5, 2), (3, 2), (4, 1), (4, 3)):  # moat around the near one
+            tm.get(c, r).condition = TileCondition.POND
+        boss = create_enemy("boss", 6, 2, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        self.assertEqual((pa.target_col, pa.target_row), (4, 2))
+        self.assertTrue(near.alive and far.alive)
+        # Prove the premise: a cost-ranked search really would have gone far.
+        from game.map.pathfinder import _dijkstra, _pre_query_refresh
+        _pre_query_refresh(tm)
+        cost = {}
+        for label, goal in (("near", (4, 2)), ("far", (1, 2))):
+            p = _dijkstra(tm, 6, 2, {goal}, ignore_walls=False)
+            cost[label] = sum(tm.weight(tm.get(c, r)) for c, r in p[1:])
+        self.assertGreater(cost["near"], cost["far"])
+
+    def test_a_cleared_target_stops_the_repath_loop(self):
+        """A sealed board (no path anywhere) must leave the agent standing with
+        NO target — otherwise the dead-target watch re-paths every single frame
+        forever."""
+        tm, scene, occ = build_board(["bbs"])
+        boss = create_enemy("boss", 2, 0, ENEM, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
+        self.assertTrue(pa._target_alive(tm))   # "no target" reads as alive
+
+
+class TestBossDoesNotRewind(unittest.TestCase):
+    """BP-4: ``_repath`` used to snap to ``round(wx)`` and reset ``index = 0``,
+    walking the boss BACKWARD onto its own tile centre after every kill
+    (measured: col 11.000 -> 10.705 in the second after a kill)."""
+
+    def test_position_is_monotonic_along_the_new_path_after_a_kill(self):
+        tm, scene, occ = build_board(["bbbbbbbbs"])
+        near = place_defence(tm, scene, occ, 6, 0, hp=40)
+        place_defence(tm, scene, occ, 2, 0)
+        boss = create_enemy("boss", 8, 0, ENEM, tm, 4)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        # Walk until the boss is mid-tile (not on a centre), then kill its
+        # target out from under it — the exact rewind trigger.
+        while abs(boss.transform.wx - round(boss.transform.wx)) < 0.25:
+            scene.update(0.02)
+        near.get_component(Health).damage(10 ** 9)
+        scene.update(0.02)                       # the re-path frame
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        # The new goal is to the LEFT (col 2), so a correct boss only ever
+        # decreases its column. Any increase is the rewind.
+        prev = boss.transform.wx
+        for _ in range(3000):                    # 0.45 t/s over ~5 tiles ≈ 11 s
+            scene.update(0.02)
+            self.assertLessEqual(boss.transform.wx, prev + 1e-9,
+                                 "the boss reversed after re-pathing")
+            prev = boss.transform.wx
+            if pa.blocked:
+                break
+        self.assertTrue(pa.blocked)              # arrived, punching the far one
 
 
 if __name__ == "__main__":

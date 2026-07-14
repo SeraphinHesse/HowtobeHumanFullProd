@@ -82,8 +82,37 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     injects `_defence_coverage_fn` + `_defence_range_add` (host, per run). The
     map layer still imports NOTHING from `game.buildings` — it only holds the
     callable.
-- Still dormant: the four building-targeting `find_path_*` variants are queried
-  by nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **`find_path_to_nearest_non_base_building` is the boss's query (BP-2 / D2)** —
+  the goal set is every alive building whose `building_type != "base"` (the same
+  duck-typed occupant contract the rest of the module reads, never a
+  `base_col`/`base_row` comparison), falling back to `find_path` when the board
+  is clear. `find_path_to_nearest_building` cannot serve: its predicate is
+  `lambda b: True`, so the base is IN the goal set, and
+  `content_weights.base_building` is **0** — cheaper than any real building
+  (1–2), so the search walked the boss past its prey and onto the hole.
+  - **`nearest_non_base_building_tile` chooses by geometric DISTANCE; the route
+    to it stays the weighted `_dijkstra` (D3).** Cost and distance are different
+    questions and one search cannot answer both: terrain, defence-range coverage
+    and the damage discount all bend the cost field, so the cost-nearest building
+    can be across the map from the player's "nearest". If the chosen victim is
+    unreachable, one multi-goal search finds any other reachable one before we
+    fall back to the base — a walled-off building can never send the boss home
+    early.
+- **`_dijkstra` keeps a SEPARATE tentative-`best` map, and that is load-bearing**
+  (same reason `_build_flow_field` does — its docstring has the long version).
+  It used to guard the relax on `dist`, the **settled** map: `dist.get(node)` is
+  `inf` for anything not yet settled, so *every* relaxation passed and a later,
+  worse one would overwrite `prev` with a worse parent. The goal still settled at
+  the right cost — the heap pops in order — but `_reconstruct` then walked the
+  clobbered back-pointers and returned a route that was **not** the one Dijkstra
+  costed (measured: a 23-cost path to a goal already reached at cost 12, doubling
+  back through a pond). Every goal-set variant runs through here, so this was a
+  real part of the boss's "wandering". Pinned by
+  `test_pathfinder.TestDijkstraReturnsTheRouteItCosted`, which compares the
+  returned path's cost against an independent settle-only Dijkstra over 40 random
+  pond boards.
+- Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
+  nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
 - **Edge walls are LIVE (10E)**: `WallEdge` (a `@dataclass`: `col_a/row_a/col_b/
   row_b/hp/max_hp/owner`) + `_wall_key` (order-independent edge key) + a
   `TileMap.wall_edges` registry back `get_wall_between` (the pathfinder's

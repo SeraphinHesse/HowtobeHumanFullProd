@@ -18,6 +18,7 @@
     }
   },
   "TileConditions": {
+    "min_speed_fraction": 0.5,
     "modifiers": {
       "Forest": {
         "def_dmg_penalty": 0.1,
