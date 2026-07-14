@@ -2364,9 +2364,31 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
+          "loop_count": 17,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2418,21 +2440,18 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 10,
+          "fps": 3,
+          "frames": 11,
           "hidden": [],
-          "loop_count": 5,
-          "loop_end": 4,
+          "loop_count": 7,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 10,
-          "hidden": [
-            8,
-            9
-          ],
+          "frames": 11,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2448,16 +2467,19 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "hidden": [
+            9,
+            10
+          ],
+          "loop_count": 6,
+          "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
           "hidden": [
             3,
@@ -2484,23 +2506,20 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
-          "hidden": [],
-          "loop_count": 3,
+          "hidden": [
+            10
+          ],
+          "loop_count": 6,
           "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
           "hidden": [
-            3,
-            4,
-            5,
-            6,
-            7,
             8,
             9,
             10
