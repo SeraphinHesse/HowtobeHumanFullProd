@@ -1,8 +1,16 @@
 ---
-description: Resume an already-started domain session — pull, switch to the feature branch, re-scope. Does NOT touch the lock.
+description: SUSPENDED — the branch+lock protocol is on hold (see root CLAUDE.md). Do not run. Use the editor's Summon a Drunken Robot forms (/dispatch) instead.
 argument-hint: <buildings|enemies|map|ui|core>
 allowed-tools: Bash(git pull*), Bash(git switch*), Bash(git status*), Bash(git rev-parse*), Edit, Write, Read
 ---
+
+> ⚠️ **SUSPENDED.** The branch + lock protocol is on hold for the engine
+> migration (root `CLAUDE.md` → "Branch + lock protocol"). Do **not** run this
+> command: it is no longer reachable from the editor's spawn dialog, and
+> `/dispatch` never writes `.claude/active_domain` or any `_lock`. Spawn work
+> from the editor's **Summon a Drunken Robot** launcher ("Add new X…" forms →
+> `/dispatch`), or branch per plan phase. This file is kept intact so the
+> protocol can be restored unchanged when the migration lands.
 
 Resume work on the **$1** domain. The lock was already written by
 `/start-domain`, so this command **does NOT touch `_lock`** and does NOT create

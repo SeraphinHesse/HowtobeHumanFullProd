@@ -44,7 +44,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import registry_ops, selection, theme
+from editor import agent_forms, registry_ops, selection, theme
+from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.spawnclaude import SpawnClaudeDialog
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
         self.selector.map_selected.connect(self._on_map_selected)
+        self.selector.add_requested.connect(self._on_add_requested)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.levelbar.add_variant_requested.connect(self._on_add_variant)
@@ -170,9 +172,10 @@ class MainWindow(QMainWindow):
             self._update_playbuild_enabled)
         self._update_playbuild_enabled(self.run_controls.can_playbuild())
 
-        # ED-60/61/62: Spawnclaude — dispatch a domain-scoped claude session in
-        # its OWN terminal (not the Console dock). The editor never writes the
-        # lock; the spawned session runs /start-domain as its first move.
+        # ED-60/61/62 + AD-3: Spawnclaude — the agent launcher. Opens a claude
+        # session in its OWN terminal (not the Console dock): an "Add new X"
+        # form (→ /dispatch <handoff>), a small tweak, or a blank admin session.
+        # The editor never writes a lock (the branch+lock protocol is suspended).
         agents_toolbar = self.addToolBar("Agents")
         self.spawnclaude_action = QAction("Summon a Drunken Robot", self)
         agents_toolbar.addAction(self.spawnclaude_action)
@@ -525,15 +528,34 @@ class MainWindow(QMainWindow):
             "" if can_playbuild else
             "Run Build first — no dist/HowToBeHuman/HowToBeHuman.exe found")
 
-    # -- spawnclaude (ED-60/61/62) -------------------------------------------
+    # -- spawnclaude (ED-60/61/62, AD-3) -------------------------------------
 
     def _on_spawnclaude(self):
-        """Open the Spawnclaude dialog (locks read fresh each open, so already-
-        locked domains are greyed with their owner — ED-61). The dialog dispatches
-        into its own terminal; the editor writes no lock."""
+        """Open the agent launcher. Form specs (data/agent_forms/*.json) are read
+        FRESH on every open, so a newly added form needs no editor restart; each
+        one opens a form dialog that writes a handoff and dispatches
+        `/dispatch <handoff>`. Small tweak and admin dispatch straight from the
+        launcher. Everything runs in its own terminal; the editor writes no lock."""
         dialog = SpawnClaudeDialog(
             data_dir=self._data_dir, repo=REPO, parent=self)
         dialog.exec()
+
+    def _on_add_requested(self, form_id):
+        """Selector right-click ("Add New X…") → the agent form for that spec.
+        Specs are re-read per open (same fresh-load rule as the launcher), so a
+        spec an agent just wrote opens without an editor restart."""
+        try:
+            spec = next((s for s in agent_forms.load_form_specs(self._data_dir)
+                         if s["id"] == form_id), None)
+            if spec is None:
+                self.statusBar().showMessage(f"No form spec {form_id!r}", 5000)
+                return
+            AgentFormDialog(spec, data_dir=self._data_dir, repo=REPO,
+                            parent=self).exec()
+        except Exception as exc:                      # noqa: BLE001
+            # A raise out of a Qt slot can abort the process; a right-click must
+            # never kill the editor. Same guard as spawnclaude._open_form.
+            QMessageBox.critical(self, "Cannot open the form", str(exc))
 
     # -- theme switch --------------------------------------------------------
 

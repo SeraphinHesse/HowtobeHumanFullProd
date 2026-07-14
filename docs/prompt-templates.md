@@ -91,6 +91,17 @@ Use the /add-engine-component skill (it owns the steps + acceptance gate). Read
 engine/core/CLAUDE.md first.
 ```
 
+## Dispatch a skill from the editor (no prompt to write)
+
+```txt
+Every /add-* opener above is also an "Add new X…" form in the editor: Summon a
+Drunken Robot → pick the form → fill the structured fields + the free-text box →
+Dispatch. The editor writes .claude/dispatch/<ts>-<form>.json and opens a
+terminal on `/dispatch <that file>`, which runs the same skill for you — new
+branch off Development + PR, or in place on the current branch (chosen in the
+form). The old /start-domain spawn mode is gone: the lock protocol is suspended.
+```
+
 ## Switch the active plan
 
 ```txt

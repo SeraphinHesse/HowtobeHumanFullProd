@@ -1,0 +1,110 @@
+{
+  "$id": "dispatch_handoff.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": ".claude/dispatch/<YYYYMMDD-HHMMSS>-<form-id>.json (gitignored, transient agent I/O; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written by editor/agent_forms.write_handoff via engine.data_io.write_validated, read+validated by the /dispatch skill.",
+  "properties": {
+    "context": {
+      "description": "Repo-relative docs the agent reads first; copied from the form spec.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "created_at": {
+      "description": "UTC timestamp of the dispatch, ISO 8601 with a Z suffix.",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "type": "string"
+    },
+    "form_id": {
+      "description": "id of the data/agent_forms/<id>.json spec this payload came from.",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
+    "free_text": {
+      "description": "The dialog's built-in free-text description box. May be empty.",
+      "type": "string"
+    },
+    "git": {
+      "additionalProperties": false,
+      "description": "Git behavior chosen per run in the form.",
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "branch"
+          }
+        }
+      },
+      "properties": {
+        "base": {
+          "description": "Branch the work is based on (branch mode); always 'Development'.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "branch": {
+          "description": "Auto-named agent/<form-id>-<slug>, editable in the dialog. Required in branch mode, absent in current mode.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "mode": {
+          "description": "'branch' = worktree off Development ending in a PR; 'current' = work in place on the checked-out branch, stop-and-confirm before committing.",
+          "enum": [
+            "branch",
+            "current"
+          ]
+        }
+      },
+      "required": [
+        "mode",
+        "base"
+      ],
+      "then": {
+        "required": [
+          "branch"
+        ]
+      },
+      "type": "object"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Handoff format version. /dispatch rejects unknown versions loudly."
+    },
+    "skill": {
+      "description": "Slash command /dispatch drives after git setup; .claude/commands/<skill>.md.",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
+    "spawned_from": {
+      "additionalProperties": false,
+      "description": "Informational: the branch the editor was on when the dispatch was made. Omitted when it cannot be resolved (no .git).",
+      "properties": {
+        "branch": {
+          "description": "Branch name read from <repo>/.git/HEAD at dispatch time.",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "type": "object"
+    },
+    "values": {
+      "description": "Structured field values keyed by the spec's field keys. Deliberately permissive - the form spec already constrained the types at render time.",
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema_version",
+    "form_id",
+    "skill",
+    "created_at",
+    "free_text",
+    "values",
+    "git",
+    "context"
+  ],
+  "title": "dispatch_handoff",
+  "type": "object"
+}
