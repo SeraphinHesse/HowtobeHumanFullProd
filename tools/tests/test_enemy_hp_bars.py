@@ -18,7 +18,7 @@ from tools.tests.fixture_data import FIXTURE_DATA
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.core import Health
+from engine.core import Health, SpriteAnimator
 from engine.render import HudRect
 from game.core import load_balance
 from game.enemies.enemy import Boss, Enemy, Raider, SiegeCannon
@@ -51,8 +51,18 @@ def drawn_sprite_h(cls, zoom=1):
 
 
 def expected_bar_bottom(cls, cy, zoom=1):
-    """Where the bar's BOTTOM edge must land: HP_BAR_PAD above the drawn head."""
-    return int(cy - drawn_sprite_h(cls, zoom) / 2 - cls.HP_BAR_PAD * zoom)
+    """Where the bar's BOTTOM edge must land: HP_BAR_PAD above the drawn head.
+
+    `cy` is the ANCHOR tile's centre; a multi-tile unit draws on its BLOCK centre,
+    (footprint-1)*tile_h/2 lower (ER-5). Every shipping enemy is footprint 1, so
+    this term is 0 for all of them — it is exercised by the explicit 2-tile case
+    in TestBarGeometry.
+    """
+    block = ENEMIES_BAL["EnemyTypes"]
+    for seg in cls.STAT_SUBTREE:
+        block = block[seg]
+    shift = (block["footprint"] - 1) / 2 * 32 * zoom       # tile_h = 32
+    return int(cy + shift - drawn_sprite_h(cls, zoom) / 2 - cls.HP_BAR_PAD * zoom)
 
 
 class RecordingRenderer:
@@ -128,6 +138,26 @@ class TestVisibilityGate(unittest.TestCase):
 
 
 class TestBarGeometry(unittest.TestCase):
+    def test_a_multi_tile_enemy_bar_rides_its_block_centre(self):
+        """ER-5: the sprite of a footprint-N unit is drawn on its block centre,
+        not on the anchor tile — so the bar hanging off its head must move with
+        it. A walker's 22px-wide sheet already fits inside one tile, so raising
+        fit_tiles cannot change the DRAWN size here: the only thing that moves is
+        the block shift, half a tile-height down."""
+        def bar_top(fit_tiles):
+            e = make_enemy(Enemy, 4, 4)
+            health = e.get_component(Health)
+            health.hp = health.max_hp - 1
+            e.get_component(SpriteAnimator).fit_tiles = fit_tiles
+            r, _ = submit([e])
+            under, _fill = r.bars()
+            return under[0], under[1]
+
+        x1, y1 = bar_top(1.0)
+        x2, y2 = bar_top(2.0)
+        self.assertEqual(x2, x1)            # iso: no horizontal shift, ever
+        self.assertEqual(y2 - y1, 16)       # (2-1) * tile_h/2
+
     def test_fill_width_tracks_the_hp_ratio(self):
         e = make_enemy(Enemy, 4, 4)
         health = e.get_component(Health)

@@ -259,5 +259,67 @@ class TestTwoUnitsBreakingInOneFrame(unittest.TestCase):
                          Counter({(1, 0): 2, (2, 0): 2}))
 
 
+class TestTheRoundOutlivesTheBurst(unittest.TestCase):
+    """ER-5: the wave-clear race. `Scene.spawn` only QUEUES, and `by_tag` reads
+    the live list, so the children of a unit that dies as the LAST enemy of a
+    drained wave used to be invisible to the wave-clear check on that frame — the
+    round ended and they materialised into it. The check now also consults the
+    spawn queue."""
+
+    def _balance(self):
+        return with_death_spawn(
+            "Standard", at_hp_fraction=0.0, enabled=True,
+            spawn_hp_fraction=1.0,
+            spawns=[{"raiders": 0, "regular": 3, "siege": 0}])
+
+    def test_the_last_enemy_bursting_does_not_end_the_round(self):
+        balance = self._balance()
+        tm, scene, occ = build_board(["bs"])
+        session = armed_session(tm, scene, occ, balance)
+        enemy = create_enemy("standard", 1, 0, balance, tm)
+        scene.spawn(enemy)
+        scene.update(0.0)
+
+        self.assertTrue(session.spawner.done)   # a DRAINED wave: this is the last
+        enemy.get_component(Health).damage(10 ** 9)
+        frame(session, scene, tm, 0.0)
+
+        # The children are still only QUEUED on this frame...
+        self.assertEqual([e for e in scene.by_tag("enemy") if e.alive], [])
+        self.assertEqual(len(scene.queued_by_tag("enemy")), 3)
+        # ...so the round must NOT have ended under them.
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
+
+        scene.update(0.0)                       # children go live
+        self.assertEqual(len([e for e in scene.by_tag("enemy") if e.alive]), 3)
+        frame(session, scene, tm, 0.0)
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
+
+    def test_the_round_still_ends_once_the_children_are_gone(self):
+        """The guard must not wedge the round open — with nothing left to spawn
+        and nothing alive, the wave clears exactly as before. The burst is
+        RAIDERS here (stock `enabled: false`) so the children die quietly instead
+        of chain-bursting into a wave that never drains."""
+        balance = with_death_spawn(
+            "Standard", at_hp_fraction=0.0, enabled=True,
+            spawn_hp_fraction=1.0,
+            spawns=[{"raiders": 3, "regular": 0, "siege": 0}])
+        tm, scene, occ = build_board(["bs"])
+        session = armed_session(tm, scene, occ, balance)
+        enemy = create_enemy("standard", 1, 0, balance, tm)
+        scene.spawn(enemy)
+        scene.update(0.0)
+
+        enemy.get_component(Health).damage(10 ** 9)
+        frame(session, scene, tm, 0.0)   # burst; round holds
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
+        scene.update(0.0)
+        for child in [e for e in scene.by_tag("enemy") if e.alive]:
+            child.get_component(Health).damage(10 ** 9)
+        frame(session, scene, tm, 0.0)   # children die; they spawn nothing
+        self.assertEqual(scene.queued_by_tag("enemy"), [])
+        self.assertEqual(session.state.phase, GamePhase.ROUND_END)
+
+
 if __name__ == "__main__":
     unittest.main()

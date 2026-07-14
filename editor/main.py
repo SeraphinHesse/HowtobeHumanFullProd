@@ -110,6 +110,9 @@ class MainWindow(QMainWindow):
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
+        # A frame-size override is a slots.json write: every panel's cached
+        # registry has to re-read it, exactly like the + Variant writes do.
+        self.details.registry_changed.connect(lambda _slot: self._reload_registries())
 
         # tilemap-mode wiring (ED-20): palette state → viewport; picker →
         # palette re-arm; session lifecycle → selector Maps branch

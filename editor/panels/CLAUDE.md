@@ -55,7 +55,28 @@ import list.**
   header; depth-1 groups start expanded, deeper collapsed), array of objects → one
   collapsed sub-section per index titled `[i] — <name>` when the item has a `name`
   field, array of scalars → one row per index (**fixed length** — no add/remove
-  rows; `random_names` grows via the game's 9H add-name menu). Scalar leaves:
+  rows; `random_names` grows via the game's 9H add-name menu).
+  - **Arrays of OBJECTS get `+ Row` / `− Row` (ER-5), gated ENTIRELY by the
+    schema**: `can_add = "maxItems" not in node or len(items) < maxItems`,
+    `can_remove = len(items) > minItems`. Every array that predates ER-5
+    (`tiers`, `scale_tiers`, `round_counts`) has `minItems == maxItems`, so it
+    shows **no buttons and is byte-identical** — that gate is the whole
+    compatibility argument. `death_spawn.spawns` (`minItems: 1`, no `maxItems`)
+    is the first genuinely resizable array: a per-era spawn table for a type that
+    ships with one row. **Add COPIES THE LAST ROW** (the doc validated on load, so
+    a copy is schema-valid by construction — no default-instance synthesis, no
+    guessing at `pattern`/`minLength`); **remove pops the LAST row**, never a
+    middle one, because these arrays are era-INDEXED and removing `[1]` would
+    silently renumber every era after it. Both stage into `self._doc` like any
+    other edit and re-dirty on the ARRAY path — `_refresh_dirty` compares whole
+    subtrees, so add-then-remove cleans itself back up, and `_dots.get()` is
+    None-safe for a path with no dot widget. Then the form REBUILDS, which is why
+    `_rebuild_form` re-shows the dots of everything still in `self._dirty`: fresh
+    widgets start with the dot hidden, and a rebuild that is not a domain switch
+    would otherwise drop the pending marks of every other staged edit. The buttons
+    carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
+    WHICH arrays are resizable. Scalar arrays keep their fixed length.
+  Scalar leaves:
   integer → `QSpinBox`, number → `QDoubleSpinBox` (4 decimals; ranges from schema
   `minimum`/`maximum` — invalid input unrepresentable, ED-30), `enum` → `QComboBox`
   (typed `itemData`), boolean → `QCheckBox`, string → `QLineEdit` (commit on
@@ -215,6 +236,24 @@ import list.**
     checkboxes, the static radios and the manifest's `hidden`/`loop_start`/
     `loop_end` speak. `labels_visible()` drops them below `LABEL_MIN_CELL` px,
     where the plate would cover the frame it labels.
+  - **Per-slot frame size (ER-5) is a TWO-FILE write, and that is not optional.**
+    Frame size is a CATEGORY property; ER-1 added an optional per-slot override in
+    `data/slots.json` (`{key, frame_w, frame_h}` beside the bare-string form), and
+    the `Frame W/H` spinboxes are the only way to author it — `registry_ops
+    .set_slot_frame_size` (pure, `write_validated`, `TestPurity`). Writing the
+    CATEGORY's own size back removes the override (bare string again): that is how
+    "reset to default" is expressed, and it keeps slots.json free of overrides that
+    override nothing. **But `AssetStore.frame_size` resolves manifest entry >
+    registry**, so a slot that already has an entry carries its own
+    `frame_w`/`frame_h` and would keep rendering at the OLD size no matter what
+    slots.json says. So the handler writes the override, reloads every cached
+    registry (`registry_changed` → `MainWindow._reload_registries`, same path the
+    `+ Variant` writes use), **re-cuts the sheet at the new size and re-saves the
+    entry**. Leaving the two files disagreeing on disk is the failure mode the
+    method exists to prevent. It commits on `editingFinished` (not `valueChanged`
+    — typing "128" would otherwise write three times) and works with **no sheet
+    imported**, which is the point: declaring the frame size BEFORE the import is
+    what the importer slices and pads against.
   - **Clear's confirm dialog only fires because the connect is wrapped**
     (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
     months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and

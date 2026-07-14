@@ -20,7 +20,7 @@ an ``EnemyCombat.cooldown`` reset while blocked as "an attack just landed"
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
-from engine.render import HudLines, HudRect, fit_factor
+from engine.render import HudLines, HudRect, block_center_offset, fit_factor
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
@@ -112,6 +112,10 @@ def _sprite_top(renderer, cs, enemy, cy, zoom):
     The drawn height is the frame's, through the SAME `fit_factor` flush() uses:
     a sheet's raw pixels no longer say how big it renders.
 
+    A MULTI-TILE unit is drawn on its block's centre, not on the anchor tile `cy`
+    names (ER-5), so the bar has to ride the same shift — through the engine's own
+    `block_center_offset`, never a restated copy of it. Zero for a 1-tile unit.
+
     Falls back to `cy` (the tile centre) when there is no sprite or no store to
     size it from — a stub enemy in a headless test still gets a bar.
     """
@@ -121,7 +125,8 @@ def _sprite_top(renderer, cs, enemy, cy, zoom):
         return cy
     frame_w, frame_h = assets.frame_size(anim.slot_key)
     s = fit_factor(frame_w, cs.geometry.tile_w, anim.fit_tiles) * anim.scale
-    return cy - (frame_h * zoom * s) / 2
+    block = block_center_offset(anim.fit_tiles) * cs.geometry.tile_h * zoom
+    return cy + block - (frame_h * zoom * s) / 2
 
 
 class _Floater:

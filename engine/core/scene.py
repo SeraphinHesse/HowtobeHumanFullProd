@@ -57,6 +57,13 @@ class Scene:
     def by_tag(self, tag):
         return [obj for obj in self._objects if tag in obj.tags]
 
+    def queued_by_tag(self, tag):
+        """Objects SPAWNED this frame but not yet live: `spawn()` only queues,
+        and the queue is merged at the top of the next `update` (E-13). A caller
+        that asks "is anything of this kind left?" after spawning within the same
+        frame must consult this too, or it will not see what it just spawned."""
+        return [obj for obj in self._spawn_queue if tag in obj.tags]
+
     def query_area(self, world_pos, radius):
         """Objects within Euclidean `radius` of `world_pos` (E-31), via the
         spatial grid rebuilt at the start of the last update."""
