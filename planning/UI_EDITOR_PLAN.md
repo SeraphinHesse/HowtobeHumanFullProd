@@ -1,12 +1,52 @@
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **planned** (designed 2026-07-11, user-approved direction). Two
-independently shippable slices, each its own branch per the migration-era
+Status: **10L-A in progress** (designed 2026-07-11, user-approved direction).
+Two independently shippable slices, each its own branch per the migration-era
 branch rule: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
 every UI screen from the editor). 10L-A has no dependency on any 10x phase;
 10L-B depends on 10L-A. Both slot in alongside the remaining 10x phases —
 screens that don't exist yet (boss history, cheat menu, game log) join the
 system when their phase lands.
+
+## Phase table (10L-A)
+
+| Phase | What | Status |
+|-------|------|--------|
+| A1 | Engine — animated `HudSprite` | **done** (2026-07-14) |
+| A2 | Engine + data — nine-slice | **done** (2026-07-14) |
+| A3 | Data — `ui` category expansion | **done** (2026-07-14) |
+| A4 | Editor — slice-margins editor | **not started** |
+| A5 | Game — skinned `widgets.Button` / `submit_panel` | **not started** |
+| A6 | Exit gate — live Quick Test + docs | **blocked** on A4+A5 |
+
+A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
+Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
+file-scope reconciliation in `docs/briefs/phase-A1-A5-coordination.md` — A4 and
+A5 have briefs written and reviewed, so they can be picked up directly.
+
+**A4/A5 are independent of each other** and both depend only on A1–A3, which
+have landed. Neither has any code yet. Two carry-over notes for whoever takes
+them:
+
+- **A4**: the backend floors a negative slice margin to 0 rather than raising
+  (E-37 "rendering degrades, never explodes"), so a bad draft from the slice
+  spinboxes cannot crash the render loop. Give the spinboxes `minimum = 0`
+  anyway — the engine guard is a safety net, not the UI contract. All-zero
+  margins must omit the `slice` key entirely.
+- **A5**: `HudSprite`'s `animation` / `anim_time_ms` are appended **after
+  `flip`** (the three shipping call sites pass three positional args), so pass
+  them by keyword.
+
+### Known follow-up surfaced during A3 (not a blocker)
+
+"+ Variant" on `Backgrounds → Main Menu` yields a **64×64** slot, not 480×270 —
+the per-slot frame-size override does not propagate to variants (documented
+`add_variant` behavior). Harmless today because nothing consumes the slot, but
+it becomes a live footgun once 10L-B exposes a background picker: importing a
+second 480×270 menu background onto the variant would grid-slice it into a 7×4
+frame grid. Either propagate the override in `registry_ops.add_variant`, or have
+10L-B's picker source the `backgrounds` category instead of carrying the
+duplicate `ui_bg_main_menu` slot.
 
 ## User decisions (binding)
 

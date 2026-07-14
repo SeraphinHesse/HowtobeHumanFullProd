@@ -144,11 +144,17 @@ validating writer; don't hand-edit the JSON.
   (frame size would be ambiguous — loader rejects it).
 - **`slots[]` entries: bare key OR frame-size override (ER-1, D1)**. An entry is
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
-  `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm —
-  no committed entry uses the object form yet; it exists for art whose sheet is
-  cut at a different size than its category (a 128×128 formation sheet in the
-  64×96 `enemies` category). It describes **slicing, not drawing** — on-screen
-  size comes from the render fit (`engine/render/CLAUDE.md`).
+  `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the
+  object form exists for art whose sheet is cut at a different size than its
+  category — `ui_bg_main_menu` (480×270, a whole-sheet background in the 64×64
+  `ui` category) is the one committed user, and without the override the importer
+  would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
+  drawing** — on-screen size comes from the render fit
+  (`engine/render/CLAUDE.md`).
+  - **The override does NOT propagate to "+ Variant"**: `registry_ops.add_variant`
+    appends a bare key, so `ui_bg_main_menu_v2` inherits the category's 64×64.
+    Harmless today (nothing consumes the slot); fix before a background picker
+    ships (10L-B).
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
     so `"foo"` and `{"key": "foo", …}` are two distinct items. It is kept (it
     still catches literal duplicates, and it is the D-3 house style), and
@@ -158,17 +164,26 @@ validating writer; don't hand-edit the JSON.
     `engine/tilemap.py` precedent).
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
-  enemy_stage_2_v2]`) and `deco` prop TYPES (`Props → Rock → [deco_rock,
-  deco_rock_v2]`) are both shaped this way, and the editor's "+ Variant"
-  button appends `<stem>_v<k>` to either. `map → Tiles → Background` is NOT a
+  enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,
+  deco_rock_v2]`) and `ui` SKINS (`Buttons → Button → [ui_button,
+  ui_button_v2]`) are all shaped this way, and the editor's "+ Variant"
+  button appends `<stem>_v<k>` to any of them. **This is why every `ui` group is
+  a parent with leaf children rather than a flat `slots` list**: a flat leaf makes
+  `selection.variant_target()` return `None` and `registry_ops.add_variant()`
+  raise — "+ Variant" silently dies. `map → Tiles → Background` is NOT a
   variant family: every background slot needs its own map-file legend code, so
   "another background variant" is just another numbered `tile_background_<n>`
   type. Deco types are added as whole leaf subgroups (`Prop <n>` holding
   `deco_prop_<n>`), never appended to a flat list.
 - **Frame sizes (SPEC §9.1 resolved)**: buildings / enemies / deco / core
-  64×96; map tiles 64×32; ui / vfx 64×64; backgrounds 480×270 (10K full-frame
-  menu art, drawn as a screen-space `HudSprite` — not a world sprite). All
-  data — edit `slots.json`.
+  64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
+  per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
+  screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
+- **`ui` animation vocabulary is the four button states** (10L-A):
+  `["idle", "hover", "pressed", "disabled"]` — one sheet per widget skin, one
+  manifest ROW per state (row 0 = idle, schema-enforced as everywhere), and each
+  state row may itself be multi-frame. A missing row falls back to idle, so a
+  partial sheet is fine.
 - **`sprites/asset_manifest.json` (manifest v2, D-30)**:
   `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
   frame_h, offset_x, offset_y, rows[]}}}` with row =
