@@ -544,13 +544,18 @@ class MainWindow(QMainWindow):
         """Selector right-click ("Add New X…") → the agent form for that spec.
         Specs are re-read per open (same fresh-load rule as the launcher), so a
         spec an agent just wrote opens without an editor restart."""
-        spec = next((s for s in agent_forms.load_form_specs(self._data_dir)
-                     if s["id"] == form_id), None)
-        if spec is None:
-            self.statusBar().showMessage(f"No form spec {form_id!r}", 5000)
-            return
-        AgentFormDialog(spec, data_dir=self._data_dir, repo=REPO,
-                        parent=self).exec()
+        try:
+            spec = next((s for s in agent_forms.load_form_specs(self._data_dir)
+                         if s["id"] == form_id), None)
+            if spec is None:
+                self.statusBar().showMessage(f"No form spec {form_id!r}", 5000)
+                return
+            AgentFormDialog(spec, data_dir=self._data_dir, repo=REPO,
+                            parent=self).exec()
+        except Exception as exc:                      # noqa: BLE001
+            # A raise out of a Qt slot can abort the process; a right-click must
+            # never kill the editor. Same guard as spawnclaude._open_form.
+            QMessageBox.critical(self, "Cannot open the form", str(exc))
 
     # -- theme switch --------------------------------------------------------
 

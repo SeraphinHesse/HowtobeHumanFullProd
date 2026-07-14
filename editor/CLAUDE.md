@@ -92,7 +92,7 @@ row; the forward-looking invariants:
   `sys.executable`-relative path (6.x onedir nests `--add-data` under `_internal/`,
   not beside the exe).
 
-## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, AD-1/2/3) — invariants
+## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, `plans.py`, AD-1/2/3/6/7) — invariants
 The "Summon a Drunken Robot" toolbar button (label is fixed) opens the LAUNCHER.
 Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`.
 
@@ -118,11 +118,13 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`
   `agent_forms.prune_done(repo)` on every open. `editor/agent_forms.py` is PURE
   (stdlib + `engine.data_io`), and both it and `agent_form_dialog.py` are in
   `TestPurity`.
-- **Three dispatch modes**, each passing the LITERAL slash command as claude's
+- **Four dispatch modes**, each passing the LITERAL slash command as claude's
   opening input so the skill loads directly: **form** → `/dispatch <handoff>`;
-  **small tweak** → `/smalltweak <task>`; **admin** → blank `claude` (no input, no
-  scope). Precedence in `dispatch()`: **admin > handoff > tweak**. Admin and small
-  tweak bypass the dispatch path entirely — they write NO handoff.
+  **plan** → `/setcurrentplan <name>` or `/createplan <brief>` (AD-7, see the Plans
+  group below); **small tweak** → `/smalltweak <task>`; **admin** → blank `claude`
+  (no input, no scope). Precedence in `dispatch()`: **admin > handoff > plan >
+  tweak**. Admin, plan and small tweak bypass the handoff path entirely — they
+  write NO handoff.
 - **Launcher structure is a seam**: `SpawnClaudeDialog` is built from small
   `_build_*_group()` helpers appended to ONE `QVBoxLayout`, **button box LAST**, so
   a new group is a single `addWidget` line. Form entries are buttons (a door you

@@ -109,8 +109,14 @@ tasks, open with the skill.
 | Add an editor feature/panel                        | `/add-editor-feature` |
 | Wire a new renderable category into asset import   | `/add-asset-importer` |
 | Scaffold a new command/skill                       | `/add-skill`      |
+| Add a new slot-registry category / balancing domain | `/add-category`  |
+| Add a new "Add new X" FORM type (the meta-form)     | `/add-form-spec` |
+| Replace a sprite/visual for an existing thing       | `/replace-visual` |
 
-Every skill in this table is **also a form** in the editor: **Summon a Drunken
+Most of these are **also forms** in the editor — the roster is
+`data/agent_forms/*.json`, and that directory (not this table) is the source of
+truth for what the launcher offers. `/add-skill` is skill-only; `/createplan` is
+form-and-picker. Using a form: **Summon a Drunken
 Robot** → *Add new X…* → fill the fields + the free-text box → Dispatch. The
 editor writes a schema-validated handoff and opens a terminal on
 `/dispatch <handoff>`, which runs the same skill unmodified, on a new branch off

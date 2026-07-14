@@ -1,7 +1,7 @@
 ---
 description: Execute a structured agent-dispatch handoff from the editor — git setup (worktree branch off Development, or current branch), then drive the target add-* skill.
 argument-hint: <handoff-file path>
-allowed-tools: Read, Edit, Write, Grep, Glob, SlashCommand, Bash(git *), Bash(gh pr create*), Bash(py tools/smoke.py*), Bash(py -m unittest*), Bash(py -c *)
+allowed-tools: Read, Edit, Write, Grep, Glob, SlashCommand, Bash(git *), Bash(gh pr create*), Bash(cd *), Bash(py *)
 ---
 
 Execute the dispatch handoff at **$ARGUMENTS** — a schema-valid JSON payload the
@@ -52,7 +52,16 @@ there. Only the *code work* happens in the worktree.
    and follow it with exactly that composed `$ARGUMENTS`.
 5. **Exit gate** in the working root (the worktree, in branch mode):
    `py tools/smoke.py` and `py -m unittest discover -s tools/tests -t .`. Green
-   smoke; no NEW test failures.
+   smoke; **no NEW test failures — the gate is a DIFF, not zero.** Known
+   pre-existing failures (all editor/Qt-environment): **10 failures / 4 skips in
+   a worktree**, 16 failures / 1 skip in the main tree. Anything beyond that set
+   is yours; fix it, don't explain it away.
+   ⚠️ **`test_balancing_parity` SKIPS inside `.claude/worktrees/`** — it locates
+   the prototype repo relative to the checkout (`REPO.parent/HowToBeHuman/…`),
+   which does not resolve from a worktree, so it looks green and proves nothing.
+   If the target skill touched `data/balancing/*` (`/add-enemy`, `/add-building`,
+   `/add-balancing-value`), re-run `py -m unittest tools.tests.test_balancing_parity`
+   **from the MAIN tree** before landing.
 6. **Land**:
    - branch mode → stage only the files the target skill changed (by explicit
      path), commit, push, `gh pr create --base <base>` with a body carrying the
