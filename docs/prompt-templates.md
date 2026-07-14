@@ -99,7 +99,7 @@ Drunken Robot → pick the form → fill the structured fields + the free-text b
 Dispatch. The editor writes .claude/dispatch/<ts>-<form>.json and opens a
 terminal on `/dispatch <that file>`, which runs the same skill for you — new
 branch off Development + PR, or in place on the current branch (chosen in the
-form). The old /start-domain spawn mode is gone: the lock protocol is suspended.
+form).
 ```
 
 ## Switch the active plan

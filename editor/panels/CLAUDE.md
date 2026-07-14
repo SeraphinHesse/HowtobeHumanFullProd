@@ -40,7 +40,7 @@ import list.**
 - One `QApplication` per test process (`QApplication.instance() or
   QApplication(sys.argv)`); Qt allows only one.
 
-## Phase 4 — selector / balancing / locks (ED-3/30/31/32)
+## Phase 4 — selector / balancing / domains (ED-3/30/31)
 - **Shell layout** (`main.py`): plain `QSplitter`s — selector (left) | viewport
   (center) over balancing (bottom). Full docking + `.editor_prefs.json`
   persistence (ED-1) deferred. `MainWindow(max_frames=None, data_dir=None)`; first
@@ -78,25 +78,17 @@ import list.**
   name + optional description (`_SaveMetaDialog`), then also appends a full-doc
   snapshot to that domain's history via `editor.balancing_history.save_session`
   (`data/balancing_history/<domain>.json`, a per-domain flat newest-first JSON
-  array — one file per domain because domains lock/edit independently, unlike
+  array — one file per domain because domains edit independently, unlike
   the old prototype's single combined snapshot). **"Version History"** opens
   `_HistoryDialog`, listing that domain's sessions newest-first; "Load into
   Editor" replays a past snapshot into the live widgets via
   `_apply_snapshot`/`_set_widget_value` (staged only — dirty dots reappear for
   whatever differs from the current baseline, nothing is written until the user
   clicks Save again); "Delete" removes an entry via
-  `balancing_history.delete_session`. Locked domain → all fields disabled +
-  banner "Locked by <owner> since <date>" (ED-32); lock state read at selection
-  time (re-select to refresh; no file watcher). Undo (ED-24) deferred for
-  balancing. Test note: `test_editor_panels.TempDataCase` normalizes every domain
-  to UNLOCKED in its temp copy (repo files are legitimately locked while a feature
-  branch exists).
-- **`locks.py` is read-only** (in `editor/`, not `panels/`, but governs the form):
+  `balancing_history.delete_session`. Undo (ED-24) deferred for balancing.
+- **`domains.py`** (in `editor/`, not `panels/`, but governs the form):
   `domains(data_dir)`, `category_keys`/`is_domain_category`,
-  `balancing_path`/`schema_path`, `lock_info`/`is_locked`/`owner`/`since`. **No
-  set/clear/force-unlock anywhere in the editor** (a test asserts this); the
-  branch+lock protocol is SUSPENDED (root `CLAUDE.md`) and nothing in the editor
-  writes a lock.
+  `balancing_path`/`schema_path` — read-only derivation helpers.
   - **The domain list is DERIVED, never hardcoded** (AD-6; the `DOMAINS` constant
     is GONE): `domains(data_dir)` = slots.json's category order ∩ the categories
     carrying a `data/balancing/<key>.json` (D-10 order preserved). A new balancing
@@ -118,7 +110,7 @@ import list.**
 ## Phase 5 — merged tree / details / entity preview
 - **Merged tree** (`panels/selector.py`): top-level nodes = registry categories in
   `data/slots.json` order (the ones with a balancing file double as balancing
-  domains — DERIVED, see `locks.py` above; vfx and `backgrounds` (10K menu art)
+  domains — DERIVED, see `domains.py` above; vfx and `backgrounds` (10K menu art)
   are asset-only; `deco` is asset-only, nested as a CHILD of the "map" node —
   Phase 6
   follow-up). Children come from registry groups; the tree STOPS at the deepest

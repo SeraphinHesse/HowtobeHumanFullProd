@@ -80,13 +80,14 @@ Rules:
 | Package | Read this doc      | May edit (file scope)                          |
 |---------|--------------------|------------------------------------------------|
 | engine  | `engine/CLAUDE.md` | `engine/**`, `tools/` tests for engine          |
-| game    | `game/CLAUDE.md`   | `game/**`, `data/balancing/*` (lock rules apply)|
+| game    | `game/CLAUDE.md`   | `game/**`, `data/balancing/*`                   |
 | editor  | `editor/CLAUDE.md` | `editor/**`                                     |
 | data    | `data/CLAUDE.md`   | `data/**` (schemas + validated content)         |
 
 If a task truly spans two packages, tell the user — they decide whether you
 read both docs. Within `game/`, the prototype's five balancing domains
-(buildings / enemies / map / ui / core) still scope locks and branches.
+(buildings / enemies / map / ui / core) still scope file ownership and
+branch naming.
 
 Each package doc is a **router** to per-subsystem docs
 (`<package>/<subfolder>/CLAUDE.md`) that auto-load when you edit inside that
@@ -121,9 +122,8 @@ Robot** → *Add new X…* → fill the fields + the free-text box → Dispatch.
 editor writes a schema-validated handoff and opens a terminal on
 `/dispatch <handoff>`, which runs the same skill unmodified, on a new branch off
 `Development` (ending in a PR) or in place on the current branch — your choice in
-the form (`planning/AgentDispatchPLAN.md`). The dialog's old **`/start-domain`
-mode is gone** (the lock protocol is suspended); **Small tweak** and **Admin**
-are unchanged.
+the form (`planning/AgentDispatchPLAN.md`). **Small tweak** and **Admin** are
+unchanged.
 
 Copy-paste task openers (that themselves point at these skills) live in
 [`docs/prompt-templates.md`](docs/prompt-templates.md).
@@ -145,28 +145,11 @@ stays 10 (deliberate exception).
 4. PRs state a concrete in-game Quick Test scenario. On the user's
    confirmation: commit (brief msg) → push → PR.
 
-## Branch + lock protocol
+## Branching
 
-> ⚠️ **TEMPORARY OVERRIDE (migration in progress) — read first.**
-> The branch + lock protocol below is **SUSPENDED** for all Claude agents.
-> It is no longer compatible with the engine migration and will be
-> redesigned *after* the project is migrated to the new engine setup.
-> Until this flag is removed:
-> - **Ignore branch lock protocol entirely** — do not run `/start-domain` /
->   `/merge-domain`, do not set/clear `_lock`, do not treat any domain as
->   LOCKED.
-> - For each new phase of the engine creation plan (`PLAN.md`) or the
->   `MIGRATION_PLAN.md`, simply **create one new branch for that phase** and
->   work on it.
-> - The "never run destructive git on uncommitted work" and "never commit
->   `build/`/`dist/`/`*.exe`" rules below **still apply**.
-
-Ported from the prototype (commands land in `.claude/commands/`, PLAN phase 8):
-- `/start-domain <domain>` → lock that domain's `data/balancing/*.json`
-  `_lock`, branch `feature<Domain>`.
-- `/merge-domain <domain>` is the ONLY place a lock clears.
-- **Invariant:** while a `feature<Domain>` branch exists, that domain stays
-  LOCKED.
+The old branch+lock protocol is **REMOVED** (its successor is a future,
+separate design — nothing enforces domain locks today).
+- One branch per phase/feature off `Development`; land via PR.
 - **Never run destructive git on uncommitted work:** no `git reset --hard`,
   `git clean`, `git checkout -- <file>`, force-push.
 - Never commit `build/`, `dist/`, or any `*.exe` (gitignored — keep it that

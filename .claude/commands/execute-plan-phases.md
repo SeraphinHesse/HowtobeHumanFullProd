@@ -5,8 +5,8 @@ allowed-tools: Agent, Read, Write, Edit, Glob, Grep, Bash(git *), Bash(gh *), Ba
 ---
 
 Execute plan phases: **$ARGUMENTS** — `<plan-file> <phase-range> [spec-repo-path]`.
-This is an **orchestrator** (batch mode — the `_lock` protocol is NOT used);
-isolation comes from git worktrees under one umbrella branch.
+This is an **orchestrator**; isolation comes from git worktrees under one
+umbrella branch.
 
 ## Step 0 — Preconditions gate (abort with a clear report on any failure)
 - The plan file exists and contains every phase in the range (list them).
@@ -51,7 +51,6 @@ isolation comes from git worktrees under one umbrella branch.
 - Committing `build/`, `dist/`, or any `*.exe`.
 - Editing the spec/prototype repo — read-only, always.
 - Granting a coder scope outside its brief's §3 file boundary.
-- The `_lock` protocol — batch mode never writes locks.
 
 ## Verify
 - After each wave: exit gate green vs baseline on every phase branch, then on

@@ -7,7 +7,7 @@ allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(gi
 Wrap up the working tree: **commit the current work, push the branch, and open
 a PR in one step** — subject: **$ARGUMENTS** (infer from the diff if empty).
 This is the closing move of a session, not a work skill: it makes NO code
-edits and never touches any `_lock`.
+edits.
 
 It does **not** run the exit gate — it assumes the session already verified its
 own work. Report whatever was actually verified this session (smoke test, suite

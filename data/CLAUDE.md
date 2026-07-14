@@ -20,7 +20,7 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`), each carrying a `_lock` field (D-10/11).
+  `map.json`, `ui.json`, `core.json`) (D-10).
 - `balancing_history/` — one file per domain (`buildings.json`, …, matching
   `balancing/`'s stems), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
@@ -51,7 +51,7 @@ validating writer; don't hand-edit the JSON.
   feature tree (see planning/MIGRATION_PLAN.md): PascalCase group objects
   (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
   tier struct-lists under a `tiers` key with the prototype's field names
-  verbatim. `_lock` stays top-level. The prototype's 4 stringified
+  verbatim. The prototype's 4 stringified
   LIGHTNING lists became real JSON arrays; the Features file dissolved into
   one canonical wired flag per concept (`ui:FX/gore_enabled`,
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
@@ -112,12 +112,6 @@ validating writer; don't hand-edit the JSON.
   appends). Bounds policy, documented per-domain in the schema description:
   fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,
   rounds/levels 0–1000, seconds 0–60, pixels ±4096.
-- **`_lock` shape (D-11)**: `"UNLOCKED"` or
-  `{"locked_by": <str>, "since": "YYYY-MM-DD"}` — enforced via `oneOf`
-  (`const` / closed object, `since` checked by regex pattern, not
-  `format:` which jsonschema doesn't assert). The subschema is **inlined in
-  every domain schema** (no cross-file `$ref`: `engine.data_io` validates
-  with a plain `jsonschema.validate`, which can't resolve external refs).
 - **D-12 convention**: every property carries a `description` documenting
   units/scale (a test enforces presence), and every numeric property
   declares `minimum`/`maximum` — the editor derives spinbox ranges from
@@ -250,9 +244,8 @@ validating writer; don't hand-edit the JSON.
 - Deterministic formatting: sorted keys, 2-space indent (D-3) — keeps diffs
   minimal for git and agents.
 - Designers never hand-edit these files (the editor is their interface); you
-  (an agent) may edit directly, but only schema-valid writes, and only in a
-  domain whose `_lock` you hold (or with explicit user say-so for small
-  tweaks).
+  (an agent) may edit directly, but only schema-valid writes, and only with
+  the user's say-so or a dispatched task's scope.
 - Balance semantics: ×10 combat HP/DMG scale; `BASE_HP` stays 10; units and
   scale are documented per key in the schema (D-12).
 - `active_map.json` changes only via the editor's selector (D-21) unless the

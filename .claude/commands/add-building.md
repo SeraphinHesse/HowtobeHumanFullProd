@@ -6,7 +6,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py 
 
 Add a new building: **$ARGUMENTS**. This follows the migration plan's 10B–10E
 pattern (each of those phases adds "a leaf class + one row and never reopens the
-roll"). Respect the `_lock` on `buildings` if a feature branch holds it.
+roll").
 
 ## Read first (token-light)
 1. `game/buildings/CLAUDE.md` — the hierarchy rules (all-state-in-components,

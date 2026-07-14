@@ -7,9 +7,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, SlashCommand, Bash(git *), Bash(gh
 Execute the dispatch handoff at **$ARGUMENTS** — a schema-valid JSON payload the
 editor wrote when a designer submitted an "Add new X" form. This skill does git
 setup + payload translation ONLY; the real work is done by the target `add-*`
-skill named in the payload, invoked unmodified. The branch+lock protocol is
-SUSPENDED: this skill NEVER writes `.claude/active_domain` and NEVER touches any
-`_lock`.
+skill named in the payload, invoked unmodified.
 
 **Two trees, one rule.** The handoff lives at `.claude/dispatch/<f>.json` in the
 **MAIN repo tree** (where you started) and is **gitignored** — so it does NOT
@@ -52,10 +50,12 @@ there. Only the *code work* happens in the worktree.
    and follow it with exactly that composed `$ARGUMENTS`.
 5. **Exit gate** in the working root (the worktree, in branch mode):
    `py tools/smoke.py` and `py -m unittest discover -s tools/tests -t .`. Green
-   smoke; **no NEW test failures — the gate is a DIFF, not zero.** Known
-   pre-existing failures (all editor/Qt-environment): **10 failures / 4 skips in
-   a worktree**, 16 failures / 1 skip in the main tree. Anything beyond that set
-   is yours; fix it, don't explain it away.
+   smoke; **no NEW test failures — the gate is a DIFF, not zero.** Measure the
+   baseline on the base branch (or take it from your dispatch prompt) — never
+   trust a remembered count. Known shape: 6 deliberate balancing-parity
+   divergences + a set of editor/Qt failures in the main tree; parity SKIPS in
+   a worktree (see below). Anything beyond the measured set is yours; fix it,
+   don't explain it away.
    ⚠️ **`test_balancing_parity` SKIPS inside `.claude/worktrees/`** — it locates
    the prototype repo relative to the checkout (`REPO.parent/HowToBeHuman/…`),
    which does not resolve from a worktree, so it looks green and proves nothing.
@@ -77,7 +77,6 @@ there. Only the *code work* happens in the worktree.
    `git worktree remove "$MAIN/.claude/worktrees/<branch>"` and report the PR URL.
 
 ## Avoid
-- Writing `.claude/active_domain` or any `_lock` — the protocol is SUSPENDED.
 - `git switch` / `git checkout -b` in the main tree; force-push; `reset --hard`;
   `git clean`.
 - `git add -A` / `git add .` / `git commit -a`. The user may have unrelated

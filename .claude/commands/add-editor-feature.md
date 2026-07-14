@@ -9,7 +9,7 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
 
 ## Read first (token-light)
 1. `editor/CLAUDE.md` — architecture + the hard rules (selection model, one render
-   path, no lock writes).
+   path, schema-valid writes only).
 2. `editor/panels/CLAUDE.md` — the panel conventions for the area you're touching
    (selector / balancing / details / palette / map-details / viewport).
 
@@ -24,15 +24,12 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
 3. **All `data/` writes go through `engine.data_io.write_validated`** — invalid input
    must be unrepresentable in the form (bounds from the schema, ED-30/31). Never
    hand-write JSON.
-4. **Locks** — read-only display via `editor.locks`; the editor NEVER sets/clears a
-   `_lock` (a test asserts no such symbol exists). A locked domain → disabled fields
-   + owner banner.
-5. **Keep pure helpers Qt-free/pygame-free** — logic that can live outside Qt goes in
+4. **Keep pure helpers Qt-free/pygame-free** — logic that can live outside Qt goes in
    an `editor/*.py` helper (like `selection.py`/`registry_ops.py`/`tilemap_ops.py`) so
    it's headlessly testable.
-6. **`data_dir` injection** — new modules take `data_dir=None` (defaults to
+5. **`data_dir` injection** — new modules take `data_dir=None` (defaults to
    `<repo>/data`) so tests run against a temp copy.
-7. **Register purity** — add any new editor module to
+6. **Register purity** — add any new editor module to
    `test_editor_viewport.TestPurity`'s import list (or `test_editor_panels` where
    appropriate).
 

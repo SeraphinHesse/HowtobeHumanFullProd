@@ -1,5 +1,5 @@
 ---
-description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main. Skips the _lock protocol (batch mode).
+description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main.
 argument-hint: <small|priority|smallpriority|all>
 allowed-tools: Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*), Read, Write, Edit, Glob, Grep, Agent
 ---
@@ -8,17 +8,14 @@ Batch-process outstanding todos for How To Be Human — Full Production. Mode
 `$ARGUMENTS` selects the slice of work: `small` (quick tweaks only), `priority`
 (flagged items), `smallpriority` (both filters), or `all`.
 
-This is an **orchestrator**, distinct from the single-domain `/start-domain`
-flow. It deliberately **does NOT use the `_lock` protocol** — batch mode never
-writes `"LOCKED"`/lock objects. Isolation comes from git worktrees + an umbrella
-branch instead, so parallel per-domain agents don't collide.
+This is an **orchestrator**: isolation comes from git worktrees + an umbrella
+branch, so parallel per-domain agents don't collide.
 
 ## Read the todo list
 
 Use the `gettodo` skill scoped to this project (`Skill gettodo` with the project
 filter) to read the outstanding build items. Bucket each item by domain
-(buildings / enemies / map / ui / core) using the same classification as the
-scope guard (`.claude/hooks/scope_guard.py` `DOMAIN_SCOPE`): an item belongs to
+(buildings / enemies / map / ui / core): an item belongs to
 the domain whose `game/<domain>/**` or `data/balancing/<domain>.json` it touches.
 Cross-cutting items (touch `game/core/**` shared host, or multiple domains) go
 last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
@@ -52,4 +49,4 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
 Constraints: never `reset --hard`, `clean`, or force-push on shared branches;
 never commit `build/`, `dist/`, or `*.exe`. If an item is too large or genuinely
 spans domains in a way worktrees can't isolate, leave it queued and flag it for a
-manual `/start-domain` session.
+manual `/execute-phase` session.
