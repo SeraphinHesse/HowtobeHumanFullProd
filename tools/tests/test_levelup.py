@@ -33,6 +33,10 @@ ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 XP = CORE["XP"]
 
+# The defence line's tier-2 row, the pool/gate tests' favourite subject —
+# derived so a fixture refresh can never strand a mirrored literal (D5).
+DEF_T2 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][1]
+
 
 class NoShuffle:
     """rng stub: preserves pool order so a draw is fully predictable."""
@@ -112,21 +116,26 @@ class TestRunStateSeeding(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestXpMath(unittest.TestCase):
     def test_xp_per_enemy_type(self):
-        self.assertEqual(xpmod.xp_for_etype("standard", CORE), 1)
-        self.assertEqual(xpmod.xp_for_etype("raider", CORE), 1)
-        self.assertEqual(xpmod.xp_for_etype("siege", CORE), 3)
-        self.assertEqual(xpmod.xp_for_etype("boss", CORE), 150)
+        self.assertEqual(xpmod.xp_for_etype("standard", CORE),
+                         XP["xp_per_standard_enemy"])
+        self.assertEqual(xpmod.xp_for_etype("raider", CORE),
+                         XP["xp_per_raider"])
+        self.assertEqual(xpmod.xp_for_etype("siege", CORE),
+                         XP["xp_per_siege_enemy"])
+        self.assertEqual(xpmod.xp_for_etype("boss", CORE), XP["xp_per_boss"])
 
     def test_unknown_etype_pays_standard(self):
-        self.assertEqual(xpmod.xp_for_etype("gribbly", CORE), 1)
+        self.assertEqual(xpmod.xp_for_etype("gribbly", CORE),
+                         XP["xp_per_standard_enemy"])
 
     def test_award_arms_pending_once_at_threshold(self):
         st = RunState.from_balance(CORE, BUILD)
-        xpmod.award_xp(st, 49)
+        threshold = XP["village_xp_base_threshold"]
+        xpmod.award_xp(st, threshold - 1)
         self.assertFalse(st.levelup_pending)
         xpmod.award_xp(st, 1)
         self.assertTrue(st.levelup_pending)
-        self.assertEqual(st.player_xp, 50)
+        self.assertEqual(st.player_xp, threshold)
 
     def test_award_records_floater_event_only_with_a_position(self):
         st = RunState.from_balance(CORE, BUILD)
@@ -136,28 +145,40 @@ class TestXpMath(unittest.TestCase):
         self.assertEqual(st.xp_events, [(4.0, 5.0, 2)])
 
     def test_threshold_curve(self):
-        """50 -> 65 -> 85 -> 110 -> 140: the increment itself grows by 5."""
+        """e.g. 50 -> 65 -> 85 -> 110 -> 140: the increment itself grows.
+
+        Expected values re-derived from the tunables with the documented
+        recurrence (threshold += inc; inc += growth), independently of
+        ``advance_village_level``'s own arithmetic."""
         st = RunState.from_balance(CORE, BUILD)
+        inc = XP["village_xp_threshold_inc"]
+        expect = [XP["village_xp_base_threshold"]]
+        for _ in range(4):
+            expect.append(expect[-1] + inc)
+            inc += XP["village_xp_threshold_inc_growth"]
         seen = [st.xp_threshold]
         for _ in range(4):
             xpmod.advance_village_level(st, CORE)
             seen.append(st.xp_threshold)
-        self.assertEqual(seen, [50, 65, 85, 110, 140])
+        self.assertEqual(seen, expect)
         self.assertEqual(st.village_level, 5)
 
     def test_surplus_xp_carries_forward(self):
         st = RunState.from_balance(CORE, BUILD)
-        xpmod.award_xp(st, 63)            # threshold 50, surplus 13
+        threshold = XP["village_xp_base_threshold"]
+        xpmod.award_xp(st, threshold + 13)
         xpmod.advance_village_level(st, CORE)
         self.assertEqual(st.player_xp, 13)
-        self.assertEqual(st.xp_threshold, 65)
+        self.assertEqual(st.xp_threshold,
+                         threshold + XP["village_xp_threshold_inc"])
 
     def test_scaled_base_income(self):
         st = RunState.from_balance(CORE, BUILD)
         base = CORE["TheHole"]["base_income"]
+        per = XP["base_income_per_village_level"]
         self.assertEqual(xpmod.scaled_base_income(st, CORE), base)
         st.village_level = 3
-        self.assertEqual(xpmod.scaled_base_income(st, CORE), base + 4)
+        self.assertEqual(xpmod.scaled_base_income(st, CORE), base + 2 * per)
 
 
 # ---------------------------------------------------------------------------
@@ -229,7 +250,7 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(option["tier_no"], 2)
         self.assertEqual(option["tier_max"], 3)
         self.assertEqual(option["prev_name"], "Stone Thrower")
-        self.assertEqual(option["cost"], 20)          # BasicDefence.tiers[1].build_cost
+        self.assertEqual(option["cost"], DEF_T2["build_cost"])
         self.assertEqual(option["sprite_key"], "slinger_t2_lvl1")
 
     def test_era_gate_excludes_a_type_entirely(self):
@@ -344,7 +365,7 @@ class TestApplyOption(unittest.TestCase):
                       if o.get("building_type") == "defence")
         lv.apply_levelup_option(st, option, CORE)
         self.assertEqual(st.tiers_unlocked["defence"], 2)
-        self.assertEqual(st.love, 80)                 # 100 - 20
+        self.assertEqual(st.love, 100 - DEF_T2["build_cost"])
 
     def test_tier_cost_clamps_love_at_zero(self):
         st = RunState.from_balance(CORE, BUILD)
@@ -396,14 +417,15 @@ class TestUpgradeGate(unittest.TestCase):
         mode, name, cost = lv.upgrade_gate(st, b, BUILD)
         self.assertEqual(mode, "tier_hidden")
         self.assertIsNone(name)                       # the name stays secret
-        self.assertEqual(cost, 10)                    # ...it unlocks at round 10
+        self.assertEqual(cost, DEF_T2["unlock_min_round"])  # the unlock round
 
     def test_tier_locked_once_offerable_but_unresearched(self):
         st, b = self.defender()
         b.upgrade(); b.upgrade()
         st.round_num = 10
         mode, name, cost = lv.upgrade_gate(st, b, BUILD)
-        self.assertEqual((mode, name, cost), ("tier_locked", "Slinger", 20))
+        self.assertEqual((mode, name, cost),
+                         ("tier_locked", DEF_T2["name"], DEF_T2["build_cost"]))
 
     def test_tier_upgrade_once_researched(self):
         st, b = self.defender()
@@ -411,7 +433,8 @@ class TestUpgradeGate(unittest.TestCase):
         st.round_num = 10
         st.tiers_unlocked["defence"] = 2
         mode, name, cost = lv.upgrade_gate(st, b, BUILD)
-        self.assertEqual((mode, name, cost), ("tier_upgrade", "Slinger", 20))
+        self.assertEqual((mode, name, cost),
+                         ("tier_upgrade", DEF_T2["name"], DEF_T2["build_cost"]))
 
     def test_max_tier_at_the_end_of_the_line(self):
         st, b = self.defender()
@@ -574,15 +597,19 @@ class TestLevelupPhase(unittest.TestCase):
         self.assertEqual(st.levelup_options, [])
         self.assertEqual(st.phase, GamePhase.INCOME)
         self.assertEqual(st.round_num, 2)
-        # +25 love, then payday's village-scaled base income (5 + 1*2)
-        self.assertEqual(st.love, before + XP["levelup_love_reward"] + 7)
+        # +reward love, then payday's village-scaled base income at level 2
+        payday = (CORE["TheHole"]["base_income"]
+                  + 1 * XP["base_income_per_village_level"])
+        self.assertEqual(st.love, before + XP["levelup_love_reward"] + payday)
 
     def test_payday_scales_base_income_with_village_level(self):
         session, tm, scene = self.at_round_end(False)
         session.state.village_level = 4
         before = session.state.love
         frame(session, scene, tm, 0.1)
-        self.assertEqual(session.state.love, before + 5 + 3 * 2)
+        self.assertEqual(session.state.love,
+                         before + CORE["TheHole"]["base_income"]
+                         + 3 * XP["base_income_per_village_level"])
 
 
 # ---------------------------------------------------------------------------
