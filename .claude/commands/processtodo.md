@@ -2,6 +2,7 @@
 description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main.
 argument-hint: <small|priority|smallpriority|all>
 allowed-tools: Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*), Read, Write, Edit, Glob, Grep, Agent
+disable-model-invocation: true
 ---
 
 Batch-process outstanding todos for How To Be Human — Full Production. Mode
@@ -30,9 +31,11 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
 ## Execution
 
 1. `git switch main` → `git pull`. Create the umbrella branch.
-2. For each domain with queued work, spawn a subagent with `isolation:
-   "worktree"`, scoped to that domain's files only (give it the domain's
-   `DOMAIN_SCOPE` list). **In each subagent's brief, instruct it: if the item
+2. For each domain with queued work, spawn a **`coder` agent** (an
+   **`engine-coder`** for engine-scoped items) with `isolation:
+   "worktree"`, scoped to that domain's files only (name the domain's
+   `game/<domain>/**` + balancing/schema files in its brief). **In each
+   subagent's brief, instruct it: if the item
    adds a building / enemy / balancing tunable / engine component / editor
    feature / asset-import category, invoke the matching `/add-*` skill
    (`/add-building`, `/add-enemy`, `/add-balancing-value`, `/add-engine-component`,

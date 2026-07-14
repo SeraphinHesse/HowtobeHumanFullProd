@@ -2,6 +2,7 @@
 description: Execute a structured agent-dispatch handoff from the editor — git setup (worktree branch off Development, or current branch), then drive the target add-* skill.
 argument-hint: <handoff-file path>
 allowed-tools: Read, Edit, Write, Grep, Glob, SlashCommand, Bash(git *), Bash(gh pr create*), Bash(cd *), Bash(py *)
+disable-model-invocation: true
 ---
 
 Execute the dispatch handoff at **$ARGUMENTS** — a schema-valid JSON payload the

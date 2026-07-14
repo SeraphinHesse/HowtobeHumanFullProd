@@ -128,6 +128,21 @@ unchanged.
 Copy-paste task openers (that themselves point at these skills) live in
 [`docs/prompt-templates.md`](docs/prompt-templates.md).
 
+## Agent roster (`.claude/agents/`)
+
+Orchestrator skills dispatch these **by name**; agents report upward with
+provenance-tagged claims (see `/report`), and only orchestrators publish
+artifacts. Scaffold a new one with `/add-agent`.
+
+| Agent | Role |
+|---|---|
+| `scout` | Graphify-first discovery; returns `file:line` + the one pattern to copy (haiku, read-only) |
+| `coder` | Generic implementer for game/editor/data tasks; opens with the matching skill above |
+| `engine-coder` | Engine specialist, scoped to `engine/**` + engine tests; layering invariants baked in |
+| `planner` | Phased plan docs + phase briefs in the house shape; never implements |
+| `reviewer` | Read-only diff review against brief + design pillars; ranked findings |
+| `phase-executor` | Unattended single-phase execution from a brief; never re-plans |
+
 ## Data source of truth
 `data/` JSON is the ONLY value store (no py+json dual system — do not
 reintroduce it). Every file validates against `data/schemas/`. Write through

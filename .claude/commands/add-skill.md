@@ -7,7 +7,8 @@ allowed-tools: Read, Write, Glob
 Scaffold a new skill: **$ARGUMENTS**. Skills in this repo live as
 `.claude/commands/<name>.md` and are the project's slash commands. Keep the new one
 **token-light** — it should point agents at the right subsystem doc rather than
-re-explaining architecture.
+re-explaining architecture. (Scaffolding an AGENT definition in
+`.claude/agents/` instead? That's `/add-agent`.)
 
 ## Read first
 1. An existing sibling that resembles the new skill's shape (`add-building.md` for a

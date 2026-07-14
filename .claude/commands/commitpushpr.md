@@ -2,6 +2,7 @@
 description: Commit the current work, push the branch, and open a PR into Development in one step.
 argument-hint: [optional commit/PR subject — inferred from the diff if omitted]
 allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(gh pr create*), Bash(gh pr view*), Read
+disable-model-invocation: true
 ---
 
 Wrap up the working tree: **commit the current work, push the branch, and open
