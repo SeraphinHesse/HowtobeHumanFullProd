@@ -214,18 +214,21 @@ validating writer; don't hand-edit the JSON.
   Nothing consumes these files until B2.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
-  exporter (B3). Per-screen snapshot: `{widgets: {<id>: {rect, kind, label}},
-  mock_note}`, where `kind` is one of `button | panel | label | backdrop |
-  bar | field`. Editor previews render from defaults + overrides only. Merge
-  conflicts on two branches resolve by re-running the exporter (deterministic
-  output).
+  exporter (B3). FLAT shape, keyed directly by screen id at the root:
+  `{<screen_id>: {widgets: {<id>: {rect, kind, label}}, mock_note}}`, where
+  `kind` is one of `button | panel | label | backdrop | bar | field`. Pairs
+  with `schemas/screen_defaults.schema.json` by normal stem pairing — no
+  directory exception needed for this one file. Editor previews render from
+  defaults + overrides only. Merge conflicts on two branches resolve by
+  re-running the exporter (deterministic output).
 - **SCHEMA-PAIRING EXCEPTION (the directory rule — now THREE + ONE)**:
-  `data/ui/screens/*.json` (any stem) → `ui_screen.schema.json` (exact
-  parallel to `data/maps/*.json` → `map_file.schema.json`); stem `ui_screen`
-  is unavailable because `ui_screen_defaults.json` uses it (a singular data
-  file paired with its own stem). `tools/smoke.py::validate_data` special-cases
-  the directory exactly like maps. `data/ui/screen_defaults.json` pairs
-  normally via stem.
+  `data/ui/screens/*.json` (any stem, the screen id) → `ui_screen.schema.json`
+  (exact parallel to `data/maps/*.json` → `map_file.schema.json`).
+  `tools/smoke.py::validate_data` special-cases the directory exactly like
+  maps. `data/ui/screen_defaults.json` pairs normally via stem to
+  `schemas/screen_defaults.schema.json` (a plain stem-mate, not a directory
+  exception — its schema's root is the flat per-screen map, not a `screens`
+  wrapper).
 - **`ui` animation vocabulary** (`slots.json` A3): `["idle", "hover",
   "pressed", "disabled"]` — button states become manifest rows (plan decision
   2, landed A3). Widget skins source the `ui` slots; per-slot animation

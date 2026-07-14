@@ -33,8 +33,9 @@ def validate_data(data_root=None):
     agent-dispatch form spec with an arbitrary stem and validates against
     agent_form.schema.json; every data/ui/screens/*.json is a per-screen
     override with an arbitrary stem (the screen id) and validates against
-    ui_screen.schema.json (the stem 'ui_screen' belongs to
-    ui_screen_defaults.json).
+    ui_screen.schema.json, the exact parallel to map_file.schema.json for
+    maps/*.json (the generated data/ui/screen_defaults.json snapshot pairs
+    normally by stem to screen_defaults.schema.json).
     data_root parameter exists so tests can run this rule on a temp tree."""
     from engine import data_io
 
