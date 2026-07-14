@@ -131,10 +131,11 @@ validating writer; don't hand-edit the JSON.
   would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
   drawing** — on-screen size comes from the render fit
   (`engine/render/CLAUDE.md`).
-  - **The override does NOT propagate to "+ Variant"**: `registry_ops.add_variant`
-    appends a bare key, so `ui_bg_main_menu_v2` inherits the category's 64×64.
-    Harmless today (nothing consumes the slot); fix before a background picker
-    ships (10L-B).
+  - **The override DOES propagate to "+ Variant"** (A7): `registry_ops.add_variant`
+    now inherits the family stem's frame-size override on creation, so
+    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 480×270 override.
+    Bare stems stay bare (regression pin for enemies/deco); independently
+    resizable afterwards via the Frame W/H spinboxes.
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
     so `"foo"` and `{"key": "foo", …}` are two distinct items. It is kept (it
     still catches literal duplicates, and it is the D-3 house style), and
@@ -200,6 +201,35 @@ validating writer; don't hand-edit the JSON.
     used leaves that PNG on disk, unreferenced and inert. It stays listed in the
     picker, which is how you get it back — silently deleting art on a link change
     is the worse failure.
+
+## UI screen data (Phase 10L-B, R3)
+- **`data/ui/screens/<screen_id>.json`**: per-screen override format. One file
+  per screen (12 total: main_menu, pause, settings, credits, add_name,
+  game_over, levelup, hud, building_panel, cheat_menu, game_log,
+  boss_cutscene); each is EMPTY `{}` until edited in the editor.
+  `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
+  `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
+  styling to dynamic widgets; `widgets: {<id>: {rect?, skin?, font?, color?,
+  text_color?, label?, visible?}}` overrides any named widget's properties.
+  Nothing consumes these files until B2.
+- **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
+  `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
+  exporter (B3). Per-screen snapshot: `{widgets: {<id>: {rect, kind, label}},
+  mock_note}`, where `kind` is one of `button | panel | label | backdrop |
+  bar | field`. Editor previews render from defaults + overrides only. Merge
+  conflicts on two branches resolve by re-running the exporter (deterministic
+  output).
+- **SCHEMA-PAIRING EXCEPTION (the directory rule — now THREE + ONE)**:
+  `data/ui/screens/*.json` (any stem) → `ui_screen.schema.json` (exact
+  parallel to `data/maps/*.json` → `map_file.schema.json`); stem `ui_screen`
+  is unavailable because `ui_screen_defaults.json` uses it (a singular data
+  file paired with its own stem). `tools/smoke.py::validate_data` special-cases
+  the directory exactly like maps. `data/ui/screen_defaults.json` pairs
+  normally via stem.
+- **`ui` animation vocabulary** (`slots.json` A3): `["idle", "hover",
+  "pressed", "disabled"]` — button states become manifest rows (plan decision
+  2, landed A3). Widget skins source the `ui` slots; per-slot animation
+  vocabulary + partial-sheet fallback apply uniformly.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
