@@ -304,13 +304,40 @@ edits outside what the target skill's own scope needs; `_lock` writes.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| AD-1  | Form-spec + handoff data layer (pure) | not started |
-| AD-2  | `/dispatch` skill + spawnclaude pure layer | not started |
-| AD-3  | Generic form renderer + launcher dialog (end-to-end) | not started |
-| AD-4  | Form roster + suspension cleanup | not started |
-| AD-5  | Meta-extensibility: the add-form-spec form | not started |
-| AD-6  | Category addition + selector integration + DOMAINS derivation | not started |
-| AD-7  | Plan management: active-plan mirror + planning-agent spawn | not started |
+| AD-1  | Form-spec + handoff data layer (pure) | done |
+| AD-2  | `/dispatch` skill + spawnclaude pure layer | done |
+| AD-3  | Generic form renderer + launcher dialog (end-to-end) | done |
+| AD-4  | Form roster + suspension cleanup | done |
+| AD-5  | Meta-extensibility: the add-form-spec form | done |
+| AD-6  | Category addition + selector integration + DOMAINS derivation | done |
+| AD-7  | Plan management: active-plan mirror + planning-agent spawn | done |
+
+All seven phases landed on `phase-AD-1-7-umbrella` (planner → coder → reviewer
+waves, one worktree branch per phase). Headless gates green: `py tools/smoke.py`
+validates **28** data files (18 pre-existing + the 10 form specs), and the suite
+shows no new failures against the pre-existing baseline. The end-to-end designer
+path (toolbar → launcher → form → real terminal → worktree branch → PR) is a
+**live** check and is listed as a Quick Test on the PR — it spawns a real nested
+`claude` session and cannot be exercised headlessly.
+
+**Deviations from this document, decided during execution** (each is a case where
+the plan as written was wrong, not a shortcut):
+- **AD-5** inverts §6/AD-5's step order: the target skill is scaffolded *before*
+  the spec is written. The documented order leaves a window where a committed
+  spec points at a nonexistent `.claude/commands/<skill>.md` — exactly what
+  AD-4's sweep test fails on.
+- **AD-6** makes `DOMAINS` a **function** `domains(data_dir=None)`, not a derived
+  module-level tuple: every editor module is `data_dir`-injectable and the editor
+  tests run against a temp copy of `data/`, so a global derived at import from
+  `REPO/data` would be silently wrong for any other tree. Naive derivation would
+  also have made the "no balancing file, no domain node" omission dead code, so
+  the guard is keyed on *schema* existence instead.
+- **AD-6**'s hardcoding checklist adds two sites §6/AD-6 missed:
+  `tools/tests/test_assets_registry.py` (asserts the literal category tuple, so
+  *any* new category reddens the suite) and `game/core/balance.py::DOMAINS`
+  (drives `load_all()`; without it a new balancing domain is invisible to the game).
+- **AD-7** adds a `plan_prompt=` parameter to `dispatch()` rather than reusing
+  `tweak_prompt` (which would emit `/smalltweak /setcurrentplan …`).
 
 ### Phase AD-1 — Form-spec + handoff data layer (pure)
 
