@@ -15,6 +15,7 @@ from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PIL import Image
 from PySide6.QtCore import QPoint
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QApplication
 
 from editor.panels import details
@@ -297,6 +298,35 @@ class TestSheetPreviewClicks(DetailsCase):
         rect = preview._cell_rect(1, 2)
         self.assertEqual(preview.cell_at(rect.center()), (1, 2))
         self.assertIsNone(preview.cell_at(rect.center() + QPoint(0, 10_000)))
+
+
+class TestFrameNumbers(DetailsCase):
+    """Every cell is captioned with its COLUMN index — the number the hide
+    checkboxes, the static radios and the manifest's `hidden` all speak."""
+
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    def preview(self, width, height):
+        src = make_png(self.png_dir / "art.png", 4 * 64, 2 * 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        preview = self.panel._preview
+        preview.resize(width, height)
+        return preview
+
+    def test_caption_sits_at_the_bottom_of_its_own_cell(self):
+        preview = self.preview(4 * 64, 2 * 96)          # scale 1.0
+        self.assertTrue(preview.labels_visible())
+        metrics = QFontMetrics(preview._label_font())
+        for row, col in ((0, 0), (1, 3)):
+            cell = preview._cell_rect(row, col)
+            plate = preview._label_rect(cell, metrics, str(col))
+            self.assertTrue(cell.contains(plate))
+            self.assertEqual(plate.bottom(), cell.bottom())
+
+    def test_captions_are_dropped_when_a_cell_is_too_small_to_hold_one(self):
+        preview = self.preview(40, 30)                  # cells ~10px across
+        self.assertFalse(preview.labels_visible())
 
 
 class TestUseSheet(DetailsCase):
