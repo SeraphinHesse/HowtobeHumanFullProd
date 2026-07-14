@@ -194,6 +194,10 @@ class MainWindow(QMainWindow):
         self.theme_switch.toggled.connect(self._on_theme_toggled)
         agents_toolbar.addWidget(self.theme_switch)
 
+        producer_btn = QPushButton("thats my prod")
+        producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
+        agents_toolbar.addWidget(producer_btn)
+
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the
         # palette is hidden (entity mode) — otherwise the outer vertical split
@@ -234,10 +238,6 @@ class MainWindow(QMainWindow):
         split.setSizes([220, 760, 300])
         self.setCentralWidget(split)
         self.statusBar().showMessage("")   # ED-23 world-coordinate readout
-
-        producer_btn = QPushButton("thats my prod")
-        producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
-        self.statusBar().addWidget(producer_btn)
 
         domains = self.selector.domains()
         if domains:
