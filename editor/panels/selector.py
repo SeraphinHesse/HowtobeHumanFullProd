@@ -88,7 +88,9 @@ class SelectorPanel(QTreeWidget):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self.registry = load_registry(self._data_dir)
-        self._domains = locks.domains(self._data_dir)
+        # reuse the registry we just loaded — locks.domains() would otherwise
+        # re-parse AND re-validate slots.json
+        self._domains = locks.domains(self._data_dir, self.registry)
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
@@ -271,7 +273,7 @@ class SelectorPanel(QTreeWidget):
         The derived domain list is refreshed too: a registry edit can add a
         category, and a new category can be a balancing domain."""
         self.registry = load_registry(self._data_dir)
-        self._domains = locks.domains(self._data_dir)
+        self._domains = locks.domains(self._data_dir, self.registry)
 
     # -- selection broadcast ---------------------------------------------------
 
@@ -284,7 +286,13 @@ class SelectorPanel(QTreeWidget):
             # map node: tilemap mode + the 1:1 map balancing domain; no
             # node_selected — entity-preview machinery must not react
             self.map_selected.emit(map_id)
-            self.domain_selected.emit("map")
+            # GATED like every other domain_selected: with neither
+            # balancing/map.json nor schemas/map.schema.json on disk, "map" is
+            # an asset-only category — the node is shown, but emitting here
+            # would drive BalancingPanel.set_domain into a missing file
+            # (FileNotFoundError out of a Qt slot).
+            if "map" in self._domains:
+                self.domain_selected.emit("map")
             return
         category_key, path = items[0].data(0, _PAYLOAD_ROLE)
         self.node_selected.emit(category_key, tuple(path))

@@ -253,6 +253,28 @@ class TestSelector(TempDataCase):
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
 
+    def test_map_leaf_emits_no_domain_when_map_is_not_a_domain(self):
+        """With NEITHER balancing/map.json NOR schemas/map.schema.json, "map"
+        is a plain asset-only category: the node is shown (the omission guard
+        keys off the schema) and the Maps branch is built — so the map-leaf
+        branch of _emit_selection must be gated too, or clicking a map raises
+        FileNotFoundError out of BalancingPanel.set_domain inside a Qt slot."""
+        (self.data_dir / "balancing" / "map.json").unlink()
+        (self.data_dir / "schemas" / "map.schema.json").unlink()
+        panel = SelectorPanel(data_dir=self.data_dir)
+        self.addCleanup(panel.deleteLater)
+        self.assertNotIn("map", panel.domains())
+        panel._find_item("map", ())        # shown, not omitted (no schema)
+
+        domains_seen, maps_seen = [], []
+        panel.domain_selected.connect(domains_seen.append)
+        panel.map_selected.connect(maps_seen.append)
+        map_ids = panel.map_ids()
+        self.assertTrue(map_ids)           # the Maps branch really is populated
+        panel.select_map(map_ids[0])
+        self.assertEqual(maps_seen, [map_ids[0]])   # tilemap mode still works
+        self.assertEqual(domains_seen, [])          # but NO domain_selected
+
     def test_selection_emits_domain_and_is_single(self):
         panel = SelectorPanel(data_dir=self.data_dir)
         seen = []

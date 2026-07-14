@@ -29,17 +29,25 @@ def _base(data_dir=None):
     return Path(data_dir) if data_dir is not None else REPO / "data"
 
 
-def category_keys(data_dir=None):
-    """Every slots.json category key, in file (D-10 tree) order."""
-    return tuple(c.key for c in load_registry(_base(data_dir)).categories())
+def category_keys(data_dir=None, registry=None):
+    """Every slots.json category key, in file (D-10 tree) order. Pass an
+    already-loaded `registry` to reuse it — load_registry re-parses AND
+    re-validates slots.json on every call."""
+    if registry is None:
+        registry = load_registry(_base(data_dir))
+    return tuple(c.key for c in registry.categories())
 
 
-def domains(data_dir=None):
+def domains(data_dir=None, registry=None):
     """Balancing-domain keys: slots.json category order ∩ the categories that
     have a data/balancing/<key>.json (D-10 order). Derived — never hardcode
-    this list; a new domain is one that brought its own balancing file."""
+    this list; a new domain is one that brought its own balancing file.
+
+    `registry` is an optional already-loaded SlotRegistry for that same
+    data_dir (callers that just loaded one shouldn't pay for a second parse +
+    jsonschema validation of slots.json)."""
     base = _base(data_dir)
-    return tuple(key for key in category_keys(base)
+    return tuple(key for key in category_keys(base, registry)
                  if balancing_path(key, base).exists())
 
 
