@@ -51,7 +51,7 @@
     },
     {
       "default": "none",
-      "description": "ResearchSpec.gate_kind. The spec stores WHERE in buildings.json the gate value lives, never the value.",
+      "description": "ResearchSpec.gate_kind. The spec stores WHERE in buildings.json the gate value lives, never the value. `none` = no gate_kind: leave it unset (ResearchSpec's default is Python None, not the string 'none').",
       "key": "gate_kind",
       "label": "Unlock gate",
       "options": [
