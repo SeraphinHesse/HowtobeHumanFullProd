@@ -8,14 +8,26 @@ check at the slot's registry frame size, off-grid warning, the PNG is
 copied to data/sprites/imported/<slot>.png AT IMPORT TIME — prototype
 parity), one RowEditor per sheet row (row 0's animation combo is locked to
 "idle": the E-35 rule lives in the UI, not save-time validation), per-row
-fps / hidden / loop range×count, entry-level offset X/Y, Save (manifest v2
-through engine.data_io's validating writer) and Clear-to-placeholder
-(confirm, then entry + PNG removed).
+fps / hidden / loop range×count / static, entry-level offset X/Y, Save
+(manifest v2 through engine.data_io's validating writer) and
+Clear-to-placeholder (confirm, then entry + unreferenced PNG removed).
+
+**A slot's sheet is NOT derivable from its key.** "Use Spritesheet…" LINKS a
+slot to art already in data/sprites/imported/ — the entry's `sheet` points at
+another slot's PNG and no bytes are copied, so one file backs many slots (the
+engine already resolves `sprites_dir / entry.sheet` verbatim). Always read the
+ref off the entry (`self._sheet_ref`), never re-derive `imported/<slot>.png`;
+that name is only the FALLBACK for a slot with no entry, and the destination a
+fresh file-import re-owns. It is also why Clear refcounts before unlinking
+(`asset_import.unreferenced_sheets`) — deleting a shared PNG would blank every
+other slot using it.
 
 The ANIMATED preview is NOT here: every widget edit emits
 draft_changed(slot, entry_dict) and the viewport renders the draft through
 the real engine pipeline (ED-22 — one render path; this panel is plain Qt
-forms). Imports only the pure half of engine.assets + Pillow; no pygame.
+forms). SheetPreview shows the raw source PNG (an inspection view of the
+importer's own input, not a second renderer of game content — see its module
+docstring). Imports only the pure half of engine.assets + Pillow; no pygame.
 """
 import shutil
 from pathlib import Path
@@ -23,22 +35,27 @@ from pathlib import Path
 from PIL import Image
 from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
-from editor import selection
+from editor import asset_import, selection
 from editor.asset_import import pad_to_frame
-from engine import data_io
+from editor.panels.sheet_picker import SheetPickerDialog
+from editor.panels.sheet_preview import SheetPreview
 from engine.assets import load_manifest, load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -46,7 +63,19 @@ REPO = Path(__file__).resolve().parents[2]
 
 class RowEditor(QGroupBox):
     """Per-sheet-row controls: animation, fps, loop range×count, hide
-    toggles (prototype RowEditor parity)."""
+    toggles (prototype RowEditor parity), plus STATIC mode.
+
+    Static ("don't animate — just show this one frame") is a DERIVED view of the
+    manifest's existing `hidden` array, never a stored flag: hiding every column
+    but one already yields a still sprite, because `playback_order` drops hidden
+    frames AFTER loop expansion (engine/assets/manifest.py). So there is no new
+    schema key, no editor-only hidden state, and a static row a designer built by
+    hand with the old checkboxes re-opens as static.
+
+    The two frame widgets are kept independent on purpose — the hide checkboxes
+    hold their own state while static is on, so unticking Static restores what you
+    had rather than a derived approximation of it.
+    """
 
     changed = Signal()
 
@@ -70,9 +99,16 @@ class RowEditor(QGroupBox):
         self.fps_spin.setRange(1, 60)
         self.fps_spin.setValue(8)
         top.addWidget(self.fps_spin)
+        self.static_check = QCheckBox("Static — don't animate")
+        self.static_check.setToolTip(
+            "Show one frame and never play this animation.\n"
+            "Saved as: every other frame hidden.")
+        top.addWidget(self.static_check)
         top.addStretch(1)
 
-        loop = QHBoxLayout()
+        self.loop_row = QWidget()
+        loop = QHBoxLayout(self.loop_row)
+        loop.setContentsMargins(0, 0, 0, 0)
         loop.addWidget(QLabel("Loop frames"))
         self.loop_start = QSpinBox()
         self.loop_end = QSpinBox()
@@ -88,20 +124,40 @@ class RowEditor(QGroupBox):
         loop.addWidget(QLabel("(count 1 = no loop)"))
         loop.addStretch(1)
 
-        hide = QHBoxLayout()
+        self.hide_row = QWidget()
+        hide = QHBoxLayout(self.hide_row)
+        hide.setContentsMargins(0, 0, 0, 0)
         hide.addWidget(QLabel("Hide frames:"))
         self.hide_boxes = []
-        from PySide6.QtWidgets import QCheckBox
         for col in range(num_cols):
             box = QCheckBox(str(col))
             hide.addWidget(box)
             self.hide_boxes.append(box)
         hide.addStretch(1)
 
+        # Shown INSTEAD of the hide row while static: one widget, one meaning —
+        # "hide all but this" as an exclusive pick, not N checkboxes to count out.
+        self.pick_row = QWidget()
+        pick = QHBoxLayout(self.pick_row)
+        pick.setContentsMargins(0, 0, 0, 0)
+        pick.addWidget(QLabel("Show frame:"))
+        self.frame_group = QButtonGroup(self)
+        self.frame_radios = []
+        for col in range(num_cols):
+            radio = QRadioButton(str(col))
+            self.frame_group.addButton(radio, col)
+            pick.addWidget(radio)
+            self.frame_radios.append(radio)
+        if self.frame_radios:
+            self.frame_radios[0].setChecked(True)
+        pick.addStretch(1)
+        self.pick_row.setVisible(False)
+
         body = QVBoxLayout(self)
         body.addLayout(top)
-        body.addLayout(loop)
-        body.addLayout(hide)
+        body.addWidget(self.loop_row)
+        body.addWidget(self.hide_row)
+        body.addWidget(self.pick_row)
 
         self.anim_combo.currentTextChanged.connect(lambda _t: self.changed.emit())
         self.fps_spin.valueChanged.connect(lambda _v: self.changed.emit())
@@ -109,6 +165,64 @@ class RowEditor(QGroupBox):
             spin.valueChanged.connect(lambda _v: self.changed.emit())
         for box in self.hide_boxes:
             box.toggled.connect(lambda _c: self.changed.emit())
+        self.frame_group.idToggled.connect(self._on_frame_picked)
+        self.static_check.toggled.connect(self._on_static_toggled)
+
+    # -- static mode ---------------------------------------------------------
+
+    def is_static(self):
+        return self.static_check.isChecked()
+
+    def static_frame(self):
+        """The one visible column while static, else None (nothing to outline)."""
+        if not self.is_static():
+            return None
+        checked = self.frame_group.checkedId()
+        return checked if checked >= 0 else 0
+
+    def set_static_frame(self, col):
+        """Pick the visible frame — the preview's click target in static mode."""
+        if 0 <= col < len(self.frame_radios):
+            self.frame_radios[col].setChecked(True)
+
+    def toggle_hidden(self, col):
+        """Flip one column's hide box — the preview's click target otherwise."""
+        if 0 <= col < len(self.hide_boxes):
+            box = self.hide_boxes[col]
+            box.setChecked(not box.isChecked())
+
+    def effective_hidden(self):
+        """The `hidden` array this row SAVES — the single source for both to_dict
+        and the preview's dimming, so the two can never disagree."""
+        if self.is_static():
+            keep = self.static_frame()
+            return [col for col in range(self.num_cols) if col != keep]
+        return [c for c, box in enumerate(self.hide_boxes) if box.isChecked()]
+
+    def _apply_static_mode(self):
+        static = self.is_static()
+        self.hide_row.setVisible(not static)
+        self.pick_row.setVisible(static)
+        # A loop over a one-visible-frame row is harmless (hidden frames drop
+        # after expansion) but meaningless — say so by greying it out rather than
+        # rewriting the designer's numbers behind their back.
+        self.loop_row.setEnabled(not static)
+
+    def _on_static_toggled(self, checked):
+        if checked:
+            # Default to the first frame that is currently VISIBLE — the most
+            # likely one the designer means, and never a frame they just hid.
+            visible = [c for c, box in enumerate(self.hide_boxes)
+                       if not box.isChecked()]
+            self.set_static_frame(visible[0] if visible else 0)
+        self._apply_static_mode()
+        self.changed.emit()
+
+    def _on_frame_picked(self, _id, checked):
+        if checked and self.is_static():
+            self.changed.emit()
+
+    # -- manifest round-trip --------------------------------------------------
 
     def set_from(self, row):
         if self.row_index != 0:
@@ -116,19 +230,28 @@ class RowEditor(QGroupBox):
             if index >= 0:
                 self.anim_combo.setCurrentIndex(index)
         self.fps_spin.setValue(int(row.get("fps", 8)) or 8)
-        hidden = set(row.get("hidden", ()))
+        hidden = {c for c in row.get("hidden", ()) if 0 <= c < self.num_cols}
         for col, box in enumerate(self.hide_boxes):
             box.setChecked(col in hidden)
         self.loop_start.setValue(int(row.get("loop_start", 0)))
         self.loop_end.setValue(int(row.get("loop_end", 0)))
         self.loop_count.setValue(int(row.get("loop_count", 1)))
+        # Derive static: exactly one column left visible out of more than one.
+        # A genuinely 1-frame row is NOT static — it has no animation to disable,
+        # and auto-ticking the box on every tile sheet would be noise.
+        visible = [c for c in range(self.num_cols) if c not in hidden]
+        static = self.num_cols > 1 and len(visible) == 1
+        self.static_check.setChecked(static)
+        if static:
+            self.set_static_frame(visible[0])
+        self._apply_static_mode()
 
     def to_dict(self):
         return {
             "animation": self.anim_combo.currentText() or "idle",
             "frames": self.num_cols,
             "fps": self.fps_spin.value(),
-            "hidden": [c for c, box in enumerate(self.hide_boxes) if box.isChecked()],
+            "hidden": self.effective_hidden(),
             "loop_start": self.loop_start.value(),
             "loop_end": self.loop_end.value(),
             "loop_count": self.loop_count.value(),
@@ -149,6 +272,9 @@ class DetailsPanel(QWidget):
         self._context = None            # (category_key, group_path)
         self._row_editors = []
         self._loading = False
+        #: The sheet THIS slot's entry points at — may be another slot's PNG.
+        self._sheet_ref = None
+        self._row_frame_size = (1, 1)   # set for real by _load_sheet
 
         self._subcat_combo = QComboBox()
         self._subcat_combo.currentIndexChanged.connect(self._on_subcat_changed)
@@ -160,12 +286,20 @@ class DetailsPanel(QWidget):
 
         self._import_btn = QPushButton("Import Spritesheet…")
         self._import_btn.clicked.connect(self._on_import_clicked)
+        self._use_btn = QPushButton("Use Spritesheet…")
+        self._use_btn.setToolTip(
+            "Point this slot at a spritesheet already imported in the game.\n"
+            "Links to the same PNG — nothing is copied.")
+        # clicked(bool checked) would land in a kwarg default — always wrap
+        # (the panels-doc footgun that bit map_details' Delete).
+        self._use_btn.clicked.connect(lambda: self._on_use_clicked())
         self._save_btn = QPushButton("Save")
         self._save_btn.clicked.connect(self.save)
         self._clear_btn = QPushButton("Clear")
-        self._clear_btn.clicked.connect(self.clear_entry)
+        self._clear_btn.clicked.connect(lambda: self.clear_entry())
         buttons = QHBoxLayout()
-        for btn in (self._import_btn, self._save_btn, self._clear_btn):
+        for btn in (self._import_btn, self._use_btn, self._save_btn,
+                    self._clear_btn):
             buttons.addWidget(btn)
         buttons.addStretch(1)
 
@@ -182,6 +316,9 @@ class DetailsPanel(QWidget):
         offsets.addWidget(QLabel("(−Y = up)"))
         offsets.addStretch(1)
 
+        self._preview = SheetPreview(interactive=True)
+        self._preview.frame_clicked.connect(self._on_frame_clicked)
+
         self._rows_host = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_host)
         self._rows_layout.addStretch(1)
@@ -193,6 +330,7 @@ class DetailsPanel(QWidget):
         layout.addWidget(self._subcat_combo)
         layout.addWidget(self._header)
         layout.addLayout(buttons)
+        layout.addWidget(self._preview)
         layout.addLayout(offsets)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
@@ -261,8 +399,10 @@ class DetailsPanel(QWidget):
             self._offset_y.setValue(0)
             self._info.setText("")
             if slot_key is None:
+                self._sheet_ref = None
                 self._header.setText("Select a slot in the tree.")
                 self._set_buttons_enabled(False, False, False)
+                self._refresh_preview()
                 return
             fw, fh = self.registry.frame_size(slot_key)
             self._header.setText(f"[{slot_key}]  {fw}×{fh}/frame")
@@ -270,12 +410,18 @@ class DetailsPanel(QWidget):
             if entry:
                 self._offset_x.setValue(int(entry.get("offset_x", 0)))
                 self._offset_y.setValue(int(entry.get("offset_y", 0)))
-            sheet = self._sheet_path(slot_key)
+            # The entry's OWN ref wins; imported/<slot>.png is only the fallback
+            # for a slot that has never been imported (a linked slot's sheet is
+            # some other slot's file).
+            self._sheet_ref = ((entry or {}).get("sheet")
+                               or asset_import.sheet_ref(slot_key))
+            sheet = self._sheet_file(self._sheet_ref)
             if sheet.exists():
                 self._load_sheet(sheet, entry)
             else:
                 self._info.setText("No spritesheet imported — grey-X placeholder.")
                 self._set_buttons_enabled(True, False, bool(entry))
+                self._refresh_preview()
         finally:
             self._loading = False
 
@@ -284,7 +430,10 @@ class DetailsPanel(QWidget):
         the row editors. Returns (cols, rows, clean_grid), or None when no slot
         is selected. Art smaller than one frame is padded onto a transparent
         frame-sized canvas and centred (ED-40), never rejected. Off-grid sheets
-        warn but import — the remainder is cropped, exactly like the prototype."""
+        warn but import — the remainder is cropped, exactly like the prototype.
+
+        A fresh file import RE-OWNS the slot's own imported/<slot>.png, even if
+        the slot was previously linked to someone else's sheet."""
         if self.slot_key is None:
             return None
         fw, fh = self.registry.frame_size(self.slot_key)
@@ -299,6 +448,7 @@ class DetailsPanel(QWidget):
             padded.save(destination)
         elif Path(png_path).resolve() != destination.resolve():
             shutil.copyfile(png_path, destination)
+        self._sheet_ref = asset_import.sheet_ref(self.slot_key)
         entry = self._read_doc()["entries"].get(self.slot_key)
         self._loading = True
         try:
@@ -316,12 +466,53 @@ class DetailsPanel(QWidget):
         self._emit_draft()
         return (cols, rows, even)
 
+    def use_sheet(self, sheet):
+        """LINK this slot to a sheet already in data/sprites/imported/ — the
+        "Use Spritesheet…" path. Takes an `asset_import.ImportedSheet` or a bare
+        "imported/x.png" ref. Copies NO bytes: the entry just points at that file,
+        so the source slot and this one render from one PNG.
+
+        Same shape as import_sheet — (cols, rows, clean_grid), or None when there
+        is no slot or the sheet is missing. The sheet re-slices at THIS slot's
+        registry frame size (a cross-size link keeps _load_sheet's off-grid ⚠, so
+        it degrades visibly rather than silently), and the row settings are seeded
+        from whichever entry already describes this sheet — linking the art brings
+        its fps/hidden/loop/offsets with it. Nothing is written until Save."""
+        if self.slot_key is None:
+            return None
+        ref = getattr(sheet, "ref", None) or str(sheet)
+        path = self._sheet_file(ref)
+        if not path.exists():
+            return None
+        doc = self._read_doc()
+        entries = doc["entries"]
+        # Prefer this slot's OWN entry when it already uses this sheet (re-picking
+        # the same sheet must not throw away the tuning done on it); otherwise
+        # inherit the source's rows.
+        own = entries.get(self.slot_key)
+        seed = own if (own or {}).get("sheet") == ref else next(
+            (entry for entry in entries.values() if entry.get("sheet") == ref),
+            None)
+        fw, fh = self.registry.frame_size(self.slot_key)
+        with Image.open(path) as image:
+            w, h = image.size
+        self._sheet_ref = ref
+        self._loading = True
+        try:
+            self._load_sheet(path, seed)
+            self._offset_x.setValue(int((seed or {}).get("offset_x", 0)))
+            self._offset_y.setValue(int((seed or {}).get("offset_y", 0)))
+        finally:
+            self._loading = False
+        self._emit_draft()
+        return (w // fw, h // fh, (w % fw == 0) and (h % fh == 0))
+
     def draft_entry(self):
         """Current UI state as a manifest-v2 entry dict (None: no rows)."""
         if self.slot_key is None or not self._row_editors:
             return None
         return {
-            "sheet": f"imported/{self.slot_key}.png",
+            "sheet": self._sheet_ref or asset_import.sheet_ref(self.slot_key),
             "frame_w": self._row_frame_size[0],
             "frame_h": self._row_frame_size[1],
             "offset_x": self._offset_x.value(),
@@ -342,24 +533,42 @@ class DetailsPanel(QWidget):
         self.entry_saved.emit(self.slot_key)
 
     def clear_entry(self, confirm=True):
-        """Clear-to-placeholder: remove the manifest entry AND the imported
-        PNG (after a confirm in the UI path)."""
+        """Clear-to-placeholder: remove the manifest entry, then delete the PNGs
+        it leaves UNREFERENCED (after a confirm in the UI path).
+
+        The PNG is only unlinked when no remaining entry points at it — a sheet
+        shared with other slots survives clearing any one of them, and is
+        collected when the last user goes. Both candidates are checked: the sheet
+        this entry actually used (which may be another slot's file) and the slot's
+        own imported/<slot>.png (art imported but never saved has no entry to read
+        a ref from)."""
         if self.slot_key is None:
             return
-        if confirm:
-            answer = QMessageBox.question(
-                self, "Clear spritesheet",
-                f"Remove the imported spritesheet for '{self.slot_key}'?\n\n"
-                "This deletes the imported PNG and its manifest entry; the "
-                "slot reverts to the grey-X placeholder.")
-            if answer != QMessageBox.StandardButton.Yes:
-                return
         slot_key = self.slot_key
         doc = self._read_doc()
+        entry = doc["entries"].get(slot_key)
+        ref = (entry or {}).get("sheet") or asset_import.sheet_ref(slot_key)
+        others = [slot for slot in asset_import.sheet_users(doc, ref)
+                  if slot != slot_key]
+        if confirm:
+            shared = (
+                f"\n\n{len(others)} other slot(s) use this spritesheet "
+                f"({', '.join(others)}) — the PNG is kept for them."
+                if others else
+                "\n\nThis deletes the imported PNG and its manifest entry; the "
+                "slot reverts to the grey-X placeholder.")
+            answer = QMessageBox.question(
+                self, "Clear spritesheet",
+                f"Remove the imported spritesheet for '{slot_key}'?" + shared)
+            if answer != QMessageBox.StandardButton.Yes:
+                return
         if slot_key in doc["entries"]:
             del doc["entries"][slot_key]
             self._write_doc(doc)
-        self._sheet_path(slot_key).unlink(missing_ok=True)
+        for orphan in asset_import.unreferenced_sheets(
+                doc, [ref, asset_import.sheet_ref(slot_key)]):
+            self._sheet_file(orphan).unlink(missing_ok=True)
+        self._sheet_ref = asset_import.sheet_ref(slot_key)
         self._loading = True
         try:
             self._clear_rows()
@@ -369,28 +578,26 @@ class DetailsPanel(QWidget):
             self._loading = False
         self._info.setText("Cleared — slot reverts to the grey-X placeholder.")
         self._set_buttons_enabled(True, False, False)
+        self._refresh_preview()
         self.entry_cleared.emit(slot_key)
 
     # -- internals -----------------------------------------------------------
 
     def _sheet_path(self, slot_key):
-        return self._data_dir / "sprites" / "imported" / f"{slot_key}.png"
+        """Where a slot's OWN art lives — the fresh-import destination and the
+        no-entry fallback. NOT "the slot's sheet": read `_sheet_ref` for that."""
+        return self._sheet_file(asset_import.sheet_ref(slot_key))
+
+    def _sheet_file(self, ref):
+        """Resolve an "imported/x.png" manifest ref to a real path — the same
+        sprites_dir-relative resolution the engine's AssetStore does."""
+        return self._data_dir / "sprites" / ref
 
     def _read_doc(self):
-        path = self._data_dir / "sprites" / "asset_manifest.json"
-        try:
-            doc = data_io.load_json(path)
-        except (OSError, ValueError):
-            return {"version": 2, "entries": {}}
-        if not isinstance(doc, dict) or not isinstance(doc.get("entries"), dict):
-            return {"version": 2, "entries": {}}
-        return doc
+        return asset_import.load_manifest_doc(self._data_dir)
 
     def _write_doc(self, doc):
-        data_io.write_validated(
-            doc,
-            self._data_dir / "sprites" / "asset_manifest.json",
-            self._data_dir / "schemas" / "asset_manifest.schema.json")
+        asset_import.write_manifest_doc(self._data_dir, doc)
 
     def _load_sheet(self, sheet_path, entry):
         fw, fh = self.registry.frame_size(self.slot_key)
@@ -420,10 +627,11 @@ class DetailsPanel(QWidget):
                     vocabulary[min(r, len(vocabulary) - 1)])
                 if index >= 0:
                     editor.anim_combo.setCurrentIndex(index)
-            editor.changed.connect(self._emit_draft)
+            editor.changed.connect(self._on_row_changed)
             self._rows_layout.insertWidget(self._rows_layout.count() - 1, editor)
             self._row_editors.append(editor)
         self._set_buttons_enabled(True, True, True)
+        self._refresh_preview()
 
     def _clear_rows(self):
         for editor in self._row_editors:
@@ -433,8 +641,43 @@ class DetailsPanel(QWidget):
 
     def _set_buttons_enabled(self, import_ok, save_ok, clear_ok):
         self._import_btn.setEnabled(import_ok)
+        # "Use" is available exactly when "Import" is — both just need a slot.
+        self._use_btn.setEnabled(import_ok)
         self._save_btn.setEnabled(save_ok)
         self._clear_btn.setEnabled(clear_ok)
+
+    # -- sheet preview --------------------------------------------------------
+
+    def _refresh_preview(self):
+        """Repaint the sheet view from the row editors. `effective_hidden` is the
+        SAME call to_dict saves, so what you see dimmed is what gets written."""
+        if self.slot_key is None or self._sheet_ref is None or not self._row_editors:
+            self._preview.set_sheet(None, 1, 1)
+            self._preview.set_rows(())
+            return
+        fw, fh = self._row_frame_size
+        self._preview.set_sheet(self._sheet_file(self._sheet_ref), fw, fh)
+        self._preview.set_rows([
+            {"hidden": editor.effective_hidden(),
+             "static_frame": editor.static_frame()}
+            for editor in self._row_editors
+        ])
+
+    def _on_row_changed(self):
+        self._refresh_preview()
+        self._emit_draft()
+
+    def _on_frame_clicked(self, row, col):
+        """A click on the sheet lands on that frame's RowEditor: in static mode it
+        PICKS the frame, otherwise it toggles hidden. Both go through the row's own
+        widgets, so the checkboxes below never fall out of sync with the picture."""
+        if not (0 <= row < len(self._row_editors)):
+            return
+        editor = self._row_editors[row]
+        if editor.is_static():
+            editor.set_static_frame(col)
+        else:
+            editor.toggle_hidden(col)
 
     def _emit_draft(self):
         if self._loading or self.slot_key is None:
@@ -448,3 +691,16 @@ class DetailsPanel(QWidget):
             self, "Choose spritesheet PNG", "", "PNG images (*.png)")
         if path:
             self.import_sheet(path)
+
+    def _on_use_clicked(self):
+        if self.slot_key is None:
+            return
+        fw, fh = self.registry.frame_size(self.slot_key)
+        dialog = SheetPickerDialog(self._data_dir, self.slot_key, fw, fh,
+                                   parent=self)
+        if self._sheet_ref:
+            dialog.select_sheet(self._sheet_ref)     # open on the current sheet
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            sheet = dialog.chosen()
+            if sheet is not None:
+                self.use_sheet(sheet)

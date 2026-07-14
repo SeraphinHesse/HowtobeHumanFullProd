@@ -124,7 +124,7 @@
               "type": "array"
             },
             "sheet": {
-              "description": "Sheet path relative to data/sprites (always imported/<slot>.png, D-31).",
+              "description": "Sheet path relative to data/sprites, resolved as a real path (D-31) — NOT derived from the slot key. Normally imported/<slot>.png, the file this slot's own import owns; but a slot may LINK to another slot's sheet (the editor's 'Use Spritesheet...'), so one PNG can back many slots. Anything deleting art must refcount this field first.",
               "pattern": "^imported/[a-z][a-z0-9_]*\\.png$",
               "type": "string"
             },

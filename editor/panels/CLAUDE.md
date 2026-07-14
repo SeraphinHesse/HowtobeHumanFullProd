@@ -174,13 +174,48 @@ import list.**
     already rolls a random variant per spawn across an era's slots, and a deco
     placement stores its CONCRETE slot in the map file.
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer parity
-  (ED-40/41). The sheet PNG is copied to `data/sprites/imported/<slot>.png` AT
-  IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear
-  (confirm dialog in UI; `clear_entry(confirm=False)` for tests) removes entry +
-  PNG. Row 0's animation combo is locked to `["idle"]` — the E-35 rule is
-  UNREPRESENTABLE in the UI, not a save-time error. Frame sizes + animation
-  vocabularies come from the registry per slot. No pygame here; Pillow reads sheet
-  dimensions.
+  (ED-40/41). A *file* import copies the PNG to `data/sprites/imported/<slot>.png`
+  AT IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear
+  (confirm dialog in UI; `clear_entry(confirm=False)` for tests) removes the entry
+  + any PNG it leaves unreferenced. Row 0's animation combo is locked to `["idle"]`
+  — the E-35 rule is UNREPRESENTABLE in the UI, not a save-time error. Frame sizes +
+  animation vocabularies come from the registry per slot. No pygame here; Pillow
+  reads sheet dimensions.
+  - **A slot's sheet is NOT `imported/<slot>.png`.** "Use Spritesheet…"
+    (`panels/sheet_picker.py`) LINKS a slot to art already imported: the entry's
+    `sheet` points at another slot's PNG and no bytes are copied, so one file backs
+    many slots. The engine already resolved `sprites_dir / entry.sheet` verbatim
+    (`engine/assets/store.py`) and the schema pattern always allowed it — the only
+    thing that ever assumed otherwise was this panel. Read `self._sheet_ref` (from
+    the entry); `imported/<slot>.png` is only the fresh-import destination and the
+    no-entry fallback. **Clear refcounts before unlinking**
+    (`asset_import.sheet_users` / `unreferenced_sheets`) — deleting a shared PNG
+    blanks every other slot using it. Sheet-sharing rules live in `data/CLAUDE.md`.
+  - **Static rows are DERIVED, never stored.** A row's "Static — don't animate"
+    checkbox is a view of the manifest's existing `hidden` array (hide every column
+    but one): `playback_order` drops hidden frames AFTER loop expansion, so a
+    one-visible-frame row is already a still sprite. No schema key, no editor-only
+    state, and a static row built by hand with the old checkboxes re-opens as
+    static. `RowEditor.effective_hidden()` is the ONE place the array is computed —
+    `to_dict` and the preview both call it, so they cannot disagree. A 1-frame row
+    is deliberately not auto-static (nothing to disable). The loop spins grey out
+    when static but keep their values: a loop over one visible frame is meaningless,
+    not harmful, and rewriting a designer's numbers behind their back is worse.
+  - **`panels/sheet_preview.py` draws a raw PNG, and that does NOT break ED-22.**
+    The one-render-path rule bans a second Qt-side renderer of GAME CONTENT — the
+    animated preview stays in the viewport, through `engine/render`. SheetPreview
+    inspects the importer's own input file (no slot, no animation, no time
+    resolved), like a thumbnail in a file dialog. `viewport.slot_qimage` can't serve
+    here: it only ever yields the resolved idle frame, not an arbitrary frame or the
+    sheet. Clicking a cell routes through that row's own `RowEditor`
+    (`set_static_frame` / `toggle_hidden`), never a parallel state store, which is
+    what keeps the checkboxes and the picture in sync.
+  - **Clear's confirm dialog only fires because the connect is wrapped**
+    (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
+    months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and
+    Clear deleted the entry + PNG with NO dialog — the exact footgun recorded below
+    for map_details' Delete, live in a second panel. Pinned by
+    `TestClearAsksFirst`.
 - **One render path (ED-22)**: the ONLY animated preview is the viewport. Every
   Details edit emits `draft_changed(slot, entry_dict)` → `viewport.set_preview_draft`
   overrides that slot in an in-memory manifest (never disk) + rebuilds

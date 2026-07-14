@@ -7,16 +7,20 @@ Synthetic sheets are authored with Pillow (the panel's own image dep).
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PIL import Image
+from PySide6.QtCore import QPoint
 from PySide6.QtWidgets import QApplication
 
+from editor.panels import details
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
+from editor.panels.sheet_picker import SheetPickerDialog
 from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
 
@@ -175,6 +179,321 @@ class TestDraftSaveClear(DetailsCase):
         self.assertEqual(row1.fps_spin.value(), 6)
         self.assertTrue(row1.hide_boxes[3].isChecked())
         self.assertFalse(row1.hide_boxes[0].isChecked())
+
+
+class TestStaticRow(DetailsCase):
+    """"Don't animate — just show frame N". Static is DERIVED from the manifest's
+    existing `hidden` array (hide every column but one), so it adds no schema key
+    and no editor-only state: `playback_order` drops hidden frames after loop
+    expansion, which makes a one-visible-frame row a still sprite."""
+
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    def import_painter(self, cols=4, rows=2):
+        src = make_png(self.png_dir / "art.png", cols * 64, rows * 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        return self.panel._row_editors[1]
+
+    def test_static_hides_every_frame_but_the_chosen_one(self):
+        row = self.import_painter()
+        row.static_check.setChecked(True)
+        row.set_static_frame(2)
+        self.assertEqual(row.to_dict()["hidden"], [0, 1, 3])
+        self.assertEqual(row.static_frame(), 2)
+
+    def test_static_defaults_to_the_first_still_visible_frame(self):
+        row = self.import_painter()
+        row.hide_boxes[0].setChecked(True)     # frame 0 already hidden
+        row.static_check.setChecked(True)
+        self.assertEqual(row.static_frame(), 1)   # not the frame we just hid
+
+    def test_saved_static_row_reopens_as_static(self):
+        row = self.import_painter()
+        row.static_check.setChecked(True)
+        row.set_static_frame(2)
+        self.panel.save()
+        self.panel.set_slot(None)
+        self.panel.set_slot("painter_t1_lvl1")   # re-read from disk
+        reloaded = self.panel._row_editors[1]
+        self.assertTrue(reloaded.is_static())
+        self.assertEqual(reloaded.static_frame(), 2)
+        self.assertEqual(self.manifest_doc()["entries"]["painter_t1_lvl1"]
+                         ["rows"][1]["hidden"], [0, 1, 3])
+
+    def test_a_single_frame_row_is_not_auto_static(self):
+        """A 1-frame row has no animation to disable; auto-ticking Static on every
+        one-frame tile sheet would be noise, not information."""
+        row = self.import_painter(cols=1)
+        self.assertFalse(row.is_static())
+        self.assertEqual(row.to_dict()["hidden"], [])
+
+    def test_static_disables_the_loop_controls_without_rewriting_them(self):
+        row = self.import_painter()
+        row.loop_start.setValue(0)
+        row.loop_end.setValue(2)
+        row.loop_count.setValue(5)
+        row.static_check.setChecked(True)
+        self.assertFalse(row.loop_row.isEnabled())
+        # The designer's numbers survive — a loop over a one-visible-frame row is
+        # meaningless, not harmful (hidden frames drop after expansion).
+        self.assertEqual(row.to_dict()["loop_count"], 5)
+
+    def test_unticking_static_restores_the_previous_hide_state(self):
+        row = self.import_painter()
+        row.hide_boxes[3].setChecked(True)
+        row.static_check.setChecked(True)
+        self.assertEqual(row.to_dict()["hidden"], [1, 2, 3])   # all but frame 0
+        row.static_check.setChecked(False)
+        self.assertEqual(row.to_dict()["hidden"], [3])         # what we had
+
+
+class TestSheetPreviewClicks(DetailsCase):
+    """The preview is the frame picker: clicking a cell goes through that row's
+    own widgets, so the checkboxes below can never disagree with the picture."""
+
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    def import_painter(self):
+        src = make_png(self.png_dir / "art.png", 4 * 64, 2 * 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+
+    def test_click_toggles_hidden_when_the_row_animates(self):
+        self.import_painter()
+        row = self.panel._row_editors[1]
+        self.panel._on_frame_clicked(1, 2)
+        self.assertTrue(row.hide_boxes[2].isChecked())
+        self.assertEqual(row.to_dict()["hidden"], [2])
+        self.panel._on_frame_clicked(1, 2)
+        self.assertFalse(row.hide_boxes[2].isChecked())
+
+    def test_click_picks_the_frame_when_the_row_is_static(self):
+        self.import_painter()
+        row = self.panel._row_editors[1]
+        row.static_check.setChecked(True)
+        self.panel._on_frame_clicked(1, 3)
+        self.assertEqual(row.static_frame(), 3)
+        self.assertEqual(row.to_dict()["hidden"], [0, 1, 2])
+
+    def test_click_outside_the_row_editors_is_a_no_op(self):
+        self.import_painter()
+        self.panel._on_frame_clicked(9, 0)      # only 2 rows exist
+
+    def test_preview_shows_the_sheet_and_mirrors_what_gets_saved(self):
+        self.import_painter()
+        row = self.panel._row_editors[1]
+        row.static_check.setChecked(True)
+        row.set_static_frame(1)
+        self.assertTrue(self.panel._preview.has_sheet())
+        state = self.panel._preview._row_state[1]
+        self.assertEqual(state["static_frame"], 1)
+        self.assertEqual(sorted(state["hidden"]), row.to_dict()["hidden"])
+
+    def test_preview_cell_hit_test_round_trips(self):
+        self.import_painter()
+        preview = self.panel._preview
+        preview.resize(4 * 64, 2 * 96)          # scale 1.0, no fitting
+        rect = preview._cell_rect(1, 2)
+        self.assertEqual(preview.cell_at(rect.center()), (1, 2))
+        self.assertIsNone(preview.cell_at(rect.center() + QPoint(0, 10_000)))
+
+
+class TestUseSheet(DetailsCase):
+    """"Use Spritesheet…" LINKS: the entry points at another slot's PNG and no
+    bytes are copied. The engine already resolves `sprites_dir / entry.sheet`
+    verbatim, so one file can back many slots."""
+
+    UNASSIGN = ("painter_t1_lvl1", "painter_t1_lvl2")
+
+    SOURCE = "painter_t1_lvl1"
+    TARGET = "painter_t1_lvl2"
+
+    def setUp(self):
+        super().setUp()
+        # unassign_slot drops the manifest ENTRY; the repo also ships a real
+        # painter_t1_lvl2.png. Pin the fixture all the way: a slot with no art of
+        # its own is the whole reason you reach for someone else's sheet.
+        self.png(self.TARGET).unlink(missing_ok=True)
+
+    def png(self, slot):
+        return self.data_dir / "sprites" / "imported" / f"{slot}.png"
+
+    def import_source(self, cols=3, rows=2):
+        src = make_png(self.png_dir / "art.png", cols * 64, rows * 96)
+        self.panel.set_slot(self.SOURCE)
+        self.panel.import_sheet(src)
+        self.panel._row_editors[1].fps_spin.setValue(11)
+        self.panel._row_editors[1].hide_boxes[2].setChecked(True)
+        self.panel._offset_y.setValue(-7)
+        self.panel.save()
+
+    def test_use_sheet_links_without_copying_a_png(self):
+        self.import_source()
+        self.panel.set_slot(self.TARGET)
+        self.assertEqual(self.panel.use_sheet("imported/painter_t1_lvl1.png"),
+                         (3, 2, True))
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.TARGET]
+        self.assertEqual(entry["sheet"], "imported/painter_t1_lvl1.png")
+        self.assertFalse(self.png(self.TARGET).exists())   # nothing was copied
+        self.assertTrue(self.png(self.SOURCE).exists())
+
+    def test_use_sheet_carries_the_source_row_settings_and_offsets(self):
+        self.import_source()
+        self.panel.set_slot(self.TARGET)
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")
+        self.panel.save()
+        entry = self.manifest_doc()["entries"][self.TARGET]
+        self.assertEqual(entry["rows"][1]["fps"], 11)
+        self.assertEqual(entry["rows"][1]["hidden"], [2])
+        self.assertEqual(entry["offset_y"], -7)
+
+    def test_a_linked_slot_reopens_on_its_linked_sheet(self):
+        self.import_source()
+        self.panel.set_slot(self.TARGET)
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")
+        self.panel.save()
+        self.panel.set_slot(None)
+        self.panel.set_slot(self.TARGET)        # re-read from disk
+        self.assertEqual(self.panel._sheet_ref, "imported/painter_t1_lvl1.png")
+        self.assertEqual(len(self.panel._row_editors), 2)
+        self.assertTrue(self.panel._preview.has_sheet())
+
+    def test_a_fresh_import_re_owns_the_slots_own_png(self):
+        """Linking is not a one-way door: importing a file again takes the slot
+        back to imported/<slot>.png."""
+        self.import_source()
+        self.panel.set_slot(self.TARGET)
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")
+        self.panel.save()
+        own = make_png(self.png_dir / "own.png", 2 * 64, 96)
+        self.panel.import_sheet(own)
+        self.panel.save()
+        self.assertEqual(self.manifest_doc()["entries"][self.TARGET]["sheet"],
+                         "imported/painter_t1_lvl2.png")
+        self.assertTrue(self.png(self.TARGET).exists())
+
+    def test_use_sheet_on_a_missing_sheet_is_refused(self):
+        self.panel.set_slot(self.TARGET)
+        self.assertIsNone(self.panel.use_sheet("imported/not_here.png"))
+
+    def test_relinking_the_same_sheet_keeps_this_slots_own_tuning(self):
+        """Re-picking the sheet a slot ALREADY uses must not throw away the
+        fps/hidden work done on it and re-seed from the source."""
+        self.import_source()
+        self.panel.set_slot(self.TARGET)
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")
+        self.panel._row_editors[1].fps_spin.setValue(3)
+        self.panel.save()
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")   # same sheet again
+        self.assertEqual(self.panel._row_editors[1].fps_spin.value(), 3)
+
+
+class TestClearSharedSheet(DetailsCase):
+    """Clear refcounts before unlinking. Deleting a shared PNG would blank every
+    other slot using it — the whole reason linking needed more than a `sheet` swap."""
+
+    UNASSIGN = ("painter_t1_lvl1", "painter_t1_lvl2")
+
+    SOURCE = "painter_t1_lvl1"
+    TARGET = "painter_t1_lvl2"
+
+    def setUp(self):
+        super().setUp()
+        src = make_png(self.png_dir / "art.png", 2 * 64, 96)
+        self.panel.set_slot(self.SOURCE)
+        self.panel.import_sheet(src)
+        self.panel.save()
+        self.panel.set_slot(self.TARGET)
+        self.panel.use_sheet("imported/painter_t1_lvl1.png")
+        self.panel.save()
+        self.shared = self.data_dir / "sprites" / "imported" / "painter_t1_lvl1.png"
+
+    def test_clearing_the_linker_keeps_the_shared_png(self):
+        self.panel.set_slot(self.TARGET)
+        self.panel.clear_entry(confirm=False)
+        self.assertTrue(self.shared.exists())
+        entries = self.manifest_doc()["entries"]
+        self.assertNotIn(self.TARGET, entries)
+        self.assertEqual(entries[self.SOURCE]["sheet"],
+                         "imported/painter_t1_lvl1.png")
+
+    def test_clearing_the_owner_keeps_the_png_the_linker_still_needs(self):
+        """The hard direction: the slot whose NAME the file carries goes away, but
+        another slot is still pointing at that file."""
+        self.panel.set_slot(self.SOURCE)
+        self.panel.clear_entry(confirm=False)
+        self.assertTrue(self.shared.exists())
+        entries = self.manifest_doc()["entries"]
+        self.assertNotIn(self.SOURCE, entries)
+        self.assertEqual(entries[self.TARGET]["sheet"],
+                         "imported/painter_t1_lvl1.png")
+
+    def test_clearing_the_last_user_finally_collects_the_png(self):
+        self.panel.set_slot(self.SOURCE)
+        self.panel.clear_entry(confirm=False)
+        self.panel.set_slot(self.TARGET)
+        self.panel.clear_entry(confirm=False)
+        self.assertFalse(self.shared.exists())
+        self.assertEqual(self.manifest_doc()["entries"].get(self.SOURCE), None)
+
+
+class TestClearAsksFirst(DetailsCase):
+    """Regression: `clicked` emits clicked(bool checked), which silently overrode
+    clear_entry's `confirm=True` default to False — the Clear BUTTON deleted the
+    entry and the PNG with no dialog at all. Wrap the connect in a lambda (the
+    same footgun the panels doc records for map_details' Delete)."""
+
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    def test_clear_button_asks_before_deleting_and_no_means_no(self):
+        src = make_png(self.png_dir / "art.png", 2 * 64, 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        self.panel.save()
+        with mock.patch.object(
+                details.QMessageBox, "question",
+                return_value=details.QMessageBox.StandardButton.No) as question:
+            self.panel._clear_btn.click()
+        question.assert_called_once()
+        self.assertIn("painter_t1_lvl1", self.manifest_doc()["entries"])
+        png = self.data_dir / "sprites" / "imported" / "painter_t1_lvl1.png"
+        self.assertTrue(png.exists())
+
+
+class TestSheetPicker(DetailsCase):
+    UNASSIGN = ("painter_t1_lvl1",)
+
+    def dialog(self, slot="painter_t1_lvl1", frame=(64, 96)):
+        return self.track(SheetPickerDialog(self.data_dir, slot, *frame))
+
+    def test_defaults_to_sheets_that_fit_the_slots_frame_size(self):
+        dialog = self.dialog()
+        refs = {sheet.ref for sheet in dialog.visible_sheets()}
+        # 64x96 building sheets are offered; 64x32 map tiles are not.
+        self.assertIn("imported/stone_thrower_t1_lvl1.png", refs)
+        self.assertNotIn("imported/tile_buildable.png", refs)
+
+    def test_show_all_sizes_escapes_the_filter(self):
+        dialog = self.dialog()
+        dialog._all_sizes.setChecked(True)
+        refs = {sheet.ref for sheet in dialog.visible_sheets()}
+        self.assertIn("imported/tile_buildable.png", refs)
+
+    def test_name_filter_narrows_the_list(self):
+        dialog = self.dialog()
+        dialog._filter.setText("stone_thrower")
+        names = [sheet.name for sheet in dialog.visible_sheets()]
+        self.assertTrue(names)
+        self.assertTrue(all("stone_thrower" in name for name in names))
+
+    def test_selecting_a_sheet_previews_it_and_reports_the_choice(self):
+        dialog = self.dialog()
+        self.assertTrue(dialog.select_sheet("imported/stone_thrower_t1_lvl1.png"))
+        self.assertEqual(dialog.chosen().ref,
+                         "imported/stone_thrower_t1_lvl1.png")
+        self.assertTrue(dialog._preview.has_sheet())
 
 
 class TestSubcategoryDropdown(DetailsCase):
