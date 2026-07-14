@@ -9,17 +9,15 @@ offscreen + SDL dummy drivers before any Qt/pygame import, one
 QApplication per process, tempfile COPY of data/ so nothing touches the
 repo's files.
 """
-import os
 import shutil
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PIL import Image
 from PySide6.QtCore import QPoint, Qt
@@ -33,8 +31,6 @@ from editor.panels import palette as palette_module
 
 REPO = Path(__file__).resolve().parents[2]
 
-_APP = QApplication.instance() or QApplication(sys.argv)
-
 STARTER = "first_light"
 
 
@@ -46,7 +42,7 @@ class RecordingBackend:
         self.calls = list(draw_calls)
 
 
-class MapModeCase(unittest.TestCase):
+class MapModeCase(QtCase):
     """MainWindow against a temp data/ copy, starter map selected."""
 
     def setUp(self):
@@ -54,8 +50,7 @@ class MapModeCase(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         shutil.copytree(REPO / "data", self.data_dir)
-        self.window = MainWindow(data_dir=self.data_dir)
-        self.addCleanup(self.window.close)
+        self.window = self.track(MainWindow(data_dir=self.data_dir))
         self.window.resize(1280, 720)
         self.window.show()
         self.viewport = self.window.viewport

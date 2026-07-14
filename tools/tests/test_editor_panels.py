@@ -11,15 +11,14 @@ import copy
 import json
 import os
 import shutil
-import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette
@@ -40,8 +39,6 @@ from engine import data_io
 
 REPO = Path(__file__).resolve().parents[2]
 
-_APP = QApplication.instance() or QApplication(sys.argv)
-
 
 def read_domain(data_dir, domain):
     return data_io.load_validated(
@@ -50,12 +47,15 @@ def read_domain(data_dir, domain):
     )
 
 
-class TempDataCase(unittest.TestCase):
+class TempDataCase(QtCase):
     """Copies data/ into a temp dir so writes never touch the repo. Also
     clears balancing_history/ in the COPY (never the repo) — it's a
     runtime-populated log, not seed content, and the repo copy may carry
     real entries from live editor sessions that would otherwise leak into
-    every test's starting state."""
+    every test's starting state.
+
+    Inherits QtCase: wrap every widget you build in self.track(...) so it is
+    destroyed with the test rather than leaked for the life of the process."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -120,9 +120,9 @@ class TestDomainsDerivation(TempDataCase):
             domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
-        self.assertNotIn("vfx", SelectorPanel(data_dir=self.data_dir).domains())
+        self.assertNotIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
         self.add_domain_files("vfx")
-        self.assertIn("vfx", SelectorPanel(data_dir=self.data_dir).domains())
+        self.assertIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
 
 
 class TestSelectorContextMenu(TempDataCase):
@@ -131,9 +131,7 @@ class TestSelectorContextMenu(TempDataCase):
     exec()s a menu (it would block); QAction.trigger() is the test path."""
 
     def make(self):
-        panel = SelectorPanel(data_dir=self.data_dir)
-        self.addCleanup(panel.deleteLater)
-        return panel
+        return self.track(SelectorPanel(data_dir=self.data_dir))
 
     def test_entries_come_from_the_specs_selector_context(self):
         ids = [fid for _label, fid in self.make()._add_entries("enemies")]
@@ -182,7 +180,7 @@ class TestSelectorContextMenu(TempDataCase):
 
 class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
-        panel = SelectorPanel(data_dir=self.data_dir)
+        panel = self.track(SelectorPanel(data_dir=self.data_dir))
         # the LITERAL canonical tuple, not domains.domains(...) — both sides
         # derive now, so comparing them would be a tautology
         self.assertEqual(
@@ -194,7 +192,7 @@ class TestSelector(TempDataCase):
         Every leaf under it emits domain_selected, which would drive the
         balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
-        panel = SelectorPanel(data_dir=self.data_dir)
+        panel = self.track(SelectorPanel(data_dir=self.data_dir))
         self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
@@ -207,8 +205,7 @@ class TestSelector(TempDataCase):
         FileNotFoundError out of BalancingPanel.set_domain inside a Qt slot."""
         (self.data_dir / "balancing" / "map.json").unlink()
         (self.data_dir / "schemas" / "map.schema.json").unlink()
-        panel = SelectorPanel(data_dir=self.data_dir)
-        self.addCleanup(panel.deleteLater)
+        panel = self.track(SelectorPanel(data_dir=self.data_dir))
         self.assertNotIn("map", panel.domains())
         panel._find_item("map", ())        # shown, not omitted (no schema)
 
@@ -222,7 +219,7 @@ class TestSelector(TempDataCase):
         self.assertEqual(domains_seen, [])          # but NO domain_selected
 
     def test_selection_emits_domain_and_is_single(self):
-        panel = SelectorPanel(data_dir=self.data_dir)
+        panel = self.track(SelectorPanel(data_dir=self.data_dir))
         seen = []
         panel.domain_selected.connect(seen.append)
         panel.select_domain("enemies")
@@ -237,7 +234,7 @@ class TestSelectorTree(TempDataCase):
     (TestSelector above) must survive unchanged."""
 
     def make(self):
-        return SelectorPanel(data_dir=self.data_dir)
+        return self.track(SelectorPanel(data_dir=self.data_dir))
 
     def test_tree_stops_at_dropdown_nodes(self):
         panel = self.make()
@@ -318,7 +315,7 @@ class TestSelectorTree(TempDataCase):
 
 class TestBalancingPanel(TempDataCase):
     def make_panel(self, domain):
-        panel = BalancingPanel(data_dir=self.data_dir)
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
         panel.set_domain(domain)
         return panel
 
@@ -343,8 +340,8 @@ class TestBalancingPanel(TempDataCase):
 
     def test_selection_switches_panel_content(self):
         """ED-3: the selected tree node drives the form's content."""
-        selector = SelectorPanel(data_dir=self.data_dir)
-        panel = BalancingPanel(data_dir=self.data_dir)
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
         selector.domain_selected.connect(panel.set_domain)
         selector.select_domain("buildings")
         self.assertIn("DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets)
@@ -444,7 +441,7 @@ class TestBalancingPanel(TempDataCase):
         non-blank session name is entered."""
         from editor.panels.balancing import _SaveMetaDialog
 
-        dialog = _SaveMetaDialog()
+        dialog = self.track(_SaveMetaDialog())
         ok_button = dialog.findChild(QDialogButtonBox).button(QDialogButtonBox.Ok)
         self.assertFalse(ok_button.isEnabled())
         dialog._name.setText("  ")
@@ -523,7 +520,7 @@ class TestBalancingHistory(TempDataCase):
         self.assertEqual([s["id"] for s in sessions], [second["id"]])
 
     def test_panel_save_changes_records_history_entry(self):
-        panel = BalancingPanel(data_dir=self.data_dir)
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
         panel.set_domain("core")
         key = "TheHole/base_hp"
         widget = panel._widgets[key]
@@ -537,7 +534,7 @@ class TestBalancingHistory(TempDataCase):
         )
 
     def test_apply_snapshot_stages_without_writing(self):
-        panel = BalancingPanel(data_dir=self.data_dir)
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
         panel.set_domain("core")
         key = "TheHole/base_hp"
         widget = panel._widgets[key]
@@ -612,8 +609,7 @@ class TestMainWindowWiring(TempDataCase):
     def make_window(self):
         from editor.main import MainWindow
 
-        window = MainWindow(data_dir=self.data_dir)
-        self.addCleanup(window.close)
+        window = self.track(MainWindow(data_dir=self.data_dir))
         window._timer.stop()  # no frame drive needed here
         return window
 
@@ -797,8 +793,8 @@ class TestThemeSwitch(TempDataCase):
     def make_window(self, prefs_path):
         from editor.main import MainWindow
 
-        window = MainWindow(data_dir=self.data_dir, prefs_path=prefs_path)
-        self.addCleanup(window.close)
+        window = self.track(MainWindow(data_dir=self.data_dir,
+                                       prefs_path=prefs_path))
         window._timer.stop()
         return window
 

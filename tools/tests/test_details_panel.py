@@ -4,15 +4,13 @@ Conventions: offscreen Qt + SDL dummy env, one QApplication, TempDataCase
 tempfile copy of data/ (the repo's migrated manifest + PNGs come along).
 Synthetic sheets are authored with Pillow (the panel's own image dep).
 """
-import os
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PIL import Image
 from PySide6.QtWidgets import QApplication
@@ -21,8 +19,6 @@ from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
 from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
-
-_APP = QApplication.instance() or QApplication(sys.argv)
 
 
 def make_png(path, w, h, colour=(200, 60, 60, 255)):
@@ -34,7 +30,7 @@ def make_png(path, w, h, colour=(200, 60, 60, 255)):
 class DetailsCase(TempDataCase):
     def setUp(self):
         super().setUp()
-        self.panel = DetailsPanel(data_dir=self.data_dir)
+        self.panel = self.track(DetailsPanel(data_dir=self.data_dir))
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.png_dir = Path(tmp.name)
@@ -191,9 +187,9 @@ class TestSubcategoryDropdown(DetailsCase):
         self.assertIsNone(self.panel.slot_key)
 
 
-class TestLevelBar(unittest.TestCase):
+class TestLevelBar(QtCase):
     def test_levels_and_signal(self):
-        bar = LevelBar()
+        bar = self.track(LevelBar())
         bar.set_levels(("a_lvl1", "a_lvl2", "a_lvl3"), assigned={"a_lvl2"})
         self.assertEqual(bar.level(), 0)
         self.assertFalse(bar.isHidden())
@@ -205,14 +201,14 @@ class TestLevelBar(unittest.TestCase):
         self.assertIn("●", bar._buttons[1].text())
 
     def test_single_slot_hides_the_bar(self):
-        bar = LevelBar()
+        bar = self.track(LevelBar())
         bar.set_levels(("only",))
         self.assertTrue(bar.isHidden())
         self.assertEqual(bar.level(), 0)
 
     def test_can_add_keeps_single_slot_bar_and_button_visible(self):
         # an enemy era with ONE variant must still show the "+ Variant" button
-        bar = LevelBar()
+        bar = self.track(LevelBar())
         requested = []
         bar.add_variant_requested.connect(lambda: requested.append(True))
         bar.set_levels(("enemy_stage_2",), can_add=True)
@@ -222,12 +218,12 @@ class TestLevelBar(unittest.TestCase):
         self.assertEqual(requested, [True])
 
     def test_add_button_hidden_without_can_add(self):
-        bar = LevelBar()
+        bar = self.track(LevelBar())
         bar.set_levels(("a_lvl1", "a_lvl2", "a_lvl3"))
         self.assertTrue(bar._add_btn.isHidden())
 
     def test_select_last_reports_the_new_variant(self):
-        bar = LevelBar()
+        bar = self.track(LevelBar())
         seen = []
         bar.level_changed.connect(seen.append)
         bar.set_levels(("v1", "v2"), can_add=True)
