@@ -96,8 +96,15 @@ Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
   `Renderer.submit_hud(item)`; at `flush`, AFTER sprites and overlay lines, HUD
   items fold into the same flat draw list **in screen space (no coords
   conversion, no depth sort)** — `HudSprite` resolves to a `DrawCall` via
-  `assets.frame(slot_key)`, the other three pass through for the pygame backend to
-  `isinstance`-dispatch (mirrors `OverlayLines`). `_hud` clears each flush.
+  `assets.frame(slot_key, animation, anim_time_ms)`, the other three pass through
+  for the pygame backend to `isinstance`-dispatch (mirrors `OverlayLines`). `_hud`
+  clears each flush.
+- **HUD sprites animate (A1)** — `HudSprite` carries `animation: str = "idle"` and
+  `anim_time_ms: int = 0` (declared AFTER `flip`, because the shipping call sites
+  pass `slot_key, dest, size` positionally; new call sites pass the two by
+  keyword). Same slot/animation/time contract as `RenderItem`: a missing animation
+  row falls back to idle, a single-frame track is time-invariant, and the defaults
+  make the resolved `DrawCall` byte-identical to the pre-A1 one.
 - **`render/backend.py` HUD pass** — dispatch is `isinstance`: `HudRect`
   (`pygame.draw.rect` with `border_radius`/`width`), `HudLines`
   (`pygame.draw.lines`), `HudText` (rendered via the fonts cache, blitted at
