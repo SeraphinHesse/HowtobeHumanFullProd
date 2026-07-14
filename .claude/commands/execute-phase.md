@@ -14,13 +14,13 @@ writing the phase's outcome back into it.
 - The plan doc exists and contains the phase — quote its bullet/section verbatim.
 - Working tree clean; base branch `Development` pulled and up to date.
 - If the plan doc names a spec/prototype repo (e.g. `planning/MIGRATION_PLAN.md`
-  → `planning/MIGRATION_AGENT_READ_FIRST.md` + the prototype repo): it is
+  → `planning/planning resources/MIGRATION_AGENT_READ_FIRST.md` + the prototype repo): it is
   **READ-ONLY** — cite it, never edit it.
 
 ## Read first (token-light)
 1. Root `CLAUDE.md` router → the ONE package doc matching the phase's scope
    (if the phase truly spans packages, that becomes a Step-2 user question).
-2. For `planning/MIGRATION_PLAN.md` phases: `planning/MIGRATION_AGENT_READ_FIRST.md`.
+2. For `planning/MIGRATION_PLAN.md` phases: `planning/planning resources/MIGRATION_AGENT_READ_FIRST.md`.
 
 ## Steps
 1. **Plan mode.** Enter plan mode. Audit what the phase needs vs what already

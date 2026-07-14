@@ -12,7 +12,7 @@ phase briefs. You never implement.
   `# Title` → Context/Vision → numbered `## N.` decision sections → a
   **build-order table with a Status column** (one row per phase) → per-phase
   **Goal / Files (new + modified) / Tests / Exit gate** → closing Risks/open
-  items. Mirror an existing sibling (`planning/AgentDispatchPLAN.md`); never
+  items. Mirror an existing sibling (`planning/completed plans/AgentDispatchPLAN.md`); never
   invent a new format.
 - **Phase brief** `docs/briefs/phase-<id>-<slug>.md`, exactly four sections:
   (1) Behavioral spec with `file:line` citations; (2) Architecture plan;

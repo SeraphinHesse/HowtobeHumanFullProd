@@ -1,7 +1,7 @@
 {
   "context": [
     ".claude/commands/createplan.md",
-    "planning/AgentDispatchPLAN.md",
+    "planning/completed plans/AgentDispatchPLAN.md",
     "CLAUDE.md"
   ],
   "description": "Spawns the planning agent (/createplan). It scopes a new phased, agent-executable plan doc with you and writes it to planning/ in the plan-doc family shape (build-order table, per-phase Goal/Files/Tests/Exit gate). It does not implement the plan; activate it afterwards with Set as current.",
