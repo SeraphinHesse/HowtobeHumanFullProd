@@ -8,5 +8,11 @@ Pillow           # image loading for editor asset import (editor/asset_import.py
 jsonschema       # validates data/ JSON against data/schemas/
 opencv-python    # cutscene playback (engine/video.py) — OPTIONAL: absent = cutscene gracefully skips
 
+# Test runner. The suite is ~1120 unittest.TestCase tests; pytest collects them
+# natively (no rewrites) and xdist runs them in parallel — 5m34s -> ~1m40s.
+# --dist loadfile is pinned in pytest.ini: the Qt suites share one QApplication.
+pytest
+pytest-xdist
+
 # Only needed if you want to build the .exe with build.bat:
 pyinstaller
