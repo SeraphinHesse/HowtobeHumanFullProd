@@ -47,7 +47,12 @@ Perf deep-dive → `game/PERF.md`.
   (`pan_from` tracks this). Scroll wheel steps through the data-driven
   `geometry.json` zoom levels, keeping the viewport-centre world point fixed via
   `screen_to_world`/`world_to_screen` only (no iso math in the host); Esc opens
-  pause.
+  pause. A right *click* (a right-press that stayed inside the same 4px drag
+  threshold) is a **universal dismiss**, never a world action:
+  `handle_world_right_click` closes the cheat menu, else peels one stage off the
+  panel via `BuildingUI.dismiss()` and clears the multi-select — from anywhere on
+  screen, panel and HUD included. LEVELUP / the boss cutscene are choice-only and
+  swallow it. Right-DRAG still pans, so the threshold is what keeps them apart.
 - Window size / fps / caption come from `data/display.json` (schema-validated,
   G-7) — never hardcode them.
 - **Active map (Phase 6, D-20/D-21)**: boot loads
