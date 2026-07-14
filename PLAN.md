@@ -7,9 +7,13 @@
 
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **finishing run in progress** (2026-07-15) — A1–A3 landed; everything
-else executes as ONE orchestrated run on umbrella branch
-`phase-10L-finish-umbrella` (`/execute-plan-phases`), landing as a single PR.
+Status: **UNFINISHED — run interrupted by user 2026-07-15.** The
+`/execute-plan-phases` run on umbrella `phase-10L-finish-umbrella` completed
+wave 2a only (A4, A7, A8, B1 — coded, reviewed, gated green, merged) before
+being wrapped up early into one PR. **A5′, B2, B3, B4 have reviewed briefs in
+`docs/briefs/` but NO code; A6/B5 exit gates not run.** Resume by dispatching
+wave 2b per the briefs (A5′ + B4 parallel, then B2, then B3 → B4i). Carry-over
+findings for the resume are listed under "Run state" below.
 Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
 every UI screen from the editor); 10L-B depends on 10L-A. Three user
 requirements were folded in on 2026-07-15 (see "New requirements" below):
@@ -24,16 +28,43 @@ v1 — they exist in `game/ui` now).
 | A1 | Engine — animated `HudSprite` | **done** (2026-07-14) |
 | A2 | Engine + data — nine-slice | **done** (2026-07-14) |
 | A3 | Data — `ui` category expansion | **done** (2026-07-14) |
-| A4 | Editor — slice-margins editor | **queued** (umbrella) |
-| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **queued** (umbrella) |
-| A6 | Exit gate — live Quick Test + docs | **blocked** on A4+A5′ |
-| A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **queued** (umbrella) |
-| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **queued** (umbrella) |
-| B1 | Data — screen override format (12 screens) | **queued** (umbrella) |
-| B2 | Game — ids + `skinning.py` + golden parity pin | **queued** (umbrella) |
-| B3 | Tools — layout exporter + committed `screen_defaults.json` | **queued** (umbrella) |
-| B4 | Editor — screen mode (selector/session/viewport/details) | **queued** (umbrella) |
+| A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
+| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **not started** (brief ready) |
+| A6 | Exit gate — live Quick Test + docs | **blocked** on A5′ |
+| A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
+| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15, umbrella; review interrupted) |
+| B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
+| B2 | Game — ids + `skinning.py` + golden parity pin | **not started** (brief ready; cut AFTER A5′) |
+| B3 | Tools — layout exporter + committed `screen_defaults.json` | **not started** (brief ready; cut AFTER B2) |
+| B4 | Editor — screen mode (selector/session/viewport/details) | **not started** (brief ready; parallel-safe with A5′/B2) |
 | B5 | Exit gate (10L-B) — live Quick Test + docs | **blocked** on B1–B4 |
+
+### Run state (2026-07-15 wrap-up — read before resuming)
+
+- Landed on the umbrella (each branch full-suite green before merge, ZERO
+  failures — 1229–1243 tests depending on branch): A4 `phase-A4-slice-editor-impl`
+  0ff8bcd, A7 `phase-A7-variant-frame-size` 4bc19b5, A8 `phase-A8-hit-mask`
+  59941ab, B1 `phase-B1-screen-formats` abc244a (+ review-fix commit).
+- **Carry-over (Medium, from A4's review)**: `_on_frame_size_changed` in
+  `editor/panels/details.py` doesn't re-range/re-clamp the slice spinboxes when
+  a per-slot frame-size override SHRINKS — a stale over-sized `slice` can be
+  re-saved to the manifest (render clamps at draw time, so no crash). Fix +
+  test when A4 is next touched.
+- **Tooling bug (measured twice)**: `py tools/testgate.py check --affected`
+  vacuously passes ("0 ran") for phases whose tests are all non-`core` tier —
+  `affected_modules()` always ANDs `-m core` onto the selected files. Run the
+  explicit pytest on your test modules until fixed.
+- **Contract rulings already baked into the briefs**: screen `ids` map is
+  `{name: (kind, widget)}`; `kind` enum = `button|panel|label|backdrop|bar|field`;
+  defaults doc is FLAT (`{<screen_id>: {widgets, mock_note}}`) validating
+  against `data/schemas/screen_defaults.schema.json` (stem-pairs with
+  `data/ui/screen_defaults.json`).
+- **Stale worktrees with uncommitted pre-run drafts** (NOT this run's work;
+  superseded — user to discard or salvage): `.claude/worktrees/agent-aaae066e177974fe9`
+  (branch `phase-A4-slice-editor` @ 8ec6de4, +23 lines details.py draft) and
+  `.claude/worktrees/agent-a49ee230114fc0dbc` (branch `phase-A5-skinned-button`
+  @ 8ec6de4, +41/-5 widgets.py draft). Wave 2b should use fresh branch names
+  (e.g. `phase-A5p-skinned-button`).
 
 A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
 Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
