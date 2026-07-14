@@ -1,18 +1,21 @@
-"""Spawnclaude (ED-60/61/62): dispatch a domain-scoped `claude` session from
-the editor.
+"""Spawnclaude (ED-60/61/62, AD-2): dispatch a `claude` session from the editor.
 
 Three modes, all opening a Windows Terminal (`wt`) tab running `claude` in the
 repo. The session's first input is the literal slash command, so Claude loads
 that skill directly (no wordy natural-language wrapper):
-- **Domain** → `/start-domain <domain>`. **Lock model (user-confirmed
-  delegation):** the editor NEVER writes a domain lock — the spawned
-  `/start-domain` skill does, so the branch+lock protocol stays the single
-  lock-writer, preserving `editor/locks.py`'s read-only invariant and ED-62's
-  "one enforcement point."
-- **Small tweak** → `/smalltweak <task>`. Straight into the skill; no lock, no
-  domain scope (the scope guard fail-opens when no domain is active).
-- **Admin** → a blank `claude` session (no initial input, no lock, no scope) for
+- **Admin** → a blank `claude` session (no initial input, no scope) for
   unguarded work.
+- **Dispatch handoff** → `/dispatch <handoff path>`. The editor writes a
+  schema-valid handoff JSON (an "Add new X" form submission) and hands its
+  repo-relative path to the `/dispatch` skill, which does git setup + payload
+  translation and then drives the target `add-*` skill unmodified.
+- **Small tweak** → `/smalltweak <task>`. Straight into the skill; no scope.
+
+**The branch+lock protocol is SUSPENDED** (root `CLAUDE.md`, AD plan D6): the
+old domain → `/start-domain` mode is gone from this module, and this module
+writes NO lock and no `.claude/active_domain` (a test asserts it exposes no
+set/clear/unlock symbol). `editor/locks.py` survives for the balancing panel's
+read-only `_lock` display.
 
 Pure command/prompt builders are Qt-free and unit-testable; the detached launch
 reuses `editor.run_controls.start_detached`, which already strips the editor's
@@ -31,33 +34,21 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
 )
 
-from editor import locks, run_controls
+from editor import run_controls
 
 REPO = Path(__file__).resolve().parents[1]
 
 
 # -- pure builders (no Qt state; unit-testable) -----------------------------
 
-def domain_choices(data_dir=None):
-    """`[{domain, locked, owner, since}]` in D-10 order — drives the dialog's
-    greying of already-locked domains (ED-61). Reads locks only (never writes)."""
-    out = []
-    for domain in locks.DOMAINS:
-        locked = locks.is_locked(domain, data_dir)
-        out.append({
-            "domain": domain,
-            "locked": locked,
-            "owner": locks.owner(domain, data_dir) if locked else None,
-            "since": locks.since(domain, data_dir) if locked else None,
-        })
-    return out
+def dispatch_prompt(handoff_relpath):
+    """Claude's opening input for a form dispatch: the literal /dispatch slash
+    command with the repo-relative POSIX handoff path appended.
 
-
-def start_domain_prompt(domain):
-    """Claude's opening input for a domain choice: the literal `/start-domain`
-    slash command, so Claude loads that skill directly (delegation model — the
-    skill, not the editor, writes the lock)."""
-    return f"/start-domain {domain}"
+    Takes an ALREADY-relative POSIX string (AD-1's `agent_forms.handoff_relpath`
+    produces it) — no path math here, so this module never imports agent_forms
+    and stays trivially unit-testable."""
+    return f"/dispatch {handoff_relpath}"
 
 
 def small_tweak_prompt(text):
@@ -80,11 +71,13 @@ def spawn_command(initial_prompt=None, repo=None, wt="wt"):
     return argv
 
 
-def dispatch(domain=None, tweak_prompt=None, admin=False, repo=None, detach=None):
+def dispatch(handoff=None, tweak_prompt=None, admin=False, repo=None, detach=None):
     """Build + launch the terminal detached. Returns `started_ok` (bool).
 
-    Mode precedence: `admin` (blank session, no input) > `domain`
-    (`/start-domain`) > small-tweak (`/smalltweak`). `detach` defaults to
+    Mode precedence: `admin` (blank session, no input) > `handoff`
+    (`/dispatch <relpath>`) > small-tweak (`/smalltweak`). Admin and small tweak
+    bypass the dispatch path entirely (D5) — no handoff is written for them.
+    `handoff` is a repo-relative POSIX path string. `detach` defaults to
     `run_controls.start_detached` (which strips the SDL dummy vars via
     `_real_window_environment` and uses the instance-form
     `QProcess().startDetached()`); it is injectable so tests substitute a fake
@@ -93,8 +86,8 @@ def dispatch(domain=None, tweak_prompt=None, admin=False, repo=None, detach=None
     detach = detach or run_controls.start_detached
     if admin:
         prompt = None  # blank claude, no scope, no lock
-    elif domain is not None:
-        prompt = start_domain_prompt(domain)
+    elif handoff:
+        prompt = dispatch_prompt(handoff)
     else:
         prompt = small_tweak_prompt(tweak_prompt)
     argv = spawn_command(prompt, repo=repo)
@@ -104,34 +97,24 @@ def dispatch(domain=None, tweak_prompt=None, admin=False, repo=None, detach=None
 # -- Qt dialog --------------------------------------------------------------
 
 class SpawnClaudeDialog(QDialog):
-    """Pick a domain (locked ones greyed with owner shown, ED-61) or small-tweak
-    mode, then dispatch a scoped claude terminal. Reads locks fresh on open; the
-    dialog itself never writes a lock (the spawned /start-domain does, ED-60)."""
+    """Pick small-tweak or admin mode, then dispatch a claude terminal. Writes
+    no lock and no `.claude/active_domain` (protocol suspended, D6).
+
+    AD-3 rewrites this into the form launcher (one entry per form spec); AD-2
+    keeps it minimal — the domain radios are gone, Small tweak + Admin remain."""
 
     def __init__(self, data_dir=None, repo=None, parent=None, detach=None):
         super().__init__(parent)
         self.setWindowTitle("Spawn Claude")
         self._repo = Path(repo) if repo is not None else REPO
         self._detach = detach  # None -> dispatch() uses run_controls.start_detached
+        # `data_dir` is accepted-and-unused in AD-2 (main.py still passes it);
+        # AD-3 uses it for agent_forms.load_form_specs.
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("Dispatch a scoped Claude session:"))
+        layout.addWidget(QLabel("Dispatch a Claude session:"))
 
         self._group = QButtonGroup(self)
-        self._domain_buttons = {}
-        for info in domain_choices(data_dir):
-            domain = info["domain"]
-            if info["locked"]:
-                text = (f"{domain} — locked by {info['owner']} "
-                        f"since {info['since']}")
-            else:
-                text = domain
-            button = QRadioButton(text)
-            if info["locked"]:
-                button.setEnabled(False)  # greyed out (ED-61)
-            self._group.addButton(button)
-            self._domain_buttons[domain] = button
-            layout.addWidget(button)
 
         self._tweak_radio = QRadioButton("Small tweak (no lock)")
         self._group.addButton(self._tweak_radio)
@@ -145,13 +128,7 @@ class SpawnClaudeDialog(QDialog):
         self._group.addButton(self._admin_radio)
         layout.addWidget(self._admin_radio)
 
-        # Default selection: first unlocked domain, else small-tweak.
-        for button in self._domain_buttons.values():
-            if button.isEnabled():
-                button.setChecked(True)
-                break
-        else:
-            self._tweak_radio.setChecked(True)
+        self._tweak_radio.setChecked(True)
 
         buttons = QDialogButtonBox()
         self._dispatch_button = buttons.addButton(
@@ -161,24 +138,10 @@ class SpawnClaudeDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def selected_domain(self):
-        """The chosen domain, or None for small-tweak / admin mode."""
-        if self._tweak_radio.isChecked() or self._admin_radio.isChecked():
-            return None
-        for domain, button in self._domain_buttons.items():
-            if button.isChecked():
-                return domain
-        return None
-
     def _on_dispatch(self):
         if self._admin_radio.isChecked():
             dispatch(admin=True, repo=self._repo, detach=self._detach)
-        elif self._tweak_radio.isChecked():
+        else:
             dispatch(tweak_prompt=self._tweak_edit.text(),
                      repo=self._repo, detach=self._detach)
-        else:
-            domain = self.selected_domain()
-            if domain is None:
-                return  # nothing actionable selected
-            dispatch(domain=domain, repo=self._repo, detach=self._detach)
         self.accept()
