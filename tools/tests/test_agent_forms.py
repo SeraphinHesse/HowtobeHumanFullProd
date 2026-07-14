@@ -296,5 +296,53 @@ class TestSmokePairing(TempTreeCase):
         self.assertGreater(smoke.validate_data(), 0)
 
 
+class TestCommittedSpecSweep(unittest.TestCase):
+    """AD-4: an all-specs sweep over the REAL data/agent_forms/*.json — every
+    committed form must point at a skill that exists, at context docs that
+    exist, and (when set) at a real slots.json category. Data-driven on purpose:
+    a spec added by a later phase is covered the moment it lands on disk."""
+
+    FORMS_DIR = REPO / "data" / "agent_forms"
+
+    @classmethod
+    def setUpClass(cls):
+        cls.specs = agent_forms.load_form_specs()
+
+    def test_at_least_one_spec_is_committed(self):
+        self.assertTrue(self.specs, f"no form specs found in {self.FORMS_DIR}")
+
+    def test_id_equals_filename_stem(self):
+        stems = sorted(p.stem for p in self.FORMS_DIR.glob("*.json"))
+        self.assertEqual(sorted(s["id"] for s in self.specs), stems)
+
+    def test_every_skill_has_a_command_file(self):
+        for spec in self.specs:
+            with self.subTest(spec=spec["id"]):
+                command = REPO / ".claude" / "commands" / f"{spec['skill']}.md"
+                self.assertTrue(command.is_file(), f"missing {command}")
+
+    def test_every_context_path_exists(self):
+        for spec in self.specs:
+            for rel in spec["context"]:
+                with self.subTest(spec=spec["id"], context=rel):
+                    self.assertTrue((REPO / rel).exists(), f"missing {rel}")
+
+    def test_selector_context_is_a_real_slots_category(self):
+        slots = data_io.load_json(REPO / "data" / "slots.json")
+        keys = {c["key"] for c in slots["categories"]}
+        for spec in self.specs:
+            if "selector_context" in spec:
+                with self.subTest(spec=spec["id"]):
+                    self.assertIn(spec["selector_context"], keys)
+
+    def test_the_known_forms_are_all_present(self):
+        ids = {s["id"] for s in self.specs}
+        self.assertLessEqual(
+            {"add-enemy", "add-building", "add-balancing-value",
+             "add-editor-feature", "add-engine-component", "add-asset-importer",
+             "replace-visual"},
+            ids)
+
+
 if __name__ == "__main__":
     unittest.main()
