@@ -44,7 +44,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import registry_ops, selection, theme
+from editor import agent_forms, registry_ops, selection, theme
+from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.spawnclaude import SpawnClaudeDialog
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
         self.selector.map_selected.connect(self._on_map_selected)
+        self.selector.add_requested.connect(self._on_add_requested)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.levelbar.add_variant_requested.connect(self._on_add_variant)
@@ -537,6 +539,18 @@ class MainWindow(QMainWindow):
         dialog = SpawnClaudeDialog(
             data_dir=self._data_dir, repo=REPO, parent=self)
         dialog.exec()
+
+    def _on_add_requested(self, form_id):
+        """Selector right-click ("Add New X…") → the agent form for that spec.
+        Specs are re-read per open (same fresh-load rule as the launcher), so a
+        spec an agent just wrote opens without an editor restart."""
+        spec = next((s for s in agent_forms.load_form_specs(self._data_dir)
+                     if s["id"] == form_id), None)
+        if spec is None:
+            self.statusBar().showMessage(f"No form spec {form_id!r}", 5000)
+            return
+        AgentFormDialog(spec, data_dir=self._data_dir, repo=REPO,
+                        parent=self).exec()
 
     # -- theme switch --------------------------------------------------------
 
