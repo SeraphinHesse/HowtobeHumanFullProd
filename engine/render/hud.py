@@ -36,13 +36,23 @@ class HudText:
 @dataclass(frozen=True)
 class HudSprite:
     """A sprite slot blitted in screen space. dest = (x, y), size = (w, h).
-    Resolved to a DrawCall by the renderer via assets.frame(slot_key)."""
+    Resolved to a DrawCall by the renderer via
+    assets.frame(slot_key, animation, anim_time_ms) — same slot/animation/time
+    contract as RenderItem, so a HUD element animates like a world sprite. A
+    missing animation row falls back to idle (manifest semantics); a
+    single-frame track is time-invariant.
+
+    animation/anim_time_ms are appended LAST on purpose: the shipping call
+    sites pass (slot_key, dest, size) positionally, so tint/flip must keep
+    their positions."""
 
     slot_key: str
     dest: tuple
     size: tuple
     tint: tuple = None
     flip: bool = False
+    animation: str = "idle"
+    anim_time_ms: int = 0
 
 
 @dataclass(frozen=True)

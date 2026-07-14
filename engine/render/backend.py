@@ -47,6 +47,75 @@ def _scaled(surface, size):
     return scaled
 
 
+def _clamp_pair(a, b, limit):
+    """Opposite margins clamped PROPORTIONALLY into `limit`. On overflow
+    a + b == limit exactly, so the centre band vanishes and the corners squeeze
+    rather than clip — no negative rect, no crash, at any destination size.
+
+    A negative margin is floored to 0 FIRST: it would otherwise slip through the
+    `a + b <= limit` fast path untouched and produce an out-of-bounds source
+    rect. Committed data cannot carry one (the schema pins minimum 0 and
+    entry_from_dict rejects it), but the editor feeds this unsaved draft margins
+    straight from the slice spinboxes — and rendering degrades, never raises."""
+    a = max(0, a)
+    b = max(0, b)
+    total = a + b
+    if total <= limit:
+        return a, b
+    if total <= 0:
+        return 0, 0
+    a2 = a * limit // total
+    return a2, limit - a2
+
+
+def _nine_patch(surface, size, margins):
+    """Composite `surface` into `size` as a 9-patch: corners blit 1:1, edges
+    stretch on one axis, the centre on both.
+
+    Memoized in the SAME weak scale cache, under a ("9p", size, margins) key —
+    a 3-tuple, so it can never collide with a plain scale's bare `size` key, and
+    the composite dies with its source surface exactly like a plain scale does.
+    The margins are IN the key because the editor re-draws one cached frame at
+    several margins while the designer drags the slice spinboxes.
+
+    transform.scale (nearest, alpha-safe), not smoothscale: our sheets are pixel
+    art with per-pixel alpha, and smoothscale filters RGB across alpha edges
+    (fringing). Only the 4 edges + centre are ever resampled — the corners never
+    are — so this is a one-line swap if real art ever wants filtering.
+    """
+    key = ("9p", size, margins)
+    by_key = _scale_cache.get(surface)
+    if by_key is None:
+        by_key = _scale_cache[surface] = {}
+    patched = by_key.get(key)
+    if patched is not None:
+        return patched
+
+    sw, sh = surface.get_size()
+    dw, dh = size
+    sl, sr = _clamp_pair(margins[0], margins[2], sw)   # margins <= the frame...
+    st, sb = _clamp_pair(margins[1], margins[3], sh)
+    dl, dr = _clamp_pair(sl, sr, dw)                   # ...and <= the dest
+    dt, db = _clamp_pair(st, sb, dh)
+
+    src_cols = ((0, sl), (sl, sw - sl - sr), (sw - sr, sr))
+    dst_cols = ((0, dl), (dl, dw - dl - dr), (dw - dr, dr))
+    src_rows = ((0, st), (st, sh - st - sb), (sh - sb, sb))
+    dst_rows = ((0, dt), (dt, dh - dt - db), (dh - db, db))
+
+    patched = pygame.Surface(size, pygame.SRCALPHA)
+    for (sx, sw_i), (dx, dw_i) in zip(src_cols, dst_cols):
+        for (sy, sh_i), (dy, dh_i) in zip(src_rows, dst_rows):
+            if min(sw_i, sh_i, dw_i, dh_i) <= 0:
+                continue          # empty band (degenerate clamp / zero margin)
+            region = surface.subsurface(pygame.Rect(sx, sy, sw_i, sh_i))
+            if (dw_i, dh_i) != (sw_i, sh_i):
+                region = pygame.transform.scale(region, (dw_i, dh_i))
+            patched.blit(region, (dx, dy))
+    by_key[key] = patched
+    return patched
+
+
 def _has_alpha(color):
     return len(color) == 4 and color[3] < 255
 
@@ -123,7 +192,13 @@ def draw(target, draw_calls):
                 _draw_hud_text(target, call)
             continue
         size = (max(1, round(call.size[0])), max(1, round(call.size[1])))
-        surface = _scaled(call.surface, size)
+        # An all-zero slice is arithmetically a plain scale, and a 1:1 draw is
+        # the identity — both take the plain path so they share its cache entry.
+        margins = call.slice
+        if margins and any(margins) and size != call.surface.get_size():
+            surface = _nine_patch(call.surface, size, tuple(margins))
+        else:
+            surface = _scaled(call.surface, size)
         if call.flip:
             surface = pygame.transform.flip(surface, True, False)
         if call.tint is not None:

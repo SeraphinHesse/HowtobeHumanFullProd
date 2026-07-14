@@ -136,13 +136,15 @@ class Renderer:
         # the backend to isinstance-dispatch (like OverlayLines).
         for hud in self._hud:
             if isinstance(hud, HudSprite):
-                frame = self._assets.frame(hud.slot_key)
+                frame = self._assets.frame(
+                    hud.slot_key, hud.animation, hud.anim_time_ms)
                 draw_calls.append(DrawCall(
                     surface=frame.surface,
                     dest=hud.dest,
                     size=hud.size,
                     tint=hud.tint,
                     flip=hud.flip,
+                    slice=frame.slice,
                 ))
             else:
                 draw_calls.append(hud)

@@ -90,14 +90,52 @@ glows use this; ellipses are caller-side polygon approximations.
    whenever a non-sprite (overlay/HUD) call must land in order.
 Both are pixel-transparent (tests in `test_render.TestBackendThroughput`).
 
+## Nine-slice (A2) — `DrawCall.slice`, HUD only
+A `DrawCall` may carry `slice = (left, top, right, bottom)` — nine-slice margins
+in FRAME pixels, authored on the manifest entry and carried
+`ManifestEntry → Frame → DrawCall` untouched. **Only the backend interprets
+them**; `renderer.py` copies `frame.slice` onto the HUD `DrawCall` and the
+world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
+- `_nine_patch` composites corners **1:1 (never resampled)**, edges stretched on
+  one axis, the centre on both. `_clamp_pair` floors negatives to 0, then clamps
+  the opposite margins proportionally into the source and then the destination,
+  so on overflow they fill the axis exactly: the centre band vanishes and the
+  corners *squeeze* instead of producing a negative rect. **Any margins are safe
+  at any dest size** (down to 1×1, and including negatives) — the editor feeds
+  this unsaved draft margins straight from the slice spinboxes, and rendering
+  degrades rather than raising (E-37).
+- **No-ops take the plain `_scaled` path** (and so share its cache entry):
+  `slice is None`, an all-zero slice, and a 1:1 draw. The grey-X placeholder
+  never carries a slice, so it stays on that path — `test_placeholder_surfaces_
+  do_not_leak` is unaffected.
+- **Cache**: composites live in the SAME `WeakKeyDictionary`, in the source
+  surface's inner dict, under a `("9p", size, margins)` key. A 3-tuple can never
+  collide with a plain scale's bare `size` key, and weak eviction still holds
+  (the inner dict hangs off the source surface). Margins are IN the key because
+  the editor re-draws one cached frame at many margins while the designer drags
+  the slice spinboxes.
+- **`transform.scale`, not `smoothscale`** — our sheets are pixel art with
+  per-pixel alpha and no `convert_alpha()`; smoothscale filters RGB across alpha
+  edges (fringing) and blurs pixel art. It is also already what every world
+  sprite goes through at zoom ≠ 1, so HUD skins stay consistent with the world.
+  Revisit by eye if real UI art turns out to be high-res: only the 4 edges + the
+  centre are ever resampled, so it is a one-line swap. Tests: `test_nine_slice.py`.
+
 ## HUD pass + fonts (Phase 9B)
 - **`render/hud.py`** (E-12) — four frozen, pure, screen-space dataclasses:
   `HudRect`, `HudText`, `HudSprite`, `HudLines`. The host calls
   `Renderer.submit_hud(item)`; at `flush`, AFTER sprites and overlay lines, HUD
   items fold into the same flat draw list **in screen space (no coords
   conversion, no depth sort)** — `HudSprite` resolves to a `DrawCall` via
-  `assets.frame(slot_key)`, the other three pass through for the pygame backend to
-  `isinstance`-dispatch (mirrors `OverlayLines`). `_hud` clears each flush.
+  `assets.frame(slot_key, animation, anim_time_ms)`, the other three pass through
+  for the pygame backend to `isinstance`-dispatch (mirrors `OverlayLines`). `_hud`
+  clears each flush.
+- **HUD sprites animate (A1)** — `HudSprite` carries `animation: str = "idle"` and
+  `anim_time_ms: int = 0` (declared AFTER `flip`, because the shipping call sites
+  pass `slot_key, dest, size` positionally; new call sites pass the two by
+  keyword). Same slot/animation/time contract as `RenderItem`: a missing animation
+  row falls back to idle, a single-frame track is time-invariant, and the defaults
+  make the resolved `DrawCall` byte-identical to the pre-A1 one.
 - **`render/backend.py` HUD pass** — dispatch is `isinstance`: `HudRect`
   (`pygame.draw.rect` with `border_radius`/`width`), `HudLines`
   (`pygame.draw.lines`), `HudText` (rendered via the fonts cache, blitted at

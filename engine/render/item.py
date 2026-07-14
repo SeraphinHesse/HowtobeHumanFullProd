@@ -30,6 +30,7 @@ class DrawCall:
     size: tuple  # final blit size in px (backend scales if != surface size)
     tint: tuple = None
     flip: bool = False
+    slice: tuple = None  # nine-slice margins (frame px) — HUD sprites only
 
 
 @dataclass(frozen=True)

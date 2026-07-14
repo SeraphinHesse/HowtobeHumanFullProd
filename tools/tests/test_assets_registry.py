@@ -39,6 +39,31 @@ class TestRealRegistry(unittest.TestCase):
         self.assertEqual(self.reg.frame_size("main_menu_bg"), (480, 270))
         self.assertEqual(self.reg.animations("main_menu_bg"), ("idle",))
 
+    def test_ui_vocabulary_and_frame_sizes(self):
+        # 10L-A: button states are manifest rows, and the vocabulary is
+        # per-category — every ui slot offers all four.
+        self.assertEqual(self.reg.animations("ui_button"),
+                         ("idle", "hover", "pressed", "disabled"))
+        self.assertEqual(self.reg.animations("ui_icon_love"),
+                         ("idle", "hover", "pressed", "disabled"))
+
+        # 64x64 category default, except the whole-sheet menu background: at
+        # 64x64 a 480x270 sheet would be grid-sliced into a 7x4 frame grid
+        # instead of the ONE frame it is.
+        self.assertEqual(self.reg.frame_size("ui_button"), (64, 64))
+        self.assertEqual(self.reg.frame_size("ui_icon_love"), (64, 64))
+        self.assertEqual(self.reg.frame_size("ui_bg_main_menu"), (480, 270))
+
+        self.assertEqual(self.reg.category_of("ui_button").key, "ui")
+
+        # nested parent groups with leaf children — the shape "+ Variant" needs
+        self.assertEqual(
+            tuple(g.label for g in self.reg.category("ui").groups),
+            ("Buttons", "Panels", "Icons", "Backgrounds"))
+        self.assertEqual(
+            tuple(c.label for c in self.reg.group("ui", ("Icons",)).children),
+            ("Love", "XP", "Lives"))
+
     def test_tile_animation_vocabulary_is_idle_only(self):
         self.assertEqual(self.reg.animations("tile_buildable"), ("idle",))
 

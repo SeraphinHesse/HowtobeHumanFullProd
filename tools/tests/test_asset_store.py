@@ -36,19 +36,22 @@ def make_sheet(path, cols=3, rows=2):
     pygame.image.save(sheet, str(path))
 
 
-def entry(slot="tower", frames=(3, 2), offset=(0, 0)):
+def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None):
     rows = [{"animation": "idle", "frames": frames[0], "fps": 8,
              "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}]
     if len(frames) > 1:
         rows.append({"animation": "attack", "frames": frames[1], "fps": 4,
                      "hidden": [], "loop_start": 0, "loop_end": 0,
                      "loop_count": 1})
-    return entry_from_dict(slot, {
+    raw = {
         "sheet": f"imported/{slot}.png",
         "frame_w": FRAME_W, "frame_h": FRAME_H,
         "offset_x": offset[0], "offset_y": offset[1],
         "rows": rows,
-    })
+    }
+    if slice_ is not None:
+        raw["slice"] = slice_
+    return entry_from_dict(slot, raw)
 
 
 class SheetCase(unittest.TestCase):
@@ -99,6 +102,24 @@ class TestSlicing(SheetCase):
         a = store.frame("tower", "idle", 0)
         b = store.frame("tower", "idle", 10)   # same column window
         self.assertIs(a.surface, b.surface)
+
+    def test_frame_carries_slice(self):
+        make_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(slice_=[1, 2, 3, 4]))
+        self.assertEqual(store.frame("tower", "idle", 0).slice, (1, 2, 3, 4))
+
+    def test_frame_without_a_slice_carries_none(self):
+        make_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry())
+        self.assertIsNone(store.frame("tower", "idle", 0).slice)
+
+    def test_placeholder_frame_has_no_slice(self):
+        # a "no art yet" grey X has no authored margins — it must stay on the
+        # plain-scale path (test_render.test_placeholder_surfaces_do_not_leak)
+        store = self.store(entry(slice_=[1, 2, 3, 4]))   # no PNG written
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            frame = store.frame("tower", "idle", 0)
+        self.assertIsNone(frame.slice)
 
 
 class TestFrameSizePrecedence(SheetCase):

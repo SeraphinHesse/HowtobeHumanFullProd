@@ -64,7 +64,7 @@ class AssetStore:
             return self._placeholder(slot_key)
         return Frame(surface=surface, frame_w=entry.frame_w,
                      frame_h=entry.frame_h, offset_x=entry.offset_x,
-                     offset_y=entry.offset_y)
+                     offset_y=entry.offset_y, slice=entry.slice)
 
     # ── internals ──────────────────────────────────────────────────────────
 
