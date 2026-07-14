@@ -209,7 +209,12 @@ import list.**
     here: it only ever yields the resolved idle frame, not an arbitrary frame or the
     sheet. Clicking a cell routes through that row's own `RowEditor`
     (`set_static_frame` / `toggle_hidden`), never a parallel state store, which is
-    what keeps the checkboxes and the picture in sync.
+    what keeps the checkboxes and the picture in sync. Each cell is captioned with
+    its COLUMN index (white on a dark plate — it lands on arbitrary art, so a plain
+    colour would be invisible against some sheet), the same number the hide
+    checkboxes, the static radios and the manifest's `hidden`/`loop_start`/
+    `loop_end` speak. `labels_visible()` drops them below `LABEL_MIN_CELL` px,
+    where the plate would cover the frame it labels.
   - **Clear's confirm dialog only fires because the connect is wrapped**
     (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
     months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and

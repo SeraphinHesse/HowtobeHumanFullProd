@@ -1,5 +1,14 @@
 # EnemyReworkPLAN.md — enemy sizing, footprints, and breakable formations
 
+> ## ⚠ The parity obligations in this doc are VOID (2026-07-14)
+>
+> Written while the prototype migration was live. **It is complete.** Every
+> instruction below to update `tools/tests/balancing_parity_map.json`, to keep
+> `test_balancing_parity` green, or to retag a moved key `DROPPED:` — **skip
+> it**: that test, that map, and the whole `migration` tier are deleted. Moving,
+> renaming, retuning or dropping a balancing value now needs nothing but a valid
+> schema. The rest of the plan (the phases, the engine/game work) stands.
+
 Phased, agent-executable plan (same family as `EngineBuildPLAN.md` /
 `MIGRATION_PLAN.md` / `AgentDispatchPLAN.md`). Base branch: `Development`.
 Runnable via `/execute-plan-phases planning/EnemyReworkPLAN.md ER-1-ER-5` or

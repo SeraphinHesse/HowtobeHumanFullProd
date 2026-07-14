@@ -1,7 +1,7 @@
-"""editor.asset_import (Phase 6 follow-up) — the pure single-frame-
-vocabulary import helper shared by the palette's "Import Spritesheet…"
-button and the tile migration tool. No Qt, no pygame — plain Pillow +
-engine.data_io, tested headlessly with a tempfile copy of data/.
+"""editor.asset_import (Phase 6 follow-up) — the pure single-frame-vocabulary
+import helper behind the palette's "Import Spritesheet…" button. No Qt, no
+pygame — plain Pillow + engine.data_io, tested headlessly with a tempfile copy
+of data/.
 """
 import tempfile
 import unittest
@@ -95,8 +95,8 @@ class TestImportIdleSheet(AssetImportCase):
             self.assertEqual(image.size, (128, 96))
 
     def test_big_enough_sheet_is_copied_byte_identically(self):
-        """The shutil.copyfile path stays untouched — migrate_prototype_assets
-        is idempotent only because an already-big-enough sheet is not re-encoded."""
+        """The shutil.copyfile path stays untouched — an already-big-enough sheet
+        is never re-encoded, so a re-import produces no spurious diff."""
         src = make_png(self.png_dir / "tile.png", 64, 32)
         import_idle_sheet(self.data_dir, self.registry, "tile_ocean", src)
         copied = self.data_dir / "sprites" / "imported" / "tile_ocean.png"

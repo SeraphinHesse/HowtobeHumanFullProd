@@ -1,10 +1,12 @@
 """SheetPreview — the importer looking at its own input.
 
 Draws an imported sheet PNG scaled to fit, with the frame grid overlaid, hidden
-frames dimmed and each row's static frame outlined. Clicking a cell emits
-`frame_clicked(row, col)`; DetailsPanel routes that to the matching RowEditor, so
-"click the frame you want" is literal. `interactive=False` gives the sheet picker
-the same view, read-only.
+frames dimmed, each row's static frame outlined and every cell captioned with its
+COLUMN index — the same number the row editor's hide checkboxes, static radios and
+the manifest's `hidden`/`loop_start`/`loop_end` all speak, so "hide frame 3" needs
+no counting. Clicking a cell emits `frame_clicked(row, col)`; DetailsPanel routes
+that to the matching RowEditor, so "click the frame you want" is literal.
+`interactive=False` gives the sheet picker the same view, read-only.
 
 ED-22 (one render path) is NOT bent here. That rule bans a second Qt-side renderer
 of GAME CONTENT — the animated preview stays in the viewport, through
@@ -17,7 +19,7 @@ cannot show an arbitrary frame, let alone the sheet, so it cannot serve here.
 Qt-only (QPixmap/QPainter): no pygame, no engine render import.
 """
 from PySide6.QtCore import QRect, QSize, Qt, Signal
-from PySide6.QtGui import QColor, QPainter, QPen, QPixmap
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
 #: Tallest the preview ever gets — it sits above the row editors and must not
@@ -36,6 +38,18 @@ GRID_PEN = QColor(0, 0, 0, 110)
 HIDDEN_DIM = QColor(0, 0, 0, 150)
 STATIC_PEN = QColor(0x2E, 0xC4, 0xFF)
 HOVER_TINT = QColor(0xFF, 0xFF, 0xFF, 48)
+
+# The per-cell column number. White on its own dark plate, because it lands on
+# arbitrary art: any colour drawn straight onto the frame is invisible against
+# some sheet.
+LABEL_TEXT = QColor(0xFF, 0xFF, 0xFF)
+LABEL_PLATE = QColor(0, 0, 0, 165)
+LABEL_PAD = 2
+#: Below this cell size the plate would cover the frame it is labelling — drop
+#: the numbers instead (the row editor's checkboxes still carry them).
+LABEL_MIN_CELL = 16
+LABEL_MIN_PX = 8
+LABEL_MAX_PX = 12
 
 
 class SheetPreview(QWidget):
@@ -173,6 +187,7 @@ class SheetPreview(QWidget):
         painter.drawPixmap(rect, self._pixmap, source)
         self._paint_cells(painter)
         self._paint_grid(painter, rect)
+        self._paint_labels(painter)
 
     def _paint_checker(self, painter, rect):
         painter.fillRect(rect, CHECKER_LIGHT)
@@ -209,6 +224,43 @@ class SheetPreview(QWidget):
         for row in range(self._rows + 1):
             y = rect.top() + round(row * self._frame_h * scale)
             painter.drawLine(rect.left(), y, rect.right(), y)
+
+    def labels_visible(self):
+        """Whether the column numbers fit. A thumbnail-sized cell would be all
+        plate and no frame, so below LABEL_MIN_CELL they are dropped — the row
+        editor's checkboxes still name every column."""
+        scale = self._scale()
+        return (self.has_sheet()
+                and self._frame_w * scale >= LABEL_MIN_CELL
+                and self._frame_h * scale >= LABEL_MIN_CELL)
+
+    def _label_font(self):
+        font = QFont(self.font())
+        cell_h = self._frame_h * self._scale()
+        font.setPixelSize(int(min(LABEL_MAX_PX, max(LABEL_MIN_PX, cell_h / 4))))
+        font.setBold(True)
+        return font
+
+    def _label_rect(self, cell, metrics, text):
+        """The plate for one caption: bottom-centred inside its cell."""
+        width = metrics.horizontalAdvance(text) + 2 * LABEL_PAD
+        height = metrics.height()
+        return QRect(cell.center().x() - width // 2,
+                     cell.bottom() - height + 1, width, height)
+
+    def _paint_labels(self, painter):
+        if not self.labels_visible():
+            return
+        font = self._label_font()
+        painter.setFont(font)
+        metrics = QFontMetrics(font)
+        for row in range(self._rows):
+            for col in range(self._cols):
+                text = str(col)
+                plate = self._label_rect(self._cell_rect(row, col), metrics, text)
+                painter.fillRect(plate, LABEL_PLATE)
+                painter.setPen(LABEL_TEXT)
+                painter.drawText(plate, Qt.AlignmentFlag.AlignCenter, text)
 
     # -- input ---------------------------------------------------------------
 

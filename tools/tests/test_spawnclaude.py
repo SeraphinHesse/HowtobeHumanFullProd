@@ -533,11 +533,15 @@ class TestPlansPure(TempRepoCase):
         self.write_mirror("<!-- active-plan:  | set: 2026-07-13 -->\n")
         self.assertIsNone(plans.active_plan(self.repo))
 
-    def test_the_real_repo_mirror_names_a_real_plan(self):
-        """The live contract: root PLAN.md's marker must name a planning/ doc."""
+    def test_the_real_repo_mirror_never_names_a_plan_that_does_not_exist(self):
+        """The live contract. It used to be "PLAN.md must name a plan" — too
+        strong now that the migration is done: work runs per TASK or per plan
+        doc, so having no active plan is a normal state (plans.py has always
+        returned None for it, and the launcher renders "— none set"). What must
+        never happen is the mirror pointing at a plan nobody can open."""
         active = plans.active_plan(REPO)
-        self.assertIsNotNone(active)
-        self.assertIn(active, plans.list_plans(REPO))
+        if active is not None:
+            self.assertIn(active, plans.list_plans(REPO))
 
     def test_list_plans_is_sorted_md_names_only(self):
         self.assertEqual(plans.list_plans(self.repo), sorted(self.PLANS))

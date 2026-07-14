@@ -1,9 +1,10 @@
-"""Single-frame-vocabulary spritesheet import (ED-20/ED-40 palette import,
-tile migration) — the shared half of "copy a PNG in, write a manifest v2
-entry" that DOES NOT need DetailsPanel's multi-row RowEditor machinery
-because map/deco slots' animation vocabulary (`data/slots.json`) is
-`["idle"]` only. Pure Pillow + `engine.data_io`; no Qt, no pygame, so it is
-usable from both `editor/panels/palette.py` and `tools/migrate_prototype_assets.py`.
+"""Single-frame-vocabulary spritesheet import (ED-20/ED-40 palette import) —
+the half of "copy a PNG in, write a manifest v2 entry" that DOES NOT need
+DetailsPanel's multi-row RowEditor machinery, because map/deco slots' animation
+vocabulary (`data/slots.json`) is `["idle"]` only. Pure Pillow +
+`engine.data_io`; no Qt, no pygame. `editor/panels/palette.py` is its caller
+(the one-shot prototype tile-migration tool was the other, until the migration
+finished and it was deleted).
 
 Also the home of the SHEET-SHARING helpers (`imported_sheets`, `sheet_users`,
 `unreferenced_sheets`). A manifest entry's `sheet` is a real relative path the
@@ -157,8 +158,8 @@ def import_idle_sheet(data_dir, registry, slot_key, png_path):
     if was_padded:
         padded.save(destination)
     elif Path(png_path).resolve() != destination.resolve():
-        # A byte-identical copy — migrate_prototype_assets.py's idempotency
-        # depends on an already-big-enough sheet staying untouched.
+        # A byte-identical copy: an already-big-enough sheet is never rewritten,
+        # so re-importing the same PNG leaves the file (and the diff) untouched.
         shutil.copyfile(png_path, destination)
 
     doc = load_manifest_doc(data_dir)

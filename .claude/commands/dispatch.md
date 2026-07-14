@@ -55,13 +55,11 @@ there. Only the *code work* happens in the worktree.
    measure a baseline and do not tolerate a "pre-existing" failure: there are
    none (TestGatePLAN TG-2 drove them to zero). A red test is yours; fix it,
    don't explain it away.
-   `test_balancing_parity` now runs **in a worktree too** — it walks up to find
-   the prototype instead of guessing `REPO.parent`, and `HTBH_PROTOTYPE_DIR`
-   overrides it. (It used to silently SKIP in `.claude/worktrees/`, so a gate
-   run there looked green while proving nothing.) The 6 deliberate balancing
-   divergences from the prototype are recorded as `OVERRIDDEN` entries in
-   `tools/tests/balancing_parity_map.json`; add one there — with a reason — if
-   you intend a new one.
+   The suite no longer compares anything against the prototype checkout — the
+   migration is complete and the parity gate is deleted — so a balancing value
+   that differs from the prototype needs no mapping entry and no justification.
+   Nothing in the gate depends on `../HowToBeHuman` existing, in a worktree or
+   anywhere else.
 6. **Land**:
    - branch mode → stage only the files the target skill changed (by explicit
      path), commit, push, `gh pr create --base <base>` with a body carrying the
