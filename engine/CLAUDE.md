@@ -98,13 +98,21 @@ engine task; if an engine change forces a caller change, tell the user
   belong in `game/` and `data/`.
 
 ## Conventions shared across subsystems
-- **Tests** live in `tools/tests/` (unittest, stdlib — no pytest dep). Run from the
-  repo root: `py -m unittest discover -s tools/tests -t .` SDL dummy drivers are set
-  in-code, so no env setup is needed.
+- **Tests** live in `tools/tests/` — still `unittest.TestCase`, but **run by
+  pytest** (`pytest` + `pytest-xdist` are declared deps; pytest collects
+  TestCase natively, so nothing was rewritten). From the repo root:
+  `py tools/testgate.py check`, or `py -m pytest -m core` for the fast tier.
+  SDL dummy drivers are set in-code, so no env setup is needed.
+- **Every new test module needs a tier** in `conftest.py`'s `TIERS` table.
+  `test_tiers.py` fails if you forget — an unmarked module would silently never
+  run under a marker-selected gate.
 
 ## Verify before finishing
 - Pure-logic changes: run/extend the unit tests (coords round-trip,
-  playback_order, grid queries) — T-3.
+  playback_order, grid queries) — T-3. `py tools/testgate.py check --affected`
+  runs just the blast radius while you iterate.
 - Anything render/asset facing: run the headless smoke test (`tools/smoke.py`)
   and, if visuals changed, a live `py game/main.py` look. State exactly which you
   did.
+- **The gate is ZERO failures** (`GATE PASS`). No baseline, no tolerated
+  failures.
