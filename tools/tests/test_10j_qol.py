@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Scene
@@ -23,13 +24,13 @@ from game.ui.effects import FloaterManager
 from game.ui.game_log import GameLog, LIFETIME, MAX_MESSAGES
 from game.ui.hud import income_breakdown, income_sources
 
-MAP = REPO / "data" / "maps" / "first_light.json"
-MAP_SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-MAP_BAL = load_balance(REPO / "data", "map")
-BUILDINGS_BAL = load_balance(REPO / "data", "buildings")
-ENEMIES_BAL = load_balance(REPO / "data", "enemies")
-CORE_BAL = load_balance(REPO / "data", "core")
-UI_BAL = load_balance(REPO / "data", "ui")
+MAP = FIXTURE_DATA / "maps" / "first_light.json"
+MAP_SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+MAP_BAL = load_balance(FIXTURE_DATA, "map")
+BUILDINGS_BAL = load_balance(FIXTURE_DATA, "buildings")
+ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
+CORE_BAL = load_balance(FIXTURE_DATA, "core")
+UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VIEW_W, VIEW_H = 1280, 720
 
 

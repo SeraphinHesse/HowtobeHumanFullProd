@@ -36,11 +36,20 @@ Four design rules, and none of them is decorative:
 Rule 4 has a sibling learned the same way: A SUBTEST FAILURE IS A FAILURE. See
 _SUBFAILED below — pytest reports those in a shape the FAILED pattern does not
 match, and for a while the gate printed PASS over five red tests.
+
+And a THIRD sibling, found 2026-07-14: COLOR IS A FAILURE SHAPE TOO. Agent
+shells export FORCE_COLOR, pytest obeys it even when piped, and a colored
+summary line starts with an escape code — so `^FAILED` matched nothing while
+the tally regex still counted, and the gate printed PASS over two red tests
+for a whole working session. The suite's OUTPUT is an interface; every way it
+can be re-dressed (skip, subtest, ANSI) has now bitten once. run_suite both
+disables color in the child and strips escapes before parsing.
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -90,16 +99,29 @@ def in_worktree() -> bool:
     return (REPO / ".git").is_file()
 
 
+#: ANSI SGR escapes. Stripped before parsing — see the module docstring's
+#: third sibling: a `\x1b[31mFAILED` line is invisible to `^FAILED`.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
 def run_suite(extra: list[str] | None = None) -> tuple[dict[str, str], int]:
     """Run pytest; return ({node-id: outcome} for everything that did not pass,
     total tests that ran)."""
     cmd = [sys.executable, "-m", "pytest", "-q", "--no-header", "-rfEsX",
            *(extra or [])]
-    proc = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True)
+    # Color OFF in the child, whatever this shell exports (FORCE_COLOR wins
+    # over piped output in pytest) — and strip escapes anyway below, because
+    # the next color-forcing knob will not be one we have heard of.
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("FORCE_COLOR", "CLICOLOR_FORCE")}
+    env["NO_COLOR"] = "1"
+    env["PY_COLORS"] = "0"
+    proc = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True,
+                          env=env)
     results: dict[str, str] = {}
     total = 0
     for line in (proc.stdout + proc.stderr).splitlines():
-        line = line.strip()
+        line = _ANSI.sub("", line).strip()
         if m := _SKIPPED.match(line):
             results[f'{posix(m["file"])}: {m["reason"].strip()}'] = "SKIPPED"
         elif m := _FAILED.match(line):

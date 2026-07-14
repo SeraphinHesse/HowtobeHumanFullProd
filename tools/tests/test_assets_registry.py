@@ -10,6 +10,7 @@ from pathlib import Path
 from engine.assets import SlotRegistry, load_registry
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 
 def tiny_doc(categories=None):
@@ -23,7 +24,7 @@ def tiny_doc(categories=None):
 class TestRealRegistry(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.reg = load_registry(REPO / "data")
+        cls.reg = load_registry(FIXTURE_DATA)
 
     def test_category_order_is_domain_order_plus_asset_only(self):
         self.assertEqual(tuple(c.key for c in self.reg.categories()),

@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.coords import CoordinateSystem, Geometry
@@ -30,10 +31,10 @@ from game.enemies import Spawner, create_enemy, resolve_combat
 from game.map.tile_map import TileMap
 from game.ui.cheat_menu import CheatMenu
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 LS = CORE["LightningStrike"]
 HOLE = CORE["TheHole"]
@@ -88,8 +89,8 @@ def frame(session, scene, tilemap_, dt):
 # 1. Seed + cost math
 # ---------------------------------------------------------------------------
 class TestSeedAndCosts(unittest.TestCase):
-    def test_parity_canary_against_live_prototype_values(self):
-        # The live Balancing_Core.json values (NOT the stale .py defaults).
+    def test_parity_canary_against_fixture_values(self):
+        # The pinned fixture core.json values (NOT the stale .py defaults).
         self.assertEqual(LS["cooldown"], [5, 3, 2])
         self.assertEqual(LS["damage"], [10, 15, 32])
         self.assertEqual(LS["radius"], [1, 2, 3])
@@ -104,12 +105,13 @@ class TestSeedAndCosts(unittest.TestCase):
 
     def test_cost_ladder_and_upgrades(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.love = 35 + 80
-        self.assertEqual(lt.next_cost(st, CORE), 35)      # L1 -> L2
+        cost_l2, cost_l3 = LS["upgrade_costs"]
+        st.love = cost_l2 + cost_l3
+        self.assertEqual(lt.next_cost(st, CORE), cost_l2)   # L1 -> L2
         self.assertTrue(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 2)
-        self.assertEqual(st.love, 80)                     # exactly 35 spent
-        self.assertEqual(lt.next_cost(st, CORE), 80)      # L2 -> L3
+        self.assertEqual(st.love, cost_l3)             # exactly L2's cost spent
+        self.assertEqual(lt.next_cost(st, CORE), cost_l3)   # L2 -> L3
         self.assertTrue(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 3)
         self.assertEqual(st.love, 0)
@@ -125,10 +127,10 @@ class TestSeedAndCosts(unittest.TestCase):
 
     def test_insufficient_love_refused(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.love = 34
+        st.love = LS["upgrade_costs"][0] - 1
         self.assertFalse(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 1)
-        self.assertEqual(st.love, 34)
+        self.assertEqual(st.love, LS["upgrade_costs"][0] - 1)
 
     def test_unlock_branch_reachable_at_level_0(self):
         st = RunState.from_balance(CORE, BUILD)

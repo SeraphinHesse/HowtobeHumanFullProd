@@ -1,0 +1,180 @@
+{
+  "$defs": {
+    "field": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "options"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "enum": [
+                  "integer",
+                  "number"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "minimum",
+              "maximum"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "default": {
+          "description": "Pre-filled widget value; must match the field type.",
+          "type": [
+            "string",
+            "number",
+            "boolean"
+          ]
+        },
+        "description": {
+          "description": "Widget tooltip explaining the field to the designer.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "key": {
+          "description": "Payload key under handoff 'values'.",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        },
+        "label": {
+          "description": "Widget label shown in the form.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "maximum": {
+          "description": "Upper bound for integer/number fields; required for them (ED-30 spinbox range).",
+          "type": "number"
+        },
+        "minimum": {
+          "description": "Lower bound for integer/number fields; required for them (ED-30 spinbox range).",
+          "type": "number"
+        },
+        "options": {
+          "description": "Choices for an enum field; required for type 'enum'.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "placeholder": {
+          "description": "Placeholder text for string/text widgets.",
+          "type": "string"
+        },
+        "required": {
+          "description": "When true the field gates the dialog's Dispatch button. Default false.",
+          "type": "boolean"
+        },
+        "type": {
+          "description": "Widget kind: string (line edit), text (multi-line), boolean (checkbox), integer/number (spinbox), enum (combo box).",
+          "enum": [
+            "string",
+            "text",
+            "boolean",
+            "integer",
+            "number",
+            "enum"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type",
+        "description"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "agent_form.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/agent_forms/<id>.json (THIRD schema-pairing exception in tools/smoke.py, same pattern as map_file/balancing_history): one agent-dispatch form spec per game thing-type. The editor renders the dialog from this spec; submitting writes a dispatch_handoff.schema.json payload. The free-text description box is built into the dialog, NOT a spec field - every form gets it for free.",
+  "properties": {
+    "context": {
+      "description": "Repo-relative docs the spawned agent reads first; copied verbatim into the handoff.",
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "description": {
+      "description": "One paragraph shown under the dialog title.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "fields": {
+      "description": "Structured fields rendered above the git group, in order.",
+      "items": {
+        "$ref": "#/$defs/field"
+      },
+      "type": "array"
+    },
+    "git_default": {
+      "description": "Pre-selected git mode in the dialog: 'branch' (worktree off Development, ends with a PR) or 'current' (in place, stop-and-confirm).",
+      "enum": [
+        "branch",
+        "current"
+      ]
+    },
+    "id": {
+      "description": "Must equal the filename stem (loader-enforced); also the branch-name prefix (agent/<id>-<slug>).",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "description": "Spec format version. The renderer rejects unknown versions loudly."
+    },
+    "selector_context": {
+      "description": "Optional data/slots.json category key whose selector-tree node offers this form via right-click (AD-6).",
+      "type": "string"
+    },
+    "skill": {
+      "description": "Target slash command; .claude/commands/<skill>.md must exist (AD-4 sweep enforces).",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "type": "string"
+    },
+    "slug_field": {
+      "description": "Field key whose value names the auto branch (default 'name'; falls back to the free-text box).",
+      "type": "string"
+    },
+    "title": {
+      "description": "Dialog window title, e.g. 'Add New Enemy'.",
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "title",
+    "description",
+    "skill",
+    "context",
+    "git_default",
+    "fields"
+  ],
+  "title": "agent_form",
+  "type": "object"
+}

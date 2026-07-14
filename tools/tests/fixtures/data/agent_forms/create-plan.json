@@ -1,0 +1,24 @@
+{
+  "context": [
+    ".claude/commands/createplan.md",
+    "planning/completed plans/AgentDispatchPLAN.md",
+    "CLAUDE.md"
+  ],
+  "description": "Spawns the planning agent (/createplan). It scopes a new phased, agent-executable plan doc with you and writes it to planning/ in the plan-doc family shape (build-order table, per-phase Goal/Files/Tests/Exit gate). It does not implement the plan; activate it afterwards with Set as current.",
+  "fields": [
+    {
+      "description": "PascalCase stem ending in PLAN; the doc lands at planning/<name>.md.",
+      "key": "plan_name",
+      "label": "Plan name",
+      "placeholder": "AudioPLAN",
+      "required": true,
+      "type": "string"
+    }
+  ],
+  "git_default": "current",
+  "id": "create-plan",
+  "schema_version": 1,
+  "skill": "createplan",
+  "slug_field": "plan_name",
+  "title": "Create a New Plan"
+}

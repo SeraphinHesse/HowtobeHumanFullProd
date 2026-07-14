@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
@@ -23,17 +24,17 @@ from game.core import load_balance
 from game.enemies.enemy import Boss, Enemy, Raider, SiegeCannon
 from game.ui.effects import _ENEMY_BAR_STACK, FloaterManager
 
-ENEMIES_BAL = load_balance(REPO / "data", "enemies")
-CORE_BAL = load_balance(REPO / "data", "core")
-UI_BAL = load_balance(REPO / "data", "ui")
+ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
+CORE_BAL = load_balance(FIXTURE_DATA, "core")
+UI_BAL = load_balance(FIXTURE_DATA, "ui")
 
 # The real store, so the bar pass sizes each sprite off the SHIPPED sheets
 # (walker 22x26, raider 12x18, siege 36x28, boss era 0 72x56) exactly as the
 # renderer will. frame_size() is pure metadata — no surface is ever loaded.
 ASSETS = AssetStore(
-    manifest=load_manifest(REPO / "data" / "sprites" / "asset_manifest.json"),
-    registry=load_registry(REPO / "data"),
-    sprites_dir=REPO / "data" / "sprites")
+    manifest=load_manifest(FIXTURE_DATA / "sprites" / "asset_manifest.json"),
+    registry=load_registry(FIXTURE_DATA),
+    sprites_dir=FIXTURE_DATA / "sprites")
 TILE_W = 64
 
 
@@ -94,7 +95,7 @@ def make_enemy(cls, col, row, hp=None):
 
 def make_cs():
     # 1 zoom keeps the arithmetic checkable by hand.
-    cs = load_coordinate_system(REPO / "data")
+    cs = load_coordinate_system(FIXTURE_DATA)
     cs.camera.zoom = 1
     cs.camera.pan_x = cs.camera.pan_y = 0
     return cs

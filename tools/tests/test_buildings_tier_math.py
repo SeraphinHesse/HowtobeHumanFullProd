@@ -10,13 +10,14 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine.core import Health
 from game.buildings import Defender, Musician
 from game.buildings.components import TierState
 from game.core.balance import load_balance
 
-BAL = load_balance(REPO / "data", "buildings")
+BAL = load_balance(FIXTURE_DATA, "buildings")
 MUS = BAL["EconomyBuildings"]["Musicians"]["tiers"]
 DEF = BAL["DefenceBuildings"]["BasicDefence"]["tiers"]
 

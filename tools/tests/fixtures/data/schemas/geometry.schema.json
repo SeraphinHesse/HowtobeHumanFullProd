@@ -1,0 +1,44 @@
+{
+  "$id": "geometry.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "World/screen geometry consumed by engine/coords (E-1). tile_w/tile_h: iso tile pitch in screen pixels at zoom 1 (prototype: 64x32). map_cols/map_rows: map dimensions in tiles. zoom_levels: the discrete camera zoom factors (E-5). Minimal on purpose - Phase 4 grows this file.",
+  "properties": {
+    "map_cols": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "map_rows": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "tile_h": {
+      "minimum": 2,
+      "multipleOf": 2,
+      "type": "integer"
+    },
+    "tile_w": {
+      "minimum": 2,
+      "multipleOf": 2,
+      "type": "integer"
+    },
+    "zoom_levels": {
+      "items": {
+        "exclusiveMinimum": 0,
+        "type": "number"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "map_cols",
+    "map_rows",
+    "tile_h",
+    "tile_w",
+    "zoom_levels"
+  ],
+  "title": "geometry",
+  "type": "object"
+}

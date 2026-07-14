@@ -1,0 +1,18 @@
+{
+  "$id": "active_map.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/maps/active_map.json (D-21): the single pointer to the map the game loads. Written ONLY by the editor's Set Active action (and tests), through the validating writer. Keeps normal stem pairing in tools/smoke.py - the directory rule for map files explicitly skips this filename.",
+  "properties": {
+    "active": {
+      "description": "Map id; the game loads data/maps/<active>.json.",
+      "pattern": "^[a-z0-9_]+$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "active"
+  ],
+  "title": "active_map",
+  "type": "object"
+}

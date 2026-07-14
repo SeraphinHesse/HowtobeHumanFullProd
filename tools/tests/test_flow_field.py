@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 import game.map.pathfinder as pathfinder
@@ -21,7 +22,7 @@ from game.map.pathfinder import _dijkstra
 from game.map.tile_map import TileMap, WallEdge, _wall_key
 from game.map.tiles import TileCondition, TileState
 
-BALANCE = load_map_balance(REPO / "data")
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def synth(terrain_rows, base=(1, 1)):

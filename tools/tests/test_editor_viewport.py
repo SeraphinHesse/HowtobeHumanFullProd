@@ -22,6 +22,7 @@ from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 
 class TestSurfaceToQImage(unittest.TestCase):
@@ -50,7 +51,7 @@ class TestHeadlessViewportPaint(QtCase):
     """Full pipeline: grid renders through engine/render and reaches pixels."""
 
     def test_grid_paints_nonbackground_pixels(self):
-        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.resize(256, 256)
         panel.render_frame()
         pixmap = panel.grab()
@@ -65,7 +66,7 @@ class TestHeadlessViewportPaint(QtCase):
         self.assertGreater(touched, 0)
 
     def test_resize_recreates_surface_to_match_widget(self):
-        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.show()
         panel.resize(320, 200)
         _APP.processEvents()
@@ -81,7 +82,7 @@ class TestZoomStep(QtCase):
     """ED-23 wheel zoom moves only through data-driven zoom levels."""
 
     def test_zoom_step_stays_within_data_driven_levels(self):
-        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.resize(200, 200)
         levels = sorted(panel._coords.geometry.zoom_levels)
         self.assertIn(panel._coords.camera.zoom, levels)

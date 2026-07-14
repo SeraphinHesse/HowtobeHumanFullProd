@@ -769,6 +769,10 @@ class TestMainWindowWiring(TempDataCase):
     def test_add_deco_variant_and_type_from_the_tree(self):
         from engine.assets import load_registry
 
+        # Artists add rock variants over time; "the next variant is _v2" is
+        # only true if the test strips the accumulated ones first (see
+        # drop_slot_variants' docstring — this test is its poster child).
+        self.drop_slot_variants("deco_rock")
         window = self.make_window()
         window.selector.select_node("deco", ("Props",))
         window.details.select_subcategory(0)   # Rock: [deco_rock]

@@ -1,0 +1,64 @@
+{
+  "context": [
+    "editor/panels/CLAUDE.md",
+    "engine/assets/CLAUDE.md",
+    ".claude/commands/add-asset-importer.md"
+  ],
+  "description": "Spawns an agent that wires a new renderable category into the editor's asset pipeline: slots.json category + selector node + the right import path.",
+  "fields": [
+    {
+      "description": "New data/slots.json category key (lowercase, snake_case). Sets the selector tree node and the branch slug.",
+      "key": "category_key",
+      "label": "Category key",
+      "placeholder": "projectiles",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Label shown on the selector tree node.",
+      "key": "display_name",
+      "label": "Display name",
+      "placeholder": "Projectiles",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": 64,
+      "description": "Frame width in px for the category's slots (buildings/enemies 64, map tiles 64, ui/vfx 64).",
+      "key": "frame_w",
+      "label": "Frame width",
+      "maximum": 512,
+      "minimum": 8,
+      "type": "integer"
+    },
+    {
+      "default": 96,
+      "description": "Frame height in px (buildings/enemies/deco/core 96, map tiles 32, ui/vfx 64).",
+      "key": "frame_h",
+      "label": "Frame height",
+      "maximum": 512,
+      "minimum": 8,
+      "type": "integer"
+    },
+    {
+      "default": false,
+      "description": "False = idle-only slot (imported via asset_import.import_idle_sheet). True = real animation vocabulary, imported through the DetailsPanel rows. List the animation names in the box above.",
+      "key": "animated",
+      "label": "Animated (multi-row)",
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "description": "True = also needs data/balancing/<key>.json + data/schemas/<key>.schema.json. Asset-only categories (like vfx) do not.",
+      "key": "is_balancing_domain",
+      "label": "Also a balancing domain",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-asset-importer",
+  "schema_version": 1,
+  "skill": "add-asset-importer",
+  "slug_field": "category_key",
+  "title": "Add Asset Category / Importer"
+}

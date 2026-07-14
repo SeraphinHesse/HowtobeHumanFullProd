@@ -1,0 +1,49 @@
+{
+  "context": [
+    "data/schemas/agent_form.schema.json",
+    "data/agent_forms/add-enemy.json",
+    ".claude/commands/add-skill.md"
+  ],
+  "description": "Adds a new \"Add new X\" button to this launcher. Describe the thing-type and, in the box below, the fields its form should carry (name, type, bounds, default) — an agent writes the schema-validated form spec, and optionally the skill it dispatches to. The new form appears here the next time you open this dialog.",
+  "fields": [
+    {
+      "description": "What the new form adds, e.g. 'Sound Effect'. Drives the form id (add-sound-effect), its title, and the branch slug.",
+      "key": "thing_name",
+      "label": "Thing name",
+      "placeholder": "Sound Effect",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Slash command the new form dispatches to, kebab-case, no leading slash. Leave blank to derive add-<thing-name>.",
+      "key": "target_skill",
+      "label": "Target skill",
+      "placeholder": "add-sound-effect",
+      "type": "string"
+    },
+    {
+      "default": true,
+      "description": "On: also create .claude/commands/<target skill>.md following the house format. Off: that skill already exists.",
+      "key": "needs_new_skill",
+      "label": "Scaffold the skill too",
+      "type": "boolean"
+    },
+    {
+      "default": "branch",
+      "description": "Which git mode the NEW form will pre-select when a designer runs it: 'branch' (worktree off Development, ends with a PR) or 'current' (work in place).",
+      "key": "git_default",
+      "label": "New form's default git mode",
+      "options": [
+        "branch",
+        "current"
+      ],
+      "type": "enum"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-form-spec",
+  "schema_version": 1,
+  "skill": "add-form-spec",
+  "slug_field": "thing_name",
+  "title": "Add New Form Type"
+}

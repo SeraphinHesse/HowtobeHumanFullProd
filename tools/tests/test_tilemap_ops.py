@@ -7,11 +7,12 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from editor import tilemap_ops as ops
 from engine import data_io, tilemap
 
-SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
+SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
 
 
 def make_doc(cols=8, rows=6, fill="f"):
