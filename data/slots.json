@@ -528,19 +528,80 @@
     },
     {
       "animations": [
-        "idle"
+        "idle",
+        "hover",
+        "pressed",
+        "disabled"
       ],
       "display_name": "UI",
       "frame_h": 64,
       "frame_w": 64,
       "groups": [
         {
-          "label": "HUD",
-          "slots": [
-            "ui_button",
-            "ui_panel",
-            "ui_icon_resource"
-          ]
+          "children": [
+            {
+              "label": "Button",
+              "slots": [
+                "ui_button"
+              ]
+            }
+          ],
+          "label": "Buttons"
+        },
+        {
+          "children": [
+            {
+              "label": "Panel",
+              "slots": [
+                "ui_panel"
+              ]
+            },
+            {
+              "label": "Stone Panel",
+              "slots": [
+                "ui_panel_stone"
+              ]
+            }
+          ],
+          "label": "Panels"
+        },
+        {
+          "children": [
+            {
+              "label": "Love",
+              "slots": [
+                "ui_icon_love"
+              ]
+            },
+            {
+              "label": "XP",
+              "slots": [
+                "ui_icon_xp"
+              ]
+            },
+            {
+              "label": "Lives",
+              "slots": [
+                "ui_icon_lives"
+              ]
+            }
+          ],
+          "label": "Icons"
+        },
+        {
+          "children": [
+            {
+              "label": "Main Menu",
+              "slots": [
+                {
+                  "frame_h": 270,
+                  "frame_w": 480,
+                  "key": "ui_bg_main_menu"
+                }
+              ]
+            }
+          ],
+          "label": "Backgrounds"
         }
       ],
       "key": "ui"
