@@ -110,7 +110,7 @@ class TestUnexpectedSkip(GateCase):
     def test_an_unexpected_skip_fails_the_gate(self):
         self.write_baseline()
         code, out = self.check(
-            {"tools/tests/test_balancing_parity.py::T::test_x": "SKIPPED"})
+            {"tools/tests/test_a.py::T::test_x": "SKIPPED"})
         self.assertEqual(code, 1)
         self.assertIn("UNEXPECTED SKIP", out)
 
@@ -153,6 +153,42 @@ class TestSkipIdentity(unittest.TestCase):
         one = self.parse("SKIPPED [1] tools/tests/test_a.py:45: reason one")
         two = self.parse("SKIPPED [1] tools/tests/test_a.py:45: reason two")
         self.assertNotEqual(list(one), list(two))
+
+
+class TestSubtestFailures(unittest.TestCase):
+    """A failing SUBTEST is a failing test.
+
+    pytest-subtests reports them outcome-first with the node-id trailing, which
+    the FAILED pattern does not match. The gate parsed those lines as nothing at
+    all and printed `GATE PASS  5 ran` over a suite with five red tests — the
+    tally line was misread too ("5 failed, 1170 passed" → the first number).
+    """
+
+    def parse(self, *lines):
+        proc = mock.Mock(stdout="\n".join(lines) + "\n", stderr="")
+        with mock.patch.object(testgate.subprocess, "run", return_value=proc):
+            return testgate.run_suite([])
+
+    def test_a_failing_subtest_is_recorded_as_a_failure(self):
+        results, _total = self.parse(
+            'SUBFAILED(file="\'x.json\'", key="\'K\'") '
+            'tools/tests/test_a.py::T::test_x',
+            "1 failed, 2 passed in 1.00s")
+        self.assertEqual(list(results.values()), ["FAILED"])
+        self.assertIn("tools/tests/test_a.py::T::test_x", list(results)[0])
+
+    def test_subtests_of_one_test_are_separate_keys(self):
+        results, _total = self.parse(
+            'SUBFAILED(key="\'A\'") tools/tests/test_a.py::T::test_x',
+            'SUBFAILED(key="\'B\'") tools/tests/test_a.py::T::test_x',
+            "2 failed in 1.00s")
+        self.assertEqual(len(results), 2)
+
+    def test_the_total_counts_every_test_that_ran(self):
+        _results, total = self.parse(
+            "5 failed, 1170 passed, 1 skipped, 5 warnings, "
+            "1272 subtests passed in 162.13s (0:02:42)")
+        self.assertEqual(total, 1175)      # not 5, and subtests are not tests
 
 
 class TestStaleBaseline(GateCase):

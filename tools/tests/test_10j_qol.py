@@ -180,6 +180,41 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         self.assertEqual(np.rebirth_gen, 0)
 
 
+class TestConstructAtResearchedTier(unittest.TestCase):
+    """Once a tier is researched, the construct panel offers -- and places --
+    that tier directly, not the type's tier 0 (the placement-follows-research
+    change)."""
+
+    def test_card_preview_and_placement_all_show_the_researched_tier(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        session.state.tiers_unlocked["defence"] = 2  # Slinger (tier index 1)
+        tier1 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][1]
+        tier0_cost = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]["build_cost"]
+        session.state.love = tier1["build_cost"] + 5
+
+        tile = tm.get(2, 1)
+        panel.open_for_tile(tile, session, BUILDINGS_BAL)
+        self.assertEqual(panel.mode, "construct")
+        btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "defence")
+        self.assertIn(tier1["name"], btn.label)   # "Slinger", not "Stone Thrower"
+        self.assertIn(str(tier1["build_cost"]), btn.label)
+
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL, None, None)
+        p = panel.preview
+        self.assertIsNotNone(p)
+        self.assertEqual(p.cost, tier1["build_cost"])
+        self.assertNotEqual(p.cost, tier0_cost)
+        self.assertIn(tier1["name"], p.title)
+
+        panel.handle_click(*click(p.confirm_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        building = tile.occupant
+        self.assertIsNotNone(building)
+        self.assertEqual(building.get_component(TierState).current_tier, 1)
+
+
 class TestPreviews(unittest.TestCase):
     def _place_defender(self):
         tm, scene, occupancy, session = make_world()

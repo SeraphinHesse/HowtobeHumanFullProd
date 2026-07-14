@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
+    QPushButton,
     QSplitter,
     QStackedWidget,
     QVBoxLayout,
@@ -45,6 +46,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import agent_forms, registry_ops, selection, theme
+from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
@@ -191,6 +193,10 @@ class MainWindow(QMainWindow):
         self.theme_switch.setChecked(self.theme == "dark")
         self.theme_switch.toggled.connect(self._on_theme_toggled)
         agents_toolbar.addWidget(self.theme_switch)
+
+        producer_btn = QPushButton("thats my prod")
+        producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
+        agents_toolbar.addWidget(producer_btn)
 
         self.palette.setVisible(False)
         # Height floor so the nested viewport_row can't collapse to 0 when the

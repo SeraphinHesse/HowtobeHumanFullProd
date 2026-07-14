@@ -59,21 +59,18 @@ crashes boot.** When you change asset conventions, update THIS doc.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).
-- **E-38**: `tools/migrate_prototype_assets.py` converts the prototype's v1
-  manifest + imported/ PNGs (read-only) to manifest v2 + copied sheets;
-  idempotent; already run — its output is committed. Each source sheet is resolved
-  from its own v1 `sheet` path (the prototype filed most under
-  `imported/{buildings,enemies/*,hole}/` subfolders; dst still flattens to
-  `imported/<slot>.png`, D-31). It imports every prototype sheet 1:1 — no
-  synthetic/alias slots (the enemies registry references the real
-  `enemy_stage_N`/`raider_stage_N` sheets directly; the procedural `enemy`/
-  `enemy_t*` sheets stay in the manifest but are unreferenced leftovers).
-  Follow-up (Phase 6): the same script's `migrate_tiles()` bakes the 9 map tile
-  slots the prototype generated procedurally (never stored in its v1 manifest) to
-  static PNGs + manifest entries via `editor.asset_import.import_idle_sheet` — 7
-  are direct file copies, `tile_combat[_b]` are a one-time Pillow grayscale+tint
-  reproduction of `sprite_gen.py`'s runtime tinting (this codebase does not
-  generate art at runtime, D-1/D-2). Also already run; output committed.
+- **E-38 is RETIRED — the migration tool is deleted.** `tools/
+  migrate_prototype_assets.py` ran once, converting the prototype's v1 manifest +
+  `imported/` PNGs to manifest v2 + copied sheets (and baking the 9 procedurally-
+  generated map tiles to static PNGs, since this codebase does not generate art at
+  runtime, D-1/D-2). **Its output is committed and is now simply the content** —
+  `data/sprites/imported/*.png` + `asset_manifest.json`. The tool and its tests
+  are gone with the migration; the editor's importer is the only way art enters
+  the repo. Two leftovers of that history are worth knowing: sheets are flattened
+  to `imported/<slot>.png` (D-31) whatever the prototype's subfolders were, and
+  the procedural `enemy`/`enemy_t*` entries are unreferenced strays in the
+  manifest (the enemies registry points at the real `enemy_stage_N`/
+  `raider_stage_N` sheets).
 
 ## Verify
 `playback_order` + tolerance unit tests; the headless smoke test fails loud on an

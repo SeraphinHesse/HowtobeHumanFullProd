@@ -25,7 +25,7 @@ from game.buildings.components import (
 from game.buildings.registry import (
     BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
 )
-from game.buildings.research import buildable
+from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
@@ -108,14 +108,14 @@ class ConstructPreview:
     clicks/keys here while it is open."""
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
-                 view_w, view_h, count=1):
+                 view_w, view_h, count=1, tier_idx=0):
         self.building_type = building_type
         self.cost = cost          # per-building cost
         self.count = count        # 10J: batch size (shift multi-select)
         self.view_w = view_w
         self.view_h = view_h
         self._names = _random_names(buildings_balance)
-        temp = create(building_type, 0, 0, buildings_balance)
+        temp = create(building_type, 0, 0, buildings_balance, tier_idx)
         self.title = (_tier_name(temp) if count == 1
                       else f"{_tier_name(temp)}  × {count}")
         self.stats = _building_stats(temp)
@@ -441,9 +441,10 @@ class BuildingUI:
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
-            cost = build_cost(btype, self._buildings_balance)
+            tier_idx = tiers_unlocked_for(state, btype) - 1
+            cost = build_cost(btype, self._buildings_balance, tier_idx)
             name = BUILDING_CLASSES[btype]._resolve_tiers(
-                self._buildings_balance)[0]["name"]
+                self._buildings_balance)[tier_idx]["name"]
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
                          f"{name}  {HEART}{cost}", "md")
             self.cards.append((btype, btn))
@@ -584,11 +585,14 @@ class BuildingUI:
         self.close_btn.hover(mx, my)
         if self.mode == "construct":
             count = max(1, len(self.selected_tiles))  # 10J batch
+            state = self._session.state
             for btype, btn in self.cards:
                 btn.hover(mx, my)
                 if btn.hovered:
+                    tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = (
-                        build_cost(btype, self._buildings_balance) * count)
+                        build_cost(btype, self._buildings_balance, tier_idx)
+                        * count)
         elif self.mode in ("unlock", "upgrade"):
             self.action_btn.hover(mx, my)
             if self.action_btn.hovered:
@@ -675,7 +679,8 @@ class BuildingUI:
     def _construct_click(self, mx, my, session, buildings_balance):
         for btype, btn in self.cards:
             if btn.hit(mx, my):
-                cost = build_cost(btype, buildings_balance)
+                tier_idx = tiers_unlocked_for(session.state, btype) - 1
+                cost = build_cost(btype, buildings_balance, tier_idx)
                 count = max(1, len(self.selected_tiles))
                 # 10J batch: the whole batch must be affordable up front
                 # (prototype building_ui.py:704-708).
@@ -684,7 +689,7 @@ class BuildingUI:
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
-                        self.view_w, self.view_h, count=count)
+                        self.view_w, self.view_h, count=count, tier_idx=tier_idx)
                 return True
         return contains(self.panel_rect, mx, my)
 

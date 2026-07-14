@@ -7,6 +7,7 @@ deterministic ``random.Random(seed)`` injected into ``Spawner.begin_round`` /
 ``Session``. All hand-computed expectations use the REPO's live JSON (NOT the
 prototype's numbers — ``EnemyScaling.scale_every_n_levels`` is 9 here vs the
 prototype's 10, a pre-existing deliberate drift)."""
+import copy
 import random
 import unittest
 from collections import Counter
@@ -188,19 +189,41 @@ class TestBossEraStats(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 3. Death swarm — one-shot, at the boss tile, CURRENT tier, never on skip
 # ---------------------------------------------------------------------------
+#: The era-0 swarm this class PINS. The live numbers are designer content and
+#: era 0 is legitimately {0, 0, 0} today — a first-era boss is not meant to burst.
+#: A test that reads those numbers proves nothing once they are zero (it asserts
+#: "no children" and then trips over the first `next(...)`) and re-breaks whenever
+#: balance moves. Pin the counts so these tests exercise the ER-3 MECHANIC — the
+#: plan, the one-shot guard, the tile, the tier — never the balance of the day.
+#: That balance has its own guard: the schema + tools/smoke.py.
+SWARM = {"regular": 3, "raiders": 2, "siege": 1}
+
+
+def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0):
+    """A copy of the enemies balance whose boss leaves a NON-EMPTY era-0 burst."""
+    enem = copy.deepcopy(ENEM)
+    death_spawn = enem["EnemyTypes"]["Boss"]["death_spawn"]
+    death_spawn["enabled"] = True
+    death_spawn["spawn_hp_fraction"] = spawn_hp_fraction
+    death_spawn["spawns"][0] = dict(counts)
+    return enem
+
+
 class TestDeathSwarm(unittest.TestCase):
-    def _setup(self, round_num=INTERVAL):
+    def _setup(self, round_num=INTERVAL, enem=None):
+        enem = enem if enem is not None else swarm_balance()
+        self.enem = enem
         tm, scene, occ = build_board(["bs"])
-        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD,
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
                                  rng=random.Random(2), occupancy=occ)
         session.state.round_num = round_num
         session.state.phase = GamePhase.ENEMY
         # Arm the spawner (balance/tilemap/tier) then drop its queue so the
         # only live enemy is the boss we spawn by hand.
-        session.spawner.begin_round(round_num, tm, ENEM,
+        session.spawner.begin_round(round_num, tm, enem,
                                     rng=random.Random(2))
         session.spawner.clear()
-        boss = create_enemy("boss", 1, 0, ENEM, tm, 0)
+        boss = create_enemy("boss", 1, 0, enem, tm, 0)
         scene.spawn(boss)
         scene.update(0.0)
         return tm, scene, session, boss
@@ -210,23 +233,23 @@ class TestDeathSwarm(unittest.TestCase):
         boss.get_component(Health).damage(10 ** 9)
         frame(session, scene, tm, 0.0)   # death -> stash -> post_sim flush
         scene.update(0.0)
-        spawns = BOSS["death_spawn"]["spawns"][0]
         enemies = [e for e in scene.by_tag("enemy") if e.alive]
         counts = Counter(e.ETYPE for e in enemies)
-        self.assertEqual(counts, Counter({"standard": spawns["regular"],
-                                          "raider": spawns["raiders"],
-                                          "siege": spawns["siege"]}))
+        self.assertEqual(counts, Counter({"standard": SWARM["regular"],
+                                          "raider": SWARM["raiders"],
+                                          "siege": SWARM["siege"]}))
         for e in enemies:
             self.assertEqual((e._col, e._row), (1, 0))  # the boss's tile
         # CURRENT tier: standard swarm members carry the cumulative bonus
         # (round 10 -> tier (10-1)//9 = 1 with repo data); raiders never do.
         tier = (INTERVAL - 1) // SCALE["scale_every_n_levels"]
         std_hp = tier_scaled_stats(
-            ENEM["EnemyTypes"]["Standard"], ENEM, tier)[0]
+            self.enem["EnemyTypes"]["Standard"], self.enem, tier)[0]
         std = next(e for e in enemies if e.ETYPE == "standard")
         self.assertEqual(std.get_component(Health).max_hp, std_hp)
         raider = next(e for e in enemies if e.ETYPE == "raider")
-        self.assertEqual(raider.get_component(Health).max_hp, RAIDER["hp"])
+        self.assertEqual(raider.get_component(Health).max_hp,
+                         self.enem["EnemyTypes"]["Raider"]["hp"])
         # One-shot guard: reporting the same boss again spawns nothing.
         n = len(enemies)
         session.on_enemy_death(boss)
@@ -235,17 +258,29 @@ class TestDeathSwarm(unittest.TestCase):
         self.assertEqual(len([e for e in scene.by_tag("enemy") if e.alive]), n)
 
     def test_swarm_children_spawn_at_full_hp(self):
-        """spawn_hp_fraction is 1.0 for the boss, so the burst never touches
-        Health — every child arrives at its own full max HP (ER-3)."""
-        tm, scene, session, boss = self._setup()
+        """spawn_hp_fraction 1.0 means the burst never touches Health — every
+        child arrives at its own full max HP (ER-3)."""
+        tm, scene, session, boss = self._setup(
+            enem=swarm_balance(spawn_hp_fraction=1.0))
         boss.get_component(Health).damage(10 ** 9)
         frame(session, scene, tm, 0.0)
         scene.update(0.0)
         children = [e for e in scene.by_tag("enemy") if e.alive]
-        self.assertTrue(children)
+        self.assertEqual(len(children), sum(SWARM.values()))
         for e in children:
             health = e.get_component(Health)
             self.assertEqual(health.hp, health.max_hp)
+
+    def test_an_all_zero_swarm_row_spawns_nothing(self):
+        """The live era-0 shape: an ENABLED death_spawn whose counts are all zero
+        leaves no children. Balance says "this boss doesn't burst" and the code
+        honours it — the case that used to masquerade as a passing assertion."""
+        tm, scene, session, boss = self._setup(
+            enem=swarm_balance({"regular": 0, "raiders": 0, "siege": 0}))
+        boss.get_component(Health).damage(10 ** 9)
+        frame(session, scene, tm, 0.0)
+        scene.update(0.0)
+        self.assertEqual([e for e in scene.by_tag("enemy") if e.alive], [])
 
     def test_quick_skip_despawns_boss_without_swarm(self):
         tm, scene, session, _boss = self._setup()
@@ -303,7 +338,7 @@ class TestBossPathing(unittest.TestCase):
 class TestBossBonuses(unittest.TestCase):
     def test_story_damage_bonus(self):
         tm, _scene, _occ = build_board(["bbbb"])
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss1a"] = 2
         st.boss_stacks["boss3a"] = 1
         st.boss_love_snapshot = 57
@@ -343,7 +378,7 @@ class TestBossBonuses(unittest.TestCase):
                                      BUILD, scene, occ)
         defender.upgrade()
         defender.upgrade()                       # in-tier level 3 -> +1/stack
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss1b"] = 1
         love0 = st.love
         expected = (bb.boss1b_income(st, tm)
@@ -360,7 +395,7 @@ class TestBossBonuses(unittest.TestCase):
         defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
                                      BUILD, scene, occ)
         defender.get_component(RoundStats).dmg_dealt_this_round = 37
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss3b"] = 2
         love0 = st.love
         net = HOLE["base_income"] - defender.upkeep() + (37 // 10) * 2
@@ -377,7 +412,7 @@ class TestBossBonuses(unittest.TestCase):
         defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
                                      BUILD, scene, occ)
         defender.get_component(Health).hp = 0     # dead — STILL counts
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss2a"] = 1
         base_yield = musician.yield_amount()
         run_payday(st, tm, CORE)
@@ -393,7 +428,7 @@ class TestBossBonuses(unittest.TestCase):
                        occ)
         self.assertEqual(bb.aoe_count(tm), 1)
         self.assertEqual(bb.defence_count(tm), 0)  # aoe is NOT "defence"
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.boss_stacks["boss2b"] = 1
         base_payout = meditator.yield_amount()     # pure (streak 0)
         run_payday(st, tm, CORE)
@@ -402,7 +437,7 @@ class TestBossBonuses(unittest.TestCase):
         self.assertEqual(amounts[(1, 0)], base_payout + 1)
 
     def test_stacking_and_set_cycling(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         bb.apply_choice(st, 0, "A")
         bb.apply_choice(st, 0, "A")               # same pick twice = doubled
         self.assertEqual(st.boss_stacks["boss1a"], 2)

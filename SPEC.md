@@ -6,9 +6,16 @@ the project must do. Requirements are numbered per section (`E-*` engine,
 `D-*` data, `G-*` game, `ED-*` editor, `T-*` tooling) so tasks, tests, and PRs
 can reference them.
 
-The **behavioral spec for gameplay** is the prototype repo
-(`../HowToBeHuman/ClaudePrototype/HowToBeHuman`): unless this document says
-otherwise, "what the prototype does" is the required behavior.
+**The migration from the prototype is COMPLETE.** The prototype repo
+(`../HowToBeHuman/ClaudePrototype/HowToBeHuman`) was the behavioral spec while
+the port ran; it is now **history, not authority**. This document, `data/`, and
+the package `CLAUDE.md`s are the spec, and gameplay may diverge from the
+prototype deliberately and without ceremony. The prototype stays readable for
+archaeology (why a number is what it is), nothing in the suite compares against
+it, and it is never edited from here.
+
+The work now is **feature reworks, feature expansions, editor capability
+expansion, and asset imports**, taken per task or per plan doc (`planning/`).
 
 ---
 
@@ -177,9 +184,11 @@ visuals: buildings, enemies, tiles, UI, VFX, deco.
   row; returns placeholder sentinel when the slot has no entry.
 - **E-37** Corrupt/missing manifest or sheet: log and fall back to
   placeholders; never crash the game or editor at load.
-- **E-38** Migration tool: one-off converter from the prototype's
-  `sprite_manifest.json` + `assets/sprites/imported/` to manifest v2 (built in
-  phase 5).
+- **E-38** ~~Migration tool: one-off converter from the prototype's
+  `sprite_manifest.json` + `assets/sprites/imported/` to manifest v2.~~
+  **RETIRED — done and deleted.** It ran once, its output (`data/sprites/` +
+  the v2 manifest) is committed, and `tools/migrate_prototype_assets.py` plus
+  its tests are gone. New art comes in through the editor's importer (ED-40).
 
 ---
 

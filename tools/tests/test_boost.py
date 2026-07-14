@@ -52,7 +52,7 @@ def board(rows):
 
 
 def run_state(*unlocked):
-    st = RunState.from_balance(CORE)
+    st = RunState.from_balance(CORE, BUILD)
     for bt in unlocked:
         st.unlocked_buildings[bt] = True
     return st
@@ -225,7 +225,7 @@ class TestTrioUnlock(unittest.TestCase):
             st.tiers_unlocked[bt] = len(tiers_for(bt, BUILD))
 
     def test_single_card_unlocks_all_three_at_round_10(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 10
         self._silence_non_boost(st)
         opts = roll_levelup_options(st, BUILD, CORE, random.Random(0))
@@ -238,7 +238,7 @@ class TestTrioUnlock(unittest.TestCase):
             self.assertTrue(st.unlocked_buildings[bt])
 
     def test_not_offered_before_round_10(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.round_num = 9
         self._silence_non_boost(st)
         opts = roll_levelup_options(st, BUILD, CORE, random.Random(0))

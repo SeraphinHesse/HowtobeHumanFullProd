@@ -76,12 +76,12 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
 - **Formations never spawn on a boss round — DELIBERATE, do not "fix" it.**
   `_boss_round` composes from `Boss.round_counts`, a `$defs/spawn_counts` table
   **shared with every `death_spawn.spawns` row**. Adding a `"formation"` key to
-  that `$def` would change every `round_counts` dict and fail
-  `test_balancing_parity::test_migrated_values_equal_prototype_values` (it
-  asserts whole-value equality against the prototype), and force a meaningless
-  formation count into every death-spawn row. If formations on boss rounds are
-  ever wanted, it is a one-line `+ self._formation_group(...)` into
-  `_boss_round`'s `rest` — computed from the formula, never from the table.
+  that `$def` would force a meaningless formation count into every death-spawn
+  row. (It also used to fail the prototype-parity gate — that gate is deleted
+  now, so the schema-shape argument is the whole reason and it still stands.) If
+  formations on boss rounds are ever wanted, it is a one-line
+  `+ self._formation_group(...)` into `_boss_round`'s `rest` — computed from the
+  formula, never from the table.
 - **Known cosmetic caveat, INHERITED not introduced.** For an EVEN footprint the
   sprite draws 16px (half a tile-height) ABOVE the block's logical centre, with
   zero horizontal error: `Renderer.flush` centres the frame on the *anchor
