@@ -110,6 +110,15 @@ tasks, open with the skill.
 | Wire a new renderable category into asset import   | `/add-asset-importer` |
 | Scaffold a new command/skill                       | `/add-skill`      |
 
+Every skill in this table is **also a form** in the editor: **Summon a Drunken
+Robot** → *Add new X…* → fill the fields + the free-text box → Dispatch. The
+editor writes a schema-validated handoff and opens a terminal on
+`/dispatch <handoff>`, which runs the same skill unmodified, on a new branch off
+`Development` (ending in a PR) or in place on the current branch — your choice in
+the form (`planning/AgentDispatchPLAN.md`). The dialog's old **`/start-domain`
+mode is gone** (the lock protocol is suspended); **Small tweak** and **Admin**
+are unchanged.
+
 Copy-paste task openers (that themselves point at these skills) live in
 [`docs/prompt-templates.md`](docs/prompt-templates.md).
 

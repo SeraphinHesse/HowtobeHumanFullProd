@@ -1,8 +1,16 @@
 ---
-description: Start a scoped domain session — pull, lock the domain's balancing JSON, branch off main, scope this session.
+description: SUSPENDED — the branch+lock protocol is on hold (see root CLAUDE.md). Do not run. Use the editor's Summon a Drunken Robot forms (/dispatch) instead.
 argument-hint: <buildings|enemies|map|ui|core>
 allowed-tools: Bash(git pull*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git switch*), Bash(git branch*), Bash(git status*), Bash(git rev-parse*), Bash(py -c *), Edit, Write, Read
 ---
+
+> ⚠️ **SUSPENDED.** The branch + lock protocol is on hold for the engine
+> migration (root `CLAUDE.md` → "Branch + lock protocol"). Do **not** run this
+> command: it is no longer reachable from the editor's spawn dialog, and
+> `/dispatch` never writes `.claude/active_domain` or any `_lock`. Spawn work
+> from the editor's **Summon a Drunken Robot** launcher ("Add new X…" forms →
+> `/dispatch`), or branch per plan phase. This file is kept intact so the
+> protocol can be restored unchanged when the migration lands.
 
 Start a scoped work session on the **$1** balancing domain of How To Be Human —
 Full Production. Integration branch is `main`. Lock shape is D-11 (an object,

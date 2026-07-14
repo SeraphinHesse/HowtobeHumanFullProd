@@ -1,0 +1,38 @@
+{
+  "context": [
+    "engine/assets/CLAUDE.md",
+    ".claude/commands/replace-visual.md"
+  ],
+  "description": "Spawns an agent that replaces a slot's grey-X placeholder with a real spritesheet via the manifest-v2 asset pipeline (no code change, no procedural fallback).",
+  "fields": [
+    {
+      "description": "An existing slot key in data/slots.json. Its category fixes the frame size.",
+      "key": "slot_key",
+      "label": "Slot key",
+      "placeholder": "deco_rock",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Source sheet. It is copied to data/sprites/imported/<slot>.png (committed content, D-31).",
+      "key": "sheet_path",
+      "label": "Spritesheet path (.png)",
+      "placeholder": "C:/art/deco_rock.png",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": false,
+      "description": "False = idle-only slot (import_idle_sheet writes one row). True = one manifest row per animation, row 0 always idle (schema-forced).",
+      "key": "multi_animation",
+      "label": "Multi-animation sheet",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "current",
+  "id": "replace-visual",
+  "schema_version": 1,
+  "skill": "replace-visual",
+  "slug_field": "slot_key",
+  "title": "Replace a Visual"
+}
