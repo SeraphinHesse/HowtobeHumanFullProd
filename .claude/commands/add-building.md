@@ -56,3 +56,4 @@ roll").
 ## Final report
 - Changed files; the building's type + gate; verification performed (headless test
   / smoke / live); whether `game/buildings/CLAUDE.md` needed a durable-rule update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

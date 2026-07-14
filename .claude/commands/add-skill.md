@@ -43,3 +43,4 @@ re-explaining architecture. (Scaffolding an AGENT definition in
 
 ## Final report
 - The new file path; its `allowed-tools`; which subsystem doc it routes to.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

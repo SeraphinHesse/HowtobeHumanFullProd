@@ -52,3 +52,4 @@ run.
 ## Final report
 
 - Branch, commits landed, what was verified this session, PR URL.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

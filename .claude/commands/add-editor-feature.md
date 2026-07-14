@@ -43,3 +43,4 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
 ## Final report
 - Changed files; how it hangs off selection; verification performed (live editor vs
   static read); whether `editor/panels/CLAUDE.md` needed a durable-rule update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

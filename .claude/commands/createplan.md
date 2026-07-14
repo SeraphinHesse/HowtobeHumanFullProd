@@ -47,3 +47,4 @@ start implementing the plan's contents.
 
 ## Final report
 - The new plan path; its phases; whether you activated it via `/setcurrentplan`.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

@@ -48,3 +48,4 @@ never hand-edited. This skill regenerates that mirror.
 ## Final report
 - The plan now active, the marker line written, and a reminder that edits go to
   the `planning/` source (re-run this skill to re-mirror).
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

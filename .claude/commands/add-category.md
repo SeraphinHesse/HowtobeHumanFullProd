@@ -73,3 +73,4 @@ data + the checklist and hands off.
 ## Final report
 Changed files; the new category key + whether it is a balancing domain; which checklist
 items applied; verification performed; whether `data/CLAUDE.md` needed a durable update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

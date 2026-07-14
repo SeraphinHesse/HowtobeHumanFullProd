@@ -95,3 +95,4 @@ there. Only the *code work* happens in the worktree.
 - Handoff file + form/skill; git mode and branch (or "in place on <branch>");
   changed files; verification results; PR URL (branch mode) or the diff summary
   awaiting confirmation (current mode); where the handoff was archived.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

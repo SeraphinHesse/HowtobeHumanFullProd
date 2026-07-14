@@ -44,3 +44,4 @@ are `buildings` / `enemies` / `map` / `ui` / `core`.
 
 ## Final report
 - Changed files (json + schema); the key's path + bounds; verification performed.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

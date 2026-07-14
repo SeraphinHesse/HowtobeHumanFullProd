@@ -48,6 +48,11 @@ umbrella branch.
    changed architecturally. Push the umbrella; open **ONE** PR to the base
    branch stating each phase's Quick Test. Merge only on the user's explicit
    confirmation.
+6. **Report (human boundary).** Close via `/report`: the end-of-run summary in
+   the shared provenance-tagged format, published as an artifact, plus a
+   republish of root `PLAN.md` as the "How To Be Human — Active Plan" artifact
+   (the phase table just changed). Workers never publish — only this
+   orchestrator does.
 
 ## Avoid
 - Destructive git on uncommitted work (`reset --hard`, `clean`, force-push).
@@ -63,3 +68,4 @@ umbrella branch.
 - Per-phase: branch name, brief path, review outcome.
 - Test counts vs baseline (baseline failures / new failures — must be zero new).
 - Umbrella branch + the single PR URL.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

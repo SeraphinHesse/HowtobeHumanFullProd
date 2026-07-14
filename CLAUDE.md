@@ -151,9 +151,10 @@ indent). ×10 combat HP/DMG scale carries over from the prototype; `BASE_HP`
 stays 10 (deliberate exception).
 
 ## Step 2 — Universal exit gate
-1. Run the smoke test (`tools/smoke.py` once it exists; headless SDL dummy
-   drivers) → report exactly what you verified — smoke test, live run, or
-   static read only.
+1. Run the smoke test (`tools/smoke.py`; headless SDL dummy drivers) → report
+   exactly what you verified, tagging each claim **measured** (command +
+   number) / **verified** (read or ran it) / **inferred** (flagged as such) —
+   the `/report` taxonomy.
 2. If data changed: confirm schema validation passes.
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.

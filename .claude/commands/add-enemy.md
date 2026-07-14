@@ -52,3 +52,4 @@ the known large-map frontier. If you're adding a high-count swarm, read
 ## Final report
 - Changed files; the type + which spawner branch; verification performed; whether
   `game/enemies/CLAUDE.md` needed a durable-rule update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

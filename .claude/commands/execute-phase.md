@@ -42,8 +42,11 @@ writing the phase's outcome back into it.
    sub-bullets (mirror 10F's style in `planning/MIGRATION_PLAN.md`). If the phase was
    aborted or partially landed, write that instead — the doc must state
    reality either way. This edit is part of the phase's diff.
-7. **Report + PR.** Final report, then commit → push → PR to `Development`
-   stating the Quick Test — only on the user's explicit confirmation.
+7. **Report + PR.** Final report via `/report` (a phase completion is a human
+   boundary — also republish root `PLAN.md` as the "How To Be Human — Active
+   Plan" artifact after the status write-back), then commit → push → PR to
+   `Development` stating the Quick Test — only on the user's explicit
+   confirmation.
 
 ## Avoid
 - Skipping the plan-doc status update — it is the point of this skill.
@@ -61,3 +64,4 @@ writing the phase's outcome back into it.
 - Branch name, changed files, verification results, plan-doc status line as
   written, PR URL (if opened), any package CLAUDE.md that needed a durable
   update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

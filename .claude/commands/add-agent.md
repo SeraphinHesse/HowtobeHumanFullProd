@@ -49,3 +49,4 @@ re-explanation of the repo.
 
 ## Final report
 - New file path; its tools + model; the roster row added to root `CLAUDE.md`.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

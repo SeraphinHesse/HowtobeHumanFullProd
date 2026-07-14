@@ -46,8 +46,10 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
    -t .` and `py tools/smoke.py`, both green. Balancing JSON edits go through
    `engine.data_io.write_validated` (canonical, schema-valid).
 4. Collect the per-domain PRs into the umbrella, resolve conflicts, run the exit
-   gate once more on the umbrella, then open the umbrella → `main` PR. Report all
-   PR URLs. Merge only on the user's explicit confirmation.
+   gate once more on the umbrella, then open the umbrella → `main` PR. Close
+   via `/report` (shared provenance-tagged format; publish the run summary as
+   an artifact — workers never publish). Report all PR URLs. Merge only on the
+   user's explicit confirmation.
 
 Constraints: never `reset --hard`, `clean`, or force-push on shared branches;
 never commit `build/`, `dist/`, or `*.exe`. If an item is too large or genuinely

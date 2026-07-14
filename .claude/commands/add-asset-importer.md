@@ -54,3 +54,4 @@ use the editor's `+ Variant` button; for swapping one slot's art, use
 ## Final report
 - Changed files (slots.json + any editor wiring); the new category + its slots;
   verification performed; whether `editor/panels/CLAUDE.md` needed a durable update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).
