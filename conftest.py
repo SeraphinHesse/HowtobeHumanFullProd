@@ -102,6 +102,7 @@ TIERS = {
     "test_range_sensor": "core",
     "test_render": "core",
     "test_right_click_dismiss": "core",
+    "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
     "test_structure": "core",

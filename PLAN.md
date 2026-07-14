@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: IN PROGRESS — FP-1..FP-5 executing serially on one branch, 2026-07-14 -->
+<!-- status: EXECUTED 2026-07-14 — FP-1..FP-5 landed serially on test/fixture-pinning; final gate PASS 1203 ran / 0 new. A live designer-style HP retune now runs the FULL suite green (verified, then reverted). -->
 
 # TestFixturePinningPLAN.md — Pin the suite's data, free the designers
 
@@ -76,7 +76,7 @@ class of failure is structurally unwritable.
 | FP-2 | Flip the 47 live loads to `FIXTURE_DATA`; classify allowlist | 35 files flipped, 12 allowlisted | done (gate PASS 1193) |
 | FP-3 | Derive data-mirroring literals in the worst files | `test_levelup`, `test_lightning` converted; audit cleared the rest as correctly-literal (geometry/test-inputs/deliberate tuning pins) | done (gate PASS 1193) |
 | FP-4 | Guard meta-test: live `data/` reads outside allowlist are a hard error | `tools/tests/test_fixture_guard.py` (new), `conftest.py` (TIERS row) | done (gate PASS 1196; red-verified on a seeded violation) |
-| FP-5 | Top-down headless scenario tests (the rewrite's good idea, stolen) | `tools/tests/test_scenarios.py` (new), `conftest.py` (TIERS row) | not started |
+| FP-5 | Top-down headless scenario tests (the rewrite's good idea, stolen) | `tools/tests/test_scenarios.py` (new, 7 scenarios), `conftest.py` (TIERS row) | done (gate PASS 1203) |
 
 ### FP-1 — Freeze the snapshot
 - **Goal**: `tools/tests/fixtures/data/` mirrors every `data/**/*.json` except
