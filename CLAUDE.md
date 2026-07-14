@@ -8,24 +8,34 @@ slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
 E-*/D-*/G-*/ED-*/T-*).
 
 **Planning:** every plan doc lives in `planning/` (the sources of truth:
-`MIGRATION_PLAN.md`, `UI_EDITOR_PLAN.md`, …; finished plans move to
-`planning/completed plans/`, e.g. `EngineBuildPLAN.md`,
-`AgentDispatchPLAN.md`). Root `PLAN.md` is a **generated mirror** of whichever
-one is currently active (its line-1 `<!-- active-plan: … -->` marker names the
-source). Read `PLAN.md` for the current plan; never hand-edit it — edit the
-source in `planning/` and re-run `/setcurrentplan <name>` to re-mirror. Author a
-new phased plan with `/createplan`. The editor's **Summon a Drunken Robot**
-screen shows the active plan and can switch it too.
+`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`, …; finished plans move to
+`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`).
+Root `PLAN.md` is a **generated mirror** of whichever one is currently active
+(its line-1 `<!-- active-plan: … -->` marker names the source). Read `PLAN.md`
+for the current plan; never hand-edit it — edit the source in `planning/` and
+re-run `/setcurrentplan <name>` to re-mirror. Author a new phased plan with
+`/createplan`. The editor's **Summon a Drunken Robot** screen shows the active
+plan and can switch it too. **Not every task needs a plan** — see Status.
 
 ## Project identity & status
 - **Stack:** Python 3.11+, pygame-ce (game), PySide6 (editor). Deps:
   `pip install -r requirements.txt`.
-- **Status:** bootstrap phase — see the phase table in `PLAN.md` before
-  assuming anything is runnable. Entry points (once they exist):
-  game `py game/main.py`, editor `py editor/main.py`.
-- **Behavioral spec for gameplay:** the prototype repo at
-  `../HowToBeHuman/ClaudePrototype/HowToBeHuman`. Read it to answer "what
-  should this do"; never edit it from here.
+- **Status: the migration is COMPLETE.** The game and the editor both run:
+  game `py game/main.py`, editor `py editor/main.py`. The bootstrap phases and
+  the port from the prototype are finished and their plan is archived
+  (`planning/completed plans/MIGRATION_PLAN.md`).
+- **What the work is now:** feature reworks, feature expansions, editor
+  capability expansion, and asset imports — driven **per task or per plan doc**.
+  A small, self-contained change is a task (`/smalltweak`, a form dispatch, or
+  just do it); anything phased gets its own doc in `planning/` via `/createplan`
+  and becomes the active `PLAN.md` for as long as it runs. There is no single
+  master plan any more, and `PLAN.md` may legitimately name no active plan.
+- **The prototype is history, not spec.** `../HowToBeHuman/ClaudePrototype/
+  HowToBeHuman` is readable for archaeology ("why is this number 240?") and many
+  source comments still cite it. It is **no longer the behavioral authority**:
+  this repo's `data/` + `SPEC.md` + the package docs are, and gameplay is free to
+  diverge from it deliberately. Nothing in the test suite compares against it.
+  Never edit it from here.
 
 ## Design pillars (tie-breakers for every decision)
 1. **Agent legibility** — small single-purpose files; schemas over convention;
@@ -170,10 +180,12 @@ ways. `planning/TestGatePLAN.md` records how that was fixed.)
   radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
   before handing work back.
 - Tiers: `py -m pytest -m core` (fast, ~800) · `-m editor` (Qt, slow) ·
-  `-m meta` (agent scaffolding) · `-m migration` (prototype parity; on demand).
-  CI runs `-m "not migration"` — the runner has no prototype checkout.
+  `-m meta` (agent scaffolding). **CI runs the whole suite** — there is no
+  excluded tier. (The old `migration` tier compared `data/` against the
+  prototype checkout; it is deleted along with the migration.)
 - **An unexpected skip is a failure.** A test that quietly stops running is
-  indistinguishable from one that passes.
+  indistinguishable from one that passes. **So is a failing subtest** — the gate
+  reads pytest's `SUBFAILED` lines, which it once ignored while printing PASS.
 - Never paste raw gate output into a report — collapsing it to one line is the
   whole point.
 

@@ -29,8 +29,13 @@ Four design rules, and none of them is decorative:
 3. REPORT NEWLY-FIXED TESTS. If an agent accidentally repairs a tolerated
    failure and nobody notices, the baseline is silently wrong from then on.
 4. AN UNEXPECTED SKIP IS A FAILURE. This is what permanently kills the
-   test_balancing_parity trap, where a whole class skipped inside a worktree and
-   the gate went green having proved nothing.
+   prototype-parity trap, where a whole class skipped inside a worktree and the
+   gate went green having proved nothing. (That suite is now deleted outright —
+   the migration is complete — but the rule is what stops the next one.)
+
+Rule 4 has a sibling learned the same way: A SUBTEST FAILURE IS A FAILURE. See
+_SUBFAILED below — pytest reports those in a shape the FAILED pattern does not
+match, and for a while the gate printed PASS over five red tests.
 """
 from __future__ import annotations
 
@@ -52,12 +57,26 @@ BASELINE = REPO / ".test-baseline.json"
 # every skip then collides under the same key and the baseline records a skip
 # that can never be matched again.
 _FAILED = re.compile(r"^(?P<outcome>FAILED|ERROR)\s+(?P<nodeid>\S+?)(?:\s+-\s+.*)?$")
+# pytest-subtests reports a failing SUBTEST in a THIRD shape — outcome first,
+# its parameters in parentheses, and the node-id trailing:
+#   SUBFAILED(file="'x.json'", key="'K'") tools/tests/test_a.py::T::test_x
+# Matching only FAILED/ERROR made these invisible: the gate printed GATE PASS
+# with five red tests in the suite, because every one of them was a subtest. The
+# params are part of the key — one test can fail N subtests independently, and
+# collapsing them would let four of five vanish from the baseline.
+_SUBFAILED = re.compile(
+    r"^SUB(?P<outcome>FAILED|ERROR)(?P<params>\(.*\))?\s+(?P<nodeid>\S+?)"
+    r"(?:\s+-\s+.*)?$")
 # A skip is keyed by FILE + REASON, deliberately NOT by line number. pytest
 # reports "SKIPPED [1] path/to/test.py:45: some reason", and keying on the line
 # means adding an import to that file shifts it — the same sanctioned skip then
 # reads as a brand-new unexpected one and the gate fails for nothing. The reason
 # is the stable identity of a skip; the line is an implementation detail.
 _SKIPPED = re.compile(r"^SKIPPED\s+\[\d+\]\s+(?P<file>[^\s:]+):\d+:\s*(?P<reason>.*)$")
+# Summed, not first-match: pytest's tally line reads "5 failed, 1170 passed, …",
+# and a `.search` grabs the 5 — the gate then announced "5 ran" for a full suite.
+# "subtests passed" is deliberately NOT counted (the digits there are followed by
+# "subtests", not "passed"), so the number stays a count of TESTS.
 _TOTAL = re.compile(r"(\d+) (?:passed|failed)")
 
 
@@ -85,8 +104,11 @@ def run_suite(extra: list[str] | None = None) -> tuple[dict[str, str], int]:
             results[f'{posix(m["file"])}: {m["reason"].strip()}'] = "SKIPPED"
         elif m := _FAILED.match(line):
             results[posix(m["nodeid"])] = m["outcome"]
-        elif m := _TOTAL.search(line):
-            total = max(total, int(m.group(1)))
+        elif m := _SUBFAILED.match(line):
+            key = posix(m["nodeid"]) + (m["params"] or "")
+            results[key] = m["outcome"]
+        elif counts := _TOTAL.findall(line):
+            total = max(total, sum(int(n) for n in counts))
     return results, total
 
 

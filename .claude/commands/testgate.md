@@ -53,9 +53,10 @@ work back.
 py -m pytest -m core        # engine + game + data. Fast.
 py -m pytest -m editor      # the PySide6 suites. Slow.
 py -m pytest -m meta        # the agent scaffolding.
-py -m pytest -m migration   # parity vs the prototype checkout. On demand.
 ```
-CI runs `-m "not migration"` — the runner has no prototype checkout.
+CI runs the WHOLE suite — no tier is excluded. (There used to be a `migration`
+tier holding the prototype-parity gate; the migration is complete and it is
+deleted.)
 
 ## `snapshot` — only when you are deliberately tolerating a red test
 ```

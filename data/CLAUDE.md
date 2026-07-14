@@ -78,29 +78,15 @@ validating writer; don't hand-edit the JSON.
   code-side default is banned) and the editor panel skips schema keys absent from
   the doc. `Boss/death_spawns` was REPLACED by `Boss/death_spawn` (the 5 rows
   moved verbatim under `spawns`).
-- **Parity gate**: `tools/tests/balancing_parity_map.json` (committed,
-  deliberately NOT under `data/` — smoke stem-pairs everything here) maps
-  EVERY prototype live-JSON key to its new path, `MERGED:<target>`, or
-  `DROPPED:<reason>`; `tools/tests/test_balancing_parity.py` asserts
-  coverage both ways + value equality (skips whole if the prototype
-  checkout is absent). The py-only live `BOSS_ERAS` list is committed as
-  literal `_py_only` expectations (reshaped into `Boss/stats` +
-  `Boss/death_spawn/spawns`; its dead `swarm_*` fields not migrated). When you
-  move/rename a balancing key, update the mapping in the same change.
-  - **The two tables have DIFFERENT semantics — do not confuse them.** The
-    **main** table's consumer skips values that are `"DROPPED:<reason>"`
-    strings. **`_py_only` is a literal-expectation table** (`{path, expect}`)
-    whose consumer (`test_py_only_boss_eras_expectations`) has **NO `DROPPED:`
-    branch** — a bare string there raises `TypeError: string indices must be
-    integers`. So when a `_py_only` key MOVES you **re-path it**; never retag it
-    `DROPPED:`, never delete it (it is the parity proof the value is unchanged).
-    ER-3 re-pathed all 15 `Boss/death_*` entries that way — a pure prefix swap —
-    leaving `_py_only` at 45 entries.
-  - **The parity test SKIPS SILENTLY inside a git worktree**: it derives the
-    prototype path from `REPO.parent`, which `.claude/worktrees/agent-XXX/`
-    lacks, so the whole class skips — it looks green and proves nothing. Run it
-    from a worktree that is a **SIBLING of the repo** and confirm the 4 tests
-    actually RAN.
+- **The parity gate is GONE, and balancing values are now free.** The migration
+  is complete: `tools/tests/test_balancing_parity.py` and its committed mapping
+  table (`balancing_parity_map.json`) are **deleted**, along with the prototype's
+  claim on these numbers. Moving, renaming, retuning or dropping a balancing key
+  no longer has to be mirrored into a parity map, and no test compares `data/`
+  against `../HowToBeHuman`. What still guards you: the schemas (D-*), the
+  editor's validating writer, and `tools/tests/test_balancing_data.py`. Tune
+  freely — a number that differs from the prototype is a design decision now, not
+  a regression.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
@@ -182,9 +168,9 @@ validating writer; don't hand-edit the JSON.
   `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
   frame_h, offset_x, offset_y, rows[]}}}` with row =
   `{animation, frames, fps, hidden[], loop_start, loop_end, loop_count}`;
-  `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written
-  ONLY by the editor's import panel and `tools/migrate_prototype_assets.py`
-  — both through `write_validated`.
+  `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
+  by the editor's import panel, through `write_validated`. (The one-shot
+  migration tool that seeded it is deleted — the editor is the only door now.)
   - **`slice` (A2) is the one OPTIONAL per-entry key** — everything else is
     `required`. `"slice": [left, top, right, bottom]`, ints 0..1024, nine-slice
     margins in FRAME pixels (same convention as `offset_x`/`offset_y`). It exists
@@ -194,7 +180,8 @@ validating writer; don't hand-edit the JSON.
     plain scaling; no committed entry carries one yet. The geometry lives in
     `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
-  import time (editor) or by the migration tool. Never gitignore them.
+  import time by the editor (historically also by the migration tool, now gone).
+  Never gitignore them.
 - **A sheet may be SHARED — `sheet` is a path, not a slot-derived name.** The
   engine resolves `sprites_dir / entry.sheet` verbatim
   (`engine/assets/store.py`), and the schema's pattern always allowed any

@@ -1,5 +1,14 @@
 # BossPathfindingPLAN.md — make the boss destroy every building in succession
 
+> ## ⚠ The parity constraints in this doc are VOID (2026-07-14)
+>
+> Written while the prototype migration was live. **It is complete**, and
+> `test_balancing_parity` is deleted along with the whole `migration` tier. The
+> plan's care to "not move any non-boss number so parity stays green" is no
+> longer a constraint — balancing values are free, guarded only by the schemas.
+> (The *deterministic 10I fixtures* it also names are real tests and still
+> apply.) Everything else in the plan stands.
+
 Phased, agent-executable plan (same family as `EnemyReworkPLAN.md` /
 `MIGRATION_PLAN.md`). Base branch: `Development`.
 Runnable via `/execute-plan-phases planning/BossPathfindingPLAN.md BP-1-BP-4`

@@ -10,7 +10,11 @@ Two things live here that the tests themselves should not have to know about:
        py -m pytest -m core        ~40s   every gate
        py -m pytest -m editor             the Qt suites
        py -m pytest -m meta               the agent scaffolding
-       py -m pytest -m migration          the prototype parity gate, on demand
+
+   There is no `migration` tier any more: the prototype migration is COMPLETE,
+   so the parity suite and the one-shot import tool it guarded are gone. CI now
+   runs the whole suite — nothing is excluded, and there is no "on demand" tier
+   to forget.
 
    A module missing from TIERS is a hard error, not a silent skip — see
    tools/tests/test_tiers.py. That matters: selecting on markers means an
@@ -30,11 +34,6 @@ from tools import data_guard
 
 #: module stem -> tier. Exactly one tier each; test_tiers.py enforces it.
 TIERS = {
-    # --- migration: needs the prototype checkout; excluded from CI -----------
-    "test_balancing_parity": "migration",
-    "test_migrate_prototype_assets": "migration",
-    "test_migration": "migration",
-
     # --- meta: the agent scaffolding + test infrastructure -------------------
     # Tests the dispatch rig and the harness, not the game.
     "test_agent_forms": "meta",

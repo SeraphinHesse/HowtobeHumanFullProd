@@ -280,7 +280,12 @@ any residual leak inside a single worker.
 | `core` | ~790 | ~40s | every gate |
 | `editor` | ~142 | ~333s (pre-TG-1) | editor changes; full gate |
 | `meta` | ~143 | ~19s | `.claude/` or `tools/` changes |
-| `migration` | ~12 | ~5s | on demand only |
+| ~~`migration`~~ | ~12 | ~5s | **DELETED 2026-07-14** — three tiers now |
+
+> The `migration` tier (and the parity suite that justified it) is **gone**: the
+> prototype migration is complete, so CI runs the whole suite with nothing
+> excluded. The rest of this doc is the record of how the gate was fixed and
+> still describes today's gate; only the fourth tier is history.
 
 `meta` is the agent scaffolding — `test_spawnclaude` (70), `test_agent_forms`
 (40), `test_scope_guard` (14), `test_build_script` (8), `test_smoke_pairing` (6),

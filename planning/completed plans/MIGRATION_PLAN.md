@@ -1,4 +1,17 @@
+<!-- status: COMPLETE — the port from the prototype is done, 2026-07-14 -->
+
 # Phase 9+ Migration Plan — Full Gameplay Port from Prototype
+
+> **COMPLETE.** The gameplay port landed; the game and the editor both run. The
+> prototype at `../HowToBeHuman/ClaudePrototype/HowToBeHuman` is no longer the
+> behavioral authority (this repo's `data/` + `SPEC.md` are), and the machinery
+> that enforced parity with it is **deleted**: `tools/tests/
+> test_balancing_parity.py`, its `balancing_parity_map.json`, the one-shot
+> `tools/migrate_prototype_assets.py`, and the `migration` test tier. Balancing
+> values are free to diverge — that is now a design decision, not a regression.
+>
+> Kept for the record, not as instructions: **do not action the phases below.**
+> Work now runs per task or per plan doc (see root `CLAUDE.md` → Status).
 
 ## Context
 
