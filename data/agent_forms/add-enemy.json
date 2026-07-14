@@ -1,0 +1,54 @@
+{
+  "context": [
+    "game/enemies/CLAUDE.md",
+    ".claude/commands/add-enemy.md"
+  ],
+  "description": "Spawns an agent that adds a new enemy type: thin Enemy subclass, spawner branch, scale-tier stats, registry slots (10F/10G pattern).",
+  "fields": [
+    {
+      "description": "Display name; drives class name, ETYPE, branch slug.",
+      "key": "name",
+      "label": "Enemy name",
+      "placeholder": "Siege Cannon",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": "Walker",
+      "description": "REGISTRY_GROUP the variants roll from.",
+      "key": "registry_group",
+      "label": "Registry group",
+      "options": [
+        "Walker",
+        "Raider",
+        "Siege Cannon",
+        "Boss",
+        "New group"
+      ],
+      "type": "enum"
+    },
+    {
+      "default": false,
+      "description": "Siege-style targeting instead of base pathing.",
+      "key": "targets_buildings",
+      "label": "Targets buildings",
+      "type": "boolean"
+    },
+    {
+      "default": 4,
+      "description": "How many era slots to add in slots.json.",
+      "key": "era_count",
+      "label": "Era variants",
+      "maximum": 8,
+      "minimum": 1,
+      "type": "integer"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-enemy",
+  "schema_version": 1,
+  "selector_context": "enemies",
+  "skill": "add-enemy",
+  "slug_field": "name",
+  "title": "Add New Enemy"
+}
