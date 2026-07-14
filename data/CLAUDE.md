@@ -252,5 +252,20 @@ validating writer; don't hand-edit the JSON.
   user explicitly asks.
 
 ## Verify before finishing
-Validate every touched file against its schema and run the headless smoke test
-(`tools/smoke.py` once it exists). Report agreement explicitly.
+Validate every touched file against its schema, then:
+```bash
+py tools/smoke.py
+py tools/testgate.py check     # the gate is ZERO failures
+```
+Report agreement explicitly.
+
+**`data/` is live designer content, and the tests must never touch it.** Tests
+copy it to a tempdir (`TempDataCase`); a session fixture hashes `data/` before
+and after the suite and fails the run if a single byte changed. This is not
+theoretical — the suite used to paint tiles into real maps and invent map files,
+silently, for months (`tools/data_guard.py`).
+
+The corollary binds tests too: **never assert against live `data/` content.** Pin
+the fixture instead. "The Painter slot has no art" and "first_light is the active
+map" were both true when written and both false later — that is what put 18 tests
+permanently in the red.

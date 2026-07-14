@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add a new "Add new X" form type to the editor's agent launcher. Writes a schema-validated form spec into data/agent_forms/ and, if asked, scaffolds the skill that form dispatches to.
 argument-hint: <thing name + the fields the form should carry, e.g. "Sound Effect: name, category enum, loop bool">
-allowed-tools: Read, Write, Edit, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*), Bash(py -c *)
+allowed-tools: Read, Write, Edit, Glob, Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py -c *)
 ---
 
 Add a new agent form type: **$ARGUMENTS**. A "form" is one JSON spec in
@@ -69,7 +69,7 @@ if it validates, it renders.
 ## Verify
 - `py tools/smoke.py` — validates the new spec (the `data/agent_forms/` directory
   exception pairs it with `agent_form.schema.json`); the file count goes up by one.
-- `py -m unittest discover -s tools/tests -t .` — the all-specs sweep checks id /
+- `py tools/testgate.py check` — the all-specs sweep checks id /
   skill file / context paths.
 - Live: reopen **Summon a Drunken Robot** in the editor — the new form is listed
   (specs load fresh on every open; no restart). State what you verified.

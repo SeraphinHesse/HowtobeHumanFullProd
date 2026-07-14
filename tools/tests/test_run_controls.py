@@ -8,21 +8,21 @@ run_controls.py's module docstring for why) so their tests substitute
 `RunControls._detach` with a fake rather than actually spawning a pygame
 window or exe (that's a live-verification-only step, per T-5).
 
-This file itself sets SDL_VIDEODRIVER/SDL_AUDIODRIVER to "dummy" below —
-the same thing editor/panels/viewport.py does for its own offscreen render
-surface — so `test_real_window_environment_strips_sdl_dummy_vars` is a
+Importing qt_harness sets SDL_VIDEODRIVER/SDL_AUDIODRIVER to "dummy" in this
+process — the same thing editor/panels/viewport.py does for its own offscreen
+render surface — so `test_real_window_environment_strips_sdl_dummy_vars` is a
 genuine regression test for the bug found live: Play/Playbuild inheriting
-that dummy driver and rendering into an invisible surface.
+that dummy driver and rendering into an invisible surface. That test depends
+on those vars really being set here; don't drop the harness import.
 """
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
@@ -38,15 +38,30 @@ from editor.run_controls import _real_window_environment
 
 REPO = Path(__file__).resolve().parents[2]
 
-_APP = QApplication.instance() or QApplication(sys.argv)
 
+def pump_until(signal, timeout_ms=30000):
+    """Spin the Qt event loop until `signal` fires once.
 
-def pump_until(signal, timeout_ms=5000):
-    """Spin the Qt event loop until `signal` fires once, or time out."""
+    Raises on timeout instead of returning quietly. The old version timed out
+    in silence, which is how test_build_finished_reemits_build_state came to
+    fail as `[] != [True]` — a message that looks like "the signal carried the
+    wrong payload" when the truth was "we gave up waiting and nothing was ever
+    emitted". A test must not be able to mistake a timeout for a result.
+
+    The 5s budget it used to carry was really an assumption about machine load:
+    fine for one module, not for a full suite where spawning a subprocess
+    competes with a thousand other tests. Waiting longer cannot mask a real
+    failure — the signal either arrives or this raises.
+    """
+    fired = []
     loop = QEventLoop()
+    signal.connect(lambda *_: fired.append(True))
     signal.connect(loop.quit)
     QTimer.singleShot(timeout_ms, loop.quit)
     loop.exec()
+    if not fired:
+        raise TimeoutError(
+            f"signal never fired within {timeout_ms}ms")
 
 
 class TestPureBuilders(unittest.TestCase):
@@ -85,7 +100,7 @@ class TestPureBuilders(unittest.TestCase):
         self.assertFalse(env.contains("SDL_AUDIODRIVER"))
 
 
-class TestPlayPlaybuildDetached(unittest.TestCase):
+class TestPlayPlaybuildDetached(QtCase):
     """Play/Playbuild never create a QProcess tracked by RunControls; they
     go through the injectable `RunControls._detach` hook (default
     `run_controls.start_detached`) rather than a tracked signal-emitting
@@ -94,8 +109,7 @@ class TestPlayPlaybuildDetached(unittest.TestCase):
     to intercept the instance-form call; the real method ran unmocked)."""
 
     def setUp(self):
-        self.controls = RunControls(repo=REPO)
-        self.addCleanup(self.controls.deleteLater)
+        self.controls = self.track(RunControls(repo=REPO))
 
     def test_play_calls_detach_with_game_main(self):
         calls = []
@@ -135,13 +149,12 @@ class TestPlayPlaybuildDetached(unittest.TestCase):
         self.assertEqual(events, [("play", False)])
 
 
-class TestBuildProcess(unittest.TestCase):
+class TestBuildProcess(QtCase):
     """Build is the one tracked, streamed subprocess (short-lived, progress
     matters) — exercised via `_launch` with a fast injected dummy command."""
 
     def setUp(self):
-        self.controls = RunControls(repo=REPO)
-        self.addCleanup(self.controls.deleteLater)
+        self.controls = self.track(RunControls(repo=REPO))
 
     def test_build_streams_output_and_reports_exit_code(self):
         events = []
@@ -171,10 +184,13 @@ class TestBuildProcess(unittest.TestCase):
         pump_until(self.controls.finished)
 
     def test_build_finished_reemits_build_state(self):
+        # Wait on the signal this test is ABOUT. _on_finished emits `finished`
+        # first and `build_state_changed` immediately after, so pumping until
+        # `finished` was a race against the very thing being asserted.
         seen = []
         self.controls.build_state_changed.connect(seen.append)
         self.controls._launch("build", [sys.executable, "-c", "pass"])
-        pump_until(self.controls.finished)
+        pump_until(self.controls.build_state_changed)
         self.assertEqual(seen, [self.controls.can_playbuild()])
 
 

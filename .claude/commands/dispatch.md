@@ -50,19 +50,18 @@ there. Only the *code work* happens in the worktree.
    If the SlashCommand tool is unavailable, Read `.claude/commands/<skill>.md`
    and follow it with exactly that composed `$ARGUMENTS`.
 5. **Exit gate** in the working root (the worktree, in branch mode):
-   `py tools/smoke.py` and `py -m unittest discover -s tools/tests -t .`. Green
-   smoke; **no NEW test failures — the gate is a DIFF, not zero.** Measure the
-   baseline on the base branch (or take it from your dispatch prompt) — never
-   trust a remembered count. Known shape: 6 deliberate balancing-parity
-   divergences + a set of editor/Qt failures in the main tree; parity SKIPS in
-   a worktree (see below). Anything beyond the measured set is yours; fix it,
+   `py tools/smoke.py` and `py tools/testgate.py check`. Green
+   smoke; **the suite is GREEN — the gate is ZERO failures, not a diff.** Do not
+   measure a baseline and do not tolerate a "pre-existing" failure: there are
+   none (TestGatePLAN TG-2 drove them to zero). A red test is yours; fix it,
    don't explain it away.
-   ⚠️ **`test_balancing_parity` SKIPS inside `.claude/worktrees/`** — it locates
-   the prototype repo relative to the checkout (`REPO.parent/HowToBeHuman/…`),
-   which does not resolve from a worktree, so it looks green and proves nothing.
-   If the target skill touched `data/balancing/*` (`/add-enemy`, `/add-building`,
-   `/add-balancing-value`), re-run `py -m unittest tools.tests.test_balancing_parity`
-   **from the MAIN tree** before landing.
+   `test_balancing_parity` now runs **in a worktree too** — it walks up to find
+   the prototype instead of guessing `REPO.parent`, and `HTBH_PROTOTYPE_DIR`
+   overrides it. (It used to silently SKIP in `.claude/worktrees/`, so a gate
+   run there looked green while proving nothing.) The 6 deliberate balancing
+   divergences from the prototype are recorded as `OVERRIDDEN` entries in
+   `tools/tests/balancing_parity_map.json`; add one there — with a reason — if
+   you intend a new one.
 6. **Land**:
    - branch mode → stage only the files the target skill changed (by explicit
      path), commit, push, `gh pr create --base <base>` with a body carrying the

@@ -174,7 +174,37 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/completed plans/Agent
   warning banner) are deliberately theme-independent — keep any new hardcoded
   color legible on BOTH backgrounds, or read it from the palette.
 
+## Testing the editor — two rules, both learned the hard way
+
+**1. Every widget you construct in a test must be destroyed.** Subclass
+`QtCase` (`tools/tests/qt_harness.py`) and wrap it: `self.track(MainWindow(...))`.
+`self.addCleanup(w.close)` is **not** cleanup — Qt's `close()` *hides* a window,
+it does not destroy it. Each leaked `MainWindow` kept ~2,972 widgets alive and
+made the next one slower to build, which is how the suite became quadratic
+(17m 15s for what now takes 2m 31s). `qt_harness.destroy()` is the one idiom;
+`test_qt_harness.py` fails if the bare-`close()` pattern comes back.
+
+Leaked widgets also outlived their tests and **wrote into the repo's `data/`** —
+painting tiles into real maps, inventing map files. A session fixture now hashes
+`data/` before and after the suite and fails the run if anything changed.
+
+**2. Never assert against live `data/` content — pin the fixture.** Use
+`TempDataCase.unassign_slot` / `unassign_family` / `drop_slot_variants` and
+`MapModeCase.set_active_map` to *guarantee* the state you need. Tests that
+merely assumed "the Painter slot has no art" or "first_light is the active map"
+are what put 18 tests permanently in the red: an artist imported sheets, a
+designer set a different map active, and the tests started failing for reasons
+that had nothing to do with the editor. A test that reads today's `data/` is
+testing the designer, not the code.
+
+Also: **every new editor module goes into `test_editor_viewport.TestPurity`'s
+import list** (the layering guard — `editor/` must never import `game/`).
+
 ## Verify before finishing
-Launch `py editor/main.py` and exercise the changed panel/control; for
+```bash
+py tools/testgate.py check     # the gate is ZERO failures
+py -m pytest -m editor         # just the Qt tier, while iterating
+```
+Then launch `py editor/main.py` and exercise the changed panel/control; for
 data-writing features, confirm the JSON on disk validates and a Play subprocess
 loads it. State exactly what you exercised (live editor run vs static read).

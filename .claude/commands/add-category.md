@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add a new slot-registry CATEGORY to data/slots.json — optionally a full balancing domain — and update every place that hardcodes the domain/category list.
 argument-hint: <category key + display name, e.g. "projectiles (Projectiles), asset-only, 64x64">
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*), Bash(py -c *)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py -c *)
 ---
 
 Add a new registry category: **$ARGUMENTS**. A *category* is a top-level node of
@@ -65,7 +65,7 @@ data + the checklist and hands off.
 
 ## Verify
 - `py tools/smoke.py` — slots.json + the new balancing file validate.
-- `py -m unittest discover -s tools/tests -t .` — zero new failures (item 1 of the
+- `py tools/testgate.py check` — zero new failures (item 1 of the
   checklist is the one that bites).
 - Live: `py editor/main.py` → the new category is a top-level tree node; a balancing
   domain also shows its form. State exactly what you ran.
