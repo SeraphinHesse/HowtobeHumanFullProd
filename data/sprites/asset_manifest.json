@@ -712,6 +712,24 @@
       ],
       "sheet": "imported/boss_era_4.png"
     },
+    "deco_bush": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_bush.png"
+    },
     "enemy_stage_1_v1": {
       "frame_h": 96,
       "frame_w": 64,

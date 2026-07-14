@@ -672,7 +672,8 @@
             {
               "label": "Bush",
               "slots": [
-                "deco_bush"
+                "deco_bush",
+                "deco_bush_v2"
               ]
             },
             {
@@ -684,7 +685,14 @@
             {
               "label": "Prop 1",
               "slots": [
-                "deco_prop_1"
+                "deco_prop_1",
+                "deco_prop_1_v2"
+              ]
+            },
+            {
+              "label": "Prop 2",
+              "slots": [
+                "deco_prop_2"
               ]
             }
           ],
