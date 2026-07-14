@@ -24,7 +24,11 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 
 # Line-1 marker: `<!-- active-plan: MIGRATION_PLAN.md | set: 2026-07-13 -->`.
-_MARKER = re.compile(r"<!--\s*active-plan:\s*(?P<name>[^|\s>]+)")
+# The name is non-greedy and MUST be terminated by the `|` tail or the comment
+# close, so a hand-edit that drops the tail (`<!-- active-plan: X.md-->`) still
+# yields `X.md` and an empty marker (`<!-- active-plan: -->`) degrades to None —
+# never to a garbage name like `--`. Tolerating hand-edits is the whole point.
+_MARKER = re.compile(r"<!--\s*active-plan:\s*(?P<name>[^|\s>]+?)\s*(?:\||-->)")
 
 
 def planning_dir(repo=None):

@@ -534,6 +534,20 @@ class TestPlansPure(TempRepoCase):
         # Line 1 only — the marker is pinned there by /setcurrentplan step 4.
         self.assertIsNone(plans.active_plan(self.repo))
 
+    def test_a_marker_missing_its_tail_still_parses_the_bare_name(self):
+        """Hand-edited: no ` | set: … ` tail. The name must not swallow `--`."""
+        self.write_mirror("<!-- active-plan: BetaPLAN.md-->\n")
+        self.assertEqual(plans.active_plan(self.repo), "BetaPLAN.md")
+        self.write_mirror("<!-- active-plan: BetaPLAN.md -->\n")
+        self.assertEqual(plans.active_plan(self.repo), "BetaPLAN.md")
+
+    def test_an_empty_marker_is_none_not_a_garbage_name(self):
+        """`<!-- active-plan: -->` names nothing → "— none set", never `--`."""
+        self.write_mirror("<!-- active-plan: -->\n")
+        self.assertIsNone(plans.active_plan(self.repo))
+        self.write_mirror("<!-- active-plan:  | set: 2026-07-13 -->\n")
+        self.assertIsNone(plans.active_plan(self.repo))
+
     def test_the_real_repo_mirror_names_a_real_plan(self):
         """The live contract: root PLAN.md's marker must name a planning/ doc."""
         active = plans.active_plan(REPO)
