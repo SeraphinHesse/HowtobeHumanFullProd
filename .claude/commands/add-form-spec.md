@@ -77,3 +77,4 @@ if it validates, it renders.
 ## Final report
 - The new spec path + the skill path (if scaffolded); the fields and their types;
   the git default; verification performed.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

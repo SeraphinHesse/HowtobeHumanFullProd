@@ -1,24 +1,22 @@
 ---
-description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main. Skips the _lock protocol (batch mode).
+description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main.
 argument-hint: <small|priority|smallpriority|all>
 allowed-tools: Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*), Read, Write, Edit, Glob, Grep, Agent
+disable-model-invocation: true
 ---
 
 Batch-process outstanding todos for How To Be Human — Full Production. Mode
 `$ARGUMENTS` selects the slice of work: `small` (quick tweaks only), `priority`
 (flagged items), `smallpriority` (both filters), or `all`.
 
-This is an **orchestrator**, distinct from the single-domain `/start-domain`
-flow. It deliberately **does NOT use the `_lock` protocol** — batch mode never
-writes `"LOCKED"`/lock objects. Isolation comes from git worktrees + an umbrella
-branch instead, so parallel per-domain agents don't collide.
+This is an **orchestrator**: isolation comes from git worktrees + an umbrella
+branch, so parallel per-domain agents don't collide.
 
 ## Read the todo list
 
 Use the `gettodo` skill scoped to this project (`Skill gettodo` with the project
 filter) to read the outstanding build items. Bucket each item by domain
-(buildings / enemies / map / ui / core) using the same classification as the
-scope guard (`.claude/hooks/scope_guard.py` `DOMAIN_SCOPE`): an item belongs to
+(buildings / enemies / map / ui / core): an item belongs to
 the domain whose `game/<domain>/**` or `data/balancing/<domain>.json` it touches.
 Cross-cutting items (touch `game/core/**` shared host, or multiple domains) go
 last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
@@ -33,9 +31,11 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
 ## Execution
 
 1. `git switch main` → `git pull`. Create the umbrella branch.
-2. For each domain with queued work, spawn a subagent with `isolation:
-   "worktree"`, scoped to that domain's files only (give it the domain's
-   `DOMAIN_SCOPE` list). **In each subagent's brief, instruct it: if the item
+2. For each domain with queued work, spawn a **`coder` agent** (an
+   **`engine-coder`** for engine-scoped items) with `isolation:
+   "worktree"`, scoped to that domain's files only (name the domain's
+   `game/<domain>/**` + balancing/schema files in its brief). **In each
+   subagent's brief, instruct it: if the item
    adds a building / enemy / balancing tunable / engine component / editor
    feature / asset-import category, invoke the matching `/add-*` skill
    (`/add-building`, `/add-enemy`, `/add-balancing-value`, `/add-engine-component`,
@@ -46,10 +46,12 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
    -t .` and `py tools/smoke.py`, both green. Balancing JSON edits go through
    `engine.data_io.write_validated` (canonical, schema-valid).
 4. Collect the per-domain PRs into the umbrella, resolve conflicts, run the exit
-   gate once more on the umbrella, then open the umbrella → `main` PR. Report all
-   PR URLs. Merge only on the user's explicit confirmation.
+   gate once more on the umbrella, then open the umbrella → `main` PR. Close
+   via `/report` (shared provenance-tagged format; publish the run summary as
+   an artifact — workers never publish). Report all PR URLs. Merge only on the
+   user's explicit confirmation.
 
 Constraints: never `reset --hard`, `clean`, or force-push on shared branches;
 never commit `build/`, `dist/`, or `*.exe`. If an item is too large or genuinely
 spans domains in a way worktrees can't isolate, leave it queued and flag it for a
-manual `/start-domain` session.
+manual `/execute-phase` session.

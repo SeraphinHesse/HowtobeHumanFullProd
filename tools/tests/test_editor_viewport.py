@@ -193,7 +193,7 @@ class TestPurity(unittest.TestCase):
     def test_editor_does_not_import_game(self):
         code = (
             "import sys; "
-            "import editor.main, editor.locks, editor.selection, "
+            "import editor.main, editor.domains, editor.selection, "
             "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.registry_ops, editor.balancing_history, "
             "editor.run_controls, editor.spawnclaude, editor.theme, "

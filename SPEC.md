@@ -49,7 +49,7 @@ otherwise, "what the prototype does" is the required behavior.
 | **Screen space** | Pixels on the render target after iso projection + camera. |
 | **Slot** | A named asset attachment point (e.g. `stone_thrower_t1_lvl1`, `tile_buildable`, `vfx_explosion`). |
 | **Manifest** | `data/sprites/asset_manifest.json` — maps slots to sheets + animation metadata. |
-| **Domain** | One of `buildings / enemies / map / ui / core` — the unit of balancing files, locks, and agent scoping. |
+| **Domain** | One of `buildings / enemies / map / ui / core` — the unit of balancing files and agent scoping. |
 | **Active map** | The map file the game loads, chosen in the editor. |
 
 ---
@@ -201,9 +201,8 @@ visuals: buildings, enemies, tiles, UI, VFX, deco.
 
 - **D-10** One file per domain: `buildings.json`, `enemies.json`, `map.json`,
   `ui.json`, `core.json`.
-- **D-11** Each file carries a `_lock` field: `"UNLOCKED"` or
-  `{"locked_by": <branch/agent>, "since": <iso date>}`. Lock semantics follow
-  the branch+lock protocol (§8).
+- **D-11** REMOVED — the `_lock` field and its lock semantics are retired
+  with the branch+lock protocol; successor TBD.
 - **D-12** Value semantics (×10 combat scale, BASE_HP exception, phase
   timers, XP tables, etc.) are carried over from the prototype's balancing
   modules; the schema documents units and scale per key.
@@ -327,7 +326,8 @@ where they land. Port order and per-domain acceptance work is PLAN.md phase 9+.
   booleans as checkboxes; invalid input can't be committed.
 - **ED-31** Writes go through the validating writer to `data/balancing/`;
   every commit is undoable via the global undo stack (ED-24).
-- **ED-32** Locked domain → panel read-only with lock owner displayed.
+- **ED-32** REMOVED — the locked-domain read-only banner is retired with the
+  lock system; successor TBD.
 
 ### 7.5 Asset import
 
@@ -367,26 +367,23 @@ where they land. Port order and per-domain acceptance work is PLAN.md phase 9+.
 
 ### 7.7 Spawnclaude & access
 
-- **ED-60** Spawnclaude dialog: choose a domain (locks that domain via the
-  protocol, opens a terminal running `claude` in the repo with the domain
-  context injected) or **small-tweak mode** (no lock, explicitly scoped
-  prompt).
-- **ED-61** Domains already locked are greyed out with owner shown; the editor
-  never force-unlocks (merge-domain remains the only unlock).
-- **ED-62** The editor refuses to write into a domain locked by someone else
-  (same rule agents follow) — one enforcement point for humans and agents.
-- **ED-63** *Open:* further access-limitation ideas pending; must not require
-  restructuring (locks are the single enforcement point by design).
+- **ED-60** Spawnclaude dialog: form dispatch ("Add new X…" handoffs),
+  small-tweak, admin, and plans modes — each opens a terminal running
+  `claude` in the repo with the mode's slash command as the opening input.
+- **ED-61** REMOVED — lock-aware dialog states retired with the lock system;
+  successor TBD.
+- **ED-62** REMOVED — the editor's lock-write refusal is retired with the
+  lock system; successor TBD.
+- **ED-63** *Open:* access-limitation ideas pending; must not require
+  restructuring (a single enforcement point by design; successor TBD).
 
 ---
 
 ## 8. Workflow, tooling & verification — requirements `T-*`
 
-- **T-1** Branch + lock protocol ported from the prototype
-  (`/start-domain`, `/resume-domain`, `/finish-domain`, `/merge-domain` in
-  `.claude/commands/`), operating on `data/balancing/*.json` `_lock` fields.
-  Invariant: while a `feature<Domain>` branch exists, that domain stays
-  LOCKED. No destructive git on uncommitted work.
+- **T-1** REMOVED — the branch+lock protocol is retired (successor TBD).
+  Still binding: one branch per phase/feature off `Development`, and no
+  destructive git on uncommitted work.
 - **T-2** Headless smoke test (`tools/smoke.py`): SDL dummy drivers →
   validate all data files against schemas → construct the game → report OK.
   Run after every Python/JSON change; CI-runnable.
@@ -406,9 +403,9 @@ where they land. Port order and per-domain acceptance work is PLAN.md phase 9+.
 1. Exact frame sizes per new slot category (UI, VFX, enemies) — decide when
    the slot registry is authored (phase 5); buildings 64×96 and tiles 64×32
    carry over.
-2. Access-limitation ideas beyond locks (ED-63) — pending designer input.
+2. Access-limitation ideas (ED-63) — pending designer input.
 3. ~~Editor console pane scope~~ — **Resolved (phase 7):** Play +
    Build/Playbuild subprocess output only. Spawnclaude's agent session
    (phase 8) gets its own terminal, not this pane.
-4. Whether `ui`/`vfx` get their own balancing domains + locks or fold into
+4. Whether `ui`/`vfx` get their own balancing domains or fold into
    `core` — decide when porting begins (phase 9).

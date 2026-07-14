@@ -2,6 +2,7 @@
 description: Set the active plan — mirror a plan doc from planning/ into the root PLAN.md so CLAUDE.md, agents, and the editor all point at it.
 argument-hint: <plan filename in planning/, e.g. MIGRATION_PLAN.md>
 allowed-tools: Read, Write, Glob, Bash(date +%Y-%m-%d)
+model: haiku
 ---
 
 Set the active plan to **$ARGUMENTS**. `planning/` holds the plan sources of
@@ -47,3 +48,4 @@ never hand-edited. This skill regenerates that mirror.
 ## Final report
 - The plan now active, the marker line written, and a reminder that edits go to
   the `planning/` source (re-run this skill to re-mirror).
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

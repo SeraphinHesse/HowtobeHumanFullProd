@@ -56,8 +56,7 @@
         "xp_per_raider": 1,
         "xp_per_siege_enemy": 3,
         "xp_per_standard_enemy": 1
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:13:19"
   },
@@ -118,8 +117,7 @@
         "xp_per_raider": 1,
         "xp_per_siege_enemy": 3,
         "xp_per_standard_enemy": 1
-      },
-      "_lock": "UNLOCKED"
+      }
     },
     "timestamp": "2026-07-11T20:12:59"
   }

@@ -1,13 +1,12 @@
-"""Acceptance tests for the balancing data files (D-10/11/12, Phase 9A tree).
+"""Acceptance tests for the balancing data files (D-10/12, Phase 9A tree).
 
 Every domain's schema/content pair must load through engine.data_io
-(fail-loud validation), sit on disk in canonical D-3 form, and carry a
-schema-legal _lock. Since Phase 9A the domains are nested REPLAN trees, so
-the D-12 walks (description on every leaf, minimum/maximum on every
-numeric) recurse through properties, array items, and in-file $defs.
-Schemas must reject unknown keys at any depth, malformed _lock shapes, and
-out-of-range numerics - and write_validated must raise BEFORE touching
-disk on invalid input.
+(fail-loud validation) and sit on disk in canonical D-3 form. Since Phase
+9A the domains are nested REPLAN trees, so the D-12 walks (description on
+every leaf, minimum/maximum on every numeric) recurse through properties,
+array items, and in-file $defs. Schemas must reject unknown keys at any
+depth and out-of-range numerics - and write_validated must raise BEFORE
+touching disk on invalid input.
 """
 import json
 import tempfile
@@ -39,14 +38,11 @@ def deref(schema, node):
 
 
 def schema_leaves(schema):
-    """Yield (path, subschema) for every typed leaf, skipping the _lock
-    subtree (its shape is pinned by its own oneOf, tested separately)."""
+    """Yield (path, subschema) for every typed leaf."""
     def walk(node, path):
         node = deref(schema, node)
         if node.get("type") == "object":
             for key, prop in node.get("properties", {}).items():
-                if key == "_lock":
-                    continue
                 yield from walk(prop, path + (key,))
         elif node.get("type") == "array":
             yield from walk(node["items"], path + ("<items>",))
@@ -59,10 +55,8 @@ def doc_schema_pairs(doc, schema):
     """Yield (path, value, subschema) for every leaf value in the data doc."""
     def walk(value, node, path):
         node = deref(schema, node)
-        if isinstance(value, dict) and path != ("_lock",):
+        if isinstance(value, dict):
             for key, sub in value.items():
-                if key == "_lock":
-                    continue
                 yield from walk(sub, node["properties"][key], path + (key,))
         elif isinstance(value, list):
             for i, item in enumerate(value):
@@ -70,8 +64,7 @@ def doc_schema_pairs(doc, schema):
         else:
             yield path, value, node
     for key, sub in doc.items():
-        if key != "_lock":
-            yield from walk(sub, schema["properties"][key], (key,))
+        yield from walk(sub, schema["properties"][key], (key,))
 
 
 def set_at(doc, path, value):
@@ -82,16 +75,13 @@ def set_at(doc, path, value):
 
 
 class TestBalancingFiles(unittest.TestCase):
-    def test_every_domain_pair_validates_with_legal_lock(self):
-        """_lock is UNLOCKED or the D-11 object - never anything else.
-        (Domains are legitimately locked while a feature branch exists.)"""
+    def test_every_domain_pair_validates(self):
+        """Every domain's data/schema pair loads through the fail-loud
+        validator."""
         for domain in DOMAINS:
             data_path, schema_path = paths(domain)
             with self.subTest(domain=domain):
-                data = data_io.load_validated(data_path, schema_path)
-                lock = data["_lock"]
-                if lock != "UNLOCKED":
-                    self.assertEqual(sorted(lock), ["locked_by", "since"])
+                data_io.load_validated(data_path, schema_path)
 
     def test_files_are_canonical_on_disk(self):
         """D-3: byte-identical to dumps_deterministic of their own content."""
@@ -150,27 +140,6 @@ class TestSchemaRejections(unittest.TestCase):
                 with self.assertRaises(jsonschema.ValidationError):
                     jsonschema.validate(data, data_io.load_json(schema_path))
 
-    def test_malformed_lock_rejected(self):
-        data_path, schema_path = paths("buildings")
-        schema = data_io.load_json(schema_path)
-        for bad in ("unlocked", {"locked_by": "x"}, {"since": "2026-07-03"}, {}):
-            data = data_io.load_validated(data_path, schema_path)
-            data["_lock"] = bad
-            with self.subTest(bad=bad):
-                with self.assertRaises(jsonschema.ValidationError):
-                    jsonschema.validate(data, schema)
-
-    def test_valid_lock_shapes_accepted(self):
-        """Both D-11 shapes must be schema-legal in every domain."""
-        for domain in DOMAINS:
-            data_path, schema_path = paths(domain)
-            schema = data_io.load_json(schema_path)
-            for lock in ("UNLOCKED", {"locked_by": "featureX", "since": "2026-07-03"}):
-                data = data_io.load_validated(data_path, schema_path)
-                data["_lock"] = lock
-                with self.subTest(domain=domain, lock=lock):
-                    jsonschema.validate(data, schema)
-
     def test_out_of_range_numeric_rejected(self):
         """Every domain has enforced bounds: violating the first numeric
         leaf's maximum (including one nested inside a tier array) fails."""
@@ -193,7 +162,7 @@ class TestSchemaRejections(unittest.TestCase):
     def test_write_validated_raises_before_touching_disk(self):
         data_path, schema_path = paths("buildings")
         data = data_io.load_validated(data_path, schema_path)
-        data["_lock"] = "not a lock"
+        data["not_a_real_key"] = 1
         with tempfile.TemporaryDirectory() as tmp:
             target = Path(tmp) / "buildings.json"
             with self.assertRaises(jsonschema.ValidationError):

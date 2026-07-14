@@ -5,9 +5,10 @@ allowed-tools: Read, Write, Edit, Glob, Grep, Agent, AskUserQuestion, EnterPlanM
 ---
 
 Execute one plan phase: **$ARGUMENTS** — `<plan-doc> <phase-id>`. Interactive
-single-phase mode (for parallel batch ranges use `/execute-plan-phases`).
-The plan doc is the status ledger: this skill NEVER finishes without writing
-the phase's outcome back into it.
+single-phase mode (for parallel batch ranges use `/execute-plan-phases`;
+unattended background execution of one phase is the `phase-executor` agent's
+job). The plan doc is the status ledger: this skill NEVER finishes without
+writing the phase's outcome back into it.
 
 ## Step 0 — Preconditions gate (abort with a clear report on any failure)
 - The plan doc exists and contains the phase — quote its bullet/section verbatim.
@@ -23,7 +24,8 @@ the phase's outcome back into it.
 
 ## Steps
 1. **Plan mode.** Enter plan mode. Audit what the phase needs vs what already
-   exists (current repo AND spec repo, with `file:line` citations), then draft
+   exists (current repo AND spec repo, with `file:line` citations — delegate
+   wide discovery to `scout` agents rather than grepping inline), then draft
    the implementation plan: work items, file scope, exit gate, a concrete
    in-game Quick Test.
 2. **Questions.** Before finalizing, surface every genuine user decision via
@@ -40,8 +42,11 @@ the phase's outcome back into it.
    sub-bullets (mirror 10F's style in `planning/MIGRATION_PLAN.md`). If the phase was
    aborted or partially landed, write that instead — the doc must state
    reality either way. This edit is part of the phase's diff.
-7. **Report + PR.** Final report, then commit → push → PR to `Development`
-   stating the Quick Test — only on the user's explicit confirmation.
+7. **Report + PR.** Final report via `/report` (a phase completion is a human
+   boundary — also republish root `PLAN.md` as the "How To Be Human — Active
+   Plan" artifact after the status write-back), then commit → push → PR to
+   `Development` stating the Quick Test — only on the user's explicit
+   confirmation.
 
 ## Avoid
 - Skipping the plan-doc status update — it is the point of this skill.
@@ -59,3 +64,4 @@ the phase's outcome back into it.
 - Branch name, changed files, verification results, plan-doc status line as
   written, PR URL (if opened), any package CLAUDE.md that needed a durable
   update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

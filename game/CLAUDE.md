@@ -12,7 +12,7 @@ you change a domain's architecture, update THAT domain's doc**; change the host 
 a cross-cutting rule → update this file.
 
 ## File scope you may edit
-`game/**` and `data/balancing/*` (lock rules apply — check `_lock` first). Never
+`game/**` and `data/balancing/*` (schema-valid writes only). Never
 import or edit `editor/**`. Engine changes are a cross-package task — tell the
 user.
 
@@ -20,8 +20,8 @@ user.
 - `main.py` — the ONLY entry point (`py game/main.py`): pygame window, engine loop,
   input routing. Documented in this router.
 - `map/` · `buildings/` · `enemies/` · `core/` · `ui/` — mirror the prototype's
-  five balancing domains, which still scope branches and locks (`/start-domain
-  buildings` etc.). Each has its own doc:
+  five balancing domains, which still scope file ownership and branch naming.
+  Each has its own doc:
 
 | Domain | Doc | Owns |
 |---|---|---|
@@ -131,5 +131,4 @@ test vs live round vs static read).
 
 ## Verify before finishing
 Headless smoke test (`tools/smoke.py`) after every change; live `py game/main.py`
-round for phase/combat/UI behavior. If balance changed: schema validation passes,
-lock respected.
+round for phase/combat/UI behavior. If balance changed: schema validation passes.

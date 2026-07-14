@@ -1,12 +1,7 @@
-"""Read/enforce _lock on data/balancing/* (ED-32, D-11) — read-only.
-
-The editor NEVER sets, clears, or force-unlocks a lock: /start-domain is
-the only lock and /merge-domain the only unlock (branch+lock protocol,
-T-1 — lands in Phase 8). This module only answers "is this domain locked,
-and by whom" so the balancing panel can go read-only with the owner shown.
-
-Reads go through engine.data_io.load_validated — the one sanctioned path
-to data/ (D-2). Pure Python, no Qt, no pygame.
+"""Domain derivation helpers for data/balancing/* — read-only, pure Python
+(no Qt, no pygame). The selector and balancing panel resolve which
+categories are balancing domains, and where a domain's data/schema files
+live, through this module alone.
 
 The domain LIST is derived, not hardcoded (AD-6): `domains(data_dir)` is
 slots.json's category order ∩ the categories that have a
@@ -19,7 +14,6 @@ for any other tree.
 """
 from pathlib import Path
 
-from engine import data_io
 from engine.assets import load_registry   # PURE half of engine.assets (no pygame)
 
 REPO = Path(__file__).resolve().parents[1]
@@ -67,24 +61,3 @@ def balancing_path(domain, data_dir=None):
 
 def schema_path(domain, data_dir=None):
     return _base(data_dir) / "schemas" / f"{domain}.schema.json"
-
-
-def lock_info(domain, data_dir=None):
-    """The raw _lock value: \"UNLOCKED\" or {locked_by, since} (D-11)."""
-    return data_io.load_validated(
-        balancing_path(domain, data_dir), schema_path(domain, data_dir)
-    )["_lock"]
-
-
-def is_locked(domain, data_dir=None):
-    return lock_info(domain, data_dir) != "UNLOCKED"
-
-
-def owner(domain, data_dir=None):
-    info = lock_info(domain, data_dir)
-    return None if info == "UNLOCKED" else info["locked_by"]
-
-
-def since(domain, data_dir=None):
-    info = lock_info(domain, data_dir)
-    return None if info == "UNLOCKED" else info["since"]

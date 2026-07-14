@@ -47,3 +47,4 @@ that's a cross-package task — tell the user.
 ## Final report
 - Changed files; the component's fields; verification performed; whether
   `engine/core/CLAUDE.md` needed a durable-rule update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

@@ -25,12 +25,12 @@ frame size (64x96, distinct from map tiles' 64x32), and its category_key
 the map palette's Deco section) — only where its root QTreeWidgetItem gets
 parented changes.
 
-Balancing domains are DERIVED, never hardcoded (AD-6): `locks.domains()`
+Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
 reload_registry) because _emit_selection consults it on every click. A
 category is *intended* as a domain iff it has a data/schemas/<key>.schema.json
-(`locks.is_domain_category`) — an intended domain with no balancing file is
+(`domains.is_domain_category`) — an intended domain with no balancing file is
 omitted from the tree WHOLE, which is what keeps "no balancing file, no
 domain node" expressible now that the domain list is derived from those very
 files.
@@ -61,7 +61,7 @@ from PySide6.QtWidgets import (
     QTreeWidgetItem,
 )
 
-from editor import agent_forms, locks
+from editor import agent_forms, domains
 from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
 
@@ -88,16 +88,16 @@ class SelectorPanel(QTreeWidget):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self.registry = load_registry(self._data_dir)
-        # reuse the registry we just loaded — locks.domains() would otherwise
+        # reuse the registry we just loaded — domains.domains() would otherwise
         # re-parse AND re-validate slots.json
-        self._domains = locks.domains(self._data_dir, self.registry)
+        self._domains = domains.domains(self._data_dir, self.registry)
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
         map_root = None
         for category in self.registry.categories():
-            if locks.is_domain_category(category.key, self._data_dir) and \
-                    not locks.balancing_path(category.key, self._data_dir).exists():
+            if domains.is_domain_category(category.key, self._data_dir) and \
+                    not domains.balancing_path(category.key, self._data_dir).exists():
                 # Intended as a domain (it has a schema) but its balancing file
                 # is gone: omit the node WHOLE rather than degrade it to an
                 # asset-only category — every leaf under a domain emits
@@ -273,7 +273,7 @@ class SelectorPanel(QTreeWidget):
         The derived domain list is refreshed too: a registry edit can add a
         category, and a new category can be a balancing domain."""
         self.registry = load_registry(self._data_dir)
-        self._domains = locks.domains(self._data_dir, self.registry)
+        self._domains = domains.domains(self._data_dir, self.registry)
 
     # -- selection broadcast ---------------------------------------------------
 

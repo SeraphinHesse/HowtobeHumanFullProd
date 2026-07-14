@@ -22,8 +22,8 @@ def append_random_name(data_dir, name):
 
     Returns ``True`` if the name was added, ``False`` if it was blank or already
     in the pool (prototype ``add_random_name`` semantics). Surrounding whitespace
-    is trimmed; the write goes through ``write_validated`` so ``_lock`` and every
-    other key survive and the file stays schema-canonical (D-3).
+    is trimmed; the write goes through ``write_validated`` so every other key
+    survives and the file stays schema-canonical (D-3).
     """
     name = name.strip()
     if not name:

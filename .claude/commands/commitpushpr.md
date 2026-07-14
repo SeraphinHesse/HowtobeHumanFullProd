@@ -2,12 +2,13 @@
 description: Commit the current work, push the branch, and open a PR into Development in one step.
 argument-hint: [optional commit/PR subject — inferred from the diff if omitted]
 allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git log*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(gh pr create*), Bash(gh pr view*), Read
+disable-model-invocation: true
 ---
 
 Wrap up the working tree: **commit the current work, push the branch, and open
 a PR in one step** — subject: **$ARGUMENTS** (infer from the diff if empty).
 This is the closing move of a session, not a work skill: it makes NO code
-edits and never touches any `_lock`.
+edits.
 
 It does **not** run the exit gate — it assumes the session already verified its
 own work. Report whatever was actually verified this session (smoke test, suite
@@ -51,3 +52,4 @@ run.
 ## Final report
 
 - Branch, commits landed, what was verified this session, PR URL.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

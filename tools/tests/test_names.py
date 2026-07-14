@@ -2,7 +2,8 @@
 
 Runs against a tempfile copy of data/ (repo data never touched). Pure logic:
 no pygame, no SDL. Asserts the prototype add_random_name semantics (append,
-reject blank + duplicate) plus schema-canonical persistence with _lock intact.
+reject blank + duplicate) plus schema-canonical persistence with unrelated
+keys intact.
 """
 import shutil
 import tempfile
@@ -49,12 +50,11 @@ class TestAppendRandomName(unittest.TestCase):
         self.assertFalse(append_random_name(self.data_dir, existing))
         self.assertEqual(self._names().count(existing), 1)
 
-    def test_lock_and_other_keys_preserved(self):
+    def test_other_keys_preserved(self):
         raw_before = data_io.load_json(self.buildings)
         append_random_name(self.data_dir, "Marvin")
         raw_after = data_io.load_json(self.buildings)
-        self.assertEqual(raw_after["_lock"], raw_before["_lock"])
-        # only random_names changed
+        # only random_names changed — every sibling key survives the write
         raw_after["BuildingsGlobal"]["random_names"] = raw_before[
             "BuildingsGlobal"]["random_names"]
         self.assertEqual(raw_after, raw_before)

@@ -6,8 +6,7 @@ allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py 
 
 Add a new enemy: **$ARGUMENTS**. This follows the migration plan's 10F/10G pattern
 (enable a spawner branch + a thin subclass; `Raider`/`SiegeCannon`/`Boss` already
-exist as zeroed stubs). Respect the `_lock` on `enemies` if a feature branch holds
-it.
+exist as zeroed stubs).
 
 ## Read first (token-light)
 1. `game/enemies/CLAUDE.md` — all-state-in-components, scale-tier stats resolved at
@@ -53,3 +52,4 @@ the known large-map frontier. If you're adding a high-count swarm, read
 ## Final report
 - Changed files; the type + which spawner branch; verification performed; whether
   `game/enemies/CLAUDE.md` needed a durable-rule update.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).

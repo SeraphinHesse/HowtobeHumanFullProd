@@ -1,5 +1,5 @@
-"""Phase 4 acceptance tests: selector + balancing panels + locks
-(ED-3, ED-30/31/32).
+"""Phase 4 acceptance tests: selector + balancing panels + domains
+(ED-3, ED-30/31).
 
 Same headless conventions as test_editor_viewport.py: QT_QPA_PLATFORM=
 offscreen + SDL dummy drivers before any Qt/pygame import, one
@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
 )
 
-from editor import balancing_history, locks, theme
+from editor import balancing_history, domains, theme
 from editor.panels.balancing import BalancingPanel
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
@@ -50,26 +50,12 @@ def read_domain(data_dir, domain):
     )
 
 
-def lock_domain(data_dir, domain, owner_name="featureBuildings"):
-    """Simulate /start-domain by another owner (through the validating
-    writer — tests obey D-2 too)."""
-    doc = read_domain(data_dir, domain)
-    doc["_lock"] = {"locked_by": owner_name, "since": "2026-07-03"}
-    data_io.write_validated(
-        doc,
-        data_dir / "balancing" / f"{domain}.json",
-        data_dir / "schemas" / f"{domain}.schema.json",
-    )
-
-
 class TempDataCase(unittest.TestCase):
-    """Copies data/ into a temp dir so writes never touch the repo, and
-    normalizes every domain to UNLOCKED — the repo copy may legitimately be
-    locked while a feature branch exists (e.g. the 9A batch), but these
-    tests need a known lock state. Also clears balancing_history/ in the
-    COPY (never the repo) — it's a runtime-populated log, not seed content,
-    and the repo copy may carry real entries from live editor sessions that
-    would otherwise leak into every test's starting state."""
+    """Copies data/ into a temp dir so writes never touch the repo. Also
+    clears balancing_history/ in the COPY (never the repo) — it's a
+    runtime-populated log, not seed content, and the repo copy may carry
+    real entries from live editor sessions that would otherwise leak into
+    every test's starting state."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -79,32 +65,6 @@ class TempDataCase(unittest.TestCase):
         history_dir = self.data_dir / "balancing_history"
         if history_dir.exists():
             shutil.rmtree(history_dir)
-        for domain in locks.domains(self.data_dir):
-            doc = read_domain(self.data_dir, domain)
-            if doc["_lock"] != "UNLOCKED":
-                doc["_lock"] = "UNLOCKED"
-                data_io.write_validated(
-                    doc,
-                    self.data_dir / "balancing" / f"{domain}.json",
-                    self.data_dir / "schemas" / f"{domain}.schema.json",
-                )
-
-
-class TestLocks(TempDataCase):
-    def test_unlocked_domain(self):
-        self.assertFalse(locks.is_locked("buildings", self.data_dir))
-        self.assertIsNone(locks.owner("buildings", self.data_dir))
-
-    def test_locked_domain(self):
-        lock_domain(self.data_dir, "enemies", "featureEnemies")
-        self.assertTrue(locks.is_locked("enemies", self.data_dir))
-        self.assertEqual(locks.owner("enemies", self.data_dir), "featureEnemies")
-
-    def test_no_force_unlock_api(self):
-        """ED-32/T-1: the editor exposes no way to set or clear a lock."""
-        for name in dir(locks):
-            self.assertNotIn("unlock", name.lower())
-            self.assertNotIn("release", name.lower())
 
 
 class TestDomainsDerivation(TempDataCase):
@@ -122,48 +82,34 @@ class TestDomainsDerivation(TempDataCase):
             "$id": f"{key}.schema.json",
             "type": "object",
             "additionalProperties": False,
-            "required": ["_lock"],
+            "required": ["enabled"],
             "properties": {
-                "_lock": {
-                    "description": "D-11 lock: UNLOCKED or {locked_by, since}.",
-                    "oneOf": [
-                        {"const": "UNLOCKED"},
-                        {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "required": ["locked_by", "since"],
-                            "properties": {
-                                "locked_by": {"type": "string"},
-                                "since": {
-                                    "type": "string",
-                                    "pattern": r"^\d{4}-\d{2}-\d{2}$",
-                                },
-                            },
-                        },
-                    ],
+                "enabled": {
+                    "description": "Synthetic tunable for derivation coverage.",
+                    "type": "boolean",
                 },
             },
         }
         schema_path = self.data_dir / "schemas" / f"{key}.schema.json"
         schema_path.write_text(data_io.dumps_deterministic(schema), encoding="utf-8")
         data_io.write_validated(
-            {"_lock": "UNLOCKED"},
+            {"enabled": True},
             self.data_dir / "balancing" / f"{key}.json",
             schema_path,
         )
 
     def test_derivation_reproduces_the_canonical_tuple(self):
-        self.assertEqual(locks.domains(self.data_dir), self.CANONICAL)
+        self.assertEqual(domains.domains(self.data_dir), self.CANONICAL)
 
     def test_real_data_dir_derives_the_canonical_tuple(self):
         """No data_dir → the repo's own data/. The regression guard for the
         deleted DOMAINS constant."""
-        self.assertEqual(locks.domains(), self.CANONICAL)
+        self.assertEqual(domains.domains(), self.CANONICAL)
 
     def test_removing_a_balancing_file_drops_the_domain(self):
         (self.data_dir / "balancing" / "map.json").unlink()
         self.assertEqual(
-            locks.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+            domains.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
 
     def test_new_balancing_file_adds_a_domain_in_slots_order(self):
         """vfx is an asset-only category TODAY; give it balancing files and it
@@ -171,7 +117,7 @@ class TestDomainsDerivation(TempDataCase):
         with no editor edit anywhere."""
         self.add_domain_files("vfx")
         self.assertEqual(
-            locks.domains(self.data_dir), self.CANONICAL + ("vfx",))
+            domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
         self.assertNotIn("vfx", SelectorPanel(data_dir=self.data_dir).domains())
@@ -237,7 +183,7 @@ class TestSelectorContextMenu(TempDataCase):
 class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = SelectorPanel(data_dir=self.data_dir)
-        # the LITERAL canonical tuple, not locks.domains(...) — both sides
+        # the LITERAL canonical tuple, not domains.domains(...) — both sides
         # derive now, so comparing them would be a tautology
         self.assertEqual(
             panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
@@ -378,8 +324,8 @@ class TestBalancingPanel(TempDataCase):
 
     def test_widgets_generated_from_schema(self):
         """ED-30: int -> spinbox, number -> double spinbox, bool -> checkbox,
-        string -> line edit; _lock never appears at any depth; widgets key by
-        '/'-joined paths into the 9A nested tree."""
+        string -> line edit; widgets key by '/'-joined paths into the 9A
+        nested tree."""
         panel = self.make_panel("core")
         self.assertIsInstance(panel._widgets["TheHole/base_hp"], QSpinBox)
         panel = self.make_panel("ui")
@@ -394,8 +340,6 @@ class TestBalancingPanel(TempDataCase):
         self.assertIsInstance(
             panel._widgets["BuildingsGlobal/random_names/0"], QLineEdit
         )
-        for key in panel._widgets:
-            self.assertNotIn("_lock", key)
 
     def test_selection_switches_panel_content(self):
         """ED-3: the selected tree node drives the form's content."""
@@ -517,14 +461,13 @@ class TestBalancingPanel(TempDataCase):
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": False,
             "properties": {
-                "_lock": {"oneOf": [{"const": "UNLOCKED"}]},
                 "mode": {
                     "description": "Synthetic enum for widget coverage.",
                     "enum": [1, 2, 4],
                     "type": "integer",
                 },
             },
-            "required": ["_lock", "mode"],
+            "required": ["mode"],
             "title": "synthetic",
             "type": "object",
         }
@@ -533,7 +476,7 @@ class TestBalancingPanel(TempDataCase):
             data_io.dumps_deterministic(schema), encoding="utf-8"
         )
         data_io.write_validated(
-            {"_lock": "UNLOCKED", "mode": 1},
+            {"mode": 1},
             self.data_dir / "balancing" / "synthetic.json",
             schema_path,
         )
@@ -544,20 +487,10 @@ class TestBalancingPanel(TempDataCase):
         panel.save_changes("Test session")
         self.assertEqual(read_domain(self.data_dir, "synthetic")["mode"], 4)
 
-    def test_locked_domain_readonly_with_owner_shown(self):
-        """ED-32: locked -> every field disabled + owner in the banner."""
-        lock_domain(self.data_dir, "buildings", "featureBuildings")
-        panel = self.make_panel("buildings")
-        for key, widget in panel._widgets.items():
-            self.assertFalse(widget.isEnabled(), msg=key)
-        self.assertIn("featureBuildings", panel._banner.text())
-        self.assertFalse(panel._banner.isHidden())
-
-    def test_unlocked_domain_editable_no_banner(self):
+    def test_domain_editable(self):
         panel = self.make_panel("buildings")
         for key, widget in panel._widgets.items():
             self.assertTrue(widget.isEnabled(), msg=key)
-        self.assertTrue(panel._banner.isHidden())
 
 
 class TestBalancingHistory(TempDataCase):
@@ -712,7 +645,7 @@ class TestMainWindowWiring(TempDataCase):
 
     def test_select_and_edit_through_the_shell(self):
         window = self.make_window()
-        self.assertEqual(window.balancing.domain, locks.domains(self.data_dir)[0])
+        self.assertEqual(window.balancing.domain, domains.domains(self.data_dir)[0])
         window.selector.select_domain("ui")
         self.assertEqual(window.balancing.domain, "ui")
         window.balancing._widgets["Timing/not_enough_love_duration"].setValue(2.5)

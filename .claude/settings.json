@@ -29,18 +29,6 @@
           }
         ]
       }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Edit|Write|MultiEdit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "py \"$CLAUDE_PROJECT_DIR/.claude/hooks/scope_guard.py\"",
-            "statusMessage": "Checking domain file scope..."
-          }
-        ]
-      }
     ]
   },
   "enabledPlugins": {

@@ -27,6 +27,5 @@
     "confirm_on_right_side": true,
     "construct_show_cancel": true,
     "not_enough_love_duration": 1.5
-  },
-  "_lock": "UNLOCKED"
+  }
 }

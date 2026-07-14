@@ -2,7 +2,7 @@
 
 A flat, newest-first, unbounded JSON array of full-document snapshots,
 mirroring the old prototype's balancing_sessions.json but split one file per
-domain (this codebase locks/edits domains independently, unlike the
+domain (this codebase edits domains independently, unlike the
 prototype's single combined editor window). Appended ONLY by the editor's
 explicit Save Balancing Changes action (editor/panels/balancing.py) — never
 on individual field edits.

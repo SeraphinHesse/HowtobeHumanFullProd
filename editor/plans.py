@@ -7,8 +7,8 @@ only.
 
 **The editor NEVER writes root `PLAN.md` or anything under `planning/`.** It
 *reads* PLAN.md's line-1 `<!-- active-plan: … -->` marker and *spawns*
-`/setcurrentplan` or `/createplan` to do the writing — the same delegation model
-the editor already uses for locks (`locks.py` reads, `/start-domain` writes).
+`/setcurrentplan` or `/createplan` to do the writing — the editor reads,
+spawned skills write.
 The marker is the SINGLE source of truth: no second pointer file, and a hand-edit
 that strips it yields `None` (never an exception).
 

@@ -5,7 +5,7 @@ interface to all game data. You reached here from the root router. Requirements:
 SPEC.md §7 (`ED-*`).
 
 This doc is a **router**: it holds the cross-cutting rules + the conventions for
-the top-level `editor/*.py` files (run controls, spawnclaude, locks), and points
+the top-level `editor/*.py` files (run controls, spawnclaude, domains), and points
 to `editor/panels/CLAUDE.md` for all panel detail (viewport, selector, balancing,
 details, palette, map-details). The panels doc auto-loads when you edit inside
 `editor/panels/`. **When you change a panel's architecture, update the panels
@@ -34,8 +34,9 @@ else.
   spec; consumes `agent_forms.py` (§ below).
 - `theme.py` — THE light/dark chrome theme (§ below). The only place the app's
   Qt palette/style is set.
-- `locks.py` — read/enforce `_lock` on `data/balancing/*`; the editor obeys the
-  same lock rules as agents (ED-62) and **NEVER force-unlocks**.
+- `domains.py` — derived domain list + balancing/schema path helpers (AD-6):
+  the list is a function of slots.json ∩ `data/balancing/*.json`, never a
+  hardcoded constant.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
   `registry_ops.py`, `asset_import.py`, `agent_forms.py` (all Qt-free/pygame-free,
   in `TestPurity`).
@@ -52,9 +53,6 @@ should hang off selection, not add parallel state.**
   the game draws.
 - All `data/` writes go through the schema-validating writer; invalid input must be
   unrepresentable in the forms (ED-30/31).
-- Locked domain → read-only UI with owner shown in the balancing panel (ED-32).
-  **No set/clear/force-unlock exists anywhere in the editor** (a test asserts it).
-  Spawnclaude no longer reads locks at all (the protocol is SUSPENDED — § below).
 - Asset import keeps full parity with the prototype importer's semantics (ED-40):
   rows = animations, row 0 idle, per-row fps/hidden/loop, offset, animated preview
   via `playback_order`.
@@ -138,12 +136,9 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`
   `_real_window_environment()` (same SDL-dummy strip). `detach` is injectable end
   to end (launcher → form dialog → `dispatch`) so tests capture argv and no real
   terminal ever opens.
-- **The branch+lock protocol is GONE from spawnclaude** (suspended per root
-  `CLAUDE.md`): no `domain_choices`, no `start_domain_prompt`, no `/start-domain`
-  mode, no lock reads. `editor/locks.py` stays, stays READ-ONLY, and still serves
-  the balancing panel; **no set/clear/force-unlock anywhere in the editor** (a test
-  asserts spawnclaude exposes no such symbol). `/dispatch` writes no
-  `.claude/active_domain`; `.claude/hooks/scope_guard.py` stays fail-open.
+- **The branch+lock protocol is REMOVED** (root `CLAUDE.md` §Branching):
+  spawnclaude has no domain mode and reads no locks; `editor/domains.py`
+  (née `locks.py`) serves the balancing panel's domain derivation only.
 - **`.claude/` layout**: `commands/` holds the skills (`dispatch.md` does git setup
   + payload translation, then drives the target `add-*` skill unmodified);
   `dispatch/` holds live handoffs and `dispatch/done/` the archived ones (both
@@ -154,7 +149,7 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`
   picker over `planning/*.md`, both read FRESH on every open. **The editor never
   writes root `PLAN.md` or anything under `planning/`** — "Set as current" and the
   "Create a new plan" radio spawn `/setcurrentplan <name>` / `/createplan <brief>`
-  to do the writing (same delegation model as locks), via `dispatch()`'s
+  to do the writing (the editor reads; spawned skills write), via `dispatch()`'s
   `plan_prompt=` keyword (precedence **admin > handoff > plan > tweak**; the
   prompt is always built by a `plans.*_prompt` builder, never hand-assembled).
   `plans.reveal_command` is the ONE folder-open path (argv, branching on

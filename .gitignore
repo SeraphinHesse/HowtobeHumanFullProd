@@ -15,7 +15,6 @@ dist/
 # ── Editor / tooling state ───────────────────────────────
 .editor_prefs.json
 *.log
-.claude/active_domain
 .claude/dispatch/
 .claude/worktrees/
 

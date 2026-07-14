@@ -6,8 +6,7 @@ allowed-tools: Read, Edit, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unit
 
 Add a balancing value: **$ARGUMENTS**. Every gameplay tunable comes from
 `data/balancing/` at startup (G-7) — never hardcode a constant. The five domains
-are `buildings` / `enemies` / `map` / `ui` / `core`. Respect the domain's `_lock`
-if a feature branch holds it.
+are `buildings` / `enemies` / `map` / `ui` / `core`.
 
 ## Read first (token-light)
 1. `data/CLAUDE.md` — the writer + schema discipline (single value store, no py+json
@@ -45,3 +44,4 @@ if a feature branch holds it.
 
 ## Final report
 - Changed files (json + schema); the key's path + bounds; verification performed.
+- Tag every claim **measured** / **verified** / **inferred** (see `/report`).
