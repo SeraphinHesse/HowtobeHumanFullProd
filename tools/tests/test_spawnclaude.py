@@ -123,8 +123,9 @@ class TestDispatch(unittest.TestCase):
 
 class TestNoLockWriteAPI(unittest.TestCase):
     def test_spawnclaude_exposes_no_lock_writer(self):
-        """ED-61/62/T-1: spawnclaude reads locks but exposes no way to set,
-        clear, or force-unlock one (delegation model — /start-domain writes)."""
+        """ED-61/62/T-1: spawnclaude exposes no way to set, clear, or
+        force-unlock a domain lock. It no longer reads locks either (AD-2 D6 —
+        the protocol is suspended); this guard keeps it that way."""
         for name in dir(spawnclaude):
             lowered = name.lower()
             self.assertNotIn("unlock", lowered)
