@@ -1,0 +1,74 @@
+{
+  "context": [
+    "data/CLAUDE.md",
+    ".claude/commands/add-balancing-value.md"
+  ],
+  "description": "Spawns an agent that adds a gameplay tunable to data/balancing/<domain>.json and mirrors it in the schema; the recursive editor form renders it for free.",
+  "fields": [
+    {
+      "default": "core",
+      "description": "Target data/balancing/<domain>.json + data/schemas/<domain>.schema.json.",
+      "key": "domain",
+      "label": "Domain",
+      "options": [
+        "buildings",
+        "enemies",
+        "map",
+        "ui",
+        "core"
+      ],
+      "required": true,
+      "type": "enum"
+    },
+    {
+      "description": "Dotted path into the nested subtree where the new key belongs (place it beside its siblings, not at the root).",
+      "key": "key_path",
+      "label": "Key path",
+      "placeholder": "Rewards.xp_per_boss_kill",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": "integer",
+      "description": "JSON type of the value and of the schema mirror. Lists are real JSON arrays, never stringified.",
+      "key": "value_type",
+      "label": "Value type",
+      "options": [
+        "integer",
+        "number",
+        "boolean",
+        "string",
+        "array"
+      ],
+      "type": "enum"
+    },
+    {
+      "description": "The value to write into the balancing JSON (typed per Value type).",
+      "key": "default_value",
+      "label": "Initial value",
+      "placeholder": "50",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "minimum/maximum for the schema mirror — the editor spinbox reads these so invalid input is unrepresentable (ED-30). Blank = unbounded.",
+      "key": "bounds",
+      "label": "Schema bounds (min..max)",
+      "placeholder": "0..1000",
+      "type": "string"
+    },
+    {
+      "default": false,
+      "description": "HP/DMG value: apply the x10 combat scale. (base_hp stays 10 — the documented exception.)",
+      "key": "combat_scale",
+      "label": "Combat stat (x10 scale)",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "current",
+  "id": "add-balancing-value",
+  "schema_version": 1,
+  "skill": "add-balancing-value",
+  "slug_field": "key_path",
+  "title": "Add Balancing Value"
+}

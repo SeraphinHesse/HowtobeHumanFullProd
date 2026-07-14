@@ -1,10 +1,3 @@
-<!-- active-plan: TestFixturePinningPLAN.md | set: 2026-07-14 -->
-> **Active plan:** TestFixturePinningPLAN.md (mirror). Source of truth:
-> `planning/TestFixturePinningPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: IN PROGRESS — FP-1..FP-5 executing serially on one branch, 2026-07-14 -->
 
 # TestFixturePinningPLAN.md — Pin the suite's data, free the designers

@@ -1,0 +1,31 @@
+{
+  "Debug": {
+    "show_camera_startpoint": false
+  },
+  "FX": {
+    "bg_art": {
+      "enabled": true,
+      "file": "background_master.png",
+      "offset_x": -194,
+      "offset_y": -456,
+      "world_h": 1080,
+      "world_w": 1920
+    },
+    "boss_announce": {
+      "enabled": true,
+      "fade_in": 0.5,
+      "fade_out": 0.8,
+      "hold": 2.0
+    },
+    "gore_enabled": true,
+    "income_floaters_enabled": true
+  },
+  "Menu": {
+    "cutscene_length": 44.2
+  },
+  "Timing": {
+    "confirm_on_right_side": true,
+    "construct_show_cancel": true,
+    "not_enough_love_duration": 1.5
+  }
+}

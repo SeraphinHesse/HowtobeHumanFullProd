@@ -1,0 +1,351 @@
+{
+  "$id": "map.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Map balancing domain (D-10), REPLAN nested tree (Phase 9A): tile unlocking, pathfinding weights, tile conditions. Values are the prototype's live tuning, verbatim. Bounds policy: fractions/chances 0-1, costs/counts 0-10000, rounds 0-1000. (The map FILE format is schemas/map_file.schema.json - this is the balancing domain.)",
+  "properties": {
+    "Pathfinding": {
+      "additionalProperties": false,
+      "description": "Dijkstra edge weights by tile content, plus damage-based weight reduction.",
+      "properties": {
+        "content_weights": {
+          "additionalProperties": false,
+          "description": "Path weight contributed by what stands on a tile (higher = avoided; impassable is effectively a wall).",
+          "properties": {
+            "aoe_defence_building": {
+              "description": "Weight of a tile holding an AOE defence building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "base_building": {
+              "description": "Weight of the base tile (0 keeps the hole maximally attractive).",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "buildable_tile": {
+              "description": "Weight of an empty buildable tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "combat_tile": {
+              "description": "Weight of an unlocked combat-zone tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defence_building": {
+              "description": "Weight of a tile holding a basic defence building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "economic_building": {
+              "description": "Weight of a tile holding an economy building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "impassable": {
+              "description": "Weight of an impassable tile (effectively infinite).",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "painter_building": {
+              "description": "Weight of a tile holding a painter building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "spawning_tile": {
+              "description": "Weight of a spawn-zone tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "aoe_defence_building",
+            "base_building",
+            "buildable_tile",
+            "combat_tile",
+            "defence_building",
+            "economic_building",
+            "impassable",
+            "painter_building",
+            "spawning_tile"
+          ],
+          "type": "object"
+        },
+        "damage_reduction": {
+          "additionalProperties": false,
+          "description": "Tiles where enemies recently died get cheaper, funneling later waves.",
+          "properties": {
+            "min_round": {
+              "description": "First round the damage-based reduction applies.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "reduction": {
+              "description": "Fraction removed from a qualifying tile's weight.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "top_n": {
+              "description": "How many highest-damage tiles qualify for the reduction.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "min_round",
+            "reduction",
+            "top_n"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "content_weights",
+        "damage_reduction"
+      ],
+      "type": "object"
+    },
+    "TileConditions": {
+      "additionalProperties": false,
+      "description": "Random per-tile terrain conditions: spawn odds, path weights, stat modifiers.",
+      "properties": {
+        "min_speed_fraction": {
+          "description": "Floor under a terrain-penalised enemy's move speed, as a fraction of its OWN base speed: conditioned speed is max(speed * this, speed - enemy_speed_penalty). Stops a unit slower than the flat penalty (the boss, at 0.3-0.45 t/s vs 0.4) from being welded to zero. Raise it above ~0.55 and it starts overriding the penalty for the normal enemy types too.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "modifiers": {
+          "additionalProperties": false,
+          "description": "Stat modifiers applied to whatever occupies a conditioned tile.",
+          "properties": {
+            "Forest": {
+              "additionalProperties": false,
+              "description": "Forest tile effects.",
+              "properties": {
+                "def_dmg_penalty": {
+                  "description": "Fraction removed from defender damage in a forest.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "eco_yield_bonus": {
+                  "description": "Fraction added to economy yield in a forest.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "enemy_dmg_bonus": {
+                  "description": "Fraction added to enemy damage in a forest.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "enemy_speed_penalty": {
+                  "description": "Fraction removed from enemy speed in a forest.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "def_dmg_penalty",
+                "eco_yield_bonus",
+                "enemy_dmg_bonus",
+                "enemy_speed_penalty"
+              ],
+              "type": "object"
+            },
+            "Mountain": {
+              "additionalProperties": false,
+              "description": "Mountain tile effects.",
+              "properties": {
+                "def_range_bonus": {
+                  "description": "Extra attack range in tiles for defenders on a mountain.",
+                  "maximum": 10000,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "eco_yield_penalty": {
+                  "description": "Fraction removed from economy yield on a mountain.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "enemy_dmg_bonus": {
+                  "description": "Fraction added to enemy damage on a mountain.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "enemy_speed_penalty": {
+                  "description": "Fraction removed from enemy speed on a mountain.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "def_range_bonus",
+                "eco_yield_penalty",
+                "enemy_dmg_bonus",
+                "enemy_speed_penalty"
+              ],
+              "type": "object"
+            },
+            "Pond": {
+              "additionalProperties": false,
+              "description": "Pond tile effects.",
+              "properties": {
+                "def_attack_speed_penalty": {
+                  "description": "Fraction added to defender attack interval on a pond (slower).",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "eco_yield_bonus": {
+                  "description": "Fraction added to economy yield on a pond.",
+                  "maximum": 1,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "def_attack_speed_penalty",
+                "eco_yield_bonus"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "Forest",
+            "Mountain",
+            "Pond"
+          ],
+          "type": "object"
+        },
+        "path_weights": {
+          "additionalProperties": false,
+          "description": "Extra path weight per condition (higher = enemies avoid it).",
+          "properties": {
+            "forest": {
+              "description": "Extra weight of a forest tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mountain": {
+              "description": "Extra weight of a mountain tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "pond": {
+              "description": "Extra weight of a pond tile.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "forest",
+            "mountain",
+            "pond"
+          ],
+          "type": "object"
+        },
+        "spawn_chances": {
+          "additionalProperties": false,
+          "description": "Probability each freshly revealed tile rolls a condition (should sum to 1).",
+          "properties": {
+            "forest": {
+              "description": "Chance of a forest condition.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "grass": {
+              "description": "Chance of plain grass (no condition).",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "mountain": {
+              "description": "Chance of a mountain condition.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "pond": {
+              "description": "Chance of a pond condition.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "forest",
+            "grass",
+            "mountain",
+            "pond"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "min_speed_fraction",
+        "modifiers",
+        "path_weights",
+        "spawn_chances"
+      ],
+      "type": "object"
+    },
+    "TileUnlocking": {
+      "additionalProperties": false,
+      "description": "Spending love to unlock map tiles (2x2 chunks, spawn zone recedes).",
+      "properties": {
+        "adjacent_unlock_only": {
+          "description": "If true only chunks adjacent to already-unlocked land can be bought.",
+          "type": "boolean"
+        },
+        "base_unlock_cost": {
+          "description": "Love cost of the nearest unlockable chunk.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_cost_distance_mod": {
+          "description": "Extra love cost per tile of distance from the base.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "adjacent_unlock_only",
+        "base_unlock_cost",
+        "unlock_cost_distance_mod"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "Pathfinding",
+    "TileConditions",
+    "TileUnlocking"
+  ],
+  "title": "map",
+  "type": "object"
+}

@@ -1,0 +1,1445 @@
+{
+  "$defs": {
+    "aoe_tier": {
+      "additionalProperties": false,
+      "description": "One AOEDefence tier (Maw Mortar -> Maw Catapult -> Maw Cannon); splash damage in a radius.",
+      "properties": {
+        "attack_speed": {
+          "description": "Seconds between attacks (lower is faster; clamped by DefenceBuildings globals min_attack_speed).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "base_dmg": {
+          "description": "Damage per hit at level 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_radius": {
+          "description": "Splash radius in tiles at level 1.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dmg_per_level": {
+          "description": "Extra damage per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "radius_per_level": {
+          "description": "Extra splash radius per level above 1.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "range_tiles": {
+          "description": "Attack range in tiles (Chebyshev).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attack_speed",
+        "base_dmg",
+        "base_hp",
+        "base_radius",
+        "base_upkeep",
+        "build_cost",
+        "dmg_per_level",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "radius_per_level",
+        "range_tiles",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level"
+      ],
+      "type": "object"
+    },
+    "beam_tier": {
+      "additionalProperties": false,
+      "description": "One BeamDefence tier (Sun Scorcher -> Radiant Beam -> Laser Beam); damage ramps while locked on a target.",
+      "properties": {
+        "attack_speed": {
+          "description": "Seconds between attacks (lower is faster; clamped by DefenceBuildings globals min_attack_speed).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "base_dmg": {
+          "description": "Damage per hit at level 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dmg_per_level": {
+          "description": "Extra damage per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dmg_ramp_max": {
+          "description": "Ramp cap: maximum damage per tick (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dmg_ramp_per_tick": {
+          "description": "Damage added per attack tick while sustained on one target (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "range_tiles": {
+          "description": "Attack range in tiles (Chebyshev).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attack_speed",
+        "base_dmg",
+        "base_hp",
+        "base_upkeep",
+        "build_cost",
+        "dmg_per_level",
+        "dmg_ramp_max",
+        "dmg_ramp_per_tick",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "range_tiles",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level"
+      ],
+      "type": "object"
+    },
+    "blocker_tier": {
+      "additionalProperties": false,
+      "description": "One Blocker tier (Blocker -> Bulwark -> Bastion); high-HP path soak, no attack, no upkeep.",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment"
+      ],
+      "type": "object"
+    },
+    "boost_tier": {
+      "additionalProperties": false,
+      "description": "One boost tier (Supporting Fan -> Cheerleader -> Drill Sergeant); shared shape for Speed/Damage/HP boost lines.",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boost_increase_per_level": {
+          "description": "Extra boost fraction per level above 1.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "boost_per_turn": {
+          "description": "Boost fraction granted to cardinal-adjacent defenders per surviving income phase (flat 10x once if globals flat_mode).",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_upkeep",
+        "boost_increase_per_level",
+        "boost_per_turn",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level"
+      ],
+      "type": "object"
+    },
+    "defence_tier": {
+      "additionalProperties": false,
+      "description": "One BasicDefence tier (Stone Thrower -> Slinger -> Pistoleer).",
+      "properties": {
+        "attack_speed": {
+          "description": "Seconds between attacks (lower is faster; clamped by DefenceBuildings globals min_attack_speed).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "base_dmg": {
+          "description": "Damage per hit at level 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "dmg_per_level": {
+          "description": "Extra damage per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "range_tiles": {
+          "description": "Attack range in tiles (Chebyshev).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "attack_speed",
+        "base_dmg",
+        "base_hp",
+        "base_upkeep",
+        "build_cost",
+        "dmg_per_level",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "range_tiles",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level"
+      ],
+      "type": "object"
+    },
+    "meditator_tier": {
+      "additionalProperties": false,
+      "description": "One Meditators tier (Meditator -> Shaman -> Sun Priest); compounding yield streak, reset on damage.",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_yield": {
+          "description": "Love produced per income phase at level 1 (before streak multiplier).",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "streak_growth": {
+          "description": "Yield multiplier growth per undisturbed turn (unitless multiplier).",
+          "maximum": 100,
+          "minimum": 0,
+          "type": "number"
+        },
+        "streak_max": {
+          "description": "Maximum streak steps the multiplier can compound.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "yield_per_level": {
+          "description": "Extra yield per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_yield",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "streak_growth",
+        "streak_max",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "yield_per_level"
+      ],
+      "type": "object"
+    },
+    "musician_tier": {
+      "additionalProperties": false,
+      "description": "One Musicians tier (Flute Player -> Harp Player -> Trio).",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_yield": {
+          "description": "Love produced per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "yield_per_level": {
+          "description": "Extra yield per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_yield",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "yield_per_level"
+      ],
+      "type": "object"
+    },
+    "painter_tier": {
+      "additionalProperties": false,
+      "description": "One Painters tier (Cave Painter -> Maestro -> Art Factory). Per-tier rounds_to_payout/goneforgood are authoritative (the prototype's loose PAINTER_* globals were dead fallbacks).",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_payout": {
+          "description": "Love paid out when the painting completes, at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "goneforgood": {
+          "description": "If true the painter leaves for good after paying out and the tile is permanently barred.",
+          "type": "boolean"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "payout_per_level": {
+          "description": "Extra payout per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "rounds_to_payout": {
+          "description": "Rounds the painter must survive before paying out.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_payout",
+        "build_cost",
+        "explanation",
+        "goneforgood",
+        "hp_per_level",
+        "levels",
+        "name",
+        "payout_per_level",
+        "rounds_to_payout",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment"
+      ],
+      "type": "object"
+    },
+    "wall_builder_tier": {
+      "additionalProperties": false,
+      "description": "One WallBuilder tier (Bush -> Wooden -> Stone Wall Builder); raises perimeter walls around unlocked tiles.",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "unlock_min_round": {
+          "description": "Earliest round this tier can be researched (levelup option gate).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wall_hp": {
+          "description": "Hit points of each wall segment this builder raises (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_upkeep",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "unlock_min_round",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level",
+        "wall_hp"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "buildings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Buildings balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60.",
+  "properties": {
+    "BoostBuildings": {
+      "additionalProperties": false,
+      "description": "Buff buildings boosting cardinal-adjacent defenders. One class, three data lines.",
+      "properties": {
+        "Damage": {
+          "additionalProperties": false,
+          "description": "Damage boost line (red).",
+          "properties": {
+            "tiers": {
+              "description": "Damage boost tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/boost_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "HP": {
+          "additionalProperties": false,
+          "description": "Max-HP boost line (pink).",
+          "properties": {
+            "tiers": {
+              "description": "HP boost tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/boost_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "Speed": {
+          "additionalProperties": false,
+          "description": "Attack-speed boost line (blue).",
+          "properties": {
+            "tiers": {
+              "description": "Speed boost tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/boost_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "globals": {
+          "additionalProperties": false,
+          "description": "Tunables shared by all three boost lines.",
+          "properties": {
+            "flat_mode": {
+              "description": "false: boost accumulates every surviving income phase. true: permanent 10x flat boost applied once, removed on death.",
+              "type": "boolean"
+            },
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "unlock_min_round": {
+              "description": "Earliest round any boost line can appear in research options.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "flat_mode",
+            "starts_unlocked",
+            "unlock_min_round"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Damage",
+        "HP",
+        "Speed",
+        "globals"
+      ],
+      "type": "object"
+    },
+    "BuildingsGlobal": {
+      "additionalProperties": false,
+      "description": "Cross-line building tunables.",
+      "properties": {
+        "defence_range_pathfinding": {
+          "additionalProperties": false,
+          "description": "Defence coverage feeding enemy path weights (conceptually map, kept here per REPLAN).",
+          "properties": {
+            "enabled": {
+              "description": "If true, tiles inside any defender's range add path_weight_add to enemy pathfinding cost.",
+              "type": "boolean"
+            },
+            "path_weight_add": {
+              "description": "Path weight added to each tile covered by a defender's range.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "path_weight_add"
+          ],
+          "type": "object"
+        },
+        "random_names": {
+          "description": "Pool of building nameplate names. Appended to at runtime by the add-name menu (the one runtime data write, Phase 9H) - no maxItems.",
+          "items": {
+            "description": "One candidate building name.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "xp_on_death": {
+          "additionalProperties": false,
+          "description": "Village XP granted when a building of each category dies (read by the core XP system).",
+          "properties": {
+            "aoe_defence": {
+              "description": "XP granted when a AOE defence building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "blocker": {
+              "description": "XP granted when a blocker building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "boost_damage": {
+              "description": "XP granted when a damage boost building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "boost_hp": {
+              "description": "XP granted when a HP boost building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "boost_speed": {
+              "description": "XP granted when a speed boost building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "defence": {
+              "description": "XP granted when a basic defence building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "economic": {
+              "description": "XP granted when a musician building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "meditator": {
+              "description": "XP granted when a meditator building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "painter": {
+              "description": "XP granted when a painter building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sun_scorcher": {
+              "description": "XP granted when a beam defence building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "wall": {
+              "description": "XP granted when a wall segment dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "wall_builder": {
+              "description": "XP granted when a wall builder building dies.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "aoe_defence",
+            "blocker",
+            "boost_damage",
+            "boost_hp",
+            "boost_speed",
+            "defence",
+            "economic",
+            "meditator",
+            "painter",
+            "sun_scorcher",
+            "wall",
+            "wall_builder"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "defence_range_pathfinding",
+        "random_names",
+        "xp_on_death"
+      ],
+      "type": "object"
+    },
+    "DefenceBuildings": {
+      "additionalProperties": false,
+      "description": "Attacking building lines.",
+      "properties": {
+        "AOEDefence": {
+          "additionalProperties": false,
+          "description": "The splash-damage mortar line (initially locked).",
+          "properties": {
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "AOE defence tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/aoe_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "unlock_min_village_level": {
+              "description": "Village-level gate: minimum village level before this building TYPE's unlock card can appear in the level-up pool.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "starts_unlocked",
+            "tiers",
+            "unlock_min_village_level"
+          ],
+          "type": "object"
+        },
+        "BasicDefence": {
+          "additionalProperties": false,
+          "description": "The single-target defender line.",
+          "properties": {
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Basic defence tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/defence_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "starts_unlocked",
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "BeamDefence": {
+          "additionalProperties": false,
+          "description": "The ramping beam line (era-gated).",
+          "properties": {
+            "era_unlock_round": {
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "target_death_cooldown": {
+              "description": "Seconds the beam pauses after its target dies before re-acquiring.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "tiers": {
+              "description": "Beam defence tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/beam_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "era_unlock_round",
+            "starts_unlocked",
+            "target_death_cooldown",
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "globals": {
+          "additionalProperties": false,
+          "description": "Tunables shared by every defence line.",
+          "properties": {
+            "min_attack_speed": {
+              "description": "Hard floor for attack interval in seconds - boosts can never push a defender below this.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "projectile_speed_tiles": {
+              "description": "Defence projectile travel speed in tiles per second (prototype 120 px/s over 32 px/tile). Travel time = distance / this; a shot in flight is wasted if its target dies first.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "min_attack_speed",
+            "projectile_speed_tiles"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "AOEDefence",
+        "BasicDefence",
+        "BeamDefence",
+        "globals"
+      ],
+      "type": "object"
+    },
+    "EconomyBuildings": {
+      "additionalProperties": false,
+      "description": "Love-producing building lines.",
+      "properties": {
+        "Meditators": {
+          "additionalProperties": false,
+          "description": "The Meditator line - compounding streak economy (era-gated).",
+          "properties": {
+            "era_unlock_round": {
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Meditator tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/meditator_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "era_unlock_round",
+            "starts_unlocked",
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "Musicians": {
+          "additionalProperties": false,
+          "description": "The Musician line - the basic economy building.",
+          "properties": {
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Musician tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/musician_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "starts_unlocked",
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "Painters": {
+          "additionalProperties": false,
+          "description": "The Painter line - risky delayed-payout economy (initially locked).",
+          "properties": {
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Painter tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/painter_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
+            "unlock_min_village_level": {
+              "description": "Minimum village level before Painters can appear in research options.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "starts_unlocked",
+            "tiers",
+            "unlock_min_village_level"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Meditators",
+        "Musicians",
+        "Painters"
+      ],
+      "type": "object"
+    },
+    "StructureBuildings": {
+      "additionalProperties": false,
+      "description": "Passive structures: path soaks and wall generators.",
+      "properties": {
+        "Blocker": {
+          "additionalProperties": false,
+          "description": "The Blocker line - high-HP path obstruction.",
+          "properties": {
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Blocker tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/blocker_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "starts_unlocked",
+            "tiers"
+          ],
+          "type": "object"
+        },
+        "WallBuilder": {
+          "additionalProperties": false,
+          "description": "The Wall Builder line - raises perimeter walls around unlocked tiles.",
+          "properties": {
+            "era_unlock_round": {
+              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "starts_unlocked": {
+              "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
+              "type": "boolean"
+            },
+            "tiers": {
+              "description": "Wall builder tiers in advance order.",
+              "items": {
+                "$ref": "#/$defs/wall_builder_tier"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            }
+          },
+          "required": [
+            "era_unlock_round",
+            "starts_unlocked",
+            "tiers"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Blocker",
+        "WallBuilder"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "BoostBuildings",
+    "BuildingsGlobal",
+    "DefenceBuildings",
+    "EconomyBuildings",
+    "StructureBuildings"
+  ],
+  "title": "buildings",
+  "type": "object"
+}

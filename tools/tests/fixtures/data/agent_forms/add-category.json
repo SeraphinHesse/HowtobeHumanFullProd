@@ -1,0 +1,65 @@
+{
+  "context": [
+    "data/CLAUDE.md",
+    "editor/panels/CLAUDE.md",
+    ".claude/commands/add-category.md"
+  ],
+  "description": "Spawns an agent that adds a new slot-registry category to data/slots.json — optionally a full balancing domain (balancing file + schema) — and walks the hardcoded-domain-list checklist so the game, the tests and the skills all learn about it.",
+  "fields": [
+    {
+      "description": "Registry key, snake_case: the slots.json category key, the balancing file stem, and the branch slug.",
+      "key": "key",
+      "label": "Category key",
+      "placeholder": "projectiles",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "description": "Label the editor tree shows for this category.",
+      "key": "display_name",
+      "label": "Display name",
+      "placeholder": "Projectiles",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": false,
+      "description": "True = also a balancing domain: creates data/balancing/<key>.json + data/schemas/<key>.schema.json, and the category gets a balancing form in the editor. False = asset-only (like vfx/deco/backgrounds).",
+      "key": "is_balancing_domain",
+      "label": "Is a balancing domain",
+      "type": "boolean"
+    },
+    {
+      "default": 64,
+      "description": "Sprite frame width in px for every slot in this category (how the SHEET is sliced, not how it draws).",
+      "key": "frame_w",
+      "label": "Frame width (px)",
+      "maximum": 1024,
+      "minimum": 1,
+      "type": "integer"
+    },
+    {
+      "default": 96,
+      "description": "Sprite frame height in px for every slot in this category.",
+      "key": "frame_h",
+      "label": "Frame height (px)",
+      "maximum": 1024,
+      "minimum": 1,
+      "type": "integer"
+    },
+    {
+      "default": "idle",
+      "description": "Comma-separated animation vocabulary offered by the importer. MUST start with idle (row 0, E-35). Single-frame art (tiles, deco, backgrounds) uses just 'idle'.",
+      "key": "animations",
+      "label": "Animations",
+      "placeholder": "idle, fly, impact",
+      "type": "string"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-category",
+  "schema_version": 1,
+  "skill": "add-category",
+  "slug_field": "key",
+  "title": "Add New Category"
+}

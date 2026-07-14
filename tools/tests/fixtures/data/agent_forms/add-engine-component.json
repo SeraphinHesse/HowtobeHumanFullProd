@@ -1,0 +1,57 @@
+{
+  "context": [
+    "engine/core/CLAUDE.md",
+    ".claude/commands/add-engine-component.md"
+  ],
+  "description": "Spawns an agent that adds an engine Component: declared JSON-safe fields, on_added seam, auto-registration, module stays pure (E-11/E-15).",
+  "fields": [
+    {
+      "description": "Class name; also the auto-registration key for component_from_dict. Describe the state it holds in the box above.",
+      "key": "name",
+      "label": "Component name",
+      "placeholder": "Shield",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": "core",
+      "description": "Where the module lands. Components live in engine/core; a physics primitive it wraps goes in engine/physics (like Movement).",
+      "key": "subpackage",
+      "label": "Engine subpackage",
+      "options": [
+        "core",
+        "physics",
+        "render",
+        "assets"
+      ],
+      "type": "enum"
+    },
+    {
+      "default": false,
+      "description": "Override on_added(owner) and cache self._owner (transient underscore) to reach the owner's transform.",
+      "key": "needs_owner",
+      "label": "Needs owner access",
+      "type": "boolean"
+    },
+    {
+      "default": false,
+      "description": "Defines render_items(transform) -> iterable[RenderItem] (pure data; engine.core never imports pygame).",
+      "key": "is_visual",
+      "label": "Visual component",
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "description": "Has per-frame logic in update(dt).",
+      "key": "has_update",
+      "label": "Per-frame update",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-engine-component",
+  "schema_version": 1,
+  "skill": "add-engine-component",
+  "slug_field": "name",
+  "title": "Add Engine Component"
+}
