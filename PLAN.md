@@ -173,7 +173,7 @@ can safely source ui `Backgrounds` slots.
   `schemas/ui_screen.schema.json` — a directory-rule exception exactly like
   `maps/` and `balancing_history/`; `tools/smoke.py` special-cases the
   directory. `data/ui/screen_defaults.json` pairs with
-  `schemas/ui_screen_defaults.schema.json` by stem as normal.
+  `schemas/screen_defaults.schema.json` by stem as normal.
 
 ---
 
@@ -294,7 +294,7 @@ picks it up on next Play.
   visible?}}`. `additionalProperties:false` inside entries; widget ids
   validated against `screen_defaults.json` at load (fail loud in dev on an
   unknown id — catches renames).
-- `schemas/ui_screen_defaults.schema.json` for the generated defaults file:
+- `schemas/screen_defaults.schema.json` for the generated defaults file:
   per screen `{widgets: {<id>: {rect, kind, label}}, mock_note}`.
 - `tools/smoke.py`: directory rule for `data/ui/screens/`.
 

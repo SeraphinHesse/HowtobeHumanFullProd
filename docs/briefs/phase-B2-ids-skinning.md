@@ -37,7 +37,7 @@ FIRST COMMIT of this phase (before any production edit). Pinned by
 Each screen names its **fixed** widgets (buttons, labels, panels, headers — items
 with stable identities) in a dict `ids: {name → (kind, attribute)}`, where
 `kind` is one of B1's pinned six-value enum
-(`ui_screen_defaults.schema.json`): `"button" | "panel" | "label" | "backdrop"
+(`screen_defaults.schema.json`): `"button" | "panel" | "label" | "backdrop"
 | "bar" | "field"`. The pair is THE shared contract: `skinning.apply` uses the
 kind to know how to mutate the target (Button vs bare rect-holder vs text),
 and B3's exporter reads the same pair to emit `{rect, kind, label}` without

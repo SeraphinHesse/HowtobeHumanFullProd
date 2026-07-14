@@ -15,7 +15,7 @@ regenerated, containing every named widget's rect and kind across all 12 live sc
 **What must be true**
 
 1. **File existence and schema.** A file `data/ui/screen_defaults.json` exists and
-   validates against `data/schemas/ui_screen_defaults.schema.json` (landed by B1).
+   validates against `data/schemas/screen_defaults.schema.json` (landed by B1).
    Schema shape (per plan line 291): `{<screen_id>: {widgets: {<widget_id>: {rect,
    kind, label}}, mock_note: string}}` for all 12 screens: `main_menu, pause,
    settings, credits, add_name, game_over, levelup, hud, building_panel,
@@ -28,7 +28,7 @@ regenerated, containing every named widget's rect and kind across all 12 live sc
      `data/display.json` `window_w`/`window_h`, plan line 95)
    - **`kind`**: taken from the screen's `ids` mapping pair `(kind, widget)`
      (B2's contract) — always one of the six enum values pinned by
-     `data/schemas/ui_screen_defaults.schema.json`: `"button" | "panel" |
+     `data/schemas/screen_defaults.schema.json`: `"button" | "panel" |
      "label" | "backdrop" | "bar" | "field"`. NEVER `type(widget).__name__`
      (class names would fail schema validation on the first export).
    - **`label`**: the widget's text content (empty string if no label; plan line 291)
@@ -139,7 +139,7 @@ A pure Python script (no pygame until the SDL dummy setup). Entry point:
    ```python
    from engine import data_io
    output_path = output_dir / "ui" / "screen_defaults.json"
-   schema_path = data_root / "schemas" / "ui_screen_defaults.schema.json"
+   schema_path = data_root / "schemas" / "screen_defaults.schema.json"
    data_io.write_validated(output, output_path, schema_path)
    ```
    This enforces D-3 canonical form (sorted keys, 2-space indent) and fails loud
@@ -212,7 +212,7 @@ meta) — it tests game logic in a pure Python setting, no Qt. See `conftest.py:
 | `tools/tests/test_ui_layout_export.py` | NEW — staleness gate test | N/A (writes) |
 | `conftest.py` | add one `TIERS` line at line ~99 | write (1 line) |
 | `data/display.json` | read only — logical resolution | read |
-| `data/schemas/ui_screen_defaults.schema.json` | read only — validation schema | read |
+| `data/schemas/screen_defaults.schema.json` | read only — validation schema | read |
 
 **Do NOT touch:**
 - `game/**` (screens must already construct headless with mock state; if they
