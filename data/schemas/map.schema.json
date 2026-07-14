@@ -121,6 +121,12 @@
       "additionalProperties": false,
       "description": "Random per-tile terrain conditions: spawn odds, path weights, stat modifiers.",
       "properties": {
+        "min_speed_fraction": {
+          "description": "Floor under a terrain-penalised enemy's move speed, as a fraction of its OWN base speed: conditioned speed is max(speed * this, speed - enemy_speed_penalty). Stops a unit slower than the flat penalty (the boss, at 0.3-0.45 t/s vs 0.4) from being welded to zero. Raise it above ~0.55 and it starts overriding the penalty for the normal enemy types too.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
         "modifiers": {
           "additionalProperties": false,
           "description": "Stat modifiers applied to whatever occupies a conditioned tile.",
@@ -299,6 +305,7 @@
         }
       },
       "required": [
+        "min_speed_fraction",
         "modifiers",
         "path_weights",
         "spawn_chances"

@@ -85,6 +85,10 @@ class PalettePanel(QWidget):
         self._mode = "gametiles"
         # ("code"|"deco"|"base", key) -> QToolButton, spanning all mode pages
         self._brush_buttons = {}
+        # keybind labels (ED settings panel) — set via set_tool_keybinds /
+        # set_brush_keybinds; empty until MainWindow supplies the real values
+        self._tool_keybinds = {}
+        self._brush_keybinds = []
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(4, 4, 4, 4)
@@ -290,6 +294,20 @@ class PalettePanel(QWidget):
             page_layout.removeWidget(btn)
             btn.deleteLater()
 
+    def _gametiles_brush_order(self):
+        """The (key, label) pairs _rebuild_gametiles() builds buttons for, in
+        build order — the same order the settings panel's 5 number-key brush
+        shortcuts index into (arm_gametiles_brush_by_index), so the mapping
+        and the widget order can never drift apart."""
+        order = [(("code", code), _title(self._legend[code]["slot"]))
+                 for code in self._zone_codes()]
+        order += [(("base", slot), "Hole") for slot in self._base_slots()]
+        order += [(("camera", slot), "Camera Start")
+                  for slot in self._camera_slots()]
+        order += [(("start_area", slot), "Starting Area")
+                  for slot in self._start_area_slots()]
+        return order
+
     def _rebuild_gametiles(self):
         _title_w, _page, page_layout = self._pages["gametiles"]
         self._clear_page_brushes("code", page_layout)
@@ -300,23 +318,10 @@ class PalettePanel(QWidget):
             self._brush_group.removeButton(btn)
             page_layout.removeWidget(btn)
             btn.deleteLater()
-        idx = 0
-        for code in self._zone_codes():
-            self._add_brush_button(page_layout, ("code", code),
-                                   _title(self._legend[code]["slot"]), idx)
-            idx += 1
-        for slot in self._base_slots():
-            self._add_brush_button(page_layout, ("base", slot), "Hole", idx)
-            idx += 1
-        for slot in self._camera_slots():
-            self._add_brush_button(page_layout, ("camera", slot),
-                                   "Camera Start", idx)
-            idx += 1
-        for slot in self._start_area_slots():
-            self._add_brush_button(page_layout, ("start_area", slot),
-                                   "Starting Area", idx)
-            idx += 1
+        for idx, (key, label) in enumerate(self._gametiles_brush_order()):
+            self._add_brush_button(page_layout, key, label, idx)
         self.refresh_icons()
+        self._relabel_gametiles_brushes()
 
     def _rebuild_background(self):
         _title_w, _page, page_layout = self._pages["background"]
@@ -455,6 +460,48 @@ class PalettePanel(QWidget):
         self._tool = name
         self._tool_buttons[name].setChecked(True)
         self.tool_changed.emit(name)
+
+    # -- keybind labels + shortcut dispatch (ED settings panel) --------------
+
+    def set_tool_keybinds(self, mapping):
+        """mapping: tool name -> single-key string. Relabels every tool
+        button with its bound key in parentheses, e.g. 'Paint (B)'."""
+        self._tool_keybinds = dict(mapping)
+        for name, btn in self._tool_buttons.items():
+            key = self._tool_keybinds.get(name, "")
+            suffix = f" ({key})" if key else ""
+            btn.setText(f"{name.title()}{suffix}")
+
+    def set_brush_keybinds(self, keys):
+        """keys: ordered list of up to 5 single-key strings — keys[i] labels
+        the (i+1)-th Game-tiles brush button in _gametiles_brush_order().
+        Only those first buttons get a "(key)" suffix; background/decoration
+        brushes have no number-key shortcut."""
+        self._brush_keybinds = list(keys)
+        self._relabel_gametiles_brushes()
+
+    def _relabel_gametiles_brushes(self):
+        for i, (key, label) in enumerate(self._gametiles_brush_order()):
+            btn = self._brush_buttons.get(key)
+            if btn is None:
+                continue
+            bound = self._brush_keybinds[i] if i < len(self._brush_keybinds) else ""
+            suffix = f" ({bound})" if bound else ""
+            btn.setText(f"{label}{suffix}")
+
+    def arm_gametiles_brush_by_index(self, index):
+        """Number-key brush shortcuts (ED settings panel), Game-tiles mode
+        only. A minimal map's legend can have fewer than 5 zone/base/camera/
+        start_area slots — an out-of-range index is a no-op, not a crash."""
+        if self._mode != "gametiles":
+            return
+        order = self._gametiles_brush_order()
+        if not 0 <= index < len(order):
+            return
+        key, _label = order[index]
+        btn = self._brush_buttons.get(key)
+        if btn is not None:
+            btn.click()
 
     def armed_code(self):
         for (kind, value), btn in self._brush_buttons.items():

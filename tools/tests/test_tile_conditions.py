@@ -287,6 +287,7 @@ class TestEconomyModifiers(unittest.TestCase):
 class TestEnemyModifiers(unittest.TestCase):
     SPEED_PEN = MODS["Mountain"]["enemy_speed_penalty"]
     DMG_BONUS = MODS["Mountain"]["enemy_dmg_bonus"]
+    MIN_FRACTION = MAPBAL["TileConditions"]["min_speed_fraction"]
 
     @staticmethod
     def _walk_until(scene, mv, index, limit=400, dt=0.05):
@@ -318,16 +319,20 @@ class TestEnemyModifiers(unittest.TestCase):
         self.assertAlmostEqual(mv.speed,
                                max(0.0, base_speed - self.SPEED_PEN))
 
-    def test_speed_clamps_at_zero_for_slow_enemies(self):
+    def test_speed_is_floored_at_a_fraction_of_the_units_own_speed(self):
+        """BP-1: the penalty subtracts, but never below
+        ``move_speed × min_speed_fraction``. It used to clamp at 0 instead,
+        which welded any unit slower than the flat penalty to the floor for
+        good (only the boss is — see ``test_boss.TestConditionSpeedFloor``).
+        Siege is the closest of the normal types to that line and still clears
+        it: 1.0 − 0.4 = 0.6 beats its 0.5 floor, so its number is unmoved."""
         tm = synth(["bbccs"])
+        real = ENEM["EnemyTypes"]["SiegeCannon"]["move_speed"]
         s = SiegeCannon(4, 0, ENEM, tm)
         pa = s.get_component(PathAgent)
         pa._current_condition = TileCondition.MOUNTAIN
-        self.assertAlmostEqual(
-            pa._condition_speed(),
-            max(0.0, ENEM["EnemyTypes"]["SiegeCannon"]["move_speed"]
-                - self.SPEED_PEN))
-        self.assertGreaterEqual(pa._condition_speed(), 0.0)
+        self.assertAlmostEqual(pa._condition_speed(), real - self.SPEED_PEN)
+        self.assertGreater(pa._condition_speed(), real * self.MIN_FRACTION)
 
     def test_pond_applies_neither_modifier(self):
         tm = synth(["bbccs"])

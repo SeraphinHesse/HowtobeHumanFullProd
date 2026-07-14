@@ -76,11 +76,12 @@ Full diagnosis with flowcharts and the measured repros:
   `data/balancing/map.json` + its schema via `/add-balancing-value`. It reads
   from the same `_condition_mods` seam `PathAgent` already uses, so headless
   stubs without `balance` stay neutral.
-- **Break the latch independently of the floor.** Even with D1 the refresh gate
-  is wrong: refresh `_current_condition` from the tile *underfoot* each frame,
-  not only on a waypoint-index change. Then no future penalty can ever weld a
-  unit to the floor. Cheap and defensive — do it even though D1 already makes
-  the speed non-zero.
+- ~~**Break the latch independently of the floor.** Refresh `_current_condition`
+  from the tile *underfoot* each frame, not only on a waypoint-index change.~~
+  **WRONG — not implemented.** A frozen unit does not move, so the tile underfoot
+  is the same one it froze on; re-reading it every frame changes nothing. The
+  floor is what breaks the latch. See "Corrections made during execution" below.
+  `_repath` *does* leave the condition stale, and BP-4 fixes it there.
 - **A new pathfinder goal variant, not a flag on the old one.**
   `find_path_to_nearest_non_base_building` sits beside the existing four
   `find_path_to_nearest_*` variants and reuses `_goal_tiles` /
@@ -98,10 +99,37 @@ Full diagnosis with flowcharts and the measured repros:
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| BP-1 | Unfreeze: speed floor + break the condition-refresh latch | not started |
-| BP-2 | Base last: the boss hunts buildings until the board is clear | not started |
-| BP-3 | Committed target: remember it, watch it die, choose by distance | not started |
-| BP-4 | No rewind on re-path + docs | not started |
+| BP-1 | Unfreeze: speed floor (`TileConditions.min_speed_fraction` = 0.5) | **done** |
+| BP-2 | Base last: the boss hunts buildings until the board is clear | **done** |
+| BP-3 | Committed target: remember it, watch it die, choose by distance | **done** |
+| BP-4 | No rewind on re-path + docs | **done** |
+
+### Corrections made during execution
+
+- **BP-1's "break the latch independently of the floor" was wrong, and was not
+  implemented.** A unit at speed 0 does not move, so the tile underfoot is the
+  same forest tile it froze on — re-reading it every frame returns forest and the
+  speed stays 0. The refresh buys **no** latch protection; all it would change is
+  *when* a condition starts applying (`round(wx)` flips to the next tile at the
+  half-way point of a step), moving all five enemy types off prototype-exact
+  behaviour for nothing. **The floor is the entire fix for the freeze.** The one
+  place `_current_condition` genuinely went stale is `_repath`, and BP-4 fixes it
+  there.
+- **A fifth defect was found and fixed: `_dijkstra` did not return the route it
+  costed.** It guarded its relax on `dist` (the SETTLED map), so every relaxation
+  of an unsettled node passed and a later, worse one overwrote `prev` with a
+  worse parent. The goal settled at the right cost but `_reconstruct` walked
+  clobbered back-pointers: measured, a 23-cost path to a goal already reached at
+  cost 12, doubling back through a pond. This is a real part of defect #3 ("it
+  wanders") and it affected **every** goal-set query, not just the boss's.
+  `_build_flow_field` had always kept a separate tentative-`best` map;
+  `_dijkstra` now does too.
+- `tools/tests/test_boss.py` already existed; the new classes were added to it.
+- The parity gate (`test_balancing_parity` + `balancing_parity_map.json`) was
+  **retired** in `8188712` before this plan ran, so D1's "keep the fixture green"
+  fence no longer exists as a test. The property it protected is now asserted
+  directly by `test_boss.TestConditionSpeedFloor`, which pins all four non-boss
+  conditioned speeds (0.8 / 2.3 / 0.6 / 0.5).
 
 ---
 

@@ -32,7 +32,6 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
-    QCheckBox,
     QDockWidget,
     QLabel,
     QMainWindow,
@@ -45,11 +44,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import agent_forms, registry_ops, selection, theme
+from editor import agent_forms, keybinds, registry_ops, selection, theme
 from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
+from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
@@ -136,15 +136,15 @@ class MainWindow(QMainWindow):
         self.map_details.dirty_resolver = self._resolve_dirty
         self.map_details.map_deleted.connect(self._on_map_deleted)
 
-        # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere
-        undo = QAction("Undo", self)
-        undo.setShortcut(QKeySequence.StandardKey.Undo)
-        undo.triggered.connect(self.map_session.undo_stack.undo)
-        redo = QAction("Redo", self)
-        redo.setShortcut(QKeySequence("Ctrl+Y"))
-        redo.triggered.connect(self.map_session.undo_stack.redo)
-        self.addAction(undo)
-        self.addAction(redo)
+        # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
+        # swappable from Settings — _apply_undo_redo_shortcuts sets the
+        # actual shortcuts once undo_redo_swapped loads, below)
+        self.undo_action = QAction("Undo", self)
+        self.undo_action.triggered.connect(self.map_session.undo_stack.undo)
+        self.redo_action = QAction("Redo", self)
+        self.redo_action.triggered.connect(self.map_session.undo_stack.redo)
+        self.addAction(self.undo_action)
+        self.addAction(self.redo_action)
 
         # ED-50/51/52: run controls toolbar + console pane (Play/Build output
         # only — spawnclaude gets its own terminal in Phase 8)
@@ -183,16 +183,44 @@ class MainWindow(QMainWindow):
         agents_toolbar.addAction(self.spawnclaude_action)
         self.spawnclaude_action.triggered.connect(self._on_spawnclaude)
 
-        # Chrome theme switch, next to the summon button. Chrome only — the
-        # viewport still draws through engine/render (ED-22).
+        # Chrome theme + keybinds, next to the summon button. Theme is chrome
+        # only — the viewport still draws through engine/render (ED-22).
         agents_toolbar.addSeparator()
         self.theme = theme.load_theme(self._prefs_path)
         theme.apply_theme(QApplication.instance(), self.theme)
-        self.theme_switch = QCheckBox("Dark mode")
-        self.theme_switch.setToolTip("Light / dark editor chrome")
-        self.theme_switch.setChecked(self.theme == "dark")
-        self.theme_switch.toggled.connect(self._on_theme_toggled)
-        agents_toolbar.addWidget(self.theme_switch)
+
+        loaded = keybinds.load_keybinds(self._prefs_path)
+        self.tool_keybinds = loaded["tools"]
+        self.brush_keybinds = loaded["brushes"]
+        self.undo_redo_swapped = loaded["undo_redo_swapped"]
+        self._apply_undo_redo_shortcuts()
+
+        self._tool_actions = {}
+        for name in keybinds.TOOL_NAMES:
+            action = QAction(name.title(), self)
+            action.setShortcut(QKeySequence(self.tool_keybinds[name]))
+            action.triggered.connect(
+                lambda _=False, n=name: self.palette.set_tool(n))
+            self.addAction(action)
+            self._tool_actions[name] = action
+        self.palette.set_tool_keybinds(self.tool_keybinds)
+
+        self._brush_actions = []
+        for i, slot in enumerate(keybinds.BRUSH_SLOTS):
+            action = QAction(f"Brush {i + 1}", self)
+            action.setShortcut(QKeySequence(self.brush_keybinds[slot]))
+            action.triggered.connect(
+                lambda _=False, idx=i: self.palette.arm_gametiles_brush_by_index(idx))
+            self.addAction(action)
+            self._brush_actions.append(action)
+        self.palette.set_brush_keybinds(
+            [self.brush_keybinds[slot] for slot in keybinds.BRUSH_SLOTS])
+
+        self.settings_action = QAction("Settings", self)
+        self.settings_action.setToolTip(
+            "Dark mode, undo/redo key swap, tool + brush keybinds")
+        agents_toolbar.addAction(self.settings_action)
+        self.settings_action.triggered.connect(self._on_settings)
 
         producer_btn = QPushButton("thats my prod")
         producer_btn.clicked.connect(lambda: show_thats_my_producer(self))
@@ -565,7 +593,7 @@ class MainWindow(QMainWindow):
             # never kill the editor. Same guard as spawnclaude._open_form.
             QMessageBox.critical(self, "Cannot open the form", str(exc))
 
-    # -- theme switch --------------------------------------------------------
+    # -- settings (theme + keybinds) -----------------------------------------
 
     def _on_theme_toggled(self, dark):
         self.theme = theme.apply_theme(
@@ -575,6 +603,58 @@ class MainWindow(QMainWindow):
         except OSError as exc:
             self.statusBar().showMessage(
                 f"Theme applied but not saved: {exc}", 5000)
+
+    def _apply_undo_redo_shortcuts(self):
+        undo_key, redo_key = ("Ctrl+Y", "Ctrl+Z") if self.undo_redo_swapped \
+            else ("Ctrl+Z", "Ctrl+Y")
+        self.undo_action.setShortcut(QKeySequence(undo_key))
+        self.redo_action.setShortcut(QKeySequence(redo_key))
+
+    def _save_keybinds(self):
+        try:
+            keybinds.save_keybinds(
+                self._prefs_path, self.tool_keybinds, self.brush_keybinds,
+                self.undo_redo_swapped)
+        except OSError as exc:
+            self.statusBar().showMessage(
+                f"Keybind applied but not saved: {exc}", 5000)
+
+    def _on_tool_keybind_changed(self, name, key):
+        self.tool_keybinds[name] = key
+        self._tool_actions[name].setShortcut(QKeySequence(key))
+        self.palette.set_tool_keybinds(self.tool_keybinds)
+        self._save_keybinds()
+
+    def _on_brush_keybind_changed(self, index, key):
+        slot = keybinds.BRUSH_SLOTS[index]
+        self.brush_keybinds[slot] = key
+        self._brush_actions[index].setShortcut(QKeySequence(key))
+        self.palette.set_brush_keybinds(
+            [self.brush_keybinds[s] for s in keybinds.BRUSH_SLOTS])
+        self._save_keybinds()
+
+    def _on_undo_redo_swap_changed(self, swapped):
+        self.undo_redo_swapped = swapped
+        self._apply_undo_redo_shortcuts()
+        self._save_keybinds()
+
+    def _build_settings_dialog(self):
+        """Built (and its signals wired) without exec()ing it, so tests can
+        drive the dialog's widgets without blocking on a modal event loop."""
+        dialog = SettingsDialog(
+            theme=self.theme,
+            tool_keybinds=self.tool_keybinds,
+            brush_keybinds=[self.brush_keybinds[s] for s in keybinds.BRUSH_SLOTS],
+            undo_redo_swapped=self.undo_redo_swapped,
+            parent=self)
+        dialog.theme_toggled.connect(self._on_theme_toggled)
+        dialog.tool_keybind_changed.connect(self._on_tool_keybind_changed)
+        dialog.brush_keybind_changed.connect(self._on_brush_keybind_changed)
+        dialog.undo_redo_swap_changed.connect(self._on_undo_redo_swap_changed)
+        return dialog
+
+    def _on_settings(self):
+        self._build_settings_dialog().exec()
 
     # -- frame drive ---------------------------------------------------------
 

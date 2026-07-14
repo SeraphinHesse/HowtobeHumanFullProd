@@ -21,7 +21,7 @@ from engine.core import Component, Health, Movement, SpriteAnimator
 from game.buildings.components import RoundStats
 from game.map.pathfinder import (
     _wall_blocks, block_covers, block_tiles, face_edges,
-    find_path_to_nearest_building, internal_edges,
+    find_path_to_nearest_non_base_building, internal_edges,
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
@@ -39,6 +39,18 @@ def _condition_mods(tm, condition):
     if key is None:
         return {}
     return bal.get("TileConditions", {}).get("modifiers", {}).get(key, {})
+
+
+def _min_speed_fraction(tm):
+    """``TileConditions.min_speed_fraction`` (BP-1) — the floor under a
+    terrain-penalised enemy's speed, as a fraction of its OWN base speed.
+    Same duck-typed ``balance`` guard as ``_condition_mods``; **0.0 when
+    absent**, which collapses the floor back to the plain ``max(0, …)`` clamp,
+    so headless tilemap stubs stay byte-identical."""
+    bal = getattr(tm, "balance", None)
+    if bal is None:
+        return 0.0
+    return bal.get("TileConditions", {}).get("min_speed_fraction", 0.0)
 
 # -- /10I --
 
@@ -58,17 +70,25 @@ class PathAgent(Component):
       when True. A hunter whose path ENDS on a targeted building (the boss)
       must never count arrival there as a base breach — the phantom-base-hit
       hazard the 10F raider/siege deferral documented.
-    * ``repath_on_kill`` — on unblocking (the blocker died) or on arriving at a
-      dead non-base goal, re-run ``find_path_to_nearest_building`` from the
-      current tile and reload the waypoints — the prototype boss's
-      ``_repath``-after-kill (``boss.py:108-114``) mapped onto the
-      block-and-attack model."""
+    * ``repath_on_kill`` — on unblocking (the blocker died), on arriving at a
+      dead non-base goal, or the moment the committed target dies to ANYONE,
+      re-run ``find_path_to_nearest_non_base_building`` from the current tile
+      and reload the waypoints — the prototype boss's ``_repath``-after-kill
+      (``boss.py:108-114``) mapped onto the block-and-attack model.
+
+    BP-3 adds ``target_col``/``target_row``: the victim the agent has COMMITTED
+    to, so it can watch that one building instead of re-litigating the board
+    after every swing. ``-1`` is the default-off sentinel (no target — walking
+    at the base), which is what keeps the other four enemy types byte-identical.
+    """
 
     reached_base: bool = False
     blocked: bool = False
     goal_is_base: bool = True     # arrival counts as a base breach (10G)
     repath_on_kill: bool = False  # re-route to the next nearest building (10G)
     footprint: int = 1            # the unit occupies footprint × footprint tiles
+    target_col: int = -1          # the building we committed to hunt (BP-3)
+    target_row: int = -1          # -1 = none: we are walking at the base
 
     def on_added(self, owner):
         self._owner = owner
@@ -100,6 +120,17 @@ class PathAgent(Component):
                 self.reached_base = True
             else:
                 self._repath(owner, tm, mv)
+            return
+        # -- BP-3: the committed target died — to US or, just as often, to a
+        # defender while we were still walking to it (boss rounds are crowded).
+        # Pick a new victim NOW rather than marching on to the corpse and only
+        # noticing on arrival. Gated on `not blocked` so that while we are
+        # punching something the unblock branch below stays the single re-path
+        # site; a blocker in the way is worth killing whatever happened to the
+        # target.
+        if (self.repath_on_kill and not self.blocked
+                and not self._target_alive(tm)):
+            self._repath(owner, tm, mv)
             return
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
@@ -172,36 +203,103 @@ class PathAgent(Component):
                 return occ
         return None
 
-    def _repath(self, owner, tm, mv):
-        """Re-route to the nearest alive building (base included) from the
-        current tile, reloading ``Movement`` and re-deriving ``goal_is_base``
-        (10G). No path at all (fully sealed board) leaves the agent standing —
-        the next unblock/arrival retries."""
-        col = round(owner.transform.wx)
-        row = round(owner.transform.wy)
-        path = find_path_to_nearest_building(tm, col, row,
-                                             footprint=self.footprint)
+    def adopt_goal(self, path, tm):
+        """Derive the goal state from a freshly computed ``path`` — the ONE
+        site that decides what the agent is hunting. ``Boss.on_spawn`` and
+        ``_repath`` both call it, so the two can never drift apart.
+
+        ``goal_is_base`` is True when the path's last ANCHOR's block covers the
+        base (ER-2 — a size-N body has arrived once it covers the hole; at
+        footprint 1 that is ``path[-1] == (base_col, base_row)``). Since BP-2
+        the boss only ever gets a base-covering path when no other building is
+        alive, so this flips True exactly once, at the end of its rampage.
+
+        ``target_col``/``target_row`` remember the victim (BP-3) so the agent
+        can notice it dying — to us or to anyone else — instead of re-deriving
+        the whole board every time it swings. They are declared fields, not a
+        stashed ``self._target_col``, because all state lives in components
+        (E-11) and the editor's inspector reads them."""
         if not path:
+            self.target_col = self.target_row = -1
             return
-        mv.waypoints = [[float(c), float(r)] for c, r in path]
-        mv.index = 0
-        mv.arrived = False
-        # The goal is reached when the BLOCK covers the base, not when the
-        # anchor sits on it (ER-2). footprint=1 -> path[-1] == (base) exactly.
         self.goal_is_base = block_covers(path[-1][0], path[-1][1],
                                          self.footprint,
                                          tm.base_col, tm.base_row)
+        if self.goal_is_base:
+            self.target_col = self.target_row = -1
+        else:
+            self.target_col, self.target_row = int(path[-1][0]), int(path[-1][1])
+
+    def _target_alive(self, tm):
+        """Is the building we committed to still standing? ``target_col < 0``
+        (no target — we are walking at the base) reads as alive, so the
+        dead-target watch in ``update`` never fires on the final approach."""
+        if self.target_col < 0:
+            return True
+        tile = tm.get(self.target_col, self.target_row)
+        occ = tile.occupant if tile is not None else None
+        return occ is not None and getattr(occ, "alive", False)
+
+    def _repath(self, owner, tm, mv):
+        """Re-route from the current tile to the next victim, reloading
+        ``Movement`` and re-deriving the goal (10G / BP-2). No path at all (a
+        fully sealed board) leaves the agent standing with NO target — the next
+        unblock/arrival retries, and the cleared target is what stops the
+        dead-target watch from re-pathing every frame forever."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        path = find_path_to_nearest_non_base_building(tm, col, row,
+                                                      footprint=self.footprint)
+        self.adopt_goal(path, tm)
+        if not path:
+            return
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        # BP-4: do NOT rewind. path[0] is the tile we are STANDING IN (we
+        # snapped `col`/`row` off the transform with round()), but the body is
+        # somewhere inside that tile, not on its centre. Aiming at path[0] would
+        # walk us BACK to that centre before setting off — the visible half-tile
+        # reverse after every kill (measured: col 11.000 -> 10.705 in the second
+        # after a kill). We are already inside path[0] and path[1] is 4-adjacent
+        # to it, so heading straight for path[1] is always a legal step and is
+        # what "carry on from where I am" means. Index 1 also keeps
+        # `_wall_edge_ahead` happy: it reads wps[index-1] = path[0] as the tile
+        # we are crossing FROM, which is exactly true.
+        mv.index = 1 if len(path) >= 2 else 0
+        mv.arrived = False
+        # BP-4: a re-path is the one place _current_condition genuinely goes
+        # stale — it used to stay pinned to the pre-repath tile until the index
+        # climbed back to 2. Re-read it from the tile underfoot, and resync
+        # _last_index so update()'s waypoint-change gate starts from here.
+        self._last_index = mv.index
+        tile = tm.get(col, row)
+        if tile is not None:
+            self._current_condition = tile.condition
 
     # -- 10I: condition-modified move speed ---------------------------------
 
     def _condition_speed(self):
-        """``max(0, real − enemy_speed_penalty)`` for the tile last arrived at
-        (prototype ``enemy.py:345-354``; the −0.4×32 px was pixel-space). The
-        ``max(0, …)`` clamp is prototype-exact: a 0.5 t/s SiegeCannon crawls
-        at 0.1 on mountain/forest."""
+        """``max(real × min_speed_fraction, real − enemy_speed_penalty)`` for
+        the tile last arrived at (prototype ``enemy.py:345-354``; the −0.4×32 px
+        was pixel-space).
+
+        BP-1 — the floor replaces the prototype's ``max(0, …)`` clamp, which was
+        not a slowdown but a LATCH: the penalty is a flat 0.4 t/s and the boss
+        moves at 0.3–0.45, so eras 0–3 computed exactly 0.0 — and a unit at
+        speed 0 never advances ``Movement.index``, which is the only thing that
+        refreshes ``_current_condition``, so it stayed 0 forever. The boss was
+        the one unit in the game slower than its own terrain penalty. Flooring
+        at a fraction of the unit's OWN speed fixes it where a multiplicative
+        penalty would have moved every type's numbers: at the shipped 0.5 the
+        four normal types are byte-identical (their ``real − 0.4`` still wins —
+        walker 0.8, raider 2.3, siege 0.6, formation 0.5), and only the boss
+        moves, off 0.0 and onto 0.15–0.225. Pinned by
+        ``test_boss.TestConditionSpeedFloor``."""
         mods = _condition_mods(getattr(self, "_tilemap", None),
                                self._current_condition)
-        return max(0.0, self._real_speed - mods.get("enemy_speed_penalty", 0))
+        penalised = self._real_speed - mods.get("enemy_speed_penalty", 0)
+        floor = self._real_speed * _min_speed_fraction(
+            getattr(self, "_tilemap", None))
+        return max(floor, penalised)
 
     # -- /10I --
 
