@@ -20,7 +20,7 @@ too small to warrant a plan phase or a dispatched form.
    architectural change — STOP and tell the user to run `/createplan` (or
    dispatch the matching "Add new X" form via the editor) instead.
 2. Run the exit gate: `py -m unittest discover -s tools/tests -t .` and
-   `py tools/smoke.py`. No NEW failures vs the branch's baseline; smoke green.
+   `py tools/smoke.py`. The suite is GREEN — 0 failures; smoke green.
 3. `git status`, summarize, and **wait for explicit confirmation** before
    committing.
 4. On confirmation, commit + push per the branch logic above. Report what

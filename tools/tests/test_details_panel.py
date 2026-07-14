@@ -28,8 +28,15 @@ def make_png(path, w, h, colour=(200, 60, 60, 255)):
 
 
 class DetailsCase(TempDataCase):
+    #: Slots a subclass needs to be genuinely EMPTY. Applied before the panel
+    #: is built, so the panel reads the pinned manifest. Never assume a slot
+    #: is unassigned — see TempDataCase.unassign_slot.
+    UNASSIGN = ()
+
     def setUp(self):
         super().setUp()
+        for slot in self.UNASSIGN:
+            self.unassign_slot(slot)
         self.panel = self.track(DetailsPanel(data_dir=self.data_dir))
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -171,6 +178,14 @@ class TestDraftSaveClear(DetailsCase):
 
 
 class TestSubcategoryDropdown(DetailsCase):
+    """The ● tells a designer which subcategory already has art. Proving that
+    needs one subcategory WITH art and two WITHOUT — so the two without are
+    pinned empty rather than assumed empty (art landed on slinger/pistoleer in
+    2512a84 and this test went red)."""
+
+    UNASSIGN = ("slinger_t2_lvl1", "slinger_t2_lvl2", "slinger_t2_lvl3",
+                "pistoleer_t3_lvl1", "pistoleer_t3_lvl2", "pistoleer_t3_lvl3")
+
     def test_context_populates_dropdown_with_markers(self):
         self.panel.set_context("buildings", ("Defender",))
         combo = self.panel._subcat_combo

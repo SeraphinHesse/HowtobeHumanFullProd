@@ -89,7 +89,15 @@ class TestAddVariant(TempDataCase):
         """10L-A: a ui leaf subcategory is a SKIN family, so "+ Variant" adds
         another skin. This only works because the ui groups are nested parents
         with leaf children — a flat `slots` group would make variant_target()
-        return None (dead button) and add_variant() raise."""
+        return None (dead button) and add_variant() raise.
+
+        The Button family is pinned back to its bare slot first: `add_variant`
+        numbers from what already exists, so asserting "_v2" without pinning is
+        really asserting that nobody has ever added a button skin — which stops
+        being true the moment someone does (or, as it happened, the moment the
+        suite corrupts the repo's real slots.json)."""
+        self.drop_slot_variants("ui_button")
+
         new_key = registry_ops.add_variant(
             self.data_dir, "ui", ("Buttons",), "Button")
         self.assertEqual(new_key, "ui_button_v2")

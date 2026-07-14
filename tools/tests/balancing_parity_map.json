@@ -67,7 +67,12 @@
     "BASE_LIVES_MODE": "DROPPED:lives-mode-only, HP-mode toggle removed",
     "BUILDING_REVIVE": "core:TheHole/building_revive",
     "GAME_SCALE_ROUNDS": "core:General/game_scale_rounds",
-    "INCOME_PHASE_DURATION": "core:PhaseLoop/income_phase_duration",
+    "INCOME_PHASE_DURATION": {
+      "path": "core:PhaseLoop/income_phase_duration",
+      "OVERRIDDEN": 1.505,
+      "prototype": 2.0,
+      "reason": "deliberate rebalance — shortened in the editor session 'ShortenedPhaseTimers' (data/balancing_history/core.json); the live payday phase is paced faster than the prototype's"
+    },
     "LEVELUP_LOVE_REWARD": "core:XP/levelup_love_reward",
     "LIGHTNING_COOLDOWN": {
       "path": "core:LightningStrike/cooldown",
@@ -87,7 +92,12 @@
       "path": "core:LightningStrike/upgrade_costs",
       "transform": "literal_eval"
     },
-    "ROUND_END_DELAY": "core:PhaseLoop/round_end_delay",
+    "ROUND_END_DELAY": {
+      "path": "core:PhaseLoop/round_end_delay",
+      "OVERRIDDEN": 0.6,
+      "prototype": 1.0,
+      "reason": "deliberate rebalance — shortened in the editor session 'ShortenedPhaseTimers' (data/balancing_history/core.json), alongside INCOME_PHASE_DURATION"
+    },
     "SPEED_1_5X_MIN_ROUND": "core:PhaseLoop/speed_1_5x_min_round",
     "SPEED_2X_MIN_ROUND": "core:PhaseLoop/speed_2x_min_round",
     "STARTING_CURRENCY": "core:General/starting_currency",
@@ -101,7 +111,12 @@
     "XP_PER_STANDARD_ENEMY": "core:XP/xp_per_standard_enemy"
   },
   "Balancing_Enemies.json": {
-    "BASE_ENEMY_COUNT": "enemies:EnemyScaling/base_enemy_count",
+    "BASE_ENEMY_COUNT": {
+      "path": "enemies:EnemyScaling/base_enemy_count",
+      "OVERRIDDEN": 4,
+      "prototype": 3,
+      "reason": "deliberate rebalance — raised in the editor sessions 'buff starting enemy number' / 'Base enemies to 5' (data/balancing_history/enemies.json); the live opening wave is bigger than the prototype's"
+    },
     "BOSS_ATTACK_RANGE_TILES": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
     "BOSS_ATTACK_SPEED": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
     "BOSS_DEATH_RAIDERS": "DROPPED:superseded-by-BOSS_ERAS: unread in src/",
@@ -121,7 +136,12 @@
     "ENEMY_DMG": "enemies:EnemyTypes/Standard/dmg",
     "ENEMY_HP": "enemies:EnemyTypes/Standard/hp",
     "ENEMY_MOVE_SPEED": "enemies:EnemyTypes/Standard/move_speed",
-    "ENEMY_SCALE_EVERY_N_LEVELS": "enemies:EnemyScaling/scale_every_n_levels",
+    "ENEMY_SCALE_EVERY_N_LEVELS": {
+      "path": "enemies:EnemyScaling/scale_every_n_levels",
+      "OVERRIDDEN": 9,
+      "prototype": 10,
+      "reason": "deliberate rebalance — tightened during the enemy-scaling passes in data/balancing_history/enemies.json; enemies step up a level sooner than in the prototype"
+    },
     "ENEMY_SCALE_TIERS": "enemies:EnemyScaling/scale_tiers",
     "ENEMY_SPAWN_INTERVAL": "enemies:EnemyScaling/spawn_interval",
     "MORTAR_PREDICTIVE_TARGETING": "enemies:MortarTargeting/predictive_targeting",
@@ -144,7 +164,12 @@
     "SIEGE_ROUNDS_PER_CANNON": "enemies:EnemyTypes/SiegeCannon/rounds_per_cannon",
     "SIEGE_START_ROUND": "enemies:EnemyTypes/SiegeCannon/start_round",
     "SPAWN_RAMP_ENABLED": "enemies:EnemyScaling/spawn_ramp_enabled",
-    "SPAWN_RAMP_RANGE": "enemies:EnemyScaling/spawn_ramp_range"
+    "SPAWN_RAMP_RANGE": {
+      "path": "enemies:EnemyScaling/spawn_ramp_range",
+      "OVERRIDDEN": 0.6,
+      "prototype": 0.5,
+      "reason": "deliberate rebalance — widened during the enemy-scaling passes in data/balancing_history/enemies.json; spawn timing jitters over a wider range than the prototype's"
+    }
   },
   "Balancing_Features.json": {
     "FEATURE_BG_ART": "MERGED:ui:FX/bg_art/enabled",
@@ -156,7 +181,12 @@
   },
   "Balancing_Map.json": {
     "ADJACENT_UNLOCK_ONLY": "map:TileUnlocking/adjacent_unlock_only",
-    "BASE_UNLOCK_COST": "map:TileUnlocking/base_unlock_cost",
+    "BASE_UNLOCK_COST": {
+      "path": "map:TileUnlocking/base_unlock_cost",
+      "OVERRIDDEN": 10,
+      "prototype": 5,
+      "reason": "deliberate rebalance — doubled in the editor session 'tileweightstuff' (data/balancing_history/map.json); tile unlocking is priced for the live economy, not the prototype's"
+    },
     "FOREST_DEF_DMG_PENALTY": "map:TileConditions/modifiers/Forest/def_dmg_penalty",
     "FOREST_ECO_YIELD_BONUS": "map:TileConditions/modifiers/Forest/eco_yield_bonus",
     "FOREST_ENEMY_DMG_BONUS": "map:TileConditions/modifiers/Forest/enemy_dmg_bonus",

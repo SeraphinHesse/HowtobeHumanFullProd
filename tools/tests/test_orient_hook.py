@@ -62,12 +62,17 @@ class OrientHookCase(unittest.TestCase):
         # The graph directive still leads.
         self.assertIn("Do NOT open with Grep/Glob", context)
 
-        # And the whole router follows, load-bearing sections included.
+        # And the whole router follows — VERBATIM, which is the entire claim of
+        # this test and is strictly stronger than spot-checking section titles.
+        #
+        # There used to be a hardcoded list of headings asserted here as well.
+        # It was redundant (the verbatim check already covers every heading) and
+        # it rotted: it named "TEMPORARY OVERRIDE", a banner the lock-removal
+        # work deliberately deleted from the router — so the test went red for
+        # documenting the past rather than checking the hook. Assert the file,
+        # not a copy of its table of contents.
         router = CLAUDE_MD.read_text(encoding="utf-8")
         self.assertIn(router, context)
-        for section in ("Design pillars", "Data source of truth",
-                        "Universal exit gate", "TEMPORARY OVERRIDE"):
-            self.assertIn(section, context)
 
     def test_graph_directive_precedes_the_router(self):
         """Step 0 must be read before the package-doc routing in Step 1."""

@@ -10,6 +10,7 @@ editor modules take a data_dir parameter.
 import copy
 import json
 import os
+import re
 import shutil
 import tempfile
 import time
@@ -65,6 +66,66 @@ class TempDataCase(QtCase):
         history_dir = self.data_dir / "balancing_history"
         if history_dir.exists():
             shutil.rmtree(history_dir)
+
+    def unassign_slot(self, *slot_keys):
+        """Guarantee each `slot_key` has NO manifest entry in the temp copy.
+
+        Never assume a slot is unassigned just because it is TODAY. Art lands
+        on slots over time, and a test that picks today's empty slot as its
+        "no art here" fixture is a time bomb: commit 2512a84 gave
+        painter_t1_lvl1 an `idle` row and silently broke five tests that had
+        done exactly that. Pin the fixture instead of inheriting it from
+        whatever the artists last imported."""
+        self._rewrite_manifest(lambda k: k in slot_keys)
+
+    def unassign_family(self, *prefixes):
+        """Empty every slot whose key starts with one of `prefixes`.
+
+        A ● marker on a GROUP node lights up if ANY slot under it has art, so
+        emptying one tier of Painter is not enough — all nine painter_* slots
+        have sheets. Keying off the prefix means a future painter_t4 is
+        covered too, instead of quietly re-reddening the test."""
+        self._rewrite_manifest(lambda k: k.startswith(prefixes))
+
+    def _rewrite_manifest(self, should_drop):
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        doc["entries"] = {k: v for k, v in doc["entries"].items()
+                          if not should_drop(k)}
+        data_io.write_validated(
+            doc, path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+
+    def drop_slot_variants(self, *stems):
+        """Strip generated `<stem>_v<N>` variants from the temp slots.json.
+
+        `add_variant` numbers the next variant from what already exists, so any
+        test asserting "the next one is _v2" is really asserting "the repo has
+        no variants yet" — a fact about live data, not about the code. Pin it:
+        strip the variants, and the arithmetic is the test's own."""
+        pattern = re.compile(
+            r"^(?:%s)_v\d+$" % "|".join(re.escape(s) for s in stems))
+
+        def is_key_list(key, value):
+            # "slots" means two things in this file: a category's slot
+            # DEFINITIONS (dicts) and a group's slot KEY list (strings). Only
+            # the latter is ours.
+            return (key == "slots" and isinstance(value, list)
+                    and all(isinstance(s, str) for s in value))
+
+        def scrub(node):
+            if isinstance(node, dict):
+                return {k: ([s for s in v if not pattern.match(s)]
+                            if is_key_list(k, v) else scrub(v))
+                        for k, v in node.items()}
+            if isinstance(node, list):
+                return [scrub(item) for item in node]
+            return node
+
+        path = self.data_dir / "slots.json"
+        data_io.write_validated(
+            scrub(data_io.load_json(path)), path,
+            self.data_dir / "schemas" / "slots.schema.json")
 
 
 class TestDomainsDerivation(TempDataCase):
@@ -231,7 +292,18 @@ class TestSelector(TempDataCase):
 class TestSelectorTree(TempDataCase):
     """Phase 5 (ED-10/11): the tree grows from the slot registry — category
     roots with group children, ● markers from the manifest. Domain behavior
-    (TestSelector above) must survive unchanged."""
+    (TestSelector above) must survive unchanged.
+
+    Painter is this class's UNASSIGNED example — the node that must NOT carry
+    a ● until one is written. Pinned in setUp: it was merely assumed empty,
+    then art landed on painter_t1_lvl1, which turned
+    test_markers_reflect_migrated_manifest red and quietly made
+    test_markers_refresh_after_manifest_write vacuous (it asserts a marker
+    APPEARS after a write — which proves nothing if it was there all along)."""
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_family("painter")   # the group's ● must be off to start
 
     def make(self):
         return self.track(SelectorPanel(data_dir=self.data_dir))
@@ -761,8 +833,14 @@ class TestMainWindowWiring(TempDataCase):
 
     def test_import_save_clear_update_preview_without_restart(self):
         """ED-42 end-to-end: import -> draft preview -> save -> disk-backed
-        preview + ● marker; clear -> grey X returns."""
+        preview + ● marker; clear -> grey X returns.
+
+        Starts from a genuinely empty Painter slot — pinned, not assumed; the
+        whole round trip is only observable if there is no art there to begin
+        with."""
         from PIL import Image
+
+        self.unassign_family("painter")   # the ● must start OFF to be earned
 
         png = Path(self.data_dir) / "incoming.png"
         Image.new("RGBA", (2 * 64, 96), (10, 200, 10, 255)).save(png)

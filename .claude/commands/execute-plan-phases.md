@@ -17,8 +17,8 @@ umbrella branch.
 
 ## Steps
 1. **Umbrella.** Branch `phase-<range>-umbrella` off the base branch. Record the
-   **baseline failure set** of `py -m unittest discover -s tools/tests -t .` —
-   every later gate requires **no NEW failures**, not zero.
+   suite is GREEN (`py -m unittest discover -s tools/tests -t .` → 0 failures).
+   There is no baseline to record: every later gate requires **zero failures**.
 2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase, parallel). Each reads the router
    `CLAUDE.md` → the relevant package/subsystem docs → current source (+ spec
    repo if given), then writes `docs/briefs/phase-<id>-<slug>.md` with exactly:
@@ -36,7 +36,7 @@ umbrella branch.
    `/add-balancing-value`, `/add-engine-component`, `/add-editor-feature`,
    `/add-asset-importer`) instead of hand-rolling the edits** — the skill is the
    canonical pattern. Each runs the exit gate (`py tools/smoke.py` + suite vs
-   baseline) and commits. Coders never push or open PRs.
+   green) and commits. Coders never push or open PRs.
 4. **Wave 3 — REVIEWERS** (one **`reviewer` agent** per phase, parallel). Review the diff against the
    brief (behavior + cited numbers), repo conventions, test quality, scope
    respected. Send findings back to the SAME coder agent via `SendMessage` for
@@ -61,11 +61,11 @@ umbrella branch.
 - Granting a coder scope outside its brief's §3 file boundary.
 
 ## Verify
-- After each wave: exit gate green vs baseline on every phase branch, then on
+- After each wave: exit gate green (0 failures) on every phase branch, then on
   the umbrella after each sequential merge. State what you verified.
 
 ## Final report
 - Per-phase: branch name, brief path, review outcome.
-- Test counts vs baseline (baseline failures / new failures — must be zero new).
+- Test counts, and the failure count — which must be **zero**.
 - Umbrella branch + the single PR URL.
 - Tag every claim **measured** / **verified** / **inferred** (see `/report`).

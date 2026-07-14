@@ -112,7 +112,19 @@ DRAFT_ENTRY = {
 
 class TestEntityPreview(TempDataCase):
     """ED-21/ED-42: slot preview through the real engine pipeline, draft
-    overrides without disk writes, reload without restart."""
+    overrides without disk writes, reload without restart.
+
+    Every test here needs a slot with NO manifest entry — that is what makes
+    "grey X", "no dropdown" and "the draft is the only source" observable.
+    UNASSIGNED is emptied in setUp rather than assumed empty: it used to be
+    assumed, art landed on painter_t1_lvl1, and four of these tests went red
+    for two months while testing nothing."""
+
+    UNASSIGNED = "painter_t1_lvl1"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.UNASSIGNED)
 
     def make(self):
         panel = self.track(ViewportPanel(data_dir=self.data_dir))

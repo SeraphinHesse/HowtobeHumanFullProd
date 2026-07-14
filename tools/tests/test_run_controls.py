@@ -39,12 +39,29 @@ from editor.run_controls import _real_window_environment
 REPO = Path(__file__).resolve().parents[2]
 
 
-def pump_until(signal, timeout_ms=5000):
-    """Spin the Qt event loop until `signal` fires once, or time out."""
+def pump_until(signal, timeout_ms=30000):
+    """Spin the Qt event loop until `signal` fires once.
+
+    Raises on timeout instead of returning quietly. The old version timed out
+    in silence, which is how test_build_finished_reemits_build_state came to
+    fail as `[] != [True]` — a message that looks like "the signal carried the
+    wrong payload" when the truth was "we gave up waiting and nothing was ever
+    emitted". A test must not be able to mistake a timeout for a result.
+
+    The 5s budget it used to carry was really an assumption about machine load:
+    fine for one module, not for a full suite where spawning a subprocess
+    competes with a thousand other tests. Waiting longer cannot mask a real
+    failure — the signal either arrives or this raises.
+    """
+    fired = []
     loop = QEventLoop()
+    signal.connect(lambda *_: fired.append(True))
     signal.connect(loop.quit)
     QTimer.singleShot(timeout_ms, loop.quit)
     loop.exec()
+    if not fired:
+        raise TimeoutError(
+            f"signal never fired within {timeout_ms}ms")
 
 
 class TestPureBuilders(unittest.TestCase):
@@ -167,10 +184,13 @@ class TestBuildProcess(QtCase):
         pump_until(self.controls.finished)
 
     def test_build_finished_reemits_build_state(self):
+        # Wait on the signal this test is ABOUT. _on_finished emits `finished`
+        # first and `build_state_changed` immediately after, so pumping until
+        # `finished` was a race against the very thing being asserted.
         seen = []
         self.controls.build_state_changed.connect(seen.append)
         self.controls._launch("build", [sys.executable, "-c", "pass"])
-        pump_until(self.controls.finished)
+        pump_until(self.controls.build_state_changed)
         self.assertEqual(seen, [self.controls.can_playbuild()])
 
 

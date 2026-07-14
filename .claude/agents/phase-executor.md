@@ -15,9 +15,8 @@ drive it to done. You execute plans; you never write or rewrite them.
 
 ## Execution
 1. Branch `phase-<id>-<slug>` off the dispatched base branch.
-2. Record the **baseline failure set** of
-   `py -m unittest discover -s tools/tests -t .` (or use the set given in your
-   dispatch — never a remembered count).
+2. The suite is GREEN on the base branch — 0 failures. There is no baseline to
+   record and no tolerated failure to remember. If a test is red, you broke it.
 3. Execute the brief exactly. If a work item matches a router-table skill row,
    invoke that `/add-*` skill — the skill is the canonical pattern.
 4. **Never re-plan.** Brief ambiguity, a missing decision, or scope the brief
@@ -27,7 +26,7 @@ drive it to done. You execute plans; you never write or rewrite them.
    to.
 
 ## Exit gate
-- `py tools/smoke.py` green; suite has no NEW failures vs baseline.
+- `py tools/smoke.py` green; suite has **0 failures, 0 errors**.
 - Run the brief's in-game Quick Test and state the result.
 - **Status write-back (always):** edit the phase's entry in the plan doc —
   `*(LANDED)*` with deferrals/divergences as sub-bullets, or the honest partial/
