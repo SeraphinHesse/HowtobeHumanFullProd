@@ -708,5 +708,111 @@ class TestFrameSizeOverride(DetailsCase):
                          before)
 
 
+class TestSliceMargins(DetailsCase):
+    """Nine-slice margins (10L-A): a `ui`-only, optional manifest field. All
+    four spins are the manifest's own [l, t, r, b] order; all-zero omits the
+    key entirely (a slot with no nine-slice keeps a byte-identical entry, and
+    zeroing un-slices a previously-sliced one on the next save)."""
+
+    UNASSIGN = ("ui_button", "painter_t1_lvl1")
+
+    def import_ui_button_sheet(self):
+        src = make_png(self.png_dir / "ui.png", 2 * 64, 4 * 64)
+        self.panel.set_context("ui", ("Buttons",))
+        self.panel.set_slot("ui_button")
+        self.panel.import_sheet(src)
+
+    def test_ui_context_shows_the_slice_row_and_others_hide_it(self):
+        self.panel.set_context("ui", ("Buttons",))
+        self.assertFalse(self.panel._slice_row.isHidden())
+        self.panel.set_context("buildings", ("Defender",))
+        self.assertTrue(self.panel._slice_row.isHidden())
+
+    def test_slice_spin_bounds_come_from_the_frame_size(self):
+        self.panel.set_slot("ui_button")
+        for spin in self.panel._slice_spins:
+            self.assertEqual(spin.minimum(), 0)
+        self.assertEqual(self.panel._slice_l.maximum(), 64)
+        self.assertEqual(self.panel._slice_r.maximum(), 64)
+        self.assertEqual(self.panel._slice_t.maximum(), 64)
+        self.assertEqual(self.panel._slice_b.maximum(), 64)
+        # A 64x96 buildings slot would cap T/B at 96 -- proves the axis
+        # mapping, even though the row stays hidden on this category.
+        self.panel.set_slot("stone_thrower_t1_lvl1")
+        self.assertEqual(self.panel._slice_l.maximum(), 64)
+        self.assertEqual(self.panel._slice_r.maximum(), 64)
+        self.assertEqual(self.panel._slice_t.maximum(), 96)
+        self.assertEqual(self.panel._slice_b.maximum(), 96)
+
+    def test_slice_round_trips_through_save_and_reload(self):
+        self.import_ui_button_sheet()
+        for spin, value in zip(self.panel._slice_spins, (8, 6, 8, 6)):
+            spin.setValue(value)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertEqual(entry["slice"], [8, 6, 8, 6])
+        self.panel.set_slot(None)
+        self.panel.set_slot("ui_button")            # re-read from disk
+        self.assertEqual(
+            tuple(spin.value() for spin in self.panel._slice_spins),
+            (8, 6, 8, 6))
+
+    def test_all_zero_margins_omit_the_slice_key(self):
+        self.import_ui_button_sheet()
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertNotIn("slice", entry)
+        self.assertNotIn("slice", self.panel.draft_entry())
+
+    def test_zeroing_margins_removes_the_key_on_resave(self):
+        self.import_ui_button_sheet()
+        for spin, value in zip(self.panel._slice_spins, (8, 6, 8, 6)):
+            spin.setValue(value)
+        self.panel.save()
+        for spin in self.panel._slice_spins:
+            spin.setValue(0)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertNotIn("slice", entry)
+
+    def test_non_ui_category_never_emits_slice(self):
+        self.panel.set_context("buildings", ("Defender",))
+        src = make_png(self.png_dir / "painter.png", 64, 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        self.panel._slice_l.setValue(9)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["painter_t1_lvl1"]
+        self.assertNotIn("slice", entry)
+        self.assertNotIn("slice", self.panel.draft_entry())
+
+    def test_slice_edit_emits_a_draft(self):
+        self.import_ui_button_sheet()
+        drafts = []
+        self.panel.draft_changed.connect(lambda slot, e: drafts.append(e))
+        self.panel._slice_l.setValue(5)
+        self.assertEqual(drafts[-1]["slice"], [5, 0, 0, 0])
+
+    def test_four_row_button_sheet_offers_the_ui_vocabulary(self):
+        """1b verification: the ui vocab's 4-row importer path."""
+        self.import_ui_button_sheet()
+        self.assertEqual(len(self.panel._row_editors), 4)
+        row0 = self.panel._row_editors[0]
+        self.assertEqual(
+            [row0.anim_combo.itemText(i) for i in range(row0.anim_combo.count())],
+            ["idle"])
+        self.assertFalse(row0.anim_combo.isEnabled())
+        for row, default in zip(self.panel._row_editors[1:],
+                                 ("hover", "pressed", "disabled")):
+            self.assertEqual(
+                [row.anim_combo.itemText(i) for i in range(row.anim_combo.count())],
+                ["idle", "hover", "pressed", "disabled"])
+            self.assertEqual(row.anim_combo.currentText(), default)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertEqual([r["animation"] for r in entry["rows"]],
+                         ["idle", "hover", "pressed", "disabled"])
+
+
 if __name__ == "__main__":
     unittest.main()

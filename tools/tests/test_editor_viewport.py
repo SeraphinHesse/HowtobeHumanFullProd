@@ -15,6 +15,7 @@ from pathlib import Path
 from tools.tests.qt_harness import APP as _APP, QtCase
 
 import pygame
+from PIL import Image
 from PySide6.QtWidgets import QApplication
 
 from editor.panels.viewport import ViewportPanel, surface_to_qimage
@@ -194,6 +195,46 @@ class TestEntityPreview(TempDataCase):
         panel.reload_assets()                              # ED-42
         self.assertEqual(panel.preview_animations(), ("idle", "attack"))
         self.assertEqual(panel._coords.camera.zoom, zoom)  # Phase 3 feel kept
+
+
+class TestSlicedDraftPreview(TempDataCase):
+    """A4: a `slice`-carrying draft must take entry_from_dict's happy path in
+    set_preview_draft, not its ValueError fallback (viewport.py) -- proven by
+    the animations list resolving and render_frame not raising. The nine-slice
+    geometry itself is a HUD-only concern (A5); the entity preview here is the
+    world `RenderItem` path, which ignores `slice` on purpose."""
+
+    UNASSIGNED = "ui_button"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.UNASSIGNED)
+        # The draft is in-memory only, but AssetStore still resolves the
+        # sheet PATH from disk -- write the PNG a fresh import would have.
+        Image.new("RGBA", (64, 64), (200, 60, 60, 255)).save(
+            self.data_dir / "sprites" / "imported" / "ui_button.png")
+
+    def test_draft_with_slice_previews_and_never_touches_disk(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(256, 256)
+        draft = {
+            "sheet": "imported/ui_button.png",
+            "frame_w": 64, "frame_h": 64, "offset_x": 0, "offset_y": 0,
+            "rows": [
+                {"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
+                 "loop_start": 0, "loop_end": 0, "loop_count": 1},
+                {"animation": "hover", "frames": 1, "fps": 8, "hidden": [],
+                 "loop_start": 0, "loop_end": 0, "loop_count": 1},
+            ],
+            "slice": [8, 8, 8, 8],
+        }
+        panel.set_preview_slot("ui_button")
+        panel.set_preview_draft("ui_button", draft)
+        self.assertEqual(panel.preview_animations(), ("idle", "hover"))
+        panel.render_frame()   # slice-carrying draft never raises
+        on_disk = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")
+        self.assertNotIn("ui_button", on_disk["entries"])
 
 
 class TestPurity(unittest.TestCase):
