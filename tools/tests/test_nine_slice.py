@@ -94,22 +94,127 @@ class TestDegenerateClamp(NineSliceCase):
         self.assertEqual(backend._clamp_pair(2, 2, 6), (2, 2))   # normal: untouched
         self.assertEqual(backend._clamp_pair(0, 0, 6), (0, 0))
         for limit in range(1, 10):
-            for a, b in ((2, 2), (5, 1), (1, 7), (3, 4)):
+            for a, b in ((2, 2), (5, 1), (1, 7), (3, 4), (-5, 2), (-1, -1)):
                 lo, hi = backend._clamp_pair(a, b, limit)
                 self.assertGreaterEqual(lo, 0)
                 self.assertGreaterEqual(hi, 0)
-                if a + b > limit:
+                if max(0, a) + max(0, b) > limit:
                     self.assertEqual(lo + hi, limit)  # exactly fills, no overflow
+
+    def test_negative_margin_renders_instead_of_raising(self):
+        # Unreachable from committed data (the schema pins minimum 0 and
+        # entry_from_dict rejects negatives), but the editor's slice spinboxes
+        # feed unsaved draft margins straight in. A negative would otherwise slip
+        # through the a+b <= limit fast path and blow up on an out-of-bounds
+        # subsurface — rendering must degrade, never raise (E-37).
+        for bad in ((-5, 0, 0, 0), (0, -5, 0, 0), (0, 0, -5, 0), (0, 0, 0, -5),
+                    (-1, -1, -1, -1), (-5, 2, 3, -4)):
+            with self.subTest(margins=bad):
+                t = draw_patch(self.src, (20, 20), margins=bad)
+                self.assertEqual(t.get_size(), (20, 20))
+        # a negative margin floors to 0, so it draws as if that side had none
+        self.assertEqual(
+            pygame.image.tobytes(draw_patch(self.src, (20, 20), (-5, 2, 3, 4)),
+                                 "RGBA"),
+            pygame.image.tobytes(draw_patch(self.src, (20, 20), (0, 2, 3, 4)),
+                                 "RGBA"))
+
+
+# A deliberately ASYMMETRIC fixture: a non-square source, four different
+# margins, a non-square dest. Every one of the 9 regions gets its own colour, so
+# a transposed row/col (src_cols paired with dst_rows) cannot produce the same
+# pixels — the square, symmetric 6x6 fixture above is blind to that swap.
+ASYM_W, ASYM_H = 10, 8
+ASYM_MARGINS = (1, 2, 3, 4)          # left, top, right, bottom
+ASYM_DEST = (25, 13)
+# source bands: cols 1 | 6 | 3   rows 2 | 2 | 4
+# dest   bands: cols 1 | 21 | 3  rows 2 | 7 | 4
+ASYM_COLOURS = {
+    ("l", "t"): (10, 0, 0), ("m", "t"): (20, 0, 0), ("r", "t"): (30, 0, 0),
+    ("l", "m"): (0, 10, 0), ("m", "m"): (0, 20, 0), ("r", "m"): (0, 30, 0),
+    ("l", "b"): (0, 0, 10), ("m", "b"): (0, 0, 20), ("r", "b"): (0, 0, 30),
+}
+ASYM_SRC_COLS = {"l": (0, 1), "m": (1, 6), "r": (7, 3)}
+ASYM_SRC_ROWS = {"t": (0, 2), "m": (2, 2), "b": (4, 4)}
+
+
+def asym_source():
+    s = pygame.Surface((ASYM_W, ASYM_H), pygame.SRCALPHA)
+    for (cx, cy), colour in ASYM_COLOURS.items():
+        x, w = ASYM_SRC_COLS[cx]
+        y, h = ASYM_SRC_ROWS[cy]
+        s.fill(colour, (x, y, w, h))
+    return s
+
+
+class TestAsymmetricGeometry(NineSliceCase):
+    """Non-square source, four distinct margins, non-square dest: pins that each
+    region lands on the RIGHT axis. Every assertion here would fail if the row
+    and column bands were swapped."""
+
+    def setUp(self):
+        super().setUp()
+        self.src = asym_source()
+        self.t = draw_patch(self.src, ASYM_DEST, margins=ASYM_MARGINS)
+
+    def test_every_region_lands_on_its_own_axis(self):
+        # one sample well inside each of the 9 destination regions
+        samples = {
+            ("l", "t"): (0, 0),   ("m", "t"): (12, 1),  ("r", "t"): (23, 0),
+            ("l", "m"): (0, 5),   ("m", "m"): (12, 5),  ("r", "m"): (23, 5),
+            ("l", "b"): (0, 11),  ("m", "b"): (12, 11), ("r", "b"): (23, 11),
+        }
+        for region, pos in samples.items():
+            self.assertPixel(self.t, pos, ASYM_COLOURS[region])
+
+    def test_band_boundaries_are_exact_on_each_axis(self):
+        # left margin is exactly 1px: x=0 is the corner, x=1 is already centre
+        self.assertPixel(self.t, (0, 5), ASYM_COLOURS[("l", "m")])
+        self.assertPixel(self.t, (1, 5), ASYM_COLOURS[("m", "m")])
+        # right margin is exactly 3px: x=21 is centre, x=22 starts the corner
+        self.assertPixel(self.t, (21, 5), ASYM_COLOURS[("m", "m")])
+        self.assertPixel(self.t, (22, 5), ASYM_COLOURS[("r", "m")])
+        # top margin is exactly 2px: y=1 is the corner, y=2 is already centre
+        self.assertPixel(self.t, (12, 1), ASYM_COLOURS[("m", "t")])
+        self.assertPixel(self.t, (12, 2), ASYM_COLOURS[("m", "m")])
+        # bottom margin is exactly 4px: y=8 is centre, y=9 starts the corner
+        self.assertPixel(self.t, (12, 8), ASYM_COLOURS[("m", "m")])
+        self.assertPixel(self.t, (12, 9), ASYM_COLOURS[("m", "b")])
+
+    def test_asymmetric_corners_are_byte_identical_to_the_source(self):
+        # no overflow here, so every corner is dest-size == source-size => a 1:1
+        # blit. Compare the whole corner block, not a sample pixel.
+        for cx, cy in (("l", "t"), ("r", "t"), ("l", "b"), ("r", "b")):
+            sx, w = ASYM_SRC_COLS[cx]
+            sy, h = ASYM_SRC_ROWS[cy]
+            dx = 0 if cx == "l" else ASYM_DEST[0] - w
+            dy = 0 if cy == "t" else ASYM_DEST[1] - h
+            src_block = self.src.subsurface(pygame.Rect(sx, sy, w, h))
+            dst_block = self.t.subsurface(pygame.Rect(dx, dy, w, h))
+            with self.subTest(corner=(cx, cy)):
+                self.assertEqual(pygame.image.tobytes(dst_block, "RGBA"),
+                                 pygame.image.tobytes(src_block, "RGBA"))
 
 
 class TestZeroMargins(NineSliceCase):
     def test_zero_margin_axis_stretches_freely(self):
-        # no x margins => the horizontal middle band IS the whole source width,
-        # so x stretches freely (a pure 1x3 patch); y keeps its 3px bands.
-        t = draw_patch(self.src, (30, 12), margins=(0, 3, 0, 3))
-        self.assertPixel(t, (15, 1), GREEN)   # midpoint -> source's middle band
-        self.assertPixel(t, (0, 1), RED)      # the corner column stretched too
-        self.assertPixel(t, (29, 1), RED)
+        # No x margins => the horizontal middle band IS the whole source width,
+        # so x stretches freely (a pure 1x3 patch) while the 2px top/bottom bands
+        # stay fixed. top+bottom must stay < the 6px source height, or the SOURCE
+        # middle band is 0 tall and the sprite renders torn in half.
+        t = draw_patch(self.src, (30, 12), margins=(0, 2, 0, 2))
+        # the middle band is real: opaque all the way across, all the way down
+        for y in range(12):
+            for x in (0, 15, 29):
+                self.assertEqual(t.get_at((x, y))[3], 255, f"transparent at {(x, y)}")
+        # y bands hold (src rows 2..3 are the blue centre band), x stretches:
+        self.assertPixel(t, (15, 5), BLUE)    # midpoint -> the source's centre
+        self.assertPixel(t, (1, 5), GREEN)    # ...its green flanks, stretched
+        self.assertPixel(t, (28, 5), GREEN)
+        # the top band keeps its 2px height but its corners stretch on x too
+        self.assertPixel(t, (15, 0), GREEN)
+        self.assertPixel(t, (1, 0), RED)
+        self.assertPixel(t, (28, 0), RED)
 
     def test_all_zero_slice_is_a_plain_scale(self):
         size = (20, 20)

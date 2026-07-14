@@ -97,10 +97,13 @@ in FRAME pixels, authored on the manifest entry and carried
 them**; `renderer.py` copies `frame.slice` onto the HUD `DrawCall` and the
 world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
 - `_nine_patch` composites corners **1:1 (never resampled)**, edges stretched on
-  one axis, the centre on both. `_clamp_pair` clamps the opposite margins
-  proportionally into the source and then the destination, so on overflow they
-  fill the axis exactly: the centre band vanishes and the corners *squeeze*
-  instead of producing a negative rect. Any dest size is safe, down to 1×1.
+  one axis, the centre on both. `_clamp_pair` floors negatives to 0, then clamps
+  the opposite margins proportionally into the source and then the destination,
+  so on overflow they fill the axis exactly: the centre band vanishes and the
+  corners *squeeze* instead of producing a negative rect. **Any margins are safe
+  at any dest size** (down to 1×1, and including negatives) — the editor feeds
+  this unsaved draft margins straight from the slice spinboxes, and rendering
+  degrades rather than raising (E-37).
 - **No-ops take the plain `_scaled` path** (and so share its cache entry):
   `slice is None`, an all-zero slice, and a 1:1 draw. The grey-X placeholder
   never carries a slice, so it stays on that path — `test_placeholder_surfaces_

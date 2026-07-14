@@ -50,7 +50,15 @@ def _scaled(surface, size):
 def _clamp_pair(a, b, limit):
     """Opposite margins clamped PROPORTIONALLY into `limit`. On overflow
     a + b == limit exactly, so the centre band vanishes and the corners squeeze
-    rather than clip — no negative rect, no crash, at any destination size."""
+    rather than clip — no negative rect, no crash, at any destination size.
+
+    A negative margin is floored to 0 FIRST: it would otherwise slip through the
+    `a + b <= limit` fast path untouched and produce an out-of-bounds source
+    rect. Committed data cannot carry one (the schema pins minimum 0 and
+    entry_from_dict rejects it), but the editor feeds this unsaved draft margins
+    straight from the slice spinboxes — and rendering degrades, never raises."""
+    a = max(0, a)
+    b = max(0, b)
     total = a + b
     if total <= limit:
         return a, b
