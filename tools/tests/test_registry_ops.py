@@ -113,7 +113,8 @@ class TestAddVariant(TempDataCase):
     def test_object_form_entries_do_not_break_the_variant_walk(self):
         """D1 lets a slots[] entry be {key, frame_w, frame_h}. registry_ops
         must read the KEY out of it (a dict in a set / through the stem regex
-        would crash) and keep appending a plain string."""
+        would crash) without crashing, AND (A7) the new variant now INHERITS
+        the override's frame size rather than staying bare."""
         doc = data_io.load_json(self.data_dir / "slots.json")
         enemies = next(c for c in doc["categories"] if c["key"] == "enemies")
         walker = next(g for g in enemies["groups"] if g["label"] == "Walker")
@@ -131,9 +132,77 @@ class TestAddVariant(TempDataCase):
         reg = load_registry(self.data_dir)
         self.assertEqual(reg.group_slots("enemies", ("Walker", "Era 2")),
                          ("enemy_stage_2", "enemy_stage_2_v2"))
-        # the override survives the write; the appended variant inherits
+        # the override survives the write, and the appended variant now
+        # inherits it (A7) instead of falling back to the category default.
         self.assertEqual(reg.frame_size("enemy_stage_2"), (128, 128))
-        self.assertEqual(reg.frame_size("enemy_stage_2_v2"), (64, 96))
+        self.assertEqual(reg.frame_size("enemy_stage_2_v2"), (128, 128))
+
+    def test_ui_frame_size_override_propagates_to_variant(self):
+        # ui_bg_main_menu is 480x270 (an override; ui default is 64x64).
+        # "+ Variant" yields a variant that inherits the same size.
+        new_key = registry_ops.add_variant(
+            self.data_dir, "ui", ("Backgrounds",), "Main Menu")
+        # e.g., ui_bg_main_menu_v2
+
+        reg = load_registry(self.data_dir)
+        # The variant inherits the stem's 480x270.
+        self.assertEqual(reg.frame_size(new_key), (480, 270))
+        self.assertEqual(reg.frame_size("ui_bg_main_menu"), (480, 270))
+
+    def test_bare_stem_yields_bare_variant(self):
+        # Walker -> Era 2 has enemy_stage_2 (no override; inherits enemies'
+        # 64x96). "+ Variant" on era 2 -> enemy_stage_2_v2 is BARE, inheriting
+        # 64x96.
+        self.drop_slot_variants("enemy_stage_2")
+
+        new_key = registry_ops.add_variant(
+            self.data_dir, "enemies", ("Walker",), "Era 2")
+
+        reg = load_registry(self.data_dir)
+        # Both inherit the category default (64x96).
+        self.assertEqual(reg.frame_size("enemy_stage_2"), (64, 96))
+        self.assertEqual(reg.frame_size(new_key), (64, 96))
+        # The entry in the registry is bare (not an override dict).
+        # (This is an implementation detail, but verifying it pins the
+        # regression -- bare slots must stay bare.)
+        slots_doc = data_io.load_json(self.data_dir / "slots.json")
+        enemies = next(c for c in slots_doc["categories"]
+                       if c["key"] == "enemies")
+        walker = next(g for g in enemies["groups"] if g["label"] == "Walker")
+        era2 = next(c for c in walker["children"] if c["label"] == "Era 2")
+        self.assertIsInstance(era2["slots"][-1], str)  # the appended variant
+
+    def test_variant_is_independently_resizable(self):
+        # Create a ui_bg_main_menu variant at 480x270 (inherited).
+        new_key = registry_ops.add_variant(
+            self.data_dir, "ui", ("Backgrounds",), "Main Menu")
+
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.frame_size(new_key), (480, 270))
+
+        # Now resize the variant to 240x135 via the existing API.
+        registry_ops.set_slot_frame_size(self.data_dir, new_key, 240, 135)
+
+        # Reload and verify: variant is 240x135, stem is still 480x270.
+        reg = load_registry(self.data_dir)
+        self.assertEqual(reg.frame_size(new_key), (240, 135))
+        self.assertEqual(reg.frame_size("ui_bg_main_menu"), (480, 270))
+
+    def test_written_doc_reloads_without_frame_size_agreement_error(self):
+        # ui_bg_main_menu is 480x270; "+ Variant" yields ui_bg_main_menu_v2
+        # also 480x270 (same key form: both dicts with agreed size).
+        new_key = registry_ops.add_variant(
+            self.data_dir, "ui", ("Backgrounds",), "Main Menu")
+
+        # Reload the registry -- if there is a frame-size agreement bug,
+        # the loader will raise ValueError here.
+        reg = load_registry(self.data_dir)
+
+        # Both are present and agree.
+        self.assertIn("ui_bg_main_menu", reg.group_slots("ui", ("Backgrounds",)))
+        self.assertIn(new_key, reg.group_slots("ui", ("Backgrounds",)))
+        self.assertEqual(reg.frame_size("ui_bg_main_menu"),
+                         reg.frame_size(new_key))
 
 
 if __name__ == "__main__":
