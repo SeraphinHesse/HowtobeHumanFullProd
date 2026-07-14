@@ -122,6 +122,39 @@ class TestUnexpectedSkip(GateCase):
         self.assertIn("GATE PASS", out)
 
 
+class TestSkipIdentity(unittest.TestCase):
+    """A skip is identified by FILE + REASON, never by line number.
+
+    Keying on the line meant that adding an import to the file shifted it, and
+    the same sanctioned skip then read as a brand-new unexpected one — the gate
+    failed for nothing. That actually happened, on this tool, one commit after
+    it was written.
+    """
+
+    def parse(self, line):
+        results, _ = self._run_with(line)
+        return results
+
+    def _run_with(self, line):
+        from unittest import mock
+        proc = mock.Mock(stdout=line + "\n1 passed\n", stderr="")
+        with mock.patch.object(testgate.subprocess, "run", return_value=proc):
+            return testgate.run_suite([])
+
+    def test_skip_key_is_file_plus_reason_not_the_line(self):
+        at_45 = self.parse(
+            "SKIPPED [1] tools/tests/test_a.py:45: a build already exists")
+        at_99 = self.parse(
+            "SKIPPED [1] tools/tests/test_a.py:99: a build already exists")
+        self.assertEqual(list(at_45), list(at_99))
+        self.assertEqual(list(at_45), ["tools/tests/test_a.py: a build already exists"])
+
+    def test_a_different_reason_in_the_same_file_is_a_different_skip(self):
+        one = self.parse("SKIPPED [1] tools/tests/test_a.py:45: reason one")
+        two = self.parse("SKIPPED [1] tools/tests/test_a.py:45: reason two")
+        self.assertNotEqual(list(one), list(two))
+
+
 class TestStaleBaseline(GateCase):
     """Rule 2: a baseline from another commit must say so, not quietly lie."""
 

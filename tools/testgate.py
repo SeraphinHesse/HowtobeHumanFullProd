@@ -52,7 +52,12 @@ BASELINE = REPO / ".test-baseline.json"
 # every skip then collides under the same key and the baseline records a skip
 # that can never be matched again.
 _FAILED = re.compile(r"^(?P<outcome>FAILED|ERROR)\s+(?P<nodeid>\S+?)(?:\s+-\s+.*)?$")
-_SKIPPED = re.compile(r"^SKIPPED\s+\[\d+\]\s+(?P<nodeid>[^\s:]+:\d+)")
+# A skip is keyed by FILE + REASON, deliberately NOT by line number. pytest
+# reports "SKIPPED [1] path/to/test.py:45: some reason", and keying on the line
+# means adding an import to that file shifts it — the same sanctioned skip then
+# reads as a brand-new unexpected one and the gate fails for nothing. The reason
+# is the stable identity of a skip; the line is an implementation detail.
+_SKIPPED = re.compile(r"^SKIPPED\s+\[\d+\]\s+(?P<file>[^\s:]+):\d+:\s*(?P<reason>.*)$")
 _TOTAL = re.compile(r"(\d+) (?:passed|failed)")
 
 
@@ -76,10 +81,10 @@ def run_suite(extra: list[str] | None = None) -> tuple[dict[str, str], int]:
     total = 0
     for line in (proc.stdout + proc.stderr).splitlines():
         line = line.strip()
-        if m := _FAILED.match(line):
+        if m := _SKIPPED.match(line):
+            results[f'{posix(m["file"])}: {m["reason"].strip()}'] = "SKIPPED"
+        elif m := _FAILED.match(line):
             results[posix(m["nodeid"])] = m["outcome"]
-        elif m := _SKIPPED.match(line):
-            results[posix(m["nodeid"])] = "SKIPPED"
         elif m := _TOTAL.search(line):
             total = max(total, int(m.group(1)))
     return results, total
