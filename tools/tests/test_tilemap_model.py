@@ -12,11 +12,12 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import data_io, tilemap
 
-SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-ACTIVE_SCHEMA = REPO / "data" / "schemas" / "active_map.schema.json"
+SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+ACTIVE_SCHEMA = FIXTURE_DATA / "schemas" / "active_map.schema.json"
 
 
 def make_doc(cols=6, rows=5, fill="f"):
@@ -421,7 +422,7 @@ class TestActiveMapHelpers(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         (self.data_dir / "maps").mkdir(parents=True)
-        shutil.copytree(REPO / "data" / "schemas", self.data_dir / "schemas")
+        shutil.copytree(FIXTURE_DATA / "schemas", self.data_dir / "schemas")
 
     def test_list_load_and_pointer(self):
         doc = make_doc()

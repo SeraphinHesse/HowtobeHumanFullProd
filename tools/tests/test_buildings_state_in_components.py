@@ -9,12 +9,13 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine.core import Health
 from game.buildings import Defender, Musician
 from game.core.balance import load_balance
 
-BAL = load_balance(REPO / "data", "buildings")
+BAL = load_balance(FIXTURE_DATA, "buildings")
 
 
 class TestStateInComponents(unittest.TestCase):

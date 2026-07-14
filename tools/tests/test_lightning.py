@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.coords import CoordinateSystem, Geometry
@@ -30,10 +31,10 @@ from game.enemies import Spawner, create_enemy, resolve_combat
 from game.map.tile_map import TileMap
 from game.ui.cheat_menu import CheatMenu
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 LS = CORE["LightningStrike"]
 HOLE = CORE["TheHole"]

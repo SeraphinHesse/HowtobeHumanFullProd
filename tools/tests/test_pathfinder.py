@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from game.map import (
@@ -26,9 +27,9 @@ from game.map.pathfinder import _dijkstra
 from game.map.tile_map import TileMap
 from game.map.tiles import TileCondition, TileState
 
-MAP = REPO / "data" / "maps" / "first_light.json"
-MAP_SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-BALANCE = load_map_balance(REPO / "data")
+MAP = FIXTURE_DATA / "maps" / "first_light.json"
+MAP_SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def synth(terrain_rows, base=(1, 1)):

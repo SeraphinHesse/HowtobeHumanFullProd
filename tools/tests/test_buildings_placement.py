@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Scene
@@ -22,10 +23,10 @@ from game.map import find_path_to_nearest_defence
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
 
-CORE = load_balance(REPO / "data", "core")
+CORE = load_balance(FIXTURE_DATA, "core")
 
-MAPBAL = load_balance(REPO / "data", "map")
-BAL = load_balance(REPO / "data", "buildings")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BAL = load_balance(FIXTURE_DATA, "buildings")
 
 
 def synth(rows, base=(0, 0)):

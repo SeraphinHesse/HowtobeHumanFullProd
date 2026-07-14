@@ -18,6 +18,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import GameObject, Movement, Transform
@@ -45,7 +46,7 @@ from game.map.pathfinder import (
 from game.map.tile_map import TileMap, WallEdge, _wall_key
 from game.map.tiles import TileCondition, TileState
 
-BALANCE = load_map_balance(REPO / "data")
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def synth(terrain_rows, base=(1, 1)):
@@ -455,7 +456,7 @@ class TestSpawnerClearance(unittest.TestCase):
     THICK_BAND = ["bccc", "cccc", "ssss", "ssss"]   # 2 tiles thick
 
     def _balance(self, siege_footprint=1):
-        bal = copy.deepcopy(load_balance(REPO / "data", "enemies"))
+        bal = copy.deepcopy(load_balance(FIXTURE_DATA, "enemies"))
         bal["EnemyTypes"]["SiegeCannon"]["footprint"] = siege_footprint
         return bal
 
@@ -525,7 +526,7 @@ class TestSpawnerClearance(unittest.TestCase):
 
 class TestShippedMapAdmitsA2x2(unittest.TestCase):
     def test_a_footprint_2_unit_reaches_the_base_from_a_real_spawn_tile(self):
-        doc = tilemap.load_active_map(REPO / "data")
+        doc = tilemap.load_active_map(FIXTURE_DATA)
         tm = TileMap(doc, BALANCE)
         spawn = tm.spawning_tiles()
         self.assertTrue(spawn, "the shipped map has no spawn tiles")

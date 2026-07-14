@@ -15,6 +15,7 @@ from game.core.phases import GameState
 from game.ui import Shell
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 VW, VH = 1280, 720
 
 
@@ -45,7 +46,7 @@ def center(rect):
 
 
 def make_shell(start=GameState.MAIN_MENU):
-    ui = load_balance(REPO / "data", "ui")
+    ui = load_balance(FIXTURE_DATA, "ui")
     return Shell(VW, VH, ui, start_state=start)
 
 

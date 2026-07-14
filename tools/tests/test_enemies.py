@@ -19,6 +19,7 @@ os.environ.setdefault("SDL_VIDEODRIVER", "dummy")   # the ER-4 art-size test
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.assets import load_registry
@@ -39,10 +40,10 @@ from game.enemies.components import EnemyCombat, PathAgent
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
@@ -167,7 +168,7 @@ class TestScaling(unittest.TestCase):
 # Sprite variant selection (registry-group driven; random per spawn)
 # ---------------------------------------------------------------------------
 class TestSpriteVariants(unittest.TestCase):
-    REG = load_registry(REPO / "data")
+    REG = load_registry(FIXTURE_DATA)
 
     def _slot(self, enemy):
         return enemy.get_component(SpriteAnimator).slot_key
@@ -589,7 +590,7 @@ class TestSpawnTilesAreSpawningOnly(unittest.TestCase):
 # pathing and ER-3's death_spawn, all three driven purely from balancing.
 # ---------------------------------------------------------------------------
 class TestFormation(unittest.TestCase):
-    REG = load_registry(REPO / "data")
+    REG = load_registry(FIXTURE_DATA)
 
     def test_class_attrs_and_registration(self):
         self.assertEqual(Formation.ETYPE, "formation")
@@ -687,7 +688,7 @@ class TestFormation(unittest.TestCase):
                          ("formation_stage_1",))
 
         store = AssetStore(registry=self.REG,
-                           sprites_dir=REPO / "data" / "sprites")
+                           sprites_dir=FIXTURE_DATA / "sprites")
         frame = store.frame("formation_stage_1", "walk", 0)   # no manifest entry
         self.assertEqual((frame.frame_w, frame.frame_h), (128, 128))
         self.assertEqual(frame.surface.get_size(), (128, 128))

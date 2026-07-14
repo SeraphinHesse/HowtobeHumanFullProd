@@ -14,7 +14,8 @@ from engine import data_io
 from engine.coords import Camera, CoordinateSystem, Geometry, load_coordinate_system
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-DATA = REPO / "data"
+from tools.tests.fixture_data import FIXTURE_DATA
+DATA = FIXTURE_DATA
 
 
 def make_cs(zoom_levels=(0.5, 1.0, 2.0), **camera):
