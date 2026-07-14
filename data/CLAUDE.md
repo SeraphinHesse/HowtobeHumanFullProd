@@ -195,6 +195,24 @@ validating writer; don't hand-edit the JSON.
     `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
   import time (editor) or by the migration tool. Never gitignore them.
+- **A sheet may be SHARED — `sheet` is a path, not a slot-derived name.** The
+  engine resolves `sprites_dir / entry.sheet` verbatim
+  (`engine/assets/store.py`), and the schema's pattern always allowed any
+  `imported/*.png`. The editor's **"Use Spritesheet…"** uses that: it points a
+  slot's entry at ANOTHER slot's PNG and copies no bytes, so one file backs many
+  slots (a variant reusing its parent's art, two props sharing a sheet).
+  `imported/<slot>.png` is therefore only (a) the file a slot's own *file* import
+  owns and (b) the fallback for a slot with no entry — **never re-derive it as
+  "the slot's sheet"; read the entry's `sheet`.**
+  - **Deleting art must refcount.** `editor/asset_import.py`'s `sheet_users` /
+    `unreferenced_sheets` are the one authority: a PNG is unlinked only when no
+    remaining entry points at it. Clearing one slot of a shared sheet keeps the
+    file for the others; the last user takes it with them. Unlinking
+    `imported/<slot>.png` blind would blank every slot linked to it.
+  - **Orphans are legal and deliberate.** Re-linking a slot away from art only it
+    used leaves that PNG on disk, unreferenced and inert. It stays listed in the
+    picker, which is how you get it back — silently deleting art on a link change
+    is the worse failure.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
