@@ -170,9 +170,10 @@ class MainWindow(QMainWindow):
             self._update_playbuild_enabled)
         self._update_playbuild_enabled(self.run_controls.can_playbuild())
 
-        # ED-60/61/62: Spawnclaude — dispatch a domain-scoped claude session in
-        # its OWN terminal (not the Console dock). The editor never writes the
-        # lock; the spawned session runs /start-domain as its first move.
+        # ED-60/61/62 + AD-3: Spawnclaude — the agent launcher. Opens a claude
+        # session in its OWN terminal (not the Console dock): an "Add new X"
+        # form (→ /dispatch <handoff>), a small tweak, or a blank admin session.
+        # The editor never writes a lock (the branch+lock protocol is suspended).
         agents_toolbar = self.addToolBar("Agents")
         self.spawnclaude_action = QAction("Summon a Drunken Robot", self)
         agents_toolbar.addAction(self.spawnclaude_action)
@@ -525,12 +526,14 @@ class MainWindow(QMainWindow):
             "" if can_playbuild else
             "Run Build first — no dist/HowToBeHuman/HowToBeHuman.exe found")
 
-    # -- spawnclaude (ED-60/61/62) -------------------------------------------
+    # -- spawnclaude (ED-60/61/62, AD-3) -------------------------------------
 
     def _on_spawnclaude(self):
-        """Open the Spawnclaude dialog (locks read fresh each open, so already-
-        locked domains are greyed with their owner — ED-61). The dialog dispatches
-        into its own terminal; the editor writes no lock."""
+        """Open the agent launcher. Form specs (data/agent_forms/*.json) are read
+        FRESH on every open, so a newly added form needs no editor restart; each
+        one opens a form dialog that writes a handoff and dispatches
+        `/dispatch <handoff>`. Small tweak and admin dispatch straight from the
+        launcher. Everything runs in its own terminal; the editor writes no lock."""
         dialog = SpawnClaudeDialog(
             data_dir=self._data_dir, repo=REPO, parent=self)
         dialog.exec()

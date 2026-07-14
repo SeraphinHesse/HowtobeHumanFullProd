@@ -28,14 +28,17 @@ else.
   map-details → **`editor/panels/CLAUDE.md`**.
 - `run_controls.py` — Play / Build / Playbuild. Always subprocesses; the editor
   never runs game logic in-process (§ below).
-- `spawnclaude.py` — dispatch a `claude` session with a domain lock or in
-  small-tweak (no-lock) mode (§ below).
+- `spawnclaude.py` — the agent LAUNCHER ("Summon a Drunken Robot"): dispatch a
+  `claude` session from a form, a small tweak, or blank/admin (§ below).
+- `agent_form_dialog.py` — the generic "Add new X" form, rendered from ONE form
+  spec; consumes `agent_forms.py` (§ below).
 - `theme.py` — THE light/dark chrome theme (§ below). The only place the app's
   Qt palette/style is set.
 - `locks.py` — read/enforce `_lock` on `data/balancing/*`; the editor obeys the
   same lock rules as agents (ED-62) and **NEVER force-unlocks**.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
-  `registry_ops.py`, `asset_import.py` (all Qt-free/pygame-free, in `TestPurity`).
+  `registry_ops.py`, `asset_import.py`, `agent_forms.py` (all Qt-free/pygame-free,
+  in `TestPurity`).
 
 ## The selection model (the editor's core invariant)
 Exactly one selected node (map / building level / enemy / UI / VFX slot) drives
@@ -49,9 +52,9 @@ should hang off selection, not add parallel state.**
   the game draws.
 - All `data/` writes go through the schema-validating writer; invalid input must be
   unrepresentable in the forms (ED-30/31).
-- Locked domain → read-only UI with owner shown (ED-32); greyed out in spawnclaude
-  (ED-61). **No set/clear/force-unlock exists anywhere in the editor** (a test
-  asserts it).
+- Locked domain → read-only UI with owner shown in the balancing panel (ED-32).
+  **No set/clear/force-unlock exists anywhere in the editor** (a test asserts it).
+  Spawnclaude no longer reads locks at all (the protocol is SUSPENDED — § below).
 - Asset import keeps full parity with the prototype importer's semantics (ED-40):
   rows = animations, row 0 idle, per-row fps/hidden/loop, offset, animated preview
   via `playback_order`.
@@ -89,32 +92,60 @@ row; the forward-looking invariants:
   `sys.executable`-relative path (6.x onedir nests `--add-data` under `_internal/`,
   not beside the exe).
 
-## Spawnclaude / locks (`spawnclaude.py`, Phase 8, ED-60/61/62, T-1) — invariants
-Full narrative in `PLAN.md`'s phase-8 row; the invariants:
-- Pure Qt-free builders (`domain_choices`, `start_domain_prompt`,
-  `small_tweak_prompt`, `spawn_command`) + `dispatch()` + `SpawnClaudeDialog` (in
-  `TestPurity`). Reads locks via `editor.locks` (ED-61 greying) and NEVER writes
-  one.
-- **Delegation lock model** (user-confirmed, reconciles ED-60 vs. `locks.py`'s
-  "editor never writes locks"): the editor GUI does NOT flip any `_lock` — the
-  spawned `/start-domain` skill does, so the branch+lock protocol stays the single
-  lock-writer and `/merge-domain` the only unlock (ED-62). A test asserts
-  spawnclaude exposes no set/clear/unlock symbol.
+## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, AD-1/2/3) — invariants
+The "Summon a Drunken Robot" toolbar button (label is fixed) opens the LAUNCHER.
+Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`.
+
+- **Forms are DATA, not code.** One form spec per thing-type in
+  `data/agent_forms/<id>.json`, validated against `schemas/agent_form.schema.json`
+  (`id` == filename stem, loader-enforced). `agent_form_dialog.AgentFormDialog`
+  renders a spec — title/description → a **built-in free-text box** (never a spec
+  field: every form gets it free) → one row per field → git group → Dispatch. There
+  is exactly ONE `field["type"]` → widget switch (`_make_widget`); nothing else may
+  branch on it. Adding a form means adding a JSON file, never a dialog class.
+- **Specs load FRESH on every launcher open** (`agent_forms.load_form_specs`) — a
+  spec written by an agent shows up without an editor restart.
+- **Invalid input unrepresentable (ED-30)**: numeric spinbox ranges come from the
+  spec's `minimum`/`maximum` (schema-REQUIRED on numeric fields); the `_NoWheel*`
+  spin/combo widgets are IMPORTED from `editor.panels.balancing` (their home —
+  never copied, never moved). Dispatch is enabled only when every `required` field
+  is non-empty (boolean/numeric fields always hold a value, so they never gate).
+- **Handoff flow**: `build_payload` → `write_handoff` (through
+  `engine.data_io.write_validated`, `schemas/dispatch_handoff.schema.json`) →
+  `spawnclaude.dispatch(handoff=<repo-relative POSIX path>)` → `/dispatch <relpath>`
+  as claude's opening input. Handoffs live in **gitignored `.claude/dispatch/`**
+  (transient agent I/O, not `data/` content); the launcher calls
+  `agent_forms.prune_done(repo)` on every open. `editor/agent_forms.py` is PURE
+  (stdlib + `engine.data_io`), and both it and `agent_form_dialog.py` are in
+  `TestPurity`.
 - **Three dispatch modes**, each passing the LITERAL slash command as claude's
-  opening input so the skill loads directly: **domain** → `/start-domain <domain>`;
-  **small tweak** → `/smalltweak <task>` (no lock/scope; the scope guard fail-opens
-  when no domain is active); **admin** → blank `claude` (no input/lock/scope).
-  Precedence admin > domain > tweak.
+  opening input so the skill loads directly: **form** → `/dispatch <handoff>`;
+  **small tweak** → `/smalltweak <task>`; **admin** → blank `claude` (no input, no
+  scope). Precedence in `dispatch()`: **admin > handoff > tweak**. Admin and small
+  tweak bypass the dispatch path entirely — they write NO handoff.
+- **Launcher structure is a seam**: `SpawnClaudeDialog` is built from small
+  `_build_*_group()` helpers appended to ONE `QVBoxLayout`, **button box LAST**, so
+  a new group is a single `addWidget` line. Form entries are buttons (a door you
+  walk through), tweak/admin stay radios governed by the button box.
+- **Import direction**: `agent_form_dialog` imports `spawnclaude` at module top;
+  `spawnclaude` imports `AgentFormDialog` **lazily inside `_open_form`** — a
+  top-level import both ways is a cycle.
 - **Terminal launch = Windows Terminal (`wt`) only**: `["wt", "-d", <repo>, "cmd",
-  "/k", "claude", <prompt>]`. REUSES `run_controls.start_detached` +
-  `_real_window_environment()` (same SDL-dummy strip). `dispatch(detach=…)`
-  injectable so tests capture argv.
-- **`.claude/` layout**: `commands/` holds the ported skills;
-  `hooks/scope_guard.py` is the PreToolUse file-scope guard (reads
-  `.claude/active_domain`, fail-open when absent; deny via `permissionDecision:
-  "deny"` JSON), wired in `.claude/settings.json` on `Edit|Write|MultiEdit`. Lock
-  writes go through `engine.data_io.write_validated` (the lock is a D-11 object).
-  Integration branch = `main`.
+  "/k", "claude", <prompt>]`, the prompt as ONE argv element (a repo path with
+  spaces stays safe). REUSES `run_controls.start_detached` +
+  `_real_window_environment()` (same SDL-dummy strip). `detach` is injectable end
+  to end (launcher → form dialog → `dispatch`) so tests capture argv and no real
+  terminal ever opens.
+- **The branch+lock protocol is GONE from spawnclaude** (suspended per root
+  `CLAUDE.md`): no `domain_choices`, no `start_domain_prompt`, no `/start-domain`
+  mode, no lock reads. `editor/locks.py` stays, stays READ-ONLY, and still serves
+  the balancing panel; **no set/clear/force-unlock anywhere in the editor** (a test
+  asserts spawnclaude exposes no such symbol). `/dispatch` writes no
+  `.claude/active_domain`; `.claude/hooks/scope_guard.py` stays fail-open.
+- **`.claude/` layout**: `commands/` holds the skills (`dispatch.md` does git setup
+  + payload translation, then drives the target `add-*` skill unmodified);
+  `dispatch/` holds live handoffs and `dispatch/done/` the archived ones (both
+  gitignored). Integration branch = `Development`.
 
 ## Theme (`theme.py`) — light / dark chrome
 - The **"Dark mode" checkbox on the Agents toolbar**, next to "Summon a Drunken

@@ -1,15 +1,22 @@
-"""Spawnclaude (ED-60/61/62, AD-2): dispatch a `claude` session from the editor.
+"""Spawnclaude (ED-60/61/62, AD-2/AD-3): dispatch a `claude` session from the
+editor. `SpawnClaudeDialog` is the LAUNCHER behind the "Summon a Drunken Robot"
+toolbar button.
 
 Three modes, all opening a Windows Terminal (`wt`) tab running `claude` in the
 repo. The session's first input is the literal slash command, so Claude loads
 that skill directly (no wordy natural-language wrapper):
+- **Form dispatch** → `/dispatch <handoff path>`. The launcher lists one entry
+  per form spec (`data/agent_forms/*.json`, loaded FRESH on every open — a new
+  spec needs no editor restart); the entry opens an `AgentFormDialog`, which
+  writes a schema-valid handoff JSON and hands its repo-relative path to the
+  `/dispatch` skill, which does git setup + payload translation and then drives
+  the target `add-*` skill unmodified.
+- **Small tweak** → `/smalltweak <task>`. Straight into the skill; no scope.
 - **Admin** → a blank `claude` session (no initial input, no scope) for
   unguarded work.
-- **Dispatch handoff** → `/dispatch <handoff path>`. The editor writes a
-  schema-valid handoff JSON (an "Add new X" form submission) and hands its
-  repo-relative path to the `/dispatch` skill, which does git setup + payload
-  translation and then drives the target `add-*` skill unmodified.
-- **Small tweak** → `/smalltweak <task>`. Straight into the skill; no scope.
+
+Admin and small tweak bypass the dispatch path entirely (D5) — no handoff.
+Precedence in `dispatch()`: admin > handoff > tweak.
 
 **The branch+lock protocol is SUSPENDED** (root `CLAUDE.md`, AD plan D6): the
 old domain → `/start-domain` mode is gone from this module, and this module
@@ -21,6 +28,11 @@ Pure command/prompt builders are Qt-free and unit-testable; the detached launch
 reuses `editor.run_controls.start_detached`, which already strips the editor's
 `SDL_VIDEODRIVER`/`SDL_AUDIODRIVER=dummy` vars (set by the viewport for its
 offscreen surface) so the spawned terminal isn't polluted.
+
+**Import direction:** `AgentFormDialog` is imported LAZILY inside `_open_form`.
+`editor.agent_form_dialog` imports this module at its top (for `dispatch`), so a
+top-level import back would be a cycle; deferring it also keeps the pure
+builders importable without pulling the Qt form dialog in.
 """
 from pathlib import Path
 
@@ -28,13 +40,15 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QDialog,
     QDialogButtonBox,
+    QGroupBox,
     QLabel,
     QLineEdit,
+    QPushButton,
     QRadioButton,
     QVBoxLayout,
 )
 
-from editor import run_controls
+from editor import agent_forms, run_controls
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -97,23 +111,63 @@ def dispatch(handoff=None, tweak_prompt=None, admin=False, repo=None, detach=Non
 # -- Qt dialog --------------------------------------------------------------
 
 class SpawnClaudeDialog(QDialog):
-    """Pick small-tweak or admin mode, then dispatch a claude terminal. Writes
-    no lock and no `.claude/active_domain` (protocol suspended, D6).
+    """The launcher (AD-3): one button per form spec, plus the two prompt-only
+    modes (small tweak / admin). Writes no lock and no `.claude/active_domain`
+    (protocol suspended, D6).
 
-    AD-3 rewrites this into the form launcher (one entry per form spec); AD-2
-    keeps it minimal — the domain radios are gone, Small tweak + Admin remain."""
+    Built from small `_build_*_group()` helpers appended to ONE `QVBoxLayout`,
+    with the button box built LAST — a deliberate seam so AD-7 can insert its
+    Plans group with a single `layout.addWidget(...)` line and nothing else."""
 
     def __init__(self, data_dir=None, repo=None, parent=None, detach=None):
         super().__init__(parent)
         self.setWindowTitle("Spawn Claude")
+        self._data_dir = data_dir  # None -> agent_forms defaults to <repo>/data
         self._repo = Path(repo) if repo is not None else REPO
         self._detach = detach  # None -> dispatch() uses run_controls.start_detached
-        # `data_dir` is accepted-and-unused in AD-2 (main.py still passes it);
-        # AD-3 uses it for agent_forms.load_form_specs.
+
+        # Housekeeping on every open: drop stale handoffs (D2). Best-effort —
+        # a failure to prune must never stop a designer from dispatching.
+        try:
+            agent_forms.prune_done(self._repo)
+        except Exception:
+            pass
 
         layout = QVBoxLayout(self)
         layout.addWidget(QLabel("Dispatch a Claude session:"))
+        layout.addWidget(self._build_forms_group())
+        layout.addWidget(self._build_modes_group())
+        layout.addWidget(self._build_button_box())
 
+    def _build_forms_group(self):
+        """One button per form spec, read FRESH from disk on every open — a
+        spec added by /add-form-spec (AD-5) shows up without an editor restart.
+        A button is a door, not a mode: it opens the form, which dispatches
+        itself. The two radios below stay radios."""
+        box = QGroupBox("Add a new thing")
+        layout = QVBoxLayout(box)
+        self._form_buttons = {}
+        try:
+            specs = agent_forms.load_form_specs(self._data_dir)
+        except Exception as exc:  # an invalid spec must not hide tweak/admin
+            label = QLabel(f"Form specs failed to load: {exc}")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            return box
+        if not specs:
+            layout.addWidget(QLabel("No form specs in data/agent_forms."))
+        for spec in specs:
+            button = QPushButton(spec["title"])
+            button.setToolTip(spec["description"])
+            button.clicked.connect(
+                lambda _checked=False, s=spec: self._open_form(s))
+            layout.addWidget(button)
+            self._form_buttons[spec["id"]] = button
+        return box
+
+    def _build_modes_group(self):
+        box = QGroupBox("Or dispatch a prompt-only session")
+        layout = QVBoxLayout(box)
         self._group = QButtonGroup(self)
 
         self._tweak_radio = QRadioButton("Small tweak (no lock)")
@@ -129,14 +183,28 @@ class SpawnClaudeDialog(QDialog):
         layout.addWidget(self._admin_radio)
 
         self._tweak_radio.setChecked(True)
+        return box
 
+    def _build_button_box(self):
+        """Governs the tweak/admin radios ONLY — the form buttons dispatch
+        through their own dialog. Always the LAST widget in the layout."""
         buttons = QDialogButtonBox()
         self._dispatch_button = buttons.addButton(
             "Dispatch", QDialogButtonBox.ButtonRole.AcceptRole)
         buttons.addButton(QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._on_dispatch)
         buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        return buttons
+
+    def _open_form(self, spec):
+        # Lazy by design: agent_form_dialog imports this module at its top, so
+        # a top-level import here would be a cycle (see the module docstring).
+        from editor.agent_form_dialog import AgentFormDialog
+
+        dialog = AgentFormDialog(spec, data_dir=self._data_dir, repo=self._repo,
+                                 parent=self, detach=self._detach)
+        if dialog.exec():  # dispatched already — close the launcher behind it
+            self.accept()
 
     def _on_dispatch(self):
         if self._admin_radio.isChecked():
