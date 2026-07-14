@@ -397,6 +397,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
             session.lightning_strike(world.scene, cs, wx, wy)
         # -- /10H --
 
+    def handle_world_right_click(mx, my):
+        """Right-click is a universal DISMISS, never a world action — it peels
+        one stage off whatever is open, wherever the cursor is. A right-DRAG
+        still pans; the _DRAG_THRESHOLD_SQ gate in the event loop is what keeps
+        the two apart. Mirrors handle_world_click's precedence so the two
+        ladders cannot drift."""
+        session = gp["world"].session
+        if session.state.state == GameState.GAME_OVER:
+            return
+        if gp["cheat"].visible:
+            gp["cheat"].close()
+            return
+        if session.frozen or session.state.phase == GamePhase.BOSS_CUTSCENE:
+            return  # LEVELUP / boss cutscene: a choice, not a dismiss
+        gp["panel"].dismiss()
+        if not gp["panel"].visible:
+            gp["sel"], gp["sel_cat"] = [], None
+
     # -- 10J: shift multi-select (prototype _handle_tile_click,
     # game.py:440-490): same-category shift-clicks toggle tiles in/out of the
     # batch; a different category is ignored SILENTLY; a plain click starts a
@@ -442,6 +460,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
     perf = {"sim": 0.0, "submit": 0.0, "flush": 0.0, "flip": 0.0}
     perf_frames = 0
     mouse_down = None
+    rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
     running = True
     while running:
@@ -534,6 +553,17 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         handle_world_click(*event.pos)
                 mouse_down = None
                 pan_from = None
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _RIGHT:
+                rmouse_down = event.pos
+            elif event.type == pygame.MOUSEBUTTONUP and event.button == _RIGHT:
+                # No over_ui gate: right-click dismisses from ANYWHERE, panel
+                # and HUD included. Past the drag threshold it was a pan.
+                if rmouse_down is not None:
+                    dx = event.pos[0] - rmouse_down[0]
+                    dy = event.pos[1] - rmouse_down[1]
+                    if dx * dx + dy * dy <= _DRAG_THRESHOLD_SQ:
+                        handle_world_right_click(*event.pos)
+                rmouse_down = None
             elif event.type == pygame.MOUSEMOTION and (
                     event.buttons[2] or (event.buttons[0] and pan_from is not None)):
                 if gp["cheat"].visible:  # 10H: open menu swallows drag-pan

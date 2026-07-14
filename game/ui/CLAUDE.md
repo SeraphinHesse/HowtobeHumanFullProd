@@ -19,6 +19,16 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## Dismissing the panel
+`BuildingUI.dismiss()` is the ONE staged dismiss ladder, shared by Esc and
+right-click: it peels a single sub-overlay per call (construct preview → the
+card list; boss popup → base_info) and only closes a bare panel outright,
+returning True when it consumed. New sub-overlays belong in that ladder, not in
+a second close path. The host turns a right-press into it (`main.py`
+`handle_world_right_click` — right-click dismisses from ANYWHERE, panel and HUD
+included; a right-DRAG past the 4px threshold pans instead and never dismisses).
+Covered by `tools/tests/test_right_click_dismiss.py`.
+
 ## Overhead HP bars
 `effects.py` draws them in TWO passes, both reading live scene state and both
 hiding the bar at full HP (the prototype rule):

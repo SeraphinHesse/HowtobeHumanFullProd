@@ -341,6 +341,24 @@ class BuildingUI:
         self._cond_tooltip = None
         # -- /10I --
 
+    def dismiss(self):
+        """One stage of the Esc / right-click dismiss ladder; True if consumed.
+
+        Sub-overlays peel off first (preview -> construct list, boss popup ->
+        base_info); only a bare panel closes outright.
+        """
+        if self.preview is not None:
+            self.preview = None
+            return True
+        if self._boss_popup_open:
+            self._boss_popup_open = False
+            self._boss_hover_row = -1
+            return True
+        if self.visible:
+            self.close()
+            return True
+        return False
+
     def open_for_tile(self, tile, session, buildings_balance,
                       selected_tiles=None):
         """Open for the PRIMARY tile; ``selected_tiles`` (10J shift
