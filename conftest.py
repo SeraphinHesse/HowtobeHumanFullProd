@@ -39,6 +39,7 @@ TIERS = {
     "test_agent_forms": "meta",
     "test_build_script": "meta",
     "test_data_guard": "meta",
+    "test_fixture_guard": "meta",
     "test_orient_hook": "meta",
     "test_qt_harness": "meta",
     "test_smoke_pairing": "meta",

@@ -75,7 +75,7 @@ class of failure is structurally unwritable.
 | FP-1 | Freeze the JSON fixture snapshot + access point | `tools/tests/fixtures/data/**` (new), `tools/tests/fixture_data.py` (new) | done (gate PASS 1193) |
 | FP-2 | Flip the 47 live loads to `FIXTURE_DATA`; classify allowlist | 35 files flipped, 12 allowlisted | done (gate PASS 1193) |
 | FP-3 | Derive data-mirroring literals in the worst files | `test_levelup`, `test_lightning` converted; audit cleared the rest as correctly-literal (geometry/test-inputs/deliberate tuning pins) | done (gate PASS 1193) |
-| FP-4 | Guard meta-test: live `data/` reads outside allowlist are a hard error | `tools/tests/test_fixture_guard.py` (new), `conftest.py` (TIERS row) | not started |
+| FP-4 | Guard meta-test: live `data/` reads outside allowlist are a hard error | `tools/tests/test_fixture_guard.py` (new), `conftest.py` (TIERS row) | done (gate PASS 1196; red-verified on a seeded violation) |
 | FP-5 | Top-down headless scenario tests (the rewrite's good idea, stolen) | `tools/tests/test_scenarios.py` (new), `conftest.py` (TIERS row) | not started |
 
 ### FP-1 — Freeze the snapshot
