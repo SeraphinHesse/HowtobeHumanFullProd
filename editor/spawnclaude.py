@@ -43,6 +43,7 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -201,8 +202,13 @@ class SpawnClaudeDialog(QDialog):
         # a top-level import here would be a cycle (see the module docstring).
         from editor.agent_form_dialog import AgentFormDialog
 
-        dialog = AgentFormDialog(spec, data_dir=self._data_dir, repo=self._repo,
-                                 parent=self, detach=self._detach)
+        try:
+            dialog = AgentFormDialog(spec, data_dir=self._data_dir,
+                                     repo=self._repo, parent=self,
+                                     detach=self._detach)
+        except Exception as exc:  # bad field type / unknown schema_version
+            QMessageBox.critical(self, "Cannot open the form", str(exc))
+            return  # a raise out of a clicked slot would be swallowed by Qt
         if dialog.exec():  # dispatched already — close the launcher behind it
             self.accept()
 

@@ -114,7 +114,7 @@ def _make_widget(field):
             if index >= 0:
                 widget.setCurrentIndex(index)
         getter = lambda w=widget: w.currentData()
-        change = None
+        change = widget.currentIndexChanged  # enum is in _EMPTYABLE: it re-gates
     else:
         raise ValueError(f"{field['key']}: no widget for field type {ftype!r}")
     widget.setToolTip(field["description"])  # schema-required on every field

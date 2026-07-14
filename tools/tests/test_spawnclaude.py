@@ -192,6 +192,15 @@ class TestNoLockWriteAPI(unittest.TestCase):
 
 
 class TestDialog(unittest.TestCase):
+    """Always `repo=` a throwaway dir: the launcher prunes `<repo>/.claude/
+    dispatch/` on open, and no test may reach into the real one — a designer's
+    day-old handoff is live data."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name)
+
     def test_admin_mode_dispatches_blank(self):
         captured = {}
 
@@ -199,7 +208,7 @@ class TestDialog(unittest.TestCase):
             captured["args"] = arguments
             return True
 
-        dialog = spawnclaude.SpawnClaudeDialog(detach=fake_detach)
+        dialog = spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach)
         dialog._admin_radio.setChecked(True)
         dialog._on_dispatch()
         self.assertEqual(captured["args"][-1], "claude")
@@ -211,7 +220,7 @@ class TestDialog(unittest.TestCase):
             captured["args"] = arguments
             return True
 
-        dialog = spawnclaude.SpawnClaudeDialog(detach=fake_detach)
+        dialog = spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach)
         self.assertTrue(dialog._tweak_radio.isChecked())
         dialog._tweak_edit.setText("nudge the base")
         dialog._on_dispatch()
@@ -219,7 +228,8 @@ class TestDialog(unittest.TestCase):
 
     def test_dialog_still_accepts_data_dir_kwarg(self):
         """main.py passes data_dir= — AD-3 uses it for load_form_specs."""
-        dialog = spawnclaude.SpawnClaudeDialog(data_dir=REPO / "data")
+        dialog = spawnclaude.SpawnClaudeDialog(data_dir=REPO / "data",
+                                               repo=self.repo)
         self.assertTrue(dialog._tweak_radio.isChecked())
 
 
@@ -455,11 +465,14 @@ class TestFormDialogDispatch(FormCase):
         self.assertEqual(len(self.calls), 1)  # the fake is the ONLY launcher
         program, arguments, _wd = self.calls[0]
         self.assertEqual(program, "wt")
-        relpath = arguments[-1].split(" ", 1)[1]
-        self.assertEqual(arguments[-1], f"/dispatch {relpath}")
-        self.assertFalse(Path(relpath).is_absolute())
-        self.assertNotIn("\\", relpath)  # repo-relative POSIX
-        self.assertTrue(relpath.startswith(".claude/dispatch/"))
+        # The expectation comes from DISK — the handoff that was actually
+        # written — not from the argv under test, or a hardcoded path in
+        # _on_dispatch would satisfy its own assertion.
+        expected = agent_forms.handoff_relpath(self.handoffs()[0], self.repo)
+        self.assertEqual(arguments[-1], f"/dispatch {expected}")
+        self.assertFalse(Path(expected).is_absolute())
+        self.assertNotIn("\\", expected)  # repo-relative POSIX
+        self.assertTrue(expected.startswith(".claude/dispatch/"))
 
     def test_current_mode_omits_the_branch(self):
         dialog = self.form(full_spec(git_default="current"))
