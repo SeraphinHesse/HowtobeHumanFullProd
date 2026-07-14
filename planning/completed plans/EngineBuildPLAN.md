@@ -1,3 +1,5 @@
+<!-- status: COMPLETE — superseded by planning/MIGRATION_PLAN.md as of 2026-07-14 -->
+
 # PLAN.md — How To Be Human: Full Production Rebuild
 
 Status: **phase 0 (bootstrap) in progress.** Update the phase table at the bottom

@@ -1,3 +1,5 @@
+<!-- status: COMPLETE — all phases (AD-1–AD-7) done and merged, 2026-07-14 -->
+
 # AgentDispatchPLAN.md — Editor → Claude agent dispatch
 
 Phased, agent-executable plan (same family as `EngineBuildPLAN.md` /

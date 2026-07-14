@@ -105,8 +105,6 @@ No game code. All five `data/balancing/*.json` restructured to the REPLAN tree w
   - **Editor control = the existing import flow**: the selector tree auto-surfaces the new category and the DetailsPanel "Import Spritesheet…" picks/swaps the PNG (manifest written via `write_validated`) — deliberately NO new picker widget and NO configurable slot reference in balancing; the game hardcodes the slot key (fixed-slot decision).
   - The solid `_BG` fill stays beneath the sprite as the missing-art fallback (grey-X tolerance, E-37).
   - Letterboxing is the host's SDL `SCALED` concern: the sprite fills the 1280×720 logical view (480×270 source, same 16:9 aspect — uniform stretch, prototype-exact behavior).
-- **10L — UI editor + deferred HUD surfaces**: the designer-facing UI editor, plus the HUD readouts held back for it — the **lives-faces indicator** (`life_face_*` slots + escalating expression by village level; needs `slots.json` entries, which do not exist yet) and the **1×/1.5×/2×/pause speed buttons** (round-gated; call the `Session` combat-speed API that 10F already ships). *Scope is a placeholder — 10F's deferrals are parked here.*
-- **11 — Full parity audit + editor alignment**: committed `PARITY.md` (prototype module → new home, every feature checked), editor per-tier balancing focus + entity-preview range from new paths, PLAN.md phase table update, playtest to round 30+ (two boss cycles) + frozen-exe playtest. **Exit rule: nothing from the prototype inventory missing.**
 
 ## Verification (every phase)
 

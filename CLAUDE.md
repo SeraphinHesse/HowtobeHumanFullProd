@@ -8,8 +8,9 @@ slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
 E-*/D-*/G-*/ED-*/T-*).
 
 **Planning:** every plan doc lives in `planning/` (the sources of truth:
-`MIGRATION_PLAN.md`, `EngineBuildPLAN.md`, `AgentDispatchPLAN.md`,
-`UI_EDITOR_PLAN.md`, …). Root `PLAN.md` is a **generated mirror** of whichever
+`MIGRATION_PLAN.md`, `UI_EDITOR_PLAN.md`, …; finished plans move to
+`planning/completed plans/`, e.g. `EngineBuildPLAN.md`,
+`AgentDispatchPLAN.md`). Root `PLAN.md` is a **generated mirror** of whichever
 one is currently active (its line-1 `<!-- active-plan: … -->` marker names the
 source). Read `PLAN.md` for the current plan; never hand-edit it — edit the
 source in `planning/` and re-run `/setcurrentplan <name>` to re-mirror. Author a
@@ -122,7 +123,7 @@ Robot** → *Add new X…* → fill the fields + the free-text box → Dispatch.
 editor writes a schema-validated handoff and opens a terminal on
 `/dispatch <handoff>`, which runs the same skill unmodified, on a new branch off
 `Development` (ending in a PR) or in place on the current branch — your choice in
-the form (`planning/AgentDispatchPLAN.md`). **Small tweak** and **Admin** are
+the form (`planning/completed plans/AgentDispatchPLAN.md`). **Small tweak** and **Admin** are
 unchanged.
 
 Copy-paste task openers (that themselves point at these skills) live in

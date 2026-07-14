@@ -92,7 +92,7 @@ row; the forward-looking invariants:
 
 ## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, `plans.py`, AD-1/2/3/6/7) — invariants
 The "Summon a Drunken Robot" toolbar button (label is fixed) opens the LAUNCHER.
-Phase-8's narrative is in `PLAN.md`; the plan is `planning/AgentDispatchPLAN.md`.
+Phase-8's narrative is in `PLAN.md`; the plan is `planning/completed plans/AgentDispatchPLAN.md`.
 
 - **Forms are DATA, not code.** One form spec per thing-type in
   `data/agent_forms/<id>.json`, validated against `schemas/agent_form.schema.json`

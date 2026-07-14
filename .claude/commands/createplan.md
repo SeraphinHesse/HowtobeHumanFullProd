@@ -6,12 +6,12 @@ allowed-tools: Read, Write, Edit, Glob
 
 Author a new plan: **$ARGUMENTS**. New plans live in `planning/` as
 `<Name>PLAN.md` and join the family of phased, agent-executable plans
-(`EngineBuildPLAN.md`, `MIGRATION_PLAN.md`, `AgentDispatchPLAN.md`, …). You are
+(`MIGRATION_PLAN.md`, `AgentDispatchPLAN.md`, …). You are
 the **planning agent**: help the user scope the plan, then write it — do not
 start implementing the plan's contents.
 
 ## Read first (token-light)
-1. One existing sibling to match structure — `planning/AgentDispatchPLAN.md`
+1. One existing sibling to match structure — `planning/completed plans/AgentDispatchPLAN.md`
    (phased, with a build-order table) or `planning/MIGRATION_PLAN.md`. Mirror
    its shape; don't invent a new format.
 2. Root `CLAUDE.md` for the package/layering vocabulary the plan should use.
