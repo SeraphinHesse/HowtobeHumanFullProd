@@ -48,9 +48,14 @@ if it validates, it renders.
    command file.
 5. **Then write the spec through the validating writer** (the only sanctioned write
    path — deterministic sorted-key output, and an invalid spec never reaches disk).
-   Write your draft to a scratch file, then:
-   `py -c "from engine import data_io; d=data_io.load_json(r'<scratch>.json'); data_io.write_validated(d, r'data/agent_forms/<id>.json', r'data/schemas/agent_form.schema.json')"`
-   then delete the scratch file. Fix and re-run on any ValidationError.
+   Build the dict **in the same call** that writes it — no draft file anywhere:
+   ```
+   py -c "from engine import data_io; spec = {'schema_version': 1, 'id': 'add-<thing>', ...}; data_io.write_validated(spec, r'data/agent_forms/add-<thing>.json', r'data/schemas/agent_form.schema.json')"
+   ```
+   Fix and re-run on any ValidationError. Too long to sit inline? Keep the draft in
+   your session scratchpad and `data_io.load_json` it from there — **never in the
+   repo, and never in `data/agent_forms/`**, where smoke would validate the draft as
+   if it were a real spec.
 
 ## Avoid
 - Hand-formatting the JSON or writing it with a plain file write — use
