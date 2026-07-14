@@ -12,15 +12,47 @@ Skips whole if the prototype checkout is absent (other machines / CI).
 """
 import ast
 import json
+import os
 import unittest
 from pathlib import Path
 
 from engine import data_io
 
 REPO = Path(__file__).resolve().parents[2]
-PROTO = REPO.parent / "HowToBeHuman" / "ClaudePrototype" / "HowToBeHuman" / "balancing"
 MAP_PATH = Path(__file__).resolve().parent / "balancing_parity_map.json"
 DOMAINS = ("buildings", "enemies", "map", "ui", "core")
+
+PROTO_ENV = "HTBH_PROTOTYPE_DIR"
+_PROTO_REL = Path("HowToBeHuman") / "ClaudePrototype" / "HowToBeHuman" / "balancing"
+
+
+def find_prototype():
+    """Locate the prototype's balancing/ dir.
+
+    The old version was `REPO.parent / <rel>`, which quietly resolved to
+    nothing inside a git worktree (REPO is then
+    `<repo>/.claude/worktrees/<x>`, so REPO.parent is `worktrees/`). The
+    class-level skipUnless then SKIPPED the whole parity suite and the gate
+    went green having proved nothing — the exact trap TestGatePLAN TG-2 is
+    here to kill. So: honour an explicit env var first, else walk UP from the
+    checkout, which finds the prototype from a worktree too.
+    """
+    override = os.environ.get(PROTO_ENV)
+    if override:
+        path = Path(override)
+        if not path.is_dir():
+            # Explicit and wrong is a hard error — never a silent skip.
+            raise RuntimeError(
+                f"{PROTO_ENV}={override!r} is not a directory")
+        return path
+    for base in (REPO, *REPO.parents):
+        candidate = base.parent / _PROTO_REL
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+PROTO = find_prototype()
 
 
 def resolve(docs, spec):
@@ -40,7 +72,10 @@ def strip_keys(value, drop_keys):
             for item in value]
 
 
-@unittest.skipUnless(PROTO.is_dir(), "prototype checkout not present")
+@unittest.skipUnless(
+    PROTO is not None,
+    f"prototype checkout not found by search; set {PROTO_ENV} to its "
+    f"balancing/ dir to run the parity gate")
 class TestBalancingParity(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -77,6 +112,17 @@ class TestBalancingParity(unittest.TestCase):
             proto_value = self.proto[fname][key]
             if isinstance(entry, dict):
                 spec = entry["path"]
+                if "OVERRIDDEN" in entry:
+                    # A DELIBERATE divergence: the live game has been rebalanced
+                    # away from the frozen prototype. Assert the live value is
+                    # exactly what we said we changed it to — so an
+                    # *unintentional* drift still fails here — rather than
+                    # asserting it equals the prototype, which it never will.
+                    with self.subTest(file=fname, key=key, overridden=True):
+                        self.assertEqual(
+                            resolve(self.docs, spec), entry["OVERRIDDEN"])
+                    checked += 1
+                    continue
                 if entry.get("transform") == "literal_eval":
                     proto_value = ast.literal_eval(proto_value)
                 if "drop_keys" in entry:
@@ -91,6 +137,27 @@ class TestBalancingParity(unittest.TestCase):
                 self.assertEqual(resolve(self.docs, spec), proto_value)
             checked += 1
         self.assertGreater(checked, 100)
+
+    def test_overridden_entries_are_honest_about_the_prototype(self):
+        """An OVERRIDDEN entry records BOTH sides. If the prototype's value
+        ever changes, `prototype` goes stale and this fails — which is the
+        point: the override was justified against a specific old value, and if
+        that value moves, the justification deserves a fresh look. Without this
+        an override would silently mask *all* future prototype drift on its key,
+        which is exactly the coverage the parity gate exists to provide."""
+        seen = 0
+        for fname, key, entry in self.entries():
+            if not (isinstance(entry, dict) and "OVERRIDDEN" in entry):
+                continue
+            seen += 1
+            with self.subTest(file=fname, key=key):
+                self.assertEqual(
+                    self.proto[fname][key], entry["prototype"],
+                    f"{key}: the prototype value moved; re-justify the override")
+                self.assertTrue(
+                    entry.get("reason", "").strip(),
+                    f"{key}: an OVERRIDDEN entry must say WHY it diverges")
+        self.assertGreater(seen, 0)   # the vocabulary is actually in use
 
     def test_dropped_entries_carry_a_reason(self):
         for fname, key, entry in self.entries():

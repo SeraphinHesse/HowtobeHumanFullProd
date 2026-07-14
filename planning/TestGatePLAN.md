@@ -1,15 +1,55 @@
 # TestGatePLAN.md — Fix the suite, then fix the gate
 
-Phased, agent-executable plan (same family as `EngineBuildPLAN.md` /
-`AgentDispatchPLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/TestGatePLAN.md TG-1-TG-6` — **but read §4
-first: these phases are mostly SEQUENTIAL, not a parallel wave.**
+> ## ✅ EXECUTED 2026-07-14 — all six phases landed. See §0.
+>
+> Do **not** run `/execute-plan-phases` on this doc. That was the header's
+> original advice and it was wrong: its default fans coders into parallel
+> worktrees, which §4 forbids for TG-1..TG-3 *and* which hides TG-2's entire
+> deliverable (in a worktree `test_balancing_parity` used to silently SKIP).
+> It was executed serially, in the main tree, as four stacked branches.
+
+## 0. Outcome (measured on `Development` @ `104ac71` → four stacked branches)
+
+| | Before | After |
+|---|---|---|
+| Wall-clock | **17m 15s** (1035s) | **2m 31s** (152s, `pytest -n auto`) — **6.8×** |
+| Failures | **18** | **0** |
+| Tests | 1107 | 1123 |
+| Repo corruption | suite wrote into `data/` | **none** — guarded |
+| The gate | a prose diff, drifted 3 ways | `GATE PASS` — one line |
+
+**The 18 red tests were not editor bugs.** Every one had the same root cause:
+they asserted against **live repo content** instead of pinning a fixture. An
+artist importing sheets (`2512a84` gave painter/slinger/pistoleer art) or a
+designer hitting "set active" on a map (`active_map.json` → `summertest2`)
+turned them red. They were testing today's `data/`, not the code. So they were
+fixed by pinning the fixtures, not by updating the expectations — which also
+restored two tests that were passing while testing nothing.
+
+**Three defects were found that this plan did not know about:**
+1. **The suite CORRUPTED the repo.** A full run painted two `deco_rock` tiles
+   into `data/maps/summertest2.json`, invented `data/maps/uitestexample.json`,
+   and appended `ui_button_v2` to `data/slots.json` — which then made
+   `test_ui_skin_variant` compute `_v3` and fail. Leaked Qt widgets outliving
+   their tests were writing to disk. TG-1's `destroy()` stopped it;
+   `tools/data_guard.py` + a session-scoped conftest fixture are the tripwire.
+2. **`pump_until()` timed out in silence**, so a failure read as `[] != [True]`
+   — which looks like a bad payload and actually meant "nothing was ever
+   emitted". Its 5s budget was really an assumption about machine load; the test
+   genuinely takes **14.1s** under a loaded run (`--durations` proved it).
+3. **`test_2x_spawns_the_wave_faster_than_1x` used the spawner's UNSEEDED rng**,
+   so it failed roughly one run in ten for reasons unconnected to combat speed.
 
 ## 1. Context — what was measured
 
+> **The numbers below are the ORIGINAL audit and are STALE.** They were taken on
+> `phase-A1-A6-umbrella` @ `7d6819a`, before the lock-removal work deleted
+> `test_scope_guard` (14 tests). Re-measured on `Development` @ `104ac71`:
+> **1107 tests / 1035.1s / 18 failures / 1 skip** — not 1086/1162s/16/1. This is
+> exactly why TG-5 keys the baseline on node-ID *sets* and not counts.
+
 An audit on `phase-A1-A6-umbrella` @ `7d6819a` (Windows 11, Python 3.13.2,
-pygame-ce 2.5.7) measured the following. Every number here is observed, not
-estimated; a fresh agent should not re-derive them before starting.
+pygame-ce 2.5.7) measured the following.
 
 ```
 py -m unittest discover -s tools/tests -t .
@@ -99,12 +139,12 @@ real bug the test caught and nobody read.
 
 | Phase | Goal | Status |
 |---|---|---|
-| **TG-1** | Destroy the Qt window in cleanup — remove the quadratic | not started |
-| **TG-2** | Drive the baseline to zero — fix/retire the 16 red tests | not started |
-| **TG-3** | Adopt pytest + xdist + tier markers (zero test rewrites) | not started |
-| **TG-4** | CI on PR — move the full-suite cost off the agent budget | not started |
-| **TG-5** | `tools/testgate.py` + `/testgate` — baseline as artifact, not prose | not started |
-| **TG-6** | `/testgate affected` — Graphify-driven blast-radius selection | not started |
+| **TG-1** | Destroy the Qt window in cleanup — remove the quadratic | ✅ **DONE** `823ca4c` — 17m15s → 5m34s, failure set byte-identical. **7** Qt modules, not the 5 listed below |
+| **TG-2** | Drive the baseline to zero — fix/retire the 16 red tests | ✅ **DONE** `4047c01` — **18** red (not 16) → **0**. Parity now runs in a worktree |
+| **TG-3** | Adopt pytest + xdist + tier markers (zero test rewrites) | ✅ **DONE** `e4c27df` — 5m34s → **2m31s**; serial == parallel |
+| **TG-4** | CI on PR — move the full-suite cost off the agent budget | ✅ **DONE** `e4c27df` — first workflow this repo has ever had |
+| **TG-5** | `tools/testgate.py` + `/testgate` — baseline as artifact, not prose | ✅ **DONE** `993c7ab` |
+| **TG-6** | `/testgate affected` — Graphify-driven blast-radius selection | ✅ **DONE** `993c7ab` — a tilemap change skips the whole editor tier |
 
 ## 4. Execution constraint — read before dispatching
 
@@ -381,15 +421,19 @@ verdict agrees with a full run. Report the selected set and the time saved.
 - **xdist can expose hidden shared state** (module-level caches, the `data/`
   temp-copy pattern, pygame globals). If serial and parallel disagree, that is a
   real isolation bug — fix it rather than pinning to serial.
-- **The lock protocol contradiction is unresolved and out of scope here.**
-  `CLAUDE.md` says the branch/lock protocol is SUSPENDED and `/start-domain` is
-  gone, but `.claude/commands/start-domain.md` still exists, `scope_guard.py` is
-  still wired as a live `PreToolUse` hook in `settings.json`, and
-  `test_scope_guard` (14 tests) plus lock tests in `test_editor_panels` still
-  assert on it. Docs and tests disagree about whether the feature exists.
-  Resolve it deliberately, in its own change — TG-3's `meta` tier will otherwise
-  keep it alive by default.
-- **Housekeeping:** 17 stale agent worktrees are sitting in `.claude/worktrees/`.
-  `dispatch.md` instructs agents to remove them; they are accumulating anyway.
-  Same failure mode as the baseline — a cleanup step that lives only in prose is
-  a cleanup step that doesn't run.
+- ~~**The lock protocol contradiction is unresolved.**~~ **RESOLVED before this
+  plan ran** — commits `5adbfb9`, `2da8587`, `d8beba8` deleted
+  `.claude/hooks/scope_guard.py`, `tools/tests/test_scope_guard.py` (14 tests),
+  `editor/locks.py`, the `start`/`finish`/`resume`/`merge-domain` commands, and
+  the `PreToolUse` wiring. `settings.json` now hooks only `orient.py`. The
+  `meta` tier shrank accordingly (143, not the 143-with-scope_guard implied).
+- ~~**Housekeeping: 17 stale agent worktrees.**~~ There are **2**
+  (`phase-A5-skinned-button`, `phase-A4-slice-editor`), and **do NOT delete
+  them**: each holds *uncommitted* Python work (a `HudSprite` import, an
+  `anim_ms` helper — live 10L-A code). They are not stale, they are parked.
+  Whoever cleans up must land or discard that work first.
+- **`data/` in the working tree is dirty and it is the USER's**, not the suite's:
+  `slots.json` (+`ui_button_v2`), `maps/summertest2.json` (+2 deco), and an
+  untracked `maps/uitestexample.json` are the damage the pre-TG-1 suite did, left
+  in place at the user's request. The suite no longer causes this
+  (`DATA CLEAN 167 file(s)`), but those three files still need a human decision.

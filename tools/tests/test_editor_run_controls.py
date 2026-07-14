@@ -4,17 +4,15 @@ Same headless conventions as the other editor tests. RunControls.play is
 monkeypatched to a no-op spy so no real `py game/main.py` subprocess ever
 launches during the unit test — that's a live-verification-only step.
 """
-import os
 import shutil
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtWidgets import QApplication
 
@@ -23,19 +21,16 @@ from editor.run_controls import RunControls
 
 REPO = Path(__file__).resolve().parents[2]
 
-_APP = QApplication.instance() or QApplication(sys.argv)
-
 STARTER = "first_light"
 
 
-class RunControlsWiringCase(unittest.TestCase):
+class RunControlsWiringCase(QtCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         shutil.copytree(REPO / "data", self.data_dir)
-        self.window = MainWindow(data_dir=self.data_dir)
-        self.addCleanup(self.window.close)
+        self.window = self.track(MainWindow(data_dir=self.data_dir))
 
     def test_toolbar_has_three_run_actions(self):
         self.assertEqual(self.window.play_action.text(), "Play")

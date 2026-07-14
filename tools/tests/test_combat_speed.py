@@ -9,6 +9,7 @@ the "2x really doubles the wave" and "pause really freezes it" claims are tested
 against the same wiring the game runs, not a private one. The 1x/1.5x/2x/pause
 BUTTONS are 10L — 10F ships the mechanic + the keyboard shortcuts.
 """
+import random
 import unittest
 from pathlib import Path
 
@@ -113,6 +114,13 @@ class TestSpeedSelection(unittest.TestCase):
 
 class TestSpeedAppliesToCombatOnly(unittest.TestCase):
     def _spawned_after(self, speed_idx, round_num, frames=40, dt=0.05):
+        # Seed the spawner's RNG. It defaults to the bare `random` module, so
+        # the wave's spawn jitter differed between the 1x and 2x runs and the
+        # comparison was only USUALLY true — the test failed roughly one run in
+        # ten, for no reason connected to combat speed. Same seed on both sides
+        # makes the jitter identical and the speed the only variable, which is
+        # what the test claims to measure.
+        random.seed(20260714)
         session, scene, tm = build_session()
         session.state.round_num = round_num
         session.set_combat_speed(speed_idx)

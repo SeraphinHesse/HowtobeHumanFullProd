@@ -5,15 +5,14 @@ is set before PySide6 is imported so the whole module runs headlessly,
 mirroring the SDL dummy-driver convention used for pygame elsewhere in
 tools/tests/.
 """
-import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6/pygame, which read those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 import pygame
 from PySide6.QtWidgets import QApplication
@@ -23,8 +22,6 @@ from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
-
-_APP = QApplication.instance() or QApplication(sys.argv)
 
 
 class TestSurfaceToQImage(unittest.TestCase):
@@ -49,11 +46,11 @@ class TestSurfaceToQImage(unittest.TestCase):
             self.assertEqual((got.red(), got.green(), got.blue()), color)
 
 
-class TestHeadlessViewportPaint(unittest.TestCase):
+class TestHeadlessViewportPaint(QtCase):
     """Full pipeline: grid renders through engine/render and reaches pixels."""
 
     def test_grid_paints_nonbackground_pixels(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
         panel.resize(256, 256)
         panel.render_frame()
         pixmap = panel.grab()
@@ -68,7 +65,7 @@ class TestHeadlessViewportPaint(unittest.TestCase):
         self.assertGreater(touched, 0)
 
     def test_resize_recreates_surface_to_match_widget(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
         panel.show()
         panel.resize(320, 200)
         _APP.processEvents()
@@ -78,14 +75,13 @@ class TestHeadlessViewportPaint(unittest.TestCase):
         _APP.processEvents()
         panel.render_frame()
         self.assertEqual(panel._surface.get_size(), (150, 400))
-        panel.close()
 
 
-class TestZoomStep(unittest.TestCase):
+class TestZoomStep(QtCase):
     """ED-23 wheel zoom moves only through data-driven zoom levels."""
 
     def test_zoom_step_stays_within_data_driven_levels(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=REPO / "data"))
         panel.resize(200, 200)
         levels = sorted(panel._coords.geometry.zoom_levels)
         self.assertIn(panel._coords.camera.zoom, levels)
@@ -116,10 +112,22 @@ DRAFT_ENTRY = {
 
 class TestEntityPreview(TempDataCase):
     """ED-21/ED-42: slot preview through the real engine pipeline, draft
-    overrides without disk writes, reload without restart."""
+    overrides without disk writes, reload without restart.
+
+    Every test here needs a slot with NO manifest entry — that is what makes
+    "grey X", "no dropdown" and "the draft is the only source" observable.
+    UNASSIGNED is emptied in setUp rather than assumed empty: it used to be
+    assumed, art landed on painter_t1_lvl1, and four of these tests went red
+    for two months while testing nothing."""
+
+    UNASSIGNED = "painter_t1_lvl1"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.UNASSIGNED)
 
     def make(self):
-        panel = ViewportPanel(data_dir=self.data_dir)
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
         panel.resize(256, 256)
         return panel
 

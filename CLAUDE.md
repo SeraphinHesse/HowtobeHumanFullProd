@@ -152,15 +152,48 @@ indent). ×10 combat HP/DMG scale carries over from the prototype; `BASE_HP`
 stays 10 (deliberate exception).
 
 ## Step 2 — Universal exit gate
-1. Run the smoke test (`tools/smoke.py`; headless SDL dummy drivers) → report
-   exactly what you verified, tagging each claim **measured** (command +
+
+```bash
+py tools/smoke.py          # data validation + 5-frame headless boot
+py tools/testgate.py check # the suite. Read the ONE line it prints.
+```
+
+**The gate is ZERO.** `GATE PASS` or you are not done. There is no baseline to
+measure and no "pre-existing failure" to tolerate — if a test is red, you broke
+it. (It was not always so: the suite used to carry 18 permanent failures and the
+gate was a *diff* against a number that lived in prose and had drifted three
+ways. `planning/TestGatePLAN.md` records how that was fixed.)
+
+- **Never re-run the suite to find out what was already broken.** That waste is
+  exactly what `/testgate` deletes.
+- While iterating, `py tools/testgate.py check --affected` runs only the blast
+  radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
+  before handing work back.
+- Tiers: `py -m pytest -m core` (fast, ~800) · `-m editor` (Qt, slow) ·
+  `-m meta` (agent scaffolding) · `-m migration` (prototype parity; on demand).
+  CI runs `-m "not migration"` — the runner has no prototype checkout.
+- **An unexpected skip is a failure.** A test that quietly stops running is
+  indistinguishable from one that passes.
+- Never paste raw gate output into a report — collapsing it to one line is the
+  whole point.
+
+Then:
+1. Report exactly what you verified, tagging each claim **measured** (command +
    number) / **verified** (read or ran it) / **inferred** (flagged as such) —
    the `/report` taxonomy.
 2. If data changed: confirm schema validation passes.
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.
 4. PRs state a concrete in-game Quick Test scenario. On the user's
-   confirmation: commit (brief msg) → push → PR.
+   confirmation: commit (brief msg) → push → PR. CI (`.github/workflows/
+   tests.yml`) gates every PR into `Development`.
+
+**Tests must never write into `data/`.** Copy it to a tempdir (`TempDataCase`).
+A session fixture hashes `data/` before and after the suite and fails the run if
+it changed — the suite used to corrupt the repo silently, and now it cannot.
+**Never assert against live `data/` content**: pin the fixture. Tests that
+assumed "this slot has no art" or "this map is active" is what put 18 tests
+permanently in the red.
 
 ## Branching
 

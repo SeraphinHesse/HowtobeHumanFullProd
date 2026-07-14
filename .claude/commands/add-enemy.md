@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add or create a new enemy type. Produces a thin Enemy subclass + spawner branch + scale-tier stats + registry-group slots, following the 10F/10G pattern.
 argument-hint: <enemy name + behavior, e.g. "Siege Cannon (ranged, targets buildings)">
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 ---
 
 Add a new enemy: **$ARGUMENTS**. This follows the migration plan's 10F/10G pattern
@@ -44,7 +44,7 @@ the known large-map frontier. If you're adding a high-count swarm, read
 
 ## Verify
 - Headless: a scripted round asserts the HP ledger matches hand-computed prototype
-  values: `py -m unittest discover -s tools/tests -t .`.
+  values: `py tools/testgate.py check`.
 - Data: `py tools/smoke.py`.
 - Live: `py game/main.py` — reach the round that spawns it; confirm spawn, movement/
   pathing, damage/death, and wave integration.

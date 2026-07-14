@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add or change a balancing tunable/value in a domain (buildings/enemies/map/ui/core). Keys into data/balancing/<domain>.json + schema mirror; the recursive editor form renders it for free.
 argument-hint: <domain + value, e.g. "core: xp reward per boss kill">
-allowed-tools: Read, Edit, Grep, Glob, Bash(py tools/smoke.py*), Bash(py -m unittest*)
+allowed-tools: Read, Edit, Grep, Glob, Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*)
 ---
 
 Add a balancing value: **$ARGUMENTS**. Every gameplay tunable comes from
@@ -37,7 +37,7 @@ are `buildings` / `enemies` / `map` / `ui` / `core`.
 
 ## Verify
 - `py tools/smoke.py` — schema validation over all data files.
-- `py -m unittest discover -s tools/tests -t .` — if a balancing-parity or editor-form
+- `py tools/testgate.py check` — if a balancing-parity or editor-form
   test covers the domain.
 - Optional live: `py editor/main.py`, select the domain, confirm the new field renders
   with its bounds; `py game/main.py` confirms the value takes effect.

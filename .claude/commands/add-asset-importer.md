@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to wire a new renderable game-element category into the editor's asset pipeline so a designer can import its spritesheet (registry category + slots + selector + import path).
 argument-hint: <element category, e.g. "projectiles" or "boss cutscene frames">
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py tools/smoke.py*)
 ---
 
 Wire a new game-element category into the editor's asset importer: **$ARGUMENTS**.
@@ -45,7 +45,7 @@ use the editor's `+ Variant` button; for swapping one slot's art, use
 
 ## Verify
 - `py tools/smoke.py` — registry + manifest validate.
-- `py -m unittest discover -s tools/tests -t .` — TestPurity + any registry/import
+- `py tools/testgate.py check` — TestPurity + any registry/import
   test.
 - Live: `py editor/main.py` — the category's node appears in the tree; import a sheet
   onto a slot; it previews in the viewport; grey-X before import; and (if game-facing)

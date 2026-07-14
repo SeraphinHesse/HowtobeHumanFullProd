@@ -9,17 +9,15 @@ offscreen + SDL dummy drivers before any Qt/pygame import, one
 QApplication per process, tempfile COPY of data/ so nothing touches the
 repo's files.
 """
-import os
 import shutil
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PIL import Image
 from PySide6.QtCore import QPoint, Qt
@@ -33,8 +31,6 @@ from editor.panels import palette as palette_module
 
 REPO = Path(__file__).resolve().parents[2]
 
-_APP = QApplication.instance() or QApplication(sys.argv)
-
 STARTER = "first_light"
 
 
@@ -46,20 +42,35 @@ class RecordingBackend:
         self.calls = list(draw_calls)
 
 
-class MapModeCase(unittest.TestCase):
-    """MainWindow against a temp data/ copy, starter map selected."""
+class MapModeCase(QtCase):
+    """MainWindow against a temp data/ copy, starter map selected.
+
+    The temp copy's ACTIVE map is pinned to STARTER before the window is
+    built. It used to be inherited from the repo, i.e. from whichever map a
+    designer last hit "set active" on — which is live data, not a fixture.
+    When that became `summertest2`,
+    test_maps_branch_lists_files_with_active_marker went red for a reason that
+    had nothing to do with the editor."""
 
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.data_dir = Path(tmp.name) / "data"
         shutil.copytree(REPO / "data", self.data_dir)
-        self.window = MainWindow(data_dir=self.data_dir)
-        self.addCleanup(self.window.close)
+        self.set_active_map(STARTER)
+        self.window = self.track(MainWindow(data_dir=self.data_dir))
         self.window.resize(1280, 720)
         self.window.show()
         self.viewport = self.window.viewport
         self.session = self.window.map_session
+
+    def set_active_map(self, map_id):
+        """Pin the temp copy's active map. Goes through the same validating
+        writer the editor uses, so the fixture can't drift from the format."""
+        data_io.write_validated(
+            {"active": map_id},
+            tilemap.active_map_path(self.data_dir),
+            tilemap.active_map_schema_path(self.data_dir))
 
     def open_map(self, map_id=STARTER):
         self.window.selector.select_map(map_id)
@@ -320,6 +331,13 @@ class TestRenderPath(MapModeCase):
     def test_layer_eyes_filter_submitted_items(self):
         # Windowed culling means only the on-screen tile range is submitted, so
         # the assertion is on the eyes' filtering effect, not a full-map count.
+        #
+        # "Every layer off" is derived from the eye REGISTRY, not a hand-written
+        # list. It used to name terrain/base/deco literally; the viewport then
+        # grew `camera` and `start_area` eyes, the list was never updated, and
+        # the test failed claiming "every layer off" while two layers were still
+        # on. Enumerating the registry means a seventh layer cannot make this
+        # test lie again.
         self.open_map()
 
         def sprite_count():
@@ -329,8 +347,9 @@ class TestRenderPath(MapModeCase):
         self.assertGreater(full, 0)             # some tiles are on screen
         self.viewport.set_eye("terrain", False)
         self.assertLess(sprite_count(), full)   # terrain eye dropped ground tiles
-        self.viewport.set_eye("base", False)
-        self.viewport.set_eye("deco", False)
+
+        for name in list(self.viewport._eyes):
+            self.viewport.set_eye(name, False)
         self.assertEqual(sprite_count(), 0)     # every layer off → nothing drawn
 
     def test_zone_tint_eye_tints_zone_tiles_only(self):
