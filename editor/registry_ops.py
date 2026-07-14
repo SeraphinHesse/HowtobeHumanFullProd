@@ -121,12 +121,34 @@ def set_slot_frame_size(data_dir, slot_key, frame_w, frame_h):
     raise KeyError(f"no slot {slot_key!r} in the registry")
 
 
+def _slot_entry_from_template(new_key, template):
+    """The slots[] entry for a freshly added variant, inheriting the family's
+    template slot (``child["slots"][0]``, the stem) frame-size override when
+    it carries one.
+
+    ``template`` is a bare key string or an override dict (``{key, frame_w,
+    frame_h}``). A dict template yields a new dict with the SAME frame_w/
+    frame_h so the variant is sliced identically to the slot it was copied
+    from (``ui_bg_main_menu`` at 480x270 -> ``ui_bg_main_menu_v2`` also at
+    480x270); a bare-string template yields a bare new entry, unchanged
+    (enemies/deco families, which carry no override)."""
+    if isinstance(template, dict):
+        return {"key": new_key, "frame_w": template["frame_w"],
+                "frame_h": template["frame_h"]}
+    return new_key
+
+
 def add_variant(data_dir, category_key, group_path, subcat_label):
     """Append a fresh variant slot to one era subgroup of data/slots.json and
     return the new slot key.
 
     ``group_path`` is the label path to the era's PARENT group (e.g.
     ``("Walker",)``); ``subcat_label`` is the era child's label (``"Era 2"``).
+    The new variant INHERITS the family stem's (``child["slots"][0]``)
+    per-slot frame-size override when the stem carries one — a dict-form stem
+    like ``{"key": "ui_bg_main_menu", "frame_w": 480, "frame_h": 270}`` yields
+    a new variant at the same 480x270, not the category default; a bare-string
+    stem (the common case — enemies, deco) yields a bare variant, as before.
     The write goes through the schema-validating writer (D-2). Raises
     ``KeyError`` when the path/era doesn't resolve or the era is not a leaf
     (``slots``) subgroup.
@@ -150,7 +172,8 @@ def add_variant(data_dir, category_key, group_path, subcat_label):
         raise KeyError(f"{subcat_label!r} has no slots list to extend")
 
     new_key = next_variant_key(child["slots"], _all_slots(doc))
-    child["slots"].append(new_key)
+    template = child["slots"][0]
+    child["slots"].append(_slot_entry_from_template(new_key, template))
     data_io.write_validated(doc, slots_path, schema_path)
     return new_key
 

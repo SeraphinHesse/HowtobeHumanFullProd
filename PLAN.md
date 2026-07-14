@@ -1,167 +1,413 @@
-<!-- active-plan: TestFixturePinningPLAN.md | set: 2026-07-14 -->
-> **Active plan:** TestFixturePinningPLAN.md (mirror). Source of truth:
-> `planning/TestFixturePinningPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: UI_EDITOR_PLAN.md | set: 2026-07-15 -->
+> **Active plan:** UI_EDITOR_PLAN.md (mirror). Source of truth:
+> `planning/UI_EDITOR_PLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: EXECUTED 2026-07-14 — FP-1..FP-5 landed serially on test/fixture-pinning; final gate PASS 1203 ran / 0 new. A live designer-style HP retune now runs the FULL suite green (verified, then reverted). -->
+# UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-# TestFixturePinningPLAN.md — Pin the suite's data, free the designers
+Status: **UNFINISHED — run interrupted by user 2026-07-15.** The
+`/execute-plan-phases` run on umbrella `phase-10L-finish-umbrella` completed
+wave 2a only (A4, A7, A8, B1 — coded, reviewed, gated green, merged) before
+being wrapped up early into one PR. **A5′, B2, B3, B4 have reviewed briefs in
+`docs/briefs/` but NO code; A6/B5 exit gates not run.** Resume by dispatching
+wave 2b per the briefs (A5′ + B4 parallel, then B2, then B3 → B4i). Carry-over
+findings for the resume are listed under "Run state" below.
+Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
+every UI screen from the editor); 10L-B depends on 10L-A. Three user
+requirements were folded in on 2026-07-15 (see "New requirements" below):
+per-variant pixel size (→ A7), pixel-perfect clickable surfaces (→ A8 + A5′),
+and the 12-screen live-edit scope (cheat_menu, game_log, boss_cutscene join
+v1 — they exist in `game/ui` now).
 
-Phased, agent-executable plan (same family as `TestGatePLAN.md` /
-`AgentDispatchPLAN.md`). Base branch: `Development`. Executed serially, in the
-main tree, on one branch (`test/fixture-pinning`) — the phases are stacked
-edits to the same 47 files and parallel worktrees would conflict, exactly the
-lesson TestGatePLAN's header records.
+## Phase table
 
-## 1. Context — why this plan exists
+| Phase | What | Status |
+|-------|------|--------|
+| A1 | Engine — animated `HudSprite` | **done** (2026-07-14) |
+| A2 | Engine + data — nine-slice | **done** (2026-07-14) |
+| A3 | Data — `ui` category expansion | **done** (2026-07-14) |
+| A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
+| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **not started** (brief ready) |
+| A6 | Exit gate — live Quick Test + docs | **blocked** on A5′ |
+| A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
+| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15, umbrella; review interrupted) |
+| B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
+| B2 | Game — ids + `skinning.py` + golden parity pin | **not started** (brief ready; cut AFTER A5′) |
+| B3 | Tools — layout exporter + committed `screen_defaults.json` | **not started** (brief ready; cut AFTER B2) |
+| B4 | Editor — screen mode (selector/session/viewport/details) | **not started** (brief ready; parallel-safe with A5′/B2) |
+| B5 | Exit gate (10L-B) — live Quick Test + docs | **blocked** on B1–B4 |
 
-A designer nudging enemy HP in the editor turns the gate red. Measured on
-`Development` @ `669ce08` (2026-07-14):
+### Run state (2026-07-15 wrap-up — read before resuming)
 
-- **71 test files / 1,191 tests / 18,151 lines.**
-- **47 files load live `data/` at module import** (`REPO / "data"`); **39 of
-  those also assert numeric literals** (822 tests) — every one a candidate to
-  fail when a designer legitimately edits data.
-- The suite already contains the cure in two forms: `test_buildings_tier_math`
-  **derives** expectations from the JSON (tests the formula, survives any
-  rebalance), and `TempDataCase.unassign_slot`'s docstring states the doctrine:
-  *"Pin the fixture instead of inheriting it from whatever the artists last
-  imported."* This plan applies that doctrine to **readers**, not just writers.
+- Landed on the umbrella (each branch full-suite green before merge, ZERO
+  failures — 1229–1243 tests depending on branch): A4 `phase-A4-slice-editor-impl`
+  0ff8bcd, A7 `phase-A7-variant-frame-size` 4bc19b5, A8 `phase-A8-hit-mask`
+  59941ab, B1 `phase-B1-screen-formats` abc244a (+ review-fix commit).
+- **Carry-over (Medium, from A4's review)**: `_on_frame_size_changed` in
+  `editor/panels/details.py` doesn't re-range/re-clamp the slice spinboxes when
+  a per-slot frame-size override SHRINKS — a stale over-sized `slice` can be
+  re-saved to the manifest (render clamps at draw time, so no crash). Fix +
+  test when A4 is next touched.
+- **Tooling bug (measured twice)**: `py tools/testgate.py check --affected`
+  vacuously passes ("0 ran") for phases whose tests are all non-`core` tier —
+  `affected_modules()` always ANDs `-m core` onto the selected files. Run the
+  explicit pytest on your test modules until fixed.
+- **Carry-over (High, UNCONFIRMED — from A8's interrupted review)**: in
+  `engine/assets/nine_slice.py` + `store.hit_opaque`, when clamped slice
+  margins sum EXACTLY to a source dimension but the dest still has a centre
+  band, `dest_to_source` maps into a band `_nine_patch` never paints —
+  `hit_opaque` may return True over on-screen transparency. Traced in code,
+  no live reproducer run. Confirm + fix (return False for the vanished band,
+  or paint it) before A5' wires the seam.
+- **Contract rulings already baked into the briefs**: screen `ids` map is
+  `{name: (kind, widget)}`; `kind` enum = `button|panel|label|backdrop|bar|field`;
+  defaults doc is FLAT (`{<screen_id>: {widgets, mock_note}}`) validating
+  against `data/schemas/screen_defaults.schema.json` (stem-pairs with
+  `data/ui/screen_defaults.json`).
+- **Stale worktrees with uncommitted pre-run drafts** (NOT this run's work;
+  superseded — user to discard or salvage): `.claude/worktrees/agent-aaae066e177974fe9`
+  (branch `phase-A4-slice-editor` @ 8ec6de4, +23 lines details.py draft) and
+  `.claude/worktrees/agent-a49ee230114fc0dbc` (branch `phase-A5-skinned-button`
+  @ 8ec6de4, +41/-5 widgets.py draft). Wave 2b should use fresh branch names
+  (e.g. `phase-A5p-skinned-button`).
 
-This is TestGatePLAN one layer down: that plan pinned fixtures for the 18 tests
-asserting live *content state*; this one pins the **data root itself** so the
-class of failure is structurally unwritable.
+A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
+Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
+file-scope reconciliation in `docs/briefs/phase-A1-A5-coordination.md` — A4 and
+A5 have briefs written and reviewed, so they can be picked up directly.
 
-## 2. Decisions (with rationale)
+**A4/A5 are independent of each other** and both depend only on A1–A3, which
+have landed. Neither has any code yet. Two carry-over notes for whoever takes
+them:
 
-- **D1 — The fixture is a JSON-only snapshot** at `tools/tests/fixtures/data/`,
-  mirroring the `data/` tree. `data/` is 65 MB, of which the designer-editable
-  surface is 42 JSON files (~small); the rest is PNG/WAV/MP4 assets that no
-  pinned-value test reads. `data/balancing_history/` is excluded — it is a
-  runtime-populated log (TempDataCase already deletes it from its copies).
-- **D2 — One access point**: `tools/tests/fixture_data.py` exposes
-  `FIXTURE_DATA` (the snapshot root) and `fixture_copy()` (tempdir copy for
-  tests that write). Tests import that name; nothing else in the suite spells
-  the fixture path. Refreshing the snapshot is **deliberate**, never automatic:
-  `py tools/tests/fixture_data.py --refresh` re-copies live JSON and prints the
-  diff; run it only when a schema/content migration requires it, then re-run
-  the suite.
-- **D3 — A small allowlist stays on live `data/` on purpose.** Tests whose
-  *subject* is the live data are validators, not value-asserters, and must keep
-  reading it: `test_balancing_data` (schema/content pairs load fail-loud, D-12
-  walks), `test_game_boot` (headless boot of the real game — the "does today's
-  data actually boot" smoke), `test_agent_forms` (live form roster is the
-  dispatch product surface), `test_data_guard` (tests the tripwire itself),
-  `test_smoke_pairing` (schema↔content pairing on the live tree). The final
-  list lives in ONE place: the FP-4 guard's allowlist, greppable and enforced.
-- **D4 — A meta-tier guard makes regression unwritable**: a test that scans
-  `tools/tests/*.py` for live-data tokens (`REPO / "data"` and variants)
-  outside the allowlist and fails with a pointed message. Same enforcement
-  pattern as `test_tiers.py` (a module missing from TIERS is a hard error).
-- **D5 — Literal-assert policy for FP-3**: a literal that mirrors a tunable in
-  `data/balancing/*` or content in `data/slots.json`/`data/maps/*` becomes a
-  value **derived from the fixture** (the `tier_math` pattern). Geometry,
-  indices, counts-of-things-constructed-by-the-test, and engine constants stay
-  literal. Pinning (FP-2) already makes every literal designer-proof; FP-3 is
-  about surviving future *fixture refreshes*, so it targets the worst files,
-  not all 39.
+- **A4**: the backend floors a negative slice margin to 0 rather than raising
+  (E-37 "rendering degrades, never explodes"), so a bad draft from the slice
+  spinboxes cannot crash the render loop. Give the spinboxes `minimum = 0`
+  anyway — the engine guard is a safety net, not the UI contract. All-zero
+  margins must omit the `slice` key entirely.
+- **A5**: `HudSprite`'s `animation` / `anim_time_ms` are appended **after
+  `flip`** (the three shipping call sites pass three positional args), so pass
+  them by keyword.
 
-## 3. Build order
+### Known follow-up surfaced during A3 — now phase A7
 
-| Phase | Title | Files touched | Status |
-|-------|-------|---------------|--------|
-| FP-1 | Freeze the JSON fixture snapshot + access point | `tools/tests/fixtures/data/**` (new), `tools/tests/fixture_data.py` (new) | done (gate PASS 1193) |
-| FP-2 | Flip the 47 live loads to `FIXTURE_DATA`; classify allowlist | 35 files flipped, 12 allowlisted | done (gate PASS 1193) |
-| FP-3 | Derive data-mirroring literals in the worst files | `test_levelup`, `test_lightning` converted; audit cleared the rest as correctly-literal (geometry/test-inputs/deliberate tuning pins) | done (gate PASS 1193) |
-| FP-4 | Guard meta-test: live `data/` reads outside allowlist are a hard error | `tools/tests/test_fixture_guard.py` (new), `conftest.py` (TIERS row) | done (gate PASS 1196; red-verified on a seeded violation) |
-| FP-5 | Top-down headless scenario tests (the rewrite's good idea, stolen) | `tools/tests/test_scenarios.py` (new, 7 scenarios), `conftest.py` (TIERS row) | done (gate PASS 1203) |
+"+ Variant" on `Backgrounds → Main Menu` yields a **64×64** slot, not 480×270 —
+the per-slot frame-size override does not propagate to variants (documented
+`add_variant` behavior). **Fixed by phase A7** (R1 below): `add_variant`
+inherits the family stem's frame-size override, so 10L-B's background picker
+can safely source ui `Backgrounds` slots.
 
-### FP-1 — Freeze the snapshot
-- **Goal**: `tools/tests/fixtures/data/` mirrors every `data/**/*.json` except
-  `balancing_history/`; `fixture_data.py` exposes `FIXTURE_DATA`,
-  `fixture_copy()`, and `--refresh`.
-- **Tests**: suite still green (nothing consumes the fixture yet).
-- **Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check` → PASS.
+## New requirements (2026-07-15, user-approved designs)
 
-### FP-2 — Flip the loads
-- **Goal**: no test module outside the D3 allowlist references live `data/`.
-  Mechanical per file: `REPO / "data"` → `FIXTURE_DATA` (module-level loads),
-  or `fixture_copy()` where the test writes. Editor tests keep `TempDataCase`
-  (already isolated) — its `shutil.copytree(REPO/"data")` source is fine
-  because the copy is per-test and writes never reach the repo; only *readers*
-  anchored to live values move.
-- **Tests**: full suite; every conversion is behavior-preserving today because
-  fixture == live JSON at snapshot time.
-- **Exit gate**: full `testgate check` → PASS; grep for `REPO / "data"` in
-  `tools/tests/` returns only the allowlist.
+- **R1 — manual pixel size per variant of each UI type → phase A7.** The
+  per-slot size writer (`registry_ops.set_slot_frame_size`) and DetailsPanel's
+  Frame W/H spinboxes already work for any slot, variants included; the only
+  gap is creation-time inheritance. `add_variant` now inherits the family
+  stem's (`slots[0]`) frame-size override — ALL categories, not ui-only (a
+  variant family is interchangeable art for one thing; the schema already
+  allows the object form everywhere). Divergence afterwards = the existing
+  spinboxes. No schema change.
+- **R2 — pixel-perfect clickable surface → phases A8 (engine) + A5′ (game).**
+  Skinned buttons hover AND click only over drawn pixels (alpha > 0). New pure
+  `engine/assets/nine_slice.py` owns `clamp_pair` (moved from the backend) +
+  `dest_to_source` (exact piecewise inverse of `_nine_patch`'s band layout).
+  `AssetStore.hit_opaque(slot, animation, anim_time_ms, dest_size, rel_xy)`
+  reads a cached `pygame.mask.from_surface(threshold=0)` keyed
+  `(slot_key, row, col)`; placeholder/missing sheet → opaque everywhere (E-37
+  degrade-to-rect). Game side stays pygame-free via a
+  `widgets.set_skin_hit_test(fn)` seam injected by `game/main.py`
+  (`assets.hit_opaque`); unset seam or `skin=None` reduces to today's rect
+  test. **Canonical-silhouette convention:** widgets always query
+  `("idle", 0)` — hit-testing the drawn state row oscillates at silhouette
+  holes. Consequence to feel live in B5: clicks on transparent corners fall
+  through to the world (including `over_ui` pan-arming).
+- **R3 — ALL current live screens editable → widened B1/B2 scope.** v1 covers
+  **12** screens: the original 9 plus `cheat_menu`, `game_log`,
+  `boss_cutscene` (they exist in `game/ui` now). No "create new screen"
+  feature — the editor edits the live roster only. Contracts for the three:
+  - **cheat_menu** — full template. Ids: `panel, title, btn_close,
+    btn_add_love, btn_skip_round, btn_trigger_levelup, btn_inf_money,
+    btn_unlock_all, round_field, btn_goto, jump_label`. Its `submit()` calls
+    `layout()` every frame → `skinning.apply` must be a cached-dict setattr
+    loop (pinned by a "loads once" test).
+  - **game_log** — container-only (decision 4: dynamic lists are styled, not
+    positioned). ONE widget `log`: rect (anchor of the newest line), font,
+    text_color (age fade keeps multiplying alpha), visible. Line timings stay
+    code constants.
+  - **boss_cutscene** — an A/B modal, NOT timed (the announce fade lives in
+    `effects.py` / `ui.json FX` and stays out of screen JSON). Ids: `backdrop`
+    (color), `headline` (font only — color is win/loss logic), `subtitle`
+    (font, text_color), `box_a`/`box_b` (rect — moves draw AND hit coherently;
+    skin via the skinned `submit_panel`; font; text_color). Gets the standard
+    per-screen anim clock. Exporter mock: `open(1, "win")` +
+    `layout(1280, 720)`.
 
-### FP-3 — Derive the mirrors
-- **Goal**: in the highest-literal files, replace tunable-mirroring literals
-  with values computed from the fixture JSON per D5.
-- **Tests**: the edited files, then full suite.
-- **Exit gate**: full `testgate check` → PASS.
+## User decisions (binding)
 
-### FP-4 — The guard
-- **Goal**: `test_fixture_guard.py` (meta tier) scans test sources for
-  live-data tokens outside the allowlist; failure message names the file and
-  says "import FIXTURE_DATA from fixture_data instead, or add to the allowlist
-  with a justification comment".
-- **Exit gate**: guard passes on the repaired tree; deliberately seeding a
-  violation makes it fail (verified once, not committed).
+1. **Edit depth = skin + layout overrides.** Screens keep computing their
+   prototype-exact default layout in `game/ui` code; a per-screen JSON under
+   `data/ui/screens/` can override any *named* widget's rect / skin / font /
+   colors / label, plus a screen background. No engine layout-container
+   system; the `game_over.py` template stays.
+2. **Button states = animation rows.** The `ui` category's animation
+   vocabulary becomes `["idle", "hover", "pressed", "disabled"]` (row 0 =
+   idle, schema-enforced as everywhere). One sheet per widget skin; each
+   state row may itself be multi-frame (manifest v2 `playback_order`
+   semantics apply unchanged).
+3. **Nine-slice scaling.** Manifest entries gain optional slice margins;
+   the backend blits corners fixed / edges axis-stretched / centre
+   both-stretched. Applies to HUD sprites only (world sprites keep uniform
+   zoom scaling).
+4. **Sequencing = own phase now, assets first.** 10L-A ships alone so UI art
+   can be imported immediately; 10L-B follows. Within 10L-B: shell menus
+   first (static layouts), HUD + building panel last (dynamic layouts).
 
-### FP-5 — Scenario layer
-- **Goal**: `test_scenarios.py` (core tier): headless boots that RUN — place
-  buildings, advance phases/waves, assert invariants (hole survives while
-  defended, enemies die to defences, love flows) without asserting any tunable
-  value. Extends what `tools/smoke.py`'s 5-frame boot starts.
-- **Exit gate**: full `testgate check` → PASS.
+## Architecture decisions (agent-settled — veto in review)
 
-## 4. Risks / open items
+- **Editor never imports `game/**`** (pillar), so the editor cannot run
+  screen `layout()` code. Instead `tools/export_ui_layouts.py` (tools MAY
+  import game) constructs every screen headless with canned mock state at
+  the logical resolution from `data/display.json` and writes
+  **`data/ui/screen_defaults.json`** — a generated-but-committed file,
+  written via `write_validated`. The editor renders previews from
+  defaults + overrides only. A test re-runs the exporter and diffs, so a
+  stale committed export fails the suite; the editor gets a "Refresh
+  Layouts" button that runs the exporter as a subprocess (reusing the
+  `run_controls` subprocess machinery + SDL-dummy strip is NOT needed —
+  the exporter is headless by design).
+- **Unskinned = today's flat-rect rendering, byte-identical.** Overrides
+  and skins are strictly additive: a screen with no JSON (or an empty one)
+  must produce the exact HUD-primitive stream it produces today — pinned by
+  a parity test. A skin assigned to a slot with no imported sheet renders
+  the grey X (E-37 — the universal "no asset yet" state), same as buildings.
+- **Dynamic lists are styled, not positioned.** Widgets with stable
+  identities (menu buttons, HUD panels, End Turn, panel headers) get ids and
+  full overrides. Per-item dynamic content (construct list entries,
+  levelup options, log lines) is NOT individually overridable in v1 — it
+  inherits skin/font through screen-level `defaults` (per widget kind).
+  Their *container* widget (the panel) is overridable.
+- **Pressed state**: `widgets.Button` today tracks hover + flash only. The
+  host already owns mouse-down; `Button.hover(mx, my)` grows an optional
+  `mouse_down` arg → `pressed` property. State→animation mapping:
+  `disabled` → disabled row, flash → pressed row (the not-enough-love red
+  flash becomes the pressed art when skinned; label overlay unchanged),
+  else pressed/hover/idle rows. Missing rows fall back to idle
+  (existing manifest semantics — partial sheets are fine).
+- **UI animation clock**: screens accumulate one `anim_ms` in their
+  `update(dt)` and pass it to skinned submits (no per-widget phase in v1;
+  matches the wall-clock model the editor entity preview uses).
+- **Editor screen mode gets a real undo stack** (`editor/ui_screen_session.py`
+  mirroring `map_session.py`: one open screen, QUndoStack, dirty =
+  `not isClean()`, Ctrl+Z/Y reuse the window-level actions) because
+  drag-to-move is the primary interaction. Writes go to disk only on Save,
+  via `write_validated`.
+- **Backgrounds are whole-sheet single frames**: the importer already
+  writes per-entry `frame_w/h` (manifest > registry precedence), so a menu
+  background is one slot whose entry's frame size = the sheet size. No
+  registry change needed beyond the slots.
+- **Smoke pairing**: `data/ui/screens/*.json` all validate against
+  `schemas/ui_screen.schema.json` — a directory-rule exception exactly like
+  `maps/` and `balancing_history/`; `tools/smoke.py` special-cases the
+  directory. `data/ui/screen_defaults.json` pairs with
+  `schemas/screen_defaults.schema.json` by stem as normal.
 
-- **Fixture drift vs schemas**: a future schema migration can invalidate the
-  snapshot. Mitigation: `--refresh` + the suite run; the guard test does not
-  pin schema versions.
-- **Hidden asset reads**: a flipped test may transitively load a PNG via the
-  registry. Mitigation: fixture keeps the JSON manifest; any test that truly
-  renders from disk assets either stays allowlisted with a comment or copies
-  the specific asset in its own setUp.
-- **`editor` tier**: `TempDataCase` copies live `data/` per test. That is a
-  *write* isolation, not a value pin — editor tests that assert live values
-  were already rehabilitated by TestGatePLAN (`unassign_slot`); FP-2 only
-  moves the remaining module-level readers. If an editor test still inherits a
-  live value, it gets the same treatment, not a new mechanism.
-- The old migration-tier reflex ("compare against the prototype") must not
-  sneak back in via the fixture: the fixture is a *pin*, not an authority —
-  `data/` + schemas remain the source of truth (root `CLAUDE.md`).
+---
 
-## 5. Post-execution addendum (2026-07-15) — the gate was lying, and the plan's own failure class was hiding under it
+## Slice 10L-A — animated UI asset pipeline
 
-CI on the PR exposed three things the execution-day record must correct:
+Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-assets`).
+Packages: engine + data + editor + a thin game hook. Goal: import a multi-state animated button sheet in the editor,
+preview it there, and see it drawn (animated, nine-sliced) in game.
 
-1. **`testgate` printed PASS over red in color-forced shells.** Agent shells
-   export `FORCE_COLOR`; pytest then colors its summary even when piped, and
-   `[31mFAILED` never matched `^FAILED` while the tally regex still
-   counted. Every phase gate above therefore reported PASS while the suite
-   carried 2 failures. Fixed in `tools/testgate.py` (child env gets
-   `NO_COLOR=1`/`PY_COLORS=0`, escapes stripped before parsing) — verified
-   RED first against the real failures, then green. The third gate-lied
-   sibling, after silent skips (TG-2) and subtests.
-2. **The 2 hidden failures were this plan's own class, pre-existing on
-   `Development`**: commit `380ab4a` (an artist re-import) rewrote
-   `stone_thrower_t1_lvl1`'s manifest row and `deco_rock` variants;
-   `test_details_panel` and `test_editor_panels` asserted the old live
-   values through TempDataCase copies — the §4 editor-tier risk, real.
-   Both now pin their fixture (`drop_slot_variants`, an explicit manifest
-   row write). Not caused by FP-1..FP-5; fixed under the same doctrine.
-3. **Unrelated `Development` breakage, also inherited**: the producer
-   easter egg imported `PySide6.QtMultimedia` at module scope, which needs
-   `libpulse.so.0` — absent on CI runners, so `editor.main` could not even
-   import there (16 failures + 2 collection errors on every push since
-   `785fd17`). Import is now lazy + guarded in
-   `editor/thats_my_producer.py`; `tests.yml` installs `libpulse0` so the
-   runner exercises the audio path.
+### A1. Engine — animated `HudSprite`
+- `engine/render/hud.py`: `HudSprite` gains `animation: str = "idle"` and
+  `anim_time_ms: int = 0`.
+- `engine/render/renderer.py`: HUD resolution becomes
+  `assets.frame(hud.slot_key, hud.animation, hud.anim_time_ms)` (the store
+  API already takes both — today's call just omits them).
+- Tests: a two-row manifest entry submitted as HudSprite at two times
+  resolves different frames; default args keep old behavior.
 
-Honest final state: `GATE PASS 1203 ran | 0 known | 0 new | 0 fixed |
-0 unexpected skips` from the FIXED gate, exit 0, on 2026-07-15.
+### A2. Engine + data — nine-slice
+- `data/schemas/asset_manifest.schema.json`: optional per-entry
+  `"slice": [left, top, right, bottom]` (ints ≥ 0; omitted = plain scale).
+- `engine/assets/manifest.py`: `ManifestEntry` carries `slice`;
+  `entry_from_dict` parses it. `engine/assets/store.py`: `Frame` carries it.
+- `engine/render/renderer.py`: HudSprite → DrawCall passes `slice` through
+  (DrawCall gains the field, default None; world-sprite path never sets it).
+- `engine/render/backend.py`: a DrawCall with slice margins and
+  dest size ≠ frame size renders 9-patch (corners fixed, edges stretched on
+  one axis, centre on both). Composite once per (surface, size) into the
+  existing scaled-frame `WeakKeyDictionary` cache. Degenerate sizes
+  (smaller than the summed margins) clamp margins proportionally.
+- Tests: pixel assertions on a synthetic 3-color sheet (corner pixels
+  unmoved, centre color fills), cache hit test, degenerate-size test.
+
+### A3. Data — `ui` category expansion (`data/slots.json`)
+- `animations`: `["idle", "hover", "pressed", "disabled"]`.
+- Groups replace the placeholder `HUD` group:
+  - **Buttons**: `ui_button` (+ variants via "+ Skin").
+  - **Panels**: `ui_panel`, `ui_panel_stone`.
+  - **Icons**: `ui_icon_love`, `ui_icon_xp`, `ui_icon_lives` (64×64).
+  - **Backgrounds**: `ui_bg_main_menu` (whole-sheet frame; also satisfies
+    phase 10K's asset half).
+- Editor variant support: add `"ui": None` to
+  `MainWindow._VARIANT_TARGETS` so every ui leaf offers "+ Variant"
+  (`registry_ops.add_variant`, `<stem>_v<k>`), labeled as the skin-add
+  affordance.
+
+### A4. Editor — importer verification (mostly free)
+- `DetailsPanel` is registry-driven: with the vocab extended it already
+  offers per-row animation dropdowns (idle locked on row 0), fps, hidden,
+  loop, offset — verify against a real 4-row button sheet.
+- Details gains a **slice-margins editor** (4 spinboxes, ui category only,
+  writing the manifest `slice` field) + the viewport entity preview shows
+  the slot animating per selected animation (already works via the one
+  render path once A1 lands — verify).
+
+### A5′. Game — skinned `widgets.Button` / `submit_panel` + hit seam
+- Extends the reviewed A5 brief with the R2 game half: a
+  `widgets.set_skin_hit_test(fn)` module seam (default None → rect
+  behaviour), `Button._surface_hit` routing both `hover()` and `hit()`
+  through the injected `("idle", 0)` canonical-silhouette query, and the one
+  `set_skin_hit_test(assets.hit_opaque)` line in `game/main.py`.
+- `widgets.Button` gains optional `skin` (slot key) + pressed tracking;
+  `submit()` with a skin draws
+  `HudSprite(skin, dest=rect, size=rect_size, animation=state,
+  anim_time_ms=clock)` + the centred label (flat rects skipped); without a
+  skin, unchanged byte-identical output. `submit_panel` gains the same
+  optional skin. Nothing assigns skins yet — 10L-B's screen JSON does.
+  (Interim manual hook for testing: a temporary hardcoded skin on one menu
+  button during the live Quick Test, reverted before commit.)
+
+### A6. Exit gate (10L-A)
+- `py -m unittest discover -s tools/tests -t .` + `py tools/smoke.py`.
+- **Quick Test**: in the live editor, import a 4-row animated button sheet
+  onto `ui_button`, set slice margins, watch hover/pressed rows animate in
+  the entity preview; temporary-skin a main-menu button, `py game/main.py`,
+  see it nine-sliced at 320×52 animating idle→hover→pressed→disabled.
+- Docs: `engine/render/CLAUDE.md` (HudSprite anim + nine-slice),
+  `engine/assets/CLAUDE.md` (slice field), `data/CLAUDE.md` (ui slots),
+  `editor/panels/CLAUDE.md` (slice editor, ui variants).
+
+### A7. Editor — per-variant pixel size (R1)
+- `editor/registry_ops.py::add_variant`: inherit the family stem's
+  (`slots[0]`) frame-size override object on creation; bare stems stay bare
+  (regression pin for enemies/deco). `tools/tests/test_registry_ops.py` gains
+  inherit-on-add / bare-stays-bare / independently-resizable-after tests.
+- No schema change; no editor UI change (Frame W/H spinboxes already cover
+  every slot). `data/CLAUDE.md` bullet correction ships with B1 (same wave).
+
+### A8. Engine — pixel hit-mask (R2 engine half)
+- NEW pure `engine/assets/nine_slice.py`: `clamp_pair` (moved from
+  `engine/render/backend.py`, which re-imports it) + `dest_to_source(rel_xy,
+  dest_size, src_size, margins)` — piecewise inverse of `_nine_patch`.
+- `engine/assets/store.py::AssetStore.hit_opaque(...)` → bool; mask cache
+  keyed `(slot_key, row, col)` (same key space as `_frames`);
+  placeholder/corrupt → True everywhere. Tests: `test_nine_slice.py`
+  (inverse math + composite cross-check), `test_asset_store.py` (hole/
+  placeholder/cache).
+
+---
+
+## Slice 10L-B — edit UI screens from the editor
+
+Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-screens`).
+Packages: data + game + editor + tools.
+Goal: select "Main Menu" in the editor tree, see the real screen rendered
+through the engine HUD pass, drag a button, assign a skin, save; the game
+picks it up on next Play.
+
+### B1. Data — screen override format
+- `data/ui/screens/<screen_id>.json`, one per screen. Screen ids (v1, R3):
+  `main_menu, pause, settings, credits, add_name, game_over, levelup, hud,
+  building_panel, cheat_menu, game_log, boss_cutscene` — every live screen;
+  future screens join by dropping in a file + ids, no format change.
+- `schemas/ui_screen.schema.json`: everything optional —
+  `background: {slot} | {color}`, `defaults: {button_skin?, panel_skin?,
+  font?, text_color?}` (kind-level styling for dynamic items),
+  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
+  visible?}}`. `additionalProperties:false` inside entries; widget ids
+  validated against `screen_defaults.json` at load (fail loud in dev on an
+  unknown id — catches renames).
+- `schemas/screen_defaults.schema.json` for the generated defaults file:
+  per screen `{widgets: {<id>: {rect, kind, label}}, mock_note}`.
+- `tools/smoke.py`: directory rule for `data/ui/screens/`.
+
+### B2. Game — ids + override application
+- `game/ui/skinning.py` (pure, in `TestPurity`): loads + validates all
+  screen JSONs once at shell construction; `apply(screen_id, widgets)`
+  mutates rects/labels/skins/fonts/colors after a screen's `layout()`;
+  `screen_background(screen_id)` for submit-time. Missing file/empty doc →
+  no-op.
+- Each screen names its fixed widgets (`btn_new_game`, `btn_settings`,
+  `title`, `love_panel`, `end_turn`, `phase_banner`, panel-mode headers, …)
+  in an `ids` mapping and calls `skinning.apply` at the end of `layout()`;
+  `submit()` draws the background first when overridden. HUD/building-panel
+  dynamic items pull kind styling from `defaults`.
+- **Parity pin**: a test constructs every screen with no override files and
+  asserts the submitted HUD-primitive stream is identical to a pre-change
+  golden capture.
+
+### B3. Tools — layout exporter
+- `tools/export_ui_layouts.py`: builds each screen headless (mock state:
+  love=123, round=7, a mid-run building selection for the panel, etc.) at
+  the `display.json` logical resolution, dumps every named widget's
+  `{rect, kind, label}` to `data/ui/screen_defaults.json` via
+  `write_validated`. Idempotent; committed output.
+- `tools/tests/test_ui_layout_export.py`: regenerates in a temp dir and
+  diffs against the committed file (the staleness gate).
+
+### B4. Editor — screen mode
+- **Selector**: the `ui` category gains a `Screens` branch above the slot
+  groups — one leaf per `data/ui/screens/*.json`; emits
+  `screen_selected(screen_id)` (never `node_selected`), mirroring how map
+  leaves work.
+- **`editor/ui_screen_session.py`**: open doc + QUndoStack (move/resize/
+  field-edit/skin-assign commands), dirty/save/`_resolve_dirty` reusing the
+  map-mode policy. In `TestPurity`.
+- **Viewport screen mode** (`set_screen_mode(session, defaults)`): renders
+  background + every widget from defaults+overrides through
+  `Renderer.submit_hud` into the same offscreen surface — buttons as
+  skinned HudSprites (or the flat-rect fallback drawn with the SAME
+  primitives the game uses — reuse is via primitive-level helpers mirrored
+  from `screen_defaults` kinds, NOT by importing `game/ui`), labels via
+  HudText. Click = topmost rect hit → selection outline (HudLines); drag =
+  move (undoable, arrow keys nudge); handles on corners = resize. A state
+  dropdown (idle/hover/pressed/disabled) + running anim clock previews
+  skins live.
+- **`panels/screen_details.py`** (right pane in screen mode): widget list,
+  per-widget form — rect spinboxes, skin combo (ui slots from the
+  registry), font combo (`fonts.py` keys), color buttons, label edit,
+  per-field "reset to default"; screen background picker; `defaults`
+  section. Save writes via `write_validated`. Every new module into
+  `TestPurity`.
+
+### B5. Exit gate (10L-B)
+- Suite + smoke; exporter-sync test green; parity pin green.
+- **Quick Test (live)**: editor → Screens → Main Menu: drag START NEW GAME
+  40px up, assign `ui_button` skin to all five buttons, set a background
+  slot, Save, Ctrl+Z/Y round-trip; Play → the menu matches the editor
+  preview pixel-for-pixel (allowing anim phase); pause/settings/game-over
+  each get one edit; HUD: move the love panel to the top-right, verify
+  in-round; delete `main_menu.json` → game renders today's stock menu.
+- Docs: `game/ui/CLAUDE.md` (ids + skinning), `editor/CLAUDE.md` +
+  `editor/panels/CLAUDE.md` (screen mode/session), `data/CLAUDE.md`
+  (ui screens + defaults formats), MIGRATION_PLAN.md gets the 10L row,
+  PLAN.md phase table on completion.
+
+## Risks / open items
+
+- **Golden parity capture (B2)** must be recorded before any widget refactor
+  lands on the branch — first commit of 10L-B.
+- **Nine-slice + `pygame.transform` interaction**: edge stretching of
+  per-pixel-alpha art needs `smoothscale` vs `scale` choice — decide by eye
+  on real art in A2; cache whichever wins.
+- **HUD per-pixel alpha** stays out of scope (same limit that deferred the
+  pause dim / level-up translucency to 10J) — skins are opaque or
+  color-keyed sheets for now.
+- **`screen_defaults.json` merge friction**: regenerating on two branches
+  will conflict; it's deterministic output, so resolve by re-running the
+  exporter, never by hand-merge.

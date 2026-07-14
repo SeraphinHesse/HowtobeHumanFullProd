@@ -6,8 +6,8 @@ here from `engine/CLAUDE.md`. **Missing/corrupt art logs and falls back — neve
 crashes boot.** When you change asset conventions, update THIS doc.
 
 ## Import boundary
-`engine.assets` package `__init__` + `types` + `manifest` + `registry` are
-**pure**; pygame lives only in `engine.assets.placeholder` and
+`engine.assets` package `__init__` + `types` + `manifest` + `registry` +
+`nine_slice` are **pure**; pygame lives only in `engine.assets.placeholder` and
 `engine.assets.store` (import those by full path).
 
 ## Phase 5 conventions
@@ -59,6 +59,26 @@ crashes boot.** When you change asset conventions, update THIS doc.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).
+- **Pixel hit-mask (A8, R2 design)**: `engine/assets/nine_slice.py` (NEW, pure —
+  no pygame, no engine imports) holds `clamp_pair(a, b, limit)` — moved here
+  from `engine/render/backend.py`, which now imports it (`from
+  engine.assets.nine_slice import clamp_pair as _clamp_pair`) rather than
+  redefining it, so the forward 9-patch composite and the inverse below share
+  ONE clamp — plus `dest_to_source(rel_xy, dest_size, src_size, margins)`, the
+  exact piecewise inverse of `_nine_patch`'s band layout (corners map 1:1,
+  edges/centre scale by the band ratio; `margins=None` or all-zero degenerates
+  to plain proportional scaling). `AssetStore.hit_opaque(slot_key,
+  animation="idle", anim_time_ms=0, dest_size=None, rel_xy=(0, 0))` resolves
+  the frame exactly like `frame()`, then maps `rel_xy` through
+  `dest_to_source` and reads a `pygame.mask.from_surface(surface,
+  threshold=0)` (alpha > 0 counts as opaque) cached in `self._hit_masks`,
+  keyed `(slot_key, row, col)` — the SAME key space as `_frames`. Tolerance
+  (E-37): a placeholder or a corrupt/missing sheet degrades to `True` (opaque
+  everywhere — a partially-imported build stays fully clickable); a `rel_xy`
+  that maps outside the source frame bounds degrades to `False` rather than
+  raising. The CALLER (a skinned button) must clamp `rel_xy` to
+  `[0, dest_size[0]) x [0, dest_size[1])` — `hit_opaque`/`dest_to_source`
+  never validate against `dest_size`, only against the resolved source frame.
 - **E-38 is RETIRED — the migration tool is deleted.** `tools/
   migrate_prototype_assets.py` ran once, converting the prototype's v1 manifest +
   `imported/` PNGs to manifest v2 + copied sheets (and baking the 9 procedurally-
