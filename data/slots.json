@@ -511,7 +511,12 @@
                 "tile_cliff",
                 "tile_background_1",
                 "tile_background_2",
-                "tile_background_3"
+                "tile_background_3",
+                "tile_background_4",
+                "tile_background_5",
+                "tile_background_6",
+                "tile_background_7",
+                "tile_background_8"
               ]
             }
           ],
