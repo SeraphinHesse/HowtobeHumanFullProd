@@ -12,7 +12,7 @@ beneath it as the missing-art fallback.
 """
 from engine.render import HudRect, HudSprite
 
-from .widgets import C_GOLD, C_UI_TEXT, Button, submit_centered
+from .widgets import C_GOLD, C_UI_TEXT, Button, anim_ms, submit_centered
 
 _BG = (18, 30, 20)
 _BG_SLOT = "main_menu_bg"
@@ -33,6 +33,7 @@ class MainMenu:
     def __init__(self, view_w, view_h):
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), action)
                         for label, action in _ITEMS]
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
@@ -42,10 +43,11 @@ class MainMenu:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         for btn, _ in self.buttons:
             btn.enabled = True
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
             btn.update(dt)
 
     def hit(self, mx, my):
@@ -56,6 +58,7 @@ class MainMenu:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
         submit_centered(renderer, _TITLE, view_w // 2, view_h // 2 - 150,
@@ -63,4 +66,4 @@ class MainMenu:
         submit_centered(renderer, "defend the munckins",
                         view_w // 2, view_h // 2 - 110, "md", C_GOLD)
         for btn, _ in self.buttons:
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=t)

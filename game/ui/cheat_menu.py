@@ -24,7 +24,7 @@ from engine.render import HudRect
 
 from .widgets import (
     C_GOLD, C_PANEL_STONE, C_UI_BORDER, C_UI_TEXT, C_UI_TEXT_DIM, Button,
-    contains, submit_centered, submit_panel, submit_text,
+    anim_ms, contains, submit_centered, submit_panel, submit_text,
 )
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
@@ -57,6 +57,7 @@ class CheatMenu:
         self.field_rect = (0, 0, 0, 0)
         self._label_pos = (0, 0)
         self._divider_y = 0
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     # -- open / close -------------------------------------------------------
@@ -94,11 +95,12 @@ class CheatMenu:
         self.field_rect = (px + 10, y + 26, 96, 22)
         self.go_btn.rect = (px + 112, y + 26, _PANEL_W - 122, 22)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         if not self.visible:
             return
         for btn in (self.close_btn, self.go_btn, *(b for _, b in self.buttons)):
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
             btn.update(dt)
 
     # -- input --------------------------------------------------------------
@@ -150,13 +152,14 @@ class CheatMenu:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
-        submit_panel(renderer, self.panel_rect)
+        submit_panel(renderer, self.panel_rect, anim_ms=t)
         px, py, pw, _ph = self.panel_rect
         submit_centered(renderer, _TITLE, px + pw // 2, py + 8, "lg", C_GOLD)
-        self.close_btn.submit(renderer)
+        self.close_btn.submit(renderer, anim_ms=t)
         for _action, btn in self.buttons:
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=t)
         renderer.submit_hud(
             HudRect((px + 10, self._divider_y, pw - 20, 1), C_UI_BORDER))
         submit_text(renderer, "Jump to round:", self._label_pos, "sm",
@@ -173,4 +176,4 @@ class CheatMenu:
             shown = "round"
             tcol = C_UI_TEXT_DIM
         submit_text(renderer, shown, (fx + 6, fy + 4), "sm", tcol)
-        self.go_btn.submit(renderer)
+        self.go_btn.submit(renderer, anim_ms=t)

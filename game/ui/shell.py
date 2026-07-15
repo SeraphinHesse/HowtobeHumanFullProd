@@ -172,10 +172,10 @@ class Shell:
         return self.state in (GameState.MAIN_MENU, GameState.SETTINGS,
                               GameState.CREDITS, GameState.ADD_NAME)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
         screen = self._active_screen()
         if screen is not None:
-            screen.update(dt, mx, my)
+            screen.update(dt, mx, my, mouse_down)
 
     def submit(self, renderer, view_w, view_h):
         screen = self._active_screen()

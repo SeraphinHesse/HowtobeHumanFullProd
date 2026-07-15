@@ -69,6 +69,7 @@ from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
     GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
 )
+from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -186,6 +187,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         registry=registry,
         sprites_dir=data_dir / "sprites",
     )
+    widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     renderer = Renderer(cs, assets)
     # The static ground layer is composited once into an oversized surface and
     # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning
@@ -576,6 +578,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = pygame.mouse.get_pos()
+        held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
@@ -645,10 +648,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     and session.state.state == GameState.GAME_OVER):
                 gp["cheat"].close()  # 10H: never hide the game-over screen
                 shell.enter_game_over()
-            gp["hud"].update(dt, mx, my, session, gp["panel"])
-            gp["panel"].hover(mx, my)
+            gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
+            gp["panel"].hover(mx, my, mouse_down=held)
             gp["panel"].update(dt)
-            gp["overlays"].update(dt, mx, my)   # 10I: toggle-pill hover
+            gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
             gp["floaters"].update(dt)
             # -- 10J: game log + FX watchers (building deaths -> purple burst
             # + kill message; enemy attack cadence -> muzzle/slash; enemy
@@ -660,14 +663,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --
-            gp["cheat"].update(dt, mx, my)  # 10H (animates its own buttons)
+            gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
             if session.frozen:
-                gp["levelup"].update(dt, mx, my)
-                gp["boss_cutscene"].update(dt, mx, my)  # 10G (its phase only)
+                gp["levelup"].update(dt, mx, my, mouse_down=held)
+                gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
             if session.state.state == GameState.GAME_OVER:
-                gp["game_over"].update(dt, mx, my)
+                gp["game_over"].update(dt, mx, my, mouse_down=held)
         else:  # menu states + PAUSED
-            shell.update(dt, mx, my)
+            shell.update(dt, mx, my, mouse_down=held)
 
         # 3. render submit — per state
         _t_render0 = time.perf_counter()

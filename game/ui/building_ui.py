@@ -34,7 +34,7 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE,
     C_RANGE_HIGHLIGHT, C_RED, C_UI_BORDER, C_UI_PANEL, C_UI_TEXT,
-    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, contains, submit_panel,
+    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size,
 )
 
@@ -154,12 +154,12 @@ class ConstructPreview:
     def chosen_name(self):
         return self.name.strip() or f"Unnamed {self.title}"
 
-    def hover(self, mx, my):
-        self.confirm_btn.hover(mx, my)
-        self.close_btn.hover(mx, my)
-        self.dice_btn.hover(mx, my)
+    def hover(self, mx, my, mouse_down=False):
+        self.confirm_btn.hover(mx, my, mouse_down)
+        self.close_btn.hover(mx, my, mouse_down)
+        self.dice_btn.hover(mx, my, mouse_down)
         if self.cancel_btn is not None:
-            self.cancel_btn.hover(mx, my)
+            self.cancel_btn.hover(mx, my, mouse_down)
 
     def confirm_hovered(self):
         return self.confirm_btn.hovered
@@ -203,11 +203,12 @@ class ConstructPreview:
         elif char and char.isprintable() and len(self.name) < 20:
             self.name += char
 
-    def submit(self, renderer):
+    def submit(self, renderer, anim_ms=0):
         from engine.render import HudRect
 
         x, y, w, h = self.rect
-        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER)
+        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
+                    anim_ms=anim_ms)
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 12), "lg", C_UI_TEXT,
                     align="center")
@@ -226,17 +227,17 @@ class ConstructPreview:
             shown = "click to name"
             tcol = C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
-        self.dice_btn.submit(renderer)
+        self.dice_btn.submit(renderer, anim_ms=anim_ms)
         sy = y + 138
         for label, value in self.stats:
             submit_text(renderer, label, (x + 16, sy), "sm", C_UI_TEXT_DIM)
             submit_text(renderer, str(value), (x + w - 16, sy), "sm", C_UI_TEXT,
                         align="right")
             sy += 20
-        self.confirm_btn.submit(renderer)
+        self.confirm_btn.submit(renderer, anim_ms=anim_ms)
         if self.cancel_btn is not None:
-            self.cancel_btn.submit(renderer)
-        self.close_btn.submit(renderer)
+            self.cancel_btn.submit(renderer, anim_ms=anim_ms)
+        self.close_btn.submit(renderer, anim_ms=anim_ms)
 
 
 class BuildingUI:
@@ -259,6 +260,7 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self._action_cost = 0
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         # -- 10J: shift multi-select batch (prototype game.py:189-191) --
         self.selected_tiles = []      # primary first; same category only
         # -- 10J: upgrade-panel rename row + dice; host callbacks --
@@ -566,7 +568,7 @@ class BuildingUI:
 
     # -- input ------------------------------------------------------------
 
-    def hover(self, mx, my):
+    def hover(self, mx, my, mouse_down=False):
         self._hover_cost = None
         # -- 10I: terrain badge hover (rect inflated 4px, prototype
         # building_ui.py:1121-1130); off while the modal preview is open --
@@ -576,41 +578,41 @@ class BuildingUI:
             and contains((r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8), mx, my))
         # -- /10I --
         if self.preview is not None:
-            self.preview.hover(mx, my)
+            self.preview.hover(mx, my, mouse_down)
             if self.preview.confirm_hovered():
                 self._hover_cost = self.preview.cost
             return
         if not self.visible:
             return
-        self.close_btn.hover(mx, my)
+        self.close_btn.hover(mx, my, mouse_down)
         if self.mode == "construct":
             count = max(1, len(self.selected_tiles))  # 10J batch
             state = self._session.state
             for btype, btn in self.cards:
-                btn.hover(mx, my)
+                btn.hover(mx, my, mouse_down)
                 if btn.hovered:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = (
                         build_cost(btype, self._buildings_balance, tier_idx)
                         * count)
         elif self.mode in ("unlock", "upgrade"):
-            self.action_btn.hover(mx, my)
+            self.action_btn.hover(mx, my, mouse_down)
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
             if self.mode == "upgrade":
-                self._dice_up.hover(mx, my)  # 10J rename dice
+                self._dice_up.hover(mx, my, mouse_down)  # 10J rename dice
         elif self.mode == "base_info":
             # -- 10H --
             if self.lightning_btn is not None:
-                self.lightning_btn.hover(mx, my)
+                self.lightning_btn.hover(mx, my, mouse_down)
                 if self.lightning_btn.hovered:
                     self._hover_cost = self._action_cost
             # -- /10H --
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
-            self.boss_btn.hover(mx, my)
+            self.boss_btn.hover(mx, my, mouse_down)
             self._boss_hover_row = -1
             if self._boss_popup_open:
-                self._boss_close_btn.hover(mx, my)
+                self._boss_close_btn.hover(mx, my, mouse_down)
                 px, py, pw, _ph = self._boss_popup_rect
                 if px + 14 <= mx < px + pw - 14 and my >= py + 48:
                     self._boss_hover_row = (my - (py + 48)) // 20
@@ -806,6 +808,7 @@ class BuildingUI:
     # -- per-frame --------------------------------------------------------
 
     def update(self, dt):
+        self._clock += dt
         self.action_btn.update(dt)
         self.close_btn.update(dt)
         self._dice_up.update(dt)  # 10J rename dice
@@ -821,6 +824,7 @@ class BuildingUI:
             self.preview.update(dt)
 
     def submit(self, renderer, session):
+        t = anim_ms(self._clock)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
         if not self.visible:
@@ -830,25 +834,25 @@ class BuildingUI:
         self._cond_badge_rect = None
         self._cond_tooltip = None
         # -- /10I --
-        submit_panel(renderer, self.panel_rect)
-        self.close_btn.submit(renderer)
+        submit_panel(renderer, self.panel_rect, anim_ms=t)
+        self.close_btn.submit(renderer, anim_ms=t)
         if self.mode == "unlock":
-            self._submit_unlock(renderer, session)
+            self._submit_unlock(renderer, session, t)
         elif self.mode == "construct":
-            self._submit_construct(renderer)
+            self._submit_construct(renderer, t)
         elif self.mode == "upgrade":
-            self._submit_upgrade(renderer)
+            self._submit_upgrade(renderer, t)
         elif self.mode == "base_info":
-            self._submit_base_info(renderer, session)
+            self._submit_base_info(renderer, session, t)
         # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
         # (prototype building_ui.py:1121-1130) --
         if self._cond_hover and self._cond_tooltip is not None:
             self._submit_cond_tooltip(renderer, *self._cond_tooltip)
         # -- /10I --
         if self.preview is not None:
-            self.preview.submit(renderer)
+            self.preview.submit(renderer, anim_ms=t)
 
-    def _submit_unlock(self, renderer, session):
+    def _submit_unlock(self, renderer, session, anim_ms=0):
         x = self.panel_x + 14
         submit_text(renderer, "UNLOCK TILE", (x, 16), "lg", C_UI_TEXT)
         submit_text(renderer, "Unlocks a 2x2 area", (x, 70), "sm",
@@ -856,16 +860,16 @@ class BuildingUI:
         if not session.tilemap.can_unlock(self.tile):
             submit_text(renderer, "Must touch your territory", (x, 196), "sm",
                         C_UI_TEXT_DIM)
-        self.action_btn.submit(renderer)
+        self.action_btn.submit(renderer, anim_ms=anim_ms)
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 40, above=True)
         # -- /10I --
 
-    def _submit_construct(self, renderer):
+    def _submit_construct(self, renderer, anim_ms=0):
         submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", C_UI_TEXT)
         for _, btn in self.cards:
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=anim_ms)
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 40, above=True)
@@ -911,7 +915,7 @@ class BuildingUI:
         return temp.slot_key(), f"Next: {_tier_name(temp)}", \
             _building_stats(temp)[:3]
 
-    def _submit_upgrade(self, renderer):
+    def _submit_upgrade(self, renderer, anim_ms=0):
         from engine.render import HudRect, HudSprite
 
         x, b = self.panel_x + 14, self._selected
@@ -930,7 +934,7 @@ class BuildingUI:
         else:
             shown, tcol = "click here to change name", C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 6, ny + 4), "sm", tcol)
-        self._dice_up.submit(renderer)
+        self._dice_up.submit(renderer, anim_ms=anim_ms)
         # -- /10J --
         submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 68),
                     "md", C_UI_TEXT_DIM)
@@ -994,7 +998,7 @@ class BuildingUI:
                     submit_text(renderer, f"{label}  {value}", (x + 46, ry),
                                 "sm", C_UI_TEXT_DIM)
                     ry += 16
-        self.action_btn.submit(renderer)
+        self.action_btn.submit(renderer, anim_ms=anim_ms)
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
@@ -1071,7 +1075,7 @@ class BuildingUI:
 
     # -- /10I ---------------------------------------------------------------
 
-    def _submit_base_info(self, renderer, session):
+    def _submit_base_info(self, renderer, session, anim_ms=0):
         x, st = self.panel_x + 14, session.state
         income = scaled_base_income(st, session.core_balance)
         submit_text(renderer, "THE HOLE", (x, 16), "lg", C_UI_TEXT)
@@ -1115,7 +1119,7 @@ class BuildingUI:
                             C_UI_TEXT, align="right")
                 y += 24
         if self.lightning_btn is not None:
-            self.lightning_btn.submit(renderer)
+            self.lightning_btn.submit(renderer, anim_ms=anim_ms)
         elif lvl >= ls["max_level"]:
             submit_text(renderer, "MAX LEVEL",
                         (self.panel_x + self.panel_w // 2,
@@ -1124,19 +1128,19 @@ class BuildingUI:
         # -- /10H --
         # -- 10G boss: BOSS CHOICES button + history popup (sits BELOW the
         # 10H lightning section per the batch coordination matrix) --
-        self.boss_btn.submit(renderer)
+        self.boss_btn.submit(renderer, anim_ms=anim_ms)
         if self._boss_popup_open:
-            self._submit_boss_popup(renderer, session)
+            self._submit_boss_popup(renderer, session, anim_ms)
         # -- /10G --
 
-    def _submit_boss_popup(self, renderer, session):
+    def _submit_boss_popup(self, renderer, session, anim_ms=0):
         """The small boss-history popup (prototype ``_BossHistoryPanel``): one
         row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
         as a tooltip line, "None yet" when empty, a Close button (10G)."""
         from game.core.boss_bonuses import choice_desc
 
         px, py, pw, ph = self._boss_popup_rect
-        submit_panel(renderer, self._boss_popup_rect)
+        submit_panel(renderer, self._boss_popup_rect, anim_ms=anim_ms)
         submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
                     C_UI_TEXT, align="center")
         choices = session.state.boss_choices
@@ -1159,4 +1163,4 @@ class BuildingUI:
             for line in hover_desc.split("\n"):
                 submit_text(renderer, line, (px + 14, ty), "sm", C_UI_TEXT_DIM)
                 ty += 16
-        self._boss_close_btn.submit(renderer)
+        self._boss_close_btn.submit(renderer, anim_ms=anim_ms)

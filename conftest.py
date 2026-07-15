@@ -72,6 +72,7 @@ TIERS = {
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
+    "test_button_skin": "core",
     "test_combat_speed": "core",
     "test_components": "core",
     "test_coords": "core",
