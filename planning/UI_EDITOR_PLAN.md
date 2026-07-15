@@ -1,12 +1,15 @@
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **CODE COMPLETE — 2026-07-15, wave 2b executed.** All coded phases
-(A1–A5′, A7, A8 incl. the hit-mask exactness fixes, B1–B4) are implemented,
-reviewed, and merged on umbrella `phase-10L-wave2b-umbrella` (one PR into
-`Development`). **A6 and B5 are the only open items: their automated halves
-(suite + smoke + docs) are green, but each requires a HUMAN live Quick Test**
-(listed in the PR body) before the plan can be archived. Carry-overs from both
-runs are consolidated under "Run state" below.
+Status: **CODE COMPLETE — 2026-07-15, wave 2b executed; PR #41 open.** All
+coded phases (A1–A5′, A7, A8 incl. the hit-mask exactness fixes, B1–B4) are
+implemented, reviewed, and merged on umbrella `phase-10L-wave2b-umbrella` —
+**[PR #41](https://github.com/SeraphinHesse/HowtobeHumanFullProd/pull/41)**
+into `Development`, open and awaiting the human gate. **A6 and B5 are the only
+open items: their automated halves (suite + smoke + docs) are green, but each
+requires a HUMAN live Quick Test** (step-by-step in the PR #41 body). Sequence
+to close the plan: run both Quick Tests → merge PR #41 → move this doc to
+`planning/completed plans/`. Carry-overs from both runs are consolidated under
+"Run state" below; none of them blocks the Quick Tests.
 Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
 every UI screen from the editor); 10L-B depends on 10L-A. Three user
 requirements were folded in on 2026-07-15 (see "New requirements" below):
@@ -23,17 +26,25 @@ v1 — they exist in `game/ui` now).
 | A3 | Data — `ui` category expansion | **done** (2026-07-14) |
 | A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
 | A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **done** (2026-07-15, wave-2b umbrella; reviewed clean) |
-| A6 | Exit gate — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (in PR body) |
+| A6 | Exit gate — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
 | A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
 | A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15; + wave-2b exactness fixes: degenerate-band miss, corner/edge/centre `_scale_index` inversion — reviewed ×2) |
 | B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
 | B2 | Game — ids + `skinning.py` + golden parity pin | **done** (2026-07-15, wave-2b umbrella; 2 review rounds, findings fixed) |
 | B3 | Tools — layout exporter + committed `screen_defaults.json` | **done** (2026-07-15, wave-2b umbrella; reviewed clean, determinism measured) |
 | B4 | Editor — screen mode (selector/session/viewport/details) | **done** (2026-07-15, wave-2b umbrella; review finding fixed; B4i vs real defaults verified) |
-| B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (in PR body) |
+| B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
 
 ### Run state (2026-07-15, wave 2b complete — carry-overs consolidated)
 
+- **Post-run verification (2026-07-15, this update)**: all wave-2b deliverables
+  confirmed present on disk at HEAD — 12 `data/ui/screens/*.json` +
+  `data/ui/screen_defaults.json`, `game/ui/skinning.py`,
+  `engine/assets/nine_slice.py`, `editor/ui_screen_session.py`,
+  `editor/panels/screen_details.py`, `tools/export_ui_layouts.py`. NOTE: the
+  working-tree copy of THIS doc was found silently reverted to the wave-2a
+  ("UNFINISHED") version — OneDrive sync suspected — and was restored from git.
+  If a plan doc ever contradicts git history + the files on disk, trust git.
 - **Landed on `phase-10L-wave2b-umbrella`** (targeted gate after every merge;
   full suite green at the end — 1323 ran, 0 failures, 0 unexpected skips):
   A8-fix `phase-A8fix-degenerate-band` (3 commits: degenerate-band miss
