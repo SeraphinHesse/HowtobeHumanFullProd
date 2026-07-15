@@ -16,14 +16,40 @@ from tools.tests.qt_harness import APP as _APP, QtCase
 
 import pygame
 from PIL import Image
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication
 
-from editor.panels.viewport import ViewportPanel, surface_to_qimage
+from editor.main import MainWindow
+from editor.panels.screen_details import ScreenDetailsPanel
+from editor.panels.selector import _PAYLOAD_ROLE, _SCREEN_ROLE, SelectorPanel
+from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
+from editor.ui_screen_session import UIScreenSession
 from engine import data_io
+from engine.render import HudLines, HudRect, HudSprite, HudText
 from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
+
+# B4 (R3): hand-authored fixture conforming to B1's ui_screen.schema.json /
+# B3's screen_defaults.schema.json shape — {screen_id: {widgets, mock_note}},
+# used instead of the (not-yet-landed on this branch) real
+# data/ui/screen_defaults.json, exactly like the entity-preview tests use a
+# hand-picked slot instead of live manifest content.
+FIXTURE_DEFAULTS = {
+    "main_menu": {
+        "widgets": {
+            "btn_new_game": {"rect": [640, 360, 120, 40], "kind": "button",
+                             "label": "START"},
+            "btn_settings": {"rect": [640, 420, 120, 40], "kind": "button",
+                             "label": "SETTINGS"},
+            "title": {"rect": [640, 100, 400, 80], "kind": "label",
+                     "label": "MAIN MENU"},
+        },
+        "mock_note": "test fixture",
+    }
+}
 
 
 class TestSurfaceToQImage(unittest.TestCase):
@@ -237,6 +263,263 @@ class TestSlicedDraftPreview(TempDataCase):
         self.assertNotIn("ui_button", on_disk["entries"])
 
 
+class TestSelectorScreensBranch(TempDataCase):
+    """B4 §1a: the "ui" category gains a Screens branch, mirroring Maps."""
+
+    def test_selector_shows_screens_branch_above_slots(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        ui_root = next(
+            selector.topLevelItem(i) for i in range(selector.topLevelItemCount())
+            if selector.topLevelItem(i).data(0, _PAYLOAD_ROLE) == ("ui", ()))
+        self.assertGreater(ui_root.childCount(), 0)
+        labels = [ui_root.child(i).text(0) for i in range(ui_root.childCount())]
+        self.assertEqual(labels[0], "Screens")           # ABOVE the slot groups
+        self.assertIn("Buttons", labels[1:])
+        screens_branch = ui_root.child(0)
+        self.assertEqual(screens_branch.childCount(), 12)   # B1: 12 screen files
+
+    def test_screen_leaf_emits_screen_selected_not_node_selected(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        screen_calls = []
+        node_calls = []
+        selector.screen_selected.connect(screen_calls.append)
+        selector.node_selected.connect(lambda *a: node_calls.append(a))
+        selector.select_screen("main_menu")
+        self.assertEqual(screen_calls, ["main_menu"])
+        self.assertEqual(node_calls, [])
+
+    def test_selector_refresh_screens_preserves_selection(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        selector.select_screen("main_menu")
+        selector.refresh_screens()
+        item = selector.selectedItems()[0]
+        self.assertEqual(item.data(0, _SCREEN_ROLE), "main_menu")
+
+
+class TestUIScreenSession(TempDataCase):
+    """B4 §1b: UIScreenSession mirrors MapSession — open/save lifecycle,
+    dirty tracking, undoable push_* commands storing full old/new values."""
+
+    def test_screen_session_open_loads_and_validates(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        doc = session.open("main_menu")
+        self.assertEqual(doc, {})   # B1: every screen doc starts life empty
+        self.assertFalse(session.dirty)
+
+    def test_screen_session_push_move_undoable(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        session.push_move("btn_new_game", None, [10, 10, 50, 20])
+        self.assertEqual(session.undo_stack.count(), 1)
+        self.assertEqual(
+            session.doc["widgets"]["btn_new_game"]["rect"], [10, 10, 50, 20])
+        session.undo_stack.undo()
+        self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
+
+    def test_screen_session_push_field_undoable(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        session.push_field("title", "label", "OLD", "NEW")
+        self.assertEqual(session.doc["widgets"]["title"]["label"], "NEW")
+        session.undo_stack.undo()
+        self.assertEqual(session.doc["widgets"]["title"]["label"], "OLD")
+
+    def test_screen_session_dirty_after_push_clean_after_save(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        session.push_field("title", "label", None, "NEW")
+        self.assertTrue(session.dirty)
+        session.save()
+        self.assertFalse(session.dirty)
+        on_disk = data_io.load_validated(
+            self.data_dir / "ui" / "screens" / "main_menu.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+        self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW")
+
+
+class TestViewportScreenMode(TempDataCase):
+    """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
+    degrade with no defaults, click/drag/nudge interaction."""
+
+    def make_session(self, screen_id="main_menu"):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open(screen_id)
+        return session
+
+    def make_viewport(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)   # scale 1.0, offset 0 — trivial math
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def record_hud(self, panel):
+        calls = []
+        original = panel._renderer.submit_hud
+
+        def wrapper(item):
+            calls.append(item)
+            return original(item)
+
+        panel._renderer.submit_hud = wrapper
+        return calls
+
+    def test_viewport_set_screen_mode_renders_without_defaults(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, {})
+        calls = self.record_hud(panel)
+        panel.render_frame()   # E-37: no raise
+        self.assertTrue(any(
+            isinstance(c, HudText) and "Refresh Layouts" in c.text for c in calls))
+
+    def test_viewport_set_screen_mode_renders_with_defaults(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        calls = self.record_hud(panel)
+        panel.render_frame()
+        rects = [c for c in calls if isinstance(c, HudRect)]
+        texts = [c for c in calls if isinstance(c, HudText)]
+        self.assertEqual(len(rects), 4)    # 2 unskinned buttons × (fill+border)
+        self.assertEqual(len(texts), 3)    # START, SETTINGS, MAIN MENU
+
+    def test_viewport_click_selects_topmost_widget(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=QPoint(840, 140))
+        self.assertEqual(panel._selected_widget, "title")
+        calls = self.record_hud(panel)
+        panel.render_frame()
+        self.assertTrue(any(isinstance(c, HudLines) for c in calls))
+
+    def test_viewport_drag_move_commits_undo_command(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        before = session.undo_stack.count()
+        start, end = QPoint(700, 380), QPoint(730, 380)
+        QTest.mousePress(panel, Qt.MouseButton.LeftButton, pos=start)
+        QTest.mouseMove(panel, end)
+        QTest.mouseRelease(panel, Qt.MouseButton.LeftButton, pos=end)
+        self.assertEqual(session.undo_stack.count(), before + 1)
+        self.assertEqual(
+            session.doc["widgets"]["btn_new_game"]["rect"], [670, 360, 120, 40])
+
+    def test_viewport_arrow_key_nudges_selected_widget(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        QTest.mouseClick(panel, Qt.MouseButton.LeftButton, pos=QPoint(700, 380))
+        self.assertEqual(panel._selected_widget, "btn_new_game")
+        before = session.undo_stack.count()
+        QTest.keyClick(panel, Qt.Key.Key_Left)
+        self.assertEqual(
+            session.doc["widgets"]["btn_new_game"]["rect"], [639, 360, 120, 40])
+        self.assertEqual(session.undo_stack.count(), before + 1)
+
+    def test_viewport_state_dropdown_drives_anim_row(self):
+        panel = self.make_viewport()
+        session = self.make_session()
+        session.push_skin_assign("btn_new_game", None, "ui_button")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        self.assertEqual(panel._screen_state, "idle")
+        self.assertEqual(
+            [panel._state_combo.itemText(i) for i in range(panel._state_combo.count())],
+            ["idle", "hover", "pressed", "disabled"])   # from the registry, not literals
+        panel.set_screen_state("hover")
+        calls = self.record_hud(panel)
+        panel.render_frame()
+        sprites = [c for c in calls if isinstance(c, HudSprite)]
+        self.assertEqual(len(sprites), 1)
+        self.assertEqual(sprites[0].animation, "hover")
+
+
+class TestScreenDetailsPanel(TempDataCase):
+    """B4 §1d: widget list + per-widget form + screen-level sections, every
+    edit an IMMEDIATE undoable push_* (never staged)."""
+
+    def make(self):
+        panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_session(session, FIXTURE_DEFAULTS)
+        return panel, session
+
+    def test_screen_details_widget_list_mirrors_defaults(self):
+        panel, session = self.make()
+        items = [panel.widget_list.item(i).text()
+                for i in range(panel.widget_list.count())]
+        self.assertEqual(set(items), {"btn_new_game", "btn_settings", "title"})
+        selected = []
+        panel.widget_selected.connect(selected.append)
+        panel.widget_list.setCurrentRow(items.index("title"))
+        self.assertEqual(selected, ["title"])
+        self.assertEqual(panel._current_widget, "title")
+
+    def test_screen_details_rect_spinboxes_push_move_on_change(self):
+        panel, session = self.make()
+        panel._populate_widget_form("btn_new_game")
+        panel.x_spin.setValue(700)
+        panel.x_spin.editingFinished.emit()
+        self.assertEqual(session.doc["widgets"]["btn_new_game"]["rect"][0], 700)
+        self.assertEqual(session.undo_stack.count(), 1)
+        session.undo_stack.undo()
+        self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
+
+    def test_screen_details_skin_combo_push_skin_assign_on_change(self):
+        panel, session = self.make()
+        panel._populate_widget_form("btn_new_game")
+        idx = panel.skin_combo.findData("ui_button")
+        self.assertGreaterEqual(idx, 0)
+        panel.skin_combo.setCurrentIndex(idx)
+        panel.skin_combo.activated.emit(idx)
+        self.assertEqual(session.doc["widgets"]["btn_new_game"]["skin"], "ui_button")
+        session.undo_stack.undo()
+        self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
+
+    def test_screen_details_reset_to_default_removes_override(self):
+        panel, session = self.make()
+        session.push_move("btn_new_game", None, [10, 10, 50, 20])
+        session.push_field("btn_new_game", "label", None, "X")
+        panel._populate_widget_form("btn_new_game")
+        panel._on_reset_clicked()
+        self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
+
+    def test_screen_details_background_picker_combo_push_background(self):
+        panel, session = self.make()
+        idx = panel.background_combo.findData("ui_bg_main_menu")
+        self.assertGreaterEqual(idx, 0)
+        panel.background_combo.setCurrentIndex(idx)
+        panel.background_combo.activated.emit(idx)
+        self.assertEqual(session.doc["background"], {"slot": "ui_bg_main_menu"})
+
+
+class TestMainWindowScreenMode(TempDataCase):
+    """B4 §1e: selector → _on_screen_selected → dirty check → session.open →
+    viewport.set_screen_mode → right_stack switch (exactly like maps)."""
+
+    def test_main_window_on_screen_selected_enters_screen_mode(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        window.selector.select_screen("main_menu")
+        self.assertTrue(window.viewport.in_screen_mode())
+        self.assertIs(window.right_stack.currentWidget(), window.screen_details)
+
+    def test_main_window_resolve_dirty_prompts_before_switching_screens(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        window.selector.select_screen("main_menu")
+        window.screen_session.push_field("title", "label", None, "NEW TITLE")
+        self.assertTrue(window.screen_session.dirty)
+        window.dirty_policy = "save"   # bypass the modal Save/Discard/Cancel
+        window.selector.select_screen("pause")
+        self.assertEqual(window.screen_session.screen_id, "pause")
+        on_disk = data_io.load_validated(
+            self.data_dir / "ui" / "screens" / "main_menu.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+        self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW TITLE")
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: editor/ never imports game/ (root CLAUDE.md layering rule)."""
 
@@ -249,11 +532,13 @@ class TestPurity(unittest.TestCase):
             "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
+            "editor.ui_screen_session, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
-            "editor.panels.sheet_picker, editor.thats_my_producer; "
+            "editor.panels.sheet_picker, editor.panels.screen_details, "
+            "editor.panels._screen_primitives, editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

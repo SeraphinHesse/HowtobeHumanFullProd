@@ -379,6 +379,95 @@ import list.**
   handler as `DetailsPanel.entry_saved`/`entry_cleared`, which now ALSO calls
   `palette.refresh_icons()`).
 
+## Phase B4 — screen mode (`ui_screen_session.py`, `panels/screen_details.py`, `panels/_screen_primitives.py`; R3)
+- **Selection** (`panels/selector.py`): the "Screens" branch is the FIRST
+  child of the "ui" category node (mirrors the Maps branch under "map"), one
+  leaf per `data/ui/screens/*.json`, labelled by the filename stem (screen
+  docs carry no display-name field, unlike maps). A screen leaf emits
+  `screen_selected(screen_id)` + `domain_selected("ui")` and NEVER
+  `node_selected` — the `_MAP_ROLE`/`_SCREEN_ROLE` branches in `_emit_selection`
+  are structurally identical. `screen_ids()`/`select_screen()`/
+  `refresh_screens()` mirror `map_ids()`/`select_map()`/`refresh_maps()`
+  exactly (selection-preserving rebuild).
+- **`ViewportPanel.set_screen_mode(session, defaults)`** (mirrors
+  `set_map_mode`): a FIXED 1280×720 logical canvas (`data/display.json`'s
+  canonical resolution) scaled-to-fit the widget (`_screen_scale_offset`) —
+  no viewport-driven zoom, the whole canvas is always visible, like the
+  entity preview's parked camera. `defaults` is the FULL loaded
+  `data/ui/screen_defaults.json` mapping (`{screen_id: {widgets, mock_note}}`),
+  not a single screen's sub-dict — `_current_screen_defaults()` is the ONE
+  place that indexes it by the open session's `screen_id`.
+  - **Graceful degrade (E-37) is the LIVE state until B3 lands**: an empty/
+    missing `defaults` (or a screen id absent from it) renders a red
+    "no layout defaults yet — click Refresh Layouts" `HudText` and every
+    widget interaction (`_screen_press`/`_screen_move`/`_nudge_selected`) is a
+    no-op by construction — each checks `_current_screen_defaults()` first, so
+    there is nothing to iterate over a missing key.
+  - **ALL submission goes through `Renderer.submit_hud`** (ED-22 one render
+    path): background (`{slot}` → whole-screen `HudSprite`, `{color}` →
+    `HudRect`) first, then each widget. A widget with a `skin` override, or a
+    kind-matched default (`doc["defaults"]["button_skin"]`/`"panel_skin"` for
+    `kind in ("button", "panel")`), renders as `HudSprite(skin, dest, size,
+    tint, animation=state, anim_time_ms=screen_anim_clock)`; the label rides
+    alongside as a centred `HudText`. An UNSKINNED widget renders through
+    `editor.panels._screen_primitives.fallback_hud_items` — flat rect(s) +
+    centred label, keyed off the `kind` enum (`button|panel|label|backdrop|
+    bar|field`, pinned by `screen_defaults.schema.json`); `label` draws text
+    only, no box. `_screen_primitives` is pure (HUD dataclasses +
+    `engine.render.fonts.TextMetrics` for vertical centring only — `HudText`'s
+    own `align="center"` only shifts x) and NEVER imports `game/ui` — an
+    accepted drift (layering rule), kept aligned to the real skinned look by
+    eye + the B2 parity pin, not by shared code.
+  - **Interaction**: click hit-tests widgets in REVERSE submission order
+    (topmost = last-drawn); a selected widget gets a `HudLines` outline +
+    4 `HudRect` corner handles. Drag-move/resize LIVE-mutates
+    `session.doc["widgets"][id]["rect"]` directly (exactly like a tilemap
+    paint stroke) and commits ONE `push_move`/`push_resize` on release —
+    idempotent by the same argument as `map_session`'s stroke commands
+    (pushing after the doc is already mutated just re-applies the same
+    value). Arrow keys nudge 1 logical px per undoable `push_move` (no
+    live-drag needed — `QUndoStack.push()` calls `redo()` itself).
+    `ViewportPanel.setFocusPolicy(StrongFocus)` + `setFocus()` on select is
+    what lets arrow keys reach it in the real app.
+  - **State dropdown** (idle/hover/pressed/disabled): a floating `QComboBox`
+    like the entity-preview animation combo, populated from
+    `registry.category("ui").animations` (data-driven, not a literal list) —
+    drives every skinned widget's `HudSprite.animation` for the frame.
+  - **`refresh_screen_defaults(defaults)`** / **`set_selected_widget(id)`**:
+    the "Refresh Layouts" re-render path and the screen_details↔viewport
+    selection sync, respectively — neither touches mode/session state.
+- **`ScreenDetailsPanel`** (`panels/screen_details.py`, right pane,
+  `right_stack` index 2): widget list (from the current screen's defaults) →
+  per-widget form (rect spinboxes + skin/font combos + Color/Text Color
+  `QColorDialog` buttons + label edit + visible checkbox — the `_NoWheel*`
+  widgets are IMPORTED from `editor.panels.balancing`, never copied) → a
+  single **"Reset to default"** clears EVERY override on the selected widget,
+  one undoable `push_field(..., None)` per field, relying on
+  `_DocFieldCommand`'s pruning to drop the widget entry once it's empty →
+  screen-level Background picker (slot combo + color button,
+  `push_background`) → a `Defaults` `CollapsibleSection` (button_skin/
+  panel_skin/font/text_color, `push_default_field`) → Save (greyed out
+  `not session.dirty`). Every edit is an IMMEDIATE undoable push_* — NOT
+  staged like `balancing.py`. Skin/background combos list `registry.
+  group_slots("ui")`/`group_slots("ui", ("Backgrounds",))` (registry-driven,
+  never hardcoded); font combo keys mirror `engine/render/fonts.py`'s private
+  `_FONT_SPECS` (duplicated as a local tuple rather than importing a
+  leading-underscore cross-module name). `session.undo_stack.indexChanged`
+  refreshes the visible form/background/defaults section after Ctrl+Z/Y so
+  nothing goes stale.
+- **`MainWindow`**: `_on_screen_selected` → `_resolve_dirty(session=None)`
+  (generalized to take ANY session — every pre-B4 call site passes none and
+  gets `map_session`; screen mode passes `self.screen_session`) →
+  `session.open` → `_enter_screen_mode()` (loads
+  `data/ui/screen_defaults.json`, wires viewport + screen_details, switches
+  `right_stack`) / `_leave_screen_mode()`. Ctrl+Z/Y route through
+  `_active_undo_stack()` (screen session while `viewport.in_screen_mode()`,
+  else map session). **"Refresh Layouts"** toolbar action →
+  `RunControls.export_layouts()` (same tracked-`QProcess` + console-streaming
+  path as Build, distinguished by the `which` string on the shared
+  `started`/`finished` signals) → on exit 0, reloads defaults into viewport +
+  screen_details + `selector.refresh_screens()`.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State
