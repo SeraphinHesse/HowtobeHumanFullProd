@@ -623,16 +623,18 @@
       "sheet": "imported/boost_speed_t3_lvl3.png"
     },
     "boss_era_0": {
-      "frame_h": 56,
-      "frame_w": 72,
+      "frame_h": 96,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 2,
+          "hidden": [
+            0
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -1317,7 +1319,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v2.png"
+      "sheet": "imported/enemy_stage_1_v1.png"
     },
     "enemy_stage_1_v2": {
       "frame_h": 96,
