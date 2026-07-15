@@ -65,9 +65,21 @@ crashes boot.** When you change asset conventions, update THIS doc.
   engine.assets.nine_slice import clamp_pair as _clamp_pair`) rather than
   redefining it, so the forward 9-patch composite and the inverse below share
   ONE clamp — plus `dest_to_source(rel_xy, dest_size, src_size, margins)`, the
-  exact piecewise inverse of `_nine_patch`'s band layout (corners map 1:1,
-  edges/centre scale by the band ratio; `margins=None` or all-zero degenerates
-  to plain proportional scaling). `AssetStore.hit_opaque(slot_key,
+  exact piecewise inverse of `_nine_patch`'s band layout. EVERY band —
+  corners, edges, and the centre — inverts the exact same nearest-neighbour
+  sampler `_nine_patch` used to paint it (`_scale_index`, a bit-for-bit
+  match of `pygame.transform.scale`'s software stretch, not an
+  approximation); a corner only degenerates to a 1:1 identity map in the
+  common case where the dest isn't narrower/shorter than the (already
+  source-clamped) margin it came from — when the dest shrinks a margin
+  below its source size, `_nine_patch` resamples that corner too, and
+  `dest_to_source` inverts that resample the same way. A margin pair that
+  clamps to exactly fill the SOURCE dimension while the dest still has a
+  centre band on that axis (source band vanishes, dest band doesn't) is a
+  MISS, not a boundary-pixel read — `_nine_patch` paints nothing there, so
+  `dest_to_source` returns an out-of-frame coordinate for that axis
+  (`hit_opaque`'s existing bounds check reads it as a miss). `margins=None`
+  or all-zero degenerates to plain proportional scaling. `AssetStore.hit_opaque(slot_key,
   animation="idle", anim_time_ms=0, dest_size=None, rel_xy=(0, 0))` resolves
   the frame exactly like `frame()`, then maps `rel_xy` through
   `dest_to_source` and reads a `pygame.mask.from_surface(surface,
