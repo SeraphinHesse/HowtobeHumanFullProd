@@ -4,9 +4,16 @@ Pure logic. Ports the prototype's ``src/ui/credits_menu.py`` static two-column
 list verbatim onto the ``game_over.py`` template: role (dim) on the left, name
 (bright) on the right, blank tuples inserting a spacer, plus a BACK button.
 Non-scrolling.
+
+10L-B: ``ids`` names ``backdrop``, ``title`` ("CREDITS") + ``btn_back`` (the
+credits ROWS are static content, not individually overridable — same "skip
+dynamic content" rule as every other screen's list-shaped body).
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, submit_centered,
     submit_text,
@@ -34,31 +41,54 @@ _CREDITS = [
 _LINE_H = 30
 _SPACER_H = 14
 
+SCREEN_ID = "credits"
+
 
 class CreditsScreen:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
+                                      text_color=C_GOLD, label="CREDITS",
+                                      visible=True)
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
         self.back_btn.rect = (view_w // 2 - 100, view_h - 90, 200, 46)
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self._title.rect = (view_w // 2, 70, 0, 0)
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "title": ("label", self._title),
+            "btn_back": ("button", self.back_btn),
+        }
+        self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
         self.back_btn.enabled = True
         self.back_btn.hover(mx, my, mouse_down)
+        self.back_btn.hovered = self.back_btn.hovered and is_visible(self.back_btn)
         self.back_btn.update(dt)
 
     def hit(self, mx, my):
-        return "back" if self.back_btn.hit(mx, my) else None
+        return ("back" if is_visible(self.back_btn) and self.back_btn.hit(mx, my)
+               else None)
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         cx = view_w // 2
-        submit_centered(renderer, "CREDITS", cx, 70, "xxl", C_GOLD)
+        if self._title.visible:
+            submit_centered(renderer, self._title.label, self._title.rect[0],
+                            self._title.rect[1], self._title.font_key,
+                            self._title.text_color)
         y = 150
         for role, name in _CREDITS:
             if not role and not name:
@@ -68,4 +98,5 @@ class CreditsScreen:
                         align="right")
             submit_text(renderer, name, (cx + 40, y), "md", C_UI_TEXT)
             y += _LINE_H
-        self.back_btn.submit(renderer, anim_ms=t)
+        if is_visible(self.back_btn):
+            self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))
