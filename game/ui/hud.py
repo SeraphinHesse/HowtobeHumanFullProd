@@ -13,6 +13,7 @@ that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
 10J added ``income_sources`` + the hover breakdown tooltip on the income line.
 """
 import math
+from types import SimpleNamespace
 
 from game.core.boss_bonuses import (
     aoe_count, boss1b_income, boss3b_income, defence_count,
@@ -20,6 +21,7 @@ from game.core.boss_bonuses import (
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_HP_GREEN, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED,
     C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, anim_ms, contains, submit_bar,
@@ -125,8 +127,13 @@ def _tile_counts(tilemap):
     return built, unlocked
 
 
+SCREEN_ID = "hud"
+
+
 class Hud:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
         self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
         self._clock = 0.0  # drives the levelup-pending pulse
@@ -137,6 +144,11 @@ class Hud:
         # -- 10H --
         self._mx = self._my = 0  # cursor pos: anchors the cooldown bar
         # -- /10H --
+        # -- 10L-B: love panel (rect only) + phase label (font/text_color) --
+        self._love_panel = SimpleNamespace(rect=(12, 12, 190, 34))
+        self._phase_label = SimpleNamespace(font_key="hud_phase", text_color=None)
+        self.ids = {}
+        # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     def layout(self, view_w, view_h):
@@ -144,6 +156,13 @@ class Hud:
         self.end_turn.rect = (view_w - w - 16, view_h - h - 16, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
         self.pause.rect = (view_w - pw - 16, 12, pw, ph)
+        self.ids = {
+            "btn_end_turn": ("button", self.end_turn),
+            "btn_pause": ("button", self.pause),
+            "love_panel": ("panel", self._love_panel),
+            "phase_label": ("label", self._phase_label),
+        }
+        self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, session, panel, mouse_down=False):
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
@@ -175,9 +194,10 @@ class Hud:
 
         st = session.state
         self.layout(view_w, view_h)
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
 
         # -- love pill (top-left) -----------------------------------------
-        pill = (12, 12, 190, 34)
+        pill = self._love_panel.rect
         renderer.submit_hud(HudRect(pill, C_PANEL_STONE, border_radius=4))
         renderer.submit_hud(HudRect(pill, C_PANEL_INSET, border_radius=4, width=1))
         if hover_cost is not None:
@@ -212,8 +232,11 @@ class Hud:
 
         # -- phase banner (bottom-left) -----------------------------------
         label = _PHASE_LABEL.get(st.phase, st.phase.name)
-        color = _PHASE_COLOR.get(st.phase, C_UI_TEXT_DIM)
-        submit_text(renderer, label, (12, view_h - 26), "hud_phase", color)
+        color = (self._phase_label.text_color
+                if self._phase_label.text_color is not None
+                else _PHASE_COLOR.get(st.phase, C_UI_TEXT_DIM))
+        submit_text(renderer, label, (12, view_h - 26),
+                   self._phase_label.font_key, color)
 
         # -- right-edge cluster: pause (top), round + End Turn (bottom) ----
         # The whole column lives under the building panel, so it is skipped

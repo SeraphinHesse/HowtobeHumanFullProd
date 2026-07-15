@@ -19,9 +19,24 @@ four leave it open for repeat presses.
 
 Since 10J the backdrop is the prototype's real ``(0, 0, 0, 150)`` alpha dim
 (RGBA ``HudRect``).
+
+10L-B (plan R3, PINNED): eleven ids — ``panel``, ``title``, ``btn_close``,
+``btn_add_love``, ``btn_skip_round``, ``btn_trigger_levelup``,
+``btn_inf_money``, ``btn_unlock_all``, ``round_field``, ``btn_goto``,
+``jump_label``. ``submit()`` calls ``layout()`` EVERY FRAME (the menu can be
+left open across many frames), so ``skinning.apply()`` must be — and is — a
+cached-dict setattr loop with zero disk reads per call (pinned by
+``test_ui_skinning.py``'s "loads once" test). ``field_rect``/``round_text``/
+``field_focused``/``panel_rect`` stay real, directly-readable attributes
+(``test_lightning.py`` reads ``field_rect``/``close_btn``/``go_btn``
+directly) — the ids-only shadow holders (``_round_field``, ``_panel``,
+``_title``, ``_jump_label``) are synced from/to them each ``layout()``.
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_PANEL_STONE, C_UI_BORDER, C_UI_TEXT, C_UI_TEXT_DIM, Button,
     anim_ms, contains, submit_centered, submit_panel, submit_text,
@@ -40,10 +55,20 @@ _BUTTONS = (
     ("inf_money", "Infinite Money"),
     ("unlock_all", "Unlock All Tech"),
 )
+# action -> the ids name a designer picks it by (10L-B, PINNED)
+_ACTION_IDS = {
+    "add_love": "btn_add_love", "skip_round": "btn_skip_round",
+    "trigger_levelup": "btn_trigger_levelup", "inf_money": "btn_inf_money",
+    "unlock_all": "btn_unlock_all",
+}
+
+SCREEN_ID = "cheat_menu"
 
 
 class CheatMenu:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self.visible = False
@@ -58,6 +83,15 @@ class CheatMenu:
         self._label_pos = (0, 0)
         self._divider_y = 0
         self._clock = 0.0  # 10L-A: one anim clock per screen
+        # -- 10L-B: shadow holders for the four non-Button ids --
+        self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
+        self._title = SimpleNamespace(font_key="lg", text_color=C_GOLD)
+        self._round_field = SimpleNamespace(rect=self.field_rect,
+                                            font_key="sm", text_color=None)
+        self._jump_label = SimpleNamespace(font_key="sm",
+                                           text_color=C_UI_TEXT_DIM)
+        self.ids = {}
+        # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
     # -- open / close -------------------------------------------------------
@@ -94,6 +128,23 @@ class CheatMenu:
         self._label_pos = (px + 10, y + 8)
         self.field_rect = (px + 10, y + 26, 96, 22)
         self.go_btn.rect = (px + 112, y + 26, _PANEL_W - 122, 22)
+        # -- 10L-B: cached-dict setattr loop, zero disk I/O per call (the
+        # menu's submit() calls layout() every frame it stays open) --
+        self._panel.rect = self.panel_rect
+        self._round_field.rect = self.field_rect
+        self.ids = {
+            "panel": ("panel", self._panel),
+            "title": ("label", self._title),
+            "btn_close": ("button", self.close_btn),
+            "round_field": ("field", self._round_field),
+            "btn_goto": ("button", self.go_btn),
+            "jump_label": ("label", self._jump_label),
+        }
+        for action, btn in self.buttons:
+            self.ids[_ACTION_IDS[action]] = ("button", btn)
+        self.skinning.apply(self.screen_id, self.ids)
+        self.panel_rect = self._panel.rect
+        self.field_rect = self._round_field.rect
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -153,17 +204,19 @@ class CheatMenu:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
-        submit_panel(renderer, self.panel_rect, anim_ms=t)
+        submit_panel(renderer, self.panel_rect, skin=self._panel.skin, anim_ms=t)
         px, py, pw, _ph = self.panel_rect
-        submit_centered(renderer, _TITLE, px + pw // 2, py + 8, "lg", C_GOLD)
+        submit_centered(renderer, _TITLE, px + pw // 2, py + 8,
+                        self._title.font_key, self._title.text_color)
         self.close_btn.submit(renderer, anim_ms=t)
         for _action, btn in self.buttons:
             btn.submit(renderer, anim_ms=t)
         renderer.submit_hud(
             HudRect((px + 10, self._divider_y, pw - 20, 1), C_UI_BORDER))
-        submit_text(renderer, "Jump to round:", self._label_pos, "sm",
-                    C_UI_TEXT_DIM)
+        submit_text(renderer, "Jump to round:", self._label_pos,
+                   self._jump_label.font_key, self._jump_label.text_color)
         renderer.submit_hud(HudRect(self.field_rect, C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self.field_rect, C_GOLD if self.field_focused else C_UI_BORDER,
@@ -175,5 +228,6 @@ class CheatMenu:
         else:
             shown = "round"
             tcol = C_UI_TEXT_DIM
-        submit_text(renderer, shown, (fx + 6, fy + 4), "sm", tcol)
+        submit_text(renderer, shown, (fx + 6, fy + 4), self._round_field.font_key,
+                   tcol)
         self.go_btn.submit(renderer, anim_ms=t)

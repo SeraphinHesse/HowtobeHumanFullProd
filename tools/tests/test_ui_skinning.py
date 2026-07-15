@@ -16,11 +16,14 @@ the shipped starter map + a plain recording stand-in renderer — the
 ``test_hud_panel.py`` / ``test_10j_qol.py`` fixture style.
 """
 import random
+import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 REPO = Path(__file__).resolve().parents[2]
-from tools.tests.fixture_data import FIXTURE_DATA
+from tools.tests.fixture_data import FIXTURE_DATA, fixture_copy
 
 from engine import tilemap
 from engine.core import Scene
@@ -31,6 +34,8 @@ from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
+from game.ui import skinning as skinning_module
+from game.ui.skinning import ScreenSkinning
 from game.ui.add_name import AddNameScreen
 from game.ui.boss_cutscene import BossCutscene
 from game.ui.building_ui import BuildingUI
@@ -403,6 +408,129 @@ class TestGoldenParity(unittest.TestCase):
         for screen_id, items in captured.items():
             self.assertEqual(items, _BASELINE[screen_id],
                              f"{screen_id} parity failed")
+
+
+class ScreenSkinningCase(unittest.TestCase):
+    """A ``ScreenSkinning`` over a tempdir copy of the pinned fixture (which
+    ships NO ``data/ui/screens/`` at all — the "missing directory" graceful
+    path) — never the live repo (T-3/data guard)."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.data_dir = fixture_copy(self._tmp.name)
+
+
+class TestScreenSkinningLoad(ScreenSkinningCase):
+    def test_missing_screens_directory_is_graceful(self):
+        """No data/ui/screens/ at all (today's fixture) -> empty overrides,
+        never a crash (§1.3 E-37 degrade)."""
+        skinning = ScreenSkinning(self.data_dir)
+        self.assertEqual(skinning._overrides, {})
+
+    def test_absent_defaults_file_is_none(self):
+        """data/ui/screen_defaults.json doesn't exist until B3 lands (§1.4)."""
+        skinning = ScreenSkinning(self.data_dir)
+        self.assertIsNone(skinning._defaults)
+
+    def test_skinning_loads_once(self):
+        """apply() never re-reads disk — pinned by patching the loader AFTER
+        construction and calling apply() many times (the cheat_menu
+        every-frame ``layout()`` -> ``apply()`` case)."""
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "widgets": {"test_widget": {"rect": [1, 2, 3, 4]}}}
+        widget = SimpleNamespace(rect=(0, 0, 1, 1))
+        with mock.patch.object(
+                skinning_module.data_io, "load_validated",
+                side_effect=AssertionError("apply() re-read disk")):
+            for _ in range(50):
+                skinning.apply("test_screen", {"test_widget": ("button", widget)})
+        self.assertEqual(widget.rect, (1, 2, 3, 4))
+
+
+class TestApplyMutatesWidgets(ScreenSkinningCase):
+    def test_apply_mutates_rect(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "widgets": {"test_widget": {"rect": [10, 20, 80, 90]}}}
+        widget = SimpleNamespace(rect=(0, 0, 100, 100))
+        skinning.apply("test_screen", {"test_widget": ("button", widget)})
+        self.assertEqual(widget.rect, (10, 20, 80, 90))
+
+    def test_apply_mutates_label(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "widgets": {"btn": {"label": "PRESS ME"}}}
+        widget = SimpleNamespace(label="old")
+        skinning.apply("test_screen", {"btn": ("button", widget)})
+        self.assertEqual(widget.label, "PRESS ME")
+
+    def test_apply_mutates_skin(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "widgets": {"btn": {"skin": "ui_button"}}}
+        widget = SimpleNamespace(skin=None)
+        skinning.apply("test_screen", {"btn": ("button", widget)})
+        self.assertEqual(widget.skin, "ui_button")
+
+    def test_apply_is_a_noop_with_no_override(self):
+        skinning = ScreenSkinning(self.data_dir)
+        widget = SimpleNamespace(rect=(1, 2, 3, 4), label="stock")
+        skinning.apply("main_menu", {"btn_new_game": ("button", widget)})
+        self.assertEqual(widget.rect, (1, 2, 3, 4))
+        self.assertEqual(widget.label, "stock")
+
+
+class TestIdValidation(ScreenSkinningCase):
+    def test_unknown_id_fails_loud_when_defaults_present(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._defaults = {"test_screen": {"widgets": {"known_id": {}}}}
+        skinning._overrides["test_screen"] = {
+            "widgets": {"unknown_id": {"rect": [0, 0, 100, 100]}}}
+        widget = SimpleNamespace(rect=(0, 0, 1, 1))
+        with self.assertRaises(ValueError) as cm:
+            skinning.apply("test_screen", {"unknown_id": ("button", widget)})
+        self.assertIn("unknown_id", str(cm.exception))
+
+    def test_absent_defaults_file_silent(self):
+        """No screen_defaults.json (B3 not landed) -> unknown ids tolerated,
+        never raise (§1.4)."""
+        skinning = ScreenSkinning(self.data_dir)
+        self.assertIsNone(skinning._defaults)
+        skinning._overrides["test_screen"] = {
+            "widgets": {"unknown_id": {"rect": [0, 0, 100, 100]}}}
+        widget = SimpleNamespace(rect=(0, 0, 1, 1))
+        skinning.apply("test_screen", {"unknown_id": ("button", widget)})
+        self.assertEqual(widget.rect, (0, 0, 100, 100))
+
+
+class TestScreenBackground(ScreenSkinningCase):
+    def test_screen_background_slot(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "background": {"slot": "ui_bg_main_menu"}}
+        self.assertEqual(skinning.screen_background("test_screen"),
+                         {"slot": "ui_bg_main_menu"})
+
+    def test_screen_background_color(self):
+        skinning = ScreenSkinning(self.data_dir)
+        skinning._overrides["test_screen"] = {
+            "background": {"color": [20, 20, 20]}}
+        self.assertEqual(skinning.screen_background("test_screen"),
+                         {"color": (20, 20, 20)})
+
+    def test_screen_background_absent(self):
+        skinning = ScreenSkinning(self.data_dir)
+        self.assertIsNone(skinning.screen_background("nonexistent_screen"))
+
+    def test_submit_background_draws_nothing_with_no_override(self):
+        """Every shipped screen JSON has no ``background`` key today — the
+        call each screen's submit() makes must be a true no-op."""
+        skinning = ScreenSkinning(self.data_dir)
+        renderer = RecordingRenderer()
+        skinning.submit_background(renderer, "main_menu", VIEW_W, VIEW_H)
+        self.assertEqual(renderer.items, [])
 
 
 if __name__ == "__main__":

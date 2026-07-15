@@ -269,10 +269,13 @@ simplification); state→row map: flash/pressed→`"pressed"`, disabled→`"disa
 hover→`"hover"`, else `"idle"`, missing rows fall back to idle via the manifest.
 
 **One anim clock per screen** (`self._clock` seconds → `widgets.anim_ms()`), no
-per-widget phase; **nothing assigns skins yet** — 10L-B's screen JSON does.
-`levelup.py`/`boss_cutscene.py` own no `widgets.Button` (plain option-box rects),
-so they accept `mouse_down` on `update()` only for main.py's uniform threading
-call and carry no clock/anim_ms.
+per-widget phase; skins are assigned by 10L-B's screen JSON (see "UI screen
+customization" below). `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
+(plain option-box rects), so they accept `mouse_down` on `update()` only for
+main.py's uniform threading call. `levelup.py` still carries no clock/anim_ms
+(its boxes stay unconditionally raw); `boss_cutscene.py` gained one in B2 —
+its `box_a`/`box_b` route through the skinned `submit_panel` (with a real
+`anim_ms`) the moment a skin override is present, and stay raw otherwise.
 
 **R2 pixel-perfect clickable surface:** skinned buttons hover AND click only over
 drawn pixels (alpha > 0), via a host-injected seam (`widgets.set_skin_hit_test(fn)`).
@@ -281,6 +284,64 @@ hover row oscillates. The seam is unset by default; host wires it once at startu
 (`game/main.py`: `widgets.set_skin_hit_test(assets.hit_opaque)` right after `AssetStore`
 is built, A8 phase). Unset seam or `skin=None` = rect-only. Panels are not click
 targets — no hit-test wiring on `submit_panel`.
+
+## UI screen customization (10L-B phase B2)
+Every one of the 12 live screens (main_menu, pause, settings, credits,
+add_name, game_over, levelup, hud, building_panel, cheat_menu, game_log,
+boss_cutscene) names its fixed widgets in an `ids` dict: `{name: (kind,
+widget)}`, `kind` one of `button | panel | label | backdrop | bar | field`
+(the pinned six-value enum `data/schemas/screen_defaults.schema.json` and
+B3's exporter share — never change this shape). A screen's `layout()` (or, for
+`building_ui.py`/`cheat_menu.py`, the point in `submit()` that recomputes
+geometry every frame) rebuilds `self.ids` from the DEFAULT geometry and then
+calls `self.skinning.apply(self.screen_id, self.ids)` **last** — the override
+(if any) wins, since it runs after the default is (re)computed. `game/ui/
+skinning.py` (`ScreenSkinning`) loads every `data/ui/screens/*.json` ONCE, at
+construction; `apply()` is a pure in-memory setattr loop — **no override, no
+mutation** (the golden parity pin: a screen with an absent/empty override
+file emits the exact HUD-primitive stream it emitted before B2,
+`tools/tests/test_ui_skinning.py::test_all_screens_parity`). `screen_
+background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
+background layer (slot or flat color) — a no-op today (no shipped screen JSON
+sets one).
+
+- **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
+  `skin`, `font_key`, `text_color`, `visible` as needed) that `submit()` reads
+  from instead of a hardcoded literal — `main_menu`'s/`pause`'s/etc.
+  `backdrop`, `hud.py`'s `love_panel`/`phase_label`, `cheat_menu.py`'s
+  `panel`/`title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
+  `headline`/`subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
+  (`get_style_holder()` exposes the same object). Existing plain-tuple
+  attributes some tests read directly (`CheatMenu.field_rect`,
+  `LevelupWindow.rects`, `BuildingUI.panel_rect`) are kept as real,
+  independently-readable attributes, synced from/to the shadow holder each
+  layout — never renamed.
+- **`boss_cutscene.py`'s `box_a`/`box_b` are the one CONDITIONAL-skin case**:
+  with no `skin` override they still draw their original two raw
+  hover-tinted `HudRect`s (byte-identical to pre-B2); a skin present routes
+  that ONE box through the already-live skinned `submit_panel` instead. This
+  screen gained an anim clock (`self._clock`) for that path — 10L-A's "no
+  clock" note for levelup/boss_cutscene held only until a skinned path
+  existed. `levelup.py` still has no clock (its option boxes stay
+  unconditionally raw — a dynamic 1-3 count, "skip dynamic content").
+- **Dynamic-count content is NOT individually overridable in v1**: `levelup`'s
+  option boxes, `building_ui`'s construct cards / upgrade-mode rows,
+  `credits`' role/name rows. They inherit a screen's `defaults` section
+  (B3). Only STABLE, always-present widgets (buttons, the panel body, fixed
+  labels) get an id.
+- **`ScreenSkinning.empty()`** is the disk-free default every screen/`Shell`
+  falls back to when constructed without an explicit `skinning=` (existing
+  tests that build a screen bare, e.g. `test_shell.py`, `test_lightning.py`,
+  keep working unchanged — behaves exactly like "no override file"). The real
+  instance is built ONCE in `main.py` (`ScreenSkinning(data_dir)`), handed to
+  `Shell` (which shares it with its five menu screens) and read back
+  (`shell.skinning`) to thread into the seven gameplay screens `main.py`
+  builds itself in `build_gameplay()` (`Shell` owns no world).
+- **Id validation is silent until `data/ui/screen_defaults.json` exists**
+  (B3's exporter output) — an override naming an id absent from that file
+  raises `ValueError` (catches a renamed/typo'd id) ONLY once the defaults
+  file names that screen; its absence (true for the whole of B2) is not an
+  error.
 
 ## Known divergences (deliberate)
 The XP bar/floaters drop the prototype's mascot face + `xp_icon`, which has no

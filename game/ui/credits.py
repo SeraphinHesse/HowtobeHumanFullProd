@@ -4,9 +4,16 @@ Pure logic. Ports the prototype's ``src/ui/credits_menu.py`` static two-column
 list verbatim onto the ``game_over.py`` template: role (dim) on the left, name
 (bright) on the right, blank tuples inserting a spacer, plus a BACK button.
 Non-scrolling.
+
+10L-B: ``ids`` names ``backdrop`` + ``btn_back`` (the credits ROWS are static
+content, not individually overridable — same "skip dynamic content" rule as
+every other screen's list-shaped body).
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, submit_centered,
     submit_text,
@@ -34,15 +41,27 @@ _CREDITS = [
 _LINE_H = 30
 _SPACER_H = 14
 
+SCREEN_ID = "credits"
+
 
 class CreditsScreen:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
         self.back_btn.rect = (view_w // 2 - 100, view_h - 90, 200, 46)
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "btn_back": ("button", self.back_btn),
+        }
+        self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -56,7 +75,8 @@ class CreditsScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         cx = view_w // 2
         submit_centered(renderer, "CREDITS", cx, 70, "xxl", C_GOLD)
         y = 150

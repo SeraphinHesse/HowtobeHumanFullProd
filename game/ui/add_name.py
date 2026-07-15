@@ -7,9 +7,15 @@ state machine is the exact ``building_ui.ConstructPreview.handle_key`` pattern
 disk — it exposes the typed ``name`` and returns action strings; the host does
 the ``game.core.append_random_name`` write and reports the outcome back via
 ``set_result`` (keeping ``game/ui`` pygame-and-IO-free).
+
+10L-B: ``ids`` names ``backdrop``, ``panel`` (already routed through
+``submit_panel`` — a skin override works for free), ``btn_add``, ``btn_back``.
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_PANEL_STONE, C_RED, C_UI_BORDER, C_UI_PANEL,
     C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, contains, submit_centered,
@@ -20,9 +26,13 @@ _MAX_CHARS = 20
 _BG = (12, 20, 14)
 _PW, _PH = 460, 260
 
+SCREEN_ID = "add_name"
+
 
 class AddNameScreen:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.name = ""
         self.editing = True          # focused on open so typing works instantly
         self.msg = ""
@@ -30,6 +40,9 @@ class AddNameScreen:
         self.pool_count = 0
         self.add_btn = Button((0, 0, 160, 40), "ADD NAME")
         self.back_btn = Button((0, 0, 130, 40), "BACK")
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
@@ -40,6 +53,16 @@ class AddNameScreen:
         self.name_rect = (x + 24, y + 108, _PW - 48, 36)
         self.add_btn.rect = (x + 24, y + _PH - 56, 160, 40)
         self.back_btn.rect = (x + _PW - 24 - 130, y + _PH - 56, 130, 40)
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self._panel.rect = self.rect
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "panel": ("panel", self._panel),
+            "btn_add": ("button", self.add_btn),
+            "btn_back": ("button", self.back_btn),
+        }
+        self.skinning.apply(self.screen_id, self.ids)
+        self.rect = self._panel.rect  # coherent: a moved panel moves its hit-rect
 
     def reset(self, pool_count=0):
         """Clear the field/feedback — called each time the screen is opened."""
@@ -96,10 +119,11 @@ class AddNameScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         x, y, w, h = self.rect
         submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
-                    anim_ms=t)
+                    skin=self._panel.skin, anim_ms=t)
         cx = x + w // 2
         submit_centered(renderer, "ADD A NAME", cx, y + 20, "xl", C_GOLD)
         submit_centered(renderer, "Appears on the building-naming dice button.",

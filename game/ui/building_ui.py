@@ -18,6 +18,7 @@ classifier — a tier can only be ADVANCED into once it has been researched on a
 level-up, and it stays unnamed until its ``unlock_min_round``.
 """
 import random  # 10J: the name-dice reroll (stdlib — pure)
+from types import SimpleNamespace
 
 from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
@@ -31,12 +32,19 @@ from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE,
     C_RANGE_HIGHLIGHT, C_RED, C_UI_BORDER, C_UI_PANEL, C_UI_TEXT,
     C_UI_TEXT_DIM, COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size,
 )
+
+# Both BuildingUI and its nested ConstructPreview share ONE screen id (they
+# are one editable "screen" — the panel and its modal preview) with disjoint
+# id namespaces ("preview_*" prefix keeps ConstructPreview's ids from
+# colliding with BuildingUI's own).
+SCREEN_ID = "building_panel"
 
 # -- 10H: lightning + cheat menu --
 _LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
@@ -108,7 +116,9 @@ class ConstructPreview:
     clicks/keys here while it is open."""
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
-                 view_w, view_h, count=1, tier_idx=0):
+                 view_w, view_h, count=1, tier_idx=0, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
         self.cost = cost          # per-building cost
         self.count = count        # 10J: batch size (shift multi-select)
@@ -145,6 +155,19 @@ class ConstructPreview:
             self.confirm_btn = Button((x + 16, btn_y, pw - 32, bh), "CONFIRM",
                                       "lg")
             self.cancel_btn = None
+        # 10L-B: geometry is fixed for this instance's whole lifetime (a
+        # fresh ConstructPreview is built each time the modal opens), so
+        # ids/apply run ONCE here rather than every layout() — there is no
+        # per-frame layout() to hook.
+        self._panel = SimpleNamespace(rect=self.rect, skin=None)
+        self.ids = {"preview_panel": ("panel", self._panel),
+                    "preview_close_btn": ("button", self.close_btn),
+                    "preview_confirm_btn": ("button", self.confirm_btn),
+                    "preview_dice_btn": ("button", self.dice_btn)}
+        if self.cancel_btn is not None:
+            self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        self.skinning.apply(self.screen_id, self.ids)
+        self.rect = self._panel.rect
 
     @property
     def total_cost(self):
@@ -208,7 +231,7 @@ class ConstructPreview:
 
         x, y, w, h = self.rect
         submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
-                    anim_ms=anim_ms)
+                    skin=self._panel.skin, anim_ms=anim_ms)
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 12), "lg", C_UI_TEXT,
                     align="center")
@@ -241,7 +264,9 @@ class ConstructPreview:
 
 
 class BuildingUI:
-    def __init__(self, view_w, view_h, ui_balance):
+    def __init__(self, view_w, view_h, ui_balance, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self._ui_balance = ui_balance
@@ -302,6 +327,15 @@ class BuildingUI:
         self._cond_hover = False
         self._cond_tooltip = None       # (condition, color, rect, above)
         # -- /10I --
+        # -- 10L-B: mode-independent ids (submit() has no separate layout()) --
+        self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
+        self.ids = {
+            "panel": ("panel", self._panel),
+            "close_btn": ("button", self.close_btn),
+            "action_btn": ("button", self.action_btn),
+            "boss_btn": ("button", self.boss_btn),
+        }
+        # -- /10L-B --
 
     # -- open / close -----------------------------------------------------
 
@@ -691,7 +725,8 @@ class BuildingUI:
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
-                        self.view_w, self.view_h, count=count, tier_idx=tier_idx)
+                        self.view_w, self.view_h, count=count, tier_idx=tier_idx,
+                        skinning=self.skinning)
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -834,7 +869,14 @@ class BuildingUI:
         self._cond_badge_rect = None
         self._cond_tooltip = None
         # -- /10I --
-        submit_panel(renderer, self.panel_rect, anim_ms=t)
+        # -- 10L-B: no separate layout() step, so apply() runs here (once per
+        # visible frame, before the panel/buttons it may reposition/reskin) --
+        self._panel.rect = self.panel_rect
+        self.skinning.apply(self.screen_id, self.ids)
+        self.panel_rect = self._panel.rect
+        self.skinning.submit_background(renderer, self.screen_id,
+                                        self.view_w, self.view_h)
+        submit_panel(renderer, self.panel_rect, skin=self._panel.skin, anim_ms=t)
         self.close_btn.submit(renderer, anim_ms=t)
         if self.mode == "unlock":
             self._submit_unlock(renderer, session, t)

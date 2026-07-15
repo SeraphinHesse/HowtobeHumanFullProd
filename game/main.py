@@ -70,6 +70,7 @@ from game.ui import (
     GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
+from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -206,7 +207,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         ui_balance["Menu"]["cutscene_length"],
                         target_size=(view_w, view_h))
     start = GameState.CUTSCENE if video.enabled else GameState.MAIN_MENU
-    shell = Shell(view_w, view_h, ui_balance, start_state=start)
+    # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
+    # shell shares it with its five menu screens; build_gameplay threads the
+    # SAME instance into the seven gameplay screens it constructs itself).
+    skinning = ScreenSkinning(data_dir)
+    shell = Shell(view_w, view_h, ui_balance, start_state=start,
+                 skinning=skinning)
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
 
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
@@ -249,18 +255,22 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # unlocked-tile visuals too.
         gp["world"].tile_map.on_zone_change = ground_cache.invalidate
         ground_cache.invalidate()
-        gp["hud"] = Hud(view_w, view_h)
-        gp["panel"] = BuildingUI(view_w, view_h, ui_balance)
+        # 10L-B: every gameplay screen shares the shell's ScreenSkinning (the
+        # shell owns no world, so it cannot construct these itself).
+        gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
+        gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
+                                 skinning=shell.skinning)
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
-        gp["game_over"] = GameOverScreen(view_w, view_h)
-        gp["levelup"] = LevelupWindow(view_w, view_h)
-        gp["boss_cutscene"] = BossCutscene(view_w, view_h)  # -- 10G boss --
-        gp["cheat"] = CheatMenu(view_w, view_h)  # 10H
+        gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
+        gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
+        gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
+                                          skinning=shell.skinning)
+        gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h)
         # -- /10I --
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
-        gp["game_log"] = GameLog()
+        gp["game_log"] = GameLog(skinning=shell.skinning)
         gp["sel"], gp["sel_cat"] = [], None
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx

@@ -7,11 +7,16 @@ onto the ``game_over.py`` template: a display-mode ``< value >`` cycler, the FX
 ON/OFF toggles (income floaters / background art / gore), an inert audio slider
 (no audio system yet — drawn, not wired), and BACK. Shared by the main-menu and
 the pause-menu entry points; the shell tracks which caller BACK returns to.
+
+10L-B: ``ids`` names ``backdrop`` + every button (the display-mode cycler
+arrows, the three FX toggles, BACK).
 """
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms,
     submit_centered, submit_text,
@@ -25,6 +30,14 @@ _TOGGLES = [
     ("bg_art", "Background Art"),
     ("gore", "Gore"),
 ]
+# SessionSettings attr -> the ids name a designer picks that toggle by (10L-B)
+_TOGGLE_IDS = {
+    "income_floaters": "btn_toggle_income_floaters",
+    "bg_art": "btn_toggle_bg_art",
+    "gore": "btn_toggle_gore",
+}
+
+SCREEN_ID = "settings"
 
 
 @dataclass
@@ -47,13 +60,17 @@ class SessionSettings:
 
 
 class SettingsScreen:
-    def __init__(self, view_w, view_h, settings):
+    def __init__(self, view_w, view_h, settings, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.settings = settings
         self.dm_left = Button((0, 0, 40, 40), "<")
         self.dm_right = Button((0, 0, 40, 40), ">")
         self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
                         for attr, label in _TOGGLES]
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
@@ -73,6 +90,16 @@ class SettingsScreen:
         self._slider_y = y + 10
         self._slider_rect = (cx - 90, self._slider_y, 180, 12)
         self.back_btn.rect = (cx - 100, y + 70, 200, 46)
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "btn_dm_left": ("button", self.dm_left),
+            "btn_dm_right": ("button", self.dm_right),
+            "btn_back": ("button", self.back_btn),
+        }
+        for attr, _label, btn in self.toggles:
+            self.ids[_TOGGLE_IDS[attr]] = ("button", btn)
+        self.skinning.apply(self.screen_id, self.ids)
 
     def _buttons(self):
         yield self.dm_left
@@ -111,7 +138,8 @@ class SettingsScreen:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         cx = self._cx
         submit_centered(renderer, "SETTINGS", cx, self._top, "xxl", C_GOLD)
 

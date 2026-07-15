@@ -5,9 +5,15 @@ Pure logic. Ports the prototype's ``src/ui/pause_menu.py`` four-button panel
 (the host freezes the sim in PAUSED). Since 10J the full-screen
 ``(0, 0, 0, 150)`` alpha dim from the prototype draws behind the panel (the
 9H deferral), so the still board reads as paused-in-place.
+
+10L-B: ``ids`` names ``backdrop`` + one button per row (the panel body keeps
+its own fill/border/radius, unskinned — see ``game/ui/CLAUDE.md``).
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning
 from .widgets import C_GOLD, Button, anim_ms, submit_centered
 
 # (label, action) top-to-bottom
@@ -17,14 +23,25 @@ _ITEMS = [
     ("QUIT TO MENU", "quit_to_menu"),
     ("QUIT GAME", "quit"),
 ]
+_ACTION_IDS = {
+    "resume": "btn_resume", "settings": "btn_settings",
+    "quit_to_menu": "btn_quit_to_menu", "quit": "btn_quit_game",
+}
 _PW, _PH = 300, 320
 _BTN_W, _BTN_H, _GAP = 240, 46, 12
 
+SCREEN_ID = "pause"
+
 
 class PauseScreen:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), action)
                         for label, action in _ITEMS]
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h),
+                                         color=(0, 0, 0, 150))
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
@@ -37,6 +54,11 @@ class PauseScreen:
         for btn, _ in self.buttons:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        for btn, action in self.buttons:
+            self.ids[_ACTION_IDS[action]] = ("button", btn)
+        self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -55,8 +77,9 @@ class PauseScreen:
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
         px, py, pw, ph = self.rect
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         # 10J: the prototype's (0,0,0,150) pause dim over the frozen world
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, 150)))
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         renderer.submit_hud(HudRect(self.rect, (24, 20, 40), border_radius=6))
         renderer.submit_hud(HudRect(self.rect, (80, 65, 120), border_radius=6,
                                     width=2))

@@ -9,9 +9,17 @@ The hand-painted background art draws as a full-view ``HudSprite`` from the
 ``main_menu_bg`` slot (10K, asset-pipeline sourced; letterbox-safe because the
 host's SCALED logical surface is what gets letterboxed); the solid fill stays
 beneath it as the missing-art fallback.
+
+10L-B: ``ids`` names the fixed widgets (``backdrop`` + one button per menu
+item) so ``data/ui/screens/main_menu.json`` can reposition/reskin them;
+``skinning.apply()`` runs at the end of ``layout()`` and is a no-op with no
+override (the golden parity pin).
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect, HudSprite
 
+from .skinning import ScreenSkinning
 from .widgets import C_GOLD, C_UI_TEXT, Button, anim_ms, submit_centered
 
 _BG = (18, 30, 20)
@@ -26,13 +34,24 @@ _ITEMS = [
     ("CREDITS", "credits"),
     ("QUIT", "quit"),
 ]
+# action -> the ids name a designer picks it by (10L-B)
+_ACTION_IDS = {
+    "new_game": "btn_new_game", "add_name": "btn_add_name",
+    "settings": "btn_settings", "credits": "btn_credits", "quit": "btn_quit",
+}
 _BTN_W, _BTN_H, _GAP = 320, 52, 14
+
+SCREEN_ID = "main_menu"
 
 
 class MainMenu:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), action)
                         for label, action in _ITEMS]
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
 
@@ -42,6 +61,11 @@ class MainMenu:
         for btn, _ in self.buttons:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        for btn, action in self.buttons:
+            self.ids[_ACTION_IDS[action]] = ("button", btn)
+        self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -59,7 +83,8 @@ class MainMenu:
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
         t = anim_ms(self._clock)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         renderer.submit_hud(HudSprite(_BG_SLOT, (0, 0), (view_w, view_h)))
         submit_centered(renderer, _TITLE, view_w // 2, view_h // 2 - 150,
                         "xxl", C_UI_TEXT)
