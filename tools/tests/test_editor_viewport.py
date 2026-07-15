@@ -480,6 +480,31 @@ class TestScreenDetailsPanel(TempDataCase):
         self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
 
     def test_screen_details_reset_to_default_removes_override(self):
+        """Per-field reset (brief §1d MEDIUM fix): resetting ONE key leaves
+        every other override on the widget intact, and undo restores it."""
+        panel, session = self.make()
+        session.push_move("btn_new_game", None, [10, 10, 50, 20])
+        session.push_field("btn_new_game", "label", None, "X")
+        panel._populate_widget_form("btn_new_game")
+        self.assertTrue(panel.rect_reset_button.isEnabled())
+        self.assertTrue(panel.label_reset_button.isEnabled())
+
+        panel._on_reset_field("rect")   # reset ONLY the rect key
+
+        override = session.doc["widgets"]["btn_new_game"]
+        self.assertNotIn("rect", override)          # cleared
+        self.assertEqual(override["label"], "X")    # the OTHER key survives
+        self.assertFalse(panel.rect_reset_button.isEnabled())
+        self.assertTrue(panel.label_reset_button.isEnabled())
+
+        session.undo_stack.undo()
+        self.assertEqual(
+            session.doc["widgets"]["btn_new_game"]["rect"], [10, 10, 50, 20])
+        self.assertEqual(session.doc["widgets"]["btn_new_game"]["label"], "X")
+
+    def test_screen_details_reset_all_clears_every_override(self):
+        """"Reset ALL" (kept alongside per-field reset) still clears every
+        override on the widget, popping the entry out of the doc entirely."""
         panel, session = self.make()
         session.push_move("btn_new_game", None, [10, 10, 50, 20])
         session.push_field("btn_new_game", "label", None, "X")

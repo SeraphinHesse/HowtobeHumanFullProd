@@ -3,15 +3,21 @@ leaf is selected (screen mode's sibling of MapDetailsPanel/DetailsPanel in
 the right_stack QStackedWidget).
 
 Structure: a widget-id list (from the loaded screen_defaults, B3) driving a
-per-widget form (rect spinboxes, skin/font/color, label, visible, a
-"Reset to default" button that clears every override on that widget), then a
-screen-level section (background picker, and the `defaults` collapsible:
-button_skin/panel_skin/font/text_color), then Save.
+per-widget form (rect spinboxes, skin/font/color, label, visible). EVERY
+override-capable control carries its OWN compact "↺" reset button (per-field
+reset, brief §1d) that clears just that key — rect is ONE reset for the
+whole group since it's stored as a single `rect` key. A "Reset ALL" button
+below the form still clears every override on the widget at once. Then a
+screen-level section (background picker + reset, the `defaults` collapsible
+— button_skin/panel_skin/font/text_color, each with its own reset), then
+Save.
 
-Every edit is an IMMEDIATE undoable command through the open
-UIScreenSession (never staged like balancing.py) — push_move/push_field/
-push_skin_assign/push_background/push_default_field. Save just calls
-session.save() (engine.data_io.write_validated under the hood).
+Every edit (including every reset) is an IMMEDIATE undoable command through
+the open UIScreenSession (never staged like balancing.py) — push_move/
+push_field/push_skin_assign/push_background/push_default_field. A reset is
+just push_field(..., old, None) — `_DocFieldCommand`'s "None = absent"
+pruning is what makes it a clean removal rather than writing null. Save just
+calls session.save() (engine.data_io.write_validated under the hood).
 
 The rect spinboxes and combo boxes are imported FROM editor.panels.balancing
 (their home — never copied, never moved; the root router's rule for the
@@ -25,10 +31,12 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QFormLayout,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QListWidget,
     QPushButton,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
@@ -100,43 +108,68 @@ class ScreenDetailsPanel(QWidget):
                                (self.h_spin, (1, _RECT_MAX))):
             spin.setRange(lo, hi)
             spin.editingFinished.connect(self._on_rect_edited)
-        form.addRow("X", self.x_spin)
-        form.addRow("Y", self.y_spin)
-        form.addRow("W", self.w_spin)
-        form.addRow("H", self.h_spin)
+        # ONE reset for the whole rect group — it's stored as a single
+        # `rect` key, not four (brief §1d: per-KEY granularity, not per-spin).
+        rect_row, self.rect_reset_button = self._field_row(
+            (self.x_spin, self.y_spin, self.w_spin, self.h_spin),
+            "rect", lambda: self._on_reset_field("rect"))
+        form.addRow("Rect (X Y W H)", rect_row)
 
         self.skin_combo = _NoWheelComboBox(self)
         self.skin_combo.activated.connect(self._on_skin_changed)
-        form.addRow("Skin", self.skin_combo)
+        skin_row, self.skin_reset_button = self._field_row(
+            (self.skin_combo,), "skin", lambda: self._on_reset_field("skin"))
+        form.addRow("Skin", skin_row)
 
         self.font_combo = _NoWheelComboBox(self)
         self.font_combo.activated.connect(self._on_font_changed)
-        form.addRow("Font", self.font_combo)
+        font_row, self.font_reset_button = self._field_row(
+            (self.font_combo,), "font", lambda: self._on_reset_field("font"))
+        form.addRow("Font", font_row)
 
         self.color_button = QPushButton("Color…", self)
         self.color_button.clicked.connect(self._on_color_clicked)
-        form.addRow("Color", self.color_button)
+        color_row, self.color_reset_button = self._field_row(
+            (self.color_button,), "color", lambda: self._on_reset_field("color"))
+        form.addRow("Color", color_row)
 
         self.text_color_button = QPushButton("Text Color…", self)
         self.text_color_button.clicked.connect(self._on_text_color_clicked)
-        form.addRow("Text Color", self.text_color_button)
+        text_color_row, self.text_color_reset_button = self._field_row(
+            (self.text_color_button,), "text_color",
+            lambda: self._on_reset_field("text_color"))
+        form.addRow("Text Color", text_color_row)
 
         self.label_edit = QLineEdit(self)
         self.label_edit.editingFinished.connect(self._on_label_edited)
-        form.addRow("Label", self.label_edit)
+        label_row, self.label_reset_button = self._field_row(
+            (self.label_edit,), "label", lambda: self._on_reset_field("label"))
+        form.addRow("Label", label_row)
 
         self.visible_check = QCheckBox("Visible", self)
         self.visible_check.toggled.connect(self._on_visible_toggled)
-        form.addRow("", self.visible_check)
+        visible_row, self.visible_reset_button = self._field_row(
+            (self.visible_check,), "visible",
+            lambda: self._on_reset_field("visible"))
+        form.addRow("", visible_row)
 
         layout.addLayout(form)
 
-        self.reset_button = QPushButton("Reset to default", self)
+        self.reset_button = QPushButton("Reset ALL to default", self)
+        self.reset_button.setToolTip(
+            "Clear every override on the selected widget at once")
         self.reset_button.clicked.connect(self._on_reset_clicked)
         layout.addWidget(self.reset_button)
 
         # -- screen-level section --------------------------------------------
-        layout.addWidget(QLabel("Background", self))
+        bg_label_row = QWidget(self)
+        bg_label_layout = QHBoxLayout(bg_label_row)
+        bg_label_layout.setContentsMargins(0, 0, 0, 0)
+        bg_label_layout.addWidget(QLabel("Background", self), 1)
+        self.background_reset_button = self._make_reset_button(
+            "background", self._on_reset_background)
+        bg_label_layout.addWidget(self.background_reset_button)
+        layout.addWidget(bg_label_row)
         self.background_combo = _NoWheelComboBox(self)
         self.background_combo.activated.connect(self._on_background_combo_activated)
         layout.addWidget(self.background_combo)
@@ -151,19 +184,31 @@ class ScreenDetailsPanel(QWidget):
         self.button_skin_combo = _NoWheelComboBox(self)
         self.button_skin_combo.activated.connect(
             lambda i: self._on_default_combo_changed("button_skin", self.button_skin_combo))
-        defaults_form.addRow("Button skin", self.button_skin_combo)
+        button_skin_row, self.button_skin_reset_button = self._field_row(
+            (self.button_skin_combo,), "button_skin",
+            lambda: self._on_reset_default_field("button_skin"))
+        defaults_form.addRow("Button skin", button_skin_row)
         self.panel_skin_combo = _NoWheelComboBox(self)
         self.panel_skin_combo.activated.connect(
             lambda i: self._on_default_combo_changed("panel_skin", self.panel_skin_combo))
-        defaults_form.addRow("Panel skin", self.panel_skin_combo)
+        panel_skin_row, self.panel_skin_reset_button = self._field_row(
+            (self.panel_skin_combo,), "panel_skin",
+            lambda: self._on_reset_default_field("panel_skin"))
+        defaults_form.addRow("Panel skin", panel_skin_row)
         self.default_font_combo = _NoWheelComboBox(self)
         self.default_font_combo.activated.connect(
             lambda i: self._on_default_combo_changed("font", self.default_font_combo))
-        defaults_form.addRow("Font", self.default_font_combo)
+        default_font_row, self.default_font_reset_button = self._field_row(
+            (self.default_font_combo,), "font",
+            lambda: self._on_reset_default_field("font"))
+        defaults_form.addRow("Font", default_font_row)
         self.default_text_color_button = QPushButton("Text Color…", self)
         self.default_text_color_button.clicked.connect(
             self._on_default_text_color_clicked)
-        defaults_form.addRow("Text color", self.default_text_color_button)
+        default_text_color_row, self.default_text_color_reset_button = self._field_row(
+            (self.default_text_color_button,), "text_color",
+            lambda: self._on_reset_default_field("text_color"))
+        defaults_form.addRow("Text color", default_text_color_row)
         self.defaults_section.content_layout.addLayout(defaults_form)
         layout.addWidget(self.defaults_section)
 
@@ -179,6 +224,35 @@ class ScreenDetailsPanel(QWidget):
         self._populate_font_combo(self.default_font_combo)
         self._populate_background_combo()
         self._set_widget_form_enabled(False)
+        self._refresh_background()
+        self._refresh_defaults_section()
+
+    # -- per-field reset affordance (brief §1d MEDIUM fix) -------------------
+    # A compact "↺" QToolButton next to every override-capable control, one
+    # per doc KEY (the rect group is ONE button — it's a single `rect` key,
+    # not four spinboxes). Each fires push_field(widget_id, key, old, None):
+    # the SAME "None = absent" pruning contract as every other push_*, so a
+    # per-field reset and the "Reset ALL" button share one code path.
+
+    def _make_reset_button(self, field_label, slot):
+        btn = QToolButton(self)
+        btn.setText("↺")
+        btn.setAutoRaise(True)
+        btn.setToolTip(f"Reset {field_label} to default")
+        btn.clicked.connect(lambda _checked=False: slot())
+        return btn
+
+    def _field_row(self, controls, field_label, slot):
+        """A control (or group of controls, for rect) + its own reset
+        button, as ONE form row widget. Returns (row_widget, reset_button)."""
+        row = QWidget(self)
+        row_layout = QHBoxLayout(row)
+        row_layout.setContentsMargins(0, 0, 0, 0)
+        for control in controls:
+            row_layout.addWidget(control, 1)
+        reset_button = self._make_reset_button(field_label, slot)
+        row_layout.addWidget(reset_button)
+        return row, reset_button
 
     # -- combo population (registry-driven, never hardcoded slot lists) -----
 
@@ -299,6 +373,29 @@ class ScreenDetailsPanel(QWidget):
                   self.text_color_button, self.label_edit,
                   self.visible_check, self.reset_button):
             w.setEnabled(enabled)
+        if not enabled:
+            # Per-field reset buttons get their REAL enabled state (does an
+            # override exist for THIS key?) from _refresh_reset_buttons,
+            # called at the end of _populate_widget_form — but with no
+            # widget selected there is nothing to reset, full stop.
+            for btn in (self.rect_reset_button, self.skin_reset_button,
+                       self.font_reset_button, self.color_reset_button,
+                       self.text_color_reset_button, self.label_reset_button,
+                       self.visible_reset_button):
+                btn.setEnabled(False)
+
+    def _refresh_reset_buttons(self, override):
+        """Each per-field reset button is enabled iff THAT key currently
+        has an override — resetting a field nothing overrides is a no-op
+        (push_field's own None==None guard would refuse it anyway; this
+        just keeps the button from inviting the click)."""
+        self.rect_reset_button.setEnabled("rect" in override)
+        self.skin_reset_button.setEnabled("skin" in override)
+        self.font_reset_button.setEnabled("font" in override)
+        self.color_reset_button.setEnabled("color" in override)
+        self.text_color_reset_button.setEnabled("text_color" in override)
+        self.label_reset_button.setEnabled("label" in override)
+        self.visible_reset_button.setEnabled("visible" in override)
 
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
@@ -345,6 +442,7 @@ class ScreenDetailsPanel(QWidget):
 
         self._populating = False
         self._set_widget_form_enabled(True)
+        self._refresh_reset_buttons(override)
 
     def _refresh_widget_form(self):
         if self._current_widget is not None:
@@ -432,10 +530,28 @@ class ScreenDetailsPanel(QWidget):
             self._current_widget, "visible", old_value, new_value)
         self._visible_baseline = new_value
 
+    def _on_reset_field(self, field_key):
+        """Per-field reset (brief §1d MEDIUM fix): clears ONLY `field_key` on
+        the selected widget, leaving every other override intact — e.g.
+        resetting the rect while keeping an assigned skin. Same push_field(
+        ..., None) + pruning contract as "Reset ALL", just scoped to one
+        key."""
+        if self._current_widget is None or self._session is None:
+            return
+        widget_id = self._current_widget
+        override = self._session.doc.get("widgets", {}).get(widget_id, {})
+        if field_key not in override:
+            return
+        old_value = override[field_key]
+        self._session.push_field(widget_id, field_key, old_value, None)
+        self._refresh_widget_form()
+
     def _on_reset_clicked(self):
-        """Clears EVERY override on the selected widget, one undoable
-        push_field per field — the last one pops the (now-empty) widget
-        entry out of the doc entirely via _DocFieldCommand's pruning."""
+        """"Reset ALL": clears EVERY override on the selected widget, one
+        undoable push_field per field — the last one pops the (now-empty)
+        widget entry out of the doc entirely via _DocFieldCommand's
+        pruning. The per-field "↺" buttons above do the same thing scoped
+        to one key."""
         if self._current_widget is None or self._session is None:
             return
         widget_id = self._current_widget
@@ -449,12 +565,15 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_background(self):
         if self._session is None or self._session.doc is None:
             self.background_combo.setCurrentIndex(0)
+            self.background_reset_button.setEnabled(False)
             return
         background = self._session.doc.get("background") or {}
         self.background_combo.blockSignals(True)
         idx = self.background_combo.findData(background.get("slot"))
         self.background_combo.setCurrentIndex(max(0, idx))
         self.background_combo.blockSignals(False)
+        self.background_reset_button.setEnabled(
+            self._session.doc.get("background") is not None)
 
     def _on_background_combo_activated(self, index):
         slot = self.background_combo.itemData(index)
@@ -469,6 +588,17 @@ class ScreenDetailsPanel(QWidget):
         self._session.push_background({"color": new_color})
         self._refresh_background()
 
+    def _on_reset_background(self):
+        """Background is ONE key (`{slot}` or `{color}`) — a single reset
+        clears it regardless of which shape it currently holds."""
+        if self._session is None or self._session.doc is None:
+            return
+        old = self._session.doc.get("background")
+        if old is None:
+            return
+        self._session.push_background(None)
+        self._refresh_background()
+
     # -- screen-level: defaults -------------------------------------------------
 
     def _refresh_defaults_section(self):
@@ -476,6 +606,11 @@ class ScreenDetailsPanel(QWidget):
             for combo in (self.button_skin_combo, self.panel_skin_combo,
                          self.default_font_combo):
                 combo.setCurrentIndex(0)
+            for btn in (self.button_skin_reset_button,
+                       self.panel_skin_reset_button,
+                       self.default_font_reset_button,
+                       self.default_text_color_reset_button):
+                btn.setEnabled(False)
             return
         style = self._session.doc.get("defaults", {})
         self.button_skin_combo.blockSignals(True)
@@ -490,6 +625,10 @@ class ScreenDetailsPanel(QWidget):
         self.default_font_combo.setCurrentIndex(
             max(0, self.default_font_combo.findData(style.get("font"))))
         self.default_font_combo.blockSignals(False)
+        self.button_skin_reset_button.setEnabled("button_skin" in style)
+        self.panel_skin_reset_button.setEnabled("panel_skin" in style)
+        self.default_font_reset_button.setEnabled("font" in style)
+        self.default_text_color_reset_button.setEnabled("text_color" in style)
 
     def _on_default_combo_changed(self, field_key, combo):
         style = self._session.doc.get("defaults", {})
@@ -500,6 +639,16 @@ class ScreenDetailsPanel(QWidget):
         self._session.push_default_field(field_key, old_value, new_value)
         self._refresh_defaults_section()
 
+    def _on_reset_default_field(self, field_key):
+        if self._session is None or self._session.doc is None:
+            return
+        style = self._session.doc.get("defaults", {})
+        if field_key not in style:
+            return
+        old_value = style[field_key]
+        self._session.push_default_field(field_key, old_value, None)
+        self._refresh_defaults_section()
+
     def _on_default_text_color_clicked(self):
         style = self._session.doc.get("defaults", {})
         old_value = style.get("text_color")
@@ -507,6 +656,7 @@ class ScreenDetailsPanel(QWidget):
         if new_value is None or new_value == old_value:
             return
         self._session.push_default_field("text_color", old_value, new_value)
+        self._refresh_defaults_section()
 
     # -- save --------------------------------------------------------------
 

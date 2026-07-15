@@ -440,15 +440,27 @@ import list.**
   `right_stack` index 2): widget list (from the current screen's defaults) →
   per-widget form (rect spinboxes + skin/font combos + Color/Text Color
   `QColorDialog` buttons + label edit + visible checkbox — the `_NoWheel*`
-  widgets are IMPORTED from `editor.panels.balancing`, never copied) → a
-  single **"Reset to default"** clears EVERY override on the selected widget,
-  one undoable `push_field(..., None)` per field, relying on
-  `_DocFieldCommand`'s pruning to drop the widget entry once it's empty →
-  screen-level Background picker (slot combo + color button,
-  `push_background`) → a `Defaults` `CollapsibleSection` (button_skin/
-  panel_skin/font/text_color, `push_default_field`) → Save (greyed out
-  `not session.dirty`). Every edit is an IMMEDIATE undoable push_* — NOT
-  staged like `balancing.py`. Skin/background combos list `registry.
+  widgets are IMPORTED from `editor.panels.balancing`, never copied).
+  **Reset is per-FIELD, not per-widget**: every override-capable control
+  carries its OWN compact "↺" `QToolButton` (`_field_row`/`_make_reset_button`)
+  firing `push_field(widget_id, <key>, old, None)` for THAT key only — reset
+  the rect while keeping an assigned skin, or vice versa. Rect is ONE button
+  for the whole X/Y/W/H group (`_field_row` wraps all four spinboxes + one
+  reset — it's stored as a single `rect` key, not four). Each reset button's
+  enabled state (`_refresh_reset_buttons`) is "does THIS key currently have
+  an override" — computed every `_populate_widget_form`, which also runs
+  after every undo/redo (`indexChanged`), so a button never invites a no-op
+  click. A separate **"Reset ALL to default"** button below the form still
+  clears every override on the widget at once (one `push_field(..., None)`
+  per key — `_DocFieldCommand`'s pruning drops the widget entry once it's
+  empty either way) → screen-level Background picker (slot combo + color
+  button + its OWN reset via `push_background(None)`, since background is a
+  single key regardless of whether it's currently `{slot}` or `{color}`) → a
+  `Defaults` `CollapsibleSection` (button_skin/panel_skin/font/text_color,
+  each its own combo/button + `push_default_field(..., None)` reset) → Save
+  (greyed out `not session.dirty`). Every edit AND every reset is an
+  IMMEDIATE undoable push_* — NOT staged like `balancing.py`. Skin/background
+  combos list `registry.
   group_slots("ui")`/`group_slots("ui", ("Backgrounds",))` (registry-driven,
   never hardcoded); font combo keys mirror `engine/render/fonts.py`'s private
   `_FONT_SPECS` (duplicated as a local tuple rather than importing a
