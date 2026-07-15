@@ -173,10 +173,15 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   GAME_OVER) and renders topmost. Click-to-focus round field: digits only,
   max 4, Enter commits (n ≥ 1).
 - **`building_ui.py` base_info** grew the ⚡ LIGHTNING STRIKE section: level +
-  DMG/Radius/Atk-Spd rows from `core_balance["LightningStrike"]`, an
-  UNLOCK/UPGRADE button (not-enough-love flash) that disappears at max level
-  behind a gold MAX LEVEL line. Reads via `game.core.lightning` (the
-  sanctioned ui→core direction).
+  DMG/Radius/Atk-Spd rows from `core_balance["LightningStrike"]`, an UPGRADE
+  button (not-enough-love flash) shown from L1 up to below max, behind a gold
+  MAX LEVEL line at max. **No love-buyable UNLOCK button any more** (Storm
+  Priest wiring): while `lightning_level <= 0` the panel shows NO button at
+  all (`_build_base_info` returns early, mirroring the max-level branch) plus
+  a "LOCKED — place a Storm Priest" line — placing a `"lightning_source"`-
+  tagged building (`game.core.lightning.unlock_from_placement`, called from
+  `_do_place`) is the ONLY way to reach L1. Reads via `game.core.lightning`
+  (the sanctioned ui→core direction).
 - **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
   (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
   (`Hud.update` now stores `_mx/_my`).

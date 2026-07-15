@@ -70,6 +70,19 @@ def can_strike(state):
     return state.lightning_level > 0 and state.lightning_cooldown <= 0
 
 
+def unlock_from_placement(state, building):
+    """Raise ``lightning_level`` to (at least) 1 when a freshly placed
+    building carries the ``"lightning_source"`` tag (Storm Priest wiring).
+
+    Tag-gated, NOT type-string-gated — keeps ``registry.place_building`` and
+    this seam type-agnostic, the same convention the ``"combat"``/``"boost"``
+    tags already use elsewhere in ``game/buildings``. Latch semantics: a
+    ``max()`` never re-locks an already-unlocked run (idempotent across a
+    batch place, and safe to call again after later upgrades)."""
+    if "lightning_source" in building.tags:
+        state.lightning_level = max(state.lightning_level, 1)
+
+
 def strike(state, core, scene, cs, wx, wy):
     """Strike world point ``(wx, wy)`` (prototype ``_activate_lightning``,
     game.py:502-514). Silent no-op (False) while locked or cooling. Otherwise:

@@ -498,20 +498,25 @@ class BuildingUI:
     # -- 10H: lightning + cheat menu ---------------------------------------
 
     def _build_base_info(self, session):
-        """(Re)build the lightning unlock/upgrade button (prototype
-        ``building_ui.py:825-836``): ``UNLOCK LIGHTNING`` at L0, ``UPGRADE
-        LIGHTNING`` below max, absent at max level (a gold MAX LEVEL line
+        """(Re)build the lightning upgrade button (prototype
+        ``building_ui.py:825-836``, adapted for the Storm Priest wiring):
+        ``UPGRADE LIGHTNING`` from L1 up to below max, absent at L0 (a Storm
+        Priest placement is now the ONLY unlock — no love-buyable UNLOCK
+        button here any more) and absent at max level (a gold MAX LEVEL line
         replaces it in the submit)."""
         st = session.state
+        if st.lightning_level <= 0:
+            self.lightning_btn = None
+            self._action_cost = 0
+            return
         cost = lightning.next_cost(st, session.core_balance)
         if cost is None:
             self.lightning_btn = None
             self._action_cost = 0
             return
-        verb = "UNLOCK" if st.lightning_level <= 0 else "UPGRADE"
         self.lightning_btn = Button(
             (self.panel_x + 12, _LIGHTNING_BTN_Y, self.panel_w - 24, 36),
-            f"{verb} LIGHTNING  {HEART}{cost}", "md")
+            f"UPGRADE LIGHTNING  {HEART}{cost}", "md")
         self._action_cost = cost
 
     def _base_info_click(self, mx, my, session):
@@ -791,6 +796,7 @@ class BuildingUI:
             st.spend_love(cost)
             st.buildings_placed += 1
             placed_any = True
+            lightning.unlock_from_placement(st, building)  # Storm Priest wiring
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
@@ -1100,7 +1106,7 @@ class BuildingUI:
                     _LIGHTNING_GOLD)
         y += 26
         if lvl <= 0:
-            submit_text(renderer, "LOCKED — upgrade at The Hole", (x, y), "sm",
+            submit_text(renderer, "LOCKED — place a Storm Priest", (x, y), "sm",
                         C_UI_TEXT_DIM)
         else:
             submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),

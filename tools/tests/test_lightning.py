@@ -22,7 +22,7 @@ from engine import tilemap
 from engine.coords import CoordinateSystem, Geometry
 from engine.core import Health, Scene
 from engine.physics import TileOccupancy
-from game.buildings import BaseBuilding, attach_base
+from game.buildings import BaseBuilding, attach_base, place_building
 from game.buildings.research import LEAF_CLASSES, RESEARCH, buildable
 from game.core import RunState, Session, load_balance
 from game.core import lightning as lt
@@ -92,19 +92,24 @@ class TestSeedAndCosts(unittest.TestCase):
     def test_parity_canary_against_fixture_values(self):
         # The pinned fixture core.json values (NOT the stale .py defaults).
         self.assertEqual(LS["cooldown"], [5, 3, 2])
-        self.assertEqual(LS["damage"], [10, 15, 32])
+        self.assertEqual(LS["damage"], [12, 18, 38])   # Storm Priest buff
         self.assertEqual(LS["radius"], [1, 2, 3])
         self.assertEqual(LS["max_level"], 3)
         self.assertEqual(LS["unlock_cost"], 20)
         self.assertEqual(LS["upgrade_costs"], [35, 80])
 
-    def test_fresh_run_starts_at_level_1_no_cooldown(self):
+    def test_fresh_run_starts_at_level_0_locked(self):
+        # Storm Priest wiring: lightning now boots LOCKED. A Storm Priest
+        # placement (game.core.lightning.unlock_from_placement) is the ONLY
+        # way to reach L1 — see TestStormPriestUnlock below.
         st = RunState.from_balance(CORE, BUILD)
-        self.assertEqual(st.lightning_level, 1)   # prototype game.py:117
+        self.assertEqual(st.lightning_level, 0)
         self.assertEqual(st.lightning_cooldown, 0.0)
+        self.assertFalse(lt.can_strike(st))
 
     def test_cost_ladder_and_upgrades(self):
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         cost_l2, cost_l3 = LS["upgrade_costs"]
         st.love = cost_l2 + cost_l3
         self.assertEqual(lt.next_cost(st, CORE), cost_l2)   # L1 -> L2
@@ -127,18 +132,63 @@ class TestSeedAndCosts(unittest.TestCase):
 
     def test_insufficient_love_refused(self):
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         st.love = LS["upgrade_costs"][0] - 1
         self.assertFalse(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 1)
         self.assertEqual(st.love, LS["upgrade_costs"][0] - 1)
 
     def test_unlock_branch_reachable_at_level_0(self):
+        # Now the NORMAL boot state (not just a reachable-but-unused branch):
+        # a fresh run starts at L0. The pure L0->L1 love-priced upgrade rule
+        # still works standalone (game/ui/building_ui.py no longer offers it
+        # as a panel button — a Storm Priest placement is the only in-game
+        # unlock path, see TestStormPriestUnlock below — but the rule itself
+        # stays exercised here).
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 0
         self.assertEqual(lt.next_cost(st, CORE), LS["unlock_cost"])  # 20
         st.love = LS["unlock_cost"]
         self.assertTrue(lt.upgrade(st, CORE))
         self.assertEqual(st.lightning_level, 1)
+
+
+# ---------------------------------------------------------------------------
+# 1b. Storm Priest placement unlock (game.ui.building_ui._do_place seam)
+# ---------------------------------------------------------------------------
+BUILDABLE_FIELD = ["bbb", "bbb", "bbb"]  # 'b' = BUILDABLE (not FIELD's 's' rows)
+
+
+class TestStormPriestUnlock(unittest.TestCase):
+    def test_placing_storm_priest_unlocks_lightning(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        self.assertEqual(st.lightning_level, 0)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        lt.unlock_from_placement(st, building)
+        self.assertEqual(st.lightning_level, 1)
+
+    def test_placing_a_non_source_building_leaves_it_locked(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "defence", 9999, BUILD, scene, occ)
+        lt.unlock_from_placement(st, building)
+        self.assertEqual(st.lightning_level, 0)
+
+    def test_unlock_is_a_latch_not_a_reset(self):
+        """A later Storm Priest placement (or any placement) never re-locks
+        or lowers an already-upgraded run — the max() latch."""
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 3
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        lt.unlock_from_placement(st, building)
+        self.assertEqual(st.lightning_level, 3)
 
 
 # ---------------------------------------------------------------------------
@@ -148,6 +198,7 @@ class TestCooldown(unittest.TestCase):
     def test_strike_spends_cooldown_and_upgrade_never_resets_it(self):
         tm, scene, occ = build_board(FIELD)
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         cs = make_cs()
         self.assertTrue(lt.strike(st, CORE, scene, cs, 3.0, 3.0))  # whiff ok
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
@@ -158,7 +209,8 @@ class TestCooldown(unittest.TestCase):
     def test_strike_while_cooling_is_a_silent_noop(self):
         tm, scene, occ = build_board(FIELD)
         st = RunState.from_balance(CORE, BUILD)
-        cs = make_cs()
+        st.lightning_level = 1                     # unlocked; exercise the
+        cs = make_cs()                              # cooldown gate specifically
         e = spawn_enemy(scene, tm, 3, 3)
         scene.update(0.0)
         hp0 = e.get_component(Health).hp
@@ -174,6 +226,7 @@ class TestCooldown(unittest.TestCase):
     def test_whiff_still_spends_full_cooldown_and_plays_fx(self):
         tm, scene, occ = build_board(FIELD)   # no enemies at all
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         cs = make_cs()
         self.assertTrue(lt.strike(st, CORE, scene, cs, 4.0, 4.0))
         scene.update(0.0)
@@ -209,6 +262,7 @@ class TestCooldown(unittest.TestCase):
     def test_fx_ages_and_self_despawns(self):
         tm, scene, occ = build_board(FIELD)
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         lt.strike(st, CORE, scene, make_cs(), 4.0, 4.0)
         scene.update(0.0)
         fx = scene.by_tag("lightning_fx")[0]
@@ -256,7 +310,8 @@ class TestRadiusGeometry(unittest.TestCase):
     def test_radius_1_boundary_hit_and_near_miss(self, zoom=1.0):
         scene, cs, (wx, wy), (center, diag, adj) = self._board_with(
             [(0, 0), (1, 1), (1, 0)], zoom=zoom)
-        st = RunState.from_balance(CORE, BUILD)          # level 1, radius 1
+        st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                       # unlocked, radius 1
         dealt = self._strike(st, scene, cs, wx, wy)
         dmg = LS["damage"][0]
         self.assertEqual(dealt[id(center)], dmg)  # on the strike point
@@ -285,6 +340,7 @@ class TestRadiusGeometry(unittest.TestCase):
     def test_all_in_radius_take_full_flat_damage(self):
         scene, cs, (wx, wy), (a, b) = self._board_with([(0, 0), (1, 1)])
         st = RunState.from_balance(CORE, BUILD)
+        st.lightning_level = 1                       # unlocked via a Storm Priest
         dealt = self._strike(st, scene, cs, wx, wy)
         self.assertEqual(dealt[id(a)], LS["damage"][0])   # no falloff
         self.assertEqual(dealt[id(b)], LS["damage"][0])   # no target cap
@@ -293,6 +349,7 @@ class TestRadiusGeometry(unittest.TestCase):
         tm, scene, occ = build_board(FIELD)
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         st = session.state
+        st.lightning_level = 1                     # unlocked via a Storm Priest
         st.phase = GamePhase.ENEMY
         e = spawn_enemy(scene, tm, 4, 4)
         scene.update(0.0)

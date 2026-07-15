@@ -181,6 +181,7 @@
       "economic": 1,
       "meditator": 1,
       "painter": 1,
+      "storm_priest": 1,
       "sun_scorcher": 1,
       "wall": 1,
       "wall_builder": 1
@@ -367,6 +368,62 @@
           "upgrade_cost_base": 27,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 3
+        }
+      ]
+    },
+    "StormPriest": {
+      "starts_unlocked": false,
+      "tiers": [
+        {
+          "attack_speed": 1.0,
+          "base_dmg": 35,
+          "base_hp": 150,
+          "base_upkeep": 1,
+          "build_cost": 25,
+          "dmg_per_level": 12,
+          "explanation": "A quiet priest who calls down the occasional bolt.",
+          "hp_per_level": 45,
+          "levels": 3,
+          "name": "Storm Acolyte",
+          "range_tiles": 2,
+          "unlock_min_round": 0,
+          "upgrade_cost_base": 20,
+          "upgrade_cost_increment": 8,
+          "upkeep_per_level": 1
+        },
+        {
+          "attack_speed": 0.9,
+          "base_dmg": 65,
+          "base_hp": 280,
+          "base_upkeep": 3,
+          "build_cost": 55,
+          "dmg_per_level": 16,
+          "explanation": "Lightning gathers wherever this priest stands.",
+          "hp_per_level": 70,
+          "levels": 3,
+          "name": "Storm Priest",
+          "range_tiles": 3,
+          "unlock_min_round": 15,
+          "upgrade_cost_base": 50,
+          "upgrade_cost_increment": 15,
+          "upkeep_per_level": 3
+        },
+        {
+          "attack_speed": 0.8,
+          "base_dmg": 110,
+          "base_hp": 500,
+          "base_upkeep": 6,
+          "build_cost": 120,
+          "dmg_per_level": 30,
+          "explanation": "The sky itself answers to this high priest.",
+          "hp_per_level": 100,
+          "levels": 3,
+          "name": "Storm High Priest",
+          "range_tiles": 3,
+          "unlock_min_round": 35,
+          "upgrade_cost_base": 130,
+          "upgrade_cost_increment": 30,
+          "upkeep_per_level": 6
         }
       ]
     },

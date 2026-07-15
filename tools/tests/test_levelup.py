@@ -101,14 +101,14 @@ class TestRunStateSeeding(unittest.TestCase):
         self.assertEqual(
             st.tiers_unlocked,
             {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
-             "painter": 1, "meditator": 0,
+             "storm_priest": 1, "painter": 1, "meditator": 0,
              "boost_speed": 1, "boost_damage": 1, "boost_hp": 1,
              "blocker": 1, "wall_builder": 0})
         self.assertEqual(
             st.unlocked_buildings,
             {"defence": True, "economic": True,
              "aoe_defence": False, "sun_scorcher": False,
-             "painter": False, "meditator": False,
+             "storm_priest": False, "painter": False, "meditator": False,
              "boost_speed": False, "boost_damage": False, "boost_hp": False,
              "blocker": False, "wall_builder": False})
 
@@ -189,18 +189,21 @@ class TestOptionRoll(unittest.TestCase):
     def test_early_pool_offers_unlocks_then_pads(self):
         # Round 1, village level 1: the tier-2s are round-gated to 10, Sun
         # Scorcher is era-gated to 14 and the Meditator to 10 — so the real
-        # cards are every UNGATED-or-met unlock: Maw Mortar (min_village_level
-        # 1), Painter (min_village_level 0), and Blocker (starts locked, no
-        # gate at all). That already fills all three slots — no fallback pad
-        # needed at round 1 anymore (Blocker has no unlock_title, so its card
-        # falls back to its tier-0 name).
+        # candidates are every UNGATED-or-met unlock, in RESEARCH table order:
+        # Maw Mortar (min_village_level 1), Storm Priest (no gate — Storm
+        # Priest wiring), Painter (min_village_level 0), and Blocker (starts
+        # locked, no gate at all). Four real candidates now outnumber the
+        # three slots, so NoShuffle (table order, no randomness) picks the
+        # first three and Blocker is the one left out — still no fallback pad
+        # needed at round 1.
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
         self.assertEqual(len(options), 3)
         unlocks = [o for o in options if o["kind"] == "unlock_building"]
         fallbacks = [o for o in options if o["kind"] == "fallback"]
         self.assertEqual([o["title"] for o in unlocks],
-                         ["Unlock Maw Mortar", "Unlock Painter", "Blocker"])
+                         ["Unlock Maw Mortar", "Unlock Storm Priest",
+                          "Unlock Painter"])
         self.assertEqual(len(fallbacks), 0)
 
     def test_fully_researched_pool_pads_with_fallbacks(self):
