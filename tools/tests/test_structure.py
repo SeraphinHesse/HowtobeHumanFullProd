@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Health, Scene
@@ -27,10 +28,10 @@ from game.enemies.components import EnemyCombat, PathAgent
 from game.map.pathfinder import find_path, find_path_ignoring_walls
 from game.map.tile_map import TileMap, WallEdge, _wall_key
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 BLOCKER = BUILD["StructureBuildings"]["Blocker"]["tiers"]
 WALLB = BUILD["StructureBuildings"]["WallBuilder"]["tiers"]
@@ -53,7 +54,7 @@ def board(rows):
 
 
 def run_state(**tiers):
-    st = RunState.from_balance(CORE)
+    st = RunState.from_balance(CORE, BUILD)
     for bt, n in tiers.items():
         st.unlocked_buildings[bt] = True
         st.tiers_unlocked[bt] = n
@@ -228,23 +229,35 @@ class TestPaydayWallLifecycle(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestResearchGating(unittest.TestCase):
-    """Blocker is placeable from the start; WallBuilder is not until researched
-    (prototype ``blocker_tiers_unlocked = 1`` vs the wall-builder tier gate)."""
+    """Both structure lines start LOCKED as a TYPE (starts_unlocked data flag
+    -- only Stone Thrower/Flute Player start unlocked). Blocker's tier 1 is
+    ready the moment it's unlocked (starts_with_tier=1, unaffected); WallBuilder
+    additionally needs its own tier 1 researched (starts_with_tier=0,
+    unaffected) -- a genuine two-step gate for WallBuilder, one step for
+    Blocker."""
 
-    def test_blocker_placeable_from_round_one(self):
+    def test_blocker_needs_unlocking_first(self):
         tm, scene, occ = board(["bb"])
-        st = RunState.from_balance(CORE)                # fresh: nothing researched
+        st = RunState.from_balance(CORE, BUILD)                # fresh: locked
+        with self.assertRaises(PlacementError):
+            place_building(tm, tm.get(1, 0), "blocker", 9999, BUILD,
+                           scene, occ, state=st)
+        st.unlocked_buildings["blocker"] = True          # unlocked at a level-up
         b, _ = place_building(tm, tm.get(1, 0), "blocker", 9999, BUILD,
                               scene, occ, state=st)
         self.assertEqual(b.building_type, "blocker")
 
-    def test_wall_builder_needs_research_first(self):
+    def test_wall_builder_needs_unlocking_and_research(self):
         tm, scene, occ = board(["bb"])
-        st = RunState.from_balance(CORE)                # wall_builder starts_with_tier=0
+        st = RunState.from_balance(CORE, BUILD)                # fresh: locked, tier 0
         with self.assertRaises(PlacementError):
             place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
                            scene, occ, state=st)
-        st.tiers_unlocked["wall_builder"] = 1           # researched at a level-up
+        st.unlocked_buildings["wall_builder"] = True      # unlocked at a level-up
+        with self.assertRaises(PlacementError):            # still no tier researched
+            place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
+                           scene, occ, state=st)
+        st.tiers_unlocked["wall_builder"] = 1              # tier 1 researched
         w, _ = place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
                               scene, occ, state=st)
         self.assertEqual(w.building_type, "wall_builder")

@@ -5,17 +5,17 @@ is set before PySide6 is imported so the whole module runs headlessly,
 mirroring the SDL dummy-driver convention used for pygame elsewhere in
 tools/tests/.
 """
-import os
 import subprocess
 import sys
 import unittest
 from pathlib import Path
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6/pygame, which read those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 import pygame
+from PIL import Image
 from PySide6.QtWidgets import QApplication
 
 from editor.panels.viewport import ViewportPanel, surface_to_qimage
@@ -23,8 +23,7 @@ from engine import data_io
 from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
-
-_APP = QApplication.instance() or QApplication(sys.argv)
+from tools.tests.fixture_data import FIXTURE_DATA
 
 
 class TestSurfaceToQImage(unittest.TestCase):
@@ -49,11 +48,11 @@ class TestSurfaceToQImage(unittest.TestCase):
             self.assertEqual((got.red(), got.green(), got.blue()), color)
 
 
-class TestHeadlessViewportPaint(unittest.TestCase):
+class TestHeadlessViewportPaint(QtCase):
     """Full pipeline: grid renders through engine/render and reaches pixels."""
 
     def test_grid_paints_nonbackground_pixels(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.resize(256, 256)
         panel.render_frame()
         pixmap = panel.grab()
@@ -68,7 +67,7 @@ class TestHeadlessViewportPaint(unittest.TestCase):
         self.assertGreater(touched, 0)
 
     def test_resize_recreates_surface_to_match_widget(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.show()
         panel.resize(320, 200)
         _APP.processEvents()
@@ -78,14 +77,13 @@ class TestHeadlessViewportPaint(unittest.TestCase):
         _APP.processEvents()
         panel.render_frame()
         self.assertEqual(panel._surface.get_size(), (150, 400))
-        panel.close()
 
 
-class TestZoomStep(unittest.TestCase):
+class TestZoomStep(QtCase):
     """ED-23 wheel zoom moves only through data-driven zoom levels."""
 
     def test_zoom_step_stays_within_data_driven_levels(self):
-        panel = ViewportPanel(data_dir=REPO / "data")
+        panel = self.track(ViewportPanel(data_dir=FIXTURE_DATA))
         panel.resize(200, 200)
         levels = sorted(panel._coords.geometry.zoom_levels)
         self.assertIn(panel._coords.camera.zoom, levels)
@@ -116,10 +114,22 @@ DRAFT_ENTRY = {
 
 class TestEntityPreview(TempDataCase):
     """ED-21/ED-42: slot preview through the real engine pipeline, draft
-    overrides without disk writes, reload without restart."""
+    overrides without disk writes, reload without restart.
+
+    Every test here needs a slot with NO manifest entry — that is what makes
+    "grey X", "no dropdown" and "the draft is the only source" observable.
+    UNASSIGNED is emptied in setUp rather than assumed empty: it used to be
+    assumed, art landed on painter_t1_lvl1, and four of these tests went red
+    for two months while testing nothing."""
+
+    UNASSIGNED = "painter_t1_lvl1"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.UNASSIGNED)
 
     def make(self):
-        panel = ViewportPanel(data_dir=self.data_dir)
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
         panel.resize(256, 256)
         return panel
 
@@ -187,6 +197,46 @@ class TestEntityPreview(TempDataCase):
         self.assertEqual(panel._coords.camera.zoom, zoom)  # Phase 3 feel kept
 
 
+class TestSlicedDraftPreview(TempDataCase):
+    """A4: a `slice`-carrying draft must take entry_from_dict's happy path in
+    set_preview_draft, not its ValueError fallback (viewport.py) -- proven by
+    the animations list resolving and render_frame not raising. The nine-slice
+    geometry itself is a HUD-only concern (A5); the entity preview here is the
+    world `RenderItem` path, which ignores `slice` on purpose."""
+
+    UNASSIGNED = "ui_button"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.UNASSIGNED)
+        # The draft is in-memory only, but AssetStore still resolves the
+        # sheet PATH from disk -- write the PNG a fresh import would have.
+        Image.new("RGBA", (64, 64), (200, 60, 60, 255)).save(
+            self.data_dir / "sprites" / "imported" / "ui_button.png")
+
+    def test_draft_with_slice_previews_and_never_touches_disk(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(256, 256)
+        draft = {
+            "sheet": "imported/ui_button.png",
+            "frame_w": 64, "frame_h": 64, "offset_x": 0, "offset_y": 0,
+            "rows": [
+                {"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
+                 "loop_start": 0, "loop_end": 0, "loop_count": 1},
+                {"animation": "hover", "frames": 1, "fps": 8, "hidden": [],
+                 "loop_start": 0, "loop_end": 0, "loop_count": 1},
+            ],
+            "slice": [8, 8, 8, 8],
+        }
+        panel.set_preview_slot("ui_button")
+        panel.set_preview_draft("ui_button", draft)
+        self.assertEqual(panel.preview_animations(), ("idle", "hover"))
+        panel.render_frame()   # slice-carrying draft never raises
+        on_disk = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")
+        self.assertNotIn("ui_button", on_disk["entries"])
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: editor/ never imports game/ (root CLAUDE.md layering rule)."""
 
@@ -197,11 +247,13 @@ class TestPurity(unittest.TestCase):
             "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.registry_ops, editor.balancing_history, "
             "editor.run_controls, editor.spawnclaude, editor.theme, "
+            "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "
-            "editor.panels.map_details; "
+            "editor.panels.map_details, editor.panels.sheet_preview, "
+            "editor.panels.sheet_picker, editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

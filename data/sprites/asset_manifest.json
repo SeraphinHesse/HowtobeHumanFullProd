@@ -1758,6 +1758,24 @@
       ],
       "sheet": "imported/flute_player_t1_lvl3.png"
     },
+    "formation_stage_1": {
+      "frame_h": 128,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
     "harp_player_t2_lvl1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -2544,9 +2562,31 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 18,
           "hidden": [],
+          "loop_count": 17,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2598,27 +2638,18 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 12,
+          "fps": 3,
           "frames": 11,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 7,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
           "frames": 11,
-          "hidden": [
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10
-          ],
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2634,16 +2665,19 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "hidden": [
+            9,
+            10
+          ],
+          "loop_count": 6,
+          "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
           "hidden": [
             3,
@@ -2670,23 +2704,20 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
-          "hidden": [],
-          "loop_count": 3,
+          "hidden": [
+            10
+          ],
+          "loop_count": 6,
           "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
-          "fps": 8,
+          "fps": 6,
           "frames": 11,
           "hidden": [
-            3,
-            4,
-            5,
-            6,
-            7,
             8,
             9,
             10
@@ -2791,23 +2822,64 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
-            8
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_background_1.png"
+      "sheet": "imported/tile_forest.png"
+    },
+    "tile_background_2": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 16,
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_forest.png"
     },
     "tile_background_3": {
       "frame_h": 32,
@@ -2818,7 +2890,41 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_forest.png"
+    },
+    "tile_background_4": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 16,
           "hidden": [
             0,
             1,
@@ -2827,14 +2933,123 @@
             4,
             5,
             6,
-            8
+            7,
+            8,
+            9,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_background_3.png"
+      "sheet": "imported/tile_forest.png"
+    },
+    "tile_background_5": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 16,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            12,
+            13,
+            14,
+            15
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_forest.png"
+    },
+    "tile_background_6": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 16,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_forest.png"
+    },
+    "tile_background_7": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 16,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_forest.png"
     },
     "tile_buildable": {
       "frame_h": 32,
@@ -2890,7 +3105,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
             0,
             1,
@@ -2899,14 +3114,21 @@
             4,
             5,
             6,
-            7
+            7,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_cliff.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_combat": {
       "frame_h": 32,
@@ -2971,16 +3193,23 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
+            5,
             6,
-            7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2998,23 +3227,30 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
             0,
             1,
             2,
             3,
+            4,
             5,
-            6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_ocean.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_spawning": {
       "frame_h": 32,

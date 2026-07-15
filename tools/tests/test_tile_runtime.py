@@ -10,11 +10,12 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from game.map import load_map_balance
 from game.map.tiles import Tile, TileCondition, TileState
 
-BALANCE = load_map_balance(REPO / "data")
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def tile(state, content_key=None, condition=TileCondition.GRASS):

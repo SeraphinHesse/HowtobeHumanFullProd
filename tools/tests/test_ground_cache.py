@@ -15,6 +15,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import data_io, tilemap
 from engine.assets import load_manifest, load_registry
@@ -23,7 +24,7 @@ from engine.coords import load_coordinate_system
 from engine.render import Renderer
 from engine.render.ground_cache import GroundCache
 
-DATA = REPO / "data"
+DATA = FIXTURE_DATA
 SCHEMA = DATA / "schemas" / "map_file.schema.json"
 VIEW_W, VIEW_H = 320, 240
 BG = (24, 20, 32)

@@ -1,0 +1,176 @@
+{
+  "$id": "ui.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "UI balancing domain (D-10), REPLAN nested tree (Phase 9A): UI timing plus FX/art tunables (the REPLAN folds FX into ui - no separate vfx domain). Values are the prototype's live tuning, verbatim. Bounds policy: seconds 0-60, pixels -4096-4096.",
+  "properties": {
+    "Debug": {
+      "additionalProperties": false,
+      "description": "Developer/debug visibility toggles. Off by default in shipped data.",
+      "properties": {
+        "show_camera_startpoint": {
+          "description": "If true the camera-startpoint marker sprite is drawn in the running game (grey-X placeholder until art is imported). Default false: the game uses the startpoint only to position the camera and draws nothing for it. Always visible in the editor regardless.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "show_camera_startpoint"
+      ],
+      "type": "object"
+    },
+    "FX": {
+      "additionalProperties": false,
+      "description": "Visual FX and background art tunables.",
+      "properties": {
+        "bg_art": {
+          "additionalProperties": false,
+          "description": "The hand-painted background art layer under the tile grid.",
+          "properties": {
+            "enabled": {
+              "description": "If true the background art layer draws (canonical flag; was BG_ART_ENABLED + FEATURE_BG_ART).",
+              "type": "boolean"
+            },
+            "file": {
+              "description": "Background image filename (resolved against the game's art directory).",
+              "minLength": 1,
+              "type": "string"
+            },
+            "offset_x": {
+              "description": "Horizontal offset of the background in world pixels.",
+              "maximum": 4096,
+              "minimum": -4096,
+              "type": "integer"
+            },
+            "offset_y": {
+              "description": "Vertical offset of the background in world pixels.",
+              "maximum": 4096,
+              "minimum": -4096,
+              "type": "integer"
+            },
+            "world_h": {
+              "description": "Background height in world pixels at zoom 1.",
+              "maximum": 4096,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "world_w": {
+              "description": "Background width in world pixels at zoom 1.",
+              "maximum": 4096,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "enabled",
+            "file",
+            "offset_x",
+            "offset_y",
+            "world_h",
+            "world_w"
+          ],
+          "type": "object"
+        },
+        "boss_announce": {
+          "additionalProperties": false,
+          "description": "The boss-round announcement banner.",
+          "properties": {
+            "enabled": {
+              "description": "If true the boss announcement banner plays on boss rounds (canonical flag; was FEATURE_BOSS_ANNOUNCEMENT).",
+              "type": "boolean"
+            },
+            "fade_in": {
+              "description": "Banner fade-in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "fade_out": {
+              "description": "Banner fade-out seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "hold": {
+              "description": "Banner hold seconds at full opacity.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "enabled",
+            "fade_in",
+            "fade_out",
+            "hold"
+          ],
+          "type": "object"
+        },
+        "gore_enabled": {
+          "description": "Master gore toggle: blood splatters and stains (canonical flag; was GORE_ENABLED + FEATURE_BLOOD_STAINS). Also user-facing via the settings menu.",
+          "type": "boolean"
+        },
+        "income_floaters_enabled": {
+          "description": "If true income/upkeep floater numbers rise from buildings during the income phase (canonical flag; was FEATURE_INCOME_FLOATERS).",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "bg_art",
+        "boss_announce",
+        "gore_enabled",
+        "income_floaters_enabled"
+      ],
+      "type": "object"
+    },
+    "Menu": {
+      "additionalProperties": false,
+      "description": "Top-level shell/menu tunables (Phase 9H): the intro-cutscene timing.",
+      "properties": {
+        "cutscene_length": {
+          "description": "Seconds the intro cutscene plays before it auto-advances to the main menu (prototype cutscene.py length cap; the decoder running out ends it sooner).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "cutscene_length"
+      ],
+      "type": "object"
+    },
+    "Timing": {
+      "additionalProperties": false,
+      "description": "UI interaction timing and layout toggles.",
+      "properties": {
+        "confirm_on_right_side": {
+          "description": "If true the confirm button sits on the right side of the construct preview.",
+          "type": "boolean"
+        },
+        "construct_show_cancel": {
+          "description": "If true the construct preview shows a cancel button next to confirm.",
+          "type": "boolean"
+        },
+        "not_enough_love_duration": {
+          "description": "Seconds the 'not enough love' flash stays on screen.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "confirm_on_right_side",
+        "construct_show_cancel",
+        "not_enough_love_duration"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "Debug",
+    "FX",
+    "Menu",
+    "Timing"
+  ],
+  "title": "ui",
+  "type": "object"
+}

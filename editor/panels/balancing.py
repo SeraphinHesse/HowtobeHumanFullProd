@@ -211,6 +211,12 @@ class _HistoryDialog(QDialog):
 
 
 class BalancingPanel(QWidget):
+    # objectName prefixes on the array +/- Row buttons: the array's '/'-joined
+    # path follows, so a test can assert WHICH arrays are resizable without
+    # reaching into the layout tree.
+    ROW_ADD = "rowadd:"
+    ROW_REMOVE = "rowremove:"
+
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
@@ -265,6 +271,15 @@ class BalancingPanel(QWidget):
         self._build_object(schema, self._doc, (), content_layout, depth=0)
         content_layout.addStretch(1)
         self._scroll.setWidget(content)
+        # Fresh widgets start with their dot hidden, so a rebuild that is NOT a
+        # domain switch (adding/removing an array row) would silently drop the
+        # dots of every other staged edit. `set_domain` clears `_dirty` first, so
+        # this is a no-op on that path.
+        for key in self._dirty:
+            dot = self._dots.get(key)
+            if dot is not None:
+                dot.setVisible(True)
+        self._save_btn.setEnabled(bool(self._dirty))
 
     # -- recursive schema walk (Phase 9A nested tree) ------------------------
 
@@ -325,6 +340,7 @@ class BalancingPanel(QWidget):
                     section.content_layout, depth + 1,
                 )
                 parent_layout.addWidget(section)
+            self._add_row_buttons(node, items, path, parent_layout)
         else:
             form = QFormLayout()
             parent_layout.addLayout(form)
@@ -332,6 +348,63 @@ class BalancingPanel(QWidget):
                 self._add_leaf_row(
                     form, f"[{i}]", item_schema, item, path + (str(i),)
                 )
+
+    # -- variable-length arrays of objects: + / − Row (ER-5) -----------------
+
+    def _add_row_buttons(self, node, items, path, parent_layout):
+        """A `+ Row` / `− Row` pair under an array of objects, gated ENTIRELY by
+        the schema's own minItems/maxItems.
+
+        That gate is the compatibility argument: every array that shipped before
+        ER-5 (`tiers`, `scale_tiers`, `round_counts`) has minItems == maxItems, so
+        both buttons stay hidden and those forms are unchanged. `death_spawn.spawns`
+        (minItems 1, no maxItems) is the first array a designer may actually resize
+        — a per-era table for a type that ships with one row.
+
+        Add COPIES THE LAST ROW rather than building a default instance from the
+        schema: the document validated on load, so a copy is schema-valid by
+        construction — no guessing at pattern/minLength/required. Remove pops the
+        LAST row, never a middle one: these arrays are era-indexed, so removing
+        [1] would silently renumber every era after it.
+        """
+        can_add = "maxItems" not in node or len(items) < node["maxItems"]
+        can_remove = len(items) > node.get("minItems", 0)
+        if not (can_add or can_remove) or not items:
+            return
+        key = "/".join(path)
+        row = QHBoxLayout()
+        if can_add:
+            add = QPushButton("+ Row")
+            add.setObjectName(f"{self.ROW_ADD}{key}")   # so tests can see WHICH
+            add.setToolTip("Append a copy of the last row")
+            add.clicked.connect(lambda _c=False, k=key: self._add_array_row(k))
+            row.addWidget(add)
+        if can_remove:
+            remove = QPushButton("− Row")
+            remove.setObjectName(f"{self.ROW_REMOVE}{key}")
+            remove.setToolTip("Remove the last row")
+            remove.clicked.connect(lambda _c=False, k=key: self._remove_array_row(k))
+            row.addWidget(remove)
+        row.addStretch(1)
+        parent_layout.addLayout(row)
+
+    def _add_array_row(self, key):
+        items = self._value_at(key)
+        items.append(copy.deepcopy(items[-1]))
+        self._commit_structure(key)
+
+    def _remove_array_row(self, key):
+        self._value_at(key).pop()
+        self._commit_structure(key)
+
+    def _commit_structure(self, key):
+        """A row was added/removed: `self._doc` already carries it (staged, like
+        every other edit — nothing reaches disk until Save). Re-dirty on the ARRAY
+        path, which `_refresh_dirty` compares whole against the baseline, so adding
+        a row and removing it again cleans itself back up; then rebuild the form so
+        the new row gets widgets."""
+        self._refresh_dirty(key)
+        self._rebuild_form(self._schema)
 
     def _add_leaf_row(self, form, label, prop, value, path):
         widget = self._make_widget(path, prop, value)
@@ -417,7 +490,16 @@ class BalancingPanel(QWidget):
         self._refresh_dirty(key)
 
     def _refresh_dirty(self, key):
-        dirty = self._value_at(key) != self._value_at(key, self._baseline)
+        try:
+            baseline = self._value_at(key, self._baseline)
+        except (KeyError, IndexError, TypeError):
+            # The path does not exist in the baseline at all — it is a field of a
+            # row the user just ADDED (ER-5). That is dirty by definition, and the
+            # lookup must not raise: this runs inside a Qt slot, where an unhandled
+            # exception can take the process down.
+            dirty = True
+        else:
+            dirty = self._value_at(key) != baseline
         if dirty:
             self._dirty.add(key)
         else:

@@ -1,6 +1,6 @@
 ---
 name: coder
-description: Generic implementer for game/, editor/, data/ and cross-package tasks. Dispatch with the task, the ONE package CLAUDE.md to read, the file scope, and the baseline failure set. Engine-only file scope → use engine-coder instead.
+description: Generic implementer for game/, editor/, data/ and cross-package tasks. Dispatch with the task, the ONE package CLAUDE.md to read, and the file scope. Engine-only file scope → use engine-coder instead.
 tools: Read, Edit, Write, Glob, Grep, Bash, Skill
 model: sonnet
 ---
@@ -26,8 +26,12 @@ You are a coder: you implement ONE scoped task and verify it.
 
 ## Exit gate (before reporting done)
 - `py tools/smoke.py` green.
-- `py -m unittest discover -s tools/tests -t .` — **no NEW failures** vs the
-  baseline set given in your dispatch (not zero; the baseline is nonzero).
+- `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Targeted
+  only: never run the full suite — the orchestrator/session that hands work
+  back owns the single full check.
+  The suite is green; there is no baseline and no tolerated failure. If a red
+  test is inside your blast radius, you broke it — fix it. If it is clearly
+  outside your diff, note it in your report and stop; don't investigate.
 
 ## Report format
 Changed files; what the exit gate showed; anything architectural that required

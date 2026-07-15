@@ -5,11 +5,14 @@ Ports the prototype's src/map/pathfinder.py (five find_path* variants,
 a tiny synthetic grid (heap-order-independent: endpoints + contiguity + cost);
 the shipped map exercises a full spawn→base route.
 """
+import heapq
+import random
 import types
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from game.map import (
@@ -20,12 +23,13 @@ from game.map import (
     find_path_to_nearest_economic,
     load_map_balance,
 )
+from game.map.pathfinder import _dijkstra
 from game.map.tile_map import TileMap
-from game.map.tiles import TileState
+from game.map.tiles import TileCondition, TileState
 
-MAP = REPO / "data" / "maps" / "first_light.json"
-MAP_SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-BALANCE = load_map_balance(REPO / "data")
+MAP = FIXTURE_DATA / "maps" / "first_light.json"
+MAP_SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def synth(terrain_rows, base=(1, 1)):
@@ -166,6 +170,66 @@ class TestShippedMap(unittest.TestCase):
         self.assertEqual(path[-1], (1, 1))
         self.assertTrue(is_contiguous(path))
         self.assertTrue(all(tm.get(c, r).is_passable for c, r in path))
+
+
+class TestDijkstraReturnsTheRouteItCosted(unittest.TestCase):
+    """Regression: ``_dijkstra`` guarded its relax on ``dist`` — the SETTLED
+    map — so ``dist.get(node)`` was inf for every not-yet-settled node and EVERY
+    relaxation passed, including later, worse ones, each overwriting ``prev``
+    with a worse parent. The goal still settled at the correct cost (the heap
+    pops in order), but ``_reconstruct`` then walked the clobbered back-pointers
+    and returned a different, more expensive route than the one Dijkstra had
+    costed. Measured on a pond board: a 23-cost path to a goal it had reached at
+    cost 12, doubling back through the water.
+
+    ``_build_flow_field`` always kept a separate tentative-``best`` map (its
+    docstring says why); ``_dijkstra`` now does too. This is a real part of the
+    boss's "wandering" — every goal-set variant runs through here."""
+
+    @staticmethod
+    def _reference_cost(tm, start, goal):
+        """A textbook Dijkstra that only ever settles COSTS — no back-pointers,
+        so it cannot be wrong in the way the bug was."""
+        dist = {}
+        heap = [(0, start)]
+        while heap:
+            cost, node = heapq.heappop(heap)
+            if node in dist:
+                continue
+            dist[node] = cost
+            if node == goal:
+                return cost
+            col, row = node
+            for nb in ((col + 1, row), (col - 1, row),
+                       (col, row + 1), (col, row - 1)):
+                if not (0 <= nb[0] < tm.cols and 0 <= nb[1] < tm.rows):
+                    continue
+                if nb in dist:
+                    continue
+                w = tm.weight(tm.get(*nb))
+                if w >= tm.impassable_weight:
+                    continue
+                heapq.heappush(heap, (cost + w, nb))
+        return None
+
+    def test_the_returned_path_costs_what_dijkstra_said_it_would(self):
+        start, goal = (6, 4), (0, 0)
+        for seed in range(40):
+            rng = random.Random(seed)
+            tm = synth(["ccccccc"] * 5, base=goal)
+            for col in range(7):
+                for row in range(5):
+                    if (col, row) not in (start, goal) and rng.random() < 0.35:
+                        tm.get(col, row).condition = TileCondition.POND
+            with self.subTest(seed=seed):
+                path = _dijkstra(tm, start[0], start[1], {goal},
+                                 ignore_walls=False)
+                self.assertTrue(path)
+                self.assertEqual(path[0], start)
+                self.assertEqual(path[-1], goal)
+                self.assertTrue(is_contiguous(path))
+                self.assertEqual(path_cost(tm, path),
+                                 self._reference_cost(tm, start, goal))
 
 
 if __name__ == "__main__":

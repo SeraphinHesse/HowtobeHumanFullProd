@@ -1,7 +1,7 @@
 ---
 description: Use when the task is to add an editor feature or panel. Hangs it off the single-selection model, one render path (ED-22), all writes via write_validated, adds the module to TestPurity.
 argument-hint: <feature, e.g. "per-level balancing focus in the details panel">
-allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py -m unittest*), Bash(py tools/smoke.py*)
+allowed-tools: Read, Edit, Write, Grep, Glob, Bash(py tools/testgate.py*), Bash(py -m pytest*), Bash(py tools/smoke.py*)
 ---
 
 Add an editor feature: **$ARGUMENTS**. This is an `editor/` task; never import or
@@ -34,7 +34,7 @@ edit `game/**` (the editor talks only to `engine/` + `data/`).
    appropriate).
 
 ## Verify
-- `py -m unittest discover -s tools/tests -t .` — TestPurity + the panel's test
+- `py tools/testgate.py check --affected` — TestPurity + the panel's test
   (drive it with synthetic `QTest` events, one `QApplication` per process).
 - Live: `py editor/main.py` (or headless under `QT_QPA_PLATFORM=offscreen`) — exercise
   the feature; for data-writing features confirm the JSON validates and a Play

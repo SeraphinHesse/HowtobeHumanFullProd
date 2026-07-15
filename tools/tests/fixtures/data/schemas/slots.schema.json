@@ -1,0 +1,160 @@
+{
+  "$defs": {
+    "group_node": {
+      "additionalProperties": false,
+      "description": "One editor-tree group: a label plus EITHER a list of slot keys (leaf group; for tiered buildings the list order is the level order) OR nested child groups — never both.",
+      "oneOf": [
+        {
+          "required": [
+            "slots"
+          ]
+        },
+        {
+          "required": [
+            "children"
+          ]
+        }
+      ],
+      "properties": {
+        "children": {
+          "description": "Nested child groups.",
+          "items": {
+            "$ref": "#/$defs/group_node"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "label": {
+          "description": "Label the editor shows for this group.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "slots": {
+          "description": "Slot entries in this group, in display order. Either a bare key (inherits the category frame size) or a {key, frame_w, frame_h} object that overrides it (D1: slicing != drawing). The same key may appear under two groups of ONE category (shared art, e.g. meditators reuse musician sheets) but never in two categories, and every occurrence must agree on its frame size (loader-enforced: uniqueItems compares whole values, so it cannot catch a key repeated in both forms).",
+          "items": {
+            "oneOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_]*$",
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/slot_entry"
+              }
+            ]
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "slot_entry": {
+      "additionalProperties": false,
+      "description": "A slot key that overrides its category's frame size (D1): how the SHEET is sliced. Use the bare-string form to inherit the category size.",
+      "properties": {
+        "frame_h": {
+          "description": "Sprite frame height in pixels for this slot, overriding the category's.",
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "frame_w": {
+          "description": "Sprite frame width in pixels for this slot, overriding the category's.",
+          "maximum": 1024,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "key": {
+          "description": "The slot key.",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "frame_w",
+        "frame_h"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "slots.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Slot registry (E-34/D-32): every renderable thing declares an asset slot here — key, frame size, animation vocabulary, editor grouping. Lives at data/slots.json — a DELIBERATE deviation from D-32's literal 'data/schemas/slots.*' path, because tools/smoke.py excludes data/schemas/ from validation and the registry must be validated content.",
+  "properties": {
+    "categories": {
+      "description": "Ordered list of slot categories. Order is meaningful: the editor tree shows categories in this order, and the first five keys mirror the balancing domains (D-10 order).",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "animations": {
+            "description": "Animation vocabulary offered by the importer for this category; sheet rows are named from this list. First entry is always 'idle' (row 0, E-35).",
+            "items": {
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "type": "string"
+            },
+            "minItems": 1,
+            "prefixItems": [
+              {
+                "const": "idle"
+              }
+            ],
+            "type": "array",
+            "uniqueItems": true
+          },
+          "display_name": {
+            "description": "Label the editor tree shows for this category.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "frame_h": {
+            "description": "Sprite frame height in pixels for every slot in this category.",
+            "maximum": 1024,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "frame_w": {
+            "description": "Sprite frame width in pixels for every slot in this category.",
+            "maximum": 1024,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "groups": {
+            "description": "Editor grouping tree for this category (e.g. building type -> tier -> level slots).",
+            "items": {
+              "$ref": "#/$defs/group_node"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "key": {
+            "description": "Category identifier. When it matches a balancing domain (buildings/enemies/map/ui/core) the editor maps selections in this category to that domain's balancing form.",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "display_name",
+          "frame_w",
+          "frame_h",
+          "animations",
+          "groups"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "categories"
+  ],
+  "title": "slots",
+  "type": "object"
+}

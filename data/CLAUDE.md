@@ -78,29 +78,15 @@ validating writer; don't hand-edit the JSON.
   code-side default is banned) and the editor panel skips schema keys absent from
   the doc. `Boss/death_spawns` was REPLACED by `Boss/death_spawn` (the 5 rows
   moved verbatim under `spawns`).
-- **Parity gate**: `tools/tests/balancing_parity_map.json` (committed,
-  deliberately NOT under `data/` — smoke stem-pairs everything here) maps
-  EVERY prototype live-JSON key to its new path, `MERGED:<target>`, or
-  `DROPPED:<reason>`; `tools/tests/test_balancing_parity.py` asserts
-  coverage both ways + value equality (skips whole if the prototype
-  checkout is absent). The py-only live `BOSS_ERAS` list is committed as
-  literal `_py_only` expectations (reshaped into `Boss/stats` +
-  `Boss/death_spawn/spawns`; its dead `swarm_*` fields not migrated). When you
-  move/rename a balancing key, update the mapping in the same change.
-  - **The two tables have DIFFERENT semantics — do not confuse them.** The
-    **main** table's consumer skips values that are `"DROPPED:<reason>"`
-    strings. **`_py_only` is a literal-expectation table** (`{path, expect}`)
-    whose consumer (`test_py_only_boss_eras_expectations`) has **NO `DROPPED:`
-    branch** — a bare string there raises `TypeError: string indices must be
-    integers`. So when a `_py_only` key MOVES you **re-path it**; never retag it
-    `DROPPED:`, never delete it (it is the parity proof the value is unchanged).
-    ER-3 re-pathed all 15 `Boss/death_*` entries that way — a pure prefix swap —
-    leaving `_py_only` at 45 entries.
-  - **The parity test SKIPS SILENTLY inside a git worktree**: it derives the
-    prototype path from `REPO.parent`, which `.claude/worktrees/agent-XXX/`
-    lacks, so the whole class skips — it looks green and proves nothing. Run it
-    from a worktree that is a **SIBLING of the repo** and confirm the 4 tests
-    actually RAN.
+- **The parity gate is GONE, and balancing values are now free.** The migration
+  is complete: `tools/tests/test_balancing_parity.py` and its committed mapping
+  table (`balancing_parity_map.json`) are **deleted**, along with the prototype's
+  claim on these numbers. Moving, renaming, retuning or dropping a balancing key
+  no longer has to be mirrored into a parity map, and no test compares `data/`
+  against `../HowToBeHuman`. What still guards you: the schemas (D-*), the
+  editor's validating writer, and `tools/tests/test_balancing_data.py`. Tune
+  freely — a number that differs from the prototype is a design decision now, not
+  a regression.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
@@ -145,10 +131,11 @@ validating writer; don't hand-edit the JSON.
   would grid-slice that one frame into a 7×4 grid. It describes **slicing, not
   drawing** — on-screen size comes from the render fit
   (`engine/render/CLAUDE.md`).
-  - **The override does NOT propagate to "+ Variant"**: `registry_ops.add_variant`
-    appends a bare key, so `ui_bg_main_menu_v2` inherits the category's 64×64.
-    Harmless today (nothing consumes the slot); fix before a background picker
-    ships (10L-B).
+  - **The override DOES propagate to "+ Variant"** (A7): `registry_ops.add_variant`
+    now inherits the family stem's frame-size override on creation, so
+    `ui_bg_main_menu_v2` inherits the `ui_bg_main_menu` 480×270 override.
+    Bare stems stay bare (regression pin for enemies/deco); independently
+    resizable afterwards via the Frame W/H spinboxes.
   - **`uniqueItems` no longer implies key uniqueness**: it compares whole values,
     so `"foo"` and `{"key": "foo", …}` are two distinct items. It is kept (it
     still catches literal duplicates, and it is the D-3 house style), and
@@ -182,9 +169,9 @@ validating writer; don't hand-edit the JSON.
   `{version: 2, entries: {slot: {sheet: "imported/<slot>.png", frame_w,
   frame_h, offset_x, offset_y, rows[]}}}` with row =
   `{animation, frames, fps, hidden[], loop_start, loop_end, loop_count}`;
-  `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written
-  ONLY by the editor's import panel and `tools/migrate_prototype_assets.py`
-  — both through `write_validated`.
+  `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
+  by the editor's import panel, through `write_validated`. (The one-shot
+  migration tool that seeded it is deleted — the editor is the only door now.)
   - **`slice` (A2) is the one OPTIONAL per-entry key** — everything else is
     `required`. `"slice": [left, top, right, bottom]`, ints 0..1024, nine-slice
     margins in FRAME pixels (same convention as `offset_x`/`offset_y`). It exists
@@ -194,7 +181,58 @@ validating writer; don't hand-edit the JSON.
     plain scaling; no committed entry carries one yet. The geometry lives in
     `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
-  import time (editor) or by the migration tool. Never gitignore them.
+  import time by the editor (historically also by the migration tool, now gone).
+  Never gitignore them.
+- **A sheet may be SHARED — `sheet` is a path, not a slot-derived name.** The
+  engine resolves `sprites_dir / entry.sheet` verbatim
+  (`engine/assets/store.py`), and the schema's pattern always allowed any
+  `imported/*.png`. The editor's **"Use Spritesheet…"** uses that: it points a
+  slot's entry at ANOTHER slot's PNG and copies no bytes, so one file backs many
+  slots (a variant reusing its parent's art, two props sharing a sheet).
+  `imported/<slot>.png` is therefore only (a) the file a slot's own *file* import
+  owns and (b) the fallback for a slot with no entry — **never re-derive it as
+  "the slot's sheet"; read the entry's `sheet`.**
+  - **Deleting art must refcount.** `editor/asset_import.py`'s `sheet_users` /
+    `unreferenced_sheets` are the one authority: a PNG is unlinked only when no
+    remaining entry points at it. Clearing one slot of a shared sheet keeps the
+    file for the others; the last user takes it with them. Unlinking
+    `imported/<slot>.png` blind would blank every slot linked to it.
+  - **Orphans are legal and deliberate.** Re-linking a slot away from art only it
+    used leaves that PNG on disk, unreferenced and inert. It stays listed in the
+    picker, which is how you get it back — silently deleting art on a link change
+    is the worse failure.
+
+## UI screen data (Phase 10L-B, R3)
+- **`data/ui/screens/<screen_id>.json`**: per-screen override format. One file
+  per screen (12 total: main_menu, pause, settings, credits, add_name,
+  game_over, levelup, hud, building_panel, cheat_menu, game_log,
+  boss_cutscene); each is EMPTY `{}` until edited in the editor.
+  `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
+  `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
+  styling to dynamic widgets; `widgets: {<id>: {rect?, skin?, font?, color?,
+  text_color?, label?, visible?}}` overrides any named widget's properties.
+  Nothing consumes these files until B2.
+- **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
+  `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
+  exporter (B3). FLAT shape, keyed directly by screen id at the root:
+  `{<screen_id>: {widgets: {<id>: {rect, kind, label}}, mock_note}}`, where
+  `kind` is one of `button | panel | label | backdrop | bar | field`. Pairs
+  with `schemas/screen_defaults.schema.json` by normal stem pairing — no
+  directory exception needed for this one file. Editor previews render from
+  defaults + overrides only. Merge conflicts on two branches resolve by
+  re-running the exporter (deterministic output).
+- **SCHEMA-PAIRING EXCEPTION (the directory rule — now THREE + ONE)**:
+  `data/ui/screens/*.json` (any stem, the screen id) → `ui_screen.schema.json`
+  (exact parallel to `data/maps/*.json` → `map_file.schema.json`).
+  `tools/smoke.py::validate_data` special-cases the directory exactly like
+  maps. `data/ui/screen_defaults.json` pairs normally via stem to
+  `schemas/screen_defaults.schema.json` (a plain stem-mate, not a directory
+  exception — its schema's root is the flat per-screen map, not a `screens`
+  wrapper).
+- **`ui` animation vocabulary** (`slots.json` A3): `["idle", "hover",
+  "pressed", "disabled"]` — button states become manifest rows (plan decision
+  2, landed A3). Widget skins source the `ui` slots; per-slot animation
+  vocabulary + partial-sheet fallback apply uniformly.
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
@@ -252,5 +290,20 @@ validating writer; don't hand-edit the JSON.
   user explicitly asks.
 
 ## Verify before finishing
-Validate every touched file against its schema and run the headless smoke test
-(`tools/smoke.py` once it exists). Report agreement explicitly.
+Validate every touched file against its schema, then:
+```bash
+py tools/smoke.py
+py tools/testgate.py check     # the gate is ZERO failures
+```
+Report agreement explicitly.
+
+**`data/` is live designer content, and the tests must never touch it.** Tests
+copy it to a tempdir (`TempDataCase`); a session fixture hashes `data/` before
+and after the suite and fails the run if a single byte changed. This is not
+theoretical — the suite used to paint tiles into real maps and invent map files,
+silently, for months (`tools/data_guard.py`).
+
+The corollary binds tests too: **never assert against live `data/` content.** Pin
+the fixture instead. "The Painter slot has no art" and "first_light is the active
+map" were both true when written and both false later — that is what put 18 tests
+permanently in the red.

@@ -8,24 +8,34 @@ slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
 E-*/D-*/G-*/ED-*/T-*).
 
 **Planning:** every plan doc lives in `planning/` (the sources of truth:
-`MIGRATION_PLAN.md`, `UI_EDITOR_PLAN.md`, …; finished plans move to
-`planning/completed plans/`, e.g. `EngineBuildPLAN.md`,
-`AgentDispatchPLAN.md`). Root `PLAN.md` is a **generated mirror** of whichever
-one is currently active (its line-1 `<!-- active-plan: … -->` marker names the
-source). Read `PLAN.md` for the current plan; never hand-edit it — edit the
-source in `planning/` and re-run `/setcurrentplan <name>` to re-mirror. Author a
-new phased plan with `/createplan`. The editor's **Summon a Drunken Robot**
-screen shows the active plan and can switch it too.
+`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`, …; finished plans move to
+`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`).
+Root `PLAN.md` is a **generated mirror** of whichever one is currently active
+(its line-1 `<!-- active-plan: … -->` marker names the source). Read `PLAN.md`
+for the current plan; never hand-edit it — edit the source in `planning/` and
+re-run `/setcurrentplan <name>` to re-mirror. Author a new phased plan with
+`/createplan`. The editor's **Summon a Drunken Robot** screen shows the active
+plan and can switch it too. **Not every task needs a plan** — see Status.
 
 ## Project identity & status
 - **Stack:** Python 3.11+, pygame-ce (game), PySide6 (editor). Deps:
   `pip install -r requirements.txt`.
-- **Status:** bootstrap phase — see the phase table in `PLAN.md` before
-  assuming anything is runnable. Entry points (once they exist):
-  game `py game/main.py`, editor `py editor/main.py`.
-- **Behavioral spec for gameplay:** the prototype repo at
-  `../HowToBeHuman/ClaudePrototype/HowToBeHuman`. Read it to answer "what
-  should this do"; never edit it from here.
+- **Status: the migration is COMPLETE.** The game and the editor both run:
+  game `py game/main.py`, editor `py editor/main.py`. The bootstrap phases and
+  the port from the prototype are finished and their plan is archived
+  (`planning/completed plans/MIGRATION_PLAN.md`).
+- **What the work is now:** feature reworks, feature expansions, editor
+  capability expansion, and asset imports — driven **per task or per plan doc**.
+  A small, self-contained change is a task (`/smalltweak`, a form dispatch, or
+  just do it); anything phased gets its own doc in `planning/` via `/createplan`
+  and becomes the active `PLAN.md` for as long as it runs. There is no single
+  master plan any more, and `PLAN.md` may legitimately name no active plan.
+- **The prototype is history, not spec.** `../HowToBeHuman/ClaudePrototype/
+  HowToBeHuman` is readable for archaeology ("why is this number 240?") and many
+  source comments still cite it. It is **no longer the behavioral authority**:
+  this repo's `data/` + `SPEC.md` + the package docs are, and gameplay is free to
+  diverge from it deliberately. Nothing in the test suite compares against it.
+  Never edit it from here.
 
 ## Design pillars (tie-breakers for every decision)
 1. **Agent legibility** — small single-purpose files; schemas over convention;
@@ -34,6 +44,38 @@ screen shows the active plan and can switch it too.
    `game/` never import each other; both consume `engine/` and `data/`.
 3. **Editor is the designer interface** — humans never hand-edit `data/`
    JSON; agents may, but only schema-valid writes.
+
+## Command and Control Structure (C2) — mandatory agent workflow
+
+**This is the "Command and Control Structure" (C2).** It governs how every task
+is approached and is NON-NEGOTIABLE — it overrides the harness's default
+plan-mode workflow. It has two halves that carry the same name so a request to
+"edit the command and control structure" finds both: this section (the rule) and
+`.claude/hooks/command_and_control.py` (the `PreToolUse` hook that hard-enforces
+it).
+
+- **Plan mode:**
+  1. Explore with **`scout` agents only** — never `Explore`, `Plan`, or
+     `general-purpose`.
+  2. **The main session (the model the user invoked) writes the plan itself** —
+     never a delegated `Plan` agent.
+  3. On approval, **spawn the correct execution agent** — `coder`,
+     `engine-coder`, or `phase-executor` — opening with the matching **skill**
+     from the table below (`/add-building`, `/add-enemy`, …) when the task
+     matches a row.
+- **Direct mode (no plan mode):**
+  1. **`scout`** for exploration.
+  2. The main session **writes the plan itself** with the invoked model.
+  3. **Spawn the correct execution agent(s)** with the matching skill.
+  4. **`reviewer`** reviews the resulting diff.
+
+Agent roles and the skill table are defined once below (**Agent roster** and the
+skills table) — this section does not duplicate them. `planner` is exempt: it is
+reached only via the explicit `/createplan` flow, not general exploration.
+
+The `PreToolUse` hook **hard-denies** `Explore` / `Plan` / `general-purpose`
+Agent dispatches and redirects to the above. Set `WORKFLOW_HOOK_OFF=1` to bypass
+it temporarily.
 
 ## Step 0 — Orient with the code graph (Graphify)
 
@@ -152,15 +194,57 @@ indent). ×10 combat HP/DMG scale carries over from the prototype; `BASE_HP`
 stays 10 (deliberate exception).
 
 ## Step 2 — Universal exit gate
-1. Run the smoke test (`tools/smoke.py`; headless SDL dummy drivers) → report
-   exactly what you verified, tagging each claim **measured** (command +
+
+```bash
+py tools/smoke.py          # data validation + 5-frame headless boot
+py tools/testgate.py check # the suite. Read the ONE line it prints.
+```
+
+**The gate is ZERO.** `GATE PASS` or you are not done. There is no baseline to
+measure and no "pre-existing failure" to tolerate — if a test is red, you broke
+it. (It was not always so: the suite used to carry 18 permanent failures and the
+gate was a *diff* against a number that lived in prose and had drifted three
+ways. `planning/TestGatePLAN.md` records how that was fixed.)
+
+- **Never re-run the suite to find out what was already broken.** That waste is
+  exactly what `/testgate` deletes.
+- While iterating, `py tools/testgate.py check --affected` runs only the blast
+  radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
+  before handing work back.
+- **Do NOT run the full suite for verification unless explicitly asked or you
+  are handing work back.** `--affected` is the default; the full `check` runs
+  exactly once, at the end — never as a mid-task sanity run, never twice.
+- **A red test clearly outside your diff's blast radius: note it in your report
+  and stop** — do not burn the session investigating it. The gate is still ZERO
+  (it must be resolved before handoff), but the first move is to surface it to
+  the user, not to silently dig.
+- Tiers: `py -m pytest -m core` (fast, ~800) · `-m editor` (Qt, slow) ·
+  `-m meta` (agent scaffolding). **CI runs the whole suite** — there is no
+  excluded tier. (The old `migration` tier compared `data/` against the
+  prototype checkout; it is deleted along with the migration.)
+- **An unexpected skip is a failure.** A test that quietly stops running is
+  indistinguishable from one that passes. **So is a failing subtest** — the gate
+  reads pytest's `SUBFAILED` lines, which it once ignored while printing PASS.
+- Never paste raw gate output into a report — collapsing it to one line is the
+  whole point.
+
+Then:
+1. Report exactly what you verified, tagging each claim **measured** (command +
    number) / **verified** (read or ran it) / **inferred** (flagged as such) —
    the `/report` taxonomy.
 2. If data changed: confirm schema validation passes.
 3. If anything architectural changed: update **the package CLAUDE.md** — not
    this router, not another package's doc.
 4. PRs state a concrete in-game Quick Test scenario. On the user's
-   confirmation: commit (brief msg) → push → PR.
+   confirmation: commit (brief msg) → push → PR. CI (`.github/workflows/
+   tests.yml`) gates every PR into `Development`.
+
+**Tests must never write into `data/`.** Copy it to a tempdir (`TempDataCase`).
+A session fixture hashes `data/` before and after the suite and fails the run if
+it changed — the suite used to corrupt the repo silently, and now it cannot.
+**Never assert against live `data/` content**: pin the fixture. Tests that
+assumed "this slot has no art" or "this map is active" is what put 18 tests
+permanently in the red.
 
 ## Branching
 

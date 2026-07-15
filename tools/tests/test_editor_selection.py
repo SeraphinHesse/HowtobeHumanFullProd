@@ -17,12 +17,13 @@ from editor.selection import (
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 
 class TestResolver(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.reg = load_registry(REPO / "data")
+        cls.reg = load_registry(FIXTURE_DATA)
 
     def test_tiered_building_type(self):
         subs = subcategories(self.reg, "buildings", ("Defender",))

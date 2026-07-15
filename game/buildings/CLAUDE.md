@@ -69,9 +69,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   A `BoostEmitter` marker holds the `exploded` (one-shot per death, reset on
   `rebuild()`) + `flat_applied` guards. Both modes exist: ramp (default) accumulates
   each income phase, flat (`BoostBuildings.globals.flat_mode`) applies 10× once on
-  placement / reverses on death. Research: three `starts_unlocked=False` rows sharing
-  `unlock_group=(the trio)` + `gate_kind="min_round"`; the roll offers ONE unlock card
-  (the lead `boost_speed`), then each type researches its own tiers (see `game/core`).
+  placement / reverses on death. Research: three rows sharing `unlock_group=(the
+  trio)` + `gate_kind="min_round"` + a shared `starts_unlocked_path` pointing at
+  `BoostBuildings.globals.starts_unlocked` (data-driven — see the Research/gating
+  seam section); the roll offers ONE unlock card (the lead `boost_speed`), then
+  each type researches its own tiers (see `game/core`).
 - **10E structure line** (`structure.py`: `StructureBuilding` family + thin `Blocker`
   / `WallBuilder` leaves) subclasses `Building` directly (passive — no attack, no
   yield), `CONTENT_KEY="economic_building"` (traversable weight — enemies attack, not
@@ -85,9 +87,15 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `TileMap.place_walls_for_builder(self)` and `_on_apply_stats()` resyncs owned wall
   HP on a tier upgrade. The edge-wall registry itself lives in `game/map` (see that
   doc); the payday teardown/rebuild is `game/core` (slots 8/10). Research: `blocker`
-  is `ResearchSpec()` (always unlocked, placeable from round 1; Bulwark/Bastion tiers
-  round-gated); `wall_builder` is `ResearchSpec(starts_with_tier=0)` (era-gated from
-  `WallBuilder.era_unlock_round`, like the meditator). `registry.place_building` now
+  is `ResearchSpec()` (Bulwark/Bastion tiers round-gated; ready at tier 1 the moment
+  it's unlocked — `starts_with_tier=1`); `wall_builder` is
+  `ResearchSpec(starts_with_tier=0)` (era-gated from `WallBuilder.era_unlock_round`,
+  like the meditator — its own tier 1 must still be researched after unlocking).
+  **Both start LOCKED as a type** (a deliberate balance change from the prototype's
+  `blocker_tiers_unlocked = 1`): `starts_unlocked` is now a `buildings.json` flag
+  per type (see the Research/gating seam section) — only `defence`/Stone Thrower and
+  `economic`/Flute Player start unlocked; every other type, blocker and wall_builder
+  included, is earned via a level-up unlock card. `registry.place_building` now
   calls `building.on_placed(tilemap)` UNCONDITIONALLY (a `Building` base no-op hook —
   boost + wall-builder override it), replacing the boost-only special-case.
 - **10I tile conditions** — snapshot at placement, computed on read:
@@ -129,32 +137,55 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     `BuildingsGlobal.defence_range_pathfinding.enabled` is off) +
     `wire_defence_coverage` (injects callable + weight add into the tilemap —
     the host calls it once per run; the map layer never imports this package).
-- **`registry.py` is the factory + placement seam**: `create(building_type,…)`
-  (also reconstructs a subclass after `GameObject.from_dict`), and
+- **`registry.py` is the factory + placement seam**: `create(building_type,…,
+  tier_idx=0)` (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability
   gate → sets `tile.occupant/content_key/state` → `scene.spawn` → `sync_occupancy`
   → raises `PlacementError` on a bad tile / too little love. `attach_base` wires the
   `BaseBuilding` onto its pre-seeded tile. Love is passed in (no game-state store
-  until 9F); UI batching + per-type unlock gates are 9F/9G.
+  until 9F); UI batching + per-type unlock gates are 9F/9G. **A fresh placement
+  builds at the type's CURRENT research ceiling, not always tier 0**: `place_building`
+  derives `tier_idx` from `tiers_unlocked_for(state, building_type) - 1` and threads
+  it through both `build_cost(building_type, buildings_balance, tier_idx)` and
+  `create(...)` — once a higher tier is researched, the lower tier is simply never
+  placed again (no separate gate). `build_cost` is now the ONE price for a tier:
+  the same number is charged for a fresh placement, the level-up "tier" research
+  card, and the upgrade panel's advance-to-next-tier button (`tier_unlock_cost` /
+  `tier_unlock_cost_per_tier` were removed from the schema — dead weight once
+  `build_cost` covers all three).
 
 ## Research / gating seam (10A)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
-  `RESEARCH` table of `ResearchSpec` rows (`starts_unlocked`, `starts_with_tier`,
-  `gate_kind`/`gate_path`, `unlock_group`, UI copy). A spec never stores a gate
-  VALUE, only where in `buildings.json` to read it. **10B–10E add a leaf class +
-  one row and NEVER reopen the roll.** It lives there (not `registry.py`) because
-  `registry` imports `game.map.tiles` → `game.core.balance`; `game/core/levelup.py`
-  must read the table without closing that cycle. `registry` re-exports
-  `LEAF_CLASSES` as `BUILDING_CLASSES` and gates `place_building` on
-  `buildable(state, btype)`.
+  `RESEARCH` table of `ResearchSpec` rows (`starts_with_tier`, `gate_kind`/
+  `gate_path`, `starts_unlocked_path`, `unlock_group`, UI copy). A spec never
+  stores a gate VALUE, only where in `buildings.json` to read it. **10B–10E add a
+  leaf class + one row and NEVER reopen the roll.** It lives there (not
+  `registry.py`) because `registry` imports `game.map.tiles` →
+  `game.core.balance`; `game/core/levelup.py` must read the table without closing
+  that cycle. `registry` re-exports `LEAF_CLASSES` as `BUILDING_CLASSES` and gates
+  `place_building` on `buildable(state, btype)`.
+- **Whether a type starts unlocked is `buildings.json` DATA, not a Python
+  default** — "general balancing info" alongside a type's other tunables, so a
+  designer can flip it without touching code. `starts_unlocked_for(btype,
+  buildings_balance)` reads it live off the leaf's own `SUBTREE` group node
+  (`<group>.starts_unlocked`), the same convention `era_unlock_round` already
+  uses; a spec overrides the path only when the default derivation is wrong (the
+  boost trio shares ONE flag at `BoostBuildings.globals.starts_unlocked`, since
+  their own `SUBTREE`s are `Speed`/`Damage`/`HP`). `RunState.from_balance(core,
+  buildings)` seeds `unlocked_buildings` from it ONCE at run start — it is not
+  re-read live thereafter. **Only `defence` (Stone Thrower) and `economic`
+  (Flute Player) start unlocked; every other type is locked from round 1**,
+  including `blocker`/`meditator`/`wall_builder`, which used to default
+  unlocked — a deliberate balance change, not a bug.
 - **Three gates stack**, all read live from `buildings.json`: the type unlock
-  (`RunState.unlocked_buildings`), the **era gate** `<group>.era_unlock_round`, and
-  the per-tier `tiers[idx].unlock_min_round`. Only the SINGLE next locked tier
+  (`RunState.unlocked_buildings`, seeded from `starts_unlocked_for` above), the
+  **era gate** `<group>.era_unlock_round`, and the per-tier
+  `tiers[idx].unlock_min_round`. Only the SINGLE next locked tier
   (`idx == tiers_unlocked`) is ever offerable. Research is GLOBAL per type.
   `<group>.era_unlock_round` is the ONE canonical era key (10A lifted it off the
   tier dicts onto the group).
-- **10B rows** (`aoe_defence`, `sun_scorcher`) are both `starts_unlocked=False`
-  (earned via a level-up unlock card). Maw Mortar uses
+- **10B rows** (`aoe_defence`, `sun_scorcher`) both start locked (earned via a
+  level-up unlock card). Maw Mortar uses
   `gate_kind="min_village_level"` reading a NEW `AOEDefence.unlock_min_village_level`
   key (value 1 — offered from the first level-up; the prototype had it only as a
   `.py` constant, absent from the live JSON 9A migrated, so 10B added it to

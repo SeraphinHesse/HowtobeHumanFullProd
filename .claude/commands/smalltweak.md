@@ -1,7 +1,7 @@
 ---
 description: Make a small, self-contained game tweak directly — no plan phase, no dispatch handoff. For anything bigger, use /createplan or a dispatched form.
 argument-hint: <what to tweak>
-allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git switch*), Bash(git pull*), Bash(py tools/smoke.py*), Bash(py -m unittest*), Read, Edit, Write
+allowed-tools: Bash(git rev-parse*), Bash(git status*), Bash(git diff*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git switch*), Bash(git pull*), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*), Read, Edit, Write
 ---
 
 Make a small, self-contained tweak: **$ARGUMENTS**. Use this only for changes
@@ -19,8 +19,11 @@ too small to warrant a plan phase or a dispatched form.
 1. Make the edit. If it turns out to be non-trivial — multi-package, or an
    architectural change — STOP and tell the user to run `/createplan` (or
    dispatch the matching "Add new X" form via the editor) instead.
-2. Run the exit gate: `py -m unittest discover -s tools/tests -t .` and
-   `py tools/smoke.py`. No NEW failures vs the branch's baseline; smoke green.
+2. Run the exit gate: `py tools/testgate.py check` and
+   `py tools/smoke.py`. The suite is GREEN — 0 failures; smoke green.
+   (This full run is deliberate — the tweak ships directly, so this is the
+   once-at-handoff check from CLAUDE.md Step 2. If you're still iterating,
+   use `--affected` and save the full check for here.)
 3. `git status`, summarize, and **wait for explicit confirmation** before
    committing.
 4. On confirmation, commit + push per the branch logic above. Report what

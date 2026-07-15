@@ -17,6 +17,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import jsonschema  # noqa: E402
 import pygame  # noqa: E402
 
+from engine.assets import nine_slice  # noqa: E402
 from engine.assets.manifest import load_manifest  # noqa: E402
 from engine.data_io import write_validated  # noqa: E402
 from engine.render import backend  # noqa: E402
@@ -274,6 +275,99 @@ class TestCache(NineSliceCase):
         by_key = backend._scale_cache[self.src]
         self.assertEqual(sorted(map(str, by_key)),
                          sorted(["(20, 20)", str(("9p", (20, 20), MARGINS))]))
+
+
+class TestClampPairSharedWithBackend(unittest.TestCase):
+    """A8: engine/render/backend.py deleted its local `_clamp_pair` and now
+    imports `engine.assets.nine_slice.clamp_pair` — the SAME function object,
+    not a reimplementation, so forward compositing and the hit-test inverse
+    below can never drift apart."""
+
+    def test_backend_clamp_pair_is_the_shared_pure_function(self):
+        self.assertIs(backend._clamp_pair, nine_slice.clamp_pair)
+
+
+class TestDestToSource(unittest.TestCase):
+    """`nine_slice.dest_to_source` — the exact piecewise inverse of
+    `_nine_patch`'s band layout (A8). Source 6x6, dest 20x20, margins
+    (2,2,2,2) throughout, matching TestGeometry's fixture above."""
+
+    SRC = (6, 6)
+    DEST = (20, 20)
+    MARGINS = (2, 2, 2, 2)
+
+    def test_dest_to_source_corners_map_1_to_1_leading_end(self):
+        for pos in ((0, 0), (1, 1), (2, 2)):
+            self.assertEqual(
+                nine_slice.dest_to_source(pos, self.DEST, self.SRC, self.MARGINS),
+                pos)
+
+    def test_dest_to_source_corners_map_1_to_1_trailing_end(self):
+        cases = {(19, 19): (5, 5), (18, 18): (4, 4), (17, 17): (3, 3)}
+        for pos, expected in cases.items():
+            self.assertEqual(
+                nine_slice.dest_to_source(pos, self.DEST, self.SRC, self.MARGINS),
+                expected)
+
+    def test_dest_to_source_centre_scales_by_band_width_ratio(self):
+        # centre band: source [2,4), dest [2,18); 2 + (10-2)*2//16 = 3
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, self.MARGINS),
+            (3, 3))
+
+    def test_dest_to_source_degenerate_margins_clamp_without_raising(self):
+        # margins (5,5,5,5) into a 6px source and a 2px dest — must not raise
+        for pos in ((0, 0), (1, 1), (1, 0), (0, 1)):
+            sx, sy = nine_slice.dest_to_source(pos, (2, 2), (6, 6), (5, 5, 5, 5))
+            self.assertTrue(0 <= sx < 6)
+            self.assertTrue(0 <= sy < 6)
+
+    def test_dest_to_source_none_margins_are_plain_scale(self):
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, None),
+            (3, 3))   # 10*6//20 == 3
+
+    def test_dest_to_source_zero_margins_are_plain_scale(self):
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, (0, 0, 0, 0)),
+            (3, 3))
+
+    def test_dest_to_source_out_of_bounds_clamps(self):
+        # the function itself never checks dest bounds (pure, no crash) —
+        # it just keeps computing; the RESULT still lands somewhere sane.
+        sx, sy = nine_slice.dest_to_source((-1, 5), self.DEST, self.SRC,
+                                           self.MARGINS)
+        # negative rel_x: left-corner branch, 1:1 (sx == rel_x, unclamped);
+        # rel_y=5 lands in the centre row band: 2 + (5-2)*2//16 == 2
+        self.assertEqual((sx, sy), (-1, 2))
+        sx, sy = nine_slice.dest_to_source((25, 25), self.DEST, self.SRC,
+                                           self.MARGINS)
+        # 25 >= dw - dr (18) -> trailing-corner branch: sw - (dw - rel) = 6-(20-25)=11
+        self.assertEqual((sx, sy), (11, 11))
+
+
+class TestDestToSourceGeometry(NineSliceCase):
+    """Composite cross-check: render the synthetic 3-colour sheet through the
+    REAL `backend._nine_patch`, then verify `dest_to_source` maps a grid of
+    interior points on each band back to a source pixel of the SAME colour
+    the composite actually drew there (±1px tolerance at band seams, since
+    edges/centre are resampled)."""
+
+    def assert_matches_composite(self, target, dx, dy, margins):
+        sx, sy = nine_slice.dest_to_source((dx, dy), (20, 20), (6, 6), margins)
+        expected = target.get_at((dx, dy))[:3]
+        actual = self.src.get_at((sx, sy))[:3]
+        self.assertEqual(actual, expected,
+                         f"dest {(dx, dy)} -> source {(sx, sy)}")
+
+    def test_interior_points_on_each_band_agree_with_the_composite(self):
+        target = draw_patch(self.src, (20, 20))   # margins=MARGINS default
+        # (5,5) centre, (1,10) left edge, (10,1) top edge, (18,10) right edge,
+        # (10,18) bottom edge, and all four corners well inside their 2px box
+        for dx, dy in ((5, 5), (1, 10), (10, 1), (18, 10), (10, 18),
+                       (0, 0), (19, 0), (0, 19), (19, 19)):
+            with self.subTest(pos=(dx, dy)):
+                self.assert_matches_composite(target, dx, dy, MARGINS)
 
 
 class TestSchemaRoundTrip(unittest.TestCase):

@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Health, Scene
@@ -25,10 +26,10 @@ from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import PathAgent
 from game.map.tile_map import TileMap
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
@@ -79,7 +80,7 @@ def frame(session, scene, tilemap_, dt):
 # ---------------------------------------------------------------------------
 class TestRunState(unittest.TestCase):
     def test_seeded_from_core_balance(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         self.assertEqual(st.love, CORE["General"]["starting_currency"])
         self.assertEqual(st.base_lives, HOLE["base_lives"])
         self.assertEqual(st.round_num, 1)          # prototype inits round 1
@@ -87,7 +88,7 @@ class TestRunState(unittest.TestCase):
         self.assertEqual(st.state, GameState.GAMEPLAY)
 
     def test_love_clamps_at_zero(self):
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         st.spend_love(st.love + 100)
         self.assertEqual(st.love, 0)
         st.add_love(7)
@@ -108,7 +109,7 @@ class TestPayday(unittest.TestCase):
 
     def test_income_yield_upkeep_and_round_advance(self):
         tm, musician, defender = self._board()
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         love0 = st.love
         net = HOLE["base_income"] + musician.yield_amount() - defender.upkeep()
 
@@ -122,7 +123,7 @@ class TestPayday(unittest.TestCase):
     def test_roundstats_snapshot_rolls_over(self):
         tm, _musician, defender = self._board()
         defender.get_component(RoundStats).dmg_dealt_this_round = 37
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
 
         run_payday(st, tm, CORE)
 
@@ -134,7 +135,7 @@ class TestPayday(unittest.TestCase):
         tm, musician, defender = self._board()
         defender.get_component(Health).hp = 0
         self.assertFalse(defender.alive)
-        st = RunState.from_balance(CORE)
+        st = RunState.from_balance(CORE, BUILD)
         love0 = st.love
 
         run_payday(st, tm, CORE)
@@ -150,7 +151,7 @@ class TestPayday(unittest.TestCase):
         tm, _m, _d = self._board()
         base = tm.get(tm.base_col, tm.base_row).occupant
         base.get_component(Health).hp = 0
-        run_payday(RunState.from_balance(CORE), tm, CORE)
+        run_payday(RunState.from_balance(CORE, BUILD), tm, CORE)
         self.assertFalse(base.alive)  # base excluded from the revive sweep
 
 

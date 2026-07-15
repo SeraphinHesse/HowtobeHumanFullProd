@@ -101,13 +101,14 @@ class RunState:
     # -- /10H --
 
     @classmethod
-    def from_balance(cls, core_balance):
-        """Seed a fresh run from the ``core`` balancing domain + the RESEARCH
-        table (which decides what starts unlocked / researched)."""
+    def from_balance(cls, core_balance, buildings_balance):
+        """Seed a fresh run from the ``core`` + ``buildings`` balancing
+        domains + the RESEARCH table (which decides what starts researched;
+        what starts UNLOCKED is data, read live per type)."""
         # Local import: game.buildings.research is pure, but importing it at
         # module scope would run during game/core/__init__ (see research.py's
         # import-boundary note).
-        from game.buildings.research import RESEARCH
+        from game.buildings.research import RESEARCH, starts_unlocked_for
 
         hole, xp = core_balance["TheHole"], core_balance["XP"]
         return cls(
@@ -117,8 +118,8 @@ class RunState:
             xp_threshold_inc=xp["village_xp_threshold_inc"],
             tiers_unlocked={bt: s.starts_with_tier
                             for bt, s in RESEARCH.items()},
-            unlocked_buildings={bt: s.starts_unlocked
-                                for bt, s in RESEARCH.items()},
+            unlocked_buildings={bt: starts_unlocked_for(bt, buildings_balance)
+                                for bt in RESEARCH},
         )
 
     def add_love(self, amount):

@@ -1,7 +1,7 @@
-"""editor.asset_import (Phase 6 follow-up) — the pure single-frame-
-vocabulary import helper shared by the palette's "Import Spritesheet…"
-button and the tile migration tool. No Qt, no pygame — plain Pillow +
-engine.data_io, tested headlessly with a tempfile copy of data/.
+"""editor.asset_import (Phase 6 follow-up) — the pure single-frame-vocabulary
+import helper behind the palette's "Import Spritesheet…" button. No Qt, no
+pygame — plain Pillow + engine.data_io, tested headlessly with a tempfile copy
+of data/.
 """
 import tempfile
 import unittest
@@ -9,7 +9,13 @@ from pathlib import Path
 
 from PIL import Image
 
-from editor.asset_import import import_idle_sheet
+from editor.asset_import import (
+    import_idle_sheet,
+    imported_sheets,
+    sheet_ref,
+    sheet_users,
+    unreferenced_sheets,
+)
 from engine import data_io
 from engine.assets import load_registry
 from tools.tests.test_editor_panels import TempDataCase
@@ -89,8 +95,8 @@ class TestImportIdleSheet(AssetImportCase):
             self.assertEqual(image.size, (128, 96))
 
     def test_big_enough_sheet_is_copied_byte_identically(self):
-        """The shutil.copyfile path stays untouched — migrate_prototype_assets
-        is idempotent only because an already-big-enough sheet is not re-encoded."""
+        """The shutil.copyfile path stays untouched — an already-big-enough sheet
+        is never re-encoded, so a re-import produces no spurious diff."""
         src = make_png(self.png_dir / "tile.png", 64, 32)
         import_idle_sheet(self.data_dir, self.registry, "tile_ocean", src)
         copied = self.data_dir / "sprites" / "imported" / "tile_ocean.png"
@@ -114,6 +120,86 @@ class TestImportIdleSheet(AssetImportCase):
         entries = self.manifest_doc()["entries"]
         self.assertIn("tile_ocean", entries)
         self.assertIn("tile_cliff", entries)
+
+
+class TestSheetSharing(AssetImportCase):
+    """The refcount behind "Use Spritesheet…" — a manifest entry's `sheet` is a
+    real path the engine resolves as-is, so two slots may share ONE PNG and
+    deleting art has to ask who else is using it first."""
+
+    def link(self, slot_key, ref):
+        """Point a slot's entry at `ref` without copying anything — what
+        DetailsPanel.use_sheet does on Save."""
+        doc = data_io.load_json(
+            self.data_dir / "sprites" / "asset_manifest.json")
+        doc["entries"][slot_key] = {
+            "sheet": ref, "frame_w": 64, "frame_h": 96,
+            "offset_x": 0, "offset_y": 0,
+            "rows": [{"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
+                      "loop_start": 0, "loop_end": 0, "loop_count": 1}],
+        }
+        data_io.write_validated(
+            doc, self.data_dir / "sprites" / "asset_manifest.json",
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+
+    def test_sheet_users_finds_every_slot_pointing_at_one_sheet(self):
+        src = make_png(self.png_dir / "art.png", 64, 96)
+        import_idle_sheet(self.data_dir, self.registry, "deco_rock", src)
+        self.link("deco_rock_v2", sheet_ref("deco_rock"))
+        doc = self.manifest_doc()
+        self.assertEqual(sheet_users(doc, sheet_ref("deco_rock")),
+                         ("deco_rock", "deco_rock_v2"))
+
+    def test_sheet_users_is_empty_for_an_unreferenced_png(self):
+        self.assertEqual(sheet_users(self.manifest_doc(), "imported/nope.png"),
+                         ())
+
+    def test_unreferenced_sheets_keeps_shared_art_and_collects_the_rest(self):
+        src = make_png(self.png_dir / "art.png", 64, 96)
+        import_idle_sheet(self.data_dir, self.registry, "deco_rock", src)
+        self.link("deco_rock_v2", sheet_ref("deco_rock"))
+        doc = self.manifest_doc()
+        # deco_rock's own PNG is still used (by BOTH slots); a made-up one isn't.
+        self.assertEqual(
+            unreferenced_sheets(doc, [sheet_ref("deco_rock"),
+                                      "imported/orphan.png"]),
+            ("imported/orphan.png",))
+
+    def test_unreferenced_sheets_dedupes_its_candidates(self):
+        ref = "imported/gone.png"
+        self.assertEqual(unreferenced_sheets(self.manifest_doc(), [ref, ref]),
+                         (ref,))
+
+    def test_imported_sheets_annotates_each_png_with_its_users(self):
+        src = make_png(self.png_dir / "art.png", 3 * 64, 96)
+        import_idle_sheet(self.data_dir, self.registry, "deco_rock", src)
+        self.link("deco_rock_v2", sheet_ref("deco_rock"))
+        found = {s.ref: s for s in imported_sheets(self.data_dir)}
+        sheet = found[sheet_ref("deco_rock")]
+        self.assertEqual((sheet.width, sheet.height), (192, 96))
+        self.assertEqual(sheet.users, ("deco_rock", "deco_rock_v2"))
+        self.assertEqual(sheet.grid(64, 96), (3, 1))
+        self.assertTrue(sheet.fits(64, 96))
+
+    def test_imported_sheets_lists_orphans_so_the_art_is_recoverable(self):
+        """A PNG no entry references still shows in the picker — re-linking a
+        slot away from art it owned must not make that art unreachable."""
+        orphan = self.data_dir / "sprites" / "imported" / "zz_orphan.png"
+        make_png(orphan, 64, 96)
+        found = {s.ref: s for s in imported_sheets(self.data_dir)}
+        self.assertIn("imported/zz_orphan.png", found)
+        self.assertEqual(found["imported/zz_orphan.png"].users, ())
+
+    def test_fits_rejects_a_sheet_that_does_not_divide_into_whole_frames(self):
+        """The picker's default filter: a 64x32 tile sheet is not offered for a
+        64x96 building slot (it still LINKS if you ask — it just re-slices)."""
+        tile = self.data_dir / "sprites" / "imported" / "zz_tile.png"
+        make_png(tile, 64, 32)
+        sheet = {s.ref: s for s in imported_sheets(self.data_dir)}[
+            "imported/zz_tile.png"]
+        self.assertTrue(sheet.fits(64, 32))
+        self.assertFalse(sheet.fits(64, 96))    # 32 < one 96px frame
+        self.assertEqual(sheet.grid(64, 96), (1, 0))
 
 
 if __name__ == "__main__":

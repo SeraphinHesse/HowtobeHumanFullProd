@@ -55,7 +55,28 @@ import list.**
   header; depth-1 groups start expanded, deeper collapsed), array of objects → one
   collapsed sub-section per index titled `[i] — <name>` when the item has a `name`
   field, array of scalars → one row per index (**fixed length** — no add/remove
-  rows; `random_names` grows via the game's 9H add-name menu). Scalar leaves:
+  rows; `random_names` grows via the game's 9H add-name menu).
+  - **Arrays of OBJECTS get `+ Row` / `− Row` (ER-5), gated ENTIRELY by the
+    schema**: `can_add = "maxItems" not in node or len(items) < maxItems`,
+    `can_remove = len(items) > minItems`. Every array that predates ER-5
+    (`tiers`, `scale_tiers`, `round_counts`) has `minItems == maxItems`, so it
+    shows **no buttons and is byte-identical** — that gate is the whole
+    compatibility argument. `death_spawn.spawns` (`minItems: 1`, no `maxItems`)
+    is the first genuinely resizable array: a per-era spawn table for a type that
+    ships with one row. **Add COPIES THE LAST ROW** (the doc validated on load, so
+    a copy is schema-valid by construction — no default-instance synthesis, no
+    guessing at `pattern`/`minLength`); **remove pops the LAST row**, never a
+    middle one, because these arrays are era-INDEXED and removing `[1]` would
+    silently renumber every era after it. Both stage into `self._doc` like any
+    other edit and re-dirty on the ARRAY path — `_refresh_dirty` compares whole
+    subtrees, so add-then-remove cleans itself back up, and `_dots.get()` is
+    None-safe for a path with no dot widget. Then the form REBUILDS, which is why
+    `_rebuild_form` re-shows the dots of everything still in `self._dirty`: fresh
+    widgets start with the dot hidden, and a rebuild that is not a domain switch
+    would otherwise drop the pending marks of every other staged edit. The buttons
+    carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
+    WHICH arrays are resizable. Scalar arrays keep their fixed length.
+  Scalar leaves:
   integer → `QSpinBox`, number → `QDoubleSpinBox` (4 decimals; ranges from schema
   `minimum`/`maximum` — invalid input unrepresentable, ED-30), `enum` → `QComboBox`
   (typed `itemData`), boolean → `QCheckBox`, string → `QLineEdit` (commit on
@@ -174,13 +195,84 @@ import list.**
     already rolls a random variant per spawn across an era's slots, and a deco
     placement stores its CONCRETE slot in the map file.
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer parity
-  (ED-40/41). The sheet PNG is copied to `data/sprites/imported/<slot>.png` AT
-  IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear
-  (confirm dialog in UI; `clear_entry(confirm=False)` for tests) removes entry +
-  PNG. Row 0's animation combo is locked to `["idle"]` — the E-35 rule is
-  UNREPRESENTABLE in the UI, not a save-time error. Frame sizes + animation
-  vocabularies come from the registry per slot. No pygame here; Pillow reads sheet
-  dimensions.
+  (ED-40/41). A *file* import copies the PNG to `data/sprites/imported/<slot>.png`
+  AT IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear
+  (confirm dialog in UI; `clear_entry(confirm=False)` for tests) removes the entry
+  + any PNG it leaves unreferenced. Row 0's animation combo is locked to `["idle"]`
+  — the E-35 rule is UNREPRESENTABLE in the UI, not a save-time error. Frame sizes +
+  animation vocabularies come from the registry per slot. No pygame here; Pillow
+  reads sheet dimensions.
+  - **Nine-slice margins (10L-A)**: 4 spinboxes (L/T/R/B), **ui category only**
+    (gated on `self._context[0]`, `_slice_applies`), bounded by the slot's frame
+    size (`registry.frame_size`, L/R capped at `frame_w`, T/B at `frame_h`),
+    writing the optional manifest `slice` field. **All-zero ⇒ the key is
+    omitted** — a slot with no nine-slice keeps a byte-identical entry, and
+    zeroing the four spins and re-saving un-slices a previously-sliced slot
+    (`save()` replaces the whole entry). Nine-slice is drawn on the HUD path
+    only — the entity preview (`RenderItem`) deliberately ignores it; a
+    `slice`-carrying draft still parses and previews as a plain scaled sprite.
+  - **`ui` variants = skins**: the `ui` category's leaves offer "+ Variant"
+    (`MainWindow._VARIANT_TARGETS`, added in A3) → `ui_button_v2`, …, i.e. one
+    slot per button skin; its 4-row vocab is `idle/hover/pressed/disabled` (row
+    0 locked to idle as everywhere).
+  - **A slot's sheet is NOT `imported/<slot>.png`.** "Use Spritesheet…"
+    (`panels/sheet_picker.py`) LINKS a slot to art already imported: the entry's
+    `sheet` points at another slot's PNG and no bytes are copied, so one file backs
+    many slots. The engine already resolved `sprites_dir / entry.sheet` verbatim
+    (`engine/assets/store.py`) and the schema pattern always allowed it — the only
+    thing that ever assumed otherwise was this panel. Read `self._sheet_ref` (from
+    the entry); `imported/<slot>.png` is only the fresh-import destination and the
+    no-entry fallback. **Clear refcounts before unlinking**
+    (`asset_import.sheet_users` / `unreferenced_sheets`) — deleting a shared PNG
+    blanks every other slot using it. Sheet-sharing rules live in `data/CLAUDE.md`.
+  - **Static rows are DERIVED, never stored.** A row's "Static — don't animate"
+    checkbox is a view of the manifest's existing `hidden` array (hide every column
+    but one): `playback_order` drops hidden frames AFTER loop expansion, so a
+    one-visible-frame row is already a still sprite. No schema key, no editor-only
+    state, and a static row built by hand with the old checkboxes re-opens as
+    static. `RowEditor.effective_hidden()` is the ONE place the array is computed —
+    `to_dict` and the preview both call it, so they cannot disagree. A 1-frame row
+    is deliberately not auto-static (nothing to disable). The loop spins grey out
+    when static but keep their values: a loop over one visible frame is meaningless,
+    not harmful, and rewriting a designer's numbers behind their back is worse.
+  - **`panels/sheet_preview.py` draws a raw PNG, and that does NOT break ED-22.**
+    The one-render-path rule bans a second Qt-side renderer of GAME CONTENT — the
+    animated preview stays in the viewport, through `engine/render`. SheetPreview
+    inspects the importer's own input file (no slot, no animation, no time
+    resolved), like a thumbnail in a file dialog. `viewport.slot_qimage` can't serve
+    here: it only ever yields the resolved idle frame, not an arbitrary frame or the
+    sheet. Clicking a cell routes through that row's own `RowEditor`
+    (`set_static_frame` / `toggle_hidden`), never a parallel state store, which is
+    what keeps the checkboxes and the picture in sync. Each cell is captioned with
+    its COLUMN index (white on a dark plate — it lands on arbitrary art, so a plain
+    colour would be invisible against some sheet), the same number the hide
+    checkboxes, the static radios and the manifest's `hidden`/`loop_start`/
+    `loop_end` speak. `labels_visible()` drops them below `LABEL_MIN_CELL` px,
+    where the plate would cover the frame it labels.
+  - **Per-slot frame size (ER-5) is a TWO-FILE write, and that is not optional.**
+    Frame size is a CATEGORY property; ER-1 added an optional per-slot override in
+    `data/slots.json` (`{key, frame_w, frame_h}` beside the bare-string form), and
+    the `Frame W/H` spinboxes are the only way to author it — `registry_ops
+    .set_slot_frame_size` (pure, `write_validated`, `TestPurity`). Writing the
+    CATEGORY's own size back removes the override (bare string again): that is how
+    "reset to default" is expressed, and it keeps slots.json free of overrides that
+    override nothing. **But `AssetStore.frame_size` resolves manifest entry >
+    registry**, so a slot that already has an entry carries its own
+    `frame_w`/`frame_h` and would keep rendering at the OLD size no matter what
+    slots.json says. So the handler writes the override, reloads every cached
+    registry (`registry_changed` → `MainWindow._reload_registries`, same path the
+    `+ Variant` writes use), **re-cuts the sheet at the new size and re-saves the
+    entry**. Leaving the two files disagreeing on disk is the failure mode the
+    method exists to prevent. It commits on `editingFinished` (not `valueChanged`
+    — typing "128" would otherwise write three times) and works with **no sheet
+    imported**, which is the point: declaring the frame size BEFORE the import is
+    what the importer slices and pads against.
+  - **Clear's confirm dialog only fires because the connect is wrapped**
+    (`clicked.connect(lambda: self.clear_entry())`). It was connected directly for
+    months, so `clicked(bool checked=False)` landed in the `confirm=True` kwarg and
+    Clear deleted the entry + PNG with NO dialog — the exact footgun recorded below
+    for map_details' Delete, live in a second panel. Pinned by
+    `TestClearAsksFirst`.
 - **One render path (ED-22)**: the ONLY animated preview is the viewport. Every
   Details edit emits `draft_changed(slot, entry_dict)` → `viewport.set_preview_draft`
   overrides that slot in an in-memory manifest (never disk) + rebuilds

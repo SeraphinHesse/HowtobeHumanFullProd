@@ -1,5 +1,14 @@
 # EnemyReworkPLAN.md — enemy sizing, footprints, and breakable formations
 
+> ## ⚠ The parity obligations in this doc are VOID (2026-07-14)
+>
+> Written while the prototype migration was live. **It is complete.** Every
+> instruction below to update `tools/tests/balancing_parity_map.json`, to keep
+> `test_balancing_parity` green, or to retag a moved key `DROPPED:` — **skip
+> it**: that test, that map, and the whole `migration` tier are deleted. Moving,
+> renaming, retuning or dropping a balancing value now needs nothing but a valid
+> schema. The rest of the plan (the phases, the engine/game work) stands.
+
 Phased, agent-executable plan (same family as `EngineBuildPLAN.md` /
 `MIGRATION_PLAN.md` / `AgentDispatchPLAN.md`). Base branch: `Development`.
 Runnable via `/execute-plan-phases planning/EnemyReworkPLAN.md ER-1-ER-5` or
@@ -153,7 +162,7 @@ Exploration of the live code, not assumption:
 | ER-2 | Footprint clearance pathing (2×2 enemies) | done |
 | ER-3 | Generalised toggleable `death_spawn` (Boss re-expressed) | done |
 | ER-4 | The `Formation` enemy type (128×128, footprint 2, breaks at 50%) | done |
-| ER-5 | Editor surfacing + docs | not started |
+| ER-5 | Editor surfacing + docs (+ both carried-over defects) | done |
 
 **ER-1..ER-4 shipped together** (branch `phase-ER-1-ER-4-umbrella`). Three
 corrections to this document that the phases made, recorded so the text below is
@@ -171,15 +180,15 @@ not read as still authoritative:
   are only understood by the main mapping table; the `_py_only` consumer indexes
   `entry["path"]` and raises on a string. Those entries were deleted, not retagged.
 
-Known issues carried out of this batch (neither is a regression — both are
-pre-existing or cosmetic, and both are candidates for ER-5 or a follow-up):
+Both issues carried out of that batch were **fixed in ER-5** (see its section):
 
-- **A death on a wave's LAST frame ends the round before its children appear.**
-  `Scene.spawn()` only queues, so the wave-clear check cannot see them. The Boss
-  has always done this; ER-4's Formations will hit it far more often.
-- **Even footprints draw 16px above their logical block centre** (zero horizontal
-  error). Cosmetic only — pathing uses the anchor, combat the block centre. The fix
-  is engine-side and wants its own phase.
+- ~~A death on a wave's LAST frame ends the round before its children appear.~~
+  Fixed: the wave-clear check now also consults `Scene.queued_by_tag("enemy")`.
+- ~~Even footprints draw 16px above their logical block centre.~~ Fixed:
+  `engine.render.block_center_offset` draws a `fit_tiles`-wide unit on its block
+  centre. (The plan's "even footprints" framing was imprecise — the error is
+  `(N−1) · tile_h/2`, i.e. zero only at N=1, and 32px at N=3. Horizontal error is
+  zero for every N, which is why it read as "floating" rather than "misplaced".)
 
 ---
 
@@ -365,27 +374,48 @@ walks around single-tile gaps, and at half HP bursts into a cluster of walkers a
 
 ---
 
-### Phase ER-5 — Editor surfacing + docs
+### Phase ER-5 — Editor surfacing + the two carried-over defects — DONE
 
-Branch: `phase-ER-5-editor`. Packages: **editor**.
+Branch: `phase-ER-5`. Packages: **editor + engine + game** (the scope grew — see
+below). Docs updated: `editor/panels/CLAUDE.md`, `engine/render/CLAUDE.md`,
+`engine/core/CLAUDE.md`, `game/core/CLAUDE.md`.
 
 **Goal**: a designer can tune all of the above without hand-editing JSON.
 
-The balancing panel is already recursive and schema-driven
-(`editor/panels/balancing.py`), so `footprint`, `sprite_scale` and the whole
-`death_spawn` block **surface for free** — this phase verifies that (ranges,
-the `enabled` checkbox, the nested `spawns` form) and adds the one thing the
-editor genuinely cannot do today: **per-slot frame size**, next to the existing
-offset X/Y spinboxes in the details panel, written through
-`engine.data_io.write_validated`.
+What the exploration found, and what changed as a result:
 
-Any new editor module must join `test_editor_viewport.TestPurity`'s import list
-(editor hard rule).
+- **"Surfaces for free" was TRUE for the scalars, FALSE for array cardinality.**
+  `footprint`, `sprite_scale` and every leaf of `death_spawn` already reached the
+  designer as real, range-bounded widgets — verified by tracing each through the
+  panel's type switch, and now pinned by a test. But `_build_array` rendered one
+  section per row *already in the JSON* and had **no add/remove affordance**, so a
+  1-row type could never be given a per-era `spawns` table. ER-5 adds **`+ Row` /
+  `− Row` for arrays of objects, gated entirely by the schema's `minItems`/
+  `maxItems`** — every pre-existing array (`tiers`, `scale_tiers`, `round_counts`)
+  has `minItems == maxItems` and is therefore untouched. Add copies the last row
+  (schema-valid by construction); remove pops the last (these tables are
+  era-INDEXED).
+- **Per-slot frame size is a TWO-FILE write.** The widget lands next to the offset
+  spinboxes as planned, but `AssetStore.frame_size` resolves **manifest entry >
+  registry**, so writing the `slots.json` override alone leaves an imported slot
+  rendering at its old size. The handler writes the override, reloads the
+  registries, **re-slices the sheet and re-saves the manifest entry**.
+- **Both known issues were fixed here** (user's call), which pulled `engine/` and
+  `game/` into an "editor" phase:
+  - *Wave-clear race*: `Scene.queued_by_tag(tag)` (engine) + the wave-clear
+    condition consulting it (`game/core/session.py`). It was a REAL bug for the
+    10G boss from day one, not merely a latent one for Formations.
+  - *Multi-tile render offset*: `engine.render.block_center_offset` — a `fit_tiles`
+    unit draws on its block centre. A provable no-op at `fit_tiles` 0 and 1, so
+    buildings/tiles/deco/HUD and every 1-tile enemy are byte-identical. The game's
+    overhead HP bars call the same expression rather than restating it.
 
-**Exit gate**: the two gate commands, plus a live `py editor/main.py` pass over
-the enemies domain — change a footprint, a `sprite_scale` and a `death_spawn`
-toggle, save, and confirm the JSON on disk validates and a Play subprocess loads it.
-**Docs**: `editor/CLAUDE.md`, `editor/panels/CLAUDE.md`.
+**Formation.footprint is deliberately 1**, not the 2 that ER-4 shipped — a designer
+balance change (commit `111b694`) that ER-5 deliberately did not revert. **No enemy
+in `data/` therefore has a footprint > 1 today**, which means ER-2's clearance
+pathing and ER-5's block-centre fix are correct but DORMANT: both are covered by
+unit tests, and neither can be seen in a live round until some type's footprint is
+raised in the editor.
 
 ---
 

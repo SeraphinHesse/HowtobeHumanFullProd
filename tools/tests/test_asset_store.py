@@ -36,6 +36,18 @@ def make_sheet(path, cols=3, rows=2):
     pygame.image.save(sheet, str(path))
 
 
+def make_hole_sheet(path, cols=1, rows=1):
+    """Every frame: fully opaque except pixel (0, 0), which is fully
+    transparent — a single 'hole' to hit-test against."""
+    sheet = pygame.Surface((cols * FRAME_W, rows * FRAME_H), pygame.SRCALPHA)
+    sheet.fill((255, 0, 0, 255))
+    for r in range(rows):
+        for c in range(cols):
+            sheet.set_at((c * FRAME_W, r * FRAME_H), (255, 0, 0, 0))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pygame.image.save(sheet, str(path))
+
+
 def entry(slot="tower", frames=(3, 2), offset=(0, 0), slice_=None):
     rows = [{"animation": "idle", "frames": frames[0], "fps": 8,
              "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}]
@@ -120,6 +132,72 @@ class TestSlicing(SheetCase):
         with self.assertLogs("engine.assets.store", level="WARNING"):
             frame = store.frame("tower", "idle", 0)
         self.assertIsNone(frame.slice)
+
+    # ── hit_opaque (A8, pixel-perfect hit test) ─────────────────────────
+
+    def test_hit_opaque_returns_false_for_transparent_pixel(self):
+        make_hole_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,)))
+        self.assertFalse(store.hit_opaque(
+            "tower", rel_xy=(0, 0), dest_size=(FRAME_W, FRAME_H)))
+
+    def test_hit_opaque_returns_true_for_opaque_pixel(self):
+        make_hole_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,)))
+        self.assertTrue(store.hit_opaque(
+            "tower", rel_xy=(1, 1), dest_size=(FRAME_W, FRAME_H)))
+
+    def test_hit_opaque_placeholder_returns_true(self):
+        store = self.store()   # empty manifest -> PLACEHOLDER
+        self.assertTrue(store.hit_opaque("nope", dest_size=(10, 10)))
+
+    def test_hit_opaque_missing_sheet_returns_true(self):
+        store = self.store(entry(frames=(1,)))   # no PNG written
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            self.assertTrue(store.hit_opaque(
+                "tower", dest_size=(FRAME_W, FRAME_H)))
+
+    def test_hit_opaque_corrupt_sheet_returns_true(self):
+        png = self.sprites_dir / "imported" / "tower.png"
+        png.parent.mkdir(parents=True, exist_ok=True)
+        png.write_bytes(b"this is not a png")
+        store = self.store(entry(frames=(1,)))
+        with self.assertLogs("engine.assets.store", level="WARNING"):
+            self.assertTrue(store.hit_opaque(
+                "tower", dest_size=(FRAME_W, FRAME_H)))
+
+    def test_hit_opaque_mask_is_cached_per_frame(self):
+        make_hole_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,)))
+        store.hit_opaque("tower", rel_xy=(1, 1), dest_size=(FRAME_W, FRAME_H))
+        store.hit_opaque("tower", rel_xy=(2, 2), dest_size=(FRAME_W, FRAME_H))
+        self.assertEqual(len(store._hit_masks), 1)
+
+    def test_hit_opaque_different_frames_have_different_masks(self):
+        make_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry())   # idle (row 0) + attack (row 1)
+        store.hit_opaque("tower", animation="idle", dest_size=(FRAME_W, FRAME_H))
+        store.hit_opaque("tower", animation="attack", dest_size=(FRAME_W, FRAME_H))
+        self.assertEqual(sorted(store._hit_masks),
+                         sorted([("tower", 0, 0), ("tower", 1, 0)]))
+        # same key shape as _frames (store.py's existing subsurface cache)
+        self.assertEqual(sorted(store._frames), sorted(store._hit_masks))
+
+    def test_hit_opaque_at_stretched_dest(self):
+        make_hole_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,), slice_=[2, 2, 2, 2]))
+        # corner pixel maps 1:1 -> (0, 0) is still the hole -> miss
+        self.assertFalse(store.hit_opaque(
+            "tower", rel_xy=(0, 0), dest_size=(20, 20)))
+        # centre pixel maps into the source centre, well away from the hole
+        self.assertTrue(store.hit_opaque(
+            "tower", rel_xy=(10, 10), dest_size=(20, 20)))
+
+    def test_hit_opaque_out_of_bounds_returns_false(self):
+        make_hole_sheet(self.sprites_dir / "imported" / "tower.png")
+        store = self.store(entry(frames=(1,)))
+        self.assertFalse(store.hit_opaque(
+            "tower", rel_xy=(100, 100), dest_size=(20, 20)))
 
 
 class TestFrameSizePrecedence(SheetCase):

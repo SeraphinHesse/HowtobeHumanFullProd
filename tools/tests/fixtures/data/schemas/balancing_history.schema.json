@@ -1,0 +1,43 @@
+{
+  "$id": "balancing_history.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "data/balancing_history/<domain>.json (schema-pairing exception, same pattern as map_file.schema.json): a flat, newest-first, unbounded log of full-document snapshots for one balancing domain, appended only by the editor's explicit Save Balancing Changes action. 'snapshot' is deliberately an unconstrained object -- it is a verbatim copy of a domain document that already validated against that domain's own schema at save time, so re-validating its shape here is redundant (this file is an audit log, not gameplay balancing data, so D-12's per-property minimum/maximum/description rule does not apply to its contents).",
+  "items": {
+    "additionalProperties": false,
+    "properties": {
+      "description": {
+        "description": "Optional free-text note entered at save time.",
+        "type": "string"
+      },
+      "id": {
+        "description": "Stable uuid4 identifying this history entry.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "name": {
+        "description": "Required session name entered at save time.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "snapshot": {
+        "description": "Full domain document as written to data/balancing/<domain>.json at save time.",
+        "type": "object"
+      },
+      "timestamp": {
+        "description": "ISO 8601 local timestamp (YYYY-MM-DDTHH:MM:SS) of the save.",
+        "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "timestamp",
+      "name",
+      "description",
+      "snapshot"
+    ],
+    "type": "object"
+  },
+  "title": "balancing_history",
+  "type": "array"
+}

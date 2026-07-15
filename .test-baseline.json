@@ -1,0 +1,8 @@
+{
+  "sha": "798c6bb5ae1d9a3bcbf112177895500130cfb1d1",
+  "worktree": false,
+  "failures": [],
+  "skips": [
+    "tools/tests/test_editor_run_controls.py: a build already exists in this repo"
+  ]
+}

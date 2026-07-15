@@ -130,5 +130,17 @@ Port one domain at a time, prototype as spec: acceptance checklist → runnable 
 test vs live round vs static read).
 
 ## Verify before finishing
-Headless smoke test (`tools/smoke.py`) after every change; live `py game/main.py`
-round for phase/combat/UI behavior. If balance changed: schema validation passes.
+```bash
+py tools/smoke.py              # headless data validation + 5-frame boot
+py tools/testgate.py check     # the gate is ZERO failures — GATE PASS or you're not done
+```
+Then a live `py game/main.py` round for phase/combat/UI behavior. If balance
+changed: confirm schema validation passes — and that is all. **The prototype
+parity gate is deleted** (the migration is complete), so a balance value that
+diverges from the prototype needs no mapping entry, no `OVERRIDDEN` tag and no
+justification to a test. Retune freely; the schemas are the only guard rail.
+
+**Seed the RNG in any test whose outcome depends on it.** The spawner takes an
+injectable `rng` precisely so tests are deterministic; a test that used the bare
+`random` module failed roughly one run in ten for reasons unconnected to what it
+was measuring.

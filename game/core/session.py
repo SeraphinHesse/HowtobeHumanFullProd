@@ -82,9 +82,9 @@ class Session:
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
                buildings_balance, registry=None, rng=None, occupancy=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
-        return cls(RunState.from_balance(core_balance), spawner, tilemap,
-                   enemies_balance, core_balance, buildings_balance, registry,
-                   rng, occupancy)
+        return cls(RunState.from_balance(core_balance, buildings_balance),
+                   spawner, tilemap, enemies_balance, core_balance,
+                   buildings_balance, registry, rng, occupancy)
 
     @property
     def frozen(self):
@@ -294,12 +294,7 @@ class Session:
             return
         # -- ER-3: flush every death-spawn burst BEFORE the wave-clear check, so
         # the burst is submitted to the Spawner while the round is still live.
-        # KNOWN LIMITATION: `Scene.spawn` only QUEUES, and `by_tag` reads
-        # `_objects`, so the wave-clear check below CANNOT see children burst on
-        # this frame — a death on the final frame of a wave ends the round and
-        # the children materialise on the next `scene.update`. Pre-existing (10G
-        # behaves identically); rare for the Boss, common once ER-4's Formations
-        # land. Enemy construction stays in the Spawner.
+        # Enemy construction stays in the Spawner.
         if self._death_spawns_pending:
             pending = self._death_spawns_pending
             self._death_spawns_pending = []
@@ -309,8 +304,14 @@ class Session:
         if self._wipe_pending:
             self._wipe_round(scene)
             self._begin_round_end()
-        elif self.spawner.done and not any(
-                e.alive for e in scene.by_tag("enemy")):
+        elif (self.spawner.done
+                and not any(e.alive for e in scene.by_tag("enemy"))
+                # ER-5: children burst THIS frame are still in the scene's spawn
+                # queue (`spawn` only queues; the merge is the next `update`), so
+                # `by_tag` cannot see them. Without this the last enemy of a wave
+                # breaking into a swarm ends the round and orphans its children
+                # into it.
+                and not scene.queued_by_tag("enemy")):
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------

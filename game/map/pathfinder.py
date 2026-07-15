@@ -228,6 +228,17 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
     tm_weight = tilemap.weight
     dist = {}
     prev = {}
+    # `best` is the TENTATIVE distance map, and keeping it separate from `dist`
+    # (the SETTLED one) is load-bearing, exactly as in _build_flow_field. Guard
+    # the relax on `dist` instead and every relaxation of an unsettled node
+    # passes — `dist.get()` is inf until the node settles — so a LATER, WORSE
+    # relaxation happily overwrites `prev` with a worse parent. The goal still
+    # settles at the right cost (the heap pops it in order), but `_reconstruct`
+    # then walks the clobbered back-pointers and hands back a path that is not
+    # the one Dijkstra costed: on a pond board this returned a 23-cost route to
+    # a goal it had already reached at cost 12, doubling back through the water.
+    # That is a large part of the boss's "wandering" (BossPathfindingPLAN #3).
+    best = {(start_col, start_row): 0}
     heap = [(0, start_col, start_row)]
     reached = None
     while heap:
@@ -259,7 +270,8 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
                 if w is None:
                     continue
             nd = cost + w
-            if nd < dist.get((nc, nr), float("inf")):
+            if nd < best.get((nc, nr), float("inf")):
+                best[(nc, nr)] = nd
                 prev[(nc, nr)] = (col, row)
                 heapq.heappush(heap, (nd, nc, nr))
     if reached is None:
@@ -455,4 +467,68 @@ def find_path_to_nearest_building(tilemap, start_col, start_row, footprint=1):
     none exist."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(tilemap, lambda b: True)
+    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)
+
+
+def _non_base_goals(tilemap):
+    """Every alive building tile EXCEPT the base — the boss's hunting ground.
+
+    Keyed on ``building_type != "base"``, the same duck-typed occupant contract
+    the rest of this module reads (and the same key the prototype excludes the
+    hole by), never a comparison against ``base_col``/``base_row``."""
+    return _goal_tiles(
+        tilemap, lambda b: getattr(b, "building_type", None) != "base")
+
+
+def nearest_non_base_building_tile(tilemap, start_col, start_row):
+    """The alive non-base building tile GEOMETRICALLY nearest to the start, or
+    ``None`` when the board is clear (BP-3 / decision D3).
+
+    Target CHOICE is plain squared distance — what the player sees and expects
+    — deliberately NOT the weighted Dijkstra cost that picks the *route*. One
+    weighted search used to do both jobs and the two requirements fight: terrain
+    weight, defence-range coverage (+1/tile) and the round-11 damage discount
+    (×0.5) all bend the cost field, so the "nearest" building could be clear
+    across the map. Ties break lexicographically, so the pick is deterministic
+    for a given board."""
+    goals = _non_base_goals(tilemap)
+    if not goals:
+        return None
+    return min(goals, key=lambda g: ((g[0] - start_col) ** 2
+                                     + (g[1] - start_row) ** 2, g[0], g[1]))
+
+
+def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
+                                           footprint=1):
+    """Route to the nearest alive NON-BASE building; the base path when the
+    board is clear (BP-2 / decision D2 — the boss turns on the hole ONLY once
+    nothing else is left standing).
+
+    ``find_path_to_nearest_building`` cannot do this job: its goal predicate is
+    ``lambda b: True``, so the base sits in the goal set, and
+    ``Pathfinding.content_weights.base_building`` is **0** — cheaper than any
+    real building (1–2). A weighted search therefore walks past the buildings it
+    was sent to destroy and stops at the hole. Excluding the base from the goal
+    set is the whole fix; the fallback to ``find_path`` when no goal remains is
+    the ONE way the boss's ``goal_is_base`` ever becomes True.
+
+    D3 — **choose by distance, route by cost.** The victim is picked
+    geometrically (above), then reached by the ordinary weighted ``_dijkstra``,
+    so the boss still walks AROUND a pond rather than through it while still
+    hunting the building the player would call nearest. If that victim turns out
+    to be unreachable, one multi-goal search over the whole non-base set finds
+    any other reachable victim before we give up and head for the hole — so a
+    walled-off building can never send the boss to the base early.
+
+    Fresh Dijkstras (~one per boss per re-path), like the other goal-set
+    variants — the ``game/PERF.md`` flow-field invariant is untouched."""
+    _pre_query_refresh(tilemap)
+    goals = _non_base_goals(tilemap)
+    if not goals:
+        return find_path(tilemap, start_col, start_row, footprint)
+    target = nearest_non_base_building_tile(tilemap, start_col, start_row)
+    path = _dijkstra(tilemap, start_col, start_row, {target},
+                     ignore_walls=False, footprint=footprint)
+    if path:
+        return path
     return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)

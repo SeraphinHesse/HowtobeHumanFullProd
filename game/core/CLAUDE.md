@@ -16,8 +16,10 @@ Four files beside `balance.py`:
   (GAMEPLAY/GAME_OVER; menu states 9H).
 - **`game_state.py`** — `RunState` dataclass: the single owner of `phase`, `state`,
   `round_num` (starts 1, `++`'d in payday — prototype numbering), `love`,
-  `base_lives`, `phase_timer`, run stats. `from_balance(core)` seeds it;
-  `add_love`/`spend_love` clamp at ≥0 (prototype clamps every currency write).
+  `base_lives`, `phase_timer`, run stats. `from_balance(core, buildings)` seeds
+  it — `buildings` decides which types start unlocked (`starts_unlocked_for`,
+  data-driven; see `game/buildings/CLAUDE.md`); `add_love`/`spend_love` clamp
+  at ≥0 (prototype clamps every currency write).
 - **`payday.py`** — `run_payday(state, tilemap, core, occupancy=None, scene=None)`
   mirrors `_begin_income_phase` **step for step; the ordering is SACROSANCT**. 9F
   drives: snapshot RoundStats (this→last) → base income + duck-typed `yield_amount`
@@ -180,19 +182,15 @@ in `game/ui/CLAUDE.md`.
   double-run a burst) BEFORE the wave-clear check, so the burst is submitted to
   the Spawner while the round is still live. Quick-skip / lives-wipe / cheat
   despawns never reach the callback → they spawn nothing.
-  - **KNOWN LIMITATION — the flush does NOT guarantee the round outlives the
-    burst.** `Scene.spawn()` only QUEUES (into `_spawn_queue`); `scene.by_tag()`
-    reads `_objects`. So the wave-clear check a few lines below the flush
-    **cannot see children burst on the same frame**: killing the last enemy with
-    a drained spawner flips the phase to `ROUND_END` on that frame, and the
-    children materialise on the following `scene.update`. This is **pre-existing
-    — 10G's boss swarm behaves identically** (verified on both branches), and it
-    is rare in practice for the Boss (it dies mid-wave, with companions still
-    alive). **ER-4 will feel it much harder**: Formations are common and one
-    breaking as the last unit of a wave will drop its children into a round that
-    has already ended. Fixing it means teaching the wave-clear check about
-    pending spawns (`_spawn_queue` / the pending list) — deliberately NOT done in
-    ER-3, which is a zero-behaviour-change phase.
+  - **The wave-clear check consults the SPAWN QUEUE too (ER-5).** Flushing the
+    burst before the check was not enough on its own: `Scene.spawn()` only QUEUES
+    and `by_tag()` reads the live list, so children burst on THIS frame were
+    invisible to the check eight lines below — killing the last enemy of a drained
+    wave ended the round and the children materialised into it. The condition is
+    now `spawner.done and no live enemy and not scene.queued_by_tag("enemy")`
+    (`engine/core/CLAUDE.md`). This closes the general queue-then-check race, not
+    just the death-burst instance. It was a real bug for the 10G boss from the
+    start and would have been a common one for ER-4's Formations.
 
 ## Lightning strike + cheat menu (Phase 10H)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:

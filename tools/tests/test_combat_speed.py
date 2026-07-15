@@ -9,10 +9,12 @@ the "2x really doubles the wave" and "pause really freezes it" claims are tested
 against the same wiring the game runs, not a private one. The 1x/1.5x/2x/pause
 BUTTONS are 10L — 10F ships the mechanic + the keyboard shortcuts.
 """
+import random
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Scene
@@ -24,10 +26,10 @@ from game.core.session import COMBAT_SPEEDS, PAUSE_SPEED_IDX
 from game.enemies import Spawner, resolve_combat
 from game.map.tile_map import TileMap
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-CORE = load_balance(REPO / "data", "core")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 PHASE = CORE["PhaseLoop"]
 
@@ -113,6 +115,13 @@ class TestSpeedSelection(unittest.TestCase):
 
 class TestSpeedAppliesToCombatOnly(unittest.TestCase):
     def _spawned_after(self, speed_idx, round_num, frames=40, dt=0.05):
+        # Seed the spawner's RNG. It defaults to the bare `random` module, so
+        # the wave's spawn jitter differed between the 1x and 2x runs and the
+        # comparison was only USUALLY true — the test failed roughly one run in
+        # ten, for no reason connected to combat speed. Same seed on both sides
+        # makes the jitter identical and the speed the only variable, which is
+        # what the test claims to measure.
+        random.seed(20260714)
         session, scene, tm = build_session()
         session.state.round_num = round_num
         session.set_combat_speed(speed_idx)

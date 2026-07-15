@@ -12,6 +12,7 @@ from pathlib import Path
 
 from engine import data_io
 from game.core import append_random_name
+from tools.tests.fixture_data import fixture_copy
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -20,8 +21,7 @@ class TestAppendRandomName(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.data_dir = Path(tmp.name) / "data"
-        shutil.copytree(REPO / "data", self.data_dir)
+        self.data_dir = fixture_copy(Path(tmp.name))
         self.buildings = self.data_dir / "balancing" / "buildings.json"
         self.schema = self.data_dir / "schemas" / "buildings.schema.json"
 

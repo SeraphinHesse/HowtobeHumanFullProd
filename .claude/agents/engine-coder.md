@@ -34,8 +34,11 @@ it as a cross-package finding — never cross the boundary yourself.
 
 ## Exit gate (before reporting done)
 - `py tools/smoke.py` green.
-- `py -m unittest discover -s tools/tests -t .` — no NEW failures vs the
-  baseline set given in your dispatch.
+- `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Targeted
+  only: never run the full suite — the orchestrator/session that hands work
+  back owns the single full check.
+  The suite is green; there is no baseline and no tolerated failure. A red test
+  clearly outside your diff is a finding to report, not a rabbit hole.
 
 ## Report format
 Changed files; exit-gate results; blast radius checked; any subsystem doc

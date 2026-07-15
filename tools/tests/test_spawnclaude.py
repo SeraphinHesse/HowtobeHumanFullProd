@@ -9,8 +9,6 @@ NO real terminal is ever spawned. Handoffs are written into a throwaway temp
 repo, never the real `.claude/dispatch/`.
 """
 import json
-import os
-import sys
 import tempfile
 import unittest
 import unittest.mock
@@ -18,9 +16,9 @@ from pathlib import Path
 
 import jsonschema
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
-os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
+# Sets the headless env vars and owns the one QApplication — import it before
+# PySide6, which reads those vars at import time.
+from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import (
@@ -44,8 +42,6 @@ from tools.tests.test_editor_panels import TempDataCase
 
 REPO = Path(__file__).resolve().parents[2]
 FORM_SCHEMA = REPO / "data" / "schemas" / "agent_form.schema.json"
-
-_APP = QApplication.instance() or QApplication(sys.argv)
 
 
 def full_spec(**over):
@@ -179,7 +175,7 @@ class TestDispatch(unittest.TestCase):
         self.assertEqual(self.calls[0][1][-1], "/dispatch .claude/dispatch/x.json")
 
 
-class TestDialog(unittest.TestCase):
+class TestDialog(QtCase):
     """Always `repo=` a throwaway dir: the launcher prunes `<repo>/.claude/
     dispatch/` on open, and no test may reach into the real one — a designer's
     day-old handoff is live data."""
@@ -196,7 +192,8 @@ class TestDialog(unittest.TestCase):
             captured["args"] = arguments
             return True
 
-        dialog = spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach)
+        dialog = self.track(
+            spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach))
         dialog._admin_radio.setChecked(True)
         dialog._on_dispatch()
         self.assertEqual(captured["args"][-1], "claude")
@@ -208,7 +205,8 @@ class TestDialog(unittest.TestCase):
             captured["args"] = arguments
             return True
 
-        dialog = spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach)
+        dialog = self.track(
+            spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=fake_detach))
         self.assertTrue(dialog._tweak_radio.isChecked())
         dialog._tweak_edit.setText("nudge the base")
         dialog._on_dispatch()
@@ -216,8 +214,8 @@ class TestDialog(unittest.TestCase):
 
     def test_dialog_still_accepts_data_dir_kwarg(self):
         """main.py passes data_dir= — AD-3 uses it for load_form_specs."""
-        dialog = spawnclaude.SpawnClaudeDialog(data_dir=REPO / "data",
-                                               repo=self.repo)
+        dialog = self.track(spawnclaude.SpawnClaudeDialog(
+            data_dir=REPO / "data", repo=self.repo))
         self.assertTrue(dialog._tweak_radio.isChecked())
 
 
@@ -242,12 +240,12 @@ class FormCase(TempDataCase):
         self.detach = fake_detach
 
     def launcher(self):
-        return spawnclaude.SpawnClaudeDialog(
-            data_dir=self.data_dir, repo=self.repo, detach=self.detach)
+        return self.track(spawnclaude.SpawnClaudeDialog(
+            data_dir=self.data_dir, repo=self.repo, detach=self.detach))
 
     def form(self, spec):
-        return AgentFormDialog(spec, data_dir=self.data_dir, repo=self.repo,
-                               detach=self.detach)
+        return self.track(AgentFormDialog(
+            spec, data_dir=self.data_dir, repo=self.repo, detach=self.detach))
 
     def handoffs(self):
         return sorted((self.repo / ".claude" / "dispatch").glob("*.json"))
@@ -483,7 +481,7 @@ class TestFormDialogDispatch(FormCase):
 MARKER = "<!-- active-plan: MIGRATION_PLAN.md | set: 2026-07-13 -->\n"
 
 
-class TempRepoCase(unittest.TestCase):
+class TempRepoCase(QtCase):
     """A throwaway repo with a `planning/` dir and a root `PLAN.md` — the real
     repo's PLAN.md is live data and no test may write it."""
 
@@ -535,11 +533,15 @@ class TestPlansPure(TempRepoCase):
         self.write_mirror("<!-- active-plan:  | set: 2026-07-13 -->\n")
         self.assertIsNone(plans.active_plan(self.repo))
 
-    def test_the_real_repo_mirror_names_a_real_plan(self):
-        """The live contract: root PLAN.md's marker must name a planning/ doc."""
+    def test_the_real_repo_mirror_never_names_a_plan_that_does_not_exist(self):
+        """The live contract. It used to be "PLAN.md must name a plan" — too
+        strong now that the migration is done: work runs per TASK or per plan
+        doc, so having no active plan is a normal state (plans.py has always
+        returned None for it, and the launcher renders "— none set"). What must
+        never happen is the mirror pointing at a plan nobody can open."""
         active = plans.active_plan(REPO)
-        self.assertIsNotNone(active)
-        self.assertIn(active, plans.list_plans(REPO))
+        if active is not None:
+            self.assertIn(active, plans.list_plans(REPO))
 
     def test_list_plans_is_sorted_md_names_only(self):
         self.assertEqual(plans.list_plans(self.repo), sorted(self.PLANS))
@@ -651,7 +653,8 @@ class TestPlansGroup(TempRepoCase):
         self.detach = fake_detach
 
     def launcher(self):
-        return spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=self.detach)
+        return self.track(
+            spawnclaude.SpawnClaudeDialog(repo=self.repo, detach=self.detach))
 
     def combo_items(self, dialog):
         combo = dialog._plan_combo
