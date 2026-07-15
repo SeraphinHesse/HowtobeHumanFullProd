@@ -1296,9 +1296,23 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 5,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 5,
+          "hidden": [
+            1,
+            2,
+            3,
+            4
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -1314,9 +1328,22 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 4,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [
+            1,
+            2,
+            3
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
