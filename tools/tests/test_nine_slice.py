@@ -370,6 +370,67 @@ class TestDestToSourceGeometry(NineSliceCase):
                 self.assert_matches_composite(target, dx, dy, MARGINS)
 
 
+class TestDestToSourceDegenerateBand(NineSliceCase):
+    """A8 carry-over fix (HIGH, interrupted review): margins that clamp to
+    fill the SOURCE dimension exactly (`sl + sr == sw`) while the DEST still
+    has a centre band on that axis (`dw > sw`) leave `_nine_patch` painting
+    NOTHING there -- the source centre band is 0px wide, so the `min(sw_i,
+    sh_i, dw_i, dh_i) <= 0` skip in `_nine_patch` drops that band across
+    every row. `dest_to_source` must report a miss for a `rel_xy` in that
+    band, not resolve to the source's boundary pixel `sl` -- that pixel is a
+    REAL, painted, opaque pixel elsewhere on the sheet (the first column of
+    the right band, since `sl == sw - sr` here), so reading it instead of
+    signalling a miss is exactly the bug: `hit_opaque` would return True over
+    on-screen transparency."""
+
+    # left + right == 6 == src_w -> horizontal centre band vanishes in the
+    # SOURCE; dl, dr stay unclamped (3+3==6 <= dw=20) so the DEST still has a
+    # 14px centre band (columns [3, 17)) with nothing to paint into it.
+    MARGINS = (3, 2, 3, 2)
+    DEST = (20, 20)
+    SRC = (6, 6)
+    VANISHED_COLUMNS = (3, 5, 10, 15, 16)   # inside dest [3, 17)
+
+    def test_composite_leaves_the_vanished_band_transparent(self):
+        t = draw_patch(self.src, self.DEST, margins=self.MARGINS)
+        for x in self.VANISHED_COLUMNS:
+            for y in (0, 5, 10, 19):
+                self.assertEqual(t.get_at((x, y))[3], 0,
+                                 f"expected transparent at {(x, y)}")
+        # sanity: the surrounding corner/edge columns ARE painted
+        for x in (0, 2, 17, 19):
+            self.assertEqual(t.get_at((x, 5))[3], 255,
+                             f"expected painted at {(x, 5)}")
+
+    def test_dest_to_source_signals_a_miss_in_the_vanished_band(self):
+        for x in self.VANISHED_COLUMNS:
+            sx, sy = nine_slice.dest_to_source((x, 5), self.DEST, self.SRC,
+                                               self.MARGINS)
+            self.assertFalse(0 <= sx < self.SRC[0],
+                             f"sx={sx} should be out of [0, {self.SRC[0]})")
+
+    def test_naive_boundary_pixel_would_have_read_opaque(self):
+        # Documents WHY the miss signal is needed: sl (== sw - sr == 3) is
+        # the first column of the RIGHT band -- a real, opaque, BLUE pixel
+        # -- not "no content". Resolving a vanished-band rel_xy to sx == sl
+        # (the pre-fix behaviour) would read this pixel and return True.
+        sl = 3
+        self.assertEqual(self.src.get_at((sl, 2))[3], 255)
+
+    def test_vertical_axis_degenerates_the_same_way(self):
+        # top + bottom == 6 == src_h this time; dest still has a vertical
+        # centre band since dh=20 > 6.
+        margins = (2, 3, 2, 3)
+        dest = (20, 20)
+        t = draw_patch(self.src, dest, margins=margins)
+        for y in (3, 5, 10, 15, 16):
+            self.assertEqual(t.get_at((5, y))[3], 0,
+                             f"expected transparent at {(5, y)}")
+            sx, sy = nine_slice.dest_to_source((5, y), dest, self.SRC, margins)
+            self.assertFalse(0 <= sy < self.SRC[1],
+                             f"sy={sy} should be out of [0, {self.SRC[1]})")
+
+
 class TestSchemaRoundTrip(unittest.TestCase):
     """The margins survive a real write_validated -> load_manifest round trip
     against the COMMITTED schema (additionalProperties:false — an undeclared

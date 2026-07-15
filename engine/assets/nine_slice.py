@@ -44,7 +44,17 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
 
     Corners map 1:1 (never resampled). Edges stretch on one axis, the centre
     on both. This is the exact inverse of `_nine_patch` in
-    engine/render/backend.py."""
+    engine/render/backend.py.
+
+    Degenerate centre band: if a margin pair clamps to exactly fill the
+    SOURCE dimension (`sl + sr == sw`, resp. `st + sb == sh`) while the DEST
+    still has a centre band on that axis (`dw > sw`, resp. `dh > sh`),
+    `_nine_patch` skips painting that band entirely (its source width/height
+    is 0, so the `min(...) <= 0` guard drops it) -- the dest centre band is
+    on-screen transparency, not a scaled copy of the source's boundary
+    pixel. This function returns an out-of-frame coordinate (`sw`/`sh`) for
+    that axis so a bounds-checking caller (`AssetStore.hit_opaque`) reads it
+    as a miss, matching what is actually drawn."""
     rel_x, rel_y = rel_xy
     dw, dh = dest_size
     sw, sh = src_size
@@ -67,10 +77,19 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         # Right corner: map from the trailing edge.
         sx = sw - (dw - rel_x)
     else:
-        # Centre column: scale by the band width ratio.
+        # Centre column: scale by the band width ratio. Reaching this branch
+        # means dl <= rel_x < dw - dr, which implies mid_d (below) > 0 --
+        # but mid_s (the SOURCE centre band) can still be 0 if the margins
+        # clamped to exactly fill sw. _nine_patch paints nothing there, so
+        # signal a miss (sx == sw, out of [0, sw)) instead of resolving to
+        # the boundary pixel sl, which IS a painted corner pixel and would
+        # falsely read as opaque.
         mid_s = sw - sl - sr
         mid_d = dw - dl - dr
-        sx = sl + (rel_x - dl) * mid_s // max(1, mid_d)
+        if mid_s <= 0:
+            sx = sw
+        else:
+            sx = sl + (rel_x - dl) * mid_s // max(1, mid_d)
 
     # Piecewise row mapping (same pattern).
     if rel_y < dt:
@@ -80,9 +99,13 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         # Bottom corner: map from the trailing edge.
         sy = sh - (dh - rel_y)
     else:
-        # Centre row: scale by the band height ratio.
+        # Centre row: scale by the band height ratio (same degenerate-band
+        # miss signal as the column mapping above).
         mid_s = sh - st - sb
         mid_d = dh - dt - db
-        sy = st + (rel_y - dt) * mid_s // max(1, mid_d)
+        if mid_s <= 0:
+            sy = sh
+        else:
+            sy = st + (rel_y - dt) * mid_s // max(1, mid_d)
 
     return (sx, sy)

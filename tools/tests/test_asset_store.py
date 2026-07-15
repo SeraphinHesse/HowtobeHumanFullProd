@@ -15,6 +15,8 @@ import pygame  # noqa: E402
 
 from engine.assets import Manifest, SlotRegistry, entry_from_dict  # noqa: E402
 from engine.assets.store import AssetStore  # noqa: E402
+from engine.render import backend  # noqa: E402
+from engine.render.item import DrawCall  # noqa: E402
 
 pygame.init()
 
@@ -44,6 +46,16 @@ def make_hole_sheet(path, cols=1, rows=1):
     for r in range(rows):
         for c in range(cols):
             sheet.set_at((c * FRAME_W, r * FRAME_H), (255, 0, 0, 0))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pygame.image.save(sheet, str(path))
+
+
+def make_solid_sheet(path, cols=1, rows=1):
+    """Every frame: fully opaque, no hole -- for the degenerate-band test,
+    where the point is that a whole dest COLUMN/ROW must read as a miss
+    regardless of what the source pixels underneath happen to be."""
+    sheet = pygame.Surface((cols * FRAME_W, rows * FRAME_H), pygame.SRCALPHA)
+    sheet.fill((255, 0, 0, 255))
     path.parent.mkdir(parents=True, exist_ok=True)
     pygame.image.save(sheet, str(path))
 
@@ -198,6 +210,39 @@ class TestSlicing(SheetCase):
         store = self.store(entry(frames=(1,)))
         self.assertFalse(store.hit_opaque(
             "tower", rel_xy=(100, 100), dest_size=(20, 20)))
+
+    def test_hit_opaque_agrees_with_composite_in_a_vanished_centre_band(self):
+        """A8 carry-over fix (HIGH, interrupted review): slice margins that
+        sum to exactly the FRAME_W (left + right == 8) leave `_nine_patch`
+        painting NOTHING in the dest's centre band once the dest is wider
+        than the frame -- `hit_opaque` must agree with the actual composite
+        there, not read the source's boundary pixel (a real, opaque,
+        painted pixel one column over) as if the vanished band still had
+        content."""
+        make_solid_sheet(self.sprites_dir / "imported" / "tower.png")
+        slice_ = [4, 0, 4, 0]           # left + right == FRAME_W (8) exactly
+        dest_size = (20, FRAME_H)       # dest wider than the frame
+
+        sheet_path = self.sprites_dir / "imported" / "tower.png"
+        frame_surface = pygame.image.load(str(sheet_path)).subsurface(
+            pygame.Rect(0, 0, FRAME_W, FRAME_H))
+        composite = pygame.Surface(dest_size, pygame.SRCALPHA)
+        backend.draw(composite, [DrawCall(surface=frame_surface, dest=(0, 0),
+                                          size=dest_size, slice=tuple(slice_))])
+
+        store = self.store(entry(frames=(1,), slice_=slice_))
+        for x in (4, 8, 12, 15):
+            painted = composite.get_at((x, 8))[3] > 0
+            self.assertFalse(painted,
+                             f"expected the composite transparent at x={x}")
+            self.assertEqual(
+                store.hit_opaque("tower", rel_xy=(x, 8), dest_size=dest_size),
+                painted, f"hit_opaque must agree with the composite at x={x}")
+
+        # sanity: the corners ARE painted and DO still register a hit
+        self.assertTrue(composite.get_at((0, 8))[3] > 0)
+        self.assertTrue(
+            store.hit_opaque("tower", rel_xy=(0, 8), dest_size=dest_size))
 
 
 class TestFrameSizePrecedence(SheetCase):
