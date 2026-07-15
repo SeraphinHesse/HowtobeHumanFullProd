@@ -190,6 +190,35 @@
         {
           "children": [
             {
+              "label": "Storm Acolyte",
+              "slots": [
+                "storm_priest_i_t1_lvl1",
+                "storm_priest_i_t1_lvl2",
+                "storm_priest_i_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Storm Priest",
+              "slots": [
+                "storm_priest_ii_t2_lvl1",
+                "storm_priest_ii_t2_lvl2",
+                "storm_priest_ii_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Storm High Priest",
+              "slots": [
+                "storm_priest_iii_t3_lvl1",
+                "storm_priest_iii_t3_lvl2",
+                "storm_priest_iii_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Storm Priest"
+        },
+        {
+          "children": [
+            {
               "label": "Supporting Fan",
               "slots": [
                 "boost_speed_t1_lvl1",

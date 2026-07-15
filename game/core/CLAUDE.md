@@ -194,12 +194,18 @@ in `game/ui/CLAUDE.md`.
 
 ## Lightning strike + cheat menu (Phase 10H)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
-- **State on `RunState`**: `lightning_level` (**seeded 1** — the prototype boots
-  with lightning unlocked at L1 and never resets it; the L0 20♥ unlock branch
-  stays implemented but is unreachable from a normal boot) and
-  `lightning_cooldown`. Tunables ONLY from `core.json LightningStrike`
-  (cooldown [5,3,2] / damage [10,15,32] / radius [1,2,3] / unlock 20 /
-  upgrades [35,80] — the LIVE prototype JSON, not the stale `.py` defaults).
+- **State on `RunState`**: `lightning_level` (**seeded 0** as of the Storm
+  Priest wiring — every run boots with lightning LOCKED; placing a Storm
+  Priest, the `"lightning_source"`-tagged defence building, is the ONLY way
+  to raise it to L1, via `unlock_from_placement(state, building)` — a pure,
+  tag-gated, latching helper (never re-locks) called from
+  `game/ui/building_ui.py._do_place` after every successful placement. This
+  replaced the prototype's boot-unlocked design, which is no longer followed:
+  the L0 20♥ unlock branch is now reachable from a normal boot, not dead
+  weight) and `lightning_cooldown`. Tunables ONLY from `core.json
+  LightningStrike` (cooldown [5,3,2] / damage [12,18,38] / radius [1,2,3] /
+  unlock 20 / upgrades [35,80] — damage bumped for the Storm Priest buff; the
+  rest is the LIVE prototype JSON, not the stale `.py` defaults).
 - **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
   `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
   `game.py:505-508`): both points go through `cs.world_to_screen` and the

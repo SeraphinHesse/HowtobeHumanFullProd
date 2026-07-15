@@ -33,6 +33,7 @@ from .defender import Defender
 from .meditator import Meditator
 from .musician import Musician
 from .painter import Painter
+from .storm_priest import StormPriest
 from .structure import Blocker, WallBuilder
 from .sun_scorcher import SunScorcher
 
@@ -43,6 +44,7 @@ LEAF_CLASSES = {
     "economic": Musician,
     "aoe_defence": AOEDefenceBuilding,
     "sun_scorcher": SunScorcher,
+    "storm_priest": StormPriest,
     "painter": Painter,
     "meditator": Meditator,
     "boost_speed": BoostSpeed,
@@ -90,6 +92,14 @@ RESEARCH = {
         unlock_title="Unlock Sun Scorcher",
         unlock_explanation="A burning beam that ramps up — slow to anger, "
                            "deadly to tanks."),
+    # Storm Priest — a LOCKED defence type earned via a level-up unlock card,
+    # offered from the first level-up (no gate_kind/era_unlock_round, same
+    # shape as sun_scorcher above). Placing one is the ONLY way to unlock
+    # lightning strikes (game/core/lightning.py.unlock_from_placement, wired
+    # by game/ui/building_ui.py._do_place off its "lightning_source" tag).
+    "storm_priest": ResearchSpec(
+        unlock_title="Unlock Storm Priest",
+        unlock_explanation="A priest whose presence summons lightning strikes."),
     # 10C — the two economy lines. Painter is a LOCKED type earned via a
     # level-up unlock card gated by village level (available from the first
     # level-up: Painters.unlock_min_village_level = 0). Meditator's type starts
