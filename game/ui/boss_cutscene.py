@@ -52,8 +52,14 @@ class BossCutscene:
         self.visible = False
         self._clock = 0.0  # 10L-B: only the skinned box_a/box_b path uses this
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
-        self._headline = SimpleNamespace(font_key="xxl")
-        self._subtitle = SimpleNamespace(font_key="md", text_color=C_UI_TEXT_DIM)
+        # ``rect`` on a label id is the anchor point submit_centered draws
+        # from — W/H nominal 0 (position-only text, no fill/box implied),
+        # same convention every other label id in game/ui uses (review fix:
+        # every ids target needs a stored, readable, override-respecting
+        # rect, not just font/colour).
+        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
+        self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
+                                         text_color=C_UI_TEXT_DIM)
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
         self.box_b = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
@@ -80,6 +86,17 @@ class BossCutscene:
         self.box_a.rect = (x0, y0, _BOX_W, _BOX_H)
         self.box_b.rect = (x0 + _BOX_W + _GAP, y0, _BOX_W, _BOX_H)
         self._backdrop.rect = (0, 0, view_w, view_h)
+        # headline/subtitle sit above box_a's (default, pre-override) top —
+        # the same "no cascade" convention every other container-relative
+        # label in game/ui uses (a box_a rect OVERRIDE does not retarget
+        # these; they'd need their own rect override to follow it).
+        cx = view_w // 2
+        top = y0
+        self._headline.rect = (
+            cx, top - text_h(self._headline.font_key)
+            - text_h(self._subtitle.font_key) - 28, 0, 0)
+        self._subtitle.rect = (cx, top - text_h(self._subtitle.font_key) - 12,
+                              0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "headline": ("label", self._headline),
@@ -116,15 +133,11 @@ class BossCutscene:
         headline = ("Cutscene: Round Won :)" if won
                     else "Cutscene: Round Lost :(")
         color = _WIN_GREEN if won else _LOSS_RED
-        cx = view_w // 2
-        top = self.box_a.rect[1]
-        submit_centered(renderer, headline, cx,
-                        top - text_h(self._headline.font_key)
-                        - text_h(self._subtitle.font_key) - 28,
-                        self._headline.font_key, color)
-        submit_centered(renderer, "How will we react?", cx,
-                        top - text_h(self._subtitle.font_key) - 12,
-                        self._subtitle.font_key, self._subtitle.text_color)
+        submit_centered(renderer, headline, self._headline.rect[0],
+                        self._headline.rect[1], self._headline.font_key, color)
+        submit_centered(renderer, "How will we react?", self._subtitle.rect[0],
+                        self._subtitle.rect[1], self._subtitle.font_key,
+                        self._subtitle.text_color)
         prefix = "Win" if won else "Loss"
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(

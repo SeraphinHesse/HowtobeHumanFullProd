@@ -319,6 +319,26 @@ sets one).
   `LevelupWindow.rects`, `BuildingUI.panel_rect`) are kept as real,
   independently-readable attributes, synced from/to the shadow holder each
   layout — never renamed.
+- **Every ids target MUST carry a stored, readable `.rect`** (B3's exporter
+  contract — a widget with no stored rect exports `[0, 0, 0, 0]` and
+  degenerately renders at the origin in the editor's screen mode; a review
+  fix caught five that computed their position inline at `submit()` time and
+  never stored it: `hud.py`'s `phase_label`, `cheat_menu.py`'s `title`/
+  `jump_label`, `boss_cutscene.py`'s `headline`/`subtitle`). **The
+  convention**: for a plain text label drawn via `submit_text`/
+  `submit_centered` (no fill, no box), `rect` is the `(x, y, 0, 0)` anchor
+  point the draw call reads its position from — W/H are nominal `0` (there is
+  no implied box size); every text-only label id in this file (the HUD
+  readouts, the static titles, these five) follows this same shape. The
+  anchor is computed and stored in `layout()` (or, where the position derives
+  from a SIBLING widget's default geometry computed moments earlier in the
+  same `layout()` call — `boss_cutscene`'s `headline`/`subtitle` sit above
+  `box_a`'s pre-override default top — the "no cascade" convention above
+  applies: a `box_a` rect override does not retarget them, they'd need their
+  own override too), never inline at `submit()` time, so (a) a rect override
+  actually moves the text on screen and (b) the exporter reads a real
+  position. `submit()` then reads `holder.rect[:2]` (or `.rect[0]`/`.rect[1]`
+  for `submit_centered`'s two positional args) instead of recomputing.
 - **`boss_cutscene.py`'s `box_a`/`box_b` are the one CONDITIONAL-skin case**:
   with no `skin` override they still draw their original two raw
   hover-tinted `HudRect`s (byte-identical to pre-B2); a skin present routes
