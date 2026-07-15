@@ -51,13 +51,16 @@ from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
+from editor.ui_screen_session import UIScreenSession
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
 from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
+from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
+from engine import data_io
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
@@ -94,14 +97,18 @@ class MainWindow(QMainWindow):
         self.palette = PalettePanel(data_dir=data_dir)
         self.map_details = MapDetailsPanel(data_dir=data_dir)
         self.map_session = MapSession(data_dir=data_dir, parent=self)
+        self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
+        self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
+        self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         self._node = None   # (category_key, group_path) of the tree selection
-        # dirty policy when opening a DIFFERENT map over unsaved edits:
+        # dirty policy when opening a DIFFERENT map/screen over unsaved edits:
         # "ask" (QMessageBox Save/Discard/Cancel) | "save" | "discard"
         self.dirty_policy = "ask"
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
         self.selector.map_selected.connect(self._on_map_selected)
+        self.selector.screen_selected.connect(self._on_screen_selected)
         self.selector.add_requested.connect(self._on_add_requested)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
@@ -139,13 +146,21 @@ class MainWindow(QMainWindow):
         self.map_details.dirty_resolver = self._resolve_dirty
         self.map_details.map_deleted.connect(self._on_map_deleted)
 
+        # screen-mode wiring (B4, R3): session lifecycle → screen_details;
+        # widget selection is bidirectional (viewport click <-> list click),
+        # each side syncing the OTHER without re-emitting (no feedback loop)
+        self.screen_details.set_session(self.screen_session)
+        self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
+        self.viewport.widget_selected.connect(self.screen_details.select_widget)
+
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
-        # actual shortcuts once undo_redo_swapped loads, below)
+        # actual shortcuts once undo_redo_swapped loads, below). Routes to
+        # whichever session is active (map or screen mode, B4).
         self.undo_action = QAction("Undo", self)
-        self.undo_action.triggered.connect(self.map_session.undo_stack.undo)
+        self.undo_action.triggered.connect(self._on_undo)
         self.redo_action = QAction("Redo", self)
-        self.redo_action.triggered.connect(self.map_session.undo_stack.redo)
+        self.redo_action.triggered.connect(self._on_redo)
         self.addAction(self.undo_action)
         self.addAction(self.redo_action)
 
@@ -162,13 +177,18 @@ class MainWindow(QMainWindow):
         self.play_action = QAction("Play", self)
         self.build_action = QAction("Build", self)
         self.playbuild_action = QAction("Playbuild", self)
+        # B4: re-runs tools/export_ui_layouts.py (B3) — same tracked-QProcess
+        # console-streaming path as Build, distinguished by the `which` string.
+        self.refresh_layouts_action = QAction("Refresh Layouts", self)
         run_toolbar.addAction(self.play_action)
         run_toolbar.addAction(self.build_action)
         run_toolbar.addAction(self.playbuild_action)
+        run_toolbar.addAction(self.refresh_layouts_action)
 
         self.play_action.triggered.connect(self._on_play)
         self.build_action.triggered.connect(self.run_controls.build)
         self.playbuild_action.triggered.connect(self.run_controls.playbuild)
+        self.refresh_layouts_action.triggered.connect(self._on_refresh_layouts)
         self.run_controls.output.connect(self.console.appendPlainText)
         self.run_controls.launched.connect(self._on_launched)
         self.run_controls.started.connect(self._on_build_started)
@@ -256,8 +276,9 @@ class MainWindow(QMainWindow):
         center.setSizes([520, 200])       # sane initial split (not stretch-only)
 
         self.right_stack = QStackedWidget()
-        self.right_stack.addWidget(self.details)      # index 0: asset import
-        self.right_stack.addWidget(self.map_details)  # index 1: map lifecycle
+        self.right_stack.addWidget(self.details)         # index 0: asset import
+        self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
+        self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -288,6 +309,7 @@ class MainWindow(QMainWindow):
 
     def _on_node_selected(self, category_key, group_path):
         self._leave_map_mode()
+        self._leave_screen_mode()
         self._node = (category_key, tuple(group_path))
         self.details.set_context(category_key, group_path)
         self._refresh_levels()
@@ -295,6 +317,7 @@ class MainWindow(QMainWindow):
     # -- tilemap mode (ED-20): map node selected -----------------------------
 
     def _on_map_selected(self, map_id):
+        self._leave_screen_mode()
         session = self.map_session
         if session.doc is not None and session.doc.map_id == map_id:
             self._enter_map_mode()   # same doc (possibly dirty): keep edits
@@ -327,16 +350,92 @@ class MainWindow(QMainWindow):
         self.palette.setVisible(False)
         self.right_stack.setCurrentWidget(self.details)
 
-    def _resolve_dirty(self):
-        """True → proceed (saving first if asked); False → cancel."""
-        session = self.map_session
+    # -- screen mode (B4, R3): a UI-screen leaf selected ---------------------
+
+    def _in_screen_mode(self):
+        return self.viewport.in_screen_mode()
+
+    def _on_screen_selected(self, screen_id):
+        self._leave_map_mode()
+        session = self.screen_session
+        if session.doc is not None and session.screen_id == screen_id:
+            self._enter_screen_mode()   # same doc (possibly dirty): keep edits
+            return
+        if not self._resolve_dirty(session):
+            # cancelled: put the selection back on the still-open screen
+            self.selector.select_screen(session.screen_id)
+            return
+        session.open(screen_id)
+        self._enter_screen_mode()
+
+    def _enter_screen_mode(self):
+        self._screen_defaults = self._load_screen_defaults()
+        self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
+        self.screen_details.set_defaults(self._screen_defaults)
+        self.right_stack.setCurrentWidget(self.screen_details)
+
+    def _leave_screen_mode(self):
+        # the session keeps its (possibly dirty) doc — reselecting the same
+        # screen returns to it; the prompt only guards opening a DIFFERENT one
+        if self.viewport.in_screen_mode():
+            self.viewport.set_screen_mode(None)
+        self.right_stack.setCurrentWidget(self.details)
+
+    def _load_screen_defaults(self):
+        """data/ui/screen_defaults.json (B3's exporter output). Missing or
+        invalid → {} — screen mode's own E-37 graceful-degrade path handles
+        that (a placeholder message, never a raise)."""
+        path = self._data_dir / "ui" / "screen_defaults.json"
+        schema = self._data_dir / "schemas" / "screen_defaults.schema.json"
+        if not path.exists():
+            return {}
+        try:
+            return data_io.load_validated(path, schema)
+        except Exception:   # noqa: BLE001 - a bad file degrades, never raises
+            return {}
+
+    def _on_refresh_layouts(self):
+        self.run_controls.export_layouts()
+
+    def _on_export_layouts_finished(self, code):
+        if code == 0:
+            self._screen_defaults = self._load_screen_defaults()
+            self.viewport.refresh_screen_defaults(self._screen_defaults)
+            self.screen_details.set_defaults(self._screen_defaults)
+            self.selector.refresh_screens()
+            self.statusBar().showMessage("Layouts refreshed", 5000)
+        else:
+            self.statusBar().showMessage(
+                f"Refresh Layouts failed (exit {code}) — see Console", 8000)
+
+    # -- window-level undo/redo (ED-24): routes to whichever session is
+    # active — map mode or screen mode (B4) --------------------------------
+
+    def _active_undo_stack(self):
+        if self._in_screen_mode():
+            return self.screen_session.undo_stack
+        return self.map_session.undo_stack
+
+    def _on_undo(self):
+        self._active_undo_stack().undo()
+
+    def _on_redo(self):
+        self._active_undo_stack().redo()
+
+    def _resolve_dirty(self, session=None):
+        """True → proceed (saving first if asked); False → cancel. Defaults
+        to the map session (every pre-B4 call site passes no argument);
+        screen mode (B4) reuses it by passing self.screen_session."""
+        session = session if session is not None else self.map_session
+        is_map = session is self.map_session
         if not session.dirty:
             return True
         policy = self.dirty_policy
         if policy == "ask":
+            label = session.doc.map_id if is_map else session.screen_id
             answer = QMessageBox.question(
                 self, "Unsaved changes",
-                f"Map {session.doc.map_id!r} has unsaved changes.",
+                f"{'Map' if is_map else 'Screen'} {label!r} has unsaved changes.",
                 QMessageBox.StandardButton.Save
                 | QMessageBox.StandardButton.Discard
                 | QMessageBox.StandardButton.Cancel)
@@ -554,12 +653,19 @@ class MainWindow(QMainWindow):
             f"{which}: launched {label} (detached)" if started_ok
             else f"{which}: FAILED to launch {label}")
 
-    def _on_build_started(self, _which):
-        self.build_action.setEnabled(False)
+    def _on_build_started(self, which):
+        # RunControls tracks Build AND Refresh Layouts (B4) through the same
+        # one-at-a-time QProcess + signals — only Build owns the toolbar
+        # enable/disable + playbuild-availability dance.
+        if which == "build":
+            self.build_action.setEnabled(False)
 
-    def _on_build_finished(self, _which, _code):
-        self.build_action.setEnabled(True)
-        self._update_playbuild_enabled(self.run_controls.can_playbuild())
+    def _on_build_finished(self, which, code):
+        if which == "build":
+            self.build_action.setEnabled(True)
+            self._update_playbuild_enabled(self.run_controls.can_playbuild())
+        elif which == "export_layouts":
+            self._on_export_layouts_finished(code)
 
     def _update_playbuild_enabled(self, can_playbuild):
         self.playbuild_action.setEnabled(can_playbuild)
