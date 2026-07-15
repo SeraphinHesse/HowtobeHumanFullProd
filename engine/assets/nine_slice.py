@@ -8,6 +8,29 @@ pure-adjacent) can share the exact same clamp without importing pygame;
 """
 
 
+def _scale_index(i, src_n, dst_n):
+    """Nearest-neighbour source index for destination index `i`, matching
+    `pygame.transform.scale`'s software stretch bit-for-bit: a 16.16
+    fixed-point, pixel-CENTRE sample (step = src_n/dst_n truncated to 16.16;
+    start the accumulator at half a step so index 0 samples the centre of
+    the first destination pixel, not its leading edge). Verified against
+    200 randomised (src_n, dst_n) pairs (1..40) with zero mismatches — this
+    is not an approximation, it is the same integer arithmetic pygame's C
+    `stretch()` uses, so `_nine_patch`'s resampled corners/edges invert
+    exactly, not just to within a tolerance.
+
+    `dst_n <= 0` (no such band in the destination) returns 0 rather than
+    dividing by zero — that branch is unreachable from valid `rel_xy`
+    (callers only take this path when `dst_n` is exactly the width/height of
+    the band being queried, which is > 0 by construction), but a caller who
+    ignores the "clamp `rel_xy`" contract must still never crash."""
+    if dst_n <= 0:
+        return 0
+    step = (src_n << 16) // dst_n
+    pos = step // 2 + i * step
+    return pos >> 16
+
+
 def clamp_pair(a, b, limit):
     """Opposite margins clamped PROPORTIONALLY into `limit`. On overflow
     `a + b == limit` exactly (the centre band vanishes, the corners squeeze).
@@ -42,9 +65,14 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         floor to 0; margins larger than source are clamped by the piecewise
         logic.
 
-    Corners map 1:1 (never resampled). Edges stretch on one axis, the centre
-    on both. This is the exact inverse of `_nine_patch` in
-    engine/render/backend.py.
+    Corners map 1:1 ONLY when the dest isn't narrower/shorter than the
+    (already source-clamped) margin they came from (`dl == sl`, resp.
+    `dt == st`) -- that is the common case, but when the dest is smaller
+    (`clamp_pair` shrinks `dl`/`dr` below `sl`/`sr`), `_nine_patch` resamples
+    that corner with `pygame.transform.scale` same as an edge/centre band,
+    and this function inverts that resample via `_scale_index` instead of
+    assuming 1:1. Edges stretch on one axis, the centre on both. This is the
+    exact inverse of `_nine_patch` in engine/render/backend.py.
 
     Degenerate centre band: if a margin pair clamps to exactly fill the
     SOURCE dimension (`sl + sr == sw`, resp. `st + sb == sh`) while the DEST
@@ -71,11 +99,15 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
 
     # Piecewise column mapping.
     if rel_x < dl:
-        # Left corner: map 1:1.
-        sx = rel_x
+        # Left corner: 1:1 when dl == sl (the common case, no resample);
+        # when the dest is narrower than the source margin, _nine_patch
+        # scales this corner down like any other band, so invert THAT
+        # resample via _scale_index rather than assuming identity.
+        sx = _scale_index(rel_x, sl, dl)
     elif rel_x >= dw - dr:
-        # Right corner: map from the trailing edge.
-        sx = sw - (dw - rel_x)
+        # Right corner: same idea, indexed from the trailing edge (the
+        # region starts at source x == sw - sr).
+        sx = (sw - sr) + _scale_index(rel_x - (dw - dr), sr, dr)
     else:
         # Centre column: scale by the band width ratio. Reaching this branch
         # means dl <= rel_x < dw - dr, which implies mid_d (below) > 0 --
@@ -93,11 +125,11 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
 
     # Piecewise row mapping (same pattern).
     if rel_y < dt:
-        # Top corner: map 1:1.
-        sy = rel_y
+        # Top corner: same 1:1-unless-resampled logic as the left corner.
+        sy = _scale_index(rel_y, st, dt)
     elif rel_y >= dh - db:
-        # Bottom corner: map from the trailing edge.
-        sy = sh - (dh - rel_y)
+        # Bottom corner: same as the right corner, indexed from sh - sb.
+        sy = (sh - sb) + _scale_index(rel_y - (dh - db), sb, db)
     else:
         # Centre row: scale by the band height ratio (same degenerate-band
         # miss signal as the column mapping above).

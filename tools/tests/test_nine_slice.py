@@ -431,6 +431,85 @@ class TestDestToSourceDegenerateBand(NineSliceCase):
                              f"sy={sy} should be out of [0, {self.SRC[1]})")
 
 
+def column_tagged_sheet(width, height):
+    """Every column x carries a colour tag encoding x (r=x%256, g=x//256),
+    so a composite pixel's colour decodes back to the EXACT source column
+    `pygame.transform.scale` sampled -- unambiguous because `scale` (not
+    `smoothscale`) is nearest-neighbour, never blends across columns."""
+    s = pygame.Surface((width, height), pygame.SRCALPHA)
+    for x in range(width):
+        s.fill((x % 256, x // 256, 0, 255), (x, 0, 1, height))
+    return s
+
+
+def row_tagged_sheet(width, height):
+    """Row-tagged mirror of `column_tagged_sheet`, for the y axis."""
+    s = pygame.Surface((width, height), pygame.SRCALPHA)
+    for y in range(height):
+        s.fill((y % 256, y // 256, 0, 255), (0, y, width, 1))
+    return s
+
+
+class TestDestToSourceResampledCorner(NineSliceCase):
+    """A8 carry-over fix #2 (MEDIUM, same file/bug class as the degenerate
+    band above): `dest_to_source`'s corner branches assumed 1:1 mapping
+    unconditionally, but `_nine_patch` (engine/render/backend.py) only
+    blits a corner 1:1 when `dl == sl`; when `clamp_pair(sl, sr, dw)`
+    shrinks `dl`/`dr` BELOW `sl`/`sr` (dest narrower than the combined
+    margins), the backend resamples that corner with
+    `pygame.transform.scale`, same as an edge or centre band would be. This
+    class cross-checks `dest_to_source` against the REAL composite (not a
+    hardcoded expectation) using a colour-tagged sheet, so it pins whatever
+    pygame's scaler actually draws, not a guessed formula.
+
+    Reviewer's probe recipe: 20x10 sheet, left+right margins 8 each (NOT the
+    degenerate case above -- the source centre band stays > 0px), dest
+    10x10. `clamp_pair(8, 8, 10)` -> `(5, 5)`: both corners shrink from 8px
+    (source) to 5px (dest), so `_nine_patch` resamples them."""
+
+    def test_left_and_right_corners_agree_with_the_composite_when_resampled(self):
+        sw, sh = 20, 10
+        margins = (8, 0, 8, 0)
+        dest = (10, 10)
+        src = column_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for x in range(dest[0]):
+            with self.subTest(x=x):
+                sx, sy = nine_slice.dest_to_source((x, 5), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((x, 5))[:2]     # (r, g) column tag
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest x={x} -> source sx={sx}")
+
+    def test_top_and_bottom_corners_agree_with_the_composite_when_resampled(self):
+        sw, sh = 10, 20
+        margins = (0, 8, 0, 8)
+        dest = (10, 10)
+        src = row_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for y in range(dest[1]):
+            with self.subTest(y=y):
+                sx, sy = nine_slice.dest_to_source((5, y), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((5, y))[:2]     # (r, g) row tag
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest y={y} -> source sy={sy}")
+
+    def test_unresampled_corner_is_still_exactly_1_to_1(self):
+        # Regression pin: the common case (dl == sl, no resample) must be
+        # untouched by generalising the corner branches to _scale_index.
+        sw, sh = 6, 6
+        margins = (2, 2, 2, 2)
+        dest = (20, 20)
+        for x in (0, 1):
+            sx, _ = nine_slice.dest_to_source((x, 0), dest, (sw, sh), margins)
+            self.assertEqual(sx, x)
+
+
 class TestSchemaRoundTrip(unittest.TestCase):
     """The margins survive a real write_validated -> load_manifest round trip
     against the COMMITTED schema (additionalProperties:false — an undeclared

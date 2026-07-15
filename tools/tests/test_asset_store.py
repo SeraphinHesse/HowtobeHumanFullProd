@@ -244,6 +244,56 @@ class TestSlicing(SheetCase):
         self.assertTrue(
             store.hit_opaque("tower", rel_xy=(0, 8), dest_size=dest_size))
 
+    def test_hit_opaque_agrees_with_composite_for_a_resampled_corner(self):
+        """A8 carry-over fix #2 (MEDIUM, same file/bug class): a corner
+        whose dest width shrinks below its (already source-clamped) margin
+        is resampled by `_nine_patch` via `pygame.transform.scale`, not
+        blitted 1:1 -- `hit_opaque` must read the source pixel the
+        composite actually sampled, not the naive rel_x-as-1:1 pixel.
+
+        A 20x10 frame with left+right margins of 8 each, shrunk into a
+        10x10 dest: `clamp_pair(8, 8, 10) -> (5, 5)`, so the 8px corner
+        resamples to 5px. A single transparent 'hole' column at source x=1
+        (opaque everywhere else) is skipped entirely by the real nearest-
+        neighbour resample at dest x=1 (it samples source x=2 instead) --
+        the naive pre-fix mapping (sx = rel_x = 1) would have read the hole
+        and returned False where the composite is actually opaque."""
+        frame_w, frame_h = 20, 10
+        sheet_path = self.sprites_dir / "imported" / "wide.png"
+        sheet_path.parent.mkdir(parents=True, exist_ok=True)
+        sheet = pygame.Surface((frame_w, frame_h), pygame.SRCALPHA)
+        sheet.fill((255, 0, 0, 255))
+        sheet.fill((255, 0, 0, 0), (1, 0, 1, frame_h))   # the hole at x=1
+        pygame.image.save(sheet, str(sheet_path))
+
+        slice_ = [8, 0, 8, 0]
+        dest_size = (10, 10)
+        raw = {"sheet": "imported/wide.png", "frame_w": frame_w,
+               "frame_h": frame_h, "offset_x": 0, "offset_y": 0,
+               "slice": slice_,
+               "rows": [{"animation": "idle", "frames": 1, "fps": 8,
+                        "hidden": [], "loop_start": 0, "loop_end": 0,
+                        "loop_count": 1}]}
+        manifest = Manifest({"wide": entry_from_dict("wide", raw)})
+        store = AssetStore(manifest=manifest, sprites_dir=self.sprites_dir)
+
+        frame_surface = pygame.image.load(str(sheet_path)).subsurface(
+            pygame.Rect(0, 0, frame_w, frame_h))
+        composite = pygame.Surface(dest_size, pygame.SRCALPHA)
+        backend.draw(composite, [DrawCall(surface=frame_surface, dest=(0, 0),
+                                          size=dest_size, slice=tuple(slice_))])
+
+        for x in range(dest_size[0]):
+            painted = composite.get_at((x, 5))[3] > 0
+            self.assertEqual(
+                store.hit_opaque("wide", rel_xy=(x, 5), dest_size=dest_size),
+                painted, f"hit_opaque must agree with the composite at x={x}")
+        # the divergence this test exists to catch: dest x=1 IS painted
+        # (the resample skips the hole), matching hit_opaque == True
+        self.assertTrue(composite.get_at((1, 5))[3] > 0)
+        self.assertTrue(
+            store.hit_opaque("wide", rel_xy=(1, 5), dest_size=dest_size))
+
 
 class TestFrameSizePrecedence(SheetCase):
     REGISTRY = SlotRegistry({"categories": [
