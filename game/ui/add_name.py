@@ -12,8 +12,8 @@ from engine.render import HudRect
 
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_PANEL_STONE, C_RED, C_UI_BORDER, C_UI_PANEL,
-    C_UI_TEXT, C_UI_TEXT_DIM, Button, contains, submit_centered, submit_panel,
-    submit_text,
+    C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, contains, submit_centered,
+    submit_panel, submit_text,
 )
 
 _MAX_CHARS = 20
@@ -30,6 +30,7 @@ class AddNameScreen:
         self.pool_count = 0
         self.add_btn = Button((0, 0, 160, 40), "ADD NAME")
         self.back_btn = Button((0, 0, 130, 40), "BACK")
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
@@ -62,10 +63,11 @@ class AddNameScreen:
             self.msg_color = C_GOLD
         self.pool_count = pool_count
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         for btn in (self.add_btn, self.back_btn):
             btn.enabled = True
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
             btn.update(dt)
 
     def hit(self, mx, my):
@@ -93,9 +95,11 @@ class AddNameScreen:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         x, y, w, h = self.rect
-        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER)
+        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
+                    anim_ms=t)
         cx = x + w // 2
         submit_centered(renderer, "ADD A NAME", cx, y + 20, "xl", C_GOLD)
         submit_centered(renderer, "Appears on the building-naming dice button.",
@@ -118,5 +122,5 @@ class AddNameScreen:
         submit_text(renderer, f"Names in pool: {self.pool_count}",
                     (x + 24, y + _PH - 78), "sm", C_UI_TEXT_DIM)
 
-        self.add_btn.submit(renderer)
-        self.back_btn.submit(renderer)
+        self.add_btn.submit(renderer, anim_ms=t)
+        self.back_btn.submit(renderer, anim_ms=t)

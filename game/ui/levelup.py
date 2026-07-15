@@ -57,7 +57,9 @@ class LevelupWindow:
         self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
                       for i in range(n)]
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        # 10L-A: no widgets.Button here (plain option-box rects) — mouse_down
+        # is accepted only so main.py's uniform threading call keeps working.
         self.hovered = next(
             (i for i, r in enumerate(self.rects) if contains(r, mx, my)), -1)
 

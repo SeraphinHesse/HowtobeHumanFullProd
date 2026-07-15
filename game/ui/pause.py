@@ -8,7 +8,7 @@ Pure logic. Ports the prototype's ``src/ui/pause_menu.py`` four-button panel
 """
 from engine.render import HudRect
 
-from .widgets import C_GOLD, Button, submit_centered
+from .widgets import C_GOLD, Button, anim_ms, submit_centered
 
 # (label, action) top-to-bottom
 _ITEMS = [
@@ -25,6 +25,7 @@ class PauseScreen:
     def __init__(self, view_w, view_h):
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), action)
                         for label, action in _ITEMS]
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
@@ -37,10 +38,11 @@ class PauseScreen:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         for btn, _ in self.buttons:
             btn.enabled = True
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
             btn.update(dt)
 
     def hit(self, mx, my):
@@ -51,6 +53,7 @@ class PauseScreen:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         px, py, pw, ph = self.rect
         # 10J: the prototype's (0,0,0,150) pause dim over the frozen world
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), (0, 0, 0, 150)))
@@ -59,4 +62,4 @@ class PauseScreen:
                                     width=2))
         submit_centered(renderer, "PAUSED", view_w // 2, py + 32, "xl", C_GOLD)
         for btn, _ in self.buttons:
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=t)

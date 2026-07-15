@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from engine.render import HudRect
 
 from .widgets import (
-    C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button,
+    C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms,
     submit_centered, submit_text,
 )
 
@@ -54,6 +54,7 @@ class SettingsScreen:
         self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
                         for attr, label in _TOGGLES]
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
@@ -80,12 +81,13 @@ class SettingsScreen:
             yield btn
         yield self.back_btn
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         for _attr, _label, btn in self.toggles:
             btn.label = "ON" if getattr(self.settings, _attr) else "OFF"
         for btn in self._buttons():
             btn.enabled = True
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
             btn.update(dt)
 
     def hit(self, mx, my):
@@ -108,6 +110,7 @@ class SettingsScreen:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         cx = self._cx
         submit_centered(renderer, "SETTINGS", cx, self._top, "xxl", C_GOLD)
@@ -116,12 +119,12 @@ class SettingsScreen:
                         C_UI_TEXT)
         submit_centered(renderer, self.settings.display_mode.upper(), cx,
                         self._dm_y, "lg", C_GOLD)
-        self.dm_left.submit(renderer)
-        self.dm_right.submit(renderer)
+        self.dm_left.submit(renderer, anim_ms=t)
+        self.dm_right.submit(renderer, anim_ms=t)
 
         for (attr, label, btn), y in zip(self.toggles, self._row_y):
             submit_text(renderer, label, (cx - 150, y), "md", C_UI_TEXT)
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=t)
 
         # inert audio slider (no audio system) — drawn only
         sx, sy, sw, sh = self._slider_rect
@@ -132,4 +135,4 @@ class SettingsScreen:
         submit_centered(renderer, "(no audio yet)", cx, sy + 20, "sm",
                         C_UI_TEXT_DIM)
 
-        self.back_btn.submit(renderer)
+        self.back_btn.submit(renderer, anim_ms=t)

@@ -7,8 +7,10 @@ Non-scrolling.
 """
 from engine.render import HudRect
 
-from .widgets import C_GOLD, C_UI_TEXT, C_UI_TEXT_DIM, Button, submit_centered, \
-    submit_text
+from .widgets import (
+    C_GOLD, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, submit_centered,
+    submit_text,
+)
 
 _BG = (12, 20, 14)
 
@@ -36,14 +38,16 @@ _SPACER_H = 14
 class CreditsScreen:
     def __init__(self, view_w, view_h):
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
         self.back_btn.rect = (view_w // 2 - 100, view_h - 90, 200, 46)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         self.back_btn.enabled = True
-        self.back_btn.hover(mx, my)
+        self.back_btn.hover(mx, my, mouse_down)
         self.back_btn.update(dt)
 
     def hit(self, mx, my):
@@ -51,6 +55,7 @@ class CreditsScreen:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
+        t = anim_ms(self._clock)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         cx = view_w // 2
         submit_centered(renderer, "CREDITS", cx, 70, "xxl", C_GOLD)
@@ -63,4 +68,4 @@ class CreditsScreen:
                         align="right")
             submit_text(renderer, name, (cx + 40, y), "md", C_UI_TEXT)
             y += _LINE_H
-        self.back_btn.submit(renderer)
+        self.back_btn.submit(renderer, anim_ms=t)

@@ -22,7 +22,7 @@ from game.core.xp import scaled_base_income
 
 from .widgets import (
     C_GOLD, C_HP_GREEN, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED,
-    C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, contains, submit_bar,
+    C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, anim_ms, contains, submit_bar,
     submit_centered, submit_text, text_h, text_size,
 )
 
@@ -145,7 +145,7 @@ class Hud:
         pw, ph = self.pause.rect[2], self.pause.rect[3]
         self.pause.rect = (view_w - pw - 16, 12, pw, ph)
 
-    def update(self, dt, mx, my, session, panel):
+    def update(self, dt, mx, my, session, panel, mouse_down=False):
         self._mx, self._my = mx, my  # 10H: the cursor cooldown-bar anchor
         st = session.state
         self._clock += dt
@@ -156,11 +156,11 @@ class Hud:
             st.state == GameState.GAMEPLAY
             and st.phase == GamePhase.BUILDING
             and not self._panel_open)
-        self.end_turn.hover(mx, my)
+        self.end_turn.hover(mx, my, mouse_down)
         self.end_turn.update(dt)
         self.pause.enabled = (st.state == GameState.GAMEPLAY
                               and not self._panel_open)
-        self.pause.hover(mx, my)
+        self.pause.hover(mx, my, mouse_down)
         self.pause.update(dt)
 
     def hit(self, mx, my):
@@ -220,13 +220,14 @@ class Hud:
         # wholesale while that panel is open — drawing only part of it would
         # leave the round label floating over the panel.
         if not self._panel_open:
+            t = anim_ms(self._clock)
             bx, by, bw, bh = self.end_turn.rect
             submit_centered(renderer, f"ROUND {st.round_num}", bx + bw // 2,
                             by - text_h("md") - 4, "md", C_UI_TEXT_DIM)
-            self.end_turn.submit(renderer)
+            self.end_turn.submit(renderer, anim_ms=t)
             # a faint separator under the round text keeps the corner legible
             renderer.submit_hud(HudRect((bx, by - 2, bw, 1), C_UI_BORDER))
-            self.pause.submit(renderer)
+            self.pause.submit(renderer, anim_ms=t)
 
         # -- lightning readout (10H) ---------------------------------------
         self._submit_lightning(renderer, session, view_h)

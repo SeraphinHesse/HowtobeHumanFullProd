@@ -258,6 +258,30 @@ imports:
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
+## Skinnable widgets (10L-A)
+`widgets.Button`/`submit_panel` take an optional `skin` slot key → one animated
+nine-sliced `HudSprite` instead of flat rects, label overlay unchanged,
+**unskinned output byte-identical** (pinned by `tools/tests/test_button_skin.py`).
+
+`hover(mx, my, mouse_down)` → `pressed` (the host reads
+`pygame.mouse.get_pressed()[0]`; press-origin is not tracked — accepted v1
+simplification); state→row map: flash/pressed→`"pressed"`, disabled→`"disabled"`,
+hover→`"hover"`, else `"idle"`, missing rows fall back to idle via the manifest.
+
+**One anim clock per screen** (`self._clock` seconds → `widgets.anim_ms()`), no
+per-widget phase; **nothing assigns skins yet** — 10L-B's screen JSON does.
+`levelup.py`/`boss_cutscene.py` own no `widgets.Button` (plain option-box rects),
+so they accept `mouse_down` on `update()` only for main.py's uniform threading
+call and carry no clock/anim_ms.
+
+**R2 pixel-perfect clickable surface:** skinned buttons hover AND click only over
+drawn pixels (alpha > 0), via a host-injected seam (`widgets.set_skin_hit_test(fn)`).
+The seam queries the `("idle", 0)` canonical silhouette — cursor over a hole in the
+hover row oscillates. The seam is unset by default; host wires it once at startup
+(`game/main.py`: `widgets.set_skin_hit_test(assets.hit_opaque)` right after `AssetStore`
+is built, A8 phase). Unset seam or `skin=None` = rect-only. Panels are not click
+targets — no hit-test wiring on `submit_panel`.
+
 ## Known divergences (deliberate)
 The XP bar/floaters drop the prototype's mascot face + `xp_icon`, which has no
 slot in `data/slots.json` (revisit at the 10L UI-editor phase / 11 parity
