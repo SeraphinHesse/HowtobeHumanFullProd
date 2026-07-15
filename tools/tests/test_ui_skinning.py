@@ -632,5 +632,74 @@ class TestButtonOverrideEndToEnd(unittest.TestCase):
         self.assertIsNone(menu.hit(cx, cy))
 
 
+class TestReviewFixLabelRects(unittest.TestCase):
+    """Review fix (B3 surfaced this): five ids targets carried no ``.rect`` —
+    their position was computed inline at ``submit()`` time and never
+    stored, so the exporter emitted ``rect: [0, 0, 0, 0]`` and a rect
+    override could never move them. All five now carry a stored, real
+    default rect (the anchor point the centred/left-aligned draw derives
+    from — W/H nominal 0, the position-only-text convention documented in
+    ``game/ui/CLAUDE.md``), and the draw call is routed through it."""
+
+    def test_five_label_ids_have_a_real_default_rect(self):
+        hud = Hud(VIEW_W, VIEW_H)
+        cheat = CheatMenu(VIEW_W, VIEW_H)
+        boss = BossCutscene(VIEW_W, VIEW_H)
+        boss.open(1, "win")
+        holders = {
+            "hud.phase_label": hud._phase_label,
+            "cheat_menu.title": cheat._title,
+            "cheat_menu.jump_label": cheat._jump_label,
+            "boss_cutscene.headline": boss._headline,
+            "boss_cutscene.subtitle": boss._subtitle,
+        }
+        for name, holder in holders.items():
+            self.assertNotEqual(tuple(holder.rect), (0, 0, 0, 0), name)
+
+    def test_cheat_menu_title_rect_override_moves_the_recorded_text(self):
+        skinning = ScreenSkinning.empty()
+        skinning._overrides["cheat_menu"] = {
+            "widgets": {"title": {"rect": [640, 999, 0, 0]}}}
+        menu = CheatMenu(VIEW_W, VIEW_H, skinning=skinning)
+        items = _capture(lambda r: menu.submit(r, VIEW_W, VIEW_H))
+        title = next(i for i in items
+                    if isinstance(i, HudText) and i.text == "CHEATS")
+        self.assertEqual(title.pos, (640, 999))
+
+    def test_cheat_menu_title_default_position_is_unchanged_by_the_fix(self):
+        """No-override output for the specific widget the fix touched (the
+        whole-screen golden pin already covers this too)."""
+        menu = CheatMenu(VIEW_W, VIEW_H)
+        items = _capture(lambda r: menu.submit(r, VIEW_W, VIEW_H))
+        title = next(i for i in items
+                    if isinstance(i, HudText) and i.text == "CHEATS")
+        px, py, pw, _ph = menu.panel_rect
+        self.assertEqual(title.pos, (px + pw // 2, py + 8))
+
+    def test_hud_phase_label_rect_override_moves_the_recorded_text(self):
+        skinning = ScreenSkinning.empty()
+        skinning._overrides["hud"] = {
+            "widgets": {"phase_label": {"rect": [500, 501, 0, 0]}}}
+        hud = Hud(VIEW_W, VIEW_H, skinning=skinning)
+        session = _session()
+        panel = BuildingUI(VIEW_W, VIEW_H, UI)
+        hud.update(0.0, *OFF, session, panel, False)
+        items = _capture(lambda r: hud.submit(r, session, VIEW_W, VIEW_H))
+        phase = next(i for i in items
+                    if isinstance(i, HudText) and i.text == "BUILDING")
+        self.assertEqual(phase.pos, (500, 501))
+
+    def test_boss_cutscene_headline_rect_override_moves_the_recorded_text(self):
+        skinning = ScreenSkinning.empty()
+        skinning._overrides["boss_cutscene"] = {
+            "widgets": {"headline": {"rect": [12, 34, 0, 0]}}}
+        boss = BossCutscene(VIEW_W, VIEW_H, skinning=skinning)
+        boss.open(1, "win")
+        items = _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H))
+        headline = next(i for i in items
+                       if isinstance(i, HudText) and i.text.startswith("Cutscene"))
+        self.assertEqual(headline.pos, (12, 34))
+
+
 if __name__ == "__main__":
     unittest.main()

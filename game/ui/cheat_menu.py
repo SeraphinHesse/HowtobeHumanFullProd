@@ -80,15 +80,19 @@ class CheatMenu:
         self.go_btn = Button((0, 0, 0, 0), "Go to Round", "sm")
         self.panel_rect = (0, 0, _PANEL_W, _PANEL_H)
         self.field_rect = (0, 0, 0, 0)
-        self._label_pos = (0, 0)
         self._divider_y = 0
         self._clock = 0.0  # 10L-A: one anim clock per screen
-        # -- 10L-B: shadow holders for the four non-Button ids --
+        # -- 10L-B: shadow holders for the four non-Button ids. ``rect`` on a
+        # label id is the anchor point submit_centered/submit_text draws
+        # from — W/H nominal 0 (position-only text, no fill/box implied),
+        # the same convention hud.py's label ids use (review fix: every ids
+        # target needs a stored, readable, override-respecting rect). --
         self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
-        self._title = SimpleNamespace(font_key="lg", text_color=C_GOLD)
+        self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="lg",
+                                      text_color=C_GOLD)
         self._round_field = SimpleNamespace(rect=self.field_rect,
                                             font_key="sm", text_color=None)
-        self._jump_label = SimpleNamespace(font_key="sm",
+        self._jump_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
                                            text_color=C_UI_TEXT_DIM)
         self.ids = {}
         # -- /10L-B --
@@ -125,12 +129,13 @@ class CheatMenu:
             btn.rect = (px + 10, y, _PANEL_W - 20, 26)
             y += 30
         self._divider_y = y + 2
-        self._label_pos = (px + 10, y + 8)
         self.field_rect = (px + 10, y + 26, 96, 22)
         self.go_btn.rect = (px + 112, y + 26, _PANEL_W - 122, 22)
         # -- 10L-B: cached-dict setattr loop, zero disk I/O per call (the
         # menu's submit() calls layout() every frame it stays open) --
         self._panel.rect = self.panel_rect
+        self._title.rect = (px + _PANEL_W // 2, py + 8, 0, 0)
+        self._jump_label.rect = (px + 10, y + 8, 0, 0)
         self._round_field.rect = self.field_rect
         self.ids = {
             "panel": ("panel", self._panel),
@@ -210,7 +215,7 @@ class CheatMenu:
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         submit_panel(renderer, self.panel_rect, skin=self._panel.skin, anim_ms=t)
         px, py, pw, _ph = self.panel_rect
-        submit_centered(renderer, _TITLE, px + pw // 2, py + 8,
+        submit_centered(renderer, _TITLE, self._title.rect[0], self._title.rect[1],
                         self._title.font_key, self._title.text_color)
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
@@ -219,7 +224,7 @@ class CheatMenu:
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
             HudRect((px + 10, self._divider_y, pw - 20, 1), C_UI_BORDER))
-        submit_text(renderer, "Jump to round:", self._label_pos,
+        submit_text(renderer, "Jump to round:", self._jump_label.rect[:2],
                    self._jump_label.font_key, self._jump_label.text_color)
         renderer.submit_hud(HudRect(self.field_rect, C_PANEL_STONE))
         renderer.submit_hud(HudRect(

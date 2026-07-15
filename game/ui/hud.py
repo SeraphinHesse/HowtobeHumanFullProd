@@ -181,6 +181,12 @@ class Hud:
         self.end_turn.rect = (view_w - w - 16, view_h - h - 16, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
         self.pause.rect = (view_w - pw - 16, 12, pw, ph)
+        # 10L-B review fix: a stored default rect (not just font/text_color)
+        # so the exporter reads a real position AND a rect override actually
+        # moves the phase banner — the anchor point submit_text draws from,
+        # W/H nominal 0 (a position-only text label, the same convention
+        # every other label id in this file already uses).
+        self._phase_label.rect = (12, view_h - 26, 0, 0)
         self.ids = {
             "btn_end_turn": ("button", self.end_turn),
             "btn_pause": ("button", self.pause),
@@ -308,7 +314,7 @@ class Hud:
             color = (self._phase_label.text_color
                     if self._phase_label.text_color is not None
                     else _PHASE_COLOR.get(st.phase, C_UI_TEXT_DIM))
-            submit_text(renderer, label, (12, view_h - 26),
+            submit_text(renderer, label, self._phase_label.rect[:2],
                        self._phase_label.font_key, color)
 
         # -- right-edge cluster: pause (top), round + End Turn (bottom) ----
