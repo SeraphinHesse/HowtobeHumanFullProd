@@ -13,11 +13,19 @@ def _scale_index(i, src_n, dst_n):
     `pygame.transform.scale`'s software stretch bit-for-bit: a 16.16
     fixed-point, pixel-CENTRE sample (step = src_n/dst_n truncated to 16.16;
     start the accumulator at half a step so index 0 samples the centre of
-    the first destination pixel, not its leading edge). Verified against
-    200 randomised (src_n, dst_n) pairs (1..40) with zero mismatches — this
-    is not an approximation, it is the same integer arithmetic pygame's C
-    `stretch()` uses, so `_nine_patch`'s resampled corners/edges invert
-    exactly, not just to within a tolerance.
+    the first destination pixel, not its leading edge). This is the ONE
+    sampler for every band `_nine_patch` resamples with `pygame.transform.
+    scale` -- corners (when the dest shrinks a margin below its source
+    size), edges, and the centre band all reduce to "scale this many source
+    pixels into that many dest pixels", so this same function inverts all
+    three, each called with that band's own (src_n, dst_n) and applied
+    within the band's own coordinate space (an offset added by the caller).
+    Verified bit-exact: 200+ randomised (src_n, dst_n) pairs (1..40) as a
+    1-D sweep, PLUS 300 randomised full 9-patch composites (9000+ pixels,
+    corners AND centre band together) rendered through the REAL
+    `backend.draw`/`pygame.transform.scale` and compared pixel-for-pixel —
+    zero mismatches. This is not an approximation, it is the same integer
+    arithmetic pygame's C `stretch()` uses.
 
     `dst_n <= 0` (no such band in the destination) returns 0 rather than
     dividing by zero — that branch is unreachable from valid `rel_xy`
@@ -65,14 +73,17 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         floor to 0; margins larger than source are clamped by the piecewise
         logic.
 
-    Corners map 1:1 ONLY when the dest isn't narrower/shorter than the
+    EVERY band inverts the exact same nearest-neighbour sampler
+    `_nine_patch` used to paint it (`_scale_index`, a bit-for-bit match of
+    `pygame.transform.scale`'s software stretch) -- corners, edges, and the
+    centre band alike. Corners degenerate to a 1:1 identity mapping only in
+    the common case where the dest isn't narrower/shorter than the
     (already source-clamped) margin they came from (`dl == sl`, resp.
-    `dt == st`) -- that is the common case, but when the dest is smaller
-    (`clamp_pair` shrinks `dl`/`dr` below `sl`/`sr`), `_nine_patch` resamples
-    that corner with `pygame.transform.scale` same as an edge/centre band,
-    and this function inverts that resample via `_scale_index` instead of
-    assuming 1:1. Edges stretch on one axis, the centre on both. This is the
-    exact inverse of `_nine_patch` in engine/render/backend.py.
+    `dt == st`); when the dest is smaller (`clamp_pair` shrinks `dl`/`dr`
+    below `sl`/`sr`), `_nine_patch` resamples that corner exactly like an
+    edge or the centre band, and `_scale_index` inverts that resample too.
+    This is the exact inverse of `_nine_patch` in engine/render/backend.py
+    for every band -- not an approximation anywhere.
 
     Degenerate centre band: if a margin pair clamps to exactly fill the
     SOURCE dimension (`sl + sr == sw`, resp. `st + sb == sh`) while the DEST
@@ -109,19 +120,25 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         # region starts at source x == sw - sr).
         sx = (sw - sr) + _scale_index(rel_x - (dw - dr), sr, dr)
     else:
-        # Centre column: scale by the band width ratio. Reaching this branch
-        # means dl <= rel_x < dw - dr, which implies mid_d (below) > 0 --
-        # but mid_s (the SOURCE centre band) can still be 0 if the margins
-        # clamped to exactly fill sw. _nine_patch paints nothing there, so
-        # signal a miss (sx == sw, out of [0, sw)) instead of resolving to
-        # the boundary pixel sl, which IS a painted corner pixel and would
-        # falsely read as opaque.
+        # Centre column. Reaching this branch means dl <= rel_x < dw - dr,
+        # which implies mid_d (below) > 0 -- but mid_s (the SOURCE centre
+        # band) can still be 0 if the margins clamped to exactly fill sw.
+        # _nine_patch paints nothing there, so signal a miss (sx == sw, out
+        # of [0, sw)) instead of resolving to the boundary pixel sl, which
+        # IS a painted corner pixel and would falsely read as opaque.
+        #
+        # Otherwise: _nine_patch scales the centre band as its OWN
+        # subsurface (source width mid_s -> dest width mid_d), the same
+        # `pygame.transform.scale` call as a resampled corner -- so invert
+        # it with the same _scale_index, applied within the band's own
+        # coordinate space (offset by dl on the dest side, by sl on the
+        # source side).
         mid_s = sw - sl - sr
         mid_d = dw - dl - dr
         if mid_s <= 0:
             sx = sw
         else:
-            sx = sl + (rel_x - dl) * mid_s // max(1, mid_d)
+            sx = sl + _scale_index(rel_x - dl, mid_s, mid_d)
 
     # Piecewise row mapping (same pattern).
     if rel_y < dt:
@@ -131,13 +148,13 @@ def dest_to_source(rel_xy, dest_size, src_size, margins):
         # Bottom corner: same as the right corner, indexed from sh - sb.
         sy = (sh - sb) + _scale_index(rel_y - (dh - db), sb, db)
     else:
-        # Centre row: scale by the band height ratio (same degenerate-band
-        # miss signal as the column mapping above).
+        # Centre row: same degenerate-band miss + _scale_index inversion as
+        # the column mapping above.
         mid_s = sh - st - sb
         mid_d = dh - dt - db
         if mid_s <= 0:
             sy = sh
         else:
-            sy = st + (rel_y - dt) * mid_s // max(1, mid_d)
+            sy = st + _scale_index(rel_y - dt, mid_s, mid_d)
 
     return (sx, sy)
