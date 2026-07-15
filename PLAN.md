@@ -54,14 +54,14 @@ v1 — they exist in `game/ui` now).
   ids + button color/text_color/visible forwarding), B3
   `phase-B3-layout-exporter` 11487d4 (72 widgets / 12 screens, byte-
   deterministic, sha-measured).
-- **Carry-over (Medium, NEW from B3)**: five label ids have no stored `.rect`
-  and export as `[0,0,0,0]`: `hud.phase_label`, `cheat_menu.title`,
-  `cheat_menu.jump_label`, `boss_cutscene.headline`, `boss_cutscene.subtitle`
-  (positions computed inline at submit-time). Designers cannot reposition them
-  and the editor viewport renders them degenerately. A fix was in flight
-  (branch `phase-B2fix-label-rects`, worktree `agent-af11b1b838e58cf8b`,
-  UNCOMMITTED draft) when the user stopped the agent — salvage or discard,
-  then re-run `py tools/export_ui_layouts.py` to refresh the defaults.
+- **RESOLVED (was Medium, from B3)**: the five inline-positioned label ids
+  (`hud.phase_label`, `cheat_menu.title`, `cheat_menu.jump_label`,
+  `boss_cutscene.headline`, `boss_cutscene.subtitle`) now carry stored
+  `(x, y, 0, 0)` anchor rects, override-respecting, with the anchor-rect
+  convention documented in `game/ui/CLAUDE.md` — B2fix `8041de4` merged +
+  defaults re-exported. The agent was stopped mid-fix and later resumed to
+  completion; if that resume was unintended, revert the B2fix merge commit
+  and the defaults-refresh commit together.
 - **Carry-over (Low, NEW from B4i)**: `game_log`'s single `log` widget is a
   0×0 anchor rect with an empty label — the editor viewport draws nothing for
   it (invisible/unclickable on canvas); it is editable only via the details
@@ -86,8 +86,8 @@ v1 — they exist in `game/ui` now).
   fixture-guard ALLOWED entry).
 - **Stale worktrees with uncommitted drafts** (user to discard or salvage):
   the two pre-run drafts from wave 2a (`agent-aaae066e177974fe9` A4 draft,
-  `agent-a49ee230114fc0dbc` old-A5 draft) plus this run's stopped
-  `agent-af11b1b838e58cf8b` (`phase-B2fix-label-rects` label-rect fix draft).
+  `agent-a49ee230114fc0dbc` old-A5 draft). This run's agent worktrees are all
+  committed and merged — safe to clean with `/worktreecleanup`.
 
 A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
 Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
