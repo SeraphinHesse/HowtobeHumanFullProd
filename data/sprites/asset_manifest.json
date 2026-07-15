@@ -1297,7 +1297,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 5,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1306,19 +1306,18 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 5,
+          "frames": 4,
           "hidden": [
             1,
             2,
-            3,
-            4
+            3
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "imported/enemy_stage_1_v2.png"
     },
     "enemy_stage_1_v2": {
       "frame_h": 96,
