@@ -25,7 +25,7 @@ from unittest import mock
 REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA, fixture_copy
 
-from engine import tilemap
+from engine import data_io, tilemap
 from engine.core import Scene
 from engine.physics import TileOccupancy
 from engine.render import HudLines, HudRect, HudSprite, HudText
@@ -449,6 +449,70 @@ class TestScreenSkinningLoad(ScreenSkinningCase):
         self.assertEqual(widget.rect, (1, 2, 3, 4))
 
 
+def _repo_schemas_dir():
+    """The repo's real ``data/schemas/`` — a READ-ONLY source for the one
+    test that exercises the genuine on-disk load-and-validate path (review
+    LOW finding). Never compared against, never written to; ``tools/tests/
+    fixtures/data/schemas`` is missing both ``ui_screen.schema.json`` and
+    ``screen_defaults.schema.json`` (stale since B1 — reported upward, not
+    fixed here, since refreshing that snapshot is outside this phase's file
+    scope), so copying the two live schema files is the only way to run the
+    real loader against the real schema shape it validates against in
+    production."""
+    repo_root = Path(__file__).resolve().parents[2]
+    return repo_root.joinpath("data").joinpath("schemas")
+
+
+class TestRealFileLoadPath(unittest.TestCase):
+    """LOW finding: every other test here injects into ``_overrides``
+    directly, never exercising ``load_screen_overrides``/
+    ``load_screen_defaults`` themselves (the actual ``data_io.load_validated``
+    call against a real file). This builds a throwaway tempdir with REAL
+    schema files (byte-copied, read-only, from the repo) plus a real
+    ``ui/screens/*.json`` / ``ui/screen_defaults.json`` written through
+    ``data_io.write_validated``, so the genuine load path runs at least
+    once end to end."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.data_dir = Path(self._tmp.name)
+        schemas_dir = self.data_dir / "schemas"
+        schemas_dir.mkdir(parents=True)
+        src = _repo_schemas_dir()
+        for name in ("ui_screen.schema.json", "screen_defaults.schema.json"):
+            (schemas_dir / name).write_bytes((src / name).read_bytes())
+
+    def test_loads_and_applies_a_real_override_file(self):
+        screens_dir = self.data_dir / "ui" / "screens"
+        screens_dir.mkdir(parents=True)
+        doc = {"widgets": {"btn_new_game": {"rect": [40, 100, 200, 52]}}}
+        data_io.write_validated(doc, screens_dir / "main_menu.json",
+                               self.data_dir / "schemas" / "ui_screen.schema.json")
+        skinning = ScreenSkinning(self.data_dir)
+        widget = SimpleNamespace(rect=(0, 0, 1, 1))
+        skinning.apply("main_menu", {"btn_new_game": ("button", widget)})
+        self.assertEqual(widget.rect, (40, 100, 200, 52))
+
+    def test_a_real_screen_defaults_file_drives_validation(self):
+        (self.data_dir / "ui").mkdir(parents=True, exist_ok=True)
+        defaults_doc = {"main_menu": {"widgets": {"btn_new_game": {
+            "rect": [0, 0, 1, 1], "kind": "button", "label": "btn_new_game"}}}}
+        data_io.write_validated(
+            defaults_doc, self.data_dir / "ui" / "screen_defaults.json",
+            self.data_dir / "schemas" / "screen_defaults.schema.json")
+        screens_dir = self.data_dir / "ui" / "screens"
+        screens_dir.mkdir(parents=True)
+        bad_doc = {"widgets": {"totally_unknown_id": {"rect": [0, 0, 1, 1]}}}
+        data_io.write_validated(bad_doc, screens_dir / "main_menu.json",
+                               self.data_dir / "schemas" / "ui_screen.schema.json")
+        skinning = ScreenSkinning(self.data_dir)
+        self.assertIsNotNone(skinning._defaults)
+        widget = SimpleNamespace(rect=(0, 0, 1, 1))
+        with self.assertRaises(ValueError):
+            skinning.apply("main_menu", {"totally_unknown_id": ("button", widget)})
+
+
 class TestApplyMutatesWidgets(ScreenSkinningCase):
     def test_apply_mutates_rect(self):
         skinning = ScreenSkinning(self.data_dir)
@@ -531,6 +595,41 @@ class TestScreenBackground(ScreenSkinningCase):
         renderer = RecordingRenderer()
         skinning.submit_background(renderer, "main_menu", VIEW_W, VIEW_H)
         self.assertEqual(renderer.items, [])
+
+
+class TestButtonOverrideEndToEnd(unittest.TestCase):
+    """Review HIGH 2: a real screen (``main_menu``, off-screen cursor so no
+    button is hovered/flashing), not just ``ScreenSkinning.apply()`` in
+    isolation."""
+
+    def _skinned_menu(self, widget_spec):
+        skinning = ScreenSkinning.empty()
+        skinning._overrides["main_menu"] = {"widgets": {"btn_new_game": widget_spec}}
+        menu = MainMenu(VIEW_W, VIEW_H, skinning=skinning)
+        menu.update(0.0, *OFF, False)
+        return menu
+
+    def test_color_and_text_color_override_reach_the_recorded_primitives(self):
+        menu = self._skinned_menu({"color": [10, 20, 30], "text_color": [1, 2, 3]})
+        items = _capture(lambda r: menu.submit(r, VIEW_W, VIEW_H))
+        fills = [i for i in items if isinstance(i, HudRect)
+                and i.rect == menu.buttons[0][0].rect and i.width == 0]
+        texts = [i for i in items if isinstance(i, HudText)
+                and i.text == "START NEW GAME"]
+        self.assertEqual(fills[0].color, (10, 20, 30))
+        self.assertEqual(texts[0].color, (1, 2, 3))
+
+    def test_visible_false_draws_nothing_and_is_never_hit(self):
+        menu = self._skinned_menu({"visible": False})
+        btn = menu.buttons[0][0]
+        cx, cy = btn.rect[0] + btn.rect[2] // 2, btn.rect[1] + btn.rect[3] // 2
+        items = _capture(lambda r: menu.submit(r, VIEW_W, VIEW_H))
+        self.assertFalse(any(
+            isinstance(i, HudRect) and i.rect == btn.rect for i in items))
+        self.assertFalse(any(
+            isinstance(i, HudText) and i.text == "START NEW GAME" for i in items))
+        menu.update(0.0, cx, cy, False)  # cursor squarely over the hidden button
+        self.assertIsNone(menu.hit(cx, cy))
 
 
 if __name__ == "__main__":

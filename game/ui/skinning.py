@@ -47,6 +47,25 @@ def _as_tuple(value):
     return tuple(value) if isinstance(value, list) else value
 
 
+def is_visible(widget) -> bool:
+    """``True`` unless an override has set ``widget.visible = False``.
+    ``Button``/holder objects carry no ``visible`` attribute until
+    ``apply()`` setattrs one (only an override that names it does), so this
+    is the one place every screen checks it — an invisible ``button``-kind
+    widget must be neither drawn nor hit-tested (review HIGH 2)."""
+    return getattr(widget, "visible", True)
+
+
+def button_kwargs(btn) -> Dict[str, Any]:
+    """``color=``/``text_color=`` for ``Button.submit()``, taken from an
+    override (``None`` — i.e. the button's own hover/flash/disabled logic —
+    when absent). A skin, when set, ignores ``color`` entirely (``submit_panel``
+    /``Button.submit``'s own long-standing precedence) — ``text_color`` still
+    applies to the label overlay."""
+    return {"color": getattr(btn, "color", None),
+            "text_color": getattr(btn, "text_color", None)}
+
+
 def load_screen_overrides(data_dir) -> Dict[str, Optional[dict]]:
     """``{screen_id: override_doc_or_None}`` for every
     ``data/ui/screens/*.json``. A missing directory yields ``{}``; a missing/

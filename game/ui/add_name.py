@@ -9,13 +9,15 @@ the ``game.core.append_random_name`` write and reports the outcome back via
 ``set_result`` (keeping ``game/ui`` pygame-and-IO-free).
 
 10L-B: ``ids`` names ``backdrop``, ``panel`` (already routed through
-``submit_panel`` — a skin override works for free), ``btn_add``, ``btn_back``.
+``submit_panel`` — a skin override works for free), ``title`` ("ADD A NAME"),
+``btn_add``, ``btn_back``. An invisible button is neither drawn nor
+hit-tested.
 """
 from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_PANEL_STONE, C_RED, C_UI_BORDER, C_UI_PANEL,
     C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, contains, submit_centered,
@@ -42,6 +44,9 @@ class AddNameScreen:
         self.back_btn = Button((0, 0, 130, 40), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)
+        self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
+                                      text_color=C_GOLD, label="ADD A NAME",
+                                      visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
@@ -55,9 +60,11 @@ class AddNameScreen:
         self.back_btn.rect = (x + _PW - 24 - 130, y + _PH - 56, 130, 40)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._panel.rect = self.rect
+        self._title.rect = (x + _PW // 2, y + 20, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "panel": ("panel", self._panel),
+            "title": ("label", self._title),
             "btn_add": ("button", self.add_btn),
             "btn_back": ("button", self.back_btn),
         }
@@ -91,13 +98,15 @@ class AddNameScreen:
         for btn in (self.add_btn, self.back_btn):
             btn.enabled = True
             btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
             btn.update(dt)
 
     def hit(self, mx, my):
-        """Return ``"back"`` / ``"add"`` / ``"name"`` (box focus) / ``None``."""
-        if self.back_btn.hit(mx, my):
+        """Return ``"back"`` / ``"add"`` / ``"name"`` (box focus) / ``None``.
+        An invisible button is never hit (10L-B)."""
+        if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
-        if self.add_btn.hit(mx, my):
+        if is_visible(self.add_btn) and self.add_btn.hit(mx, my):
             return "add"
         self.editing = contains(self.name_rect, mx, my)  # click toggles focus
         return "name" if self.editing else None
@@ -125,7 +134,10 @@ class AddNameScreen:
         submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
                     skin=self._panel.skin, anim_ms=t)
         cx = x + w // 2
-        submit_centered(renderer, "ADD A NAME", cx, y + 20, "xl", C_GOLD)
+        if self._title.visible:
+            submit_centered(renderer, self._title.label, self._title.rect[0],
+                            self._title.rect[1], self._title.font_key,
+                            self._title.text_color)
         submit_centered(renderer, "Appears on the building-naming dice button.",
                         cx, y + 62, "sm", C_UI_TEXT_DIM)
 
@@ -146,5 +158,7 @@ class AddNameScreen:
         submit_text(renderer, f"Names in pool: {self.pool_count}",
                     (x + 24, y + _PH - 78), "sm", C_UI_TEXT_DIM)
 
-        self.add_btn.submit(renderer, anim_ms=t)
-        self.back_btn.submit(renderer, anim_ms=t)
+        if is_visible(self.add_btn):
+            self.add_btn.submit(renderer, anim_ms=t, **button_kwargs(self.add_btn))
+        if is_visible(self.back_btn):
+            self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

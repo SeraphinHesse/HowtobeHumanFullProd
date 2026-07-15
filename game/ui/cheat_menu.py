@@ -36,7 +36,7 @@ from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_PANEL_STONE, C_UI_BORDER, C_UI_TEXT, C_UI_TEXT_DIM, Button,
     anim_ms, contains, submit_centered, submit_panel, submit_text,
@@ -152,6 +152,7 @@ class CheatMenu:
             return
         for btn in (self.close_btn, self.go_btn, *(b for _, b in self.buttons)):
             btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
             btn.update(dt)
 
     # -- input --------------------------------------------------------------
@@ -174,13 +175,14 @@ class CheatMenu:
 
     def hit(self, mx, my):
         """The clicked action, or None (every click on/off the panel is
-        swallowed by the host while the menu is open)."""
-        if self.close_btn.hit(mx, my):
+        swallowed by the host while the menu is open). An invisible button
+        is never hit (10L-B)."""
+        if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             return "close"
         for action, btn in self.buttons:
-            if btn.hit(mx, my):
+            if is_visible(btn) and btn.hit(mx, my):
                 return action
-        if self.go_btn.hit(mx, my):
+        if is_visible(self.go_btn) and self.go_btn.hit(mx, my):
             return self._commit()
         if contains(self.field_rect, mx, my):
             self.field_focused = True
@@ -210,9 +212,11 @@ class CheatMenu:
         px, py, pw, _ph = self.panel_rect
         submit_centered(renderer, _TITLE, px + pw // 2, py + 8,
                         self._title.font_key, self._title.text_color)
-        self.close_btn.submit(renderer, anim_ms=t)
+        if is_visible(self.close_btn):
+            self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
         for _action, btn in self.buttons:
-            btn.submit(renderer, anim_ms=t)
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
             HudRect((px + 10, self._divider_y, pw - 20, 1), C_UI_BORDER))
         submit_text(renderer, "Jump to round:", self._label_pos,
@@ -230,4 +234,5 @@ class CheatMenu:
             tcol = C_UI_TEXT_DIM
         submit_text(renderer, shown, (fx + 6, fy + 4), self._round_field.font_key,
                    tcol)
-        self.go_btn.submit(renderer, anim_ms=t)
+        if is_visible(self.go_btn):
+            self.go_btn.submit(renderer, anim_ms=t, **button_kwargs(self.go_btn))

@@ -6,14 +6,15 @@ Pure logic. Ports the prototype's ``src/ui/pause_menu.py`` four-button panel
 ``(0, 0, 0, 150)`` alpha dim from the prototype draws behind the panel (the
 9H deferral), so the still board reads as paused-in-place.
 
-10L-B: ``ids`` names ``backdrop`` + one button per row (the panel body keeps
-its own fill/border/radius, unskinned — see ``game/ui/CLAUDE.md``).
+10L-B: ``ids`` names ``backdrop``, ``title`` ("PAUSED") + one button per row
+(the panel body keeps its own fill/border/radius, unskinned — see
+``game/ui/CLAUDE.md``). An invisible button is neither drawn nor hit-tested.
 """
 from types import SimpleNamespace
 
 from engine.render import HudRect
 
-from .skinning import ScreenSkinning
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import C_GOLD, Button, anim_ms, submit_centered
 
 # (label, action) top-to-bottom
@@ -29,6 +30,7 @@ _ACTION_IDS = {
 }
 _PW, _PH = 300, 320
 _BTN_W, _BTN_H, _GAP = 240, 46, 12
+_TITLE = "PAUSED"
 
 SCREEN_ID = "pause"
 
@@ -41,6 +43,9 @@ class PauseScreen:
                         for label, action in _ITEMS]
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h),
                                          color=(0, 0, 0, 150))
+        self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
+                                      text_color=C_GOLD, label=_TITLE,
+                                      visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
@@ -55,7 +60,11 @@ class PauseScreen:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        self._title.rect = (view_w // 2, py + 32, 0, 0)
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "title": ("label", self._title),
+        }
         for btn, action in self.buttons:
             self.ids[_ACTION_IDS[action]] = ("button", btn)
         self.skinning.apply(self.screen_id, self.ids)
@@ -65,11 +74,12 @@ class PauseScreen:
         for btn, _ in self.buttons:
             btn.enabled = True
             btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
             btn.update(dt)
 
     def hit(self, mx, my):
         for btn, action in self.buttons:
-            if btn.hit(mx, my):
+            if is_visible(btn) and btn.hit(mx, my):
                 return action
         return None
 
@@ -83,6 +93,10 @@ class PauseScreen:
         renderer.submit_hud(HudRect(self.rect, (24, 20, 40), border_radius=6))
         renderer.submit_hud(HudRect(self.rect, (80, 65, 120), border_radius=6,
                                     width=2))
-        submit_centered(renderer, "PAUSED", view_w // 2, py + 32, "xl", C_GOLD)
+        if self._title.visible:
+            submit_centered(renderer, self._title.label, self._title.rect[0],
+                            self._title.rect[1], self._title.font_key,
+                            self._title.text_color)
         for btn, _ in self.buttons:
-            btn.submit(renderer, anim_ms=t)
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=t, **button_kwargs(btn))

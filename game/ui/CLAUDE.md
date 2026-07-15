@@ -306,10 +306,13 @@ background layer (slot or flat color) — a no-op today (no shipped screen JSON
 sets one).
 
 - **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
-  `skin`, `font_key`, `text_color`, `visible` as needed) that `submit()` reads
-  from instead of a hardcoded literal — `main_menu`'s/`pause`'s/etc.
-  `backdrop`, `hud.py`'s `love_panel`/`phase_label`, `cheat_menu.py`'s
-  `panel`/`title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
+  `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
+  `submit()` reads from instead of a hardcoded literal — every screen's
+  `backdrop` + static `title`/`subtitle` (`main_menu`'s title AND subtitle;
+  every other simple screen's single `title`), `hud.py`'s `love_panel`/
+  `love_text`/`lvl_label`/`xp_bar`/`xp_text`/`income_text`/`lives_text`/
+  `tiles_text`/`phase_label`/`round_label`, `cheat_menu.py`'s `panel`/
+  `title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
   `headline`/`subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
   (`get_style_holder()` exposes the same object). Existing plain-tuple
   attributes some tests read directly (`CheatMenu.field_rect`,
@@ -342,6 +345,49 @@ sets one).
   raises `ValueError` (catches a renamed/typo'd id) ONLY once the defaults
   file names that screen; its absence (true for the whole of B2) is not an
   error.
+- **Every static title/header is an id too** (review fix, not just buttons/
+  panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
+  `credits`'/`game_over`'s/`add_name`'s `title`. Their copy is NOT game-state,
+  so — unlike the HUD readouts below — `label` (the text itself) is a
+  legitimate override field for these, same shape as any other widget
+  (`rect`/`font_key`/`text_color`/`label`/`visible`).
+- **`hud.py`'s ~12 stable readouts all carry ids now**: `love_panel`,
+  `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
+  widget, the schema's `color` key maps to the track color; the fill ratio +
+  levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
+  `lives_text`, `tiles_text`, `phase_label`, `round_label`, `btn_end_turn`,
+  `btn_pause`. For every one of these the displayed TEXT is a live game-state
+  value (love count, round number, xp fraction, …) and stays code-owned —
+  the override surface is `rect`/`font_key`/`text_color`/`visible` only, the
+  same principle as `boss_cutscene`'s headline colour staying win/loss-owned.
+  `love_text`/`xp_bar`'s pulse colour fall back to the computed value when
+  `text_color`/`color` is left unset (`None`) and to the override otherwise —
+  the same "`None` means compute" convention `boss_cutscene`'s `box.text_color`
+  already used. Because `love_text`/`lvl_label`/etc.'s DEFAULT rects are
+  relative to the now-finalized `love_panel`/`end_turn` rects (themselves
+  overridable), `hud.py`'s `layout()` handles only `btn_end_turn`/`btn_pause`/
+  `love_panel`/`phase_label`; a second pass, `_layout_readouts()` (called from
+  `submit()`, after `layout()`), computes and applies the rest — two
+  `skinning.apply()` calls per frame, still zero disk I/O either way.
+- **Button `color`/`text_color`/`visible` forwarding**: every id'd `Button`'s
+  `submit()` call now forwards `color=`/`text_color=` via
+  `skinning.button_kwargs(btn)` (`getattr(btn, "color"/"text_color", None)` —
+  `None` unless an override actually set one, in which case the button's own
+  hover/flash/disabled colour logic is overridden). **Precedence**: a `skin`
+  present ignores `color` entirely (the long-standing `Button.submit`
+  contract — the sprite has nothing to fill), but `text_color` still applies
+  to the label overlay either way. `visible=False` (via `skinning.is_visible`)
+  skips BOTH the button's `submit()` AND its hover/hit: every screen's
+  hover/update loop forces `btn.hovered = btn.hovered and is_visible(btn)`
+  (never skips `hover()` outright — a stale `True` from before an override
+  toggled visibility off cannot linger) and every click handler gates with
+  `is_visible(btn) and btn.hit(mx, my)`. **Scope**: this applies to every
+  Button that has an id (every button in every screen except `building_ui.py`'s
+  MODE-DEPENDENT ones — the construct cards, the upgrade-panel rename dice,
+  the lightning button, the boss-popup close button — which have no id and so
+  can never receive `color`/`text_color`/`visible` from an override; wiring
+  them is deferred, since `getattr(..., default)` on a widget no id ever
+  targets is dead code today).
 
 ## Known divergences (deliberate)
 The XP bar/floaters drop the prototype's mascot face + `xp_icon`, which has no
