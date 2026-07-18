@@ -954,8 +954,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 7,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
