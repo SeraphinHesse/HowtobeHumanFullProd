@@ -65,6 +65,7 @@ TIERS = {
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
     "test_audio": "core",
+    "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
     "test_boost": "core",
@@ -88,6 +89,7 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
     "test_movement": "core",

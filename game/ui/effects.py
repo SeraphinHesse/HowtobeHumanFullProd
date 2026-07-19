@@ -21,12 +21,13 @@ import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
 from engine.render import HudLines, HudRect, block_center_offset, fit_factor
+from engine.render.fonts import layout_h
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
 from .widgets import (
     C_GOLD, C_HP_GREEN, C_HP_RED, C_UI_TEXT, HEART, submit_bar,
-    submit_centered, submit_text, text_h,
+    submit_centered, submit_text,
 )
 
 _UPKEEP_BLUE = (120, 170, 230)
@@ -697,9 +698,10 @@ class FloaterManager:
         k = max(0.0, min(1.0, k))
         color = _ANNOUNCE_RED + (int(255 * k),)
         cx = view_w // 2
-        cy = view_h // 2 - text_h("xl") - 6
+        # layout_h: a screen-centred layout position (engine/render/fonts.py).
+        cy = view_h // 2 - layout_h("xl") - 6
         submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)
-        submit_centered(renderer, _ANNOUNCE_L2, cx, cy + text_h("xl") + 8,
+        submit_centered(renderer, _ANNOUNCE_L2, cx, cy + layout_h("xl") + 8,
                         "xl", color)
 
     def submit_boss_bars(self, renderer, cs, scene, phase, view_w, view_h):

@@ -22,11 +22,17 @@ TESTS_DIR = Path(__file__).resolve().parent
 ALLOWED = {
     "test_agent_forms.py": "the live form roster IS the dispatch surface",
     "test_audio.py": "plays a shipped binary (wav) — not in the JSON fixture",
+    "test_bake_ui_sheets.py": "TempDataCase-style copy of the real tree — needs "
+                              "the real imported/main_menu_bg.png binary the "
+                              "ui_bg_main_menu entry shares, not in the JSON fixture",
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
     "test_editor_map_mode.py": "TempDataCase write-isolation on the real tree",
     "test_editor_panels.py": "defines TempDataCase (real tree incl. assets)",
     "test_editor_run_controls.py": "TempDataCase-style copy of the real tree",
     "test_game_boot.py": "the 'does today's data actually boot' smoke",
+    "test_layout_h_invariant.py": "regenerates the committed screen_defaults.json "
+                                  "under a simulated font-metric drift (same "
+                                  "live-data subject as test_ui_layout_export.py)",
     "test_nine_slice.py": "validates the SHIPPING sprite manifest",
     "test_qt_harness.py": "exercises the TempDataCase copy machinery itself",
     "test_smoke_pairing.py": "schema<->content pairing on the live tree",

@@ -131,8 +131,9 @@ class AddNameScreen:
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         x, y, w, h = self.rect
-        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER,
-                    skin=self._panel.skin, anim_ms=t)
+        if is_visible(self._panel):
+            submit_panel(renderer, self.rect, fill=C_UI_PANEL,
+                        border=C_UI_BORDER, skin=self._panel.skin, anim_ms=t)
         cx = x + w // 2
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],

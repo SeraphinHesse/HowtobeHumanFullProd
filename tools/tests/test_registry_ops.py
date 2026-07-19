@@ -99,16 +99,17 @@ class TestAddVariant(TempDataCase):
         self.drop_slot_variants("ui_button")
 
         new_key = registry_ops.add_variant(
-            self.data_dir, "ui", ("Buttons",), "Button")
+            self.data_dir, "ui", ("Buttons",), "Menu Button")
         self.assertEqual(new_key, "ui_button_v2")
 
         reg = load_registry(self.data_dir)      # proves the write validated
-        self.assertEqual(reg.group_slots("ui", ("Buttons", "Button")),
+        self.assertEqual(reg.group_slots("ui", ("Buttons", "Menu Button")),
                          ("ui_button", "ui_button_v2"))
 
         # the structural claim: the nested shape is what makes "+ Variant" live
         self.assertEqual(
-            selection.variant_target(reg, "ui", ("Buttons",), 0), "Button")
+            selection.variant_target(reg, "ui", ("Buttons",), 0),
+            "Menu Button")
 
     def test_object_form_entries_do_not_break_the_variant_walk(self):
         """D1 lets a slots[] entry be {key, frame_w, frame_h}. registry_ops

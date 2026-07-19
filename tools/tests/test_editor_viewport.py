@@ -266,6 +266,15 @@ class TestSlicedDraftPreview(TempDataCase):
 class TestSelectorScreensBranch(TempDataCase):
     """B4 §1a: the "ui" category gains a Screens branch, mirroring Maps."""
 
+    def setUp(self):
+        super().setUp()
+        # This class asserts tree STRUCTURE (labels/counts), not art state —
+        # pin "no art" so the 10L wave-3 baked ui_* sheets (a ● marker on
+        # every group) can't turn "Buttons" into "● Buttons" out from
+        # under it (data/CLAUDE.md: never assume a slot is unassigned just
+        # because it is today).
+        self.unassign_family("ui_")
+
     def test_selector_shows_screens_branch_above_slots(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
         ui_root = next(
@@ -276,7 +285,9 @@ class TestSelectorScreensBranch(TempDataCase):
         self.assertEqual(labels[0], "Screens")           # ABOVE the slot groups
         self.assertIn("Buttons", labels[1:])
         screens_branch = ui_root.child(0)
-        self.assertEqual(screens_branch.childCount(), 12)   # B1: 12 screen files
+        # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
+        # pills), added the sanctioned "drop in a file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 13)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
@@ -299,6 +310,15 @@ class TestSelectorScreensBranch(TempDataCase):
 class TestUIScreenSession(TempDataCase):
     """B4 §1b: UIScreenSession mirrors MapSession — open/save lifecycle,
     dirty tracking, undoable push_* commands storing full old/new values."""
+
+    def setUp(self):
+        super().setUp()
+        # These tests assert the "no override written yet" starting state
+        # and that a push/undo cycle leaves NO trace on the widget — both
+        # false once a real skin/rect override lands on main_menu.json (10L
+        # wave 3). Pin it empty rather than depend on live content staying
+        # untouched (data/CLAUDE.md: never assert against live data/).
+        self.empty_screens("main_menu")
 
     def test_screen_session_open_loads_and_validates(self):
         session = self.track(UIScreenSession(data_dir=self.data_dir))
@@ -340,6 +360,14 @@ class TestUIScreenSession(TempDataCase):
 class TestViewportScreenMode(TempDataCase):
     """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
     degrade with no defaults, click/drag/nudge interaction."""
+
+    def setUp(self):
+        super().setUp()
+        # This class renders FIXTURE_DEFAULTS' hand-authored geometry
+        # unskinned/unstyled — pin main_menu.json empty so a live skin
+        # override (10L wave 3) can't add extra HudSprite/HudRect primitives
+        # the counts below don't expect.
+        self.empty_screens("main_menu")
 
     def make_session(self, screen_id="main_menu"):
         session = self.track(UIScreenSession(data_dir=self.data_dir))
@@ -436,9 +464,161 @@ class TestViewportScreenMode(TempDataCase):
         self.assertEqual(sprites[0].animation, "hover")
 
 
+def _write_ui_button_entry(data_dir, slot="ui_button"):
+    """A real manifest entry + a tiny sheet PNG for `slot` — the same shape
+    a fresh import would leave, used by the tests below to exercise the
+    REAL skin render path (never `push_skin_assign`, never a hand-pushed
+    in-memory draft)."""
+    Image.new("RGBA", (64, 64), (200, 60, 60, 255)).save(
+        data_dir / "sprites" / "imported" / f"{slot}.png")
+    entry = {
+        "sheet": f"imported/{slot}.png",
+        "frame_w": 64, "frame_h": 64, "offset_x": 0, "offset_y": 0,
+        "rows": [
+            {"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
+             "loop_start": 0, "loop_end": 0, "loop_count": 1},
+        ],
+    }
+    path = data_dir / "sprites" / "asset_manifest.json"
+    doc = data_io.load_json(path)
+    doc["entries"][slot] = entry
+    data_io.write_validated(
+        doc, path, data_dir / "schemas" / "asset_manifest.schema.json")
+
+
+class TestScreenModeRealSkinRenderPath(TempDataCase):
+    """B4/10L wave 3: the render path a designer actually hits — a REAL
+    `data/ui/screens/<id>.json` override loaded from disk via
+    `UIScreenSession.open` (never `push_skin_assign`, which every
+    pre-existing skin test used instead) plus a real manifest entry + sheet
+    PNG, proving a skinned widget reaches `Renderer.submit_hud` as a
+    `HudSprite` and the `_screen_primitives` flat-rect fallback is NOT also
+    emitted for it. Covers both ways a widget picks up a skin: its own
+    `skin` override, and falling back to the doc's `defaults.button_skin`."""
+
+    SLOT = "ui_button"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.SLOT)   # pin: no manifest entry to start
+        _write_ui_button_entry(self.data_dir, self.SLOT)
+
+    def _write_screen_doc(self, doc):
+        data_io.write_validated(
+            doc, self.data_dir / "ui" / "screens" / "main_menu.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+
+    def make_viewport(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)   # scale 1.0, offset 0
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def open_and_render(self, panel):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        calls = []
+        original = panel._renderer.submit_hud
+
+        def wrapper(item):
+            calls.append(item)
+            return original(item)
+
+        panel._renderer.submit_hud = wrapper
+        panel.render_frame()
+        return calls
+
+    def test_per_widget_skin_emits_hud_sprite_not_flat_rect_fallback(self):
+        self._write_screen_doc(
+            {"widgets": {"btn_new_game": {"skin": self.SLOT}}})
+        panel = self.make_viewport()
+        calls = self.open_and_render(panel)
+
+        sprites = [c for c in calls if isinstance(c, HudSprite)]
+        self.assertEqual(len(sprites), 1)
+        self.assertEqual(sprites[0].slot_key, self.SLOT)
+        # btn_new_game is skinned -> no flat-rect fallback for it; only the
+        # still-unskinned btn_settings draws its fill+border pair. "title"
+        # is kind=="label" and never draws a HudRect either way.
+        rects = [c for c in calls if isinstance(c, HudRect)]
+        self.assertEqual(len(rects), 2)
+
+    def test_defaults_button_skin_skins_every_unoverridden_button(self):
+        self._write_screen_doc({"defaults": {"button_skin": self.SLOT}})
+        panel = self.make_viewport()
+        calls = self.open_and_render(panel)
+
+        sprites = [c for c in calls if isinstance(c, HudSprite)]
+        self.assertEqual(len(sprites), 2)   # btn_new_game AND btn_settings
+        self.assertTrue(all(s.slot_key == self.SLOT for s in sprites))
+        rects = [c for c in calls if isinstance(c, HudRect)]
+        self.assertEqual(rects, [])
+
+
+class TestScreenModeReloadOnEntry(TempDataCase):
+    """The actual bug the user hit: entering screen mode must re-read
+    data/sprites/asset_manifest.json, not render off whatever it looked
+    like when this ViewportPanel was constructed (editor/main.py
+    `_enter_screen_mode` — the single choke point every screen-mode entry
+    goes through, `_on_screen_selected`'s both branches call it)."""
+
+    SLOT = "ui_button"
+
+    def setUp(self):
+        super().setUp()
+        self.unassign_slot(self.SLOT)
+        data_io.write_validated(
+            {"widgets": {"btn_new_game": {"skin": self.SLOT}}},
+            self.data_dir / "ui" / "screens" / "main_menu.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+
+    def test_entering_screen_mode_after_manifest_change_picks_up_new_entry(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        # The manifest write lands on disk AFTER the window (and its
+        # ViewportPanel's __init__-time AssetStore) already exist — exactly
+        # the "editor stayed open while art landed" scenario the user hit.
+        _write_ui_button_entry(self.data_dir, self.SLOT)
+        self.assertIsNone(window.viewport._manifest.entry(self.SLOT))  # stale
+
+        reload_calls = []
+        original_reload = window.viewport.reload_assets
+
+        def spy():
+            reload_calls.append(True)
+            return original_reload()
+
+        window.viewport.reload_assets = spy
+        window.selector.select_screen("main_menu")
+
+        self.assertGreaterEqual(len(reload_calls), 1)   # reload actually ran
+        self.assertIsNotNone(window.viewport._manifest.entry(self.SLOT))
+
+        calls = []
+        original_submit = window.viewport._renderer.submit_hud
+
+        def wrapper(item):
+            calls.append(item)
+            return original_submit(item)
+
+        window.viewport._renderer.submit_hud = wrapper
+        window.viewport.render_frame()
+        sprites = [c for c in calls if isinstance(c, HudSprite)
+                  and c.slot_key == self.SLOT]
+        self.assertEqual(len(sprites), 1)
+
+
 class TestScreenDetailsPanel(TempDataCase):
     """B4 §1d: widget list + per-widget form + screen-level sections, every
     edit an IMMEDIATE undoable push_* (never staged)."""
+
+    def setUp(self):
+        super().setUp()
+        # A push/undo cycle must leave NO trace on a widget the test never
+        # touched otherwise — false once main_menu.json carries a live skin
+        # (10L wave 3). Pin it empty (same rule as TestUIScreenSession).
+        self.empty_screens("main_menu")
 
     def make(self):
         panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))

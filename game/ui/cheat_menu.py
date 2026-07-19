@@ -213,7 +213,9 @@ class CheatMenu:
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
-        submit_panel(renderer, self.panel_rect, skin=self._panel.skin, anim_ms=t)
+        if is_visible(self._panel):
+            submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
+                        anim_ms=t)
         px, py, pw, _ph = self.panel_rect
         submit_centered(renderer, _TITLE, self._title.rect[0], self._title.rect[1],
                         self._title.font_key, self._title.text_color)

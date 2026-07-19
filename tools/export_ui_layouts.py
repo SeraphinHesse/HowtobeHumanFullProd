@@ -2,7 +2,8 @@
 
     py tools/export_ui_layouts.py [--data-root PATH] [--output-dir PATH]
 
-Constructs every one of the 12 live screens (``game/ui``) headlessly, with
+Constructs every one of the 13 live screens (``game/ui`` — the original 12 +
+Phase 3's ``overlays``, the map-overlay toggle pills) headlessly, with
 canned mock state (love=123, round=7; a mid-game selection for
 ``building_panel``; ``open(1, "win")`` for ``boss_cutscene``), and emits every
 NAMED widget's ``{rect, kind, label}`` from the screen's ``ids`` dict (the B2
@@ -39,13 +40,15 @@ if str(REPO) not in sys.path:
 
 from engine import data_io  # noqa: E402
 
-# Alphabetical, stable order (plan line 282's 12 screen ids). json.dumps'
+# Alphabetical, stable order (plan line 282's 12 screen ids, + Phase 3's
+# "overlays" — the map-overlay toggle pills, added the sanctioned "drop in a
+# file + ids" way, B1's extension path beyond the original 12). json.dumps'
 # sort_keys=True re-sorts the top level anyway, so this only fixes the order
 # build_screen_defaults is invoked in, not the file's byte layout.
 SCREEN_IDS = [
     "add_name", "boss_cutscene", "building_panel", "cheat_menu", "credits",
-    "game_log", "game_over", "hud", "levelup", "main_menu", "pause",
-    "settings",
+    "game_log", "game_over", "hud", "levelup", "main_menu", "overlays",
+    "pause", "settings",
 ]
 
 # Common mock state (§1.3): every screen construction reads these where it
@@ -163,18 +166,35 @@ def _build_hud(view_w, view_h, data_root):
 
 
 def _build_building_panel(view_w, view_h, data_root):
+    from types import SimpleNamespace
+
     from game.buildings.registry import build_cost
     from game.core.balance import load_balance
     from game.ui.building_ui import BuildingUI, ConstructPreview
 
     buildings_balance = load_balance(data_root, "buildings")
     ui_balance = load_balance(data_root, "ui")
+    core_balance = load_balance(data_root, "core")
 
-    # BuildingUI's 4 mode-independent ids (panel/close_btn/action_btn/
-    # boss_btn) are set once in __init__ — no open_for_tile()/layout() call
-    # needed to populate them (game/ui/CLAUDE.md "mode-independent ids").
+    # BuildingUI's mode-independent ids (panel/close_btn/action_btn/boss_btn/
+    # rename_dice_btn/boss_close_btn) are set once in __init__ — no
+    # open_for_tile()/layout() call needed to populate them (game/ui/
+    # CLAUDE.md "mode-independent ids").
     panel = BuildingUI(view_w, view_h, ui_balance)
     widgets = dict(_widgets_from_ids(panel.ids))
+
+    # lightning_btn is the one id that is NOT mode-independent — it is
+    # (re)created inside _build_base_info, so a bare construction never
+    # populates it. A minimal stand-in "session" (only the two attributes
+    # _build_base_info reads) exercises the real builder so its default rect
+    # is recorded too — skipping this would leave "lightning_btn" out of
+    # screen_defaults.json's known-id set, and a real building_panel.json
+    # override naming it would raise ValueError at load (Phase 3).
+    panel._build_base_info(SimpleNamespace(
+        state=SimpleNamespace(lightning_level=1), core_balance=core_balance))
+    if panel.lightning_btn is not None:
+        widgets.update(_widgets_from_ids(
+            {"lightning_btn": ("button", panel.lightning_btn)}))
 
     # ConstructPreview's disjoint "preview_*" ids (mid-game: a building
     # chosen, the construct-confirm modal open) — its own ids/apply pass runs
@@ -218,6 +238,16 @@ def _build_boss_cutscene(view_w, view_h, data_root):
     return _widgets_from_ids(screen.ids), "open(1, 'win')"
 
 
+def _build_overlays(view_w, view_h, data_root):
+    from game.ui.overlays import MapOverlays
+
+    # ids are applied once in __init__ (no separate layout() step — mirrors
+    # BuildingUI's mode-independent ids), so a bare construction is enough.
+    screen = MapOverlays(view_w, view_h)
+    return (_widgets_from_ids(screen.ids),
+            f"{_COMMON_NOTE} (idle, no world state — the two toggle pills)")
+
+
 _BUILDERS = {
     "add_name": _build_add_name,
     "boss_cutscene": _build_boss_cutscene,
@@ -229,6 +259,7 @@ _BUILDERS = {
     "hud": _build_hud,
     "levelup": _build_levelup,
     "main_menu": _build_main_menu,
+    "overlays": _build_overlays,
     "pause": _build_pause,
     "settings": _build_settings,
 }

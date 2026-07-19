@@ -267,7 +267,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                           skinning=shell.skinning)
         gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
-        gp["overlays"] = MapOverlays(view_w, view_h)
+        gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
         # -- /10I --
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
         gp["game_log"] = GameLog(skinning=shell.skinning)

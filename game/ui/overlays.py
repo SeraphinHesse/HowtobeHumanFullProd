@@ -24,15 +24,26 @@ prototype drew them.
 
 Cost profile (large-map invariant): O(viewport) tint + O(defenders·r²)
 coverage + O(visited tiles) heatmap — never a full-map per-frame scan.
+
+10L-B (Phase 3): the two toggle pills are their OWN screen id, ``overlays``
+(``data/ui/screens/overlays.json``) — the B1 format's "drop in a file + ids"
+extension path, not one of the original 12. ``ids`` names ``btn_range``/
+``btn_heatmap``; since ``view_w``/``view_h`` are fixed for this object's whole
+lifetime (one ``MapOverlays`` per run, like ``BuildingUI``'s mode-independent
+ids), ``apply()`` runs once in ``__init__`` rather than from a per-frame
+``layout()``.
 """
 from engine.render import HudRect
 from game.core.phases import GamePhase
 from game.map.tiles import TileCondition, TileState
 
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_RANGE_HIGHLIGHT, C_UI_BTN, Button, anim_ms, contains,
     submit_tile_diamond_fill,
 )
+
+SCREEN_ID = "overlays"
 
 # World condition tint per condition (prototype tile.py:25-30, verbatim RGB).
 _COND_TINT = {
@@ -62,7 +73,9 @@ class MapOverlays:
     across phases and rounds within a run — a fresh run builds a fresh
     instance (prototype: fields on the HUD object)."""
 
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self.show_range = False
@@ -76,16 +89,24 @@ class MapOverlays:
         self._current = {}
         self.path_heatmap = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
+        # 10L-B: fixed for this object's lifetime — apply once (no per-frame
+        # layout() step, matching BuildingUI's mode-independent ids).
+        self.ids = {
+            "btn_range": ("button", self.range_btn),
+            "btn_heatmap": ("button", self.heatmap_btn),
+        }
+        self.skinning.apply(self.screen_id, self.ids)
 
     # -- input ---------------------------------------------------------------
 
     def hit(self, mx, my):
         """Flip the matching toggle; True = the click was consumed (the pills
-        never return a HUD action — prototype hud.py:223-228)."""
-        if self.range_btn.hit(mx, my):
+        never return a HUD action — prototype hud.py:223-228). An invisible
+        pill is never hit (10L-B)."""
+        if is_visible(self.range_btn) and self.range_btn.hit(mx, my):
             self.show_range = not self.show_range
             return True
-        if self.heatmap_btn.hit(mx, my):
+        if is_visible(self.heatmap_btn) and self.heatmap_btn.hit(mx, my):
             self.show_heatmap = not self.show_heatmap
             return True
         return False
@@ -99,7 +120,10 @@ class MapOverlays:
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
         self.range_btn.hover(mx, my, mouse_down)
+        self.range_btn.hovered = self.range_btn.hovered and is_visible(self.range_btn)
         self.heatmap_btn.hover(mx, my, mouse_down)
+        self.heatmap_btn.hovered = (self.heatmap_btn.hovered
+                                    and is_visible(self.heatmap_btn))
         self.range_btn.update(dt)
         self.heatmap_btn.update(dt)
 
@@ -180,14 +204,20 @@ class MapOverlays:
 
     def submit_buttons(self, renderer):
         """The HUD-pass toggle pills; an active toggle gets a gold rim + gold
-        label (prototype hud.py:383-392)."""
+        label (prototype hud.py:383-392). An invisible pill draws nothing
+        (10L-B)."""
         t = anim_ms(self._clock)
         for btn, active in ((self.range_btn, self.show_range),
                             (self.heatmap_btn, self.show_heatmap)):
+            if not is_visible(btn):
+                continue
             if active:
+                # active state is code-owned styling (like boss_cutscene's
+                # win/loss headline colour) — it always wins over an
+                # override's color/text_color, same as the pre-10L-B behavior.
                 btn.submit(renderer, color=C_UI_BTN, text_color=C_GOLD,
                           anim_ms=t)
                 renderer.submit_hud(HudRect(btn.rect, C_GOLD, width=2,
                                             border_radius=3))
             else:
-                btn.submit(renderer, anim_ms=t)
+                btn.submit(renderer, anim_ms=t, **button_kwargs(btn))

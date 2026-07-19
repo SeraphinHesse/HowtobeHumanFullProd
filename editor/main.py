@@ -369,6 +369,14 @@ class MainWindow(QMainWindow):
         self._enter_screen_mode()
 
     def _enter_screen_mode(self):
+        # ED-42: re-read the manifest on every entry, not just after an
+        # import-panel save — a designer who ran the asset importer while
+        # this editor instance stayed open (or restored data/sprites/
+        # asset_manifest.json from another branch) would otherwise see
+        # grey-X/flat-rect skins until an editor restart. Cheap: AssetStore
+        # loads sheets lazily, so this is just a fresh manifest read + a
+        # fresh AssetStore (engine/assets/CLAUDE.md "no cache invalidation").
+        self.viewport.reload_assets()
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
@@ -399,6 +407,11 @@ class MainWindow(QMainWindow):
 
     def _on_export_layouts_finished(self, code):
         if code == 0:
+            # the exporter subprocess may have run alongside a fresh asset
+            # import, or the manifest may simply be stale in this running
+            # editor — refresh it the same way _enter_screen_mode does
+            # (ED-42) so "Refresh Layouts" also picks up new skins.
+            self.viewport.reload_assets()
             self._screen_defaults = self._load_screen_defaults()
             self.viewport.refresh_screen_defaults(self._screen_defaults)
             self.screen_details.set_defaults(self._screen_defaults)

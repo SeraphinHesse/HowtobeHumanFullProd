@@ -202,16 +202,37 @@ validating writer; don't hand-edit the JSON.
     picker, which is how you get it back — silently deleting art on a link change
     is the worse failure.
 
-## UI screen data (Phase 10L-B, R3)
+## UI screen data (Phase 10L-B, R3; wave-3 population Phase 3)
 - **`data/ui/screens/<screen_id>.json`**: per-screen override format. One file
-  per screen (12 total: main_menu, pause, settings, credits, add_name,
+  per screen — the original 12 (main_menu, pause, settings, credits, add_name,
   game_over, levelup, hud, building_panel, cheat_menu, game_log,
-  boss_cutscene); each is EMPTY `{}` until edited in the editor.
+  boss_cutscene) plus Phase 3's `overlays` (the map-overlay RANGE/HEATMAP
+  toggle pills, added the sanctioned "drop in a file + ids" way — a NEW
+  screen id beyond the original 12, per `game/ui/CLAUDE.md`'s customization
+  section). Every file started life EMPTY `{}`; Phase 3 populated 11 of the
+  13 with real `skin`/`defaults` content wiring the baked `ui_button`/
+  `ui_panel`/`ui_panel_stone` assets in (`game_log.json` stays `{}` — R3's
+  "container styling only, never position log lines" contract).
+- **Wave-3 Fix 2 (USER DECISION): one slot PER BUTTON TYPE, not one shared
+  `ui_button`.** `slots.json`'s `ui` → Buttons group carries 8 leaf children
+  (each its own PNG via `tools/bake_ui_sheets.py`, no shared `sheet` path
+  between them, all `[4,4,4,4]`-sliced) wired as: `ui_button` (shell menus —
+  main_menu/pause/settings/credits/add_name/game_over, unchanged) ·
+  `ui_button_end_turn` → hud.json `btn_end_turn` · `ui_button_pause` →
+  hud.json `btn_pause` · `ui_button_panel` → building_panel.json's id'd
+  buttons (action/boss/close/preview_*/rename_dice/lightning/boss_close) ·
+  `ui_button_card` → building_panel.json `defaults.button_skin` (construct/
+  upgrade cards) · `ui_button_cheat` → cheat_menu.json `btn_*` · `ui_button_
+  pill` → overlays.json `btn_range`/`btn_heatmap` · `ui_choice_box` → levelup.
+  json `defaults.panel_skin` and boss_cutscene.json `box_a`/`box_b` (baking
+  the same idle+hover stone look as `ui_panel_stone`, which stays registered
+  and baked separately as a panel style).
   `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
   `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
-  styling to dynamic widgets; `widgets: {<id>: {rect?, skin?, font?, color?,
-  text_color?, label?, visible?}}` overrides any named widget's properties.
-  Nothing consumes these files until B2.
+  styling to DYNAMIC-count content that carries no id (construct cards, the
+  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`);
+  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
+  visible?}}` overrides any named widget's properties.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
   exporter (B3). FLAT shape, keyed directly by screen id at the root:

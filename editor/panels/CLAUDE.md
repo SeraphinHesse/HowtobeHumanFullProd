@@ -479,6 +479,29 @@ import list.**
   path as Build, distinguished by the `which` string on the shared
   `started`/`finished` signals) → on exit 0, reloads defaults into viewport +
   screen_details + `selector.refresh_screens()`.
+- **`_enter_screen_mode()` reloads the asset manifest on EVERY entry**
+  (`viewport.reload_assets()`, ED-42, called first thing — before
+  `_load_screen_defaults()`/`set_screen_mode`): the viewport's `AssetStore`
+  is built once at `ViewportPanel.__init__` and otherwise only rebuilt by an
+  explicit `reload_assets()`/`reload_registry()` call (`engine/assets/
+  CLAUDE.md` "no cache invalidation") — without this, an editor left running
+  while `data/sprites/asset_manifest.json` changed on disk (a fresh import,
+  a branch switch, another process's write) kept showing grey-X/flat-rect
+  skins in screen mode until restart, even though the doc's `skin`
+  override/`defaults.button_skin` resolved fine (a `HudSprite` is emitted
+  either way — `skin` comes from the screen doc, not the manifest; only the
+  RESOLVED FRAME was stale). `_on_export_layouts_finished` (the "Refresh
+  Layouts" completion handler) reloads too, for the same reason. Both calls
+  are cheap: `AssetStore` loads sheet PNGs lazily, so a reload is a fresh
+  manifest-JSON read plus a fresh (empty-cache) `AssetStore`/`Renderer`, not
+  a bulk re-decode. Regression coverage:
+  `test_editor_viewport.TestScreenModeReloadOnEntry` (fails red without the
+  `reload_assets()` call — proven by reverting it) and
+  `TestScreenModeRealSkinRenderPath` (the real on-disk-doc + real-manifest
+  render path — every earlier skin test only exercised
+  `push_skin_assign` on an in-memory session, never a populated screen
+  JSON, so a manifest-resolution regression here had no test that could
+  have caught it).
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
