@@ -77,6 +77,7 @@ TIERS = {
     "test_components": "core",
     "test_coords": "core",
     "test_core": "core",
+    "test_corpse": "core",
     "test_death_spawn": "core",
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
