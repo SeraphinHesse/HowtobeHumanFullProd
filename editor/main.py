@@ -136,6 +136,8 @@ class MainWindow(QMainWindow):
         self.palette.add_prop_requested.connect(self._on_add_prop)
         self.palette.add_deco_variant_requested.connect(
             self._on_add_deco_variant)
+        self.palette.background_slot_armed.connect(
+            self._on_background_slot_armed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.cursor_world.connect(self._on_cursor_world)
@@ -588,6 +590,15 @@ class MainWindow(QMainWindow):
         code = self.map_session.push_add_background(slot)
         self.palette.set_legend(self.map_session.doc.legend)
         return code
+
+    def _on_background_slot_armed(self, slot):
+        """A background variant with no legend code in the open map was
+        clicked in the palette: claim a code for it (undoable, like '+
+        Level' minus creating a new slot) and arm it. No-op with no map
+        open."""
+        code = self._bind_background_code(slot)
+        if code is not None:
+            self.palette.arm_code(code)
 
     def _on_add_level(self):
         """+ Level: add a new background tile type — a fresh slot in slots.json
