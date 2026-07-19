@@ -1,17 +1,22 @@
 """ViewportPanel (ED-2/ED-20/ED-21/ED-22/ED-23) — the engine's render
 surface embedded in a PySide6 widget.
 
-Three modes, all drawn by the ONE real engine pipeline (RenderItem ->
+Four modes, all drawn by the ONE real engine pipeline (RenderItem ->
 Renderer -> pygame.Surface, ED-22): the Phase 3 grey-X ground grid, the
-entity preview (ED-21, Phase 5), and — when a map node is selected — the
-TILEMAP EDITOR (ED-20, Phase 6): the open MapSession's doc rendered with
-layer eyes + zone tints, ghost previews on the overlay layer, grid lines
-through the engine's E-24 overlay primitive, and mouse tools whose cell
-picking goes through engine.coords.screen_to_world ONLY (E-3 — no iso
-math here). In map mode the LEFT button drives the armed tool and the
-RIGHT button pans (entity preview keeps either-button pan); strokes
+entity preview (ED-21, Phase 5), the TILEMAP EDITOR (ED-20, Phase 6, when a
+map node is selected): the open MapSession's doc rendered with layer eyes +
+zone tints, ghost previews on the overlay layer, grid lines through the
+engine's E-24 overlay primitive, and mouse tools whose cell picking goes
+through engine.coords.screen_to_world ONLY (E-3 — no iso math here); and
+SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed 1280x720
+logical canvas scaled-to-fit the widget, submitted entirely through
+Renderer.submit_hud (HudSprite for skinned widgets, editor.panels.
+_screen_primitives' flat-rect fallback for unskinned ones — E-37 degrade,
+never a game/ui import). In map mode the LEFT button drives the armed tool
+and the RIGHT button pans (entity preview keeps either-button pan); strokes
 mutate the session doc live and are pushed as ONE undo command on
-release (ED-24).
+release (ED-24). Screen mode mirrors that live-mutate-then-push pattern for
+widget drags (set_screen_mode/_screen_press/_screen_release).
 
 SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
@@ -33,11 +38,12 @@ from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QComboBox, QWidget
 
 from editor import tilemap_ops
+from editor.panels import _screen_primitives
 from engine import tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import Renderer, RenderItem
+from engine.render import HudLines, HudRect, HudSprite, HudText, Renderer, RenderItem
 
 REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
@@ -57,6 +63,15 @@ START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
+# -- screen mode (B4, R3): fixed 1280x720 logical canvas, scaled-to-fit -----
+SCREEN_W, SCREEN_H = 1280, 720   # data/display.json's canonical resolution
+NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
+SELECTION_COLOR = (255, 220, 80)
+HANDLE_COLOR = (255, 255, 255)
+HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
+NUDGE_STEP = 1         # arrow-key nudge, in LOGICAL (1280x720) pixels
+_CORNERS = ("tl", "tr", "bl", "br")
+
 
 def surface_to_qimage(surface):
     """Pure conversion: pygame.Surface -> QImage (the sanctioned fallback).
@@ -73,10 +88,12 @@ def surface_to_qimage(surface):
 class ViewportPanel(QWidget):
     cursor_world = Signal(float, float)   # ED-23 readout (both modes)
     code_picked = Signal(str)             # picker tool → palette re-arm
+    widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # B4: arrow-key nudge
         pygame.init()
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self._coords = load_coordinate_system(self._data_dir)
@@ -119,6 +136,27 @@ class ViewportPanel(QWidget):
         self._anim_combo.move(8, 8)
         self._anim_combo.hide()
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
+
+        # -- screen mode state (B4, R3): all mutation goes through the open
+        # UIScreenSession's undo stack; all rect math in LOGICAL (1280x720)
+        # pixels, converted to SCREEN pixels only at submission/hit-test time
+        self._screen_session = None
+        self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
+        self._selected_widget = None
+        self._selected_field_mode = None   # None | "move" | "resize"
+        self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
+        self._drag_start = None            # SCREEN-pixel QPointF at press
+        self._drag_orig_rect = None        # effective LOGICAL rect at press
+        self._drag_orig_override_rect = None  # doc override at press, or None
+        self._screen_state = "idle"        # state-dropdown value (button rows)
+        self._screen_anim_ms = 0.0
+        self._screen_anim_last_t = None
+        # Button-state dropdown (idle/hover/pressed/disabled), same floating-
+        # child pattern as the entity-preview animation combo above.
+        self._state_combo = QComboBox(self)
+        self._state_combo.move(8, 8)
+        self._state_combo.hide()
+        self._state_combo.currentTextChanged.connect(self.set_screen_state)
 
         self._surface = None
         self._qimage = None
@@ -234,7 +272,247 @@ class ViewportPanel(QWidget):
     def in_map_mode(self):
         return self._map_session is not None and self._map_session.doc is not None
 
-    # palette state (MainWindow wires the PalettePanel signals to these)
+    # -- screen mode (B4, R3) -------------------------------------------------
+
+    def set_screen_mode(self, session, defaults=None):
+        """A UIScreenSession with an open doc → screen mode: a FIXED
+        1280x720 logical canvas, scaled-to-fit the viewport widget (no
+        viewport-driven zoom like map mode — the whole canvas is always
+        visible at one computed scale, like the entity preview's parked
+        camera). None → leaves screen mode.
+
+        `defaults` is the loaded data/ui/screen_defaults.json dict, keyed by
+        screen_id -> {widgets, mock_note}. Missing/empty is HARD REQUIRED to
+        degrade gracefully (pre-B3, or a broken dev machine): render_frame
+        never raises over it — see _submit_screen_items's placeholder path.
+        """
+        self._screen_session = session if (
+            session is not None and session.doc is not None) else None
+        self._screen_defaults = defaults if defaults is not None else {}
+        self._selected_widget = None
+        self._selected_field_mode = None
+        self._resize_corner = None
+        self._drag_start = None
+        self._drag_orig_rect = None
+        self._drag_orig_override_rect = None
+        self._screen_state = "idle"
+        self._reset_screen_anim_clock()
+        if self.in_screen_mode():
+            self._anim_combo.hide()
+            self._refresh_state_combo()
+            self._state_combo.show()
+        else:
+            self._state_combo.hide()
+        self._resize_surface()
+
+    def in_screen_mode(self):
+        return self._screen_session is not None and self._screen_session.doc is not None
+
+    def refresh_screen_defaults(self, defaults):
+        """"Refresh Layouts" finished (B3's exporter ran): re-render with the
+        freshly re-read data/ui/screen_defaults.json — no mode change."""
+        self._screen_defaults = defaults or {}
+
+    def set_selected_widget(self, widget_id):
+        """External (screen_details widget-list click) → sync the viewport's
+        own selection, without re-emitting widget_selected (screen_details
+        already knows)."""
+        self._selected_widget = widget_id
+        self._selected_field_mode = None
+        self._drag_start = None
+
+    def set_screen_state(self, name):
+        """The floating state combo (idle/hover/pressed/disabled) — drives
+        the animation ROW passed to every skinned widget's HudSprite."""
+        if not name or name == self._screen_state:
+            return
+        self._screen_state = name
+
+    def _reset_screen_anim_clock(self):
+        self._screen_anim_ms = 0.0
+        self._screen_anim_last_t = None
+
+    def _refresh_state_combo(self):
+        """Populated from the registry's "ui" category vocabulary (data-
+        driven, not a hardcoded literal list) — every ui slot shares the same
+        idle/hover/pressed/disabled rows (data/CLAUDE.md 'ui animation
+        vocabulary')."""
+        try:
+            animations = self._registry.category("ui").animations
+        except KeyError:
+            animations = ("idle",)
+        combo = self._state_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItems(list(animations))
+        if self._screen_state not in animations:
+            self._screen_state = animations[0] if animations else "idle"
+        combo.setCurrentText(self._screen_state)
+        combo.blockSignals(False)
+
+    def _current_screen_defaults(self):
+        """The open screen's own {widgets, mock_note} sub-dict, or None when
+        absent (no defaults file, or this screen isn't in it yet) — the ONE
+        place every screen-mode code path checks for graceful degrade."""
+        if self._screen_session is None:
+            return None
+        return self._screen_defaults.get(self._screen_session.screen_id)
+
+    def _screen_scale_offset(self):
+        """Uniform scale + letterbox offset fitting the 1280x720 logical
+        canvas inside the current widget size (screen mode never zooms)."""
+        w, h = max(1, self.width()), max(1, self.height())
+        scale = min(w / SCREEN_W, h / SCREEN_H)
+        scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
+        return scale, (w - scaled_w) / 2, (h - scaled_h) / 2
+
+    def _to_screen_rect(self, rect, scale, ox, oy):
+        x, y, w, h = rect
+        return (ox + x * scale, oy + y * scale, w * scale, h * scale)
+
+    def _effective_rect(self, widget_id, defaults):
+        """The widget's CURRENT logical rect: the doc's override if one
+        exists, else the default's own rect. Always a fresh list (never an
+        alias into `defaults` or the doc)."""
+        base = defaults["widgets"][widget_id]["rect"]
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        return list(override.get("rect", base))
+
+    # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
+
+    def _hit_widget(self, pos, defaults):
+        """Topmost widget rect under `pos` (SCREEN pixels) — reverse
+        submission order, since a later HUD submission draws over an
+        earlier one. Invisible widgets (visible=False override) can't be
+        hit."""
+        scale, ox, oy = self._screen_scale_offset()
+        doc = self._screen_session.doc
+        for widget_id in reversed(list(defaults.get("widgets", {}))):
+            if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
+                continue
+            sx, sy, sw, sh = self._to_screen_rect(
+                self._effective_rect(widget_id, defaults), scale, ox, oy)
+            if sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh:
+                return widget_id
+        return None
+
+    def _hit_resize_handle(self, pos, defaults):
+        """One of the 4 corner handles of the CURRENTLY selected widget, or
+        None — handles only exist once something is already selected."""
+        if self._selected_widget is None:
+            return None
+        scale, ox, oy = self._screen_scale_offset()
+        sx, sy, sw, sh = self._to_screen_rect(
+            self._effective_rect(self._selected_widget, defaults), scale, ox, oy)
+        corners = dict(zip(_CORNERS,
+                          ((sx, sy), (sx + sw, sy), (sx, sy + sh), (sx + sw, sy + sh))))
+        for corner, (cx, cy) in corners.items():
+            if abs(pos.x() - cx) <= HANDLE_PX and abs(pos.y() - cy) <= HANDLE_PX:
+                return corner
+        return None
+
+    def _resized_rect(self, orig_rect, corner, dx, dy):
+        """Dragging a corner keeps the OPPOSITE corner anchored; width/height
+        floor at 1 logical pixel (never a degenerate/negative rect)."""
+        x, y, w, h = orig_rect
+        x1, y1, x2, y2 = x, y, x + w, y + h
+        if corner in ("tl", "bl"):
+            x1 = x + dx
+        else:
+            x2 = x + w + dx
+        if corner in ("tl", "tr"):
+            y1 = y + dy
+        else:
+            y2 = y + h + dy
+        return [round(min(x1, x2)), round(min(y1, y2)),
+                max(1, round(abs(x2 - x1))), max(1, round(abs(y2 - y1)))]
+
+    # -- screen-mode interaction (ED-23) --------------------------------------
+
+    def _screen_press(self, event):
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return   # E-37: no defaults, no interaction
+        pos = event.position()
+        self.setFocus(Qt.FocusReason.MouseFocusReason)   # arrow nudge needs it
+        handle = self._hit_resize_handle(pos, defaults)
+        if handle is not None:
+            self._begin_drag(self._selected_widget, "resize", pos, defaults,
+                             corner=handle)
+            return
+        widget_id = self._hit_widget(pos, defaults)
+        if widget_id != self._selected_widget:
+            self._selected_widget = widget_id
+            self.widget_selected.emit(widget_id)
+        if widget_id is not None:
+            self._begin_drag(widget_id, "move", pos, defaults)
+        else:
+            self._selected_field_mode = None
+            self._drag_start = None
+
+    def _begin_drag(self, widget_id, mode, pos, defaults, corner=None):
+        self._selected_widget = widget_id
+        self._selected_field_mode = mode
+        self._resize_corner = corner
+        self._drag_start = pos
+        self._drag_orig_rect = self._effective_rect(widget_id, defaults)
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        self._drag_orig_override_rect = (
+            list(override["rect"]) if "rect" in override else None)
+
+    def _screen_move(self, event):
+        if self._drag_start is None or self._selected_widget is None:
+            return
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return
+        scale, _ox, _oy = self._screen_scale_offset()
+        pos = event.position()
+        dx = (pos.x() - self._drag_start.x()) / scale
+        dy = (pos.y() - self._drag_start.y()) / scale
+        if self._selected_field_mode == "resize":
+            new_rect = self._resized_rect(
+                self._drag_orig_rect, self._resize_corner, dx, dy)
+        else:
+            x, y, w, h = self._drag_orig_rect
+            new_rect = [round(x + dx), round(y + dy), w, h]
+        doc = self._screen_session.doc
+        doc.setdefault("widgets", {}).setdefault(
+            self._selected_widget, {})["rect"] = new_rect
+
+    def _screen_release(self, event):
+        widget_id, mode = self._selected_widget, self._selected_field_mode
+        dragging = self._drag_start is not None and widget_id is not None
+        self._drag_start = None
+        if not dragging:
+            return
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return
+        new_rect = self._effective_rect(widget_id, defaults)
+        old_rect = self._drag_orig_override_rect
+        if mode == "resize":
+            self._screen_session.push_resize(widget_id, old_rect, new_rect)
+        else:
+            self._screen_session.push_move(widget_id, old_rect, new_rect)
+
+    def _nudge_selected(self, ddx, ddy):
+        """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
+        directly (no live-drag preview needed) — QUndoStack.push() calls
+        redo() itself, which is what actually mutates the doc."""
+        defaults = self._current_screen_defaults()
+        widget_id = self._selected_widget
+        if not defaults or widget_id is None:
+            return
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        old_rect = list(override["rect"]) if "rect" in override else None
+        x, y, w, h = self._effective_rect(widget_id, defaults)
+        new_rect = [x + ddx * NUDGE_STEP, y + ddy * NUDGE_STEP, w, h]
+        self._screen_session.push_move(widget_id, old_rect, new_rect)
+
+    # -- palette state (MainWindow wires the PalettePanel signals to these)
     def set_tool(self, name):
         self._tool = name
         self._anchor = None
@@ -486,7 +764,9 @@ class ViewportPanel(QWidget):
         self._surface = pygame.Surface((w, h))
         if self.in_map_mode():
             self._center_on_camera_start(w, h)
-        else:
+        elif not self.in_screen_mode():
+            # screen mode needs no camera — its scale/offset is recomputed
+            # fresh every render_frame from the widget's CURRENT size
             self._center_on_preview(w, h)
 
     def _center_on_preview(self, w, h):
@@ -514,6 +794,8 @@ class ViewportPanel(QWidget):
         self._surface.fill(BACKGROUND)
         if self.in_map_mode():
             self._submit_map_items()
+        elif self.in_screen_mode():
+            self._submit_screen_items(t0)
         else:
             g = self._coords.geometry
             for row in range(g.map_rows):
@@ -589,12 +871,100 @@ class ViewportPanel(QWidget):
             row = max(0, min(self._hover_cell[1], doc.rows - 2))
             outline(col, row, START_AREA_GHOST_COLOR)
 
+    # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
+
+    def _submit_screen_items(self, t0):
+        scale, ox, oy = self._screen_scale_offset()
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            # E-37: no data/ui/screen_defaults.json yet (pre-B3, or a broken
+            # dev machine) — a placeholder message, no raise, every widget
+            # interaction upstream of here already checks the same defaults.
+            cx = ox + (SCREEN_W * scale) / 2
+            cy = oy + (SCREEN_H * scale) / 2
+            self._renderer.submit_hud(HudText(
+                "no layout defaults yet — click Refresh Layouts",
+                (cx, cy), "lg", NO_DEFAULTS_COLOR, align="center"))
+            return
+        if self._screen_anim_last_t is not None:
+            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
+        self._screen_anim_last_t = t0
+        doc = self._screen_session.doc
+        self._submit_screen_background(doc, scale, ox, oy)
+        for widget_id, spec in defaults.get("widgets", {}).items():
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+        if self._selected_widget is not None \
+                and self._selected_widget in defaults.get("widgets", {}):
+            self._submit_screen_selection(self._selected_widget, defaults,
+                                          scale, ox, oy)
+
+    def _submit_screen_background(self, doc, scale, ox, oy):
+        """Background comes ONLY from the open doc's own override — the
+        committed screen_defaults.schema.json carries layout (rect/kind/
+        label) only, no default background/styling (B1's landed shape)."""
+        background = doc.get("background")
+        if not background:
+            return
+        dest = self._to_screen_rect((0, 0, SCREEN_W, SCREEN_H), scale, ox, oy)
+        if "slot" in background:
+            self._renderer.submit_hud(HudSprite(
+                background["slot"], (dest[0], dest[1]), (dest[2], dest[3])))
+        elif "color" in background:
+            self._renderer.submit_hud(HudRect(dest, tuple(background["color"])))
+
+    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy):
+        override = doc.get("widgets", {}).get(widget_id, {})
+        if override.get("visible") is False:
+            return
+        rect = override.get("rect", spec["rect"])
+        kind = spec["kind"]
+        label = override.get("label", spec["label"])
+        dest = self._to_screen_rect(rect, scale, ox, oy)
+        style = doc.get("defaults", {})
+        skin = override.get("skin")
+        if skin is None:
+            if kind == "button":
+                skin = style.get("button_skin")
+            elif kind == "panel":
+                skin = style.get("panel_skin")
+        font_key = override.get("font", style.get("font", "md"))
+        text_color = override.get("text_color", style.get("text_color"))
+        if skin:
+            tint = tuple(override["color"]) if "color" in override else None
+            self._renderer.submit_hud(HudSprite(
+                skin, (dest[0], dest[1]), (dest[2], dest[3]), tint,
+                animation=self._screen_state,
+                anim_time_ms=int(self._screen_anim_ms)))
+            label_item = _screen_primitives.centered_label_item(
+                dest, label, font_key,
+                tuple(text_color) if text_color is not None else (255, 255, 255))
+            if label_item is not None:
+                self._renderer.submit_hud(label_item)
+        else:
+            fill = tuple(override["color"]) if "color" in override else None
+            for item in _screen_primitives.fallback_hud_items(
+                    dest, kind, label, font_key=font_key,
+                    text_color=text_color, fill=fill):
+                self._renderer.submit_hud(item)
+
+    def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        x, y, w, h = self._to_screen_rect(
+            self._effective_rect(widget_id, defaults), scale, ox, oy)
+        self._renderer.submit_hud(HudLines(
+            ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
+            SELECTION_COLOR, width=2, closed=True))
+        half = HANDLE_PX / 2
+        for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+            self._renderer.submit_hud(HudRect(
+                (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+
     def paintEvent(self, event):
         if self._qimage is None:
             return
         painter = QPainter(self)
         painter.drawImage(0, 0, self._qimage)
-        if not self.in_map_mode() and self.preview_slot is None:
+        if not self.in_map_mode() and not self.in_screen_mode() \
+                and self.preview_slot is None:
             self._paint_empty_state(painter)
 
     def _paint_empty_state(self, painter):
@@ -644,6 +1014,9 @@ class ViewportPanel(QWidget):
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()
             return
+        if self.in_screen_mode():
+            self._screen_press(event)
+            return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = event.position()
 
@@ -664,6 +1037,9 @@ class ViewportPanel(QWidget):
             else:
                 self._tool_move(pos)
             return
+        if self.in_screen_mode():
+            self._screen_move(event)
+            return
         if self._drag_pos is not None and (event.buttons() & self._PAN_BUTTONS):
             dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
             self._drag_pos = pos
@@ -678,10 +1054,28 @@ class ViewportPanel(QWidget):
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = None
             return
+        if self.in_screen_mode():
+            self._screen_release(event)
+            return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = None
 
+    _NUDGE_KEYS = {
+        Qt.Key.Key_Left: (-1, 0), Qt.Key.Key_Right: (1, 0),
+        Qt.Key.Key_Up: (0, -1), Qt.Key.Key_Down: (0, 1),
+    }
+
+    def keyPressEvent(self, event):
+        if self.in_screen_mode() and self._selected_widget is not None:
+            delta = self._NUDGE_KEYS.get(Qt.Key(event.key()))
+            if delta is not None:
+                self._nudge_selected(*delta)
+                return
+        super().keyPressEvent(event)
+
     def wheelEvent(self, event):
+        if self.in_screen_mode():
+            return   # fixed scale-to-fit — no viewport-driven zoom (brief §1c)
         self._step_zoom(1 if event.angleDelta().y() > 0 else -1)
 
     def _step_zoom(self, direction):

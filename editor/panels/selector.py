@@ -25,6 +25,14 @@ frame size (64x96, distinct from map tiles' 64x32), and its category_key
 the map palette's Deco section) — only where its root QTreeWidgetItem gets
 parented changes.
 
+B4 adds a "Screens" branch (R3) as the FIRST child of the "ui" category,
+mirroring the Maps branch exactly: one leaf per data/ui/screens/*.json,
+labelled by the filename stem (no display-name lookup — screen docs carry
+no such field). Selecting a screen leaf emits screen_selected(screen_id) +
+domain_selected("ui") — never node_selected, so entity-preview machinery
+stays untouched (the _MAP_ROLE branch's exact pattern, applied to
+_SCREEN_ROLE).
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -70,8 +78,10 @@ REPO = Path(__file__).resolve().parents[2]
 _PAYLOAD_ROLE = Qt.ItemDataRole.UserRole        # (category_key, group_path)
 _LABEL_ROLE = Qt.ItemDataRole.UserRole + 1      # clean label, no ● prefix
 _MAP_ROLE = Qt.ItemDataRole.UserRole + 2        # map_id (Maps-branch leaves)
+_SCREEN_ROLE = Qt.ItemDataRole.UserRole + 3     # screen_id (Screens-branch leaves)
 
 _MAPS_BRANCH_LABEL = "Maps"
+_SCREENS_BRANCH_LABEL = "Screens"
 
 # The one form reachable from EMPTY tree space: it creates a category, so it
 # belongs to no category node and carries no selector_context.
@@ -82,6 +92,7 @@ class SelectorPanel(QTreeWidget):
     domain_selected = Signal(str)
     node_selected = Signal(str, tuple)
     map_selected = Signal(str)
+    screen_selected = Signal(str)    # B4: a Screens-branch leaf was selected
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -94,6 +105,7 @@ class SelectorPanel(QTreeWidget):
         self.setHeaderLabel("Project")
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
+        self._screens_branch = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -128,7 +140,13 @@ class SelectorPanel(QTreeWidget):
                     _MAPS_BRANCH_LABEL, "map", (_MAPS_BRANCH_LABEL,))
                 root.insertChild(0, branch)
                 self._maps_branch = branch
+            elif category.key == "ui":
+                branch = self._make_item(
+                    _SCREENS_BRANCH_LABEL, "ui", (_SCREENS_BRANCH_LABEL,))
+                root.insertChild(0, branch)
+                self._screens_branch = branch
         self.refresh_maps()
+        self.refresh_screens()
         self.refresh_markers()
         self.itemSelectionChanged.connect(self._emit_selection)
 
@@ -246,6 +264,60 @@ class SelectorPanel(QTreeWidget):
             return None   # legal pre-first-set-active state
         return data_io.load_json(path).get("active")
 
+    # -- Screens branch (R3, Phase B4) ------------------------------------------
+
+    def _screen_ids_from_disk(self):
+        d = self._data_dir / "ui" / "screens"
+        if not d.exists():
+            return ()
+        return tuple(sorted(p.stem for p in d.glob("*.json")))
+
+    def screen_ids(self):
+        """Screen ids currently listed in the Screens branch, tree order."""
+        if self._screens_branch is None:
+            return ()
+        return tuple(
+            self._screens_branch.child(i).data(0, _SCREEN_ROLE)
+            for i in range(self._screens_branch.childCount()))
+
+    def select_screen(self, screen_id):
+        """Programmatic selection of a Screens-branch leaf (tests, main.py's
+        cancelled-dirty-prompt path)."""
+        if self._screens_branch is None:
+            raise KeyError("no Screens branch (no ui category in the registry)")
+        for i in range(self._screens_branch.childCount()):
+            item = self._screens_branch.child(i)
+            if item.data(0, _SCREEN_ROLE) == screen_id:
+                self._screens_branch.parent().setExpanded(True)
+                self._screens_branch.setExpanded(True)
+                self.setCurrentItem(item)
+                return
+        raise KeyError(f"no screen node {screen_id!r}")
+
+    def refresh_screens(self):
+        """Rebuild the Screens branch from data/ui/screens/ (call after B3's
+        exporter runs — the file SET is static today, but a re-run is cheap
+        and this keeps the branch honest if it ever isn't). Selection of a
+        still-existing screen survives the rebuild (mirrors refresh_maps)."""
+        if self._screens_branch is None:
+            return
+        selected = None
+        items = self.selectedItems()
+        if items:
+            selected = items[0].data(0, _SCREEN_ROLE)
+        self.blockSignals(True)
+        self._screens_branch.takeChildren()
+        for screen_id in self._screen_ids_from_disk():
+            item = QTreeWidgetItem([screen_id])
+            item.setData(0, _PAYLOAD_ROLE,
+                        ("ui", (_SCREENS_BRANCH_LABEL, screen_id)))
+            item.setData(0, _LABEL_ROLE, screen_id)
+            item.setData(0, _SCREEN_ROLE, screen_id)
+            self._screens_branch.addChild(item)
+        self.blockSignals(False)
+        if selected is not None and selected in self.screen_ids():
+            self.select_screen(selected)
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -280,6 +352,15 @@ class SelectorPanel(QTreeWidget):
     def _emit_selection(self):
         items = self.selectedItems()
         if not items:
+            return
+        screen_id = items[0].data(0, _SCREEN_ROLE)
+        if screen_id is not None:
+            # screen node: screen mode + the "ui" balancing domain; no
+            # node_selected — entity-preview machinery must not react
+            # (exact _MAP_ROLE pattern above, applied to screens)
+            self.screen_selected.emit(screen_id)
+            if "ui" in self._domains:
+                self.domain_selected.emit("ui")
             return
         map_id = items[0].data(0, _MAP_ROLE)
         if map_id is not None:

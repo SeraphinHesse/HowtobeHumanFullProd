@@ -44,7 +44,8 @@ the known large-map frontier. If you're adding a high-count swarm, read
 
 ## Verify
 - Headless: a scripted round asserts the HP ledger matches hand-computed prototype
-  values: `py tools/testgate.py check`.
+  values: `py tools/testgate.py check --affected` (targeted; the single full
+  check happens at handoff, per CLAUDE.md Step 2).
 - Data: `py tools/smoke.py`.
 - Live: `py game/main.py` — reach the round that spawns it; confirm spawn, movement/
   pathing, damage/death, and wave integration.

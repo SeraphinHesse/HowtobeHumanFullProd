@@ -39,6 +39,23 @@ def fit_factor(frame_w, tile_w, fit_tiles):
     return 1.0
 
 
+def block_center_offset(fit_tiles):
+    """Tiles from a footprint block's ANCHOR (its min corner) to the block's
+    CENTRE, on each axis (ER-5). A `fit_tiles`-wide unit is drawn on its block
+    centre, not on the anchor tile it is addressed by.
+
+    Zero for `fit_tiles` 0 (no fit) and 1 (a one-tile unit), so every sprite that
+    is not a multi-tile footprint is untouched. Added to BOTH world axes it
+    cancels in the iso x term and lowers y by (fit_tiles-1) * tile_h/2 — a 2-tile
+    unit used to draw exactly half a tile-height above its block.
+
+    THE one expression, for the same reason as `fit_factor`: a HUD element that
+    must sit over a drawn sprite has to shift with it, and a second copy of the
+    rule would drift the moment the rule changes.
+    """
+    return (fit_tiles - 1) / 2 if fit_tiles > 0.0 else 0.0
+
+
 class Renderer:
     def __init__(self, coords, assets, backend=None):
         self._coords = coords
@@ -104,7 +121,13 @@ class Renderer:
         draw_calls = []
         for item in ordered:
             frame = self._assets.frame(item.slot_key, item.animation, item.anim_time_ms)
-            px, py = coords.world_to_screen(*item.world_pos)
+            # Multi-tile units are ADDRESSED by their anchor tile but DRAWN on
+            # their block centre. Note this shifts the blit only — depth_key
+            # (above) still sorts on the raw world_pos, or draw order would move
+            # with it.
+            c = block_center_offset(item.fit_tiles)
+            px, py = coords.world_to_screen(
+                item.world_pos[0] + c, item.world_pos[1] + c)
             s = fit_factor(frame.frame_w, tile_w, item.fit_tiles) * item.scale
             w = frame.frame_w * zoom * s
             h = frame.frame_h * zoom * s

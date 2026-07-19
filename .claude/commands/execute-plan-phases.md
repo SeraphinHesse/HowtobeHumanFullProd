@@ -16,12 +16,22 @@ umbrella branch.
   **READ-ONLY** — cite it, never edit it.
 
 ## Steps
-1. **Umbrella.** Branch `phase-<range>-umbrella` off the base branch. Record the
-   suite is GREEN (`py tools/testgate.py check` → 0 failures).
-   There is no baseline to record: every later gate requires **zero failures**.
-2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase, parallel). Each reads the router
+1. **Umbrella.** Branch `phase-<range>-umbrella` off the base branch. Do NOT
+   run the suite to confirm it is green — CI gates every PR into `Development`,
+   so the base is green by construction. There is no baseline to record: every
+   later gate requires **zero failures**.
+
+   **Test-budget rule for every wave below:** all intermediate gates use
+   `py tools/testgate.py check --affected` — targeted tests only. The **full**
+   suite runs exactly ONCE, on the finished umbrella in Wave 4, right before the
+   PR. Never run it mid-orchestration.
+2. **Wave 1 — PLANNERS** (one **`planner` agent** per phase — launch ALL of them
+   in ONE wave, a single message of parallel dispatches). Each reads the router
    `CLAUDE.md` → the relevant package/subsystem docs → current source (+ spec
-   repo if given), then writes `docs/briefs/phase-<id>-<slug>.md` with exactly:
+   repo if given), then writes `docs/briefs/phase-<id>-<slug>.md`.
+   **Exploration is capped at ~10 minutes per agent**: the plan, the ONE package
+   doc, the files in scope — then write the brief; no codebase sweeps. The brief
+   contains exactly:
    (1) Behavioral spec w/ citations; (2) Architecture plan; (3) File scope +
    shared-file contract — exact insertion points in files multiple phases touch;
    (4) Exit gate + Quick Test. Orchestrator reconciles §3 across briefs into
@@ -35,19 +45,24 @@ umbrella branch.
    invoke the matching `/add-*` skill (`/add-building`, `/add-enemy`,
    `/add-balancing-value`, `/add-engine-component`, `/add-editor-feature`,
    `/add-asset-importer`) instead of hand-rolling the edits** — the skill is the
-   canonical pattern. Each runs the exit gate (`py tools/smoke.py` + suite vs
-   green) and commits. Coders never push or open PRs.
+   canonical pattern. The same ~10-minute exploration cap applies: the brief is
+   the map — read it and the files in its §3 scope, then implement. Each runs
+   the targeted gate (`py tools/smoke.py` +
+   `py tools/testgate.py check --affected` — NOT the full suite) and commits.
+   Coders never push or open PRs.
 4. **Wave 3 — REVIEWERS** (one **`reviewer` agent** per phase, parallel). Review the diff against the
    brief (behavior + cited numbers), repo conventions, test quality, scope
    respected. Send findings back to the SAME coder agent via `SendMessage` for
-   fixes; coder re-runs the exit gate.
+   fixes; coder re-runs the targeted gate (`--affected`).
 5. **Wave 4 — Integrate.** Merge phase branches into the umbrella
-   **sequentially in plan order**, resolving conflicts and re-running the exit
-   gate after each merge. One **`reviewer`** agent over the umbrella's full
-   diff. Update the plan document's phase table + any package CLAUDE.md that
-   changed architecturally. Push the umbrella; open **ONE** PR to the base
-   branch stating each phase's Quick Test. Merge only on the user's explicit
-   confirmation.
+   **sequentially in plan order**, resolving conflicts and re-running the
+   targeted gate (`--affected`) after each merge. One **`reviewer`** agent over
+   the umbrella's full diff. Update the plan document's phase table + any
+   package CLAUDE.md that changed architecturally. Then run the **one and only
+   full gate** of the orchestration: `py tools/testgate.py check` on the
+   finished umbrella — zero failures. Push the umbrella; open **ONE** PR to the
+   base branch stating each phase's Quick Test. Merge only on the user's
+   explicit confirmation.
 6. **Report (human boundary).** Close via `/report`: the end-of-run summary in
    the shared provenance-tagged format, published as an artifact, plus a
    republish of root `PLAN.md` as the "How To Be Human — Active Plan" artifact
@@ -59,10 +74,15 @@ umbrella branch.
 - Committing `build/`, `dist/`, or any `*.exe`.
 - Editing the spec/prototype repo — read-only, always.
 - Granting a coder scope outside its brief's §3 file boundary.
+- Running the full suite anywhere except the single Wave-4 umbrella gate.
+- Letting any agent's exploration run past ~10 minutes before it produces its
+  deliverable.
 
 ## Verify
-- After each wave: exit gate green (0 failures) on every phase branch, then on
-  the umbrella after each sequential merge. State what you verified.
+- After each wave: targeted gate (`--affected`) green (0 failures) on every
+  phase branch, then on the umbrella after each sequential merge.
+- Once, on the finished umbrella before the PR: full `py tools/testgate.py
+  check` green. State what you verified.
 
 ## Final report
 - Per-phase: branch name, brief path, review outcome.

@@ -17,6 +17,7 @@ from pathlib import Path
 import pygame
 
 from engine.assets.manifest import Manifest
+from engine.assets.nine_slice import dest_to_source
 from engine.assets.placeholder import placeholder_surface
 from engine.assets.types import Frame, PLACEHOLDER
 
@@ -40,6 +41,7 @@ class AssetStore:
         self._sprites_dir = Path(sprites_dir) if sprites_dir is not None else None
         self._sheets = {}   # slot_key -> Surface | _LOAD_FAILED
         self._frames = {}   # (slot_key, row, col) -> Surface | _LOAD_FAILED
+        self._hit_masks = {}   # (slot_key, row, col) -> pygame.Mask
 
     def frame_size(self, slot_key):
         """(w, h) for a slot: manifest entry > registry > frame_sizes > default."""
@@ -65,6 +67,57 @@ class AssetStore:
         return Frame(surface=surface, frame_w=entry.frame_w,
                      frame_h=entry.frame_h, offset_x=entry.offset_x,
                      offset_y=entry.offset_y, slice=entry.slice)
+
+    def hit_opaque(self, slot_key, animation="idle", anim_time_ms=0,
+                   dest_size=None, rel_xy=(0, 0)):
+        """Opaque-pixel test for a slot's frame at a destination coord
+        (pixel-perfect hit test for skinned buttons — E-37/R2).
+
+        Args:
+            slot_key: asset slot key.
+            animation: animation row (default "idle"); falls back to idle if
+                missing, same as `frame()`.
+            anim_time_ms: frame resolution time (default 0).
+            dest_size: (dw, dh) blit destination size in pixels; defaults to
+                the frame size. Used by the nine-patch inverse to map screen
+                coords back to the source frame.
+            rel_xy: (x, y) screen-space click coords relative to the dest
+                top-left (default (0, 0)). The CALLER must clamp this to
+                `[0, dest_size[0]) x [0, dest_size[1])` — this method never
+                validates bounds against `dest_size`, only against the
+                resolved SOURCE frame (see below).
+
+        Returns:
+            True if the pixel at `rel_xy` is opaque (alpha > 0) in the
+            resolved frame. Never raises: a placeholder frame (no art yet)
+            or a corrupt/missing sheet degrades to True (E-37 — opaque
+            everywhere, so a partially-imported build stays fully
+            clickable); a `rel_xy` that maps outside the source frame
+            (e.g. an out-of-bounds click the caller failed to clamp)
+            degrades to False rather than raising."""
+        ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))
+        if ref is PLACEHOLDER:
+            return True   # placeholder: opaque everywhere
+        entry = self._manifest.entry(slot_key)
+        surface = self._frame_surface(entry, ref)
+        if surface is _LOAD_FAILED:
+            return True   # corrupt/missing sheet: degrade to opaque
+
+        row, col = ref
+        key = (entry.slot_key, row, col)
+        mask = self._hit_masks.get(key)
+        if mask is None:
+            mask = self._hit_masks[key] = pygame.mask.from_surface(
+                surface, threshold=0)
+
+        if dest_size is None:
+            dest_size = (entry.frame_w, entry.frame_h)
+        sx, sy = dest_to_source(rel_xy, dest_size,
+                                (entry.frame_w, entry.frame_h), entry.slice)
+
+        if not (0 <= sx < entry.frame_w and 0 <= sy < entry.frame_h):
+            return False   # OOB in source: safe read, never raise
+        return bool(mask.get_at((sx, sy)))
 
     # ── internals ──────────────────────────────────────────────────────────
 

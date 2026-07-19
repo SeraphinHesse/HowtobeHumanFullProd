@@ -1,52 +1,159 @@
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **10L-A in progress** (designed 2026-07-11, user-approved direction).
-Two independently shippable slices, each its own branch per the migration-era
-branch rule: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
-every UI screen from the editor). 10L-A has no dependency on any 10x phase;
-10L-B depends on 10L-A. Both slot in alongside the remaining 10x phases —
-screens that don't exist yet (boss history, cheat menu, game log) join the
-system when their phase lands.
+Status: **CODE COMPLETE — 2026-07-15, wave 2b executed; PR #41 open.** All
+coded phases (A1–A5′, A7, A8 incl. the hit-mask exactness fixes, B1–B4) are
+implemented, reviewed, and merged on umbrella `phase-10L-wave2b-umbrella` —
+**[PR #41](https://github.com/SeraphinHesse/HowtobeHumanFullProd/pull/41)**
+into `Development`, open and awaiting the human gate. **A6 and B5 are the only
+open items: their automated halves (suite + smoke + docs) are green, but each
+requires a HUMAN live Quick Test** (step-by-step in the PR #41 body). Sequence
+to close the plan: run both Quick Tests → merge PR #41 → move this doc to
+`planning/completed plans/`. Carry-overs from both runs are consolidated under
+"Run state" below; none of them blocks the Quick Tests.
+Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
+every UI screen from the editor); 10L-B depends on 10L-A. Three user
+requirements were folded in on 2026-07-15 (see "New requirements" below):
+per-variant pixel size (→ A7), pixel-perfect clickable surfaces (→ A8 + A5′),
+and the 12-screen live-edit scope (cheat_menu, game_log, boss_cutscene join
+v1 — they exist in `game/ui` now).
 
-## Phase table (10L-A)
+## Phase table
 
 | Phase | What | Status |
 |-------|------|--------|
 | A1 | Engine — animated `HudSprite` | **done** (2026-07-14) |
 | A2 | Engine + data — nine-slice | **done** (2026-07-14) |
 | A3 | Data — `ui` category expansion | **done** (2026-07-14) |
-| A4 | Editor — slice-margins editor | **not started** |
-| A5 | Game — skinned `widgets.Button` / `submit_panel` | **not started** |
-| A6 | Exit gate — live Quick Test + docs | **blocked** on A4+A5 |
+| A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
+| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **done** (2026-07-15, wave-2b umbrella; reviewed clean) |
+| A6 | Exit gate — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
+| A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
+| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15; + wave-2b exactness fixes: degenerate-band miss, corner/edge/centre `_scale_index` inversion — reviewed ×2) |
+| B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
+| B2 | Game — ids + `skinning.py` + golden parity pin | **done** (2026-07-15, wave-2b umbrella; 2 review rounds, findings fixed) |
+| B3 | Tools — layout exporter + committed `screen_defaults.json` | **done** (2026-07-15, wave-2b umbrella; reviewed clean, determinism measured) |
+| B4 | Editor — screen mode (selector/session/viewport/details) | **done** (2026-07-15, wave-2b umbrella; review finding fixed; B4i vs real defaults verified) |
+| B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
+
+### Run state (2026-07-15, wave 2b complete — carry-overs consolidated)
+
+- **Post-run verification (2026-07-15, this update)**: all wave-2b deliverables
+  confirmed present on disk at HEAD — 12 `data/ui/screens/*.json` +
+  `data/ui/screen_defaults.json`, `game/ui/skinning.py`,
+  `engine/assets/nine_slice.py`, `editor/ui_screen_session.py`,
+  `editor/panels/screen_details.py`, `tools/export_ui_layouts.py`. NOTE: the
+  working-tree copy of THIS doc was found silently reverted to the wave-2a
+  ("UNFINISHED") version — OneDrive sync suspected — and was restored from git.
+  If a plan doc ever contradicts git history + the files on disk, trust git.
+- **Landed on `phase-10L-wave2b-umbrella`** (targeted gate after every merge;
+  full suite green at the end — 1323 ran, 0 failures, 0 unexpected skips):
+  A8-fix `phase-A8fix-degenerate-band` (3 commits: degenerate-band miss
+  6d894d1, resampled-corner `_scale_index` 64730f7, centre-band exactness
+  577d6fe — the wave-2a High carry-over CONFIRMED and fixed, plus two further
+  same-class bugs found and fixed in review; `dest_to_source` now inverts
+  `pygame.transform.scale` bit-exactly for every band), A5′
+  `phase-A5p-skinned-button` 37a75b7, B4 `phase-B4-screen-mode` (dbe1c71 +
+  per-field-reset fix 8a7b34a), B2 `phase-B2-ids-skinning` (parity baseline
+  4aabb3d, implementation ff3e8e2, review fixes e8e0473 — titles/HUD-readout
+  ids + button color/text_color/visible forwarding), B3
+  `phase-B3-layout-exporter` 11487d4 (72 widgets / 12 screens, byte-
+  deterministic, sha-measured).
+- **RESOLVED (was Medium, from B3)**: the five inline-positioned label ids
+  (`hud.phase_label`, `cheat_menu.title`, `cheat_menu.jump_label`,
+  `boss_cutscene.headline`, `boss_cutscene.subtitle`) now carry stored
+  `(x, y, 0, 0)` anchor rects, override-respecting, with the anchor-rect
+  convention documented in `game/ui/CLAUDE.md` — B2fix `8041de4` merged +
+  defaults re-exported. The agent was stopped mid-fix and later resumed to
+  completion; if that resume was unintended, revert the B2fix merge commit
+  and the defaults-refresh commit together.
+- **Carry-over (Low, NEW from B4i)**: `game_log`'s single `log` widget is a
+  0×0 anchor rect with an empty label — the editor viewport draws nothing for
+  it (invisible/unclickable on canvas); it is editable only via the details
+  panel's widget list. A small anchor-marker glyph in screen mode would fix it.
+- **Carry-over (Low, from B2's verify round)**: panel-kind holders never read
+  their own `visible` override (`is_visible` gating was scoped to buttons);
+  `building_ui`'s un-id'd mode-dependent buttons (construct cards, rename dice,
+  lightning, boss-popup close) have no override path — both documented in
+  `game/ui/CLAUDE.md`.
+- **Carry-over (Medium, from wave 2a, UNCHANGED)**: A4's
+  `_on_frame_size_changed` in `editor/panels/details.py` doesn't re-clamp the
+  slice spinboxes when a frame-size override SHRINKS. Fix + test when A4 is
+  next touched.
+- **Tooling bug (root-caused this run)**: `py tools/testgate.py check
+  --affected` vacuously passes ("0 ran") when the affected test modules are
+  all non-`core` tier — `tools/testgate.py:222-238` ANDs `-m core` onto the
+  file selection. Run the explicit pytest on your test modules until fixed.
+- **Test-infra gap (from B2)**: `tools/tests/fixtures/data/` snapshot is stale
+  since B1 — missing `data/ui/` and both B1 schemas. Any future fixture-based
+  UI test needs a refresh (`py tools/tests/fixture_data.py --refresh` or
+  equivalent); B2/B3 worked around it (live-schema tempdir copies + the
+  fixture-guard ALLOWED entry).
+- **Stale worktrees with uncommitted drafts** (user to discard or salvage):
+  the two pre-run drafts from wave 2a (`agent-aaae066e177974fe9` A4 draft,
+  `agent-a49ee230114fc0dbc` old-A5 draft). This run's agent worktrees are all
+  committed and merged — safe to clean with `/worktreecleanup`.
 
 A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
 Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
 file-scope reconciliation in `docs/briefs/phase-A1-A5-coordination.md` — A4 and
 A5 have briefs written and reviewed, so they can be picked up directly.
 
-**A4/A5 are independent of each other** and both depend only on A1–A3, which
-have landed. Neither has any code yet. Two carry-over notes for whoever takes
-them:
+(Historical note: the A4/A5 coordination guidance that used to sit here was
+consumed by the wave-2a and wave-2b runs — both phases are done; their briefs
+in `docs/briefs/` remain the record of the binding contracts.)
 
-- **A4**: the backend floors a negative slice margin to 0 rather than raising
-  (E-37 "rendering degrades, never explodes"), so a bad draft from the slice
-  spinboxes cannot crash the render loop. Give the spinboxes `minimum = 0`
-  anyway — the engine guard is a safety net, not the UI contract. All-zero
-  margins must omit the `slice` key entirely.
-- **A5**: `HudSprite`'s `animation` / `anim_time_ms` are appended **after
-  `flip`** (the three shipping call sites pass three positional args), so pass
-  them by keyword.
-
-### Known follow-up surfaced during A3 (not a blocker)
+### Known follow-up surfaced during A3 — now phase A7
 
 "+ Variant" on `Backgrounds → Main Menu` yields a **64×64** slot, not 480×270 —
 the per-slot frame-size override does not propagate to variants (documented
-`add_variant` behavior). Harmless today because nothing consumes the slot, but
-it becomes a live footgun once 10L-B exposes a background picker: importing a
-second 480×270 menu background onto the variant would grid-slice it into a 7×4
-frame grid. Either propagate the override in `registry_ops.add_variant`, or have
-10L-B's picker source the `backgrounds` category instead of carrying the
-duplicate `ui_bg_main_menu` slot.
+`add_variant` behavior). **Fixed by phase A7** (R1 below): `add_variant`
+inherits the family stem's frame-size override, so 10L-B's background picker
+can safely source ui `Backgrounds` slots.
+
+## New requirements (2026-07-15, user-approved designs)
+
+- **R1 — manual pixel size per variant of each UI type → phase A7.** The
+  per-slot size writer (`registry_ops.set_slot_frame_size`) and DetailsPanel's
+  Frame W/H spinboxes already work for any slot, variants included; the only
+  gap is creation-time inheritance. `add_variant` now inherits the family
+  stem's (`slots[0]`) frame-size override — ALL categories, not ui-only (a
+  variant family is interchangeable art for one thing; the schema already
+  allows the object form everywhere). Divergence afterwards = the existing
+  spinboxes. No schema change.
+- **R2 — pixel-perfect clickable surface → phases A8 (engine) + A5′ (game).**
+  Skinned buttons hover AND click only over drawn pixels (alpha > 0). New pure
+  `engine/assets/nine_slice.py` owns `clamp_pair` (moved from the backend) +
+  `dest_to_source` (exact piecewise inverse of `_nine_patch`'s band layout).
+  `AssetStore.hit_opaque(slot, animation, anim_time_ms, dest_size, rel_xy)`
+  reads a cached `pygame.mask.from_surface(threshold=0)` keyed
+  `(slot_key, row, col)`; placeholder/missing sheet → opaque everywhere (E-37
+  degrade-to-rect). Game side stays pygame-free via a
+  `widgets.set_skin_hit_test(fn)` seam injected by `game/main.py`
+  (`assets.hit_opaque`); unset seam or `skin=None` reduces to today's rect
+  test. **Canonical-silhouette convention:** widgets always query
+  `("idle", 0)` — hit-testing the drawn state row oscillates at silhouette
+  holes. Consequence to feel live in B5: clicks on transparent corners fall
+  through to the world (including `over_ui` pan-arming).
+- **R3 — ALL current live screens editable → widened B1/B2 scope.** v1 covers
+  **12** screens: the original 9 plus `cheat_menu`, `game_log`,
+  `boss_cutscene` (they exist in `game/ui` now). No "create new screen"
+  feature — the editor edits the live roster only. Contracts for the three:
+  - **cheat_menu** — full template. Ids: `panel, title, btn_close,
+    btn_add_love, btn_skip_round, btn_trigger_levelup, btn_inf_money,
+    btn_unlock_all, round_field, btn_goto, jump_label`. Its `submit()` calls
+    `layout()` every frame → `skinning.apply` must be a cached-dict setattr
+    loop (pinned by a "loads once" test).
+  - **game_log** — container-only (decision 4: dynamic lists are styled, not
+    positioned). ONE widget `log`: rect (anchor of the newest line), font,
+    text_color (age fade keeps multiplying alpha), visible. Line timings stay
+    code constants.
+  - **boss_cutscene** — an A/B modal, NOT timed (the announce fade lives in
+    `effects.py` / `ui.json FX` and stays out of screen JSON). Ids: `backdrop`
+    (color), `headline` (font only — color is win/loss logic), `subtitle`
+    (font, text_color), `box_a`/`box_b` (rect — moves draw AND hit coherently;
+    skin via the skinned `submit_panel`; font; text_color). Gets the standard
+    per-screen anim clock. Exporter mock: `open(1, "win")` +
+    `layout(1280, 720)`.
 
 ## User decisions (binding)
 
@@ -115,14 +222,14 @@ duplicate `ui_bg_main_menu` slot.
   `schemas/ui_screen.schema.json` — a directory-rule exception exactly like
   `maps/` and `balancing_history/`; `tools/smoke.py` special-cases the
   directory. `data/ui/screen_defaults.json` pairs with
-  `schemas/ui_screen_defaults.schema.json` by stem as normal.
+  `schemas/screen_defaults.schema.json` by stem as normal.
 
 ---
 
 ## Slice 10L-A — animated UI asset pipeline
 
-Branch: `phase-10L-ui-assets`. Packages: engine + data + editor + a thin
-game hook. Goal: import a multi-state animated button sheet in the editor,
+Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-assets`).
+Packages: engine + data + editor + a thin game hook. Goal: import a multi-state animated button sheet in the editor,
 preview it there, and see it drawn (animated, nine-sliced) in game.
 
 ### A1. Engine — animated `HudSprite`
@@ -171,7 +278,12 @@ preview it there, and see it drawn (animated, nine-sliced) in game.
   the slot animating per selected animation (already works via the one
   render path once A1 lands — verify).
 
-### A5. Game — skinned `widgets.Button` / `submit_panel` (hook only)
+### A5′. Game — skinned `widgets.Button` / `submit_panel` + hit seam
+- Extends the reviewed A5 brief with the R2 game half: a
+  `widgets.set_skin_hit_test(fn)` module seam (default None → rect
+  behaviour), `Button._surface_hit` routing both `hover()` and `hit()`
+  through the injected `("idle", 0)` canonical-silhouette query, and the one
+  `set_skin_hit_test(assets.hit_opaque)` line in `game/main.py`.
 - `widgets.Button` gains optional `skin` (slot key) + pressed tracking;
   `submit()` with a skin draws
   `HudSprite(skin, dest=rect, size=rect_size, animation=state,
@@ -191,20 +303,39 @@ preview it there, and see it drawn (animated, nine-sliced) in game.
   `engine/assets/CLAUDE.md` (slice field), `data/CLAUDE.md` (ui slots),
   `editor/panels/CLAUDE.md` (slice editor, ui variants).
 
+### A7. Editor — per-variant pixel size (R1)
+- `editor/registry_ops.py::add_variant`: inherit the family stem's
+  (`slots[0]`) frame-size override object on creation; bare stems stay bare
+  (regression pin for enemies/deco). `tools/tests/test_registry_ops.py` gains
+  inherit-on-add / bare-stays-bare / independently-resizable-after tests.
+- No schema change; no editor UI change (Frame W/H spinboxes already cover
+  every slot). `data/CLAUDE.md` bullet correction ships with B1 (same wave).
+
+### A8. Engine — pixel hit-mask (R2 engine half)
+- NEW pure `engine/assets/nine_slice.py`: `clamp_pair` (moved from
+  `engine/render/backend.py`, which re-imports it) + `dest_to_source(rel_xy,
+  dest_size, src_size, margins)` — piecewise inverse of `_nine_patch`.
+- `engine/assets/store.py::AssetStore.hit_opaque(...)` → bool; mask cache
+  keyed `(slot_key, row, col)` (same key space as `_frames`);
+  placeholder/corrupt → True everywhere. Tests: `test_nine_slice.py`
+  (inverse math + composite cross-check), `test_asset_store.py` (hole/
+  placeholder/cache).
+
 ---
 
 ## Slice 10L-B — edit UI screens from the editor
 
-Branch: `phase-10L-ui-screens`. Packages: data + game + editor + tools.
+Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-screens`).
+Packages: data + game + editor + tools.
 Goal: select "Main Menu" in the editor tree, see the real screen rendered
 through the engine HUD pass, drag a button, assign a skin, save; the game
 picks it up on next Play.
 
 ### B1. Data — screen override format
-- `data/ui/screens/<screen_id>.json`, one per screen. Screen ids (v1):
+- `data/ui/screens/<screen_id>.json`, one per screen. Screen ids (v1, R3):
   `main_menu, pause, settings, credits, add_name, game_over, levelup, hud,
-  building_panel`. (Later phases add `boss_history`, `cheat_menu`,
-  `game_log` by dropping in a file + ids — no format change.)
+  building_panel, cheat_menu, game_log, boss_cutscene` — every live screen;
+  future screens join by dropping in a file + ids, no format change.
 - `schemas/ui_screen.schema.json`: everything optional —
   `background: {slot} | {color}`, `defaults: {button_skin?, panel_skin?,
   font?, text_color?}` (kind-level styling for dynamic items),
@@ -212,7 +343,7 @@ picks it up on next Play.
   visible?}}`. `additionalProperties:false` inside entries; widget ids
   validated against `screen_defaults.json` at load (fail loud in dev on an
   unknown id — catches renames).
-- `schemas/ui_screen_defaults.schema.json` for the generated defaults file:
+- `schemas/screen_defaults.schema.json` for the generated defaults file:
   per screen `{widgets: {<id>: {rect, kind, label}}, mock_note}`.
 - `tools/smoke.py`: directory rule for `data/ui/screens/`.
 

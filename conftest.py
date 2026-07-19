@@ -39,6 +39,7 @@ TIERS = {
     "test_agent_forms": "meta",
     "test_build_script": "meta",
     "test_data_guard": "meta",
+    "test_fixture_guard": "meta",
     "test_orient_hook": "meta",
     "test_qt_harness": "meta",
     "test_smoke_pairing": "meta",
@@ -71,6 +72,7 @@ TIERS = {
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
+    "test_button_skin": "core",
     "test_combat_speed": "core",
     "test_components": "core",
     "test_coords": "core",
@@ -101,6 +103,7 @@ TIERS = {
     "test_range_sensor": "core",
     "test_render": "core",
     "test_right_click_dismiss": "core",
+    "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
     "test_structure": "core",
@@ -109,6 +112,8 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
+    "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_video_playback": "core",
     "test_video_source": "core",
 }

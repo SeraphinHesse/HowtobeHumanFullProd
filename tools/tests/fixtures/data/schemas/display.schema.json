@@ -1,0 +1,32 @@
+{
+  "$id": "display.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Window-host tunables consumed by game/main.py (G-1, G-7). window_w/window_h: window size in pixels. fps: engine loop target frame rate (E-25 target is 60). caption: window title text.",
+  "properties": {
+    "caption": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "fps": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "window_h": {
+      "minimum": 240,
+      "type": "integer"
+    },
+    "window_w": {
+      "minimum": 320,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "caption",
+    "fps",
+    "window_h",
+    "window_w"
+  ],
+  "title": "display",
+  "type": "object"
+}

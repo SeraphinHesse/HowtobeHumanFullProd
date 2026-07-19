@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Health, Movement, Scene
@@ -24,9 +25,9 @@ from game.map.tile_map import TileMap
 
 from tools.tests.test_buildings_tier_math import TierWalkMixin
 
-MAPBAL = load_balance(REPO / "data", "map")
-BUILD = load_balance(REPO / "data", "buildings")
-ENEM = load_balance(REPO / "data", "enemies")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+BUILD = load_balance(FIXTURE_DATA, "buildings")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
 
 AOE = BUILD["DefenceBuildings"]["AOEDefence"]["tiers"]
 BEAM = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"]

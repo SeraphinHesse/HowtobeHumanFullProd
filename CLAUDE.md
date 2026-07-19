@@ -45,6 +45,38 @@ plan and can switch it too. **Not every task needs a plan** — see Status.
 3. **Editor is the designer interface** — humans never hand-edit `data/`
    JSON; agents may, but only schema-valid writes.
 
+## Command and Control Structure (C2) — mandatory agent workflow
+
+**This is the "Command and Control Structure" (C2).** It governs how every task
+is approached and is NON-NEGOTIABLE — it overrides the harness's default
+plan-mode workflow. It has two halves that carry the same name so a request to
+"edit the command and control structure" finds both: this section (the rule) and
+`.claude/hooks/command_and_control.py` (the `PreToolUse` hook that hard-enforces
+it).
+
+- **Plan mode:**
+  1. Explore with **`scout` agents only** — never `Explore`, `Plan`, or
+     `general-purpose`.
+  2. **The main session (the model the user invoked) writes the plan itself** —
+     never a delegated `Plan` agent.
+  3. On approval, **spawn the correct execution agent** — `coder`,
+     `engine-coder`, or `phase-executor` — opening with the matching **skill**
+     from the table below (`/add-building`, `/add-enemy`, …) when the task
+     matches a row.
+- **Direct mode (no plan mode):**
+  1. **`scout`** for exploration.
+  2. The main session **writes the plan itself** with the invoked model.
+  3. **Spawn the correct execution agent(s)** with the matching skill.
+  4. **`reviewer`** reviews the resulting diff.
+
+Agent roles and the skill table are defined once below (**Agent roster** and the
+skills table) — this section does not duplicate them. `planner` is exempt: it is
+reached only via the explicit `/createplan` flow, not general exploration.
+
+The `PreToolUse` hook **hard-denies** `Explore` / `Plan` / `general-purpose`
+Agent dispatches and redirects to the above. Set `WORKFLOW_HOOK_OFF=1` to bypass
+it temporarily.
+
 ## Step 0 — Orient with the code graph (Graphify)
 
 Before grepping for "where does X live", ask the graph. It is a real traversable
@@ -179,6 +211,13 @@ ways. `planning/TestGatePLAN.md` records how that was fixed.)
 - While iterating, `py tools/testgate.py check --affected` runs only the blast
   radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
   before handing work back.
+- **Do NOT run the full suite for verification unless explicitly asked or you
+  are handing work back.** `--affected` is the default; the full `check` runs
+  exactly once, at the end — never as a mid-task sanity run, never twice.
+- **A red test clearly outside your diff's blast radius: note it in your report
+  and stop** — do not burn the session investigating it. The gate is still ZERO
+  (it must be resolved before handoff), but the first move is to surface it to
+  the user, not to silently dig.
 - Tiers: `py -m pytest -m core` (fast, ~800) · `-m editor` (Qt, slow) ·
   `-m meta` (agent scaffolding). **CI runs the whole suite** — there is no
   excluded tier. (The old `migration` tier compared `data/` against the

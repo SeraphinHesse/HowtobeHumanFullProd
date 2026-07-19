@@ -6,8 +6,8 @@ here from `engine/CLAUDE.md`. **Missing/corrupt art logs and falls back — neve
 crashes boot.** When you change asset conventions, update THIS doc.
 
 ## Import boundary
-`engine.assets` package `__init__` + `types` + `manifest` + `registry` are
-**pure**; pygame lives only in `engine.assets.placeholder` and
+`engine.assets` package `__init__` + `types` + `manifest` + `registry` +
+`nine_slice` are **pure**; pygame lives only in `engine.assets.placeholder` and
 `engine.assets.store` (import those by full path).
 
 ## Phase 5 conventions
@@ -59,6 +59,38 @@ crashes boot.** When you change asset conventions, update THIS doc.
   Sliced frames are SUBSURFACES — the parent sheet must stay cached. There is no
   cache invalidation: when the manifest changes, build a new AssetStore (the
   editor's `reload_assets()` does exactly that).
+- **Pixel hit-mask (A8, R2 design)**: `engine/assets/nine_slice.py` (NEW, pure —
+  no pygame, no engine imports) holds `clamp_pair(a, b, limit)` — moved here
+  from `engine/render/backend.py`, which now imports it (`from
+  engine.assets.nine_slice import clamp_pair as _clamp_pair`) rather than
+  redefining it, so the forward 9-patch composite and the inverse below share
+  ONE clamp — plus `dest_to_source(rel_xy, dest_size, src_size, margins)`, the
+  exact piecewise inverse of `_nine_patch`'s band layout. EVERY band —
+  corners, edges, and the centre — inverts the exact same nearest-neighbour
+  sampler `_nine_patch` used to paint it (`_scale_index`, a bit-for-bit
+  match of `pygame.transform.scale`'s software stretch, not an
+  approximation); a corner only degenerates to a 1:1 identity map in the
+  common case where the dest isn't narrower/shorter than the (already
+  source-clamped) margin it came from — when the dest shrinks a margin
+  below its source size, `_nine_patch` resamples that corner too, and
+  `dest_to_source` inverts that resample the same way. A margin pair that
+  clamps to exactly fill the SOURCE dimension while the dest still has a
+  centre band on that axis (source band vanishes, dest band doesn't) is a
+  MISS, not a boundary-pixel read — `_nine_patch` paints nothing there, so
+  `dest_to_source` returns an out-of-frame coordinate for that axis
+  (`hit_opaque`'s existing bounds check reads it as a miss). `margins=None`
+  or all-zero degenerates to plain proportional scaling. `AssetStore.hit_opaque(slot_key,
+  animation="idle", anim_time_ms=0, dest_size=None, rel_xy=(0, 0))` resolves
+  the frame exactly like `frame()`, then maps `rel_xy` through
+  `dest_to_source` and reads a `pygame.mask.from_surface(surface,
+  threshold=0)` (alpha > 0 counts as opaque) cached in `self._hit_masks`,
+  keyed `(slot_key, row, col)` — the SAME key space as `_frames`. Tolerance
+  (E-37): a placeholder or a corrupt/missing sheet degrades to `True` (opaque
+  everywhere — a partially-imported build stays fully clickable); a `rel_xy`
+  that maps outside the source frame bounds degrades to `False` rather than
+  raising. The CALLER (a skinned button) must clamp `rel_xy` to
+  `[0, dest_size[0]) x [0, dest_size[1])` — `hit_opaque`/`dest_to_source`
+  never validate against `dest_size`, only against the resolved source frame.
 - **E-38 is RETIRED — the migration tool is deleted.** `tools/
   migrate_prototype_assets.py` ran once, converting the prototype's v1 manifest +
   `imported/` PNGs to manifest v2 + copied sheets (and baking the 9 procedurally-

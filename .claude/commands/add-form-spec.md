@@ -69,8 +69,8 @@ if it validates, it renders.
 ## Verify
 - `py tools/smoke.py` — validates the new spec (the `data/agent_forms/` directory
   exception pairs it with `agent_form.schema.json`); the file count goes up by one.
-- `py tools/testgate.py check` — the all-specs sweep checks id /
-  skill file / context paths.
+- `py tools/testgate.py check --affected` — the all-specs sweep checks id /
+  skill file / context paths (targeted, not the full suite).
 - Live: reopen **Summon a Drunken Robot** in the editor — the new form is listed
   (specs load fresh on every open; no restart). State what you verified.
 

@@ -1,0 +1,259 @@
+{
+  "$id": "map_file.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "One map file under data/maps/ (D-20). Named <id>.json where id == the 'id' property. Every data/maps/*.json EXCEPT active_map.json validates against THIS schema (directory rule in tools/smoke.py - the stem 'map' belongs to the balancing domain). The terrain grid paints zones; spawning is a painted zone, never point objects. Dimension consistency (row count/lengths, base/deco in bounds) is cross-checked by engine.tilemap.load_map, which fails loud (D-2).",
+  "properties": {
+    "base": {
+      "description": "The base ('hole') - the single movable map object, click-placed or dragged in the editor. Renders on the entities layer. MAY BE null: a map with no hole is allowed (the editor shows a yellow warning before Set Active), though the game needs one to be playable. The key is always present.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Base tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Base tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "base_hole",
+              "description": "Asset slot the base renders with (const-pinned; the slot registry's core/Base slot)."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "camera_start": {
+      "description": "The camera startpoint - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like the base. The game opens its camera centred on this tile; if null the camera falls back to the default corner clamp. Only DRAWN in the running game when the ui.json Debug.show_camera_startpoint toggle is on (default off); always visible in the editor. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Camera startpoint tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Camera startpoint tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "camera_startpoint",
+              "description": "Asset slot the marker renders with (const-pinned; the slot registry's core/Camera Start slot)."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "cols": {
+      "description": "Grid width in tiles. Each map owns its dimensions (geometry.json keeps only tile pitch and zoom levels as global truth).",
+      "maximum": 1024,
+      "minimum": 4,
+      "type": "integer"
+    },
+    "deco": {
+      "description": "Placed deco sprites. Render on the deco layer - ALWAYS above entities (E-26), e.g. trees covering spawn tiles. Cell-snapped by the Phase 6 editor; fractional positions are legal for later phases.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "World-space column position; must be < cols.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "row": {
+            "description": "World-space row position; must be < rows.",
+            "minimum": 0,
+            "type": "number"
+          },
+          "slot": {
+            "description": "Deco asset slot key from the slot registry's deco category.",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "display_name": {
+      "description": "Human-readable name shown in the editor's Maps tree.",
+      "minLength": 1,
+      "type": "string"
+    },
+    "id": {
+      "description": "Stable map id; MUST equal the filename stem (data/maps/<id>.json).",
+      "pattern": "^[a-z0-9_]+$",
+      "type": "string"
+    },
+    "legend": {
+      "additionalProperties": {
+        "additionalProperties": false,
+        "description": "A background (non-checker) tile kind: any legend code beyond the three fixed zone codes b/c/s. Editor-extensible via the palette's '+ Level' button; the runtime collapses every such code to BACKGROUND. Never alternates (checker is const false).",
+        "properties": {
+          "checker": {
+            "const": false
+          },
+          "slot": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "checker",
+          "slot"
+        ],
+        "type": "object"
+      },
+      "description": "Char -> tile mapping for the terrain rows. The three ZONE codes b/c/s are const-pinned (self-describing, gameplay-meaningful); BACKGROUND codes are open (additionalProperties) so the editor can add new background types (f/l/o are the defaults new maps seed). checker: true kinds alternate to <slot>_b on cells where (col + row + 1) % 2 == 1, i.e. col+row EVEN (prototype tile.py checkerboard rule); background kinds never alternate.",
+      "properties": {
+        "b": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_buildable"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "c": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_combat"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        },
+        "s": {
+          "additionalProperties": false,
+          "properties": {
+            "checker": {
+              "const": true
+            },
+            "slot": {
+              "const": "tile_spawning"
+            }
+          },
+          "required": [
+            "checker",
+            "slot"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "b",
+        "c",
+        "s"
+      ],
+      "type": "object"
+    },
+    "rows": {
+      "description": "Grid height in tiles. Each map owns its dimensions.",
+      "maximum": 1024,
+      "minimum": 4,
+      "type": "integer"
+    },
+    "start_area": {
+      "description": "The 2x2 starting area - a single movable map object, click-placed or dragged in the editor (Game tiles mode). {col,row} is the 2x2's MIN corner (top-left anchor); it spans col..col+1 x row..row+1 and must fit inside the grid (col+1 < cols, row+1 < rows - cross-checked by engine.tilemap.load_map). The game anchors the 2x2 tile-unlock section grid (and the playfield window) on it; the marker never forces tile states - the designer still paints buildable tiles under it (the editor warns otherwise). Not rendered in-game; the editor draws it as a 2x2 outline. MAY BE null (the editor shows a yellow warning; the game falls back to base-anchored sections); the key is always present.",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Starting area min-corner column, 0-based; must satisfy col+1 < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Starting area min-corner row, 0-based; must satisfy row+1 < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "start_area",
+              "description": "Asset slot key (const-pinned; the slot registry's core/Start Area slot). The editor draws the marker as an outline, not this sprite."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "terrain": {
+      "description": "The painted zone grid: exactly 'rows' strings of exactly 'cols' chars each (loader-enforced), terrain[row][col], chars from the legend. Row strings keep diffs one-line-per-row for git and agents (D-3 spirit).",
+      "items": {
+        "pattern": "^[a-z0-9]+$",
+        "type": "string"
+      },
+      "minItems": 4,
+      "type": "array"
+    }
+  },
+  "required": [
+    "base",
+    "camera_start",
+    "cols",
+    "deco",
+    "display_name",
+    "id",
+    "legend",
+    "rows",
+    "start_area",
+    "terrain"
+  ],
+  "title": "map_file",
+  "type": "object"
+}

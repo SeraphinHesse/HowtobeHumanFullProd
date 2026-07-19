@@ -1,0 +1,782 @@
+{
+  "add_name": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_add": {
+        "kind": "button",
+        "label": "ADD NAME",
+        "rect": [
+          434,
+          434,
+          160,
+          40
+        ]
+      },
+      "btn_back": {
+        "kind": "button",
+        "label": "BACK",
+        "rect": [
+          716,
+          434,
+          130,
+          40
+        ]
+      },
+      "panel": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          410,
+          230,
+          460,
+          260
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "ADD A NAME",
+        "rect": [
+          640,
+          250,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "boss_cutscene": {
+    "mock_note": "open(1, 'win')",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "box_a": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          450,
+          315,
+          180,
+          130
+        ]
+      },
+      "box_b": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          650,
+          315,
+          180,
+          130
+        ]
+      },
+      "headline": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          640,
+          244,
+          0,
+          0
+        ]
+      },
+      "subtitle": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          640,
+          290,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "building_panel": {
+    "mock_note": "love=123, round=7; mid-game selection — BuildingUI panel + a ConstructPreview('defence') modal open (disjoint preview_* id namespace)",
+    "widgets": {
+      "action_btn": {
+        "kind": "button",
+        "label": "",
+        "rect": [
+          1032,
+          0,
+          236,
+          36
+        ]
+      },
+      "boss_btn": {
+        "kind": "button",
+        "label": "BOSS CHOICES",
+        "rect": [
+          1032,
+          420,
+          236,
+          32
+        ]
+      },
+      "close_btn": {
+        "kind": "button",
+        "label": "X",
+        "rect": [
+          1252,
+          8,
+          20,
+          18
+        ]
+      },
+      "panel": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          1020,
+          0,
+          260,
+          720
+        ]
+      },
+      "preview_cancel_btn": {
+        "kind": "button",
+        "label": "CANCEL",
+        "rect": [
+          486,
+          462,
+          140,
+          34
+        ]
+      },
+      "preview_close_btn": {
+        "kind": "button",
+        "label": "X",
+        "rect": [
+          784,
+          216,
+          20,
+          18
+        ]
+      },
+      "preview_confirm_btn": {
+        "kind": "button",
+        "label": "CONFIRM",
+        "rect": [
+          654,
+          462,
+          140,
+          34
+        ]
+      },
+      "preview_dice_btn": {
+        "kind": "button",
+        "label": "⚄",
+        "rect": [
+          764,
+          306,
+          30,
+          30
+        ]
+      },
+      "preview_panel": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          470,
+          210,
+          340,
+          300
+        ]
+      }
+    }
+  },
+  "cheat_menu": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "btn_add_love": {
+        "kind": "button",
+        "label": "+10 Love",
+        "rect": [
+          540,
+          263,
+          200,
+          26
+        ]
+      },
+      "btn_close": {
+        "kind": "button",
+        "label": "X",
+        "rect": [
+          724,
+          237,
+          20,
+          18
+        ]
+      },
+      "btn_goto": {
+        "kind": "button",
+        "label": "Go to Round",
+        "rect": [
+          642,
+          439,
+          98,
+          22
+        ]
+      },
+      "btn_inf_money": {
+        "kind": "button",
+        "label": "Infinite Money",
+        "rect": [
+          540,
+          353,
+          200,
+          26
+        ]
+      },
+      "btn_skip_round": {
+        "kind": "button",
+        "label": "Skip Round",
+        "rect": [
+          540,
+          293,
+          200,
+          26
+        ]
+      },
+      "btn_trigger_levelup": {
+        "kind": "button",
+        "label": "LEVEL UP",
+        "rect": [
+          540,
+          323,
+          200,
+          26
+        ]
+      },
+      "btn_unlock_all": {
+        "kind": "button",
+        "label": "Unlock All Tech",
+        "rect": [
+          540,
+          383,
+          200,
+          26
+        ]
+      },
+      "jump_label": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          540,
+          421,
+          0,
+          0
+        ]
+      },
+      "panel": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          530,
+          231,
+          220,
+          258
+        ]
+      },
+      "round_field": {
+        "kind": "field",
+        "label": "",
+        "rect": [
+          540,
+          439,
+          96,
+          22
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          640,
+          239,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "credits": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_back": {
+        "kind": "button",
+        "label": "BACK",
+        "rect": [
+          540,
+          630,
+          200,
+          46
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "CREDITS",
+        "rect": [
+          640,
+          70,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "game_log": {
+    "mock_note": "love=123, round=7 (empty log, no messages queued)",
+    "widgets": {
+      "log": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          8,
+          688,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "game_over": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_return_to_menu": {
+        "kind": "button",
+        "label": "RETURN TO MENU",
+        "rect": [
+          520,
+          470,
+          240,
+          46
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "THE COLONY WAS DESTROYED",
+        "rect": [
+          640,
+          240,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "hud": {
+    "mock_note": "love=123, round=7 (layout() + the _layout_readouts() second pass)",
+    "widgets": {
+      "btn_end_turn": {
+        "kind": "button",
+        "label": "END TURN",
+        "rect": [
+          1104,
+          644,
+          160,
+          60
+        ]
+      },
+      "btn_pause": {
+        "kind": "button",
+        "label": "PAUSE",
+        "rect": [
+          1174,
+          12,
+          90,
+          30
+        ]
+      },
+      "income_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          16,
+          50,
+          0,
+          0
+        ]
+      },
+      "lives_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          16,
+          66,
+          0,
+          0
+        ]
+      },
+      "love_panel": {
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          12,
+          12,
+          190,
+          34
+        ]
+      },
+      "love_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          22,
+          19,
+          0,
+          0
+        ]
+      },
+      "lvl_label": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          214,
+          12,
+          0,
+          0
+        ]
+      },
+      "phase_label": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          12,
+          694,
+          0,
+          0
+        ]
+      },
+      "round_label": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          1184,
+          627,
+          0,
+          0
+        ]
+      },
+      "tiles_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          16,
+          84,
+          0,
+          0
+        ]
+      },
+      "xp_bar": {
+        "kind": "bar",
+        "label": "",
+        "rect": [
+          214,
+          29,
+          110,
+          9
+        ]
+      },
+      "xp_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          214,
+          40,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "levelup": {
+    "mock_note": "love=123, round=7 (backdrop only — the 1-3 option boxes are dynamic-count content, not individually overridable)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      }
+    }
+  },
+  "main_menu": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_add_name": {
+        "kind": "button",
+        "label": "ADD A NAME",
+        "rect": [
+          480,
+          366,
+          320,
+          52
+        ]
+      },
+      "btn_credits": {
+        "kind": "button",
+        "label": "CREDITS",
+        "rect": [
+          480,
+          498,
+          320,
+          52
+        ]
+      },
+      "btn_new_game": {
+        "kind": "button",
+        "label": "START NEW GAME",
+        "rect": [
+          480,
+          300,
+          320,
+          52
+        ]
+      },
+      "btn_quit": {
+        "kind": "button",
+        "label": "QUIT",
+        "rect": [
+          480,
+          564,
+          320,
+          52
+        ]
+      },
+      "btn_settings": {
+        "kind": "button",
+        "label": "SETTINGS",
+        "rect": [
+          480,
+          432,
+          320,
+          52
+        ]
+      },
+      "subtitle": {
+        "kind": "label",
+        "label": "defend the munckins",
+        "rect": [
+          640,
+          250,
+          0,
+          0
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "HOW TO BE HUMAN",
+        "rect": [
+          640,
+          210,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "pause": {
+    "mock_note": "love=123, round=7 (idle, no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_quit_game": {
+        "kind": "button",
+        "label": "QUIT GAME",
+        "rect": [
+          520,
+          458,
+          240,
+          46
+        ]
+      },
+      "btn_quit_to_menu": {
+        "kind": "button",
+        "label": "QUIT TO MENU",
+        "rect": [
+          520,
+          400,
+          240,
+          46
+        ]
+      },
+      "btn_resume": {
+        "kind": "button",
+        "label": "RESUME",
+        "rect": [
+          520,
+          284,
+          240,
+          46
+        ]
+      },
+      "btn_settings": {
+        "kind": "button",
+        "label": "SETTINGS",
+        "rect": [
+          520,
+          342,
+          240,
+          46
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "PAUSED",
+        "rect": [
+          640,
+          232,
+          0,
+          0
+        ]
+      }
+    }
+  },
+  "settings": {
+    "mock_note": "love=123, round=7 (idle, default SessionSettings — no world state)",
+    "widgets": {
+      "backdrop": {
+        "kind": "backdrop",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          1280,
+          720
+        ]
+      },
+      "btn_back": {
+        "kind": "button",
+        "label": "BACK",
+        "rect": [
+          540,
+          558,
+          200,
+          46
+        ]
+      },
+      "btn_dm_left": {
+        "kind": "button",
+        "label": "<",
+        "rect": [
+          490,
+          244,
+          40,
+          40
+        ]
+      },
+      "btn_dm_right": {
+        "kind": "button",
+        "label": ">",
+        "rect": [
+          750,
+          244,
+          40,
+          40
+        ]
+      },
+      "btn_toggle_bg_art": {
+        "kind": "button",
+        "label": "ON",
+        "rect": [
+          700,
+          368,
+          90,
+          40
+        ]
+      },
+      "btn_toggle_gore": {
+        "kind": "button",
+        "label": "ON",
+        "rect": [
+          700,
+          424,
+          90,
+          40
+        ]
+      },
+      "btn_toggle_income_floaters": {
+        "kind": "button",
+        "label": "ON",
+        "rect": [
+          700,
+          312,
+          90,
+          40
+        ]
+      },
+      "title": {
+        "kind": "label",
+        "label": "SETTINGS",
+        "rect": [
+          640,
+          180,
+          0,
+          0
+        ]
+      }
+    }
+  }
+}

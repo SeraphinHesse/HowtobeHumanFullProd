@@ -58,6 +58,24 @@ that feed these):
   before ER-1, plus a table-driven pin against the old formula).
 - Manifest `offset_x/offset_y` are authored in FRAME pixels, so they ride `s`
   too (a no-op at `s == 1`).
+## Multi-tile units draw on their BLOCK centre (ER-5)
+A `fit_tiles`-wide unit is ADDRESSED by its anchor (the block's min corner — that
+is the tile the game paths it to) but must be DRAWN on the block's centre, which
+is `(fit_tiles − 1) / 2` tiles along BOTH axes. `block_center_offset(fit_tiles)`
+is that expression, exported for the same reason `fit_factor` is (below).
+- Added to both world axes it **cancels in the iso x term** (`ix = (wx−wy)·half_w`)
+  and lowers y by `(fit_tiles − 1) · tile_h/2`: **0px at fit_tiles 1, 16px at 2,
+  32px at 3.** Before ER-5 a 2-tile unit drew exactly half a tile-height above its
+  block, with zero horizontal error — which is why the bug read as "slightly
+  floating" rather than "misplaced".
+- **It is a provable no-op at `fit_tiles` 0 (guarded) and 1 (arithmetic)** — so
+  buildings, tiles, deco, HUD and every 1-tile enemy are untouched. That is the
+  whole safety argument, and it is the same one ER-1 made for the fit itself.
+- **It shifts the BLIT only, never `depth_key`** (which sorts on the raw
+  `world_pos`). Folding it into the sort would move draw ORDER with position.
+- The game's overhead HP bars (`game/ui/effects.py:_sprite_top`) call
+  `block_center_offset` too — a bar has to ride the sprite it hangs off.
+
 - **`fit_factor(frame_w, tile_w, fit_tiles)` is exported** as THE one expression
   for the fit. Anything that must place a HUD element over a drawn sprite (the
   game's overhead HP bars) has to size that sprite exactly as `flush()` does, so
@@ -104,6 +122,14 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   at any dest size** (down to 1×1, and including negatives) — the editor feeds
   this unsaved draft margins straight from the slice spinboxes, and rendering
   degrades rather than raising (E-37).
+- **`_clamp_pair` moved to `engine/assets/nine_slice.py` (A8)**, imported here as
+  `from engine.assets.nine_slice import clamp_pair as _clamp_pair` — the two
+  `_clamp_pair(...)` calls inside `_nine_patch` are otherwise unchanged (same
+  algorithm, same object, not a reimplementation). It moved so the pixel
+  hit-mask (`AssetStore.hit_opaque`, `engine/assets/CLAUDE.md` "Pixel
+  hit-mask") can share the exact same clamp from a pure module (no pygame)
+  when it inverts this same band layout via `nine_slice.dest_to_source` — the
+  forward composite and the hit-test inverse can never drift apart.
 - **No-ops take the plain `_scaled` path** (and so share its cache entry):
   `slice is None`, an all-zero slice, and a 1:1 draw. The grey-X placeholder
   never carries a slice, so it stays on that path — `test_placeholder_surfaces_

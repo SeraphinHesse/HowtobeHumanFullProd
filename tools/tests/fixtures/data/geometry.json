@@ -1,0 +1,11 @@
+{
+  "map_cols": 20,
+  "map_rows": 20,
+  "tile_h": 32,
+  "tile_w": 64,
+  "zoom_levels": [
+    0.5,
+    1.0,
+    2.0
+  ]
+}

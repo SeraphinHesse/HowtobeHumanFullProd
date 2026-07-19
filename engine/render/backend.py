@@ -14,6 +14,8 @@ import weakref
 
 import pygame
 
+from engine.assets.nine_slice import clamp_pair as _clamp_pair
+
 from . import fonts
 from .item import OverlayLines, OverlayPolys
 
@@ -45,27 +47,6 @@ def _scaled(surface, size):
     if scaled is None:
         scaled = by_size[size] = pygame.transform.scale(surface, size)
     return scaled
-
-
-def _clamp_pair(a, b, limit):
-    """Opposite margins clamped PROPORTIONALLY into `limit`. On overflow
-    a + b == limit exactly, so the centre band vanishes and the corners squeeze
-    rather than clip — no negative rect, no crash, at any destination size.
-
-    A negative margin is floored to 0 FIRST: it would otherwise slip through the
-    `a + b <= limit` fast path untouched and produce an out-of-bounds source
-    rect. Committed data cannot carry one (the schema pins minimum 0 and
-    entry_from_dict rejects it), but the editor feeds this unsaved draft margins
-    straight from the slice spinboxes — and rendering degrades, never raises."""
-    a = max(0, a)
-    b = max(0, b)
-    total = a + b
-    if total <= limit:
-        return a, b
-    if total <= 0:
-        return 0, 0
-    a2 = a * limit // total
-    return a2, limit - a2
 
 
 def _nine_patch(surface, size, margins):

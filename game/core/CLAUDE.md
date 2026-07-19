@@ -182,28 +182,30 @@ in `game/ui/CLAUDE.md`.
   double-run a burst) BEFORE the wave-clear check, so the burst is submitted to
   the Spawner while the round is still live. Quick-skip / lives-wipe / cheat
   despawns never reach the callback → they spawn nothing.
-  - **KNOWN LIMITATION — the flush does NOT guarantee the round outlives the
-    burst.** `Scene.spawn()` only QUEUES (into `_spawn_queue`); `scene.by_tag()`
-    reads `_objects`. So the wave-clear check a few lines below the flush
-    **cannot see children burst on the same frame**: killing the last enemy with
-    a drained spawner flips the phase to `ROUND_END` on that frame, and the
-    children materialise on the following `scene.update`. This is **pre-existing
-    — 10G's boss swarm behaves identically** (verified on both branches), and it
-    is rare in practice for the Boss (it dies mid-wave, with companions still
-    alive). **ER-4 will feel it much harder**: Formations are common and one
-    breaking as the last unit of a wave will drop its children into a round that
-    has already ended. Fixing it means teaching the wave-clear check about
-    pending spawns (`_spawn_queue` / the pending list) — deliberately NOT done in
-    ER-3, which is a zero-behaviour-change phase.
+  - **The wave-clear check consults the SPAWN QUEUE too (ER-5).** Flushing the
+    burst before the check was not enough on its own: `Scene.spawn()` only QUEUES
+    and `by_tag()` reads the live list, so children burst on THIS frame were
+    invisible to the check eight lines below — killing the last enemy of a drained
+    wave ended the round and the children materialised into it. The condition is
+    now `spawner.done and no live enemy and not scene.queued_by_tag("enemy")`
+    (`engine/core/CLAUDE.md`). This closes the general queue-then-check race, not
+    just the death-burst instance. It was a real bug for the 10G boss from the
+    start and would have been a common one for ER-4's Formations.
 
 ## Lightning strike + cheat menu (Phase 10H)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
-- **State on `RunState`**: `lightning_level` (**seeded 1** — the prototype boots
-  with lightning unlocked at L1 and never resets it; the L0 20♥ unlock branch
-  stays implemented but is unreachable from a normal boot) and
-  `lightning_cooldown`. Tunables ONLY from `core.json LightningStrike`
-  (cooldown [5,3,2] / damage [10,15,32] / radius [1,2,3] / unlock 20 /
-  upgrades [35,80] — the LIVE prototype JSON, not the stale `.py` defaults).
+- **State on `RunState`**: `lightning_level` (**seeded 0** as of the Storm
+  Priest wiring — every run boots with lightning LOCKED; placing a Storm
+  Priest, the `"lightning_source"`-tagged defence building, is the ONLY way
+  to raise it to L1, via `unlock_from_placement(state, building)` — a pure,
+  tag-gated, latching helper (never re-locks) called from
+  `game/ui/building_ui.py._do_place` after every successful placement. This
+  replaced the prototype's boot-unlocked design, which is no longer followed:
+  the L0 20♥ unlock branch is now reachable from a normal boot, not dead
+  weight) and `lightning_cooldown`. Tunables ONLY from `core.json
+  LightningStrike` (cooldown [5,3,2] / damage [12,18,38] / radius [1,2,3] /
+  unlock 20 / upgrades [35,80] — damage bumped for the Storm Priest buff; the
+  rest is the LIVE prototype JSON, not the stale `.py` defaults).
 - **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
   `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
   `game.py:505-508`): both points go through `cs.world_to_screen` and the

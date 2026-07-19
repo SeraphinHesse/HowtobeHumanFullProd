@@ -26,6 +26,12 @@ state as a plain subclass attribute.
   (`on_spawn`), updates live objects in spawn order (components in list order,
   then the subclass `on_update` hook), applies the despawn queue last
   (`on_despawn`).
+- **`queued_by_tag(tag)` (ER-5)** — the objects `spawn()`ed but not yet live.
+  `spawn` only QUEUES; the queue merges at the top of the next `update` (E-13), and
+  `by_tag`/`objects` read the LIVE list. So any caller that spawns and then asks "is
+  anything of this kind left?" **within the same frame** cannot see what it just
+  spawned unless it also consults this. That gap silently ended a round under the
+  children of an enemy that burst on the wave's last frame (`game/core/session.py`).
 - **Render submit hook**: a component with a visual presence defines
   `render_items(transform) -> iterable[RenderItem]` (SpriteAnimator does);
   `Scene.render_items()` collects generically and the host submits to the

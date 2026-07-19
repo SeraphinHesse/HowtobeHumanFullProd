@@ -173,6 +173,20 @@ class TestDraftSaveClear(DetailsCase):
         self.assertEqual(self.panel._row_editors, [])
 
     def test_existing_migrated_entry_loads_into_editors(self):
+        # Pin the entry's row values instead of inheriting whatever the artist
+        # last imported: commit 380ab4a re-imported this sheet, reset its
+        # hidden flags, and the old live-value asserts went red for reasons
+        # that had nothing to do with the panel. The subject here is "manifest
+        # state loads into the editors", so the test supplies that state.
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        row = doc["entries"]["stone_thrower_t1_lvl1"]["rows"][1]
+        row["fps"] = 6
+        row["hidden"] = [3]
+        data_io.write_validated(
+            doc, path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+
         self.panel.set_slot("stone_thrower_t1_lvl1")
         self.assertEqual(len(self.panel._row_editors), 2)
         row1 = self.panel._row_editors[1]
@@ -594,6 +608,210 @@ class TestLevelBar(QtCase):
         bar.select_last()
         self.assertEqual(bar.level(), 1)
         self.assertEqual(seen, [1])
+
+
+class TestFrameSizeOverride(DetailsCase):
+    """ER-5: the per-slot frame size — the one property of a slot the editor could
+    not express. Frame size is a CATEGORY value; a slot may override it (ER-1's
+    object form in slots.json).
+
+    `enemy_stage_1_v1` is an `enemies` slot, so it inherits the category's 64x96.
+    """
+
+    SLOT = "enemy_stage_1_v1"
+    UNASSIGN = (SLOT,)
+
+    def slots_entry(self):
+        """The raw slots.json entry for SLOT: a bare string (inherits) or the
+        {key, frame_w, frame_h} override object."""
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        for category in doc["categories"]:
+            found = self._walk(category["groups"])
+            if found is not None:
+                return found
+        self.fail(f"{self.SLOT} not in slots.json")
+
+    def _walk(self, groups):
+        for node in groups:
+            for entry in node.get("slots", ()):
+                key = entry if isinstance(entry, str) else entry["key"]
+                if key == self.SLOT:
+                    return entry
+            found = self._walk(node.get("children", ()))
+            if found is not None:
+                return found
+        return None
+
+    def set_frame_size(self, w, h):
+        self.panel._frame_w.setValue(w)
+        self.panel._frame_h.setValue(h)
+        self.panel._on_frame_size_changed()
+
+    def test_the_spinboxes_show_the_slots_effective_frame_size(self):
+        self.panel.set_slot(self.SLOT)
+        self.assertEqual(
+            (self.panel._frame_w.value(), self.panel._frame_h.value()), (64, 96))
+        self.assertIsInstance(self.slots_entry(), str)   # inherits, no override yet
+
+    def test_writing_an_override_needs_no_sheet(self):
+        """Declaring the frame size BEFORE importing is the point — it is what the
+        importer slices and pads against."""
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertEqual(self.slots_entry(),
+                         {"key": self.SLOT, "frame_w": 128, "frame_h": 128})
+        self.assertEqual(self.panel.registry.frame_size(self.SLOT), (128, 128))
+
+    def test_the_category_size_removes_the_override(self):
+        """Writing the category's own size back is how 'reset to default' is
+        expressed — the entry returns to the bare-string form rather than carrying
+        an override that overrides nothing."""
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertIsInstance(self.slots_entry(), dict)
+        self.set_frame_size(64, 96)
+        self.assertEqual(self.slots_entry(), self.SLOT)
+
+    def test_an_imported_sheet_is_resliced_and_the_manifest_follows(self):
+        """THE trap: AssetStore.frame_size resolves manifest entry > registry, so
+        an imported slot carries its own frame_w/frame_h. Change the override and
+        forget to re-slice, and the entry keeps shadowing the registry — the slot
+        renders at the OLD size and the two files disagree on disk."""
+        src = make_png(self.png_dir / "art.png", 128, 128)   # 2x1 at 64x96... 1x1 at 128
+        self.panel.set_slot(self.SLOT)
+        self.panel.import_sheet(src)
+        self.panel.save()
+        self.assertEqual(self.manifest_doc()["entries"][self.SLOT]["frame_w"], 64)
+
+        self.set_frame_size(128, 128)
+
+        entry = self.manifest_doc()["entries"][self.SLOT]
+        self.assertEqual((entry["frame_w"], entry["frame_h"]), (128, 128))
+        self.assertEqual(self.panel.registry.frame_size(self.SLOT), (128, 128))
+        # Re-cut: the 128x128 sheet is now ONE 128x128 frame, not 2 cols x 1 row
+        # of 64x96 (with a cropped remainder).
+        self.assertEqual(len(self.panel._row_editors), 1)
+        self.assertEqual(self.panel._row_editors[0].num_cols, 1)
+
+    def test_the_shell_is_told_to_reload_its_registries(self):
+        seen = []
+        self.panel.registry_changed.connect(seen.append)
+        self.panel.set_slot(self.SLOT)
+        self.set_frame_size(128, 128)
+        self.assertEqual(seen, [self.SLOT])
+
+    def test_no_write_when_the_size_is_unchanged(self):
+        self.panel.set_slot(self.SLOT)
+        before = (self.data_dir / "slots.json").read_text(encoding="utf-8")
+        self.set_frame_size(64, 96)          # already the effective size
+        self.assertEqual((self.data_dir / "slots.json").read_text(encoding="utf-8"),
+                         before)
+
+
+class TestSliceMargins(DetailsCase):
+    """Nine-slice margins (10L-A): a `ui`-only, optional manifest field. All
+    four spins are the manifest's own [l, t, r, b] order; all-zero omits the
+    key entirely (a slot with no nine-slice keeps a byte-identical entry, and
+    zeroing un-slices a previously-sliced one on the next save)."""
+
+    UNASSIGN = ("ui_button", "painter_t1_lvl1")
+
+    def import_ui_button_sheet(self):
+        src = make_png(self.png_dir / "ui.png", 2 * 64, 4 * 64)
+        self.panel.set_context("ui", ("Buttons",))
+        self.panel.set_slot("ui_button")
+        self.panel.import_sheet(src)
+
+    def test_ui_context_shows_the_slice_row_and_others_hide_it(self):
+        self.panel.set_context("ui", ("Buttons",))
+        self.assertFalse(self.panel._slice_row.isHidden())
+        self.panel.set_context("buildings", ("Defender",))
+        self.assertTrue(self.panel._slice_row.isHidden())
+
+    def test_slice_spin_bounds_come_from_the_frame_size(self):
+        self.panel.set_slot("ui_button")
+        for spin in self.panel._slice_spins:
+            self.assertEqual(spin.minimum(), 0)
+        self.assertEqual(self.panel._slice_l.maximum(), 64)
+        self.assertEqual(self.panel._slice_r.maximum(), 64)
+        self.assertEqual(self.panel._slice_t.maximum(), 64)
+        self.assertEqual(self.panel._slice_b.maximum(), 64)
+        # A 64x96 buildings slot would cap T/B at 96 -- proves the axis
+        # mapping, even though the row stays hidden on this category.
+        self.panel.set_slot("stone_thrower_t1_lvl1")
+        self.assertEqual(self.panel._slice_l.maximum(), 64)
+        self.assertEqual(self.panel._slice_r.maximum(), 64)
+        self.assertEqual(self.panel._slice_t.maximum(), 96)
+        self.assertEqual(self.panel._slice_b.maximum(), 96)
+
+    def test_slice_round_trips_through_save_and_reload(self):
+        self.import_ui_button_sheet()
+        for spin, value in zip(self.panel._slice_spins, (8, 6, 8, 6)):
+            spin.setValue(value)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertEqual(entry["slice"], [8, 6, 8, 6])
+        self.panel.set_slot(None)
+        self.panel.set_slot("ui_button")            # re-read from disk
+        self.assertEqual(
+            tuple(spin.value() for spin in self.panel._slice_spins),
+            (8, 6, 8, 6))
+
+    def test_all_zero_margins_omit_the_slice_key(self):
+        self.import_ui_button_sheet()
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertNotIn("slice", entry)
+        self.assertNotIn("slice", self.panel.draft_entry())
+
+    def test_zeroing_margins_removes_the_key_on_resave(self):
+        self.import_ui_button_sheet()
+        for spin, value in zip(self.panel._slice_spins, (8, 6, 8, 6)):
+            spin.setValue(value)
+        self.panel.save()
+        for spin in self.panel._slice_spins:
+            spin.setValue(0)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertNotIn("slice", entry)
+
+    def test_non_ui_category_never_emits_slice(self):
+        self.panel.set_context("buildings", ("Defender",))
+        src = make_png(self.png_dir / "painter.png", 64, 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        self.panel._slice_l.setValue(9)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["painter_t1_lvl1"]
+        self.assertNotIn("slice", entry)
+        self.assertNotIn("slice", self.panel.draft_entry())
+
+    def test_slice_edit_emits_a_draft(self):
+        self.import_ui_button_sheet()
+        drafts = []
+        self.panel.draft_changed.connect(lambda slot, e: drafts.append(e))
+        self.panel._slice_l.setValue(5)
+        self.assertEqual(drafts[-1]["slice"], [5, 0, 0, 0])
+
+    def test_four_row_button_sheet_offers_the_ui_vocabulary(self):
+        """1b verification: the ui vocab's 4-row importer path."""
+        self.import_ui_button_sheet()
+        self.assertEqual(len(self.panel._row_editors), 4)
+        row0 = self.panel._row_editors[0]
+        self.assertEqual(
+            [row0.anim_combo.itemText(i) for i in range(row0.anim_combo.count())],
+            ["idle"])
+        self.assertFalse(row0.anim_combo.isEnabled())
+        for row, default in zip(self.panel._row_editors[1:],
+                                 ("hover", "pressed", "disabled")):
+            self.assertEqual(
+                [row.anim_combo.itemText(i) for i in range(row.anim_combo.count())],
+                ["idle", "hover", "pressed", "disabled"])
+            self.assertEqual(row.anim_combo.currentText(), default)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["ui_button"]
+        self.assertEqual([r["animation"] for r in entry["rows"]],
+                         ["idle", "hover", "pressed", "disabled"])
 
 
 if __name__ == "__main__":

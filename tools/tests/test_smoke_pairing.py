@@ -35,6 +35,7 @@ class TestPairingRule(unittest.TestCase):
 
     def write(self, rel, data):
         path = self.data_root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(data_io.dumps_deterministic(data), encoding="utf-8")
         return path
 
@@ -63,6 +64,32 @@ class TestPairingRule(unittest.TestCase):
         self.write("no_such_schema_stem.json", {"anything": 1})
         with self.assertRaises(FileNotFoundError):
             smoke.validate_data(self.data_root)
+
+    def test_ui_screen_file_with_arbitrary_stem_pairs_to_ui_screen_schema(self):
+        self.write("ui/screens/main_menu.json", {})
+        self.write("ui/screens/pause.json", {"widgets": {}})
+        self.assertEqual(smoke.validate_data(self.data_root), 2)
+
+    def test_invalid_ui_screen_file_fails(self):
+        self.write("ui/screens/bad.json", {"widgets": {"w": "not-an-object"}})
+        with self.assertRaises(jsonschema.ValidationError):
+            smoke.validate_data(self.data_root)
+
+    def test_screen_defaults_file_pairs_by_stem_to_flat_schema(self):
+        # data/ui/screen_defaults.json is NOT inside the ui/screens/
+        # directory-exception — it pairs normally by stem to
+        # screen_defaults.schema.json, whose root is the FLAT per-screen map
+        # (no "screens" wrapper): {<screen_id>: {widgets: {...}, mock_note?}}.
+        self.write("ui/screen_defaults.json", {
+            "main_menu": {
+                "widgets": {
+                    "start": {"rect": [0, 0, 10, 10], "kind": "button",
+                              "label": "Start"}
+                },
+                "mock_note": "love=0, round=0",
+            }
+        })
+        self.assertEqual(smoke.validate_data(self.data_root), 1)
 
     def test_repo_data_still_validates(self):
         # the exit gate itself, on the real committed data/

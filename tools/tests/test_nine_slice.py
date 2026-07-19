@@ -17,6 +17,7 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import jsonschema  # noqa: E402
 import pygame  # noqa: E402
 
+from engine.assets import nine_slice  # noqa: E402
 from engine.assets.manifest import load_manifest  # noqa: E402
 from engine.data_io import write_validated  # noqa: E402
 from engine.render import backend  # noqa: E402
@@ -274,6 +275,310 @@ class TestCache(NineSliceCase):
         by_key = backend._scale_cache[self.src]
         self.assertEqual(sorted(map(str, by_key)),
                          sorted(["(20, 20)", str(("9p", (20, 20), MARGINS))]))
+
+
+class TestClampPairSharedWithBackend(unittest.TestCase):
+    """A8: engine/render/backend.py deleted its local `_clamp_pair` and now
+    imports `engine.assets.nine_slice.clamp_pair` — the SAME function object,
+    not a reimplementation, so forward compositing and the hit-test inverse
+    below can never drift apart."""
+
+    def test_backend_clamp_pair_is_the_shared_pure_function(self):
+        self.assertIs(backend._clamp_pair, nine_slice.clamp_pair)
+
+
+class TestDestToSource(unittest.TestCase):
+    """`nine_slice.dest_to_source` — the exact piecewise inverse of
+    `_nine_patch`'s band layout (A8). Source 6x6, dest 20x20, margins
+    (2,2,2,2) throughout, matching TestGeometry's fixture above."""
+
+    SRC = (6, 6)
+    DEST = (20, 20)
+    MARGINS = (2, 2, 2, 2)
+
+    def test_dest_to_source_corners_map_1_to_1_leading_end(self):
+        for pos in ((0, 0), (1, 1), (2, 2)):
+            self.assertEqual(
+                nine_slice.dest_to_source(pos, self.DEST, self.SRC, self.MARGINS),
+                pos)
+
+    def test_dest_to_source_corners_map_1_to_1_trailing_end(self):
+        cases = {(19, 19): (5, 5), (18, 18): (4, 4), (17, 17): (3, 3)}
+        for pos, expected in cases.items():
+            self.assertEqual(
+                nine_slice.dest_to_source(pos, self.DEST, self.SRC, self.MARGINS),
+                expected)
+
+    def test_dest_to_source_centre_scales_by_band_width_ratio(self):
+        # centre band: source [2,4), dest [2,18); 2 + (10-2)*2//16 = 3
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, self.MARGINS),
+            (3, 3))
+
+    def test_dest_to_source_degenerate_margins_clamp_without_raising(self):
+        # margins (5,5,5,5) into a 6px source and a 2px dest — must not raise
+        for pos in ((0, 0), (1, 1), (1, 0), (0, 1)):
+            sx, sy = nine_slice.dest_to_source(pos, (2, 2), (6, 6), (5, 5, 5, 5))
+            self.assertTrue(0 <= sx < 6)
+            self.assertTrue(0 <= sy < 6)
+
+    def test_dest_to_source_none_margins_are_plain_scale(self):
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, None),
+            (3, 3))   # 10*6//20 == 3
+
+    def test_dest_to_source_zero_margins_are_plain_scale(self):
+        self.assertEqual(
+            nine_slice.dest_to_source((10, 10), self.DEST, self.SRC, (0, 0, 0, 0)),
+            (3, 3))
+
+    def test_dest_to_source_out_of_bounds_clamps(self):
+        # the function itself never checks dest bounds (pure, no crash) —
+        # it just keeps computing; the RESULT still lands somewhere sane.
+        sx, sy = nine_slice.dest_to_source((-1, 5), self.DEST, self.SRC,
+                                           self.MARGINS)
+        # negative rel_x: left-corner branch, 1:1 (sx == rel_x, unclamped);
+        # rel_y=5 lands in the centre row band: 2 + (5-2)*2//16 == 2
+        self.assertEqual((sx, sy), (-1, 2))
+        sx, sy = nine_slice.dest_to_source((25, 25), self.DEST, self.SRC,
+                                           self.MARGINS)
+        # 25 >= dw - dr (18) -> trailing-corner branch: sw - (dw - rel) = 6-(20-25)=11
+        self.assertEqual((sx, sy), (11, 11))
+
+
+class TestDestToSourceGeometry(NineSliceCase):
+    """Composite cross-check: render the synthetic 3-colour sheet through the
+    REAL `backend._nine_patch`, then verify `dest_to_source` maps a grid of
+    interior points on each band back to a source pixel of the SAME colour
+    the composite actually drew there -- EXACT equality, no tolerance.
+    `_scale_index` inverts `pygame.transform.scale`'s nearest-neighbour
+    sampler bit-for-bit for every band (corners, edges, centre alike), so
+    there is no seam slop left to allow for; this fixture's flat colour
+    blocks just never had a single-pixel seam fine enough to expose it
+    while the interpolation formula was still wrong (see
+    `TestDestToSourceCentreBand` for the fixture that did)."""
+
+    def assert_matches_composite(self, target, dx, dy, margins):
+        sx, sy = nine_slice.dest_to_source((dx, dy), (20, 20), (6, 6), margins)
+        expected = target.get_at((dx, dy))[:3]
+        actual = self.src.get_at((sx, sy))[:3]
+        self.assertEqual(actual, expected,
+                         f"dest {(dx, dy)} -> source {(sx, sy)}")
+
+    def test_interior_points_on_each_band_agree_with_the_composite(self):
+        target = draw_patch(self.src, (20, 20))   # margins=MARGINS default
+        # (5,5) centre, (1,10) left edge, (10,1) top edge, (18,10) right edge,
+        # (10,18) bottom edge, and all four corners well inside their 2px box
+        for dx, dy in ((5, 5), (1, 10), (10, 1), (18, 10), (10, 18),
+                       (0, 0), (19, 0), (0, 19), (19, 19)):
+            with self.subTest(pos=(dx, dy)):
+                self.assert_matches_composite(target, dx, dy, MARGINS)
+
+
+class TestDestToSourceDegenerateBand(NineSliceCase):
+    """A8 carry-over fix (HIGH, interrupted review): margins that clamp to
+    fill the SOURCE dimension exactly (`sl + sr == sw`) while the DEST still
+    has a centre band on that axis (`dw > sw`) leave `_nine_patch` painting
+    NOTHING there -- the source centre band is 0px wide, so the `min(sw_i,
+    sh_i, dw_i, dh_i) <= 0` skip in `_nine_patch` drops that band across
+    every row. `dest_to_source` must report a miss for a `rel_xy` in that
+    band, not resolve to the source's boundary pixel `sl` -- that pixel is a
+    REAL, painted, opaque pixel elsewhere on the sheet (the first column of
+    the right band, since `sl == sw - sr` here), so reading it instead of
+    signalling a miss is exactly the bug: `hit_opaque` would return True over
+    on-screen transparency."""
+
+    # left + right == 6 == src_w -> horizontal centre band vanishes in the
+    # SOURCE; dl, dr stay unclamped (3+3==6 <= dw=20) so the DEST still has a
+    # 14px centre band (columns [3, 17)) with nothing to paint into it.
+    MARGINS = (3, 2, 3, 2)
+    DEST = (20, 20)
+    SRC = (6, 6)
+    VANISHED_COLUMNS = (3, 5, 10, 15, 16)   # inside dest [3, 17)
+
+    def test_composite_leaves_the_vanished_band_transparent(self):
+        t = draw_patch(self.src, self.DEST, margins=self.MARGINS)
+        for x in self.VANISHED_COLUMNS:
+            for y in (0, 5, 10, 19):
+                self.assertEqual(t.get_at((x, y))[3], 0,
+                                 f"expected transparent at {(x, y)}")
+        # sanity: the surrounding corner/edge columns ARE painted
+        for x in (0, 2, 17, 19):
+            self.assertEqual(t.get_at((x, 5))[3], 255,
+                             f"expected painted at {(x, 5)}")
+
+    def test_dest_to_source_signals_a_miss_in_the_vanished_band(self):
+        for x in self.VANISHED_COLUMNS:
+            sx, sy = nine_slice.dest_to_source((x, 5), self.DEST, self.SRC,
+                                               self.MARGINS)
+            self.assertFalse(0 <= sx < self.SRC[0],
+                             f"sx={sx} should be out of [0, {self.SRC[0]})")
+
+    def test_naive_boundary_pixel_would_have_read_opaque(self):
+        # Documents WHY the miss signal is needed: sl (== sw - sr == 3) is
+        # the first column of the RIGHT band -- a real, opaque, BLUE pixel
+        # -- not "no content". Resolving a vanished-band rel_xy to sx == sl
+        # (the pre-fix behaviour) would read this pixel and return True.
+        sl = 3
+        self.assertEqual(self.src.get_at((sl, 2))[3], 255)
+
+    def test_vertical_axis_degenerates_the_same_way(self):
+        # top + bottom == 6 == src_h this time; dest still has a vertical
+        # centre band since dh=20 > 6.
+        margins = (2, 3, 2, 3)
+        dest = (20, 20)
+        t = draw_patch(self.src, dest, margins=margins)
+        for y in (3, 5, 10, 15, 16):
+            self.assertEqual(t.get_at((5, y))[3], 0,
+                             f"expected transparent at {(5, y)}")
+            sx, sy = nine_slice.dest_to_source((5, y), dest, self.SRC, margins)
+            self.assertFalse(0 <= sy < self.SRC[1],
+                             f"sy={sy} should be out of [0, {self.SRC[1]})")
+
+
+def column_tagged_sheet(width, height):
+    """Every column x carries a colour tag encoding x (r=x%256, g=x//256),
+    so a composite pixel's colour decodes back to the EXACT source column
+    `pygame.transform.scale` sampled -- unambiguous because `scale` (not
+    `smoothscale`) is nearest-neighbour, never blends across columns."""
+    s = pygame.Surface((width, height), pygame.SRCALPHA)
+    for x in range(width):
+        s.fill((x % 256, x // 256, 0, 255), (x, 0, 1, height))
+    return s
+
+
+def row_tagged_sheet(width, height):
+    """Row-tagged mirror of `column_tagged_sheet`, for the y axis."""
+    s = pygame.Surface((width, height), pygame.SRCALPHA)
+    for y in range(height):
+        s.fill((y % 256, y // 256, 0, 255), (0, y, width, 1))
+    return s
+
+
+class TestDestToSourceResampledCorner(NineSliceCase):
+    """A8 carry-over fix #2 (MEDIUM, same file/bug class as the degenerate
+    band above): `dest_to_source`'s corner branches assumed 1:1 mapping
+    unconditionally, but `_nine_patch` (engine/render/backend.py) only
+    blits a corner 1:1 when `dl == sl`; when `clamp_pair(sl, sr, dw)`
+    shrinks `dl`/`dr` BELOW `sl`/`sr` (dest narrower than the combined
+    margins), the backend resamples that corner with
+    `pygame.transform.scale`, same as an edge or centre band would be. This
+    class cross-checks `dest_to_source` against the REAL composite (not a
+    hardcoded expectation) using a colour-tagged sheet, so it pins whatever
+    pygame's scaler actually draws, not a guessed formula.
+
+    Reviewer's probe recipe: 20x10 sheet, left+right margins 8 each (NOT the
+    degenerate case above -- the source centre band stays > 0px), dest
+    10x10. `clamp_pair(8, 8, 10)` -> `(5, 5)`: both corners shrink from 8px
+    (source) to 5px (dest), so `_nine_patch` resamples them."""
+
+    def test_left_and_right_corners_agree_with_the_composite_when_resampled(self):
+        sw, sh = 20, 10
+        margins = (8, 0, 8, 0)
+        dest = (10, 10)
+        src = column_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for x in range(dest[0]):
+            with self.subTest(x=x):
+                sx, sy = nine_slice.dest_to_source((x, 5), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((x, 5))[:2]     # (r, g) column tag
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest x={x} -> source sx={sx}")
+
+    def test_top_and_bottom_corners_agree_with_the_composite_when_resampled(self):
+        sw, sh = 10, 20
+        margins = (0, 8, 0, 8)
+        dest = (10, 10)
+        src = row_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for y in range(dest[1]):
+            with self.subTest(y=y):
+                sx, sy = nine_slice.dest_to_source((5, y), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((5, y))[:2]     # (r, g) row tag
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest y={y} -> source sy={sy}")
+
+    def test_unresampled_corner_is_still_exactly_1_to_1(self):
+        # Regression pin: the common case (dl == sl, no resample) must be
+        # untouched by generalising the corner branches to _scale_index.
+        sw, sh = 6, 6
+        margins = (2, 2, 2, 2)
+        dest = (20, 20)
+        for x in (0, 1):
+            sx, _ = nine_slice.dest_to_source((x, 0), dest, (sw, sh), margins)
+            self.assertEqual(sx, x)
+
+
+def xy_tagged_sheet(width, height):
+    """Every pixel's colour encodes its own (x, y) directly (assumes
+    width, height <= 256) -- an unambiguous decode of exactly which source
+    pixel a nearest-neighbour (never-blending) scale sampled, on BOTH axes
+    from one composite pixel."""
+    s = pygame.Surface((width, height), pygame.SRCALPHA)
+    for x in range(width):
+        for y in range(height):
+            s.set_at((x, y), (x, y, 0, 255))
+    return s
+
+
+class TestDestToSourceCentreBand(NineSliceCase):
+    """A8 carry-over fix #3 (HIGH, same file/bug class as the two fixes
+    above): the CENTRE band branches used the old truncating interpolation
+    (`sl + (rel_x - dl) * mid_s // mid_d`) instead of `_scale_index`, even
+    though `_nine_patch` resamples the centre band with the exact same
+    `pygame.transform.scale` call as a corner or edge -- it is its own
+    subsurface, scaled the same way.
+
+    Reviewer's probe: sw=20, margins (2, 2) on the stretch axis, dest 38
+    (mid_s=16). This is deliberately an ORDINARY, non-clamped case -- no
+    corner ever shrinks below its source size here (`clamp_pair`'s
+    exact-fill invariant makes `mid_d > 0` and `dl != sl` mutually
+    exclusive, so this is NOT the resampled-corner scenario fixed above,
+    it's the everyday centre band every skinned button hits). Measured 6 of
+    34 dest columns disagreeing with the real composite before this fix."""
+
+    def test_ordinary_centre_band_agrees_with_the_composite(self):
+        sw, sh = 20, 4
+        margins = (2, 0, 2, 0)
+        dest = (38, 4)
+        src = column_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for x in range(dest[0]):
+            with self.subTest(x=x):
+                sx, sy = nine_slice.dest_to_source((x, 2), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((x, 2))[:2]
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest x={x} -> source sx={sx}")
+
+    def test_edge_band_stretch_axis_agrees_with_the_composite(self):
+        # A "left edge" point (9-patch terminology): x sits in the (small,
+        # unresampled here) left corner column, y sweeps a genuinely
+        # stretched centre ROW band -- the edge shares the exact same
+        # centre-row branch the interior centre band exercises above, just
+        # paired with a corner column instead of a centre column.
+        sw, sh = 20, 20
+        margins = (2, 2, 2, 2)
+        dest = (10, 38)
+        src = xy_tagged_sheet(sw, sh)
+        target = draw_patch(src, dest, margins=margins)
+
+        for y in range(dest[1]):
+            with self.subTest(y=y):
+                sx, sy = nine_slice.dest_to_source((1, y), dest, (sw, sh),
+                                                   margins)
+                expected = target.get_at((1, y))[:2]
+                actual = src.get_at((sx, sy))[:2]
+                self.assertEqual(actual, expected,
+                                 f"dest y={y} -> source sy={sy}")
 
 
 class TestSchemaRoundTrip(unittest.TestCase):

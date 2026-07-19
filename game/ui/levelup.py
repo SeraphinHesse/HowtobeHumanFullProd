@@ -6,9 +6,18 @@ world is frozen behind it (``Session.frozen``), so nothing animates.
 
 Since 10J the backdrop is the prototype's real ``(0, 0, 0, 185)`` alpha dim —
 the frozen world stays visible behind the window (RGBA ``HudRect``).
+
+10L-B: ``ids`` names only ``backdrop`` — the option boxes are a dynamic-count
+list (1-3, driven by the roll), the same "skip dynamic content" rule as every
+other screen's list-shaped body; ``rects`` therefore stays a plain list of
+tuples (test_levelup.py reads it directly). No anim clock (10L-A: this screen
+owns no ``widgets.Button``).
 """
+from types import SimpleNamespace
+
 from engine.render import HudLines, HudRect, HudSprite
 
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT,
     C_UI_TEXT_DIM, HEART, contains, submit_centered, text_h, wrap_text,
@@ -21,14 +30,20 @@ _BOX_HOVER = C_UI_BTN_HOVER
 _SPRITE_PX = 72
 _HEADING = "CHOOSE YOUR REWARD"
 
+SCREEN_ID = "levelup"
+
 
 class LevelupWindow:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self.options = []
         self.rects = []
         self.hovered = -1
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self.ids = {}
 
     @property
     def visible(self):
@@ -50,14 +65,19 @@ class LevelupWindow:
         n = len(self.options)
         if not n:
             self.rects = []
-            return
-        total = n * _BOX_W + (n - 1) * _GAP
-        x0 = view_w // 2 - total // 2
-        y0 = view_h // 2 - _BOX_H // 2
-        self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
-                      for i in range(n)]
+        else:
+            total = n * _BOX_W + (n - 1) * _GAP
+            x0 = view_w // 2 - total // 2
+            y0 = view_h // 2 - _BOX_H // 2
+            self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
+                          for i in range(n)]
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        self.skinning.apply(self.screen_id, self.ids)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        # 10L-A: no widgets.Button here (plain option-box rects) — mouse_down
+        # is accepted only so main.py's uniform threading call keeps working.
         self.hovered = next(
             (i for i, r in enumerate(self.rects) if contains(r, mx, my)), -1)
 
@@ -73,7 +93,8 @@ class LevelupWindow:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         top = self.rects[0][1] if self.rects else view_h // 2
         submit_centered(renderer, _HEADING, view_w // 2,
                         top - text_h("xxl") - 16, "xxl", C_GOLD)

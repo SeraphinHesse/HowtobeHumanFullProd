@@ -8,6 +8,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Health, Scene
@@ -16,8 +17,8 @@ from game.buildings import BaseBuilding, attach_base
 from game.core.balance import load_balance
 from game.map.tile_map import BASE_CONTENT_KEY, TileMap
 
-MAPBAL = load_balance(REPO / "data", "map")
-CORE = load_balance(REPO / "data", "core")
+MAPBAL = load_balance(FIXTURE_DATA, "map")
+CORE = load_balance(FIXTURE_DATA, "core")
 
 
 def synth(rows, base=(0, 0)):

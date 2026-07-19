@@ -40,8 +40,8 @@ that's a cross-package task — tell the user.
   `game/`.
 
 ## Verify
-- `py tools/testgate.py check` — field collection, serialization
-  round-trip, and the component's own behavior test.
+- `py tools/testgate.py check --affected` — field collection, serialization
+  round-trip, and the component's own behavior test (targeted, not the full suite).
 - `py tools/smoke.py` if anything render/asset-facing.
 
 ## Final report

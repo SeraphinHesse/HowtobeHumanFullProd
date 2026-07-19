@@ -69,6 +69,8 @@ from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
     GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
 )
+from game.ui import widgets  # 10L-A: R2 hit-seam wiring
+from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -186,6 +188,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         registry=registry,
         sprites_dir=data_dir / "sprites",
     )
+    widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     renderer = Renderer(cs, assets)
     # The static ground layer is composited once into an oversized surface and
     # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning
@@ -204,7 +207,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         ui_balance["Menu"]["cutscene_length"],
                         target_size=(view_w, view_h))
     start = GameState.CUTSCENE if video.enabled else GameState.MAIN_MENU
-    shell = Shell(view_w, view_h, ui_balance, start_state=start)
+    # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
+    # shell shares it with its five menu screens; build_gameplay threads the
+    # SAME instance into the seven gameplay screens it constructs itself).
+    skinning = ScreenSkinning(data_dir)
+    shell = Shell(view_w, view_h, ui_balance, start_state=start,
+                 skinning=skinning)
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
 
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
@@ -247,18 +255,22 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # unlocked-tile visuals too.
         gp["world"].tile_map.on_zone_change = ground_cache.invalidate
         ground_cache.invalidate()
-        gp["hud"] = Hud(view_w, view_h)
-        gp["panel"] = BuildingUI(view_w, view_h, ui_balance)
+        # 10L-B: every gameplay screen shares the shell's ScreenSkinning (the
+        # shell owns no world, so it cannot construct these itself).
+        gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
+        gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
+                                 skinning=shell.skinning)
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
-        gp["game_over"] = GameOverScreen(view_w, view_h)
-        gp["levelup"] = LevelupWindow(view_w, view_h)
-        gp["boss_cutscene"] = BossCutscene(view_w, view_h)  # -- 10G boss --
-        gp["cheat"] = CheatMenu(view_w, view_h)  # 10H
+        gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
+        gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
+        gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
+                                          skinning=shell.skinning)
+        gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h)
         # -- /10I --
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
-        gp["game_log"] = GameLog()
+        gp["game_log"] = GameLog(skinning=shell.skinning)
         gp["sel"], gp["sel_cat"] = [], None
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
@@ -462,9 +474,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
     mouse_down = None
     rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
+    deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
     running = True
     while running:
         dt = clock.tick(display["fps"]) / 1000.0
+        deco_clock_ms += dt * 1000.0  # wall-clock: deco keeps animating while paused
         _t_frame = time.perf_counter()
         _t_flush_start = _t_frame  # each render branch resets this before flush
 
@@ -576,6 +590,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 step_zoom(cs, 1 if event.y > 0 else -1, view_w, view_h)
 
         mx, my = pygame.mouse.get_pos()
+        held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
@@ -645,10 +660,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     and session.state.state == GameState.GAME_OVER):
                 gp["cheat"].close()  # 10H: never hide the game-over screen
                 shell.enter_game_over()
-            gp["hud"].update(dt, mx, my, session, gp["panel"])
-            gp["panel"].hover(mx, my)
+            gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
+            gp["panel"].hover(mx, my, mouse_down=held)
             gp["panel"].update(dt)
-            gp["overlays"].update(dt, mx, my)   # 10I: toggle-pill hover
+            gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
             gp["floaters"].update(dt)
             # -- 10J: game log + FX watchers (building deaths -> purple burst
             # + kill message; enemy attack cadence -> muzzle/slash; enemy
@@ -660,14 +675,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --
-            gp["cheat"].update(dt, mx, my)  # 10H (animates its own buttons)
+            gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
             if session.frozen:
-                gp["levelup"].update(dt, mx, my)
-                gp["boss_cutscene"].update(dt, mx, my)  # 10G (its phase only)
+                gp["levelup"].update(dt, mx, my, mouse_down=held)
+                gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
             if session.state.state == GameState.GAME_OVER:
-                gp["game_over"].update(dt, mx, my)
+                gp["game_over"].update(dt, mx, my, mouse_down=held)
         else:  # menu states + PAUSED
-            shell.update(dt, mx, my)
+            shell.update(dt, mx, my, mouse_down=held)
 
         # 3. render submit — per state
         _t_render0 = time.perf_counter()
@@ -720,7 +735,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
-                    camera=show_camera_start):
+                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)

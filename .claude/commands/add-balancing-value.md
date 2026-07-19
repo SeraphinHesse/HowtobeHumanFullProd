@@ -37,8 +37,8 @@ are `buildings` / `enemies` / `map` / `ui` / `core`.
 
 ## Verify
 - `py tools/smoke.py` — schema validation over all data files.
-- `py tools/testgate.py check` — if a balancing-parity or editor-form
-  test covers the domain.
+- `py tools/testgate.py check --affected` — if a balancing-parity or editor-form
+  test covers the domain (targeted, not the full suite).
 - Optional live: `py editor/main.py`, select the domain, confirm the new field renders
   with its bounds; `py game/main.py` confirms the value takes effect.
 

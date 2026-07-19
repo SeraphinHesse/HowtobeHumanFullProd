@@ -26,9 +26,12 @@ You are a coder: you implement ONE scoped task and verify it.
 
 ## Exit gate (before reporting done)
 - `py tools/smoke.py` green.
-- `py tools/testgate.py check` — **0 failures, 0 errors.**
-  The suite is green; there is no baseline and no tolerated failure. If a test
-  is red, you broke it — fix it, don't explain it away.
+- `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Targeted
+  only: never run the full suite — the orchestrator/session that hands work
+  back owns the single full check.
+  The suite is green; there is no baseline and no tolerated failure. If a red
+  test is inside your blast radius, you broke it — fix it. If it is clearly
+  outside your diff, note it in your report and stop; don't investigate.
 
 ## Report format
 Changed files; what the exit gate showed; anything architectural that required

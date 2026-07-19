@@ -1,7 +1,7 @@
 ---
 description: Batch-process the How To Be Human todo list — spawn per-domain worktree agents under an umbrella branch, PR into main.
 argument-hint: <small|priority|smallpriority|all>
-allowed-tools: Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py -m unittest*), Read, Write, Edit, Glob, Grep, Agent
+allowed-tools: Bash(git *), Bash(gh *), Bash(py tools/smoke.py*), Bash(py tools/testgate.py*), Bash(py -m pytest*), Read, Write, Edit, Glob, Grep, Agent
 disable-model-invocation: true
 ---
 
@@ -42,11 +42,13 @@ last, single-threaded. Add any newly discovered follow-ups back with `addtodo`.
    `/add-editor-feature`, `/add-asset-importer`) rather than hand-rolling the
    edits.** Run domains that share `game/core/**` in separate waves
    to avoid host-file conflicts; independent domains may run in parallel.
-3. Each agent's exit gate is this repo's: `py -m unittest discover -s tools/tests
-   -t .` and `py tools/smoke.py`, both green. Balancing JSON edits go through
+3. Each agent's exit gate is the targeted one: `py tools/testgate.py check
+   --affected` and `py tools/smoke.py`, both green — never the full suite
+   per-agent. Balancing JSON edits go through
    `engine.data_io.write_validated` (canonical, schema-valid).
-4. Collect the per-domain PRs into the umbrella, resolve conflicts, run the exit
-   gate once more on the umbrella, then open the umbrella → `main` PR. Close
+4. Collect the per-domain PRs into the umbrella, resolve conflicts, then run
+   the **one full gate** of the run — `py tools/testgate.py check` — on the
+   umbrella, then open the umbrella → `main` PR. Close
    via `/report` (shared provenance-tagged format; publish the run summary as
    an artifact — workers never publish). Report all PR URLs. Merge only on the
    user's explicit confirmation.

@@ -1,9 +1,8 @@
 # Phase A4 — Editor: slice-margins editor + importer verification
 
 Slice 10L-A (`planning/UI_EDITOR_PLAN.md` lines 125–132). Branch:
-`phase-A4-slice-editor`, off the umbrella **after A1+A2 and A3 have landed**.
-Package: **editor only** (`editor/panels/details.py` + its tests + the panels
-doc). Runs in parallel with A5 (`game/**`) — no file overlap.
+`phase-10L-finish-umbrella`, one PR. Package: **editor only** (`editor/panels/details.py` + its tests + the panels
+doc). Runs in parallel with A5′ (`game/**`) — no file overlap.
 
 **Assumed landed (confirm before coding, do not re-implement):**
 - **A2** — `data/schemas/asset_manifest.schema.json`, per-entry optional
@@ -44,8 +43,8 @@ doc). Runs in parallel with A5 (`game/**`) — no file overlap.
   `engine/assets/registry.py:144-150`). Frame sizes are schema-capped at 1024,
   so any per-axis cap stays inside A2's `slice` maximum. No cross-field
   constraint (L+R ≤ frame_w) is enforced in the UI — the plan makes degenerate
-  margins the *backend's* job (“smaller than the summed margins → clamp
-  proportionally”, lines 107–108).
+  margins the *backend's* job ("smaller than the summed margins → clamp
+  proportionally", lines 107–108).
 - **Omit-when-zero (HARD REQUIREMENT):** `slice` is optional. A slot whose four
   margins are all `0` must write **no `slice` key at all**, and must not carry
   one in the emitted draft. Non-sliced art therefore produces byte-identical
@@ -67,7 +66,7 @@ doc). Runs in parallel with A5 (`game/**`) — no file overlap.
   `RenderItem` (`viewport.py:512-536`), i.e. the *world* path, which ignores
   `slice` — so a sliced draft previews as a plain scaled sprite. That is
   correct and expected in A4; the nine-slice blit only exists on the HUD path
-  (A2 backend + A5 skinned Button). What A4 must *prove* is that a draft dict
+  (A2 backend + A5′ skinned Button). What A4 must *prove* is that a draft dict
   carrying `slice` still parses and renders (no raise, animations still listed)
   — `set_preview_draft` already catches `ValueError` and falls back
   (`viewport.py:195-198`), but a `slice`-carrying draft must take the **happy**
@@ -270,8 +269,9 @@ entity preview" section (line ~184) with two sentences:
 
 ## 3. File scope + shared-file contract
 
-A4's coder works on `phase-A4-slice-editor`, **in parallel with A5** (which
-touches `game/**` only). **A4 may touch exactly these four files:**
+A4's coder works on `phase-10L-finish-umbrella`, **in parallel with A5′** (which
+touches `game/**` only) and **B4** (which touches `editor/**` only). **A4 may
+touch exactly these four files:**
 
 | File | What A4 does |
 |---|---|
@@ -291,25 +291,12 @@ won't validate, that is an A2 problem — report it, do not edit the schema.
 ### Commands
 
 ```
-py -m unittest discover -s tools/tests -t .
 py tools/smoke.py
+py tools/testgate.py check --affected
 ```
 
-**Gate = NO NEW FAILURES, not zero failures.** Baseline on `Development`:
-**1086 tests, 16 failures, 1 skipped.** Several of them are in the very files
-A4 touches and are **RED BEFORE THIS PHASE STARTS**:
-
-- `test_details_panel.TestSubcategoryDropdown.test_context_populates_dropdown_with_markers`
-- `test_editor_viewport.TestEntityPreview` — `test_draft_override_never_touches_disk`,
-  `test_preview_animations_and_dropdown_follow_the_slot`,
-  `test_reload_assets_sees_disk_change_and_keeps_camera`,
-  `test_unusable_draft_falls_back_instead_of_raising`
-- `test_editor_panels` ×2, plus `test_run_controls`, `test_editor_map_mode` ×2,
-  `test_balancing_parity` ×6.
-
-**Do not try to fix them — out of scope.** Diff your failure set against this
-list; anything new is yours. Note A3 may legitimately *change* the pre-existing
-ui-related expectations in those files' failure text — still not A4's to fix.
+**Gate = ZERO failures.** The affected tests (A4's new tests plus
+`test_details_panel`, `test_editor_viewport`) must all pass.
 
 ### New tests
 
@@ -376,7 +363,7 @@ it; no `TestPurity` change):
    idle → hover → pressed → disabled: **the entity preview animates the
    selected row** (this is the "already works via the one render path once A1
    lands" claim — the preview is a world sprite, so it will NOT show the
-   nine-slice stretch; that lands with A5's skinned HUD button).
+   nine-slice stretch; that lands with A5′'s skinned HUD button).
 4. **Save** → `data/sprites/asset_manifest.json` gains
    `"ui_button": { …, "slice": [12, 10, 12, 10] }` and `py tools/smoke.py`
    stays green. Zero all four, Save again → the `slice` key is **gone** from

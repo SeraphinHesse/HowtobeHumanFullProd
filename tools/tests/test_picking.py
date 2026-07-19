@@ -7,21 +7,22 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine.coords import load_coordinate_system
 from engine import tilemap
 from game.map import load_map_balance, tile_at_screen, world_to_tile
 from game.map.tile_map import TileMap
 
-MAP = REPO / "data" / "maps" / "first_light.json"
-MAP_SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-BALANCE = load_map_balance(REPO / "data")
+MAP = FIXTURE_DATA / "maps" / "first_light.json"
+MAP_SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+BALANCE = load_map_balance(FIXTURE_DATA)
 
 
 def make_env():
     doc = tilemap.load_map(MAP, MAP_SCHEMA)
     tm = TileMap(doc, BALANCE)
-    coords = load_coordinate_system(REPO / "data", map_cols=doc.cols, map_rows=doc.rows)
+    coords = load_coordinate_system(FIXTURE_DATA, map_cols=doc.cols, map_rows=doc.rows)
     return tm, coords
 
 

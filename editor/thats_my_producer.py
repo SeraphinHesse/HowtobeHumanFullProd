@@ -5,7 +5,6 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QUrl
 from PySide6.QtGui import QPixmap
-from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import QLabel, QVBoxLayout, QWidget
 
 PRODUCER_IMAGE_PATH = Path(__file__).resolve().parent / "assets" / "thats_my_producer.png"
@@ -14,6 +13,14 @@ DISPLAY_MS = 3000
 
 
 def _play_producer_sound(parent: QWidget) -> None:
+    # QtMultimedia loads the platform audio stack (libpulse on Linux) the
+    # moment it is imported — machines without one (headless CI, audio-less
+    # boxes) would fail to even import editor.main if this sat at module
+    # scope. An easter egg degrades to silent; it never takes the editor down.
+    try:
+        from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
+    except ImportError:
+        return
     player = QMediaPlayer(parent)
     audio_output = QAudioOutput(parent)
     player.setAudioOutput(audio_output)

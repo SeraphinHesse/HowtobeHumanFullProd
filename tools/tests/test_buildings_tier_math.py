@@ -10,15 +10,18 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine.core import Health
 from game.buildings import Defender, Musician
 from game.buildings.components import TierState
+from game.buildings.storm_priest import StormPriest
 from game.core.balance import load_balance
 
-BAL = load_balance(REPO / "data", "buildings")
+BAL = load_balance(FIXTURE_DATA, "buildings")
 MUS = BAL["EconomyBuildings"]["Musicians"]["tiers"]
 DEF = BAL["DefenceBuildings"]["BasicDefence"]["tiers"]
+SP = BAL["DefenceBuildings"]["StormPriest"]["tiers"]
 
 
 def steps(tiers):
@@ -110,6 +113,33 @@ class TestDefender(TierWalkMixin, unittest.TestCase):
     def extra_actual(self, b):
         return {"damage": b.damage(), "upkeep": b.upkeep(),
                 "range": b.range_tiles()}
+
+
+class TestStormPriest(TierWalkMixin, unittest.TestCase):
+    tiers = SP
+    sprites = ("storm_priest_i", "storm_priest_ii", "storm_priest_iii")
+
+    def make(self):
+        return StormPriest(4, 5, BAL)
+
+    def extra_expected(self, tier, idx):
+        return {
+            "damage": tier["base_dmg"] + idx * tier["dmg_per_level"],
+            "upkeep": tier["base_upkeep"] + idx * tier["upkeep_per_level"],
+            "range": tier["range_tiles"],
+        }
+
+    def extra_actual(self, b):
+        return {"damage": b.damage(), "upkeep": b.upkeep(),
+                "range": b.range_tiles()}
+
+    def test_tags_carry_combat_and_lightning_source(self):
+        """EXTRA_TAGS fully overrides the base — must re-include ``"combat"``
+        or this stops counting as a combatant (building.py:54)."""
+        b = self.make()
+        self.assertIn("combat", b.tags)
+        self.assertIn("lightning_source", b.tags)
+        self.assertIn("building", b.tags)
 
 
 class TestDefenderRangeSensorSync(unittest.TestCase):

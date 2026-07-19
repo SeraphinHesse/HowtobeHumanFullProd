@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import asset_import, selection
+from editor import asset_import, registry_ops, selection
 from editor.asset_import import pad_to_frame
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
@@ -263,6 +263,7 @@ class DetailsPanel(QWidget):
     draft_changed = Signal(str, object)     # (slot_key, entry_dict | None)
     entry_saved = Signal(str)
     entry_cleared = Signal(str)
+    registry_changed = Signal(str)          # slots.json was written (frame size)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -316,6 +317,44 @@ class DetailsPanel(QWidget):
         offsets.addWidget(QLabel("(−Y = up)"))
         offsets.addStretch(1)
 
+        # Nine-slice margins (ui category only): corners fixed, edges stretched
+        # by the HUD backend. Omitted from the entry when all four are 0.
+        self._slice_row = QWidget()
+        slice_layout = QHBoxLayout(self._slice_row)
+        slice_layout.setContentsMargins(0, 0, 0, 0)
+        self._slice_l = QSpinBox()
+        self._slice_t = QSpinBox()
+        self._slice_r = QSpinBox()
+        self._slice_b = QSpinBox()
+        self._slice_spins = (self._slice_l, self._slice_t,
+                             self._slice_r, self._slice_b)   # order = manifest order
+        slice_layout.addWidget(QLabel("Nine-slice  L:"))
+        slice_layout.addWidget(self._slice_l)
+        for label, spin in zip(("T:", "R:", "B:"), self._slice_spins[1:]):
+            slice_layout.addWidget(QLabel(label))
+            slice_layout.addWidget(spin)
+        for spin in self._slice_spins:
+            spin.setRange(0, 1024)
+            spin.valueChanged.connect(lambda _v: self._emit_draft())
+        slice_layout.addStretch(1)
+
+        # Per-slot frame size (ER-5). Frame size is a CATEGORY property; this is
+        # the per-slot override, and the ONE thing about a slot the editor could
+        # not express. Committed on editingFinished, not valueChanged, so typing
+        # "128" does not write three times on the way there.
+        frames = QHBoxLayout()
+        frames.addWidget(QLabel("Frame  W:"))
+        self._frame_w = QSpinBox()
+        self._frame_h = QSpinBox()
+        for spin in (self._frame_w, self._frame_h):
+            spin.setRange(1, 1024)          # slots.schema.json bounds (ED-30)
+            spin.editingFinished.connect(self._on_frame_size_changed)
+        frames.addWidget(self._frame_w)
+        frames.addWidget(QLabel("H:"))
+        frames.addWidget(self._frame_h)
+        frames.addWidget(QLabel("(how the sheet is SLICED)"))
+        frames.addStretch(1)
+
         self._preview = SheetPreview(interactive=True)
         self._preview.frame_clicked.connect(self._on_frame_clicked)
 
@@ -332,9 +371,12 @@ class DetailsPanel(QWidget):
         layout.addLayout(buttons)
         layout.addWidget(self._preview)
         layout.addLayout(offsets)
+        layout.addWidget(self._slice_row)
+        layout.addLayout(frames)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
+        self._slice_row.setVisible(False)
 
     # -- subcategory dropdown (fed by the shell from the tree selection) ----
 
@@ -342,6 +384,7 @@ class DetailsPanel(QWidget):
         """Populate the subcategory dropdown for a tree node; ● marks
         subcategories with at least one assigned slot (ED-11)."""
         self._context = (category_key, tuple(group_path))
+        self._slice_row.setVisible(self._slice_applies())
         labels = selection.subcategories(self.registry, category_key, group_path)
         assigned = set(load_manifest(
             self._data_dir / "sprites" / "asset_manifest.json").slots())
@@ -397,6 +440,8 @@ class DetailsPanel(QWidget):
             self._clear_rows()
             self._offset_x.setValue(0)
             self._offset_y.setValue(0)
+            for spin in self._slice_spins:
+                spin.setValue(0)
             self._info.setText("")
             if slot_key is None:
                 self._sheet_ref = None
@@ -406,10 +451,21 @@ class DetailsPanel(QWidget):
                 return
             fw, fh = self.registry.frame_size(slot_key)
             self._header.setText(f"[{slot_key}]  {fw}×{fh}/frame")
+            # Populated even with no sheet imported: declaring the frame size
+            # BEFORE the import is the point — it is what the importer slices
+            # (and pads) against.
+            self._frame_w.setValue(fw)
+            self._frame_h.setValue(fh)
+            for spin, cap in zip(self._slice_spins, (fw, fh, fw, fh)):
+                spin.setRange(0, cap)
             entry = self._read_doc()["entries"].get(slot_key)
             if entry:
                 self._offset_x.setValue(int(entry.get("offset_x", 0)))
                 self._offset_y.setValue(int(entry.get("offset_y", 0)))
+                margins = entry.get("slice") or ()
+                if len(margins) == 4:
+                    for spin, value in zip(self._slice_spins, margins):
+                        spin.setValue(int(value))
             # The entry's OWN ref wins; imported/<slot>.png is only the fallback
             # for a slot that has never been imported (a linked slot's sheet is
             # some other slot's file).
@@ -511,7 +567,7 @@ class DetailsPanel(QWidget):
         """Current UI state as a manifest-v2 entry dict (None: no rows)."""
         if self.slot_key is None or not self._row_editors:
             return None
-        return {
+        entry = {
             "sheet": self._sheet_ref or asset_import.sheet_ref(self.slot_key),
             "frame_w": self._row_frame_size[0],
             "frame_h": self._row_frame_size[1],
@@ -519,6 +575,60 @@ class DetailsPanel(QWidget):
             "offset_y": self._offset_y.value(),
             "rows": [editor.to_dict() for editor in self._row_editors],
         }
+        margins = self._slice_margins()
+        if margins is not None:
+            entry["slice"] = margins
+        return entry
+
+    def _slice_margins(self):
+        """[l, t, r, b] for a ui slot with at least one non-zero margin;
+        None otherwise. `slice` is optional in the manifest — an unsliced
+        entry must never grow the key (and re-saving with all-zero margins
+        removes it, since save() replaces the whole entry)."""
+        if not self._slice_applies():
+            return None
+        values = [spin.value() for spin in self._slice_spins]
+        return values if any(values) else None
+
+    def _slice_applies(self):
+        """Nine-slice is a HUD-only feature -> the ui category only."""
+        return self._context is not None and self._context[0] == "ui"
+
+    def _on_frame_size_changed(self):
+        """Commit a per-slot frame-size override, and RE-SLICE against it.
+
+        The two-file part is not optional. `AssetStore.frame_size` resolves
+        manifest entry > registry, so a slot that already has an entry carries its
+        own frame_w/frame_h and would keep rendering at the OLD size no matter what
+        slots.json says. So: write the registry override, reload every cached
+        registry, then re-cut the sheet at the new size and persist the refreshed
+        entry. Leaving the two disagreeing on disk is the failure mode this method
+        exists to prevent.
+
+        Row count follows the new slicing (a taller frame yields fewer rows);
+        `_load_sheet` already warns on an unclean grid.
+        """
+        if self._loading or self.slot_key is None:
+            return
+        fw, fh = self._frame_w.value(), self._frame_h.value()
+        if (fw, fh) == self.registry.frame_size(self.slot_key):
+            return                                   # nothing to do
+        registry_ops.set_slot_frame_size(self._data_dir, self.slot_key, fw, fh)
+        self.registry_changed.emit(self.slot_key)    # shell reloads every registry
+        self.reload_registry()
+
+        self._header.setText(f"[{self.slot_key}]  {fw}×{fh}/frame")
+        entry = self._read_doc()["entries"].get(self.slot_key)
+        sheet = self._sheet_file(self._sheet_ref) if self._sheet_ref else None
+        if entry is None or sheet is None or not sheet.exists():
+            self._emit_draft()
+            return
+        self._loading = True
+        try:
+            self._load_sheet(sheet, entry)           # re-cut at the new frame size
+        finally:
+            self._loading = False
+        self.save()                                  # entry + registry agree again
 
     def save(self):
         """Write the draft into the manifest through the validating writer."""
@@ -574,6 +684,8 @@ class DetailsPanel(QWidget):
             self._clear_rows()
             self._offset_x.setValue(0)
             self._offset_y.setValue(0)
+            for spin in self._slice_spins:
+                spin.setValue(0)
         finally:
             self._loading = False
         self._info.setText("Cleared — slot reverts to the grey-X placeholder.")

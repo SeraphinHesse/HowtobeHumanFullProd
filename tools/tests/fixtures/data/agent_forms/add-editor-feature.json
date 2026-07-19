@@ -1,0 +1,54 @@
+{
+  "context": [
+    "editor/CLAUDE.md",
+    "editor/panels/CLAUDE.md",
+    ".claude/commands/add-editor-feature.md"
+  ],
+  "description": "Spawns an agent that adds an editor feature/panel: hung off the single-selection model, one render path (ED-22), all writes via write_validated, registered in TestPurity.",
+  "fields": [
+    {
+      "description": "Short feature name; drives the branch slug.",
+      "key": "name",
+      "label": "Feature name",
+      "placeholder": "Per-level balancing focus",
+      "required": true,
+      "type": "string"
+    },
+    {
+      "default": "details",
+      "description": "Which existing panel the feature lives in (its conventions in editor/panels/CLAUDE.md govern), or a new panel.",
+      "key": "panel",
+      "label": "Panel area",
+      "options": [
+        "selector",
+        "balancing",
+        "details",
+        "palette",
+        "map-details",
+        "viewport",
+        "new panel"
+      ],
+      "type": "enum"
+    },
+    {
+      "default": false,
+      "description": "Feature writes JSON: it MUST go through engine.data_io.write_validated with schema-derived bounds (ED-30/31).",
+      "key": "writes_data",
+      "label": "Writes to data/",
+      "type": "boolean"
+    },
+    {
+      "default": true,
+      "description": "Logic goes in a Qt-free/pygame-free editor/*.py helper and is registered in test_editor_viewport.TestPurity.",
+      "key": "needs_pure_helper",
+      "label": "Needs a Qt-free helper module",
+      "type": "boolean"
+    }
+  ],
+  "git_default": "branch",
+  "id": "add-editor-feature",
+  "schema_version": 1,
+  "skill": "add-editor-feature",
+  "slug_field": "name",
+  "title": "Add Editor Feature"
+}

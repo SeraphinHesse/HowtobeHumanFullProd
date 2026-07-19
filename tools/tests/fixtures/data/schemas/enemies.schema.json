@@ -1,0 +1,661 @@
+{
+  "$defs": {
+    "boss_stat": {
+      "additionalProperties": false,
+      "description": "Per-era boss stats (ported from the prototype's live py-only BOSS_ERAS; its swarm_* fields were dead and are not migrated).",
+      "properties": {
+        "attack_range_tiles": {
+          "description": "Boss attack range in tiles (Chebyshev).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "attack_speed": {
+          "description": "Seconds between boss attacks.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "dmg": {
+          "description": "Boss damage per hit (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "Boss hit points (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "move_speed": {
+          "description": "Boss movement speed in tiles per second.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "name": {
+          "description": "Boss display name for this era (used by the boss announcement).",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "attack_range_tiles",
+        "attack_speed",
+        "dmg",
+        "hp",
+        "move_speed",
+        "name"
+      ],
+      "type": "object"
+    },
+    "death_spawn": {
+      "additionalProperties": false,
+      "description": "Optional-mechanic block (ER-3, D4): when this unit's HP falls to or below at_hp_fraction of its max it DIES (one code path - breaking formation is dying) and, if enabled, bursts the spawns row for its era at the tile it died on. at_hp_fraction 0.0 + enabled false is an inert unit that dies at zero HP and leaves nothing.",
+      "properties": {
+        "at_hp_fraction": {
+          "description": "Death threshold as a fraction of max HP: the unit dies when hp <= max_hp * this. 0.0 = the normal die-at-zero rule. 0.5 = a formation that scatters at half health. Values at or above 1.0 kill the unit the instant it spawns - do not.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "enabled": {
+          "description": "Toggle: false means this unit dies at its at_hp_fraction threshold but spawns nothing.",
+          "type": "boolean"
+        },
+        "spawn_hp_fraction": {
+          "description": "Children spawn at this fraction of their OWN max HP. 1.0 = full health (the Boss's 10G swarm). Keep it above every child type's own at_hp_fraction or the children die on the frame they appear.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "spawns": {
+          "description": "What this unit bursts into, ONE ROW PER ERA, index-aligned with the type's era table (the Boss's stats/round_counts). A type with no eras carries a single row; the era index clamps into the array, so row 0 always applies. This is the era table and the flat per-type table in one shape - there is deliberately no union here.",
+          "items": {
+            "$ref": "#/$defs/spawn_counts"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "at_hp_fraction",
+        "enabled",
+        "spawn_hp_fraction",
+        "spawns"
+      ],
+      "type": "object"
+    },
+    "scale_tier": {
+      "additionalProperties": false,
+      "description": "Additive stat scaling applied to non-boss enemies once per scale tier.",
+      "properties": {
+        "dmg": {
+          "description": "Damage added to enemy base damage at this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "hp": {
+          "description": "HP added to enemy base HP at this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "spawn_interval": {
+          "description": "Seconds shaved off the spawn interval at this tier.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "speed": {
+          "description": "Move speed added at this tier, in tiles per second.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "dmg",
+        "hp",
+        "spawn_interval",
+        "speed"
+      ],
+      "type": "object"
+    },
+    "spawn_counts": {
+      "additionalProperties": false,
+      "description": "A mix of enemy counts by type.",
+      "properties": {
+        "raiders": {
+          "description": "Raider count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "regular": {
+          "description": "Standard enemy count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "siege": {
+          "description": "Siege cannon count.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "raiders",
+        "regular",
+        "siege"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "enemies.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Enemies balancing domain (D-10), REPLAN nested tree (Phase 9A). Values are the prototype's live tuning, verbatim. HP/DMG use the x10 combat scale (D-12). Bounds policy: fractions 0-1, HP/DMG 0-100000, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, pixels 1-4096; footprint tiles 1-8; sprite_scale multiplier 0.1-8.",
+  "properties": {
+    "EnemyScaling": {
+      "additionalProperties": false,
+      "description": "Wave sizing and stat scaling across the campaign.",
+      "properties": {
+        "base_enemy_count": {
+          "description": "Enemies in round 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "enemies_per_round": {
+          "description": "Base enemies added per round; +1 per scale tier reached.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scale_every_n_levels": {
+          "description": "Village levels between enemy scale tiers.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "scale_tiers": {
+          "description": "Additive enemy stat scaling, one entry per scale tier.",
+          "items": {
+            "$ref": "#/$defs/scale_tier"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "type": "array"
+        },
+        "spawn_interval": {
+          "description": "Base seconds between spawns within a wave.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
+        "spawn_ramp_enabled": {
+          "description": "If true each spawn interval is jittered by 1 +/- spawn_ramp_range.",
+          "type": "boolean"
+        },
+        "spawn_ramp_range": {
+          "description": "Jitter half-range: intervals vary between (1-range)x and (1+range)x.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "base_enemy_count",
+        "enemies_per_round",
+        "scale_every_n_levels",
+        "scale_tiers",
+        "spawn_interval",
+        "spawn_ramp_enabled",
+        "spawn_ramp_range"
+      ],
+      "type": "object"
+    },
+    "EnemyTypes": {
+      "additionalProperties": false,
+      "description": "Per-type enemy stats.",
+      "properties": {
+        "Boss": {
+          "additionalProperties": false,
+          "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawn.spawns[N], round_counts[N].",
+          "properties": {
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "round_counts": {
+              "description": "Boss-round wave composition, per era.",
+              "items": {
+                "$ref": "#/$defs/spawn_counts"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            },
+            "round_interval": {
+              "description": "A boss round every N rounds.",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "shake": {
+              "additionalProperties": false,
+              "description": "Screen shake while the boss walks.",
+              "properties": {
+                "interval": {
+                  "description": "Seconds between shake impulses.",
+                  "maximum": 60,
+                  "minimum": 0,
+                  "type": "number"
+                },
+                "strength": {
+                  "description": "Shake amplitude (fraction of a tile).",
+                  "maximum": 60,
+                  "minimum": 0,
+                  "type": "number"
+                }
+              },
+              "required": [
+                "interval",
+                "strength"
+              ],
+              "type": "object"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "stats": {
+              "description": "Per-era boss combat stats.",
+              "items": {
+                "$ref": "#/$defs/boss_stat"
+              },
+              "maxItems": 5,
+              "minItems": 5,
+              "type": "array"
+            }
+          },
+          "required": [
+            "death_spawn",
+            "footprint",
+            "round_counts",
+            "round_interval",
+            "shake",
+            "sprite_scale",
+            "stats"
+          ],
+          "type": "object"
+        },
+        "Formation": {
+          "additionalProperties": false,
+          "description": "A marching column of soldiers that moves as one 2x2 body (ER-4). It breaks at half health - death_spawn.at_hp_fraction 0.5 means it DIES at 50% HP (D4: breaking formation is dying) and scatters its spawns row of regulars at spawn_hp_fraction of their own max HP. Takes the scale-tier bonuses like Standard/SiegeCannon. Never spawns on a boss round (Boss.round_counts carries no formation key, deliberately).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Formations in the first formation round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "rounds_per_formation": {
+              "description": "Rounds between each additional formation added to the wave.",
+              "maximum": 1000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round formations appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "death_spawn",
+            "dmg",
+            "footprint",
+            "hp",
+            "move_speed",
+            "rounds_per_formation",
+            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "Raider": {
+          "additionalProperties": false,
+          "description": "Fast, fragile flanker (from round start_round).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Raiders in the first raider round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "per_round": {
+              "description": "Extra raiders added per round after start_round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round raiders appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "death_spawn",
+            "dmg",
+            "footprint",
+            "hp",
+            "move_speed",
+            "per_round",
+            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "SiegeCannon": {
+          "additionalProperties": false,
+          "description": "Slow, heavy sieger (from round start_round).",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "base_count": {
+              "description": "Siege cannons in the first siege round.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "mix_ratio": {
+              "description": "Fraction of the siege allotment interleaved into the queue (rest trails).",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "queue_lead_count": {
+              "description": "How many spawn-queue slots the cannons lead the wave by.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "rounds_per_cannon": {
+              "description": "Rounds between each additional cannon added to the mix.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round siege cannons appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "base_count",
+            "death_spawn",
+            "dmg",
+            "footprint",
+            "hp",
+            "mix_ratio",
+            "move_speed",
+            "queue_lead_count",
+            "rounds_per_cannon",
+            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "Standard": {
+          "additionalProperties": false,
+          "description": "The standard walker.",
+          "properties": {
+            "attack_range_tiles": {
+              "description": "Attack range in tiles (Chebyshev).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "attack_speed": {
+              "description": "Seconds between attacks.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg": {
+              "description": "Damage per hit (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp": {
+              "description": "Hit points (x10 combat scale, D-12).",
+              "maximum": 100000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "move_speed": {
+              "description": "Movement speed in tiles per second.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            }
+          },
+          "required": [
+            "attack_range_tiles",
+            "attack_speed",
+            "death_spawn",
+            "dmg",
+            "footprint",
+            "hp",
+            "move_speed",
+            "sprite_scale"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "Boss",
+        "Formation",
+        "Raider",
+        "SiegeCannon",
+        "Standard"
+      ],
+      "type": "object"
+    },
+    "MortarTargeting": {
+      "additionalProperties": false,
+      "description": "Enemy-facing mortar behavior toggles.",
+      "properties": {
+        "predictive_targeting": {
+          "description": "If true AOE mortars lead their shots at the target's predicted position.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "predictive_targeting"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "EnemyScaling",
+    "EnemyTypes",
+    "MortarTargeting"
+  ],
+  "title": "enemies",
+  "type": "object"
+}

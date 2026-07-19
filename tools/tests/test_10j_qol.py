@@ -9,6 +9,7 @@ import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
+from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.core import Scene
@@ -23,13 +24,13 @@ from game.ui.effects import FloaterManager
 from game.ui.game_log import GameLog, LIFETIME, MAX_MESSAGES
 from game.ui.hud import income_breakdown, income_sources
 
-MAP = REPO / "data" / "maps" / "first_light.json"
-MAP_SCHEMA = REPO / "data" / "schemas" / "map_file.schema.json"
-MAP_BAL = load_balance(REPO / "data", "map")
-BUILDINGS_BAL = load_balance(REPO / "data", "buildings")
-ENEMIES_BAL = load_balance(REPO / "data", "enemies")
-CORE_BAL = load_balance(REPO / "data", "core")
-UI_BAL = load_balance(REPO / "data", "ui")
+MAP = FIXTURE_DATA / "maps" / "first_light.json"
+MAP_SCHEMA = FIXTURE_DATA / "schemas" / "map_file.schema.json"
+MAP_BAL = load_balance(FIXTURE_DATA, "map")
+BUILDINGS_BAL = load_balance(FIXTURE_DATA, "buildings")
+ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
+CORE_BAL = load_balance(FIXTURE_DATA, "core")
+UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VIEW_W, VIEW_H = 1280, 720
 
 
@@ -320,6 +321,51 @@ class TestFxHooks(unittest.TestCase):
         self.assertEqual(len(fm._splatters), 2)
         fm.clear_splatters()
         self.assertEqual(fm._splatters, [])
+
+
+class TestStormPriestLightningSeam(unittest.TestCase):
+    """The placement -> lightning-unlock WIRING, driven through the REAL
+    ``BuildingUI._do_place`` seam (card click -> construct preview -> confirm),
+    with NO manual ``lightning.unlock_from_placement`` call. This is the
+    regression guard for the ``unlock_from_placement`` call site in
+    ``building_ui._do_place``: delete that line and this test fails (the pure
+    unit tests in ``test_lightning.py`` would not — they call the helper
+    directly). Lightning boots LOCKED (level 0); only a Storm Priest unlocks it.
+    """
+
+    def test_placing_storm_priest_via_panel_unlocks_lightning(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        st = session.state
+        st.unlocked_buildings["storm_priest"] = True   # earned the type
+        st.love = 100000
+        self.assertEqual(st.lightning_level, 0)         # locked at boot
+        tile = tm.get(2, 1)
+        panel.open_for_tile(tile, session, BUILDINGS_BAL)
+        self.assertEqual(panel.mode, "construct")
+        btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "storm_priest")
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL,
+                           scene, occupancy)            # -> construct preview
+        self.assertIsNotNone(panel.preview)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)  # -> _do_place
+        self.assertEqual(st.lightning_level, 1)         # unlocked BY placement
+
+    def test_placing_defence_via_panel_leaves_lightning_locked(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        st = session.state
+        st.love = 100000                                 # defence starts unlocked
+        tile = tm.get(2, 1)
+        panel.open_for_tile(tile, session, BUILDINGS_BAL)
+        btype, btn = next(
+            (bt, b) for bt, b in panel.cards if bt == "defence")
+        panel.handle_click(*click(btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        self.assertEqual(st.lightning_level, 0)         # non-source: still locked
 
 
 if __name__ == "__main__":
