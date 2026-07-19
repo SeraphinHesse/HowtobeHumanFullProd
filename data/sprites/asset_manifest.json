@@ -1344,7 +1344,10 @@
           "animation": "death",
           "fps": 8,
           "frames": 8,
-          "hidden": [],
+          "hidden": [
+            0,
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
