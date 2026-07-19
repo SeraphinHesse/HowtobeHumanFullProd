@@ -477,6 +477,23 @@ sets one).
   screens. `tools/export_ui_layouts.py` gained a matching `_build_overlays`
   builder and an `"overlays"` entry in `SCREEN_IDS`.
 
+## Layout heights: `layout_h`, never a live font measurement
+Any layout computation whose result lands in a stored holder `.rect`/anchor,
+an id'd widget, the `test_ui_skinning.py` golden parity stream, or
+`data/ui/screen_defaults.json` (the exporter) MUST read
+`engine.render.fonts.layout_h(font_key)` — a pinned constant table — never
+`widgets.text_h`/`TextMetrics.size` directly. Windows and Linux (CI)
+measure `pygame.font.SysFont(...).size()` text heights ±1px apart, so a live
+measurement baked into a stored rect makes the committed artifacts (captured
+on Windows) diverge from what Linux regenerates. `text_h`/`text_size` remain
+correct for genuinely draw-time-only metrics that never reach a stored rect
+or a captured stream (e.g. `hud.py`'s hover-only income tooltip / lightning
+readout, `building_ui.py`'s terrain badge/tooltip — none of those are id'd or
+exercised by the golden capture/exporter today; re-check this if either ever
+starts pinning them). Pinned by `tools/tests/test_layout_h_invariant.py`
+(monkeypatches the measurement +1px and asserts both artifacts are
+unaffected).
+
 ## Known divergences (deliberate)
 The XP bar/floaters still drop the prototype's mascot face (never ported); the
 prototype's `xp_icon` gap itself is closed — wave-3 phase 4 wired a baked

@@ -213,6 +213,20 @@ validating writer; don't hand-edit the JSON.
   13 with real `skin`/`defaults` content wiring the baked `ui_button`/
   `ui_panel`/`ui_panel_stone` assets in (`game_log.json` stays `{}` — R3's
   "container styling only, never position log lines" contract).
+- **Wave-3 Fix 2 (USER DECISION): one slot PER BUTTON TYPE, not one shared
+  `ui_button`.** `slots.json`'s `ui` → Buttons group carries 8 leaf children
+  (each its own PNG via `tools/bake_ui_sheets.py`, no shared `sheet` path
+  between them, all `[4,4,4,4]`-sliced) wired as: `ui_button` (shell menus —
+  main_menu/pause/settings/credits/add_name/game_over, unchanged) ·
+  `ui_button_end_turn` → hud.json `btn_end_turn` · `ui_button_pause` →
+  hud.json `btn_pause` · `ui_button_panel` → building_panel.json's id'd
+  buttons (action/boss/close/preview_*/rename_dice/lightning/boss_close) ·
+  `ui_button_card` → building_panel.json `defaults.button_skin` (construct/
+  upgrade cards) · `ui_button_cheat` → cheat_menu.json `btn_*` · `ui_button_
+  pill` → overlays.json `btn_range`/`btn_heatmap` · `ui_choice_box` → levelup.
+  json `defaults.panel_skin` and boss_cutscene.json `box_a`/`box_b` (baking
+  the same idle+hover stone look as `ui_panel_stone`, which stays registered
+  and baked separately as a panel style).
   `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
   `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
   styling to DYNAMIC-count content that carries no id (construct cards, the

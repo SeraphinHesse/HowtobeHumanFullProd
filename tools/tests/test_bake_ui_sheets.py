@@ -24,14 +24,28 @@ from tools.bake_ui_sheets import bake
 REPO = Path(__file__).resolve().parents[2]
 
 # slot -> number of animation rows baked (drives the expected sheet height).
+# Wave-3 Fix 2 (USER DECISION): one slot PER BUTTON TYPE, each owning its own
+# PNG (no shared ``sheet`` path between button types) — plus ``ui_choice_box``,
+# the 8th Buttons-family leaf, which bakes the ui_panel_stone idle+hover look.
 _EXPECTED_ROWS = {
     "ui_button": 4,
+    "ui_button_end_turn": 4,
+    "ui_button_pause": 4,
+    "ui_button_panel": 4,
+    "ui_button_card": 4,
+    "ui_button_cheat": 4,
+    "ui_button_pill": 4,
+    "ui_choice_box": 2,
     "ui_panel": 1,
     "ui_panel_stone": 2,
     "ui_icon_love": 1,
     "ui_icon_xp": 1,
     "ui_icon_lives": 1,
 }
+_BUTTON_TYPE_SLOTS = (
+    "ui_button", "ui_button_end_turn", "ui_button_pause", "ui_button_panel",
+    "ui_button_card", "ui_button_cheat", "ui_button_pill",
+)
 _FRAME = 64
 
 
@@ -76,10 +90,27 @@ class TestBakeUISheets(unittest.TestCase):
     def test_buttons_and_panels_carry_slice_icons_do_not(self):
         bake(self.data_dir)
         entries = self._manifest()["entries"]
-        for slot in ("ui_button", "ui_panel", "ui_panel_stone"):
+        for slot in (*_BUTTON_TYPE_SLOTS, "ui_choice_box", "ui_panel",
+                     "ui_panel_stone"):
             self.assertEqual(entries[slot].get("slice"), [4, 4, 4, 4], slot)
         for slot in ("ui_icon_love", "ui_icon_xp", "ui_icon_lives"):
             self.assertNotIn("slice", entries[slot], slot)
+
+    def test_each_button_type_owns_its_own_sheet_no_sharing(self):
+        """USER DECISION: 8 leaf slots (7 button types + ui_choice_box), each
+        with its OWN ``sheet`` path — no two button types point at the same
+        PNG, even though they currently bake identical pixels."""
+        bake(self.data_dir)
+        entries = self._manifest()["entries"]
+        button_family = (*_BUTTON_TYPE_SLOTS, "ui_choice_box")
+        sheets = [entries[slot]["sheet"] for slot in button_family]
+        self.assertEqual(len(sheets), len(set(sheets)),
+                          "two button-family slots share a sheet path")
+        for slot in button_family:
+            self.assertEqual(entries[slot]["sheet"], f"imported/{slot}.png")
+            self.assertTrue(
+                (self.data_dir / "sprites" / "imported" / f"{slot}.png")
+                .is_file(), f"missing own PNG for {slot}")
 
     def test_png_dimensions_match_frame_and_row_count(self):
         bake(self.data_dir)

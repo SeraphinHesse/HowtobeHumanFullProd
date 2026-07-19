@@ -1,10 +1,10 @@
 {
   "widgets": {
     "btn_end_turn": {
-      "skin": "ui_button"
+      "skin": "ui_button_end_turn"
     },
     "btn_pause": {
-      "skin": "ui_button"
+      "skin": "ui_button_pause"
     },
     "love_panel": {
       "skin": "ui_panel"

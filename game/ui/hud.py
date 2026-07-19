@@ -15,6 +15,8 @@ that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
 import math
 from types import SimpleNamespace
 
+from engine.render.fonts import layout_h
+
 from game.core.boss_bonuses import (
     aoe_count, boss1b_income, boss3b_income, defence_count,
 )
@@ -220,7 +222,8 @@ class Hud:
         the first pass without a chicken-and-egg ordering problem."""
         pill = self._love_panel.rect
         lvl_x, lvl_y = pill[0] + pill[2] + 12, pill[1]
-        bar_y = lvl_y + text_h("hud_lvl") + 3
+        # layout_h: xp_bar's stored/id'd rect feeds screen_defaults.json.
+        bar_y = lvl_y + layout_h("hud_lvl") + 3
         # -- 10L wave-3: icon_love sits inside the pill, left of the love
         # count; icon_xp sits left of the bar (lvl_label stays put — it's a
         # separate row above); icon_lives sits left of the lives text. Each
@@ -242,7 +245,8 @@ class Hud:
         self._lives_text.rect = (lives_x, 66, 0, 0)
         self._tiles_text.rect = (pill[0] + 4, 84, 0, 0)
         bx, by, bw, _bh = self.end_turn.rect
-        self._round_label.rect = (bx + bw // 2, by - text_h("md") - 4, 0, 0)
+        # layout_h: round_label's stored/id'd rect feeds screen_defaults.json.
+        self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 4, 0, 0)
         self.ids.update({
             "love_text": ("label", self._love_text),
             "lvl_label": ("label", self._lvl_label),

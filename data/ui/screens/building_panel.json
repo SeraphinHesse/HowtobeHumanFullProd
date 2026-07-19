@@ -1,41 +1,41 @@
 {
   "defaults": {
-    "button_skin": "ui_button",
+    "button_skin": "ui_button_card",
     "panel_skin": "ui_panel"
   },
   "widgets": {
     "action_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "boss_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "boss_close_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "close_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "lightning_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "panel": {
       "skin": "ui_panel"
     },
     "preview_cancel_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "preview_close_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "preview_confirm_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "preview_dice_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "rename_dice_btn": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     }
   }
 }

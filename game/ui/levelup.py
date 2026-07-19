@@ -22,12 +22,13 @@ clockless; that was true only until a skinned path existed).
 from types import SimpleNamespace
 
 from engine.render import HudLines, HudRect, HudSprite
+from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT,
     C_UI_TEXT_DIM, HEART, anim_ms, contains, submit_centered, submit_panel,
-    text_h, wrap_text,
+    wrap_text,
 )
 
 _BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
@@ -106,8 +107,9 @@ class LevelupWindow:
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         top = self.rects[0][1] if self.rects else view_h // 2
+        # layout_h: the heading position lands in the golden parity stream.
         submit_centered(renderer, _HEADING, view_w // 2,
-                        top - text_h("xxl") - 16, "xxl", C_GOLD)
+                        top - layout_h("xxl") - 16, "xxl", C_GOLD)
         panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
             self._submit_box(renderer, self.rects[i], option, i == self.hovered,
@@ -129,14 +131,16 @@ class LevelupWindow:
         cx = x + w // 2
         cursor = y + 10
 
+        # layout_h throughout _submit_box: every cursor position below lands
+        # directly in the golden parity stream's HudText.pos entries.
         prev_name = option.get("prev_name")
         if prev_name:
             submit_centered(renderer, prev_name, cx, cursor, "sm", C_UI_TEXT_DIM)
-            cursor += text_h("sm") + 2
+            cursor += layout_h("sm") + 2
             self._submit_up_arrow(renderer, cx, cursor)
             cursor += 10
         submit_centered(renderer, option["title"], cx, cursor, "md", C_UI_TEXT)
-        cursor += text_h("md") + 6
+        cursor += layout_h("md") + 6
 
         slot = option.get("sprite_key")
         if slot:
@@ -149,16 +153,16 @@ class LevelupWindow:
         if label:
             text = "FREE" if cost <= 0 else f"{label}  {HEART}{cost}"
             submit_centered(renderer, text, cx, cursor, "sm", C_GOLD)
-        cursor += text_h("sm") + 4
+        cursor += layout_h("sm") + 4
 
         for line in wrap_text(option["explanation"], "sm", w - 16, max_lines=4):
             submit_centered(renderer, line, cx, cursor, "sm", C_UI_TEXT_DIM)
-            cursor += text_h("sm") + 1
+            cursor += layout_h("sm") + 1
 
         if option["kind"] == "tier":
             submit_centered(
                 renderer, f"Tier {option['tier_no']} of {option['tier_max']}",
-                cx, y + h - text_h("sm") - 6, "sm", C_UI_TEXT_DIM)
+                cx, y + h - layout_h("sm") - 6, "sm", C_UI_TEXT_DIM)
 
     @staticmethod
     def _submit_up_arrow(renderer, cx, y):

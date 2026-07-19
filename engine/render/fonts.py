@@ -26,6 +26,47 @@ _FONT_SPECS = {
 
 _FALLBACK_KEY = "md"
 
+# Pinned layout-math heights (Fix 1, phase-10L wave3): CI runs Linux, dev runs
+# Windows, and pygame's SysFont ``.size()`` measures glyph heights ±1px
+# differently per platform/font-backend. Any LAYOUT POSITION computed from a
+# measured text height (a stored widget rect, an id'd anchor, or anything
+# that lands in the `test_ui_skinning.py` golden parity stream or
+# `tools/export_ui_layouts.py`'s `screen_defaults.json`) must therefore never
+# read a LIVE measurement — it has to read a value that is the same on every
+# machine that ever runs the game. These are exactly the Windows-measured
+# ``TextMetrics().size("Ag", key)[1]`` values already baked into every
+# committed artifact (``data/ui/screen_defaults.json``, the test's
+# ``_BASELINE``), pinned here so regenerating those artifacts on ANY platform
+# reproduces them byte-for-byte. Draw-time-only text metrics (nothing stored,
+# nothing captured — e.g. a hover hint's word-wrap width) may keep using
+# ``TextMetrics``/``text_h`` directly; only layout math needs `layout_h`.
+_LAYOUT_H = {
+    "sm": 11,
+    "md": 13,
+    "lg": 15,
+    "xl": 21,
+    "xxl": 30,
+    "hud_phase": 16,
+    "hud_lvl": 14,
+}
+
+
+def layout_h(font_key):
+    """The PINNED text height for ``font_key`` — use for every layout
+    computation that ends up in a stored holder rect/anchor or a
+    parity-captured/exporter-captured primitive stream. Never a live
+    ``pygame.font`` measurement (see module docstring/`_LAYOUT_H` above): a
+    live value would make `data/ui/screen_defaults.json` and
+    `test_ui_skinning.py`'s golden baseline diverge between Windows (where
+    they were captured) and Linux (where CI regenerates/checks them). Draw-
+    time-only text metrics that never land in a stored rect or a captured
+    stream should keep calling `text_h`/`TextMetrics.size` instead — those
+    are allowed to track the real font because nothing pins their output.
+    Unknown keys fall back to 'md', mirroring `get_font`."""
+    key = font_key if font_key in _LAYOUT_H else _FALLBACK_KEY
+    return _LAYOUT_H[key]
+
+
 _cache = {}
 
 

@@ -89,6 +89,7 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
     "test_movement": "core",

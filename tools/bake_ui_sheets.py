@@ -29,10 +29,17 @@ idle/hover fill. The one caller that passes ``color=`` at all
 (``overlays.py``'s active-toggle branch) passes ``color=C_UI_BTN`` — the
 SAME value the button would use unhovered by default; the visual difference
 there is a separate gold `HudRect` rim drawn on top, not a different button
-skin. Conclusion: there is exactly ONE distinct button style in the codebase
-today, baked once as the ``ui_button`` stem. No ``ui_button_v2`` etc. is
-warranted — ``data/slots.json``'s Buttons family already carries only the
-stem leaf, and this tool adds no variant.
+skin. Conclusion: there is exactly ONE distinct button LOOK in the codebase
+today. **Wave-3 Fix 2 (USER DECISION)** overrides the earlier "one shared
+slot" call anyway: designers want ONE SLOT PER BUTTON TYPE so each can get
+individually repainted art later, even while they still bake identical
+pixels today — ``ui_button`` (shell menus), ``ui_button_end_turn``,
+``ui_button_pause``, ``ui_button_panel``, ``ui_button_card``,
+``ui_button_cheat``, ``ui_button_pill`` (7 leaves under `slots.json`'s
+Buttons family) each own their own PNG, no shared ``sheet`` path between
+them. ``ui_choice_box`` is the 8th leaf, baking the SAME two-state
+idle/hover choice-box look as ``ui_panel_stone`` below (kept registered and
+baked separately — the type→slot table lives in `data/CLAUDE.md`).
 
 Panels are NOT all identical, though: ``submit_panel`` (used unconditionally
 by ``building_ui.py``'s main panel, the boss-choices popup, and — absent a
@@ -219,9 +226,20 @@ def build_ui_icon_lives_sheet():
 
 # -- the plan --------------------------------------------------------------
 
+# Wave-3 Fix 2 (USER DECISION): the single shared ``ui_button`` is rejected —
+# every button TYPE in the game gets its OWN slot/PNG so each is individually
+# repaintable, even though all 7 bake identical art today (same style audit
+# above still holds; only the identity of the slot changed, not the look).
 # slot -> (builder, rows[list of animation names present], slice_margins)
 _BUTTON_SLOTS = {
     "ui_button": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_end_turn": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_pause": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_panel": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_card": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_cheat": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_button_pill": (build_ui_button_sheet, _STATES, BUTTON_SLICE),
+    "ui_choice_box": (build_ui_panel_stone_sheet, ["idle", "hover"], BUTTON_SLICE),
 }
 _PANEL_SLOTS = {
     "ui_panel": (build_ui_panel_sheet, ["idle"], BUTTON_SLICE),

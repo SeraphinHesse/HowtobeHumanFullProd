@@ -575,9 +575,51 @@
         {
           "children": [
             {
-              "label": "Button",
+              "label": "Menu Button",
               "slots": [
                 "ui_button"
+              ]
+            },
+            {
+              "label": "End Turn",
+              "slots": [
+                "ui_button_end_turn"
+              ]
+            },
+            {
+              "label": "Pause",
+              "slots": [
+                "ui_button_pause"
+              ]
+            },
+            {
+              "label": "Panel Button",
+              "slots": [
+                "ui_button_panel"
+              ]
+            },
+            {
+              "label": "Construct Card",
+              "slots": [
+                "ui_button_card"
+              ]
+            },
+            {
+              "label": "Cheat Menu",
+              "slots": [
+                "ui_button_cheat"
+              ]
+            },
+            {
+              "label": "Overlay Pill",
+              "slots": [
+                "ui_button_pill"
+              ]
+            },
+            {
+              "label": "Choice Box",
+              "slots": [
+                "ui_choice_box"
               ]
             }
           ],
