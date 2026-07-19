@@ -129,6 +129,30 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   `game/ui/effects.py::_sprite_top`. It is a cross-package change against the
   surface ER-1 pixel-pinned, so it wants its own phase.
 
+## Corpse — the death animation body (`corpse.py`, Art/enemies)
+The enemy's death path is **byte-identical**: it still despawns the frame it
+dies, so combat, XP, wave-clear and the `death_spawn` burst are untouched. To let
+a `death` animation actually play, the HOST additionally spawns a cosmetic
+`Corpse` at the dead enemy's spot (`main.py` wraps `on_enemy_death`).
+- **Purely visual, tagged `"corpse"` (never `"enemy"`)**, carrying only a
+  `SpriteAnimator` (the enemy's own `slot_key`/`fit_tiles`/`scale`, animation
+  `DEATH_ANIM = "death"`) + a `CorpseFade` clock — no Health/PathAgent/`alive`.
+  So it is invisible to EVERY gameplay query (combat targeting,
+  `_resolve_base_arrivals`, the wave-clear check, the overhead HP bars all read
+  `by_tag("enemy")`/`alive`) and renders/ages through the generic
+  `Scene.render_items`/`Scene.update` — the `Crater`/`LightningFX` pattern.
+- **Lifetime = the manifest `death` track `total_ms`** (queried host-side via
+  `AssetStore.animation_total_ms`, which returns `None` — NOT the idle duration —
+  when the sheet has no `death` row, so a sheet without one keeps today's instant
+  despawn). `total_ms` already covers loop expansion ⇒ the row plays once. The
+  fade clock and the `SpriteAnimator` clock take the same speed-scaled `sim_dt`,
+  so play-once timing holds at 1x/1.5x/2x/pause.
+- **Only real field deaths get a corpse** — base arrivals, quick-skip, lives-wipe
+  and cheat despawns never call `on_enemy_death`, so they spawn nothing (correct:
+  the field is cleared silently). Because each spawn-variant sheet is its own slot
+  with its own `death` row, playing the enemy's OWN slot yields the right variant
+  with no random pick. Pinned by `test_corpse`.
+
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
   `EnemyTypes/<type>` block carries a **required** `death_spawn`

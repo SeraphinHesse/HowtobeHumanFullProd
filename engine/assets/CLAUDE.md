@@ -24,6 +24,11 @@ crashes boot.** When you change asset conventions, update THIS doc.
   missing slot / no usable idle → PLACEHOLDER. Note `SpriteAnimator` sums
   `phase_ms` into `anim_time_ms` at emit, so the store's `frame(slot, animation,
   anim_time_ms)` takes ONE summed time.
+- **`Manifest.animation_ms(slot, name)`** (+ `AssetStore.animation_total_ms`
+  delegating) returns a named track's `total_ms`, or `None` when the slot or that
+  animation is absent — **no idle fallback** (unlike `current_frame`), because the
+  caller uses absence as a signal (the game's death animation: no `death` row ⇒
+  no corpse, despawn instantly). See `game/enemies/CLAUDE.md` "Corpse".
 - **Tolerance split (E-37)**: `load_manifest` NEVER raises — absent file → empty
   manifest (normal pre-import state); corrupt file → warn + empty; corrupt entry →
   warn + skip that entry. `load_registry` fails LOUD (the registry is
