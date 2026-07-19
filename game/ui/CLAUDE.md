@@ -263,6 +263,157 @@ imports:
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
+## Skinnable widgets (10L-A)
+`widgets.Button`/`submit_panel` take an optional `skin` slot key → one animated
+nine-sliced `HudSprite` instead of flat rects, label overlay unchanged,
+**unskinned output byte-identical** (pinned by `tools/tests/test_button_skin.py`).
+
+`hover(mx, my, mouse_down)` → `pressed` (the host reads
+`pygame.mouse.get_pressed()[0]`; press-origin is not tracked — accepted v1
+simplification); state→row map: flash/pressed→`"pressed"`, disabled→`"disabled"`,
+hover→`"hover"`, else `"idle"`, missing rows fall back to idle via the manifest.
+
+**One anim clock per screen** (`self._clock` seconds → `widgets.anim_ms()`), no
+per-widget phase; skins are assigned by 10L-B's screen JSON (see "UI screen
+customization" below). `levelup.py`/`boss_cutscene.py` own no `widgets.Button`
+(plain option-box rects), so they accept `mouse_down` on `update()` only for
+main.py's uniform threading call. `levelup.py` still carries no clock/anim_ms
+(its boxes stay unconditionally raw); `boss_cutscene.py` gained one in B2 —
+its `box_a`/`box_b` route through the skinned `submit_panel` (with a real
+`anim_ms`) the moment a skin override is present, and stay raw otherwise.
+
+**R2 pixel-perfect clickable surface:** skinned buttons hover AND click only over
+drawn pixels (alpha > 0), via a host-injected seam (`widgets.set_skin_hit_test(fn)`).
+The seam queries the `("idle", 0)` canonical silhouette — cursor over a hole in the
+hover row oscillates. The seam is unset by default; host wires it once at startup
+(`game/main.py`: `widgets.set_skin_hit_test(assets.hit_opaque)` right after `AssetStore`
+is built, A8 phase). Unset seam or `skin=None` = rect-only. Panels are not click
+targets — no hit-test wiring on `submit_panel`.
+
+## UI screen customization (10L-B phase B2)
+Every one of the 12 live screens (main_menu, pause, settings, credits,
+add_name, game_over, levelup, hud, building_panel, cheat_menu, game_log,
+boss_cutscene) names its fixed widgets in an `ids` dict: `{name: (kind,
+widget)}`, `kind` one of `button | panel | label | backdrop | bar | field`
+(the pinned six-value enum `data/schemas/screen_defaults.schema.json` and
+B3's exporter share — never change this shape). A screen's `layout()` (or, for
+`building_ui.py`/`cheat_menu.py`, the point in `submit()` that recomputes
+geometry every frame) rebuilds `self.ids` from the DEFAULT geometry and then
+calls `self.skinning.apply(self.screen_id, self.ids)` **last** — the override
+(if any) wins, since it runs after the default is (re)computed. `game/ui/
+skinning.py` (`ScreenSkinning`) loads every `data/ui/screens/*.json` ONCE, at
+construction; `apply()` is a pure in-memory setattr loop — **no override, no
+mutation** (the golden parity pin: a screen with an absent/empty override
+file emits the exact HUD-primitive stream it emitted before B2,
+`tools/tests/test_ui_skinning.py::test_all_screens_parity`). `screen_
+background(screen_id)` / `submit_background(...)` add an OPTIONAL full-view
+background layer (slot or flat color) — a no-op today (no shipped screen JSON
+sets one).
+
+- **Non-`Button` widgets get a `types.SimpleNamespace` holder** (`rect`,
+  `skin`, `font_key`, `text_color`, `label`, `visible` as needed) that
+  `submit()` reads from instead of a hardcoded literal — every screen's
+  `backdrop` + static `title`/`subtitle` (`main_menu`'s title AND subtitle;
+  every other simple screen's single `title`), `hud.py`'s `love_panel`/
+  `love_text`/`lvl_label`/`xp_bar`/`xp_text`/`income_text`/`lives_text`/
+  `tiles_text`/`phase_label`/`round_label`, `cheat_menu.py`'s `panel`/
+  `title`/`round_field`/`jump_label`, `boss_cutscene.py`'s `backdrop`/
+  `headline`/`subtitle`/`box_a`/`box_b`, `game_log.py`'s `log`
+  (`get_style_holder()` exposes the same object). Existing plain-tuple
+  attributes some tests read directly (`CheatMenu.field_rect`,
+  `LevelupWindow.rects`, `BuildingUI.panel_rect`) are kept as real,
+  independently-readable attributes, synced from/to the shadow holder each
+  layout — never renamed.
+- **Every ids target MUST carry a stored, readable `.rect`** (B3's exporter
+  contract — a widget with no stored rect exports `[0, 0, 0, 0]` and
+  degenerately renders at the origin in the editor's screen mode; a review
+  fix caught five that computed their position inline at `submit()` time and
+  never stored it: `hud.py`'s `phase_label`, `cheat_menu.py`'s `title`/
+  `jump_label`, `boss_cutscene.py`'s `headline`/`subtitle`). **The
+  convention**: for a plain text label drawn via `submit_text`/
+  `submit_centered` (no fill, no box), `rect` is the `(x, y, 0, 0)` anchor
+  point the draw call reads its position from — W/H are nominal `0` (there is
+  no implied box size); every text-only label id in this file (the HUD
+  readouts, the static titles, these five) follows this same shape. The
+  anchor is computed and stored in `layout()` (or, where the position derives
+  from a SIBLING widget's default geometry computed moments earlier in the
+  same `layout()` call — `boss_cutscene`'s `headline`/`subtitle` sit above
+  `box_a`'s pre-override default top — the "no cascade" convention above
+  applies: a `box_a` rect override does not retarget them, they'd need their
+  own override too), never inline at `submit()` time, so (a) a rect override
+  actually moves the text on screen and (b) the exporter reads a real
+  position. `submit()` then reads `holder.rect[:2]` (or `.rect[0]`/`.rect[1]`
+  for `submit_centered`'s two positional args) instead of recomputing.
+- **`boss_cutscene.py`'s `box_a`/`box_b` are the one CONDITIONAL-skin case**:
+  with no `skin` override they still draw their original two raw
+  hover-tinted `HudRect`s (byte-identical to pre-B2); a skin present routes
+  that ONE box through the already-live skinned `submit_panel` instead. This
+  screen gained an anim clock (`self._clock`) for that path — 10L-A's "no
+  clock" note for levelup/boss_cutscene held only until a skinned path
+  existed. `levelup.py` still has no clock (its option boxes stay
+  unconditionally raw — a dynamic 1-3 count, "skip dynamic content").
+- **Dynamic-count content is NOT individually overridable in v1**: `levelup`'s
+  option boxes, `building_ui`'s construct cards / upgrade-mode rows,
+  `credits`' role/name rows. They inherit a screen's `defaults` section
+  (B3). Only STABLE, always-present widgets (buttons, the panel body, fixed
+  labels) get an id.
+- **`ScreenSkinning.empty()`** is the disk-free default every screen/`Shell`
+  falls back to when constructed without an explicit `skinning=` (existing
+  tests that build a screen bare, e.g. `test_shell.py`, `test_lightning.py`,
+  keep working unchanged — behaves exactly like "no override file"). The real
+  instance is built ONCE in `main.py` (`ScreenSkinning(data_dir)`), handed to
+  `Shell` (which shares it with its five menu screens) and read back
+  (`shell.skinning`) to thread into the seven gameplay screens `main.py`
+  builds itself in `build_gameplay()` (`Shell` owns no world).
+- **Id validation is silent until `data/ui/screen_defaults.json` exists**
+  (B3's exporter output) — an override naming an id absent from that file
+  raises `ValueError` (catches a renamed/typo'd id) ONLY once the defaults
+  file names that screen; its absence (true for the whole of B2) is not an
+  error.
+- **Every static title/header is an id too** (review fix, not just buttons/
+  panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
+  `credits`'/`game_over`'s/`add_name`'s `title`. Their copy is NOT game-state,
+  so — unlike the HUD readouts below — `label` (the text itself) is a
+  legitimate override field for these, same shape as any other widget
+  (`rect`/`font_key`/`text_color`/`label`/`visible`).
+- **`hud.py`'s ~12 stable readouts all carry ids now**: `love_panel`,
+  `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
+  widget, the schema's `color` key maps to the track color; the fill ratio +
+  levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
+  `lives_text`, `tiles_text`, `phase_label`, `round_label`, `btn_end_turn`,
+  `btn_pause`. For every one of these the displayed TEXT is a live game-state
+  value (love count, round number, xp fraction, …) and stays code-owned —
+  the override surface is `rect`/`font_key`/`text_color`/`visible` only, the
+  same principle as `boss_cutscene`'s headline colour staying win/loss-owned.
+  `love_text`/`xp_bar`'s pulse colour fall back to the computed value when
+  `text_color`/`color` is left unset (`None`) and to the override otherwise —
+  the same "`None` means compute" convention `boss_cutscene`'s `box.text_color`
+  already used. Because `love_text`/`lvl_label`/etc.'s DEFAULT rects are
+  relative to the now-finalized `love_panel`/`end_turn` rects (themselves
+  overridable), `hud.py`'s `layout()` handles only `btn_end_turn`/`btn_pause`/
+  `love_panel`/`phase_label`; a second pass, `_layout_readouts()` (called from
+  `submit()`, after `layout()`), computes and applies the rest — two
+  `skinning.apply()` calls per frame, still zero disk I/O either way.
+- **Button `color`/`text_color`/`visible` forwarding**: every id'd `Button`'s
+  `submit()` call now forwards `color=`/`text_color=` via
+  `skinning.button_kwargs(btn)` (`getattr(btn, "color"/"text_color", None)` —
+  `None` unless an override actually set one, in which case the button's own
+  hover/flash/disabled colour logic is overridden). **Precedence**: a `skin`
+  present ignores `color` entirely (the long-standing `Button.submit`
+  contract — the sprite has nothing to fill), but `text_color` still applies
+  to the label overlay either way. `visible=False` (via `skinning.is_visible`)
+  skips BOTH the button's `submit()` AND its hover/hit: every screen's
+  hover/update loop forces `btn.hovered = btn.hovered and is_visible(btn)`
+  (never skips `hover()` outright — a stale `True` from before an override
+  toggled visibility off cannot linger) and every click handler gates with
+  `is_visible(btn) and btn.hit(mx, my)`. **Scope**: this applies to every
+  Button that has an id (every button in every screen except `building_ui.py`'s
+  MODE-DEPENDENT ones — the construct cards, the upgrade-panel rename dice,
+  the lightning button, the boss-popup close button — which have no id and so
+  can never receive `color`/`text_color`/`visible` from an override; wiring
+  them is deferred, since `getattr(..., default)` on a widget no id ever
+  targets is dead code today).
+
 ## Known divergences (deliberate)
 The XP bar/floaters drop the prototype's mascot face + `xp_icon`, which has no
 slot in `data/slots.json` (revisit at the 10L UI-editor phase / 11 parity

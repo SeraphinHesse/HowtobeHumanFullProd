@@ -7,13 +7,19 @@ onto the ``game_over.py`` template: a display-mode ``< value >`` cycler, the FX
 ON/OFF toggles (income floaters / background art / gore), an inert audio slider
 (no audio system yet — drawn, not wired), and BACK. Shared by the main-menu and
 the pause-menu entry points; the shell tracks which caller BACK returns to.
+
+10L-B: ``ids`` names ``backdrop``, ``title`` ("SETTINGS") + every button (the
+display-mode cycler arrows, the three FX toggles, BACK). An invisible button
+is neither drawn nor hit-tested.
 """
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 from engine.render import HudRect
 
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button,
+    C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms,
     submit_centered, submit_text,
 )
 
@@ -25,6 +31,14 @@ _TOGGLES = [
     ("bg_art", "Background Art"),
     ("gore", "Gore"),
 ]
+# SessionSettings attr -> the ids name a designer picks that toggle by (10L-B)
+_TOGGLE_IDS = {
+    "income_floaters": "btn_toggle_income_floaters",
+    "bg_art": "btn_toggle_bg_art",
+    "gore": "btn_toggle_gore",
+}
+
+SCREEN_ID = "settings"
 
 
 @dataclass
@@ -47,13 +61,21 @@ class SessionSettings:
 
 
 class SettingsScreen:
-    def __init__(self, view_w, view_h, settings):
+    def __init__(self, view_w, view_h, settings, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.settings = settings
         self.dm_left = Button((0, 0, 40, 40), "<")
         self.dm_right = Button((0, 0, 40, 40), ">")
         self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
                         for attr, label in _TOGGLES]
         self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
+                                      text_color=C_GOLD, label="SETTINGS",
+                                      visible=True)
+        self.ids = {}
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
@@ -72,6 +94,18 @@ class SettingsScreen:
         self._slider_y = y + 10
         self._slider_rect = (cx - 90, self._slider_y, 180, 12)
         self.back_btn.rect = (cx - 100, y + 70, 200, 46)
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self._title.rect = (cx, self._top, 0, 0)
+        self.ids = {
+            "backdrop": ("backdrop", self._backdrop),
+            "title": ("label", self._title),
+            "btn_dm_left": ("button", self.dm_left),
+            "btn_dm_right": ("button", self.dm_right),
+            "btn_back": ("button", self.back_btn),
+        }
+        for attr, _label, btn in self.toggles:
+            self.ids[_TOGGLE_IDS[attr]] = ("button", btn)
+        self.skinning.apply(self.screen_id, self.ids)
 
     def _buttons(self):
         yield self.dm_left
@@ -80,48 +114,60 @@ class SettingsScreen:
             yield btn
         yield self.back_btn
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
         for _attr, _label, btn in self.toggles:
             btn.label = "ON" if getattr(self.settings, _attr) else "OFF"
         for btn in self._buttons():
             btn.enabled = True
-            btn.hover(mx, my)
+            btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
             btn.update(dt)
 
     def hit(self, mx, my):
         """Return ``"back"`` / ``"set_display_mode"`` (host must apply it) or
-        ``None`` (FX toggles mutate ``settings`` in place)."""
-        if self.back_btn.hit(mx, my):
+        ``None`` (FX toggles mutate ``settings`` in place). An invisible
+        button is never hit (10L-B)."""
+        if is_visible(self.back_btn) and self.back_btn.hit(mx, my):
             return "back"
         i = DISPLAY_MODES.index(self.settings.display_mode)
-        if self.dm_left.hit(mx, my):
+        if is_visible(self.dm_left) and self.dm_left.hit(mx, my):
             self.settings.display_mode = DISPLAY_MODES[(i - 1) % len(DISPLAY_MODES)]
             return "set_display_mode"
-        if self.dm_right.hit(mx, my):
+        if is_visible(self.dm_right) and self.dm_right.hit(mx, my):
             self.settings.display_mode = DISPLAY_MODES[(i + 1) % len(DISPLAY_MODES)]
             return "set_display_mode"
         for attr, _label, btn in self.toggles:
-            if btn.hit(mx, my):
+            if is_visible(btn) and btn.hit(mx, my):
                 setattr(self.settings, attr, not getattr(self.settings, attr))
                 return None
         return None
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        t = anim_ms(self._clock)
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         cx = self._cx
-        submit_centered(renderer, "SETTINGS", cx, self._top, "xxl", C_GOLD)
+        if self._title.visible:
+            submit_centered(renderer, self._title.label, self._title.rect[0],
+                            self._title.rect[1], self._title.font_key,
+                            self._title.text_color)
 
         submit_centered(renderer, "Display Mode", cx, self._dm_y - 34, "md",
                         C_UI_TEXT)
         submit_centered(renderer, self.settings.display_mode.upper(), cx,
                         self._dm_y, "lg", C_GOLD)
-        self.dm_left.submit(renderer)
-        self.dm_right.submit(renderer)
+        if is_visible(self.dm_left):
+            self.dm_left.submit(renderer, anim_ms=t, **button_kwargs(self.dm_left))
+        if is_visible(self.dm_right):
+            self.dm_right.submit(renderer, anim_ms=t,
+                                 **button_kwargs(self.dm_right))
 
         for (attr, label, btn), y in zip(self.toggles, self._row_y):
             submit_text(renderer, label, (cx - 150, y), "md", C_UI_TEXT)
-            btn.submit(renderer)
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 
         # inert audio slider (no audio system) — drawn only
         sx, sy, sw, sh = self._slider_rect
@@ -132,4 +178,5 @@ class SettingsScreen:
         submit_centered(renderer, "(no audio yet)", cx, sy + 20, "sm",
                         C_UI_TEXT_DIM)
 
-        self.back_btn.submit(renderer)
+        if is_visible(self.back_btn):
+            self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

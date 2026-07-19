@@ -72,6 +72,7 @@ TIERS = {
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
+    "test_button_skin": "core",
     "test_combat_speed": "core",
     "test_components": "core",
     "test_coords": "core",
@@ -111,6 +112,8 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
+    "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_video_playback": "core",
     "test_video_source": "core",
 }

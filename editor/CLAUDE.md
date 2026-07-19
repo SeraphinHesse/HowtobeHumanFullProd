@@ -40,6 +40,8 @@ else.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
   `registry_ops.py`, `asset_import.py`, `agent_forms.py` (all Qt-free/pygame-free,
   in `TestPurity`).
+- `ui_screen_session.py` — `UIScreenSession`, screen mode's session (B4, §
+  below); Qt-only (a `QUndoStack`), no game imports, in `TestPurity`.
 
 ## The selection model (the editor's core invariant)
 Exactly one selected node (map / building level / enemy / UI / VFX slot) drives
@@ -89,6 +91,53 @@ row; the forward-looking invariants:
   pointer to bundled resources — correct for onedir + onefile), NOT a
   `sys.executable`-relative path (6.x onedir nests `--add-data` under `_internal/`,
   not beside the exe).
+- **`export_layouts_command()` + `RunControls.export_layouts()`** (B4): the
+  "Refresh Layouts" toolbar button re-runs `tools/export_ui_layouts.py` (B3)
+  through the SAME tracked-`QProcess` infrastructure as Build (`_launch`, one
+  run at a time — Build and Refresh Layouts can't overlap; a second call while
+  one is in flight is refused). `MainWindow._on_build_started`/
+  `_on_build_finished` distinguish the two by the shared signals' `which`
+  string ("build" vs "export_layouts") — only "build" touches the Build
+  toolbar action's enabled state / playbuild availability.
+
+## Screen mode (`ui_screen_session.py`, `panels/screen_details.py`, B4, R3)
+Editor authoring for `data/ui/screens/<id>.json` overrides (B1) against B3's
+generated `data/ui/screen_defaults.json` layouts — a UI-screen leaf under the
+selector's "ui" category ▸ "Screens" branch is a THIRD selection mode
+alongside entity preview and tilemap mode, structurally mirroring map mode
+end-to-end (session / viewport mode / right-pane panel / dirty-prompt /
+undo routing). Panel-level rendering/interaction detail lives in
+`editor/panels/CLAUDE.md`; this is the cross-cutting shape.
+- **`UIScreenSession(QObject)`** (`editor/ui_screen_session.py`, Qt-only, no
+  game imports) is an exact structural mirror of `map_session.MapSession`:
+  one open doc (a plain dict, `data/ui/screens/<screen_id>.json`), its own
+  `QUndoStack`, `open`/`save`/`dirty`. Every push_* method (`push_move`,
+  `push_resize`, `push_field`, `push_skin_assign`, `push_background`,
+  `push_default_field`) goes through ONE `_DocFieldCommand`: full old/new
+  values, never a delta (`old`/`new` of `None` means "no override" — the key
+  is ABSENT, never JSON `null` — and clearing prunes now-empty parent
+  containers so a fully-reset widget disappears from the doc rather than
+  lingering as `{}`).
+- **Window-level undo/redo now ROUTES**: `MainWindow._on_undo`/`_on_redo`
+  target `screen_session.undo_stack` while in screen mode, else
+  `map_session.undo_stack` (`_active_undo_stack`) — Ctrl+Z/Y work across mode
+  switches while a session is open, exactly like the map/screen selection
+  split routes `_resolve_dirty(session=None)` (defaults to the map session for
+  every pre-B4 call site; screen mode passes `self.screen_session`
+  explicitly).
+- **Selection flow mirrors maps exactly**: `selector.screen_selected(screen_id)`
+  → `MainWindow._on_screen_selected` → `_resolve_dirty(screen_session)` →
+  `session.open(screen_id)` → `_enter_screen_mode()` (loads
+  `data/ui/screen_defaults.json` fresh, `viewport.set_screen_mode(session,
+  defaults)`, `screen_details.set_defaults(defaults)`, `right_stack` →
+  `screen_details`) → `_leave_screen_mode()` on any other selection.
+  `data/ui/screen_defaults.json` not existing (pre-B3, or a broken dev
+  machine) is NOT an error path — `_load_screen_defaults()` degrades to `{}`
+  and screen mode's own E-37 placeholder handles it (see the panels doc).
+- **Never imports `game/ui`** (layering rule) — the unskinned-widget fallback
+  look is re-implemented in `editor/panels/_screen_primitives.py`, an accepted
+  drift kept aligned to the game's real skinned look by eye + the B2 parity
+  pin, not by sharing code.
 
 ## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, `plans.py`, AD-1/2/3/6/7) — invariants
 The "Summon a Drunken Robot" toolbar button (label is fixed) opens the LAUNCHER.

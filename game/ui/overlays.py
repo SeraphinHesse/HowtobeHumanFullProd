@@ -30,7 +30,7 @@ from game.core.phases import GamePhase
 from game.map.tiles import TileCondition, TileState
 
 from .widgets import (
-    C_GOLD, C_RANGE_HIGHLIGHT, C_UI_BTN, Button, contains,
+    C_GOLD, C_RANGE_HIGHLIGHT, C_UI_BTN, Button, anim_ms, contains,
     submit_tile_diamond_fill,
 )
 
@@ -75,6 +75,7 @@ class MapOverlays:
         # phase runs; snapshot to counts on the phase edge.
         self._current = {}
         self.path_heatmap = {}
+        self._clock = 0.0  # 10L-A: one anim clock per screen
 
     # -- input ---------------------------------------------------------------
 
@@ -95,9 +96,10 @@ class MapOverlays:
         return (contains(self.range_btn.rect, mx, my)
                 or contains(self.heatmap_btn.rect, mx, my))
 
-    def update(self, dt, mx, my):
-        self.range_btn.hover(mx, my)
-        self.heatmap_btn.hover(mx, my)
+    def update(self, dt, mx, my, mouse_down=False):
+        self._clock += dt
+        self.range_btn.hover(mx, my, mouse_down)
+        self.heatmap_btn.hover(mx, my, mouse_down)
         self.range_btn.update(dt)
         self.heatmap_btn.update(dt)
 
@@ -179,11 +181,13 @@ class MapOverlays:
     def submit_buttons(self, renderer):
         """The HUD-pass toggle pills; an active toggle gets a gold rim + gold
         label (prototype hud.py:383-392)."""
+        t = anim_ms(self._clock)
         for btn, active in ((self.range_btn, self.show_range),
                             (self.heatmap_btn, self.show_heatmap)):
             if active:
-                btn.submit(renderer, color=C_UI_BTN, text_color=C_GOLD)
+                btn.submit(renderer, color=C_UI_BTN, text_color=C_GOLD,
+                          anim_ms=t)
                 renderer.submit_hud(HudRect(btn.rect, C_GOLD, width=2,
                                             border_radius=3))
             else:
-                btn.submit(renderer)
+                btn.submit(renderer, anim_ms=t)

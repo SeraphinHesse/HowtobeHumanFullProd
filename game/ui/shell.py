@@ -26,6 +26,7 @@ from .credits import CreditsScreen
 from .main_menu import MainMenu
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
+from .skinning import ScreenSkinning
 
 _MENU_STATES = (GameState.MAIN_MENU, GameState.SETTINGS, GameState.CREDITS,
                 GameState.ADD_NAME, GameState.PAUSED)
@@ -33,13 +34,20 @@ _MENU_STATES = (GameState.MAIN_MENU, GameState.SETTINGS, GameState.CREDITS,
 
 class Shell:
     def __init__(self, view_w, view_h, ui_balance,
-                 start_state=GameState.MAIN_MENU):
+                 start_state=GameState.MAIN_MENU, skinning=None):
+        # 10L-B: shell owns ONE ScreenSkinning, shared by its five menu
+        # screens; the host reads it back (``shell.skinning``) to thread the
+        # same instance into the seven gameplay screens it builds itself
+        # (Shell owns no world, so it cannot construct those).
+        self.skinning = skinning or ScreenSkinning.empty()
         self.settings = SessionSettings.from_balance(ui_balance)
-        self.main_menu = MainMenu(view_w, view_h)
-        self.settings_screen = SettingsScreen(view_w, view_h, self.settings)
-        self.credits = CreditsScreen(view_w, view_h)
-        self.add_name_screen = AddNameScreen(view_w, view_h)
-        self.pause = PauseScreen(view_w, view_h)
+        self.main_menu = MainMenu(view_w, view_h, skinning=self.skinning)
+        self.settings_screen = SettingsScreen(view_w, view_h, self.settings,
+                                              skinning=self.skinning)
+        self.credits = CreditsScreen(view_w, view_h, skinning=self.skinning)
+        self.add_name_screen = AddNameScreen(view_w, view_h,
+                                             skinning=self.skinning)
+        self.pause = PauseScreen(view_w, view_h, skinning=self.skinning)
         self.state = start_state
         self.settings_caller = GameState.MAIN_MENU
         self._pool_count = 0
@@ -172,10 +180,10 @@ class Shell:
         return self.state in (GameState.MAIN_MENU, GameState.SETTINGS,
                               GameState.CREDITS, GameState.ADD_NAME)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
         screen = self._active_screen()
         if screen is not None:
-            screen.update(dt, mx, my)
+            screen.update(dt, mx, my, mouse_down)
 
     def submit(self, renderer, view_w, view_h):
         screen = self._active_screen()
