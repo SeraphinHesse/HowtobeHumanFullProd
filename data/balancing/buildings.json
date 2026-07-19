@@ -255,9 +255,9 @@
       "starts_unlocked": true,
       "tiers": [
         {
-          "attack_speed": 0.6,
+          "attack_speed": 0.8,
           "base_dmg": 25,
-          "base_hp": 120,
+          "base_hp": 125,
           "base_upkeep": 0,
           "build_cost": 10,
           "dmg_per_level": 10,
@@ -272,9 +272,9 @@
           "upkeep_per_level": 0
         },
         {
-          "attack_speed": 0.6,
+          "attack_speed": 0.7,
           "base_dmg": 50,
-          "base_hp": 220,
+          "base_hp": 230,
           "base_upkeep": 2,
           "build_cost": 20,
           "dmg_per_level": 13,
@@ -289,9 +289,9 @@
           "upkeep_per_level": 2
         },
         {
-          "attack_speed": 0.55,
+          "attack_speed": 0.6,
           "base_dmg": 90,
-          "base_hp": 450,
+          "base_hp": 465,
           "base_upkeep": 5,
           "build_cost": 75,
           "dmg_per_level": 80,

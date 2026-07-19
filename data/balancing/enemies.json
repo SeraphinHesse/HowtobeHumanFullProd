@@ -239,10 +239,10 @@
           }
         ]
       },
-      "dmg": 10,
+      "dmg": 9,
       "footprint": 1,
       "hp": 55,
-      "move_speed": 1.2,
+      "move_speed": 1.35,
       "sprite_scale": 1.0
     }
   },
