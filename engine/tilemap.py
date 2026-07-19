@@ -141,14 +141,18 @@ def slot_for_cell(doc, col, row):
 
 
 def render_items(doc, *, terrain=True, base=True, deco=True, camera=False,
-                 tint_for_code=None):
+                 tint_for_code=None, anim_time_ms=0):
     """The map as RenderItems for the ONE pipeline (ED-22): ground tiles
     (optionally tinted per code — the editor's zone-tint eye), the base on
     the entities layer, deco on the deco layer (above entities, E-26).
     Keyword toggles are the editor's layer eyes; the game submits all.
     `camera` (default OFF) emits the camera-startpoint marker on the entities
     layer — the editor drives it from its eye; the game only when the
-    ui.json Debug.show_camera_startpoint toggle is on."""
+    ui.json Debug.show_camera_startpoint toggle is on.
+    `anim_time_ms` (default 0, keeps output byte-identical for callers that
+    don't pass it — e.g. the editor viewport, which keeps static deco) feeds
+    deco idle animation: a deterministic per-prop phase is added so identical
+    props don't animate in lockstep (mirrors the manifest's `phase_ms` intent)."""
     items = []
     if terrain:
         tints = tint_for_code or {}
@@ -166,13 +170,15 @@ def render_items(doc, *, terrain=True, base=True, deco=True, camera=False,
             (doc.camera_start["col"], doc.camera_start["row"]), layer="entities"))
     if deco:
         for d in doc.deco:
-            items.append(RenderItem(d["slot"], (d["col"], d["row"]), layer="deco"))
+            phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
+            items.append(RenderItem(d["slot"], (d["col"], d["row"]),
+                                    layer="deco", anim_time_ms=anim_time_ms + phase))
     return items
 
 
 def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
                          terrain=True, base=True, deco=True, camera=False,
-                         tall_margin=3, tint_for_code=None):
+                         tall_margin=3, tint_for_code=None, anim_time_ms=0):
     """render_items bounded to a tile window (from
     CoordinateSystem.visible_tile_window) — windowed culling so an arbitrarily
     large map only ever generates the tiles that can be on screen. Identical
@@ -180,7 +186,8 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
     [0, cols/rows). Base/deco (tall sprites, possibly a few) are included when
     within the window expanded by `tall_margin`, since they anchor up to ~2
     tile-heights above their own cell and stay visible slightly off the top
-    edge."""
+    edge. `anim_time_ms` — see render_items; same default-0 byte-identical
+    guarantee and deterministic per-prop phase."""
     items = []
     if terrain:
         tints = tint_for_code or {}
@@ -209,7 +216,9 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
     if deco:
         for d in doc.deco:
             if tc0 <= d["col"] <= tc1 and tr0 <= d["row"] <= tr1:
-                items.append(RenderItem(d["slot"], (d["col"], d["row"]), layer="deco"))
+                phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
+                items.append(RenderItem(d["slot"], (d["col"], d["row"]),
+                                        layer="deco", anim_time_ms=anim_time_ms + phase))
     return items
 
 

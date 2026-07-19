@@ -474,9 +474,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
     mouse_down = None
     rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
+    deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
     running = True
     while running:
         dt = clock.tick(display["fps"]) / 1000.0
+        deco_clock_ms += dt * 1000.0  # wall-clock: deco keeps animating while paused
         _t_frame = time.perf_counter()
         _t_flush_start = _t_frame  # each render branch resets this before flush
 
@@ -733,7 +735,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             cmin, cmax, rmin, rmax = cs.visible_tile_window(view_w, view_h, margin=4)
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
-                    camera=show_camera_start):
+                    camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)
