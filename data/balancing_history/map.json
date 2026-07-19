@@ -1,6 +1,195 @@
 [
   {
     "description": "",
+    "id": "6cf6ea6b-6aa9-4dbc-a7bc-2f326472f968",
+    "name": "cost distance",
+    "snapshot": {
+      "Pathfinding": {
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "painter_building": 1,
+          "spawning_tile": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "def_dmg_penalty": 0.1,
+            "eco_yield_bonus": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Mountain": {
+            "def_range_bonus": 1,
+            "eco_yield_penalty": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Pond": {
+            "def_attack_speed_penalty": 0.3,
+            "eco_yield_bonus": 0.1
+          }
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.1,
+          "grass": 0.7,
+          "mountain": 0.1,
+          "pond": 0.1
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 7,
+        "unlock_cost_distance_mod": 4
+      }
+    },
+    "timestamp": "2026-07-20T00:14:03"
+  },
+  {
+    "description": "",
+    "id": "5d6dad26-dcb8-4ffd-8995-e8a04593d82a",
+    "name": "tile cost",
+    "snapshot": {
+      "Pathfinding": {
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "painter_building": 1,
+          "spawning_tile": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "def_dmg_penalty": 0.1,
+            "eco_yield_bonus": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Mountain": {
+            "def_range_bonus": 1,
+            "eco_yield_penalty": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Pond": {
+            "def_attack_speed_penalty": 0.3,
+            "eco_yield_bonus": 0.1
+          }
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.1,
+          "grass": 0.7,
+          "mountain": 0.1,
+          "pond": 0.1
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 7,
+        "unlock_cost_distance_mod": 3
+      }
+    },
+    "timestamp": "2026-07-19T23:56:21"
+  },
+  {
+    "description": "",
+    "id": "88a9a8f1-8f6a-4c0f-808d-2a7abbc10fb5",
+    "name": "Tile cost",
+    "snapshot": {
+      "Pathfinding": {
+        "content_weights": {
+          "aoe_defence_building": 2,
+          "base_building": 0,
+          "buildable_tile": 1,
+          "combat_tile": 1,
+          "defence_building": 2,
+          "economic_building": 1,
+          "impassable": 999,
+          "painter_building": 1,
+          "spawning_tile": 1
+        },
+        "damage_reduction": {
+          "min_round": 10,
+          "reduction": 0.5,
+          "top_n": 3
+        }
+      },
+      "TileConditions": {
+        "min_speed_fraction": 0.5,
+        "modifiers": {
+          "Forest": {
+            "def_dmg_penalty": 0.1,
+            "eco_yield_bonus": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Mountain": {
+            "def_range_bonus": 1,
+            "eco_yield_penalty": 0.1,
+            "enemy_dmg_bonus": 0.1,
+            "enemy_speed_penalty": 0.4
+          },
+          "Pond": {
+            "def_attack_speed_penalty": 0.3,
+            "eco_yield_bonus": 0.1
+          }
+        },
+        "path_weights": {
+          "forest": 1,
+          "mountain": 2,
+          "pond": 9
+        },
+        "spawn_chances": {
+          "forest": 0.1,
+          "grass": 0.7,
+          "mountain": 0.1,
+          "pond": 0.1
+        }
+      },
+      "TileUnlocking": {
+        "adjacent_unlock_only": true,
+        "base_unlock_cost": 5,
+        "unlock_cost_distance_mod": 3
+      }
+    },
+    "timestamp": "2026-07-19T16:42:17"
+  },
+  {
+    "description": "",
     "id": "0f38d947-7e0c-4ae5-a2ae-2b248f1ec2cf",
     "name": "tileweightstuff",
     "snapshot": {
