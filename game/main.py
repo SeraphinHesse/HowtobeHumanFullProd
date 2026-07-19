@@ -50,7 +50,7 @@ from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.audio import play_music
 from engine.coords import load_coordinate_system
-from engine.core import Scene
+from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudText, Renderer
 from engine.render.ground_cache import GroundCache
@@ -62,7 +62,7 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.enemies import Spawner, resolve_combat
+from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
 from game.map import TileMap, tile_at_screen
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
@@ -616,10 +616,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
                 # once per frame and threaded as a plain int.
                 dmg_bonus = story_damage_bonus(session.state, world.tile_map)
+
+                # Play the death animation if the dead enemy's sheet has a
+                # `death` row (Art/enemies): the session bookkeeping runs first
+                # and the enemy still despawns this frame, but a cosmetic Corpse
+                # lingers at its spot to play the row once. Dormant when the
+                # sheet has no `death` track (no duration -> no corpse).
+                def _on_enemy_death(enemy, _scene=world.scene):
+                    session.on_enemy_death(enemy)
+                    anim = enemy.get_component(SpriteAnimator)
+                    if anim is not None:
+                        ms = assets.animation_total_ms(anim.slot_key, DEATH_ANIM)
+                        if ms:
+                            spawn_corpse(_scene, enemy, ms)
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
-                               on_enemy_death=session.on_enemy_death,
+                               on_enemy_death=_on_enemy_death,
                                dmg_bonus=dmg_bonus)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
