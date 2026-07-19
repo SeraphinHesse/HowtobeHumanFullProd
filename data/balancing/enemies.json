@@ -52,9 +52,9 @@
             "siege": 0
           },
           {
-            "raiders": 7,
-            "regular": 14,
-            "siege": 2
+            "raiders": 3,
+            "regular": 5,
+            "siege": 1
           },
           {
             "raiders": 10,
@@ -62,9 +62,9 @@
             "siege": 3
           },
           {
-            "raiders": 13,
-            "regular": 26,
-            "siege": 4
+            "raiders": 10,
+            "regular": 15,
+            "siege": 3
           },
           {
             "raiders": 16,
@@ -113,7 +113,7 @@
           "attack_speed": 1.5,
           "dmg": 200,
           "hp": 2000,
-          "move_speed": 0.3,
+          "move_speed": 0.39,
           "name": "Bandit Chieftain"
         },
         {
