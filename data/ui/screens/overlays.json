@@ -1,9 +1,9 @@
 {
   "widgets": {
-    "btn_add": {
+    "btn_heatmap": {
       "skin": "ui_button"
     },
-    "btn_back": {
+    "btn_range": {
       "skin": "ui_button"
     }
   }

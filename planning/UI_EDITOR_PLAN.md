@@ -1,15 +1,18 @@
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **CODE COMPLETE — 2026-07-15, wave 2b executed; PR #41 open.** All
-coded phases (A1–A5′, A7, A8 incl. the hit-mask exactness fixes, B1–B4) are
-implemented, reviewed, and merged on umbrella `phase-10L-wave2b-umbrella` —
-**[PR #41](https://github.com/SeraphinHesse/HowtobeHumanFullProd/pull/41)**
-into `Development`, open and awaiting the human gate. **A6 and B5 are the only
-open items: their automated halves (suite + smoke + docs) are green, but each
-requires a HUMAN live Quick Test** (step-by-step in the PR #41 body). Sequence
-to close the plan: run both Quick Tests → merge PR #41 → move this doc to
-`planning/completed plans/`. Carry-overs from both runs are consolidated under
-"Run state" below; none of them blocks the Quick Tests.
+Status: **WAVE 3 CODE COMPLETE — 2026-07-19, on branch
+`phase-10L-wave3-bake-ui-assets`.** PR #41 (waves 2a/2b) is **MERGED** into
+`Development` (commit 9710780 — the "open and awaiting the human gate" note
+below is historical). Wave 3 ("Bake + wire real UI assets", table below) closed
+the loop the earlier waves left open: the pipeline existed but **no UI art had
+ever been imported** — zero `ui_*` manifest entries, every ui slot a grey-X,
+all screen JSONs empty `{}`. Wave 3 bakes the procedural rendering into
+committed spritesheet PNGs, imports them, populates every screen JSON, and
+wires HUD icons — the game now renders its UI from assets. **The only open
+items remain the two HUMAN live Quick Tests (A6/B5)** — now best run on the
+wave-3 branch, where skins are actually assigned (no temporary hardcoded skin
+needed). Sequence to close the plan: run both Quick Tests → merge the wave-3
+PR → move this doc to `planning/completed plans/`.
 Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
 every UI screen from the editor); 10L-B depends on 10L-A. Three user
 requirements were folded in on 2026-07-15 (see "New requirements" below):
@@ -34,6 +37,34 @@ v1 — they exist in `game/ui` now).
 | B3 | Tools — layout exporter + committed `screen_defaults.json` | **done** (2026-07-15, wave-2b umbrella; reviewed clean, determinism measured) |
 | B4 | Editor — screen mode (selector/session/viewport/details) | **done** (2026-07-15, wave-2b umbrella; review finding fixed; B4i vs real defaults verified) |
 | B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
+| W3-1 | Tools + data — `tools/bake_ui_sheets.py` bakes procedural UI into committed 4-state sheets (`ui_button`, `ui_panel`, `ui_panel_stone`, 3 icons) + manifest entries; `ui_bg_main_menu` shares `main_menu_bg.png` | **done** (2026-07-19, wave 3; idempotency measured) |
+| W3-2 | Data + game — all 13 screen JSONs populated (overlays.json NEW: `MapOverlays` is the 13th screen); `ScreenSkinning.defaults()` consumed by dynamic content; ids for `rename_dice_btn`/`lightning_btn`/`boss_close_btn`; levelup conditional-skin path; panel `visible` gating carry-over fixed | **done** (2026-07-19, wave 3; parity pin green) |
+| W3-3 | Game — HUD icons `icon_love`/`icon_xp`/`icon_lives` (panel-kind holders, code-default skins, editable ids); hud golden re-captured; defaults re-exported | **done** (2026-07-19, wave 3) |
+
+### Wave 3 — Bake + wire real UI assets (2026-07-19)
+
+User request: every UI asset in the editor and editable, every screen wired to
+the real game screen, a button asset per button type, and all procedural
+rendering baked once to spritesheet PNGs imported into `data/`. Findings and
+decisions of record:
+- **Exactly ONE button style exists game-wide** (every `Button.submit` call
+  site uses the default fill logic; `overlays.py`'s active pill passes the
+  default colour and draws a separate gold rim) — so "per button type" resolved
+  to the single `ui_button` sheet, and NO `ui_button_v2+` variant slots were
+  needed. Two panel styles (`ui_panel`, `ui_panel_stone`) were confirmed.
+- Sheets are pixel-faithful bakes of `widgets.py`'s colours (no fonts — labels
+  stay live), 4 rows idle/hover/pressed/disabled, slice `[4,4,4,4]` on
+  buttons/panels, icons plain. Re-runnable via `py tools/bake_ui_sheets.py`
+  (byte-idempotent, sha-measured).
+- **`overlays` became the 13th screen** via the sanctioned drop-in-a-file path
+  (B1) — `data/ui/screens/overlays.json`, ids `btn_range`/`btn_heatmap`,
+  exporter entry.
+- HUD icons ship with **code-default skins** (unlike every other holder whose
+  skin defaults to `None`) — the icons ARE the HUD now; JSON can move/hide/
+  reskin them. The hud golden parity baseline was re-captured for this (the
+  one legitimate stream change; all other screens byte-identical).
+- The old A6 note about a "temporary hardcoded skin" for the live Quick Test is
+  obsolete — skins are now permanently assigned via the screen JSONs.
 
 ### Run state (2026-07-15, wave 2b complete — carry-overs consolidated)
 

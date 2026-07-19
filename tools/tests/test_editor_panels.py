@@ -128,6 +128,19 @@ class TempDataCase(QtCase):
             scrub(data_io.load_json(path)), path,
             self.data_dir / "schemas" / "slots.schema.json")
 
+    def empty_screens(self, *screen_ids):
+        """Pin `data/ui/screens/<screen_id>.json` to `{}` in the temp copy —
+        the "no override written yet" starting state some UIScreenSession /
+        viewport tests assume for their fixture screen. Same "pin, don't
+        inherit" rule as `unassign_slot`/`unassign_family`: a screen a
+        designer has since styled in the live repo (10L wave 3 baked every
+        screen a real skin) must not silently change what these tests start
+        from."""
+        schema = self.data_dir / "schemas" / "ui_screen.schema.json"
+        for screen_id in screen_ids:
+            path = self.data_dir / "ui" / "screens" / f"{screen_id}.json"
+            data_io.write_validated({}, path, schema)
+
 
 class TestDomainsDerivation(TempDataCase):
     """AD-6: the domain list is DERIVED (slots.json category order ∩ the

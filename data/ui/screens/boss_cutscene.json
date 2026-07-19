@@ -1,1 +1,10 @@
-{}
+{
+  "widgets": {
+    "box_a": {
+      "skin": "ui_panel_stone"
+    },
+    "box_b": {
+      "skin": "ui_panel_stone"
+    }
+  }
+}

@@ -140,6 +140,16 @@ class ScreenSkinning:
             for key, value in spec.items():
                 setattr(widget, _SPEC_TO_ATTR.get(key, key), _as_tuple(value))
 
+    def defaults(self, screen_id: str) -> Dict[str, Any]:
+        """The screen's ``defaults`` section (``button_skin``/``panel_skin``/
+        ``font``/``text_color``), or ``{}`` when unset — the styling surface
+        for DYNAMIC-count content that cannot carry a stable id (construct
+        cards, the boss-history popup, levelup's option boxes, …; B3's
+        "dynamic content inherits defaults" rule). Reads the already-in-memory
+        override — no disk I/O, safe every frame/every construction."""
+        override = self._overrides.get(screen_id)
+        return (override or {}).get("defaults") or {}
+
     def screen_background(self, screen_id: str) -> Optional[Dict]:
         """``{"slot": ...}`` or ``{"color": (...)}`` for a submit-time
         background override, or ``None``. Reads the already-in-memory

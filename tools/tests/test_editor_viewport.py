@@ -266,6 +266,15 @@ class TestSlicedDraftPreview(TempDataCase):
 class TestSelectorScreensBranch(TempDataCase):
     """B4 §1a: the "ui" category gains a Screens branch, mirroring Maps."""
 
+    def setUp(self):
+        super().setUp()
+        # This class asserts tree STRUCTURE (labels/counts), not art state —
+        # pin "no art" so the 10L wave-3 baked ui_* sheets (a ● marker on
+        # every group) can't turn "Buttons" into "● Buttons" out from
+        # under it (data/CLAUDE.md: never assume a slot is unassigned just
+        # because it is today).
+        self.unassign_family("ui_")
+
     def test_selector_shows_screens_branch_above_slots(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
         ui_root = next(
@@ -276,7 +285,9 @@ class TestSelectorScreensBranch(TempDataCase):
         self.assertEqual(labels[0], "Screens")           # ABOVE the slot groups
         self.assertIn("Buttons", labels[1:])
         screens_branch = ui_root.child(0)
-        self.assertEqual(screens_branch.childCount(), 12)   # B1: 12 screen files
+        # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
+        # pills), added the sanctioned "drop in a file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 13)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
@@ -299,6 +310,15 @@ class TestSelectorScreensBranch(TempDataCase):
 class TestUIScreenSession(TempDataCase):
     """B4 §1b: UIScreenSession mirrors MapSession — open/save lifecycle,
     dirty tracking, undoable push_* commands storing full old/new values."""
+
+    def setUp(self):
+        super().setUp()
+        # These tests assert the "no override written yet" starting state
+        # and that a push/undo cycle leaves NO trace on the widget — both
+        # false once a real skin/rect override lands on main_menu.json (10L
+        # wave 3). Pin it empty rather than depend on live content staying
+        # untouched (data/CLAUDE.md: never assert against live data/).
+        self.empty_screens("main_menu")
 
     def test_screen_session_open_loads_and_validates(self):
         session = self.track(UIScreenSession(data_dir=self.data_dir))
@@ -340,6 +360,14 @@ class TestUIScreenSession(TempDataCase):
 class TestViewportScreenMode(TempDataCase):
     """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
     degrade with no defaults, click/drag/nudge interaction."""
+
+    def setUp(self):
+        super().setUp()
+        # This class renders FIXTURE_DEFAULTS' hand-authored geometry
+        # unskinned/unstyled — pin main_menu.json empty so a live skin
+        # override (10L wave 3) can't add extra HudSprite/HudRect primitives
+        # the counts below don't expect.
+        self.empty_screens("main_menu")
 
     def make_session(self, screen_id="main_menu"):
         session = self.track(UIScreenSession(data_dir=self.data_dir))
@@ -439,6 +467,13 @@ class TestViewportScreenMode(TempDataCase):
 class TestScreenDetailsPanel(TempDataCase):
     """B4 §1d: widget list + per-widget form + screen-level sections, every
     edit an IMMEDIATE undoable push_* (never staged)."""
+
+    def setUp(self):
+        super().setUp()
+        # A push/undo cycle must leave NO trace on a widget the test never
+        # touched otherwise — false once main_menu.json carries a live skin
+        # (10L wave 3). Pin it empty (same rule as TestUIScreenSession).
+        self.empty_screens("main_menu")
 
     def make(self):
         panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))

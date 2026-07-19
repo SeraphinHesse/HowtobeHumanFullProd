@@ -25,7 +25,7 @@ from engine.render import HudRect
 
 from game.core.boss_bonuses import choice_desc
 
-from .skinning import ScreenSkinning
+from .skinning import ScreenSkinning, is_visible
 from .widgets import (
     C_GOLD, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM,
     anim_ms, contains, submit_centered, submit_panel, text_h,
@@ -112,13 +112,13 @@ class BossCutscene:
         self._clock += dt
         self.hovered = next(
             (i for i, box in enumerate((self.box_a, self.box_b))
-             if contains(box.rect, mx, my)), -1)
+             if is_visible(box) and contains(box.rect, mx, my)), -1)
 
     def hit(self, mx, my):
         """``"A"`` / ``"B"`` for a click on an option box, else None. There is
         NO dismiss path — the host swallows every other click."""
         for i, box in enumerate((self.box_a, self.box_b)):
-            if contains(box.rect, mx, my):
+            if is_visible(box) and contains(box.rect, mx, my):
                 return "A" if i == 0 else "B"
         return None
 
@@ -142,6 +142,8 @@ class BossCutscene:
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(
                 (("A", self.box_a), ("B", self.box_b))):
+            if not is_visible(box):
+                continue
             self._submit_box(renderer, box, prefix + option,
                              choice_desc(set_idx, option), i == self.hovered, t)
 

@@ -1,1 +1,28 @@
-{}
+{
+  "widgets": {
+    "btn_add_love": {
+      "skin": "ui_button"
+    },
+    "btn_close": {
+      "skin": "ui_button"
+    },
+    "btn_goto": {
+      "skin": "ui_button"
+    },
+    "btn_inf_money": {
+      "skin": "ui_button"
+    },
+    "btn_skip_round": {
+      "skin": "ui_button"
+    },
+    "btn_trigger_levelup": {
+      "skin": "ui_button"
+    },
+    "btn_unlock_all": {
+      "skin": "ui_button"
+    },
+    "panel": {
+      "skin": "ui_panel"
+    }
+  }
+}

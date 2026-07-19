@@ -1,1 +1,41 @@
-{}
+{
+  "defaults": {
+    "button_skin": "ui_button",
+    "panel_skin": "ui_panel"
+  },
+  "widgets": {
+    "action_btn": {
+      "skin": "ui_button"
+    },
+    "boss_btn": {
+      "skin": "ui_button"
+    },
+    "boss_close_btn": {
+      "skin": "ui_button"
+    },
+    "close_btn": {
+      "skin": "ui_button"
+    },
+    "lightning_btn": {
+      "skin": "ui_button"
+    },
+    "panel": {
+      "skin": "ui_panel"
+    },
+    "preview_cancel_btn": {
+      "skin": "ui_button"
+    },
+    "preview_close_btn": {
+      "skin": "ui_button"
+    },
+    "preview_confirm_btn": {
+      "skin": "ui_button"
+    },
+    "preview_dice_btn": {
+      "skin": "ui_button"
+    },
+    "rename_dice_btn": {
+      "skin": "ui_button"
+    }
+  }
+}

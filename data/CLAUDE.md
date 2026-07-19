@@ -202,16 +202,23 @@ validating writer; don't hand-edit the JSON.
     picker, which is how you get it back — silently deleting art on a link change
     is the worse failure.
 
-## UI screen data (Phase 10L-B, R3)
+## UI screen data (Phase 10L-B, R3; wave-3 population Phase 3)
 - **`data/ui/screens/<screen_id>.json`**: per-screen override format. One file
-  per screen (12 total: main_menu, pause, settings, credits, add_name,
+  per screen — the original 12 (main_menu, pause, settings, credits, add_name,
   game_over, levelup, hud, building_panel, cheat_menu, game_log,
-  boss_cutscene); each is EMPTY `{}` until edited in the editor.
+  boss_cutscene) plus Phase 3's `overlays` (the map-overlay RANGE/HEATMAP
+  toggle pills, added the sanctioned "drop in a file + ids" way — a NEW
+  screen id beyond the original 12, per `game/ui/CLAUDE.md`'s customization
+  section). Every file started life EMPTY `{}`; Phase 3 populated 11 of the
+  13 with real `skin`/`defaults` content wiring the baked `ui_button`/
+  `ui_panel`/`ui_panel_stone` assets in (`game_log.json` stays `{}` — R3's
+  "container styling only, never position log lines" contract).
   `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
   `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
-  styling to dynamic widgets; `widgets: {<id>: {rect?, skin?, font?, color?,
-  text_color?, label?, visible?}}` overrides any named widget's properties.
-  Nothing consumes these files until B2.
+  styling to DYNAMIC-count content that carries no id (construct cards, the
+  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`);
+  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
+  visible?}}` overrides any named widget's properties.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by
   `tools/export_ui_layouts.py` (B3) and validated by a test that re-runs the
   exporter (B3). FLAT shape, keyed directly by screen id at the root:

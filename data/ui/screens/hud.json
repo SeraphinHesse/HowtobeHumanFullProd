@@ -1,1 +1,13 @@
-{}
+{
+  "widgets": {
+    "btn_end_turn": {
+      "skin": "ui_button"
+    },
+    "btn_pause": {
+      "skin": "ui_button"
+    },
+    "love_panel": {
+      "skin": "ui_panel"
+    }
+  }
+}
