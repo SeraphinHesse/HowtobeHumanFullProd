@@ -88,6 +88,14 @@ import list.**
   `_NoWheelSpinBox`/`_NoWheelDoubleSpinBox`/`_NoWheelComboBox` (ignore
   `wheelEvent` so scrolling the panel can never nudge a value by accident — the
   event propagates to the enclosing `QScrollArea` instead).
+  **This is an editor-wide convention, not a balancing-only one**: EVERY value
+  widget anywhere in the editor — spinboxes/combos in every panel (details,
+  viewport's floating animation/state combos, palette's deco-type combo,
+  map-details' New Map dims, the launcher's plan picker), not just this form —
+  imports `_NoWheelSpinBox`/`_NoWheelDoubleSpinBox`/`_NoWheelComboBox` FROM
+  `balancing.py` (their one home) rather than a bare `QSpinBox`/`QComboBox`.
+  The mousewheel is navigation-only (scroll the panel/list) everywhere in the
+  editor; it never edits a value.
   **Edits are staged, not written immediately**: `_commit(path, value)` walks the
   doc (numeric segment → list index) and mutates `self._doc` in memory only,
   then toggles a small pending-change dot (`self._dots`) next to that field by
