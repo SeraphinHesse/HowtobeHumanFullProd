@@ -61,6 +61,16 @@ class AssetStore:
                 pass
         return self._frame_sizes.get(slot_key, self._default_frame_size)
 
+    def anchor(self, slot_key, name):
+        """(x, y) frame-px anchor point named `name` (ESV-1) for a slot's
+        manifest entry, or None when the slot, its entry, or that anchor name
+        is absent. Anchors are metadata, not frame geometry — unlike
+        `frame()` this never touches pygame or a sheet surface."""
+        entry = self._manifest.entry(slot_key)
+        if entry is None:
+            return None
+        return entry.anchor(name)
+
     def frame(self, slot_key, animation="idle", anim_time_ms=0):
         """Never raises on missing/corrupt art: falls back to the grey X."""
         ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))

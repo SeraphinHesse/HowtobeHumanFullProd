@@ -354,6 +354,15 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   muzzle/slash/blood FX are watcher-driven in `game/ui/effects.py` (an
   `EnemyCombat.cooldown` reset while blocked = an attack landed) — this package
   needed NO change for 10J.
+  - **ESV-1 D4 — the spawn point is cosmetic, flight time never moves with it.**
+    A defender's optional manifest `muzzle` anchor (`game/anchors.py
+    world_offset`) shifts only WHERE `_fire`/`_fire_splash` spawn the
+    projectile visually; `ProjectileHoming.launch(target, shooter, scene,
+    origin=...)` always computes flight time from the shooter's UNMODIFIED
+    `transform.world_pos`, passed in as `origin` — never from the anchored
+    spawn point. `origin=None` (every pre-ESV-1 caller) falls back to the
+    projectile's own spawn position, today's exact expression. Damage-arrival
+    timing is therefore provably invariant under any muzzle value.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`

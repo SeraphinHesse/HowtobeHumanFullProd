@@ -61,6 +61,7 @@ TIERS = {
     # --- core: engine + game + data. The 800-odd fast ones ------------------
     "test_10j_qol": "core",
     "test_alpha_render": "core",
+    "test_asset_anchors": "core",  # ESV-1: manifest anchors + game.anchors resolver
     "test_asset_store": "core",
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
@@ -74,6 +75,7 @@ TIERS = {
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
     "test_button_skin": "core",
+    "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
     "test_combat_speed": "core",
     "test_components": "core",
     "test_coords": "core",
@@ -87,6 +89,7 @@ TIERS = {
     "test_footprint_path": "core",
     "test_game_boot": "core",
     "test_ground_cache": "core",
+    "test_hp_bar_anchors": "core",  # ESV-1: hp_bar anchor composes with the D3 baseline
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
