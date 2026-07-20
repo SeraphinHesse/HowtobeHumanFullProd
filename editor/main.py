@@ -52,6 +52,7 @@ from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession
+from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
@@ -93,6 +94,7 @@ class MainWindow(QMainWindow):
         self.selector = SelectorPanel(data_dir=data_dir)
         self.balancing = BalancingPanel(data_dir=data_dir)
         self.details = DetailsPanel(data_dir=data_dir)
+        self.anchors = AnchorsPanel(data_dir=data_dir)   # ESV-2
         self.levelbar = LevelBar()
         self.palette = PalettePanel(data_dir=data_dir)
         self.map_details = MapDetailsPanel(data_dir=data_dir)
@@ -120,6 +122,16 @@ class MainWindow(QMainWindow):
         # A frame-size override is a slots.json write: every panel's cached
         # registry has to re-read it, exactly like the + Variant writes do.
         self.details.registry_changed.connect(lambda _slot: self._reload_registries())
+
+        # ESV-2: anchor handles hang off the entity-preview selection, not a
+        # new mode — bidirectional sync between the panel's authoritative
+        # mapping and the viewport's live drag, mirroring the B4
+        # widget_selected pattern below (:154-156).
+        self.anchors.mapping_changed.connect(self.viewport.set_anchors)
+        self.anchors.anchor_selected.connect(self.viewport.set_selected_anchor)
+        self.viewport.anchor_selected.connect(self.anchors.select_anchor)
+        self.viewport.anchor_dragged.connect(self.anchors.on_anchor_dragged)
+        self.viewport.anchor_drag_finished.connect(self.anchors.on_anchor_drag_finished)
 
         # tilemap-mode wiring (ED-20): palette state → viewport; picker →
         # palette re-arm; session lifecycle → selector Maps branch
@@ -278,7 +290,14 @@ class MainWindow(QMainWindow):
         center.setSizes([520, 200])       # sane initial split (not stretch-only)
 
         self.right_stack = QStackedWidget()
-        self.right_stack.addWidget(self.details)         # index 0: asset import
+        # ESV-2: the asset importer and the anchors panel share index 0 in a
+        # small container — indices 1/2 keep their meaning unchanged.
+        self.details_pane = QWidget()
+        details_pane_layout = QVBoxLayout(self.details_pane)
+        details_pane_layout.setContentsMargins(0, 0, 0, 0)
+        details_pane_layout.addWidget(self.details)
+        details_pane_layout.addWidget(self.anchors)
+        self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2)
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
 
@@ -337,6 +356,7 @@ class MainWindow(QMainWindow):
         # Default to Game-tiles mode; set_mode arms the first zone brush.
         self.palette.set_mode("gametiles")
         self.palette.setVisible(True)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.map_details)
         self.map_details.refresh()
 
@@ -350,7 +370,7 @@ class MainWindow(QMainWindow):
         if self.viewport.in_map_mode():
             self.viewport.set_map_mode(None)
         self.palette.setVisible(False)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
 
     # -- screen mode (B4, R3): a UI-screen leaf selected ---------------------
 
@@ -382,6 +402,7 @@ class MainWindow(QMainWindow):
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.screen_details)
 
     def _leave_screen_mode(self):
@@ -389,7 +410,7 @@ class MainWindow(QMainWindow):
         # screen returns to it; the prompt only guards opening a DIFFERENT one
         if self.viewport.in_screen_mode():
             self.viewport.set_screen_mode(None)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
 
     def _load_screen_defaults(self):
         """data/ui/screen_defaults.json (B3's exporter output). Missing or
@@ -646,6 +667,7 @@ class MainWindow(QMainWindow):
             self.details.subcategory_index(), self.levelbar.level())
         self.viewport.set_preview_slot(slot)
         self.details.set_slot(slot)
+        self.anchors.set_slot(slot)
 
     def _on_manifest_changed(self, _slot_key):
         """Import-panel save/clear: assets reload without a restart (ED-42)
@@ -656,6 +678,8 @@ class MainWindow(QMainWindow):
         self.viewport.reload_assets()
         self.selector.refresh_markers()
         self.palette.refresh_icons()
+        self.anchors.reload()   # ESV-2: a DetailsPanel save/clear must not
+        # leave the anchors panel (or its handle) stale relative to disk.
 
     # -- run controls (ED-50/51/52) ------------------------------------------
 

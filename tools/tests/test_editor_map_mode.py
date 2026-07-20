@@ -110,8 +110,9 @@ class TestMapsBranch(MapModeCase):
         self.window.selector.select_node("buildings", ("Defender",))
         self.assertFalse(self.viewport.in_map_mode())
         self.assertFalse(self.window.palette.isVisibleTo(self.window))
+        # ESV-2: index 0 is now a small container holding details + anchors
         self.assertIs(self.window.right_stack.currentWidget(),
-                      self.window.details)
+                      self.window.details_pane)
         self.assertIsNotNone(self.viewport.preview_slot)
 
     def test_map_selection_drives_map_balancing_domain(self):

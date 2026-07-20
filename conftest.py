@@ -49,6 +49,7 @@ TIERS = {
 
     # --- editor: PySide6; the slow tier ------------------------------------
     "test_details_panel": "editor",
+    "test_editor_anchors": "editor",
     "test_editor_asset_import": "editor",
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
