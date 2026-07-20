@@ -172,14 +172,19 @@ validating writer; don't hand-edit the JSON.
   `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
   by the editor's import panel, through `write_validated`. (The one-shot
   migration tool that seeded it is deleted — the editor is the only door now.)
-  - **`slice` (A2) is the one OPTIONAL per-entry key** — everything else is
-    `required`. `"slice": [left, top, right, bottom]`, ints 0..1024, nine-slice
-    margins in FRAME pixels (same convention as `offset_x`/`offset_y`). It exists
-    so a UI panel/button skin can be drawn at any size with its corners intact:
-    corners blit 1:1, edges stretch on one axis, the centre on both. **HUD sprites
-    only** — world sprites ignore it and keep uniform zoom scaling. Omit it for
-    plain scaling; no committed entry carries one yet. The geometry lives in
-    `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
+  - **`slice` (A2) and `anchors` (ESV-1) are the two OPTIONAL per-entry keys** —
+    everything else is `required`. `"slice": [left, top, right, bottom]`, ints
+    0..1024, nine-slice margins in FRAME pixels (same convention as
+    `offset_x`/`offset_y`). It exists so a UI panel/button skin can be drawn at
+    any size with its corners intact: corners blit 1:1, edges stretch on one
+    axis, the centre on both. **HUD sprites only** — world sprites ignore it and
+    keep uniform zoom scaling. Omit it for plain scaling; no committed entry
+    carries one yet. The geometry lives in `engine/render/backend.py` (see
+    `engine/render/CLAUDE.md`). `"anchors": {muzzle?, impact?, hp_bar?,
+    floater_origin?, status_icon?, beam_endpoint?}` — six declared named
+    `[x, y]` frame-px handle points, all optional, same coordinate convention.
+    Unlike `slice` they are pure metadata (never affect slicing/blitting); see
+    `engine/assets/CLAUDE.md`. No committed entry carries one yet.
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
   import time by the editor (historically also by the migration tool, now gone).
   Never gitignore them.

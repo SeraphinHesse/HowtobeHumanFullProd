@@ -21,6 +21,7 @@ import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
 from engine.render import HudLines, HudRect, block_center_offset, fit_factor
+from game.anchors import screen_offset
 from engine.render.fonts import layout_h
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
@@ -603,6 +604,7 @@ class FloaterManager:
         hides the bar at full HP)."""
         zoom = cs.camera.zoom
         tile_h = cs.geometry.tile_h
+        assets = getattr(renderer, "assets", None)
         for b in scene.by_tag("building"):
             if getattr(b, "building_type", None) == "base":
                 continue
@@ -612,8 +614,12 @@ class FloaterManager:
             cx, cy = cs.world_to_screen(b.transform.wx + 0.5,
                                         b.transform.wy + 0.5)
             w, h = 28, 4
-            x = int(cx - w / 2)
-            y = int(cy - tile_h * zoom)  # a little above the tile centre
+            # ESV-1 D3: this path has no `_sprite_top` fit to compose with —
+            # the flat `cy - tile_h*zoom` baseline stays exactly as it was;
+            # the `hp_bar` anchor offset (0,0 absent) just adds on top of it.
+            dsx, dsy = screen_offset(assets, cs, b, "hp_bar", zoom)
+            x = int(cx - w / 2 + dsx)
+            y = int(cy - tile_h * zoom + dsy)  # a little above the tile centre
             submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                        bg=C_HP_RED, fill=C_HP_GREEN, border=(0, 0, 0))
 
@@ -642,6 +648,7 @@ class FloaterManager:
             groups.setdefault(key, []).append(e)
 
         zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
         for group in groups.values():
             slot = 0
             for e in group:
@@ -658,8 +665,12 @@ class FloaterManager:
                 # both terms ride the zoom — but the bar itself stays a fixed
                 # screen size (every other bar in this file does).
                 top = _sprite_top(renderer, cs, e, cy, zoom)
-                x = int(cx - w / 2)
-                y = int(top - pad * zoom) - h - slot * _ENEMY_BAR_STACK
+                # ESV-1 D3: the `hp_bar` anchor offset (0,0 absent) COMPOSES
+                # with the footprint fit already baked into `top` — it is
+                # added to the fitted result, never a raw sheet-pixel lift.
+                dsx, dsy = screen_offset(assets, cs, e, "hp_bar", zoom)
+                x = int(cx - w / 2 + dsx)
+                y = int(top - pad * zoom + dsy) - h - slot * _ENEMY_BAR_STACK
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                            bg=C_HP_RED, fill=C_HP_GREEN)
                 slot += 1

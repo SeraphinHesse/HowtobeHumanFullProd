@@ -57,6 +57,25 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `engine/render/backend.py` gives it geometry, and only for **HUD sprites**
   (world sprites keep uniform zoom scaling). Omitted ⇒ plain scale. The grey-X
   placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
+- **Optional `anchors` (ESV-1)**: the second optional per-entry key, beside
+  `slice`. A manifest entry may carry `anchors: {muzzle?, impact?, hp_bar?,
+  floater_origin?, status_icon?, beam_endpoint?}` — six declared names, all
+  optional, each a `[x, y]` frame-px point relative to the sprite anchor (same
+  convention as `offset_x`/`offset_y`: `+x` right, `-y` up), measured on the
+  sheet frame at frame resolution, never at draw resolution or a zoom (D2).
+  `entry_from_dict` parses it to a `ManifestEntry.anchors` tuple of
+  `(name, (x, y))` pairs (never a mutable dict on the frozen dataclass) and
+  **raises** on a bare string, a non-2-length value, a non-integer, or an
+  undeclared name — same defensive shape as `slice`, and `load_manifest` is
+  again the E-37 layer turning that into warn-and-skip-this-entry.
+  `ManifestEntry.anchor(name)` / `AssetStore.anchor(slot_key, name)` are the
+  read accessors (never index the raw structure). Unlike `slice`, anchors are
+  **metadata, not frame geometry** — they never touch `Frame`/`frame()`/the
+  blit path; only `muzzle` (`game/enemies/combat.py`, world-offset via
+  `game/anchors.py`) and `hp_bar` (`game/ui/effects.py`, screen-offset) are
+  wired to a read-site today. `impact`/`floater_origin`/`status_icon`/
+  `beam_endpoint` are declared and parse-ready but inert (no read-site) —
+  shipped now so their future wiring needs no schema migration.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO

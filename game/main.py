@@ -634,7 +634,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
-                               dmg_bonus=dmg_bonus)
+                               dmg_bonus=dmg_bonus,
+                               assets=assets, cs=cs)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME

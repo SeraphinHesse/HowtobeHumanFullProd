@@ -29,6 +29,7 @@ import math
 from engine.core import (
     Component, GameObject, Health, Movement, SpriteAnimator, Transform,
 )
+from game.anchors import world_offset
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
@@ -58,11 +59,17 @@ class ProjectileHoming(Component):
         self._shooter = None
         self._scene = None
 
-    def launch(self, target, shooter, scene):
+    def launch(self, target, shooter, scene, origin=None):
+        """``origin`` (ESV-1, D4): the point flight time is measured FROM —
+        never the projectile's (possibly muzzle-anchored) visual spawn point.
+        ``None`` falls back to ``self._proj.transform.world_pos``, today's
+        exact expression, so every existing caller is byte-identical. Used
+        SOLELY for this distance/timer computation and then discarded — it
+        is a parameter, not component state (E-11)."""
         self._target = target
         self._shooter = shooter
         self._scene = scene
-        px, py = self._proj.transform.world_pos
+        px, py = origin if origin is not None else self._proj.transform.world_pos
         tx, ty = target.transform.world_pos
         dist = math.hypot(tx - px, ty - py)
         self.timer = dist / self.speed if self.speed > 0 else 0.0
@@ -331,12 +338,19 @@ def _predict_lead(target, travel_time):
 # -- the sweep ------------------------------------------------------------
 
 def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
-                   on_enemy_death=None, dmg_bonus=0):
+                   on_enemy_death=None, dmg_bonus=0, assets=None, cs=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
     ``game.core.boss_bonuses.story_damage_bonus``). Default 0 keeps every
-    pre-10G call byte-identical."""
+    pre-10G call byte-identical.
+
+    ``assets``/``cs`` (ESV-1, §3.3): the host's ``AssetStore``/
+    ``CoordinateSystem``, threaded down to ``_fire``/``_fire_splash`` to
+    resolve a defender's ``muzzle`` anchor into a cosmetic spawn-point offset.
+    Both default ``None`` (this package has neither on its own — see
+    ``game/anchors.py``), so every existing headless caller and test is
+    byte-identical."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -348,7 +362,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
     targets = [(e, _fp_offset(e)) for e in enemies]
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                         dmg_bonus)
+                         dmg_bonus, assets, cs)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -363,9 +377,12 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
 
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                     dmg_bonus=0):
+                     dmg_bonus=0, assets=None, cs=None):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
-    resolved once per frame by ``resolve_combat`` (ER-2)."""
+    resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
+    (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
+    path (``_update_beam``) needs neither — it is instant hitscan with no
+    travel and no spawn point (§1.5)."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -402,9 +419,9 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # point; the plain defender fires a homing shot. The capability marker
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
-            _fire_splash(defender, target, scene, dmg_bonus)
+            _fire_splash(defender, target, scene, dmg_bonus, assets, cs)
         else:
-            _fire(defender, target, scene, proj_speed, dmg_bonus)
+            _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
@@ -471,18 +488,33 @@ def _set_defender_anim(defender, name):
         anim.set_animation(name)
 
 
-def _fire(defender, target, scene, proj_speed, dmg_bonus=0):
+def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
+         cs=None):
     bx, by = defender.transform.world_pos
-    proj = Projectile(bx, by, defender.damage() + dmg_bonus, proj_speed)
-    proj.get_component(ProjectileHoming).launch(target, defender, scene)
+    # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
+    # time is computed by `launch(origin=...)` below from the UNMODIFIED
+    # `(bx, by)` — the two are deliberately different arguments so damage
+    # timing can never be a function of an authored art coordinate.
+    dwx, dwy = world_offset(assets, cs, defender, "muzzle")
+    proj = Projectile(bx + dwx, by + dwy, defender.damage() + dmg_bonus,
+                      proj_speed)
+    proj.get_component(ProjectileHoming).launch(
+        target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
 
-def _fire_splash(defender, target, scene, dmg_bonus=0):
+def _fire_splash(defender, target, scene, dmg_bonus=0, assets=None, cs=None):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
-    splash radius, and let ``ProjectileArc`` resolve the splash on impact."""
+    splash radius, and let ``ProjectileArc`` resolve the splash on impact.
+
+    ESV-1: only the shell's SPAWN point (``bx, by``) is muzzle-anchored — its
+    flight time is the fixed ``AOE_TRAVEL_TIME`` (not distance-derived) and
+    its landing point comes from `_predict_lead`, which reads nothing about
+    the shooter, so both stay untouched by the anchor (§1.4)."""
     bx, by = defender.transform.world_pos
+    dwx, dwy = world_offset(assets, cs, defender, "muzzle")
+    bx, by = bx + dwx, by + dwy
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
     shell = ProjectileAOE(bx, by, defender.damage() + dmg_bonus,
                           defender.splash_radius())

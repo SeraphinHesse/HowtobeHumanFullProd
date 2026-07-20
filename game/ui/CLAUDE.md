@@ -62,6 +62,14 @@ Both are fixed screen-pixel sizes (never zoom-scaled), anchored through
 the HUD pass — i.e. always on top, never depth-sorted (the accepted "HUD on top"
 simplification). Covered by `tools/tests/test_enemy_hp_bars.py`.
 
+**ESV-1: an optional manifest `hp_bar` anchor adds a composed screen offset**
+(`game/anchors.py screen_offset`, reused from `game/enemies/combat.py`'s muzzle
+read) — for enemies it is added to `_sprite_top`'s already-fitted result (D3:
+the offset rides the footprint fit, never a raw sheet-pixel lift), and for
+buildings it adds on top of the flat `cy - tile_h*zoom` baseline (no
+`_sprite_top` fit exists on that path, so none is introduced). Absent anchor ⇒
+`(0, 0)` ⇒ both expressions are the pre-ESV-1 ones, unchanged.
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
