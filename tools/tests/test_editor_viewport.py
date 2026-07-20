@@ -8,6 +8,7 @@ tools/tests/.
 import subprocess
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 
 # Sets the headless env vars and owns the one QApplication — import it before
@@ -556,6 +557,20 @@ class TestScreenModeRealSkinRenderPath(TempDataCase):
         rects = [c for c in calls if isinstance(c, HudRect)]
         self.assertEqual(rects, [])
 
+    def test_tint_reaches_hud_sprite_and_color_does_not(self):
+        """D6/UH-6 regression on viewport.py `_submit_screen_widget`: screen
+        mode must tint a skinned widget from `tint`, never from `color` —
+        the pre-UH-6 editor lie (the game ignores `color` on a skinned
+        widget entirely, game/ui/skinning.py's `button_kwargs` docstring)."""
+        self._write_screen_doc({"widgets": {"btn_new_game": {
+            "skin": self.SLOT, "tint": [10, 20, 30], "color": [1, 2, 3]}}})
+        panel = self.make_viewport()
+        calls = self.open_and_render(panel)
+
+        sprites = [c for c in calls if isinstance(c, HudSprite)]
+        self.assertEqual(len(sprites), 1)
+        self.assertEqual(sprites[0].tint, (10, 20, 30))
+
 
 class TestScreenModeReloadOnEntry(TempDataCase):
     """The actual bug the user hit: entering screen mode must re-read
@@ -659,6 +674,46 @@ class TestScreenDetailsPanel(TempDataCase):
         session.undo_stack.undo()
         self.assertNotIn("btn_new_game", session.doc.get("widgets", {}))
 
+    def test_screen_details_color_row_becomes_tint_on_a_skinned_widget(self):
+        """D6/UH-6: the Color control is REPURPOSED into Tint on a widget
+        that resolves to a skin (per-widget `skin` here) — enabled,
+        relabelled, and writes/resets the `tint` key, never `color`."""
+        panel, session = self.make()
+        session.push_skin_assign("btn_new_game", None, "ui_button")
+        panel._populate_widget_form("btn_new_game")
+
+        self.assertEqual(panel.color_row_label.text(), "Tint")
+        self.assertEqual(panel.color_button.text(), "Tint…")
+        self.assertTrue(panel.color_button.isEnabled())
+
+        with mock.patch.object(
+                panel, "_pick_color", return_value=[10, 20, 30]):
+            panel._on_color_clicked()
+        self.assertEqual(session.doc["widgets"]["btn_new_game"]["tint"],
+                         [10, 20, 30])
+        self.assertNotIn("color", session.doc["widgets"]["btn_new_game"])
+
+        panel._on_reset_color_field()
+        self.assertNotIn("tint", session.doc.get("widgets", {})
+                         .get("btn_new_game", {}))
+
+    def test_screen_details_color_row_stays_color_on_an_unskinned_widget(self):
+        """UH-3's honesty preserved: an unskinned widget's Color control
+        behaves exactly as before UH-6 — writes `color`, never `tint`."""
+        panel, session = self.make()
+        panel._populate_widget_form("btn_new_game")   # no skin assigned
+
+        self.assertEqual(panel.color_row_label.text(), "Color")
+        self.assertEqual(panel.color_button.text(), "Color…")
+        self.assertTrue(panel.color_button.isEnabled())
+
+        with mock.patch.object(
+                panel, "_pick_color", return_value=[40, 50, 60]):
+            panel._on_color_clicked()
+        self.assertEqual(session.doc["widgets"]["btn_new_game"]["color"],
+                         [40, 50, 60])
+        self.assertNotIn("tint", session.doc["widgets"]["btn_new_game"])
+
     def test_screen_details_reset_to_default_removes_override(self):
         """Per-field reset (brief §1d MEDIUM fix): resetting ONE key leaves
         every other override on the widget intact, and undo restores it."""
@@ -744,6 +799,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.screen_details, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
+            "editor.panels.game_theme, editor.theme_ops, "
             "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
