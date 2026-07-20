@@ -350,15 +350,27 @@ class TestHonestControlsQt(TempDataCase):
         self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
         self.assertTrue(panel.text_color_button.isEnabled())
 
-    def test_panel_stays_color_disabled_even_when_also_skinned(self):
-        """Assigning a skin to an already-code-owned kind must not change
-        the tooltip to the sprite-sheet wording — it's still dead for the
-        code-owned reason, not the skin reason."""
+    def test_skinned_panel_becomes_tint(self):
+        """A skinned PANEL is Tint (UH-6/D6), not disabled: every id'd panel
+        widget forwards `tint` at its `submit_panel` call site, so the control
+        is live. UNskinned it stays Color-disabled (fill is code-owned) — this
+        test drives the transition. (The two `submit_panel` sites that drop
+        tint draw dynamic, non-id'd content that is never selectable here.)"""
         panel, session = self.make("screen_a")
+        panel._populate_widget_form("panel_a")
+        # unskinned panel: Color disabled, code-owned fill
+        self.assertFalse(panel.color_button.isEnabled())
+        self.assertFalse(panel._color_is_tint)
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
+
         session.push_skin_assign("panel_a", None, "ui_panel")
         panel._populate_widget_form("panel_a")
-        self.assertFalse(panel.color_button.isEnabled())
-        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
+        # skinned panel: repurposed to a live Tint control
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertTrue(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Tint…")
+        self.assertEqual(panel.color_row_label.text(), "Tint")
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_TINT_SKINNED)
 
 
 if __name__ == "__main__":

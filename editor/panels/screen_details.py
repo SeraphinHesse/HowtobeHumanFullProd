@@ -468,25 +468,29 @@ class ScreenDetailsPanel(QWidget):
         code_owned_fill = color_is_code_owned(kind)
         skinned = resolved_skin(spec, override, style) is not None
         # Tint (UH-6/D6) is the honest repurposing of a skinned widget's Color
-        # control ONLY where `tint` provably reaches the sheet: `button` kind,
-        # whose `Button.submit` unconditionally threads `tint` into the
-        # HudSprite. It is NOT offered for the code-owned-fill kinds
-        # (panel/field/label): unskinned, the game hardcodes their fill (UH-3);
-        # skinned, the panel draw call sites do NOT uniformly forward `tint`
-        # (`building_ui.py:1252`, `levelup.py:128` drop it) — so presenting an
-        # enabled Tint there would be a control the game may silently ignore,
-        # the exact lie D3 forbids. The final rule:
-        #   skinned button              -> Tint (enabled)
-        #   code-owned fill kind        -> Color disabled (fill is code-owned;
-        #                                  a skin on a panel does not change
-        #                                  that tint is not uniformly wired)
-        #   otherwise                   -> Color enabled (color is live — an
-        #                                  unskinned button, or backdrop/bar,
-        #                                  whose `.color` the game reads; a skin
-        #                                  on those kinds is the separate,
-        #                                  deferred viewport resolution quirk,
-        #                                  not this control's concern)
-        tintable = skinned and kind == "button"
+        # control for the kinds whose draw path threads `tint` into the sheet:
+        #   - `button`: `Button.submit` unconditionally forwards `tint`.
+        #   - `panel`: every id'd panel widget forwards `tint` at its
+        #     `submit_panel` call site (`building_ui.py:238,932`,
+        #     `cheat_menu.py:217`, `add_name.py:134`, `boss_cutscene.py:162`,
+        #     `hud.py:321,354,448`). The two `submit_panel` sites that DROP
+        #     `tint` (`building_ui.py:1252` boss popup, `levelup.py:128` option
+        #     boxes) draw dynamic, NON-id'd content that never appears in
+        #     `screen_defaults.json`, so they are never selectable here.
+        # It is NOT offered for `field`/`label` (no skin is ever drawn for
+        # them; their fill/color is code-owned) — those hit the disabled branch.
+        # The final rule:
+        #   skinned button/panel        -> Tint (enabled)
+        #   code-owned fill kind        -> Color disabled (panel/field/label,
+        #                                  when unskinned: fill is hardcoded)
+        #   otherwise                   -> Color enabled (unskinned button, or
+        #                                  backdrop/bar whose `.color` is live)
+        # KNOWN RESIDUAL (deferred viewport quirk, finding 3): `hud.love_panel`
+        # is kind `panel` but draws via `HudRect` (hardcoded fill), so a `skin`
+        # override forced onto it would show Tint that no-ops. That requires
+        # the same skin-on-a-non-skinnable-widget quirk that also affects
+        # backdrop/bar; it is out of scope here and tracked separately.
+        tintable = skinned and kind in ("button", "panel")
         self._color_is_tint = tintable
         if tintable:
             self.color_row_label.setText("Tint")

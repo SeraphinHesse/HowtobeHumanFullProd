@@ -540,16 +540,17 @@ data, so the two can never silently drift apart.
   engine's `HudSprite.tint` → `DrawCall.tint` → `BLEND_RGBA_MULT` path
   already existed (`engine/render/CLAUDE.md`). **Omitted = `None` = today's
   rendering, pinned** — every pre-UH-6 skin test holds unchanged.
-  **Editor-authoring caveat (post-reconciliation, `b7b2c40`):** the schema and
-  engine accept `tint` on ANY skinned widget, but the editor's Theme/details
-  panel only OFFERS a Tint control for **`button` kind**. `Button.submit`
-  always threads `tint`, so a button tint is honest; some `submit_panel` call
-  sites (`building_ui.py:1252`, `levelup.py:128`) take a `skin=` but DROP
-  `tint=`, so the editor deliberately does not surface a panel Tint it could
-  not guarantee (D3 — no control that silently no-ops; see
-  `editor/panels/CLAUDE.md` "Reconciled rule"). A panel `tint` in the JSON is
-  still honored wherever a call site forwards it — it is simply not
-  editor-authorable today.
+  **Editor-authoring note (post-reconciliation):** the editor's details panel
+  offers a Tint control for the kinds whose draw path threads `tint` —
+  **`button` and `panel`**. `Button.submit` always forwards `tint`; every
+  *id'd* panel widget forwards it at its `submit_panel` site. The two
+  `submit_panel` sites that DROP `tint` (`building_ui.py:1252` boss popup,
+  `levelup.py:128` boxes) draw dynamic, non-id'd content that is not
+  editor-selectable, so this is honest. `field`/`label` never draw a skin, so
+  they get no Tint control. One residual: `hud.love_panel` is kind `panel` but
+  drawn via `HudRect` (no sheet), so a `tint` on it no-ops — the same deferred
+  skin-on-a-non-skinnable-widget quirk as `backdrop`/`bar`. See
+  `editor/panels/CLAUDE.md` "Reconciled rule".
 - **The editor's screen-mode preview honesty fix (ties to UH-3)**: the
   editor used to tint a skinned widget's preview from its `color` override
   — a lie, since the game has always ignored `color` on a skinned widget
