@@ -743,7 +743,8 @@ class TestPurity(unittest.TestCase):
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.screen_details, "
-            "editor.panels._screen_primitives, editor.thats_my_producer; "
+            "editor.panels._screen_primitives, editor.panels._screen_rules, "
+            "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )
