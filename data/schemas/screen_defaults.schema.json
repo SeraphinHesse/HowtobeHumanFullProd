@@ -1,4 +1,39 @@
 {
+  "$defs": {
+    "widget": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "button",
+            "panel",
+            "label",
+            "backdrop",
+            "bar",
+            "field"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "rect": {
+          "items": {
+            "type": "integer"
+          },
+          "maxItems": 4,
+          "minItems": 4,
+          "type": "array"
+        }
+      },
+      "required": [
+        "rect",
+        "kind",
+        "label"
+      ],
+      "type": "object"
+    }
+  },
   "$id": "https://example.com/schemas/screen_defaults.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -9,41 +44,38 @@
         "mock_note": {
           "type": "string"
         },
-        "widgets": {
+        "views": {
           "additionalProperties": false,
           "patternProperties": {
             "^[a-z][a-z0-9_]*$": {
               "additionalProperties": false,
               "properties": {
-                "kind": {
-                  "enum": [
-                    "button",
-                    "panel",
-                    "label",
-                    "backdrop",
-                    "bar",
-                    "field"
-                  ],
+                "mock_note": {
                   "type": "string"
                 },
-                "label": {
-                  "type": "string"
-                },
-                "rect": {
-                  "items": {
-                    "type": "integer"
+                "widgets": {
+                  "additionalProperties": false,
+                  "patternProperties": {
+                    "^[a-z][a-z0-9_]*$": {
+                      "$ref": "#/$defs/widget"
+                    }
                   },
-                  "maxItems": 4,
-                  "minItems": 4,
-                  "type": "array"
+                  "type": "object"
                 }
               },
               "required": [
-                "rect",
-                "kind",
-                "label"
+                "widgets"
               ],
               "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "widgets": {
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[a-z][a-z0-9_]*$": {
+              "$ref": "#/$defs/widget"
             }
           },
           "type": "object"
