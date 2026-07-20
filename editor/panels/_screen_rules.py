@@ -35,6 +35,46 @@ def resolved_skin(spec, override, style):
     return skin
 
 
+# -- code-owned fill (color) resolution --------------------------------------
+
+# Kinds for which the game NEVER reads a widget's `color` override, skinned
+# or not — grounded in every color-consuming call site, not in the skin
+# story alone (found by review: the brief's premise that unskinned
+# panel/field fills read `.color` was false).
+#
+# `panel`: unlike buttons (`skinning.button_kwargs` generically forwards
+# `.color`/`.text_color` for every id'd button), there is no `panel_kwargs`
+# anywhere. Every `submit_panel(...)` call site passes a HARDCODED `fill=`
+# regardless of the widget's own `.color`: `game/ui/cheat_menu.py:217`,
+# `add_name.py:135`, `building_ui.py:239,932,1252`, `boss_cutscene.py:162`,
+# `levelup.py:126`, `hud.py:313,345,438`. `hud.py`'s `love_panel` does not
+# even call `submit_panel` — it is a raw `HudRect(pill, C_PANEL_STONE, ...)`
+# (`hud.py:308`), ignoring skin AND color unconditionally. So `color` is
+# dead on arrival for every `panel`-kind widget, with or without a skin.
+# `field`: `cheat_menu.py`'s `round_field` draws a hardcoded
+# `HudRect(self.field_rect, C_PANEL_STONE)` plus a hardcoded border
+# (`cheat_menu.py:231-234`); no `.color` is ever read, and `resolved_skin`
+# never resolves a skin for `field` either.
+#
+# NOT in this set (verified live, do not add): `backdrop` — every screen's
+# `_backdrop` reads `.color` directly (`HudRect(self._backdrop.rect,
+# self._backdrop.color)`, e.g. `main_menu.py:107`, `boss_cutscene.py:134`,
+# and 6 more). `bar` — `hud.py` forwards `self._xp_bar.color` as
+# `submit_bar`'s `bg=` (`hud.py:441-443`). `button` is handled entirely by
+# the skin check above (`Button.submit`'s `fill = color or ...` reads
+# `.color` whenever unskinned — only a skin makes it dead, which
+# `resolved_skin` already catches).
+_COLOR_DEAD_KINDS = frozenset({"panel", "field"})
+
+
+def color_is_code_owned(kind):
+    """True iff the game hardcodes this widget kind's fill in game code and
+    never reads a `color` override for it at all, independent of skin state
+    (see `_COLOR_DEAD_KINDS` for the call-site citations). Callers combine
+    this with `resolved_skin` — a widget can be dead for either reason."""
+    return kind in _COLOR_DEAD_KINDS
+
+
 # -- code-owned label resolution ---------------------------------------------
 
 # Pinned static-title exceptions (game/ui/CLAUDE.md, the main_menu.py:56-58
@@ -90,4 +130,9 @@ TOOLTIP_COLOR_SKINNED = (
 TOOLTIP_LABEL_CODE_OWNED = (
     "This text is written by game code at runtime — edit it in game code, "
     "not here."
+)
+
+TOOLTIP_COLOR_CODE_OWNED = (
+    "This widget's fill is hardcoded in game code — a color override has "
+    "nothing to apply to here."
 )

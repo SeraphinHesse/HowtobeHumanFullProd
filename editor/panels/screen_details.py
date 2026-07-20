@@ -49,8 +49,10 @@ from editor.panels.balancing import (
     _NoWheelSpinBox,
 )
 from editor.panels._screen_rules import (
+    TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_COLOR_SKINNED,
     TOOLTIP_LABEL_CODE_OWNED,
+    color_is_code_owned,
     label_is_code_owned,
     resolved_skin,
 )
@@ -430,11 +432,19 @@ class ScreenDetailsPanel(QWidget):
         composes with UH-2's per-view filtering regardless of merge order.
         """
         screen_id = self._session.screen_id if self._session is not None else None
+        kind = spec.get("kind")
+        code_owned_fill = color_is_code_owned(kind)
         skinned = resolved_skin(spec, override, style) is not None
-        self.color_button.setEnabled(not skinned)
-        self.color_button.setToolTip(TOOLTIP_COLOR_SKINNED if skinned else "")
+        self.color_button.setEnabled(not (code_owned_fill or skinned))
+        if code_owned_fill:
+            color_tooltip = TOOLTIP_COLOR_CODE_OWNED
+        elif skinned:
+            color_tooltip = TOOLTIP_COLOR_SKINNED
+        else:
+            color_tooltip = ""
+        self.color_button.setToolTip(color_tooltip)
 
-        code_owned = label_is_code_owned(screen_id, self._current_widget, spec.get("kind"))
+        code_owned = label_is_code_owned(screen_id, self._current_widget, kind)
         self.label_edit.setEnabled(not code_owned)
         self.label_edit.setToolTip(TOOLTIP_LABEL_CODE_OWNED if code_owned else "")
 

@@ -15,8 +15,10 @@ from tools.tests.qt_harness import APP as _APP, QtCase
 import unittest
 
 from editor.panels._screen_rules import (
+    TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_COLOR_SKINNED,
     TOOLTIP_LABEL_CODE_OWNED,
+    color_is_code_owned,
     label_is_code_owned,
     resolved_skin,
 )
@@ -49,6 +51,10 @@ FIXTURE_DEFAULTS = {
             "btn": {"rect": [0, 0, 100, 30], "kind": "button", "label": "OK"},
             "panel_a": {"rect": [0, 0, 200, 100], "kind": "panel",
                        "label": ""},
+            "field_a": {"rect": [0, 0, 100, 24], "kind": "field", "label": ""},
+            "backdrop_a": {"rect": [0, 0, 1280, 720], "kind": "backdrop",
+                          "label": ""},
+            "bar_a": {"rect": [0, 0, 200, 20], "kind": "bar", "label": ""},
         },
         "mock_note": "test fixture",
     },
@@ -112,6 +118,34 @@ class TestResolvedSkin(unittest.TestCase):
     def test_none_when_nothing_resolves(self):
         self.assertIsNone(resolved_skin({"kind": "label"}, {}, {}))
         self.assertIsNone(resolved_skin({"kind": "button"}, {}, {}))
+
+
+class TestColorIsCodeOwned(unittest.TestCase):
+    """Pure matrix: which kinds never read `.color` at all, regardless of
+    skin state (review finding — the brief's premise that unskinned panel/
+    field fills read `.color` was false; grounded in real call sites, see
+    `_screen_rules._COLOR_DEAD_KINDS`)."""
+
+    def test_panel_and_field_are_code_owned(self):
+        self.assertTrue(color_is_code_owned("panel"))
+        self.assertTrue(color_is_code_owned("field"))
+
+    def test_backdrop_and_bar_are_genuinely_live_not_code_owned(self):
+        # backdrop.color -> HudRect(self._backdrop.rect, self._backdrop.color)
+        # bar.color -> submit_bar(..., bg=self._xp_bar.color, ...)
+        self.assertFalse(color_is_code_owned("backdrop"))
+        self.assertFalse(color_is_code_owned("bar"))
+
+    def test_button_is_not_code_owned_here_gated_by_skin_instead(self):
+        # Button.submit's `fill = color or ...` reads `.color` whenever
+        # unskinned; only a skin makes it dead, which resolved_skin (not
+        # this predicate) already catches.
+        self.assertFalse(color_is_code_owned("button"))
+
+    def test_label_kind_not_flagged_by_this_predicate(self):
+        # label kind draws no fill at all; this predicate only answers the
+        # panel/field call-site question the review raised.
+        self.assertFalse(color_is_code_owned("label"))
 
 
 class TestHonestControlsQt(TempDataCase):
@@ -217,6 +251,45 @@ class TestHonestControlsQt(TempDataCase):
         session.push_skin_assign("btn", None, "ui_button")
         panel._populate_widget_form("btn")
         self.assertTrue(panel.label_edit.isEnabled())
+
+    def test_color_disabled_code_owned_tooltip_on_unskinned_panel(self):
+        """Review finding 1 (HIGH): panel-kind Color is dead on arrival even
+        with NO skin at all — every submit_panel() call site hardcodes
+        `fill=`, and hud.py's love_panel bypasses submit_panel entirely."""
+        panel, _session = self.make("screen_a")
+        panel._populate_widget_form("panel_a")
+        self.assertFalse(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
+
+    def test_color_disabled_code_owned_tooltip_on_unskinned_field(self):
+        """Review finding 2 (MEDIUM): field-kind Color (cheat_menu's
+        round_field) is dead on arrival — hardcoded HudRect fill, no skin
+        path exists for `field` at all."""
+        panel, _session = self.make("screen_a")
+        panel._populate_widget_form("field_a")
+        self.assertFalse(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
+
+    def test_color_still_enabled_on_unskinned_backdrop_and_bar(self):
+        """Do not over-disable the kinds the reviewer verified ARE live."""
+        panel, _session = self.make("screen_a")
+        panel._populate_widget_form("backdrop_a")
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), "")
+
+        panel._populate_widget_form("bar_a")
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), "")
+
+    def test_panel_stays_color_disabled_even_when_also_skinned(self):
+        """Assigning a skin to an already-code-owned kind must not change
+        the tooltip to the sprite-sheet wording — it's still dead for the
+        code-owned reason, not the skin reason."""
+        panel, session = self.make("screen_a")
+        session.push_skin_assign("panel_a", None, "ui_panel")
+        panel._populate_widget_form("panel_a")
+        self.assertFalse(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
 
 
 if __name__ == "__main__":
