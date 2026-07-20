@@ -57,6 +57,7 @@ TIERS = {
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
     "test_run_controls": "editor",
+    "test_screen_honest_controls": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------
     "test_10j_qol": "core",

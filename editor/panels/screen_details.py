@@ -46,6 +46,12 @@ from editor.panels.balancing import (
     _NoWheelComboBox,
     _NoWheelSpinBox,
 )
+from editor.panels._screen_rules import (
+    TOOLTIP_COLOR_SKINNED,
+    TOOLTIP_LABEL_CODE_OWNED,
+    label_is_code_owned,
+    resolved_skin,
+)
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -397,6 +403,22 @@ class ScreenDetailsPanel(QWidget):
         self.label_reset_button.setEnabled("label" in override)
         self.visible_reset_button.setEnabled("visible" in override)
 
+    def _refresh_honest_controls(self, spec, override, style):
+        """D3 (plan): a control that cannot take effect in the game is
+        disabled with an explanatory tooltip, never silently accepted.
+        Recomputed live (never stored) from the SAME `spec`/`override`/
+        `style` accessors `_populate_widget_form` already uses, so it
+        composes with UH-2's per-view filtering regardless of merge order.
+        """
+        screen_id = self._session.screen_id if self._session is not None else None
+        skinned = resolved_skin(spec, override, style) is not None
+        self.color_button.setEnabled(not skinned)
+        self.color_button.setToolTip(TOOLTIP_COLOR_SKINNED if skinned else "")
+
+        code_owned = label_is_code_owned(screen_id, self._current_widget, spec.get("kind"))
+        self.label_edit.setEnabled(not code_owned)
+        self.label_edit.setToolTip(TOOLTIP_LABEL_CODE_OWNED if code_owned else "")
+
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
         spec = defaults.get("widgets", {}).get(widget_id)
@@ -443,6 +465,8 @@ class ScreenDetailsPanel(QWidget):
         self._populating = False
         self._set_widget_form_enabled(True)
         self._refresh_reset_buttons(override)
+        style = self._session.doc.get("defaults", {})
+        self._refresh_honest_controls(spec, override, style)
 
     def _refresh_widget_form(self):
         if self._current_widget is not None:
@@ -468,6 +492,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_skin_assign(self._current_widget, old_skin, new_skin)
         self._skin_baseline = new_skin
+        self._refresh_widget_form()
 
     def _on_font_changed(self, index):
         if self._current_widget is None:
@@ -638,6 +663,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_default_field(field_key, old_value, new_value)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_reset_default_field(self, field_key):
         if self._session is None or self._session.doc is None:
@@ -648,6 +674,7 @@ class ScreenDetailsPanel(QWidget):
         old_value = style[field_key]
         self._session.push_default_field(field_key, old_value, None)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_default_text_color_clicked(self):
         style = self._session.doc.get("defaults", {})
