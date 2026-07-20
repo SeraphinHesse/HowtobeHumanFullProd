@@ -306,3 +306,28 @@ ledger is identical to before (nothing touched the sim).
   concrete in ESV-1. Floater-origin / status-icon / beam-endpoint anchors are the
   same schema shape but need their own game read-sites; land them incrementally
   under ESV-1's schema rather than blocking the phase.
+
+## 6. Deferred cleanup — do at convergence (ESV-6 / before the PR)
+
+Concrete follow-ups **discovered during execution**, parked here so the
+convergence phase clears them rather than shipping them as debt. Neither blocks
+an intermediate stage; both must be resolved before the PR.
+
+- **ESV-3a floater dead-data gap.** The seven floater colour/lifetime constants
+  at `game/ui/effects.py:48-56` (`_UPKEEP_BLUE`, `_XP_PURPLE`, `_XP_LIFE`,
+  `_PAINTER_FINISHED`, `_PAINTER_LOST`, `_PAINTER_LIFE`, `_BOOST_WHITE`) are still
+  **live code** — read at the floater spawn sites — while the
+  `procedural.floaters` block ESV-3a added to `data/balancing/vfx.json` is **dead
+  data** (`_params_from_balance` never reads it). Two homes for the same seven
+  values. Resolve ONE way: either wire the floater spawn sites to read
+  `procedural.floaters` (the constants become the removed originals, matching the
+  rest of the port), **or** delete the dead `procedural.floaters` block + its
+  schema if floaters are deliberately staying hardcoded. Decide and land during
+  convergence; verified by ESV-3b, not acted on there.
+- **ESV-4 stack-index reachability (surfaces in ESV-5).** ESV-4 routes the `vfx`
+  selector node to `right_stack` index 3, which makes the asset importer (index 0)
+  unreachable while the vfx preview panel is up. Harmless through Stage 2 — no
+  `vfx_*` sheets exist yet — but **ESV-5 imports `vfx_*` sheets AND wants the
+  preview visible at the same time**, so the stack routing must be reconciled when
+  ESV-5 lands (both panels reachable for a selected vfx node). Fold the fix into
+  ESV-5's brief, not deferred past it.
