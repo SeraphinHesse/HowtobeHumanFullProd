@@ -1,1 +1,22 @@
-{}
+{
+  "widgets": {
+    "btn_back": {
+      "skin": "ui_button"
+    },
+    "btn_dm_left": {
+      "skin": "ui_button"
+    },
+    "btn_dm_right": {
+      "skin": "ui_button"
+    },
+    "btn_toggle_bg_art": {
+      "skin": "ui_button"
+    },
+    "btn_toggle_gore": {
+      "skin": "ui_button"
+    },
+    "btn_toggle_income_floaters": {
+      "skin": "ui_button"
+    }
+  }
+}

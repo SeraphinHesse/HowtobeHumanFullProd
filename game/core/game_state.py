@@ -88,15 +88,21 @@ class RunState:
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
     # -- 10H: lightning + cheat menu ---------------------------------------
-    # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 1:
-    # the prototype's __init__ sets lightning_level = 1 (game.py:117) and
-    # _start_new_game never resets it, so every live run begins with lightning
-    # already unlocked at L1 — the L0 unlock branch stays implemented (the
-    # data key exists) but is unreachable from a normal boot. A fresh Session
-    # per run also erases the prototype's quirk of upgrades persisting across
-    # "new game" in the same app session (the 10F combat-speed treatment).
-    # The seed is structural (like combat_speed_idx), so no from_balance change.
-    lightning_level: int = 1
+    # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 0
+    # (Storm Priest wiring): every run now boots with lightning LOCKED —
+    # placing a Storm Priest (the "lightning_source"-tagged building) is the
+    # ONLY way to raise it to L1, via
+    # ``game.core.lightning.unlock_from_placement`` called from
+    # ``game.ui.building_ui._do_place`` after a successful placement. This
+    # replaces the prior boot-unlocked design (the prototype's __init__ set
+    # lightning_level = 1, game.py:117, and _start_new_game never reset it) —
+    # a deliberate balance change, not a bug: the L0 unlock branch in
+    # ``lightning.py`` (``can_strike`` / the UNLOCK button) is now reachable
+    # from a normal boot, not dead weight. A fresh Session per run still
+    # erases the prototype's quirk of upgrades persisting across "new game"
+    # in the same app session (the 10F combat-speed treatment). The seed is
+    # structural (like combat_speed_idx), so no from_balance change.
+    lightning_level: int = 0
     lightning_cooldown: float = 0.0
     # -- /10H --
 

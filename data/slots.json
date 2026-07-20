@@ -190,6 +190,35 @@
         {
           "children": [
             {
+              "label": "Storm Acolyte",
+              "slots": [
+                "storm_priest_i_t1_lvl1",
+                "storm_priest_i_t1_lvl2",
+                "storm_priest_i_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Storm Priest",
+              "slots": [
+                "storm_priest_ii_t2_lvl1",
+                "storm_priest_ii_t2_lvl2",
+                "storm_priest_ii_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Storm High Priest",
+              "slots": [
+                "storm_priest_iii_t3_lvl1",
+                "storm_priest_iii_t3_lvl2",
+                "storm_priest_iii_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Storm Priest"
+        },
+        {
+          "children": [
+            {
               "label": "Supporting Fan",
               "slots": [
                 "boost_speed_t1_lvl1",
@@ -439,7 +468,11 @@
             {
               "label": "Era 0",
               "slots": [
-                "boss_era_0"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "boss_era_0"
+                }
               ]
             },
             {
@@ -546,9 +579,51 @@
         {
           "children": [
             {
-              "label": "Button",
+              "label": "Menu Button",
               "slots": [
                 "ui_button"
+              ]
+            },
+            {
+              "label": "End Turn",
+              "slots": [
+                "ui_button_end_turn"
+              ]
+            },
+            {
+              "label": "Pause",
+              "slots": [
+                "ui_button_pause"
+              ]
+            },
+            {
+              "label": "Panel Button",
+              "slots": [
+                "ui_button_panel"
+              ]
+            },
+            {
+              "label": "Construct Card",
+              "slots": [
+                "ui_button_card"
+              ]
+            },
+            {
+              "label": "Cheat Menu",
+              "slots": [
+                "ui_button_cheat"
+              ]
+            },
+            {
+              "label": "Overlay Pill",
+              "slots": [
+                "ui_button_pill"
+              ]
+            },
+            {
+              "label": "Choice Box",
+              "slots": [
+                "ui_choice_box"
               ]
             }
           ],

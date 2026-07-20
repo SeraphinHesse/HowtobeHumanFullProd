@@ -65,6 +65,7 @@ TIERS = {
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
     "test_audio": "core",
+    "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
     "test_boost": "core",
@@ -72,10 +73,12 @@ TIERS = {
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
+    "test_button_skin": "core",
     "test_combat_speed": "core",
     "test_components": "core",
     "test_coords": "core",
     "test_core": "core",
+    "test_corpse": "core",
     "test_death_spawn": "core",
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
@@ -87,6 +90,7 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
     "test_movement": "core",
@@ -111,6 +115,8 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
+    "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_video_playback": "core",
     "test_video_source": "core",
 }

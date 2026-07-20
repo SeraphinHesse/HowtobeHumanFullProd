@@ -98,6 +98,22 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   included, is earned via a level-up unlock card. `registry.place_building` now
   calls `building.on_placed(tilemap)` UNCONDITIONALLY (a `Building` base no-op hook —
   boost + wall-builder override it), replacing the boost-only special-case.
+- **Storm Priest** (`storm_priest.py`: `StormPriest`) is a plain 3-tier
+  `DefenceBuilding` leaf — no new building behaviour, just the standard defence
+  line (Storm Acolyte → Storm Priest → Storm High Priest). Its ONE novelty is a
+  capability tag: `EXTRA_TAGS = ("combat", "lightning_source")` (the subclass
+  MUST re-include `"combat"` — `EXTRA_TAGS` fully overrides, `building.py:54`).
+  The tag is the seam to the Lightning Strike ability: `game.ui`'s placement flow
+  calls `game.core.lightning.unlock_from_placement(state, building)` after every
+  successful place, which unlocks lightning (`lightning_level 0→1`, a `max()`
+  latch) iff the placed building carries `"lightning_source"`. The rule is
+  **tag-gated, not type-string-gated**, so `registry.place_building` stays
+  type-agnostic (no `storm_priest` branch) — the same G-3 discipline as the
+  `IS_COMBAT`→`"combat"` tag. Research row: a bare `ResearchSpec(...)` (no
+  `gate_kind`, no `era_unlock_round`) with `starts_unlocked: false` in
+  `buildings.json` — offered in the level-up unlock pool from round 1 but not
+  unlocked at the start. (Lightning itself now boots LOCKED — see
+  `game/core/CLAUDE.md`.)
 - **10I tile conditions** — snapshot at placement, computed on read:
   - `registry.place_building` stamps two E-11 transients after
     `tile.occupant = building`: `_tile_condition` (the tile's rolled condition)

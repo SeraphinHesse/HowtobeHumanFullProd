@@ -23,6 +23,7 @@ from .defence import DefenceBuilding
 from .defender import Defender
 from .economy import EconomyBuilding
 from .musician import Musician
+from .storm_priest import StormPriest
 from .structure import Blocker, StructureBuilding, WallBuilder
 from .sun_scorcher import SunScorcher
 from .registry import (
@@ -42,6 +43,7 @@ __all__ = [
     "Defender",
     "AOEDefenceBuilding",
     "SunScorcher",
+    "StormPriest",
     "StructureBuilding",
     "Blocker",
     "WallBuilder",

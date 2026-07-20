@@ -1,1 +1,19 @@
-{}
+{
+  "widgets": {
+    "btn_add_name": {
+      "skin": "ui_button"
+    },
+    "btn_credits": {
+      "skin": "ui_button"
+    },
+    "btn_new_game": {
+      "skin": "ui_button"
+    },
+    "btn_quit": {
+      "skin": "ui_button"
+    },
+    "btn_settings": {
+      "skin": "ui_button"
+    }
+  }
+}

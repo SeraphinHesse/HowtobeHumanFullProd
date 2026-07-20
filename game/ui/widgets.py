@@ -7,10 +7,31 @@ via ``renderer.submit_hud`` and measures strings with
 enforces this). Colors mirror the prototype's ``src/core/constants.py`` palette
 verbatim; hit-testing is plain rect math so it is fully headless-testable.
 """
-from engine.render import HudRect, HudText
-from engine.render.fonts import TextMetrics
+from engine.render import HudRect, HudSprite, HudText
+from engine.render.fonts import TextMetrics, layout_h
 
 _METRICS = TextMetrics()
+
+# R2 hit seam: host-injected per-pixel alpha test for skinned buttons
+_skin_hit_test = None
+
+
+def set_skin_hit_test(fn):
+    """Inject a per-pixel alpha hit-test function (A8, host wiring).
+    Signature: fn(slot_key, animation, anim_time_ms, dest_size, rel_xy) -> bool.
+    None (the default) means unskinned rects only."""
+    global _skin_hit_test
+    _skin_hit_test = fn
+
+
+def anim_ms(clock_s):
+    """A screen's float seconds accumulator -> the integer ms a skinned
+    HudSprite wants (10L-A). ONE conversion, so no screen re-derives it.
+    ``round``, not ``int``: repeated float dt accumulation lands a hair under
+    the exact millisecond (10 * 0.1 == 0.9999999999999999) and truncation
+    would silently eat a frame's worth of ms — the same class of drift
+    Sec 1.5 rules out for per-frame accumulation, just at the read instead."""
+    return round(clock_s * 1000)
 
 # -- palette (prototype constants.py, verbatim RGB) -------------------------
 C_GOLD = (255, 200, 50)
@@ -84,8 +105,18 @@ def contains(rect, mx, my):
     return x <= mx < x + w and y <= my < y + h
 
 
-def submit_panel(renderer, rect, *, fill=C_UI_PANEL, border=C_UI_BORDER):
-    """A filled, bordered panel body."""
+def submit_panel(renderer, rect, *, fill=C_UI_PANEL, border=C_UI_BORDER,
+                 skin=None, anim_ms=0):
+    """A filled, bordered panel body. With ``skin`` (a slot key, 10L-A) the
+    two flat rects are replaced by one nine-sliced HudSprite covering the same
+    rect; ``fill``/``border`` are then ignored. Panels carry no interaction
+    state, so they always animate the ``idle`` row. Panels are not click
+    targets — no hit-test wiring."""
+    if skin:
+        x, y, w, h = rect
+        renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
+                                      animation="idle", anim_time_ms=anim_ms))
+        return
     renderer.submit_hud(HudRect(rect, fill))
     renderer.submit_hud(HudRect(rect, border, width=1))
 
@@ -136,22 +167,55 @@ class Button:
     mouse position through ``hover(mx, my)`` and clicks through ``hit(mx, my)``.
     A ``flash`` timer (set by ``start_flash``) redraws it red — the
     not-enough-love feedback (prototype ``_draw_btn_red``).
+
+    10L-A: an optional ``skin`` (a slot key) swaps the two flat rects for one
+    animated, nine-sliced ``HudSprite`` — the centred label is drawn exactly
+    the same either way. With no skin the emitted primitives are byte-identical
+    to pre-10L (pinned by tools/tests/test_button_skin.py). ``hover`` takes the
+    host's held-left-button flag so the widget can report ``pressed``.
+
+    R2 (10L-A): skinned ``hover`` and ``click`` only over drawn pixels (alpha >
+    0), via a host-injected seam querying the idle row (`_surface_hit`). The
+    seam is unset by default (pure game code); host wires it once at startup
+    (`game/main.py`: `widgets.set_skin_hit_test(assets.hit_opaque)`). With no
+    seam or no skin, behaves as today (rect test).
     """
 
-    def __init__(self, rect, label, font_key="lg", enabled=True):
+    def __init__(self, rect, label, font_key="lg", enabled=True, skin=None):
         self.rect = rect
         self.label = label
         self.font_key = font_key
         self.enabled = enabled
+        self.skin = skin          # 10L-A: slot key, or None = flat rects
         self.hovered = False
+        self.mouse_down = False   # 10L-A: host's held-left-button flag
         self.flash = 0.0
         self.flash_label = None
 
-    def hover(self, mx, my):
-        self.hovered = self.enabled and contains(self.rect, mx, my)
+    def _surface_hit(self, mx, my):
+        """Rect hit-test; if skin + seam exists, delegate to the injected
+        alpha test. Canonical-silhouette query: ("idle", 0) only, so cursor
+        oscillates over silhouette holes. R2."""
+        x, y, w, h = self.rect
+        if not contains(self.rect, mx, my):
+            return False
+        if self.skin is None or _skin_hit_test is None:
+            return True
+        return _skin_hit_test(self.skin, "idle", 0, (w, h), (mx - x, my - y))
+
+    def hover(self, mx, my, mouse_down=False):
+        self.hovered = self.enabled and self._surface_hit(mx, my)
+        self.mouse_down = bool(mouse_down)
+
+    @property
+    def pressed(self):
+        """Held down over this button (10L-A). Never true when disabled —
+        ``hovered`` is already gated on ``enabled``."""
+        return self.hovered and self.mouse_down
 
     def hit(self, mx, my):
-        return self.enabled and contains(self.rect, mx, my)
+        """Check if this point is a hit (10L-A: via _surface_hit for R2 seam)."""
+        return self.enabled and self._surface_hit(mx, my)
 
     def start_flash(self, duration, label=None):
         self.flash = duration
@@ -163,7 +227,19 @@ class Button:
             if self.flash == 0:
                 self.flash_label = None
 
-    def submit(self, renderer, *, color=None, text_color=None):
+    def _state(self):
+        """Skin animation row. Same priority as the flat fill selection below,
+        so skinned and unskinned never disagree about the button's state
+        (plan lines 58-61: flash -> pressed art, disabled -> disabled row)."""
+        if self.flash > 0:
+            return "pressed"
+        if not self.enabled:
+            return "disabled"
+        if self.pressed:
+            return "pressed"
+        return "hover" if self.hovered else "idle"
+
+    def submit(self, renderer, *, color=None, text_color=None, anim_ms=0):
         x, y, w, h = self.rect
         if self.flash > 0:
             fill, tcol = C_RED, C_UI_TEXT
@@ -174,8 +250,17 @@ class Button:
             fill = color or (C_UI_BTN_HOVER if self.hovered else C_UI_BTN)
             tcol = text_color or C_UI_TEXT
             label = self.label
-        renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
-        renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, border_radius=3,
-                                    width=1))
-        ty = y + (h - text_h(self.font_key)) // 2
+        if self.skin:
+            # 10L-A: the sprite replaces both rects; ``color`` (a fill
+            # override) has nothing to fill and is ignored. Label unchanged.
+            renderer.submit_hud(HudSprite(self.skin, (x, y), (w, h),
+                                          animation=self._state(),
+                                          anim_time_ms=anim_ms))
+        else:
+            renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
+            renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER,
+                                        border_radius=3, width=1))
+        # layout_h, not text_h: this positions every Button label recorded in
+        # the parity/exporter streams (engine/render/fonts.py "layout_h").
+        ty = y + (h - layout_h(self.font_key)) // 2
         submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol)

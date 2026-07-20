@@ -40,7 +40,6 @@ from pathlib import Path
 
 from PySide6.QtWidgets import (
     QButtonGroup,
-    QComboBox,
     QDialog,
     QDialogButtonBox,
     QGroupBox,
@@ -54,6 +53,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import agent_forms, plans, run_controls
+from editor.panels.balancing import _NoWheelComboBox
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -230,7 +230,7 @@ class SpawnClaudeDialog(QDialog):
         layout.addWidget(self._active_plan_label)
 
         row = QHBoxLayout()
-        self._plan_combo = QComboBox()
+        self._plan_combo = _NoWheelComboBox()
         names = plans.list_plans(self._repo)
         self._plan_combo.addItems(names)
         if active and active in names:

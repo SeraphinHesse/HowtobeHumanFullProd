@@ -6,12 +6,29 @@ world is frozen behind it (``Session.frozen``), so nothing animates.
 
 Since 10J the backdrop is the prototype's real ``(0, 0, 0, 185)`` alpha dim —
 the frozen world stays visible behind the window (RGBA ``HudRect``).
-"""
-from engine.render import HudLines, HudRect, HudSprite
 
+10L-B: ``ids`` names only ``backdrop`` — the option boxes are a dynamic-count
+list (1-3, driven by the roll), the same "skip dynamic content" rule as every
+other screen's list-shaped body; ``rects`` therefore stays a plain list of
+tuples (test_levelup.py reads it directly). No per-widget id, but they DO
+inherit the screen's ``defaults.panel_skin`` (B3): the boss_cutscene
+``box_a``/``box_b`` CONDITIONAL-skin pattern, mirrored here — with no
+``panel_skin`` set the boxes keep drawing their two raw hover-tinted rects,
+byte-identical to pre-B2/B3 (the golden parity pin); a ``panel_skin`` present
+routes every box through the skinned ``submit_panel`` instead, which needs a
+real anim clock — this screen gains one here (10L-A explicitly left it
+clockless; that was true only until a skinned path existed).
+"""
+from types import SimpleNamespace
+
+from engine.render import HudLines, HudRect, HudSprite
+from engine.render.fonts import layout_h
+
+from .skinning import ScreenSkinning
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT,
-    C_UI_TEXT_DIM, HEART, contains, submit_centered, text_h, wrap_text,
+    C_UI_TEXT_DIM, HEART, anim_ms, contains, submit_centered, submit_panel,
+    wrap_text,
 )
 
 _BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
@@ -21,14 +38,21 @@ _BOX_HOVER = C_UI_BTN_HOVER
 _SPRITE_PX = 72
 _HEADING = "CHOOSE YOUR REWARD"
 
+SCREEN_ID = "levelup"
+
 
 class LevelupWindow:
-    def __init__(self, view_w, view_h):
+    def __init__(self, view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self.options = []
         self.rects = []
         self.hovered = -1
+        self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        self.ids = {}
+        self._clock = 0.0  # 10L-B: only the skinned box path uses this
 
     @property
     def visible(self):
@@ -50,14 +74,20 @@ class LevelupWindow:
         n = len(self.options)
         if not n:
             self.rects = []
-            return
-        total = n * _BOX_W + (n - 1) * _GAP
-        x0 = view_w // 2 - total // 2
-        y0 = view_h // 2 - _BOX_H // 2
-        self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
-                      for i in range(n)]
+        else:
+            total = n * _BOX_W + (n - 1) * _GAP
+            x0 = view_w // 2 - total // 2
+            y0 = view_h // 2 - _BOX_H // 2
+            self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
+                          for i in range(n)]
+        self._backdrop.rect = (0, 0, view_w, view_h)
+        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        self.skinning.apply(self.screen_id, self.ids)
 
-    def update(self, dt, mx, my):
+    def update(self, dt, mx, my, mouse_down=False):
+        # 10L-A: no widgets.Button here (plain option-box rects) — mouse_down
+        # is accepted only so main.py's uniform threading call keeps working.
+        self._clock += dt
         self.hovered = next(
             (i for i, r in enumerate(self.rects) if contains(r, mx, my)), -1)
 
@@ -73,29 +103,44 @@ class LevelupWindow:
 
     def submit(self, renderer, view_w, view_h):
         self.layout(view_w, view_h)
-        renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
+        t = anim_ms(self._clock)
+        self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         top = self.rects[0][1] if self.rects else view_h // 2
+        # layout_h: the heading position lands in the golden parity stream.
         submit_centered(renderer, _HEADING, view_w // 2,
-                        top - text_h("xxl") - 16, "xxl", C_GOLD)
+                        top - layout_h("xxl") - 16, "xxl", C_GOLD)
+        panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
-            self._submit_box(renderer, self.rects[i], option, i == self.hovered)
+            self._submit_box(renderer, self.rects[i], option, i == self.hovered,
+                             panel_skin, t)
 
-    def _submit_box(self, renderer, rect, option, hovered):
+    def _submit_box(self, renderer, rect, option, hovered, panel_skin=None,
+                    anim_ms_=0):
         x, y, w, h = rect
-        renderer.submit_hud(HudRect(rect, _BOX_HOVER if hovered else _BOX_BG))
-        renderer.submit_hud(
-            HudRect(rect, C_GOLD if hovered else C_UI_BORDER, width=1))
+        if panel_skin:
+            # 10L-B: a screen-level panel_skin default routes every option
+            # box through the already-live skinned submit_panel (the
+            # boss_cutscene box_a/box_b conditional-skin pattern, mirrored
+            # for dynamic-count content via `defaults` instead of an id).
+            submit_panel(renderer, rect, skin=panel_skin, anim_ms=anim_ms_)
+        else:
+            renderer.submit_hud(HudRect(rect, _BOX_HOVER if hovered else _BOX_BG))
+            renderer.submit_hud(
+                HudRect(rect, C_GOLD if hovered else C_UI_BORDER, width=1))
         cx = x + w // 2
         cursor = y + 10
 
+        # layout_h throughout _submit_box: every cursor position below lands
+        # directly in the golden parity stream's HudText.pos entries.
         prev_name = option.get("prev_name")
         if prev_name:
             submit_centered(renderer, prev_name, cx, cursor, "sm", C_UI_TEXT_DIM)
-            cursor += text_h("sm") + 2
+            cursor += layout_h("sm") + 2
             self._submit_up_arrow(renderer, cx, cursor)
             cursor += 10
         submit_centered(renderer, option["title"], cx, cursor, "md", C_UI_TEXT)
-        cursor += text_h("md") + 6
+        cursor += layout_h("md") + 6
 
         slot = option.get("sprite_key")
         if slot:
@@ -108,16 +153,16 @@ class LevelupWindow:
         if label:
             text = "FREE" if cost <= 0 else f"{label}  {HEART}{cost}"
             submit_centered(renderer, text, cx, cursor, "sm", C_GOLD)
-        cursor += text_h("sm") + 4
+        cursor += layout_h("sm") + 4
 
         for line in wrap_text(option["explanation"], "sm", w - 16, max_lines=4):
             submit_centered(renderer, line, cx, cursor, "sm", C_UI_TEXT_DIM)
-            cursor += text_h("sm") + 1
+            cursor += layout_h("sm") + 1
 
         if option["kind"] == "tier":
             submit_centered(
                 renderer, f"Tier {option['tier_no']} of {option['tier_max']}",
-                cx, y + h - text_h("sm") - 6, "sm", C_UI_TEXT_DIM)
+                cx, y + h - layout_h("sm") - 6, "sm", C_UI_TEXT_DIM)
 
     @staticmethod
     def _submit_up_arrow(renderer, cx, y):

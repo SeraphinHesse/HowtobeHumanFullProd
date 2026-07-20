@@ -18,6 +18,7 @@ classifier — a tier can only be ADVANCED into once it has been researched on a
 level-up, and it stays unnamed until its ``unlock_min_round``.
 """
 import random  # 10J: the name-dice reroll (stdlib — pure)
+from types import SimpleNamespace
 
 from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
@@ -31,12 +32,19 @@ from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
+from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_GREEN_STAT, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE,
     C_RANGE_HIGHLIGHT, C_RED, C_UI_BORDER, C_UI_PANEL, C_UI_TEXT,
-    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, contains, submit_panel,
+    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size,
 )
+
+# Both BuildingUI and its nested ConstructPreview share ONE screen id (they
+# are one editable "screen" — the panel and its modal preview) with disjoint
+# id namespaces ("preview_*" prefix keeps ConstructPreview's ids from
+# colliding with BuildingUI's own).
+SCREEN_ID = "building_panel"
 
 # -- 10H: lightning + cheat menu --
 _LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
@@ -108,7 +116,9 @@ class ConstructPreview:
     clicks/keys here while it is open."""
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
-                 view_w, view_h, count=1, tier_idx=0):
+                 view_w, view_h, count=1, tier_idx=0, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
         self.cost = cost          # per-building cost
         self.count = count        # 10J: batch size (shift multi-select)
@@ -145,6 +155,19 @@ class ConstructPreview:
             self.confirm_btn = Button((x + 16, btn_y, pw - 32, bh), "CONFIRM",
                                       "lg")
             self.cancel_btn = None
+        # 10L-B: geometry is fixed for this instance's whole lifetime (a
+        # fresh ConstructPreview is built each time the modal opens), so
+        # ids/apply run ONCE here rather than every layout() — there is no
+        # per-frame layout() to hook.
+        self._panel = SimpleNamespace(rect=self.rect, skin=None)
+        self.ids = {"preview_panel": ("panel", self._panel),
+                    "preview_close_btn": ("button", self.close_btn),
+                    "preview_confirm_btn": ("button", self.confirm_btn),
+                    "preview_dice_btn": ("button", self.dice_btn)}
+        if self.cancel_btn is not None:
+            self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        self.skinning.apply(self.screen_id, self.ids)
+        self.rect = self._panel.rect
 
     @property
     def total_cost(self):
@@ -154,12 +177,14 @@ class ConstructPreview:
     def chosen_name(self):
         return self.name.strip() or f"Unnamed {self.title}"
 
-    def hover(self, mx, my):
-        self.confirm_btn.hover(mx, my)
-        self.close_btn.hover(mx, my)
-        self.dice_btn.hover(mx, my)
+    def hover(self, mx, my, mouse_down=False):
+        for btn in (self.confirm_btn, self.close_btn, self.dice_btn):
+            btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
         if self.cancel_btn is not None:
-            self.cancel_btn.hover(mx, my)
+            self.cancel_btn.hover(mx, my, mouse_down)
+            self.cancel_btn.hovered = (self.cancel_btn.hovered
+                                       and is_visible(self.cancel_btn))
 
     def confirm_hovered(self):
         return self.confirm_btn.hovered
@@ -173,14 +198,17 @@ class ConstructPreview:
 
     def handle_click(self, mx, my):
         """Return an action string (``confirm`` / ``cancel`` / ``close`` /
-        ``name`` / None). The host treats the modal as consuming every click."""
-        if self.close_btn.hit(mx, my):
+        ``name`` / None). The host treats the modal as consuming every click.
+        An invisible button is never hit (10L-B)."""
+        if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             return "close"
-        if self.cancel_btn is not None and self.cancel_btn.hit(mx, my):
+        if (self.cancel_btn is not None and is_visible(self.cancel_btn)
+                and self.cancel_btn.hit(mx, my)):
             return "cancel"
-        if self.confirm_btn.hit(mx, my):
+        if is_visible(self.confirm_btn) and self.confirm_btn.hit(mx, my):
             return "confirm"
-        if self.dice_btn.hit(mx, my) and self._names:
+        if (is_visible(self.dice_btn) and self.dice_btn.hit(mx, my)
+                and self._names):
             # 10J name dice: always REPLACES the current text (prototype
             # building_ui.py:243-247).
             self.name = random.choice(self._names)
@@ -203,11 +231,14 @@ class ConstructPreview:
         elif char and char.isprintable() and len(self.name) < 20:
             self.name += char
 
-    def submit(self, renderer):
+    def submit(self, renderer, anim_ms=0):
         from engine.render import HudRect
 
         x, y, w, h = self.rect
-        submit_panel(renderer, self.rect, fill=C_UI_PANEL, border=C_UI_BORDER)
+        if is_visible(self._panel):
+            submit_panel(renderer, self.rect, fill=C_UI_PANEL,
+                        border=C_UI_BORDER, skin=self._panel.skin,
+                        anim_ms=anim_ms)
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 12), "lg", C_UI_TEXT,
                     align="center")
@@ -226,21 +257,30 @@ class ConstructPreview:
             shown = "click to name"
             tcol = C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
-        self.dice_btn.submit(renderer)
+        if is_visible(self.dice_btn):
+            self.dice_btn.submit(renderer, anim_ms=anim_ms,
+                                 **button_kwargs(self.dice_btn))
         sy = y + 138
         for label, value in self.stats:
             submit_text(renderer, label, (x + 16, sy), "sm", C_UI_TEXT_DIM)
             submit_text(renderer, str(value), (x + w - 16, sy), "sm", C_UI_TEXT,
                         align="right")
             sy += 20
-        self.confirm_btn.submit(renderer)
-        if self.cancel_btn is not None:
-            self.cancel_btn.submit(renderer)
-        self.close_btn.submit(renderer)
+        if is_visible(self.confirm_btn):
+            self.confirm_btn.submit(renderer, anim_ms=anim_ms,
+                                    **button_kwargs(self.confirm_btn))
+        if self.cancel_btn is not None and is_visible(self.cancel_btn):
+            self.cancel_btn.submit(renderer, anim_ms=anim_ms,
+                                   **button_kwargs(self.cancel_btn))
+        if is_visible(self.close_btn):
+            self.close_btn.submit(renderer, anim_ms=anim_ms,
+                                  **button_kwargs(self.close_btn))
 
 
 class BuildingUI:
-    def __init__(self, view_w, view_h, ui_balance):
+    def __init__(self, view_w, view_h, ui_balance, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
         self._ui_balance = ui_balance
@@ -259,6 +299,7 @@ class BuildingUI:
         self._highlight_tiles = []
         self._hover_cost = None
         self._action_cost = 0
+        self._clock = 0.0  # 10L-A: one anim clock per screen
         # -- 10J: shift multi-select batch (prototype game.py:189-191) --
         self.selected_tiles = []      # primary first; same category only
         # -- 10J: upgrade-panel rename row + dice; host callbacks --
@@ -300,6 +341,23 @@ class BuildingUI:
         self._cond_hover = False
         self._cond_tooltip = None       # (condition, color, rect, above)
         # -- /10I --
+        # -- 10L-B: mode-independent ids (submit() has no separate layout()) --
+        # ``rename_dice_btn``/``boss_close_btn`` close a Phase-3 id-coverage
+        # gap: both are created once here with a fixed lifetime rect (the
+        # dice/close pattern every other mode-independent id already uses),
+        # so they join the same one-time ids dict. ``lightning_btn`` cannot
+        # join it — it is (re)created fresh in ``_build_base_info`` — and
+        # gets its OWN standalone ``apply()`` call there instead.
+        self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
+        self.ids = {
+            "panel": ("panel", self._panel),
+            "close_btn": ("button", self.close_btn),
+            "action_btn": ("button", self.action_btn),
+            "boss_btn": ("button", self.boss_btn),
+            "rename_dice_btn": ("button", self._dice_up),
+            "boss_close_btn": ("button", self._boss_close_btn),
+        }
+        # -- /10L-B --
 
     # -- open / close -----------------------------------------------------
 
@@ -438,6 +496,10 @@ class BuildingUI:
         self.cards = []
         y = 64
         state = self._session.state
+        # B3: construct cards are dynamic-count (never id'd) and inherit the
+        # screen's defaults.button_skin instead — {} (no override) means None,
+        # the unskinned flat-rect card the golden parity pin already covers.
+        skin = self.skinning.defaults(self.screen_id).get("button_skin")
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
@@ -446,7 +508,7 @@ class BuildingUI:
             name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
-                         f"{name}  {HEART}{cost}", "md")
+                         f"{name}  {HEART}{cost}", "md", skin=skin)
             self.cards.append((btype, btn))
             y += 50
         self._highlight_tiles = [(t.col, t.row, C_HIGHLIGHT)
@@ -498,20 +560,32 @@ class BuildingUI:
     # -- 10H: lightning + cheat menu ---------------------------------------
 
     def _build_base_info(self, session):
-        """(Re)build the lightning unlock/upgrade button (prototype
-        ``building_ui.py:825-836``): ``UNLOCK LIGHTNING`` at L0, ``UPGRADE
-        LIGHTNING`` below max, absent at max level (a gold MAX LEVEL line
+        """(Re)build the lightning upgrade button (prototype
+        ``building_ui.py:825-836``, adapted for the Storm Priest wiring):
+        ``UPGRADE LIGHTNING`` from L1 up to below max, absent at L0 (a Storm
+        Priest placement is now the ONLY unlock — no love-buyable UNLOCK
+        button here any more) and absent at max level (a gold MAX LEVEL line
         replaces it in the submit)."""
         st = session.state
+        if st.lightning_level <= 0:
+            self.lightning_btn = None
+            self._action_cost = 0
+            return
         cost = lightning.next_cost(st, session.core_balance)
         if cost is None:
             self.lightning_btn = None
             self._action_cost = 0
             return
-        verb = "UNLOCK" if st.lightning_level <= 0 else "UPGRADE"
         self.lightning_btn = Button(
             (self.panel_x + 12, _LIGHTNING_BTN_Y, self.panel_w - 24, 36),
-            f"{verb} LIGHTNING  {HEART}{cost}", "md")
+            f"UPGRADE LIGHTNING  {HEART}{cost}", "md")
+        # B3 id-coverage: this button is REBUILT every call (level changes,
+        # cost changes), so it cannot join the one-time __init__ ids dict —
+        # apply its own override the moment it exists instead (apply()
+        # validates the whole screen's override on the FIRST call regardless
+        # of which ids subset triggers it, so this is not a partial check).
+        self.skinning.apply(self.screen_id,
+                            {"lightning_btn": ("button", self.lightning_btn)})
         self._action_cost = cost
 
     def _base_info_click(self, mx, my, session):
@@ -524,13 +598,15 @@ class BuildingUI:
         # -- 10G boss popup (checked first; prototype-faithful fall-through:
         # only the close button and clicks inside the popup rect consume) --
         if self._boss_popup_open:
-            if self._boss_close_btn.hit(mx, my):
+            if (is_visible(self._boss_close_btn)
+                    and self._boss_close_btn.hit(mx, my)):
                 self._boss_popup_open = False
                 return True
             if contains(self._boss_popup_rect, mx, my):
                 return True
         # -- 10H lightning button --
-        if self.lightning_btn is not None and self.lightning_btn.hit(mx, my):
+        if (self.lightning_btn is not None and is_visible(self.lightning_btn)
+                and self.lightning_btn.hit(mx, my)):
             st = session.state
             cost = lightning.next_cost(st, session.core_balance)
             if cost is not None and st.love < cost:
@@ -540,7 +616,7 @@ class BuildingUI:
                 self._build_base_info(session)  # next cost / MAX LEVEL
             return True
         # -- 10G BOSS CHOICES button --
-        if self.boss_btn.hit(mx, my):
+        if is_visible(self.boss_btn) and self.boss_btn.hit(mx, my):
             self._boss_popup_open = True
             return True
         return contains(self.panel_rect, mx, my)
@@ -566,7 +642,7 @@ class BuildingUI:
 
     # -- input ------------------------------------------------------------
 
-    def hover(self, mx, my):
+    def hover(self, mx, my, mouse_down=False):
         self._hover_cost = None
         # -- 10I: terrain badge hover (rect inflated 4px, prototype
         # building_ui.py:1121-1130); off while the modal preview is open --
@@ -576,41 +652,52 @@ class BuildingUI:
             and contains((r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8), mx, my))
         # -- /10I --
         if self.preview is not None:
-            self.preview.hover(mx, my)
+            self.preview.hover(mx, my, mouse_down)
             if self.preview.confirm_hovered():
                 self._hover_cost = self.preview.cost
             return
         if not self.visible:
             return
-        self.close_btn.hover(mx, my)
+        self.close_btn.hover(mx, my, mouse_down)
+        self.close_btn.hovered = self.close_btn.hovered and is_visible(self.close_btn)
         if self.mode == "construct":
             count = max(1, len(self.selected_tiles))  # 10J batch
             state = self._session.state
             for btype, btn in self.cards:
-                btn.hover(mx, my)
+                btn.hover(mx, my, mouse_down)
                 if btn.hovered:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
                     self._hover_cost = (
                         build_cost(btype, self._buildings_balance, tier_idx)
                         * count)
         elif self.mode in ("unlock", "upgrade"):
-            self.action_btn.hover(mx, my)
+            self.action_btn.hover(mx, my, mouse_down)
+            self.action_btn.hovered = (self.action_btn.hovered
+                                       and is_visible(self.action_btn))
             if self.action_btn.hovered:
                 self._hover_cost = self._action_cost
             if self.mode == "upgrade":
-                self._dice_up.hover(mx, my)  # 10J rename dice
+                self._dice_up.hover(mx, my, mouse_down)  # 10J rename dice
+                self._dice_up.hovered = (self._dice_up.hovered
+                                         and is_visible(self._dice_up))
         elif self.mode == "base_info":
             # -- 10H --
             if self.lightning_btn is not None:
-                self.lightning_btn.hover(mx, my)
+                self.lightning_btn.hover(mx, my, mouse_down)
+                self.lightning_btn.hovered = (self.lightning_btn.hovered
+                                              and is_visible(self.lightning_btn))
                 if self.lightning_btn.hovered:
                     self._hover_cost = self._action_cost
             # -- /10H --
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
-            self.boss_btn.hover(mx, my)
+            self.boss_btn.hover(mx, my, mouse_down)
+            self.boss_btn.hovered = self.boss_btn.hovered and is_visible(self.boss_btn)
             self._boss_hover_row = -1
             if self._boss_popup_open:
-                self._boss_close_btn.hover(mx, my)
+                self._boss_close_btn.hover(mx, my, mouse_down)
+                self._boss_close_btn.hovered = (
+                    self._boss_close_btn.hovered
+                    and is_visible(self._boss_close_btn))
                 px, py, pw, _ph = self._boss_popup_rect
                 if px + 14 <= mx < px + pw - 14 and my >= py + 48:
                     self._boss_hover_row = (my - (py + 48)) // 20
@@ -641,7 +728,7 @@ class BuildingUI:
                                        scene, occupancy)
         if not self.visible:
             return False
-        if self.close_btn.hit(mx, my):
+        if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
             self.close()
             return True
         if self.mode == "unlock":
@@ -657,7 +744,7 @@ class BuildingUI:
         return contains(self.panel_rect, mx, my)  # consume inside the panel
 
     def _unlock_click(self, mx, my, session):
-        if self.action_btn.hit(mx, my):
+        if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             tm, st = session.tilemap, session.state
             chunks = self._unlock_chunks(session)  # re-check live (10J batch)
             cost = sum(c for _, c in chunks)
@@ -689,7 +776,8 @@ class BuildingUI:
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
-                        self.view_w, self.view_h, count=count, tier_idx=tier_idx)
+                        self.view_w, self.view_h, count=count, tier_idx=tier_idx,
+                        skinning=self.skinning)
                 return True
         return contains(self.panel_rect, mx, my)
 
@@ -711,7 +799,7 @@ class BuildingUI:
         b, st = self._selected, session.state
         # -- 10J: rename row — dice fills the buffer, the box click-to-clears,
         # a click anywhere else while editing commits (defocus) --
-        if self._dice_up.hit(mx, my):
+        if is_visible(self._dice_up) and self._dice_up.hit(mx, my):
             names = _random_names(self._buildings_balance)
             if names:
                 self._name_buf = random.choice(names)
@@ -725,7 +813,7 @@ class BuildingUI:
         if self._name_editing:
             self._commit_rename()
         # -- /10J --
-        if self.action_btn.hit(mx, my):
+        if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
             if mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
@@ -791,6 +879,7 @@ class BuildingUI:
             st.spend_love(cost)
             st.buildings_placed += 1
             placed_any = True
+            lightning.unlock_from_placement(st, building)  # Storm Priest wiring
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight
@@ -806,6 +895,7 @@ class BuildingUI:
     # -- per-frame --------------------------------------------------------
 
     def update(self, dt):
+        self._clock += dt
         self.action_btn.update(dt)
         self.close_btn.update(dt)
         self._dice_up.update(dt)  # 10J rename dice
@@ -821,6 +911,7 @@ class BuildingUI:
             self.preview.update(dt)
 
     def submit(self, renderer, session):
+        t = anim_ms(self._clock)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
         if not self.visible:
@@ -830,25 +921,35 @@ class BuildingUI:
         self._cond_badge_rect = None
         self._cond_tooltip = None
         # -- /10I --
-        submit_panel(renderer, self.panel_rect)
-        self.close_btn.submit(renderer)
+        # -- 10L-B: no separate layout() step, so apply() runs here (once per
+        # visible frame, before the panel/buttons it may reposition/reskin) --
+        self._panel.rect = self.panel_rect
+        self.skinning.apply(self.screen_id, self.ids)
+        self.panel_rect = self._panel.rect
+        self.skinning.submit_background(renderer, self.screen_id,
+                                        self.view_w, self.view_h)
+        if is_visible(self._panel):
+            submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
+                        anim_ms=t)
+        if is_visible(self.close_btn):
+            self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
         if self.mode == "unlock":
-            self._submit_unlock(renderer, session)
+            self._submit_unlock(renderer, session, t)
         elif self.mode == "construct":
-            self._submit_construct(renderer)
+            self._submit_construct(renderer, t)
         elif self.mode == "upgrade":
-            self._submit_upgrade(renderer)
+            self._submit_upgrade(renderer, t)
         elif self.mode == "base_info":
-            self._submit_base_info(renderer, session)
+            self._submit_base_info(renderer, session, t)
         # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
         # (prototype building_ui.py:1121-1130) --
         if self._cond_hover and self._cond_tooltip is not None:
             self._submit_cond_tooltip(renderer, *self._cond_tooltip)
         # -- /10I --
         if self.preview is not None:
-            self.preview.submit(renderer)
+            self.preview.submit(renderer, anim_ms=t)
 
-    def _submit_unlock(self, renderer, session):
+    def _submit_unlock(self, renderer, session, anim_ms=0):
         x = self.panel_x + 14
         submit_text(renderer, "UNLOCK TILE", (x, 16), "lg", C_UI_TEXT)
         submit_text(renderer, "Unlocks a 2x2 area", (x, 70), "sm",
@@ -856,16 +957,18 @@ class BuildingUI:
         if not session.tilemap.can_unlock(self.tile):
             submit_text(renderer, "Must touch your territory", (x, 196), "sm",
                         C_UI_TEXT_DIM)
-        self.action_btn.submit(renderer)
+        if is_visible(self.action_btn):
+            self.action_btn.submit(renderer, anim_ms=anim_ms,
+                                   **button_kwargs(self.action_btn))
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 40, above=True)
         # -- /10I --
 
-    def _submit_construct(self, renderer):
+    def _submit_construct(self, renderer, anim_ms=0):
         submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", C_UI_TEXT)
         for _, btn in self.cards:
-            btn.submit(renderer)
+            btn.submit(renderer, anim_ms=anim_ms)
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
                                 self.view_h - 40, above=True)
@@ -911,7 +1014,7 @@ class BuildingUI:
         return temp.slot_key(), f"Next: {_tier_name(temp)}", \
             _building_stats(temp)[:3]
 
-    def _submit_upgrade(self, renderer):
+    def _submit_upgrade(self, renderer, anim_ms=0):
         from engine.render import HudRect, HudSprite
 
         x, b = self.panel_x + 14, self._selected
@@ -930,7 +1033,9 @@ class BuildingUI:
         else:
             shown, tcol = "click here to change name", C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 6, ny + 4), "sm", tcol)
-        self._dice_up.submit(renderer)
+        if is_visible(self._dice_up):
+            self._dice_up.submit(renderer, anim_ms=anim_ms,
+                                 **button_kwargs(self._dice_up))
         # -- /10J --
         submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 68),
                     "md", C_UI_TEXT_DIM)
@@ -994,7 +1099,9 @@ class BuildingUI:
                     submit_text(renderer, f"{label}  {value}", (x + 46, ry),
                                 "sm", C_UI_TEXT_DIM)
                     ry += 16
-        self.action_btn.submit(renderer)
+        if is_visible(self.action_btn):
+            self.action_btn.submit(renderer, anim_ms=anim_ms,
+                                   **button_kwargs(self.action_btn))
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
@@ -1071,7 +1178,7 @@ class BuildingUI:
 
     # -- /10I ---------------------------------------------------------------
 
-    def _submit_base_info(self, renderer, session):
+    def _submit_base_info(self, renderer, session, anim_ms=0):
         x, st = self.panel_x + 14, session.state
         income = scaled_base_income(st, session.core_balance)
         submit_text(renderer, "THE HOLE", (x, 16), "lg", C_UI_TEXT)
@@ -1100,7 +1207,7 @@ class BuildingUI:
                     _LIGHTNING_GOLD)
         y += 26
         if lvl <= 0:
-            submit_text(renderer, "LOCKED — upgrade at The Hole", (x, y), "sm",
+            submit_text(renderer, "LOCKED — place a Storm Priest", (x, y), "sm",
                         C_UI_TEXT_DIM)
         else:
             submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),
@@ -1114,8 +1221,9 @@ class BuildingUI:
                 submit_text(renderer, str(value), (self._right, y), "md",
                             C_UI_TEXT, align="right")
                 y += 24
-        if self.lightning_btn is not None:
-            self.lightning_btn.submit(renderer)
+        if self.lightning_btn is not None and is_visible(self.lightning_btn):
+            self.lightning_btn.submit(renderer, anim_ms=anim_ms,
+                                      **button_kwargs(self.lightning_btn))
         elif lvl >= ls["max_level"]:
             submit_text(renderer, "MAX LEVEL",
                         (self.panel_x + self.panel_w // 2,
@@ -1124,19 +1232,25 @@ class BuildingUI:
         # -- /10H --
         # -- 10G boss: BOSS CHOICES button + history popup (sits BELOW the
         # 10H lightning section per the batch coordination matrix) --
-        self.boss_btn.submit(renderer)
+        if is_visible(self.boss_btn):
+            self.boss_btn.submit(renderer, anim_ms=anim_ms,
+                                 **button_kwargs(self.boss_btn))
         if self._boss_popup_open:
-            self._submit_boss_popup(renderer, session)
+            self._submit_boss_popup(renderer, session, anim_ms)
         # -- /10G --
 
-    def _submit_boss_popup(self, renderer, session):
+    def _submit_boss_popup(self, renderer, session, anim_ms=0):
         """The small boss-history popup (prototype ``_BossHistoryPanel``): one
         row per ``(boss_num, option, outcome)``, the hovered row's bonus desc
         as a tooltip line, "None yet" when empty, a Close button (10G)."""
         from game.core.boss_bonuses import choice_desc
 
         px, py, pw, ph = self._boss_popup_rect
-        submit_panel(renderer, self._boss_popup_rect)
+        # B3: the popup body is dynamic-count content (choice history rows) —
+        # not id'd, styled from the screen's defaults.panel_skin instead.
+        panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
+        submit_panel(renderer, self._boss_popup_rect, skin=panel_skin,
+                    anim_ms=anim_ms)
         submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
                     C_UI_TEXT, align="center")
         choices = session.state.boss_choices
@@ -1159,4 +1273,6 @@ class BuildingUI:
             for line in hover_desc.split("\n"):
                 submit_text(renderer, line, (px + 14, ty), "sm", C_UI_TEXT_DIM)
                 ty += 16
-        self._boss_close_btn.submit(renderer)
+        if is_visible(self._boss_close_btn):
+            self._boss_close_btn.submit(renderer, anim_ms=anim_ms,
+                                        **button_kwargs(self._boss_close_btn))

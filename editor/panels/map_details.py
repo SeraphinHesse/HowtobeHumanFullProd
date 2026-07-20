@@ -20,12 +20,12 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from editor import tilemap_ops
+from editor.panels.balancing import _NoWheelSpinBox
 from engine import data_io, tilemap
 
 REPO = Path(__file__).resolve().parents[2]
@@ -48,7 +48,7 @@ class NewMapDialog(QDialog):
         self.cols_spin = self.rows_spin = None
         if dims:
             for label, attr in (("Columns", "cols_spin"), ("Rows", "rows_spin")):
-                spin = QSpinBox(self)
+                spin = _NoWheelSpinBox(self)
                 spin.setMinimum(schema["properties"]["cols"]["minimum"])
                 spin.setMaximum(schema["properties"]["cols"]["maximum"])
                 spin.setValue(128)

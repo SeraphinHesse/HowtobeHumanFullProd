@@ -38,6 +38,15 @@ def build_command(python_exe=None, repo=None):
     return [python_exe or sys.executable, str(repo / "tools" / "build.py")]
 
 
+def export_layouts_command(python_exe=None, repo=None):
+    """B4/B3 wiring: "Refresh Layouts" runs tools/export_ui_layouts.py —
+    headless, no SDL dummy needed (pure Python that imports game only for
+    layout construction, not rendering)."""
+    repo = Path(repo) if repo is not None else REPO
+    return [python_exe or sys.executable,
+           str(repo / "tools" / "export_ui_layouts.py")]
+
+
 def playbuild_path(repo=None):
     repo = Path(repo) if repo is not None else REPO
     return repo / "dist" / "HowToBeHuman" / "HowToBeHuman.exe"
@@ -112,6 +121,14 @@ class RunControls(QObject):
 
     def build(self):
         self._launch("build", build_command(repo=self._repo))
+
+    def export_layouts(self):
+        """"Refresh Layouts" (B4) — same tracked-QProcess infrastructure as
+        Build (one run at a time; a second call while one is in flight is
+        refused, not queued). Callers distinguish it from "build" by the
+        `which` string on the shared started/finished signals."""
+        self._launch("export_layouts",
+                     export_layouts_command(repo=self._repo))
 
     # -- internals -----------------------------------------------------------
 

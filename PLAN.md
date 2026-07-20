@@ -1,4 +1,4 @@
-<!-- active-plan: UI_EDITOR_PLAN.md | set: 2026-07-15 -->
+<!-- active-plan: UI_EDITOR_PLAN.md | set: 2026-07-19 -->
 > **Active plan:** UI_EDITOR_PLAN.md (mirror). Source of truth:
 > `planning/UI_EDITOR_PLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
@@ -7,13 +7,19 @@
 
 # UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
 
-Status: **UNFINISHED — run interrupted by user 2026-07-15.** The
-`/execute-plan-phases` run on umbrella `phase-10L-finish-umbrella` completed
-wave 2a only (A4, A7, A8, B1 — coded, reviewed, gated green, merged) before
-being wrapped up early into one PR. **A5′, B2, B3, B4 have reviewed briefs in
-`docs/briefs/` but NO code; A6/B5 exit gates not run.** Resume by dispatching
-wave 2b per the briefs (A5′ + B4 parallel, then B2, then B3 → B4i). Carry-over
-findings for the resume are listed under "Run state" below.
+Status: **WAVE 3 CODE COMPLETE — 2026-07-19, on branch
+`phase-10L-wave3-bake-ui-assets`.** PR #41 (waves 2a/2b) is **MERGED** into
+`Development` (commit 9710780 — the "open and awaiting the human gate" note
+below is historical). Wave 3 ("Bake + wire real UI assets", table below) closed
+the loop the earlier waves left open: the pipeline existed but **no UI art had
+ever been imported** — zero `ui_*` manifest entries, every ui slot a grey-X,
+all screen JSONs empty `{}`. Wave 3 bakes the procedural rendering into
+committed spritesheet PNGs, imports them, populates every screen JSON, and
+wires HUD icons — the game now renders its UI from assets. **The only open
+items remain the two HUMAN live Quick Tests (A6/B5)** — now best run on the
+wave-3 branch, where skins are actually assigned (no temporary hardcoded skin
+needed). Sequence to close the plan: run both Quick Tests → merge the wave-3
+PR → move this doc to `planning/completed plans/`.
 Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
 every UI screen from the editor); 10L-B depends on 10L-A. Three user
 requirements were folded in on 2026-07-15 (see "New requirements" below):
@@ -29,67 +35,113 @@ v1 — they exist in `game/ui` now).
 | A2 | Engine + data — nine-slice | **done** (2026-07-14) |
 | A3 | Data — `ui` category expansion | **done** (2026-07-14) |
 | A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
-| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **not started** (brief ready) |
-| A6 | Exit gate — live Quick Test + docs | **blocked** on A5′ |
+| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **done** (2026-07-15, wave-2b umbrella; reviewed clean) |
+| A6 | Exit gate — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
 | A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
-| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15, umbrella; review interrupted) |
+| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15; + wave-2b exactness fixes: degenerate-band miss, corner/edge/centre `_scale_index` inversion — reviewed ×2) |
 | B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
-| B2 | Game — ids + `skinning.py` + golden parity pin | **not started** (brief ready; cut AFTER A5′) |
-| B3 | Tools — layout exporter + committed `screen_defaults.json` | **not started** (brief ready; cut AFTER B2) |
-| B4 | Editor — screen mode (selector/session/viewport/details) | **not started** (brief ready; parallel-safe with A5′/B2) |
-| B5 | Exit gate (10L-B) — live Quick Test + docs | **blocked** on B1–B4 |
+| B2 | Game — ids + `skinning.py` + golden parity pin | **done** (2026-07-15, wave-2b umbrella; 2 review rounds, findings fixed) |
+| B3 | Tools — layout exporter + committed `screen_defaults.json` | **done** (2026-07-15, wave-2b umbrella; reviewed clean, determinism measured) |
+| B4 | Editor — screen mode (selector/session/viewport/details) | **done** (2026-07-15, wave-2b umbrella; review finding fixed; B4i vs real defaults verified) |
+| B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
+| W3-1 | Tools + data — `tools/bake_ui_sheets.py` bakes procedural UI into committed 4-state sheets (`ui_button`, `ui_panel`, `ui_panel_stone`, 3 icons) + manifest entries; `ui_bg_main_menu` shares `main_menu_bg.png` | **done** (2026-07-19, wave 3; idempotency measured) |
+| W3-2 | Data + game — all 13 screen JSONs populated (overlays.json NEW: `MapOverlays` is the 13th screen); `ScreenSkinning.defaults()` consumed by dynamic content; ids for `rename_dice_btn`/`lightning_btn`/`boss_close_btn`; levelup conditional-skin path; panel `visible` gating carry-over fixed | **done** (2026-07-19, wave 3; parity pin green) |
+| W3-3 | Game — HUD icons `icon_love`/`icon_xp`/`icon_lives` (panel-kind holders, code-default skins, editable ids); hud golden re-captured; defaults re-exported | **done** (2026-07-19, wave 3) |
+| W3-4 | Engine + game — `fonts.layout_h` pinned constant table; every layout/anchor use of live `text_h` converted (incl. `Button.submit` label centring, caught in audit); invariant test (`test_layout_h_invariant.py`) monkeypatches font heights +1 and pins streams/exports unchanged | **done** (2026-07-19, wave-3 fix; root cause of the PR #43 CI failure — SysFont metrics differ ±1px Windows vs Linux) |
+| W3-5 | Data + tools — per-type button slots (USER DECISION, reverses W3-1's single shared sheet): 8 Buttons leaves (`ui_button`, `_end_turn`, `_pause`, `_panel`, `_card`, `_cheat`, `_pill`, `ui_choice_box`), one PNG per slot, screens re-wired per type | **done** (2026-07-19, wave-3 fix) |
+| W3-6 | Editor — `reload_assets()` on screen-mode entry + after Refresh Layouts (stale AssetStore manifest snapshot was the user-visible "screens not wired" — grey-X in a running editor); 3 new integration tests incl. proven-red-without-fix regression | **done** (2026-07-19, wave-3 fix; live-verified with screenshots: game menu, in-round HUD, editor screen mode ×2) |
 
-### Run state (2026-07-15 wrap-up — read before resuming)
+### Wave 3 — Bake + wire real UI assets (2026-07-19)
 
-- Landed on the umbrella (each branch full-suite green before merge, ZERO
-  failures — 1229–1243 tests depending on branch): A4 `phase-A4-slice-editor-impl`
-  0ff8bcd, A7 `phase-A7-variant-frame-size` 4bc19b5, A8 `phase-A8-hit-mask`
-  59941ab, B1 `phase-B1-screen-formats` abc244a (+ review-fix commit).
-- **Carry-over (Medium, from A4's review)**: `_on_frame_size_changed` in
-  `editor/panels/details.py` doesn't re-range/re-clamp the slice spinboxes when
-  a per-slot frame-size override SHRINKS — a stale over-sized `slice` can be
-  re-saved to the manifest (render clamps at draw time, so no crash). Fix +
-  test when A4 is next touched.
-- **Tooling bug (measured twice)**: `py tools/testgate.py check --affected`
-  vacuously passes ("0 ran") for phases whose tests are all non-`core` tier —
-  `affected_modules()` always ANDs `-m core` onto the selected files. Run the
-  explicit pytest on your test modules until fixed.
-- **Carry-over (High, UNCONFIRMED — from A8's interrupted review)**: in
-  `engine/assets/nine_slice.py` + `store.hit_opaque`, when clamped slice
-  margins sum EXACTLY to a source dimension but the dest still has a centre
-  band, `dest_to_source` maps into a band `_nine_patch` never paints —
-  `hit_opaque` may return True over on-screen transparency. Traced in code,
-  no live reproducer run. Confirm + fix (return False for the vanished band,
-  or paint it) before A5' wires the seam.
-- **Contract rulings already baked into the briefs**: screen `ids` map is
-  `{name: (kind, widget)}`; `kind` enum = `button|panel|label|backdrop|bar|field`;
-  defaults doc is FLAT (`{<screen_id>: {widgets, mock_note}}`) validating
-  against `data/schemas/screen_defaults.schema.json` (stem-pairs with
-  `data/ui/screen_defaults.json`).
-- **Stale worktrees with uncommitted pre-run drafts** (NOT this run's work;
-  superseded — user to discard or salvage): `.claude/worktrees/agent-aaae066e177974fe9`
-  (branch `phase-A4-slice-editor` @ 8ec6de4, +23 lines details.py draft) and
-  `.claude/worktrees/agent-a49ee230114fc0dbc` (branch `phase-A5-skinned-button`
-  @ 8ec6de4, +41/-5 widgets.py draft). Wave 2b should use fresh branch names
-  (e.g. `phase-A5p-skinned-button`).
+User request: every UI asset in the editor and editable, every screen wired to
+the real game screen, a button asset per button type, and all procedural
+rendering baked once to spritesheet PNGs imported into `data/`. Findings and
+decisions of record:
+- **Exactly ONE button style exists game-wide** (every `Button.submit` call
+  site uses the default fill logic; `overlays.py`'s active pill passes the
+  default colour and draws a separate gold rim) — so "per button type" resolved
+  to the single `ui_button` sheet, and NO `ui_button_v2+` variant slots were
+  needed. Two panel styles (`ui_panel`, `ui_panel_stone`) were confirmed.
+- Sheets are pixel-faithful bakes of `widgets.py`'s colours (no fonts — labels
+  stay live), 4 rows idle/hover/pressed/disabled, slice `[4,4,4,4]` on
+  buttons/panels, icons plain. Re-runnable via `py tools/bake_ui_sheets.py`
+  (byte-idempotent, sha-measured).
+- **`overlays` became the 13th screen** via the sanctioned drop-in-a-file path
+  (B1) — `data/ui/screens/overlays.json`, ids `btn_range`/`btn_heatmap`,
+  exporter entry.
+- HUD icons ship with **code-default skins** (unlike every other holder whose
+  skin defaults to `None`) — the icons ARE the HUD now; JSON can move/hide/
+  reskin them. The hud golden parity baseline was re-captured for this (the
+  one legitimate stream change; all other screens byte-identical).
+- The old A6 note about a "temporary hardcoded skin" for the live Quick Test is
+  obsolete — skins are now permanently assigned via the screen JSONs.
+
+### Run state (2026-07-15, wave 2b complete — carry-overs consolidated)
+
+- **Post-run verification (2026-07-15, this update)**: all wave-2b deliverables
+  confirmed present on disk at HEAD — 12 `data/ui/screens/*.json` +
+  `data/ui/screen_defaults.json`, `game/ui/skinning.py`,
+  `engine/assets/nine_slice.py`, `editor/ui_screen_session.py`,
+  `editor/panels/screen_details.py`, `tools/export_ui_layouts.py`. NOTE: the
+  working-tree copy of THIS doc was found silently reverted to the wave-2a
+  ("UNFINISHED") version — OneDrive sync suspected — and was restored from git.
+  If a plan doc ever contradicts git history + the files on disk, trust git.
+- **Landed on `phase-10L-wave2b-umbrella`** (targeted gate after every merge;
+  full suite green at the end — 1323 ran, 0 failures, 0 unexpected skips):
+  A8-fix `phase-A8fix-degenerate-band` (3 commits: degenerate-band miss
+  6d894d1, resampled-corner `_scale_index` 64730f7, centre-band exactness
+  577d6fe — the wave-2a High carry-over CONFIRMED and fixed, plus two further
+  same-class bugs found and fixed in review; `dest_to_source` now inverts
+  `pygame.transform.scale` bit-exactly for every band), A5′
+  `phase-A5p-skinned-button` 37a75b7, B4 `phase-B4-screen-mode` (dbe1c71 +
+  per-field-reset fix 8a7b34a), B2 `phase-B2-ids-skinning` (parity baseline
+  4aabb3d, implementation ff3e8e2, review fixes e8e0473 — titles/HUD-readout
+  ids + button color/text_color/visible forwarding), B3
+  `phase-B3-layout-exporter` 11487d4 (72 widgets / 12 screens, byte-
+  deterministic, sha-measured).
+- **RESOLVED (was Medium, from B3)**: the five inline-positioned label ids
+  (`hud.phase_label`, `cheat_menu.title`, `cheat_menu.jump_label`,
+  `boss_cutscene.headline`, `boss_cutscene.subtitle`) now carry stored
+  `(x, y, 0, 0)` anchor rects, override-respecting, with the anchor-rect
+  convention documented in `game/ui/CLAUDE.md` — B2fix `8041de4` merged +
+  defaults re-exported. The agent was stopped mid-fix and later resumed to
+  completion; if that resume was unintended, revert the B2fix merge commit
+  and the defaults-refresh commit together.
+- **Carry-over (Low, NEW from B4i)**: `game_log`'s single `log` widget is a
+  0×0 anchor rect with an empty label — the editor viewport draws nothing for
+  it (invisible/unclickable on canvas); it is editable only via the details
+  panel's widget list. A small anchor-marker glyph in screen mode would fix it.
+- **Carry-over (Low, from B2's verify round)**: panel-kind holders never read
+  their own `visible` override (`is_visible` gating was scoped to buttons);
+  `building_ui`'s un-id'd mode-dependent buttons (construct cards, rename dice,
+  lightning, boss-popup close) have no override path — both documented in
+  `game/ui/CLAUDE.md`.
+- **Carry-over (Medium, from wave 2a, UNCHANGED)**: A4's
+  `_on_frame_size_changed` in `editor/panels/details.py` doesn't re-clamp the
+  slice spinboxes when a frame-size override SHRINKS. Fix + test when A4 is
+  next touched.
+- **Tooling bug (root-caused this run)**: `py tools/testgate.py check
+  --affected` vacuously passes ("0 ran") when the affected test modules are
+  all non-`core` tier — `tools/testgate.py:222-238` ANDs `-m core` onto the
+  file selection. Run the explicit pytest on your test modules until fixed.
+- **Test-infra gap (from B2)**: `tools/tests/fixtures/data/` snapshot is stale
+  since B1 — missing `data/ui/` and both B1 schemas. Any future fixture-based
+  UI test needs a refresh (`py tools/tests/fixture_data.py --refresh` or
+  equivalent); B2/B3 worked around it (live-schema tempdir copies + the
+  fixture-guard ALLOWED entry).
+- **Stale worktrees with uncommitted drafts** (user to discard or salvage):
+  the two pre-run drafts from wave 2a (`agent-aaae066e177974fe9` A4 draft,
+  `agent-a49ee230114fc0dbc` old-A5 draft). This run's agent worktrees are all
+  committed and merged — safe to clean with `/worktreecleanup`.
 
 A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
 Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
 file-scope reconciliation in `docs/briefs/phase-A1-A5-coordination.md` — A4 and
 A5 have briefs written and reviewed, so they can be picked up directly.
 
-**A4/A5 are independent of each other** and both depend only on A1–A3, which
-have landed. Neither has any code yet. Two carry-over notes for whoever takes
-them:
-
-- **A4**: the backend floors a negative slice margin to 0 rather than raising
-  (E-37 "rendering degrades, never explodes"), so a bad draft from the slice
-  spinboxes cannot crash the render loop. Give the spinboxes `minimum = 0`
-  anyway — the engine guard is a safety net, not the UI contract. All-zero
-  margins must omit the `slice` key entirely.
-- **A5**: `HudSprite`'s `animation` / `anim_time_ms` are appended **after
-  `flip`** (the three shipping call sites pass three positional args), so pass
-  them by keyword.
+(Historical note: the A4/A5 coordination guidance that used to sit here was
+consumed by the wave-2a and wave-2b runs — both phases are done; their briefs
+in `docs/briefs/` remain the record of the binding contracts.)
 
 ### Known follow-up surfaced during A3 — now phase A7
 
