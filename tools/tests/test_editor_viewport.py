@@ -1024,7 +1024,8 @@ class TestScreenDetailsPanelViews(TempDataCase):
         return panel, session
 
     def widget_ids(self, panel):
-        return {panel.widget_list.item(i).text()
+        # Code ids live on UserRole; item TEXT is the UH-4 display name.
+        return {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole)
                for i in range(panel.widget_list.count())}
 
     def test_widget_list_follows_the_active_view(self):
