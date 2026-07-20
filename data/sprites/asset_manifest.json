@@ -3712,16 +3712,22 @@
       ]
     },
     "ui_button_panel": {
-      "frame_h": 64,
-      "frame_w": 64,
+      "frame_h": 23,
+      "frame_w": 70,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3729,8 +3735,12 @@
         {
           "animation": "hover",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3738,16 +3748,7 @@
         {
           "animation": "pressed",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -3761,6 +3762,52 @@
         4,
         4
       ]
+    },
+    "ui_button_panel_v2": {
+      "frame_h": 23,
+      "frame_w": 70,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 6,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hover",
+          "fps": 8,
+          "frames": 6,
+          "hidden": [
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "pressed",
+          "fps": 8,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/ui_button_panel.png"
     },
     "ui_button_pause": {
       "frame_h": 64,

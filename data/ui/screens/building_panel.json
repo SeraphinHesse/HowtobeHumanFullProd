@@ -8,7 +8,19 @@
       "skin": "ui_button_panel"
     },
     "boss_btn": {
-      "skin": "ui_button_panel"
+      "font": "lg",
+      "rect": [
+        1120,
+        420,
+        70,
+        23
+      ],
+      "skin": "ui_button",
+      "text_color": [
+        255,
+        0,
+        213
+      ]
     },
     "boss_close_btn": {
       "skin": "ui_button_panel"
@@ -17,7 +29,12 @@
       "skin": "ui_button_panel"
     },
     "lightning_btn": {
-      "skin": "ui_button_panel"
+      "skin": "ui_button_panel",
+      "text_color": [
+        255,
+        0,
+        221
+      ]
     },
     "panel": {
       "skin": "ui_panel"
@@ -33,6 +50,14 @@
     },
     "preview_dice_btn": {
       "skin": "ui_button_panel"
+    },
+    "preview_panel": {
+      "rect": [
+        468,
+        210,
+        340,
+        300
+      ]
     },
     "rename_dice_btn": {
       "skin": "ui_button_panel"

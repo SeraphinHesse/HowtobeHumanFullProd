@@ -1,5 +1,14 @@
 {
   "widgets": {
+    "backdrop": {
+      "rect": [
+        0,
+        0,
+        1280,
+        720
+      ],
+      "skin": "ui_bg_main_menu"
+    },
     "btn_add_name": {
       "skin": "ui_button"
     },
