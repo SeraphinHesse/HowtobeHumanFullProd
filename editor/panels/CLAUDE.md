@@ -606,6 +606,67 @@ import list.**
   `MainWindow(...)` construction passes `auto_refresh_layouts=False` except
   the dedicated auto-refresh tests (which stub `run_controls.export_layouts`
   with a recorder — never a real subprocess in tests).
+## Theme panel (`panels/game_theme.py`, `theme_ops.py`; UH-6, D5/D6)
+- **Selection**: a single "Theme" LEAF (not a branch — one document pair,
+  nothing to enumerate) is the SECOND child of the "ui" category node,
+  right after "Screens" (which stays FIRST, the B4 invariant above) —
+  `panels/selector.py`'s `_THEME_ROLE` marker + `theme_selected()` signal,
+  never `node_selected` (the same never-node_selected rule as Maps/Screens
+  leaves). `MainWindow._on_theme_selected` → `right_stack` →
+  `GameThemePanel`.
+- **`GameThemePanel`** edits `data/ui/fonts.json` (per-key size spinbox,
+  schema-bounded 4-72, + bold checkbox) and `data/ui/palette.json` (per-key
+  color swatch → `QColorDialog`) in ONE form, two `CollapsibleSection`s.
+  Edits are STAGED (the `balancing.py` pattern, not the screen-session undo
+  pattern): every change updates an in-memory doc + a dirty dot; ONE "Save
+  Theme Changes" button (enabled only while dirty) is the sole
+  `write_validated` call site for both files, saving only whichever doc
+  actually changed. `data_dir=None` injection, `_NoWheelSpinBox` imported
+  from `editor.panels.balancing` (never copied). Missing/invalid data
+  degrades to a placeholder message (editor-side E-37 grace — the panel
+  must not crash `MainWindow` construction; the GAME's own boot load fails
+  loud instead, D-2).
+- **`editor/theme_ops.py`** (Qt-free, pygame-free, in `TestPurity`) — load/
+  write helpers for both files plus `font_keys(data_dir)`, which
+  `screen_details.py`'s font combos now source from (replacing the old
+  hardcoded `_FONT_KEYS` tuple) with a literal 7-tuple fallback if the file
+  is unreadable.
+- **Save reconfigures the engine in-process**: `GameThemePanel.saved` →
+  `MainWindow._on_theme_saved` → reloads `data/ui/fonts.json` and calls
+  `engine.render.fonts.configure_fonts` + repaints the viewport
+  (`render_frame()`), so screen-mode preview TEXT tracks the new sizes
+  without an editor restart. `editor/theme.py` (Qt chrome light/dark) is
+  untouched by any of this — a completely different "theme". Palette edits
+  have no separate editor-side consumer to reconfigure (`game/ui/widgets`
+  is game-only, off limits to the editor); the game re-reads
+  `palette.json` at its own next boot.
+- **Honest Tint control (ties to UH-3, D6)**: UH-3 disables the
+  `screen_details.py` Color picker on a skinned widget with a "colors come
+  from the sprite sheet" tooltip (D3 — the control cannot take effect, so
+  it must not silently accept input). UH-6 REPURPOSES that exact state
+  instead of leaving it disabled: `tint` DOES reach the game
+  (`widgets.Button.submit`/`submit_panel` thread it into the `HudSprite`),
+  so on a widget that resolves to a skin (`_screen_rules.resolved_skin` —
+  imported, never duplicated) the SAME control is ENABLED, relabelled
+  "Tint" (both the `QFormLayout` row label and the button text), writes/
+  resets the `tint` key (`push_field`/`_on_reset_field("tint")`), tooltip
+  "multiplies the sprite sheet — white = unchanged". An UNSKINNED widget
+  keeps the plain Color behavior verbatim (writes `color`). `self.
+  _color_is_tint` (set by `_refresh_honest_controls`, which now runs
+  BEFORE `_refresh_reset_buttons` in `_populate_widget_form` — the one
+  genuine UH-3/UH-6 coupling point) is the single source of truth
+  `_active_color_key()` reads, so the button handler and the reset button
+  can never disagree about which doc key is live. **Note (post-merge):**
+  UH-3's honest-controls rule landed a further refinement after UH-6 branched
+  — an UNSKINNED widget whose fill the game hardcodes (`panel`/`field`/`label`,
+  `_screen_rules.color_is_code_owned`) has Color DISABLED with the code-owned
+  tooltip, not plain Color. So the merged rule is: skinned → Tint (enabled);
+  unskinned + code-owned fill → Color disabled; otherwise → plain Color.
+- **Viewport honesty fix (`panels/viewport.py:933`)**: screen mode now
+  tints a skinned widget's preview from its `tint` key, never `color` — the
+  pre-UH-6 editor lie (the game has always ignored `color` on a skinned
+  widget; `game/ui/skinning.py`'s `button_kwargs` docstring). What the
+  editor shows is what the game draws (ED-22's promise, extended to color).
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

@@ -948,7 +948,11 @@ class ViewportPanel(QWidget):
         font_key = override.get("font", style.get("font", "md"))
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
-            tint = tuple(override["color"]) if "color" in override else None
+            # D6/UH-6: tint from the widget's own `tint` key — `color` on a
+            # skinned widget is INERT in the game (skinning.py's
+            # button_kwargs docstring), so tinting from it here was an
+            # editor lie (the editor showed a color the game ignored).
+            tint = tuple(override["tint"]) if "tint" in override else None
             self._renderer.submit_hud(HudSprite(
                 skin, (dest[0], dest[1]), (dest[2], dest[3]), tint,
                 animation=self._screen_state,

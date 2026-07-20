@@ -184,6 +184,23 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   `game.main`) never hit "font module quit since font created" (added 9F).
   Pure-metadata code that needs string widths asks `TextMetrics` so it never
   imports pygame itself.
+  - **`configure_fonts(doc)` (UH-6, D5)** — the ONE way `_FONT_SPECS` changes
+    after import: takes a LOADED `data/ui/fonts.json` dict (`{key: {size,
+    bold}}`, same 7 keys), rebinds `_FONT_SPECS` in place and clears `_cache`
+    so stale `SysFont`s are rebuilt. The module stays data-dir-free (no
+    `data_io` call inside it) — the HOST (`game/main.py`, `editor/main.py`)
+    loads + schema-validates the file and passes the plain dict, mirroring how
+    `engine.tilemap` consumes docs. Fails loud on a key-set mismatch. The
+    `_FONT_SPECS` literals are the UNCONFIGURED FALLBACK for bare test/tool
+    construction; a pin test (`tools/tests/test_theme_data.py`) proves they
+    equal the committed `fonts.json`, so the fallback can never silently
+    drift from the data it mirrors.
+  - **`_LAYOUT_H`/`layout_h` are NEVER touched by `configure_fonts`** — the
+    pinned cross-platform layout invariant (below) stays authoritative
+    regardless of a designer's font-size edits; only DRAWN glyphs move, never
+    stored layout rects. `tools/tests/test_theme_data.py`'s
+    `TestLayoutHAuthority` proves a `configure_fonts` call that changes every
+    size does not move the exporter's `screen_defaults.json` output one bit.
 
 ## Ground layer cache (`render/ground_cache.py`, perf) — the panning fix
 Windowed culling bounds the ground submit to O(visible), but that is still ~2.6k

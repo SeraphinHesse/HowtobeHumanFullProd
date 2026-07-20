@@ -16,13 +16,14 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QPalette
+from PySide6.QtGui import QColor, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -397,6 +398,23 @@ class TestSelectorTree(TempDataCase):
         panel.refresh_markers()
         painter = panel._find_item("buildings", ("Painter",))
         self.assertTrue(painter.text(0).startswith("● "))
+
+    def test_theme_leaf_is_second_child_and_emits_theme_selected(self):
+        """UH-6: "Theme" is a leaf under "ui", right after "Screens" (which
+        stays FIRST — the panels-doc invariant), never node_selected."""
+        panel = self.make()
+        ui_root = panel._find_item("ui", ())
+        self.assertEqual(ui_root.child(0).text(0), "Screens")
+        self.assertEqual(ui_root.child(1).text(0), "Theme")
+
+        themes, nodes, domains_seen = [], [], []
+        panel.theme_selected.connect(lambda: themes.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_theme()
+        self.assertEqual(themes, [True])
+        self.assertEqual(nodes, [])            # never node_selected
+        self.assertIn("ui", domains_seen)      # same "ui" domain as Screens
 
 
 class TestBalancingPanel(TempDataCase):
@@ -1058,6 +1076,69 @@ class TestMainWindowWiring(TempDataCase):
         self.assertEqual(window.viewport.preview_animations(), ())
         painter_item = window.selector._find_item("buildings", ("Painter",))
         self.assertFalse(painter_item.text(0).startswith("● "))
+
+
+class TestGameThemePanel(TempDataCase):
+    """UH-6 (D5): the Theme leaf's panel — GameThemePanel. Named to avoid
+    colliding with TestThemeSwitch below (editor/theme.py, the Qt chrome
+    light/dark switch — a completely different "theme"). Staged edits (the
+    balancing.py pattern): every change updates an in-memory doc + a dirty
+    dot; ONE Save button is the sole write_validated call site."""
+
+    def make(self):
+        from editor.panels.game_theme import GameThemePanel
+        return self.track(GameThemePanel(data_dir=self.data_dir))
+
+    def test_font_combo_lists_the_temp_trees_fonts_json_keys(self):
+        from editor import theme_ops
+        panel = self.make()
+        self.assertEqual(
+            set(panel._font_widgets), set(theme_ops.font_keys(self.data_dir)))
+
+    def test_edit_gold_save_round_trips_through_write_validated(self):
+        from editor import theme_ops
+        panel = self.make()
+        # isHidden() (not isVisible(), the balancing.py dot test's own
+        # convention) — these widgets are never shown in a top-level
+        # window, so isVisible() is always False regardless of setVisible.
+        self.assertTrue(panel._palette_dots["gold"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+
+        with mock.patch(
+                "editor.panels.game_theme.QColorDialog.getColor",
+                return_value=QColor(1, 2, 3)):
+            panel._on_palette_clicked("gold")
+
+        self.assertFalse(panel._palette_dots["gold"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        self.assertEqual(panel._palette_doc["gold"], [1, 2, 3])
+        # staged only — nothing written yet
+        self.assertEqual(theme_ops.load_palette(self.data_dir)["gold"], [255, 200, 50])
+
+        saved = []
+        panel.saved.connect(lambda: saved.append(True))
+        panel._on_save()
+
+        self.assertEqual(saved, [True])
+        self.assertTrue(panel._palette_dots["gold"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        on_disk = theme_ops.load_palette(self.data_dir)
+        self.assertEqual(on_disk["gold"], [1, 2, 3])
+        path = theme_ops.palette_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(on_disk))
+
+    def test_font_size_edit_stages_and_saves(self):
+        from editor import theme_ops
+        panel = self.make()
+        size_spin, _bold_check = panel._font_widgets["lg"]
+        size_spin.setValue(size_spin.value() + 1)
+        self.assertFalse(panel._font_dots["lg"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        panel._on_save()
+        self.assertEqual(
+            theme_ops.load_fonts(self.data_dir)["lg"]["size"], size_spin.value())
+        self.assertTrue(panel._font_dots["lg"].isHidden())
 
 
 class TestThemeSwitch(TempDataCase):

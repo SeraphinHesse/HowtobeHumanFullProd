@@ -48,7 +48,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import agent_forms, keybinds, registry_ops, selection, theme
+from editor import agent_forms, keybinds, registry_ops, selection, theme, theme_ops
 from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
@@ -58,6 +58,7 @@ from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
+from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
 from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
@@ -65,6 +66,7 @@ from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
 from engine import data_io
+from engine.render.fonts import configure_fonts
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
@@ -104,7 +106,16 @@ class MainWindow(QMainWindow):
         self.map_session = MapSession(data_dir=data_dir, parent=self)
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
+        self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
+        # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
+        # boot, same as game/main.py, so screen-mode preview text metrics
+        # match the game. Graceful {} degrade (E-37) — the editor must open
+        # on a broken tree; the game's own boot load fails loud instead.
+        try:
+            configure_fonts(theme_ops.load_fonts(self._data_dir))
+        except Exception:
+            pass
         self._node = None   # (category_key, group_path) of the tree selection
         # dirty policy when opening a DIFFERENT map/screen over unsaved edits:
         # "ask" (QMessageBox Save/Discard/Cancel) | "save" | "discard"
@@ -165,6 +176,13 @@ class MainWindow(QMainWindow):
         self.screen_details.set_session(self.screen_session)
         self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
         self.viewport.widget_selected.connect(self.screen_details.select_widget)
+
+        # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
+        # reconfigure engine.render.fonts in-process + repaint the viewport
+        # so previews track the new theme without a restart (chrome theme,
+        # editor/theme.py, is untouched by any of this).
+        self.selector.theme_selected.connect(self._on_theme_selected)
+        self.game_theme.saved.connect(self._on_theme_saved)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -292,6 +310,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.details)         # index 0: asset import
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
+        self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -906,6 +925,29 @@ class MainWindow(QMainWindow):
 
     def _on_settings(self):
         self._build_settings_dialog().exec()
+
+    # -- Theme panel (UH-6, D5) -----------------------------------------------
+
+    def _on_theme_selected(self):
+        """The selector's Theme leaf: reload both docs fresh (a designer may
+        have hand-edited nothing, but this mirrors every other selection-
+        driven panel's "reload on entry" convention) and show the panel."""
+        self.game_theme.set_theme()
+        self.right_stack.setCurrentWidget(self.game_theme)
+
+    def _on_theme_saved(self):
+        """Theme panel Save: reconfigure engine.render.fonts in-process so
+        screen-mode preview TEXT tracks the new sizes immediately, then
+        repaint — chrome theme (editor/theme.py) is untouched by any of
+        this. Palette edits have no separate editor-side consumer to
+        reconfigure (game/ui.widgets is game-only — off limits to the
+        editor, ED layering rule); the game re-reads palette.json at its
+        own next boot. Graceful degrade mirrors the boot-time load above."""
+        try:
+            configure_fonts(theme_ops.load_fonts(self._data_dir))
+        except Exception:
+            pass
+        self.viewport.render_frame()
 
     # -- frame drive ---------------------------------------------------------
 
