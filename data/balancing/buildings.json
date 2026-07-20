@@ -488,7 +488,7 @@
       "starts_unlocked": true,
       "tiers": [
         {
-          "base_hp": 100,
+          "base_hp": 110,
           "base_yield": 5,
           "build_cost": 10,
           "explanation": "Plays music for love.",
