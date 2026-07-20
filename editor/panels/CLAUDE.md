@@ -287,6 +287,42 @@ import list.**
   clock is wall-clock and resets on slot/animation/draft change. No asset → grey X
   (E-37). New modules go in `test_editor_viewport.TestPurity`'s import list
   (`details`, `level_bar`, `selection` are in). Measured ~57 fps.
+- **Anchor handles (ESV-2)**: hangs off the entity preview, not a new mode —
+  handles are visible exactly when `preview_slot` is set and absent by
+  construction in map/screen mode (those branches never call the submitter).
+  Three pieces: **`editor/anchor_ops.py`** (pure — `screen_point`/`frame_px`
+  frame-px↔screen-delta conversions plus `set_anchor`/`clear_anchor`,
+  `write_validated` through `asset_import.load_manifest_doc`/
+  `write_manifest_doc`, modelled on `registry_ops.py`, `TestPurity`);
+  **`editor/panels/anchors_panel.py`** (`AnchorsPanel`, Qt — one row per
+  `engine.assets.manifest.ANCHOR_NAMES` name, NEVER a literal name list, so a
+  seventh declared name needs zero editor edits; owns the SOLE authoritative
+  `{name: (x, y)}` mapping, seeded fresh from disk on every `set_slot`/
+  `reload()`); **`viewport.py`** (submit + hit-test + drag — a VIEW of the
+  panel's mapping via `set_anchors`/`set_selected_anchor`, never reading or
+  writing the manifest itself).
+  - **Handle geometry is ED-22 clean**: a fixed-SCREEN-size closed outline +
+    crosshair through `Renderer.submit_overlay_lines` (WORLD points, so the
+    two-sample `screen_to_world` trick cancels zoom/pan — `game/anchors.py`'s
+    proven pattern, ESV-2 brief §2.3c), plus an optional name label via
+    `submit_hud(HudText(...))`. Never QPainter.
+  - **Handle origin excludes `offset_x`/`offset_y`** (ESV-2 brief §1.4,
+    orchestrator-ratified) — it always sits at the un-nudged frame anchor,
+    matching the game's muzzle math (`game/anchors.py`) exactly. For an entry
+    with a non-zero offset the art will look shifted relative to the handle;
+    that is correct, and the fix (if ever wanted) is game-side, not here.
+  - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
+    reverse submission order, the `_hit_widget` rule) and suppresses the pan
+    on a hit; RIGHT never grabs a handle. Move recomputes frame-px live
+    (`anchor_dragged`, spinboxes follow with signals blocked — nothing
+    written); release commits ONE write (`anchor_drag_finished`) only when
+    the value actually moved — a click alone only selects. No undo: the
+    panel writes immediately, like `details.py`'s Save/Clear.
+  - **`DetailsPanel.draft_entry()` preserves an existing entry's `anchors`
+    value verbatim** — that panel never authors anchors, so a Save/Clear
+    there must not erase what `AnchorsPanel` wrote; `MainWindow.
+    _on_manifest_changed` re-seeds `AnchorsPanel` via `reload()` so panel and
+    handle stay in step with any manifest write, not only its own.
 
 ## Phase 6 — tilemap mode (`panels/palette.py`, `panels/map_details.py`; ED-10/20/23/24)
 - **Selection**: the Maps branch is the FIRST child of the "map" category node; one

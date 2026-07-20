@@ -578,6 +578,13 @@ class DetailsPanel(QWidget):
         margins = self._slice_margins()
         if margins is not None:
             entry["slice"] = margins
+        # ESV-2: anchors are authored by AnchorsPanel, not this panel — carry
+        # an existing entry's `anchors` value through verbatim (the same
+        # shape as the `slice` branch above), or Save would silently erase
+        # them (the regression this line pins, ESV-2 brief §1.7).
+        existing = self._read_doc()["entries"].get(self.slot_key)
+        if existing and "anchors" in existing:
+            entry["anchors"] = existing["anchors"]
         return entry
 
     def _slice_margins(self):

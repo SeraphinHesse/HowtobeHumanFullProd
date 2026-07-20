@@ -37,13 +37,21 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QComboBox, QWidget
 
-from editor import tilemap_ops
+from editor import anchor_ops, tilemap_ops
 from editor.panels import _screen_primitives
 from engine import tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import HudLines, HudRect, HudSprite, HudText, Renderer, RenderItem
+from engine.render import (
+    HudLines,
+    HudRect,
+    HudSprite,
+    HudText,
+    Renderer,
+    RenderItem,
+    fit_factor,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
@@ -60,6 +68,15 @@ GHOST_TINT = (255, 255, 140, 255)   # armed brush preview under the cursor
 GRID_COLOR = (110, 110, 140)
 START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
+
+# ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
+# regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
+# colour constant per state.
+ANCHOR_COLOR = (120, 200, 255)          # authored, unselected
+ANCHOR_SELECTED_COLOR = (255, 220, 80)  # the anchor whose row is focused in the panel
+ANCHOR_DRAG_COLOR = (255, 90, 90)       # actively being dragged
+HANDLE_RADIUS_PX = 6   # half-extent, fixed SCREEN pixels — never scales with zoom
+HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
@@ -89,6 +106,9 @@ class ViewportPanel(QWidget):
     cursor_world = Signal(float, float)   # ED-23 readout (both modes)
     code_picked = Signal(str)             # picker tool → palette re-arm
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
+    anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
+    anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
+    anchor_drag_finished = Signal(str, int, int)  # ESV-2: ONE write per gesture
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -108,6 +128,13 @@ class ViewportPanel(QWidget):
         self.preview_animation = "idle"
         self._anim_ms = 0.0
         self._anim_last_t = None
+
+        # ESV-2: anchor handles — a VIEW of the panel's authoritative
+        # mapping plus a live drag delta; the viewport never reads/writes
+        # the manifest for anchors itself (§2.2).
+        self._anchors = {}            # {name: (x, y)}
+        self._anchor_selected = None  # name | None
+        self._anchor_drag = None      # (name, orig_x, orig_y) while dragging
 
         # -- tilemap-editor state (ED-20); all mutations go through the
         # session's undo stack, all cell picking through engine.coords
@@ -202,6 +229,11 @@ class ViewportPanel(QWidget):
             self._build_store()
             self.preview_animation = "idle"
             self._reset_anim_clock()
+            # ESV-2: a stale slot's handles/drag must not survive a switch
+            # (the same rule that clears self._draft just above).
+            self._anchors = {}
+            self._anchor_selected = None
+            self._anchor_drag = None
         self._refresh_anim_combo()
 
     def set_preview_animation(self, name):
@@ -209,6 +241,17 @@ class ViewportPanel(QWidget):
             return
         self.preview_animation = name
         self._reset_anim_clock()
+
+    def set_anchors(self, mapping):
+        """The panel's authoritative {name: (x, y)} mapping for the
+        currently previewed slot — the viewport never reads the manifest
+        for anchors itself (§2.2)."""
+        self._anchors = dict(mapping or {})
+
+    def set_selected_anchor(self, name):
+        """External sync (the panel's own row focus) — mirrors
+        set_selected_widget (§2.2)."""
+        self._anchor_selected = name
 
     def assigned_slots(self):
         """Slot keys with an entry in the effective (draft-aware) manifest —
@@ -753,6 +796,114 @@ class ViewportPanel(QWidget):
         combo.blockSignals(False)
         combo.setVisible(bool(animations))
 
+    # -- anchor handles (ESV-2): entity-preview fallback only, ED-22 clean --
+    # A VIEW of the panel's mapping (self._anchors) plus a live drag delta;
+    # never reads or writes the manifest here (that's anchor_ops + the panel).
+
+    def _anchor_draw_params(self):
+        """(origin, s, zoom) for the current preview slot's un-offset frame
+        anchor (§1.4) — None when there is nothing to anchor a handle to.
+        `s` is the editor's OWN drawn scale: fit_factor computed from the
+        exact fit_tiles/scale the preview's RenderItem carries (its
+        dataclass defaults today — never hardcode 1.0, so a handle can't
+        silently desync the day the preview gains a footprint fit)."""
+        if self.preview_slot is None:
+            return None
+        g = self._coords.geometry
+        wx, wy = g.map_cols // 2, g.map_rows // 2
+        frame_w, _frame_h = self._assets.frame_size(self.preview_slot)
+        zoom = self._coords.camera.zoom
+        s = fit_factor(frame_w, g.tile_w, 0.0) * 1.0   # RenderItem's own defaults
+        sx, sy = self._coords.world_to_screen(wx, wy)
+        origin = (sx, sy + g.tile_h / 2 * zoom)
+        return origin, s, zoom
+
+    def _hit_anchor_handle(self, pos):
+        """Topmost handle within HANDLE_HIT_PX SCREEN pixels of `pos`
+        (Euclidean), reverse submission order — the same rule _hit_widget
+        uses in screen mode (§1.5)."""
+        params = self._anchor_draw_params()
+        if params is None:
+            return None
+        origin, s, zoom = params
+        for name in reversed(list(self._anchors)):
+            ax, ay = self._anchors[name]
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if math.hypot(pos.x() - sx, pos.y() - sy) <= HANDLE_HIT_PX:
+                return name
+        return None
+
+    def _anchor_press(self, pos):
+        """LEFT-press hit test: on a handle, starts a drag AND selects it
+        (emits to the panel), so the caller can suppress the pan it would
+        otherwise start (§1.5). Returns True when a handle was grabbed."""
+        name = self._hit_anchor_handle(pos)
+        if name is None:
+            return False
+        self._anchor_selected = name
+        self.anchor_selected.emit(name)
+        self._anchor_drag = (name, *self._anchors[name])
+        return True
+
+    def _anchor_move(self, pos):
+        if self._anchor_drag is None:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        name = self._anchor_drag[0]
+        origin, s, zoom = params
+        ax, ay = anchor_ops.frame_px(origin, pos.x(), pos.y(), s, zoom)
+        ax = max(-4096, min(4096, ax))
+        ay = max(-4096, min(4096, ay))
+        self._anchors[name] = (ax, ay)
+        self.anchor_dragged.emit(name, ax, ay)
+
+    def _anchor_release(self):
+        """Commit ONE write per gesture (§1.5) — only when the value
+        actually moved; a click that produced no change only selected."""
+        if self._anchor_drag is None:
+            return
+        name, orig_x, orig_y = self._anchor_drag
+        self._anchor_drag = None
+        x, y = self._anchors.get(name, (orig_x, orig_y))
+        if (x, y) != (orig_x, orig_y):
+            self.anchor_drag_finished.emit(name, x, y)
+
+    def _submit_anchor_handles(self):
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        for name, (ax, ay) in self._anchors.items():
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if self._anchor_drag is not None and self._anchor_drag[0] == name:
+                color = ANCHOR_DRAG_COLOR
+            elif self._anchor_selected == name:
+                color = ANCHOR_SELECTED_COLOR
+            else:
+                color = ANCHOR_COLOR
+            self._submit_anchor_marker(sx, sy, color)
+            self._renderer.submit_hud(HudText(
+                name, (sx + HANDLE_RADIUS_PX + 4, sy - 6), "sm", color))
+
+    def _submit_anchor_marker(self, sx, sy, color):
+        """A fixed-SCREEN-size closed outline + crosshair, submitted in
+        WORLD points (§2.3c — the two-sample screen_to_world trick, ESV-1's
+        proven pattern; never hand-derive the per-axis deltas)."""
+        cs = self._coords
+        wx0, wy0 = cs.screen_to_world(sx, sy)
+        wx1, wy1 = cs.screen_to_world(sx + HANDLE_RADIUS_PX, sy + HANDLE_RADIUS_PX)
+        dwx, dwy = wx1 - wx0, wy1 - wy0
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0 - dwy), (wx0 + dwx, wy0 - dwy),
+             (wx0 + dwx, wy0 + dwy), (wx0 - dwx, wy0 + dwy)),
+            color, width=2, closed=True)
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0), (wx0 + dwx, wy0)), color, width=2)
+        self._renderer.submit_overlay_lines(
+            ((wx0, wy0 - dwy), (wx0, wy0 + dwy)), color, width=2)
+
     # -- surface lifecycle, sized to the widget -----------------------------
 
     def resizeEvent(self, event):
@@ -812,6 +963,7 @@ class ViewportPanel(QWidget):
                     animation=self.preview_animation,
                     anim_time_ms=int(self._anim_ms),
                 ))
+                self._submit_anchor_handles()
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self.update()
@@ -1017,6 +1169,11 @@ class ViewportPanel(QWidget):
         if self.in_screen_mode():
             self._screen_press(event)
             return
+        # ESV-2: a LEFT-press on a handle grabs it (drag + select) and
+        # suppresses the pan below; RIGHT never grabs a handle (§1.5).
+        if event.button() == Qt.MouseButton.LeftButton \
+                and self._anchor_press(event.position()):
+            return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = event.position()
 
@@ -1040,6 +1197,9 @@ class ViewportPanel(QWidget):
         if self.in_screen_mode():
             self._screen_move(event)
             return
+        if self._anchor_drag is not None:
+            self._anchor_move(pos)
+            return
         if self._drag_pos is not None and (event.buttons() & self._PAN_BUTTONS):
             dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
             self._drag_pos = pos
@@ -1056,6 +1216,9 @@ class ViewportPanel(QWidget):
             return
         if self.in_screen_mode():
             self._screen_release(event)
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self._anchor_drag is not None:
+            self._anchor_release()
             return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = None
