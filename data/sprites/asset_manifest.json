@@ -2990,13 +2990,13 @@
             0,
             1,
             2,
+            3,
             4,
             5,
             6,
             7,
             8,
             9,
-            10,
             11,
             12,
             13,
@@ -3024,6 +3024,7 @@
             0,
             1,
             2,
+            3,
             4,
             5,
             6,
@@ -3031,7 +3032,6 @@
             8,
             9,
             10,
-            11,
             12,
             13,
             14,
@@ -3065,8 +3065,8 @@
             7,
             8,
             9,
+            10,
             11,
-            12,
             13,
             14,
             15
@@ -3100,8 +3100,8 @@
             8,
             9,
             10,
+            11,
             12,
-            13,
             14,
             15
           ],
@@ -3189,23 +3189,30 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
-            1,
+            0,
             2,
             3,
             4,
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -3216,14 +3223,30 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 16,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_cliff": {
       "frame_h": 32,
