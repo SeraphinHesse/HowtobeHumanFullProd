@@ -624,17 +624,15 @@
     },
     "boss_era_0": {
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 128,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 2,
-          "hidden": [
-            0
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
