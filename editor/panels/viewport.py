@@ -35,10 +35,11 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QComboBox, QWidget
+from PySide6.QtWidgets import QWidget
 
 from editor import tilemap_ops
 from editor.panels import _screen_primitives
+from editor.panels.balancing import _NoWheelComboBox
 from engine import tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
@@ -132,7 +133,7 @@ class ViewportPanel(QWidget):
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
-        self._anim_combo = QComboBox(self)
+        self._anim_combo = _NoWheelComboBox(self)
         self._anim_combo.move(8, 8)
         self._anim_combo.hide()
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
@@ -153,7 +154,7 @@ class ViewportPanel(QWidget):
         self._screen_anim_last_t = None
         # Button-state dropdown (idle/hover/pressed/disabled), same floating-
         # child pattern as the entity-preview animation combo above.
-        self._state_combo = QComboBox(self)
+        self._state_combo = _NoWheelComboBox(self)
         self._state_combo.move(8, 8)
         self._state_combo.hide()
         self._state_combo.currentTextChanged.connect(self.set_screen_state)

@@ -19,7 +19,8 @@ from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QApplication
 
 from editor.panels import details
-from editor.panels.details import DetailsPanel
+from editor.panels.balancing import _NoWheelSpinBox
+from editor.panels.details import DetailsPanel, RowEditor
 from editor.panels.level_bar import LevelBar
 from editor.panels.sheet_picker import SheetPickerDialog
 from engine import data_io
@@ -563,6 +564,16 @@ class TestSubcategoryDropdown(DetailsCase):
         self.panel.set_context("buildings", ())
         self.assertEqual(self.panel._subcat_combo.count(), 0)
         self.assertIsNone(self.panel.slot_key)
+
+
+class TestRowEditorDefaults(QtCase):
+    """A fresh row's FPS default and the no-mousewheel rule (root CLAUDE.md
+    Editor no-mousewheel convention, editor/panels/CLAUDE.md)."""
+
+    def test_fps_defaults_to_six_and_ignores_the_wheel(self):
+        row = self.track(RowEditor(0, 3, ("idle",)))
+        self.assertEqual(row.fps_spin.value(), 6)
+        self.assertIsInstance(row.fps_spin, _NoWheelSpinBox)
 
 
 class TestLevelBar(QtCase):
