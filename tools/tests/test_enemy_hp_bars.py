@@ -27,6 +27,7 @@ from game.ui.effects import _ENEMY_BAR_STACK, FloaterManager
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
+VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
 
 # The real store, so the bar pass sizes each sprite off the SHIPPED sheets
 # (walker 22x26, raider 12x18, siege 36x28, boss era 0 72x56) exactly as the
@@ -113,7 +114,7 @@ def make_cs():
 
 def submit(enemies):
     """Run the bar pass over `enemies`; return (renderer, cs)."""
-    fm = FloaterManager(UI_BAL, CORE_BAL)
+    fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
     r, cs = RecordingRenderer(), make_cs()
     fm.submit_enemy_hp_bars(r, cs, FakeScene(enemies))
     return r, cs
@@ -180,7 +181,7 @@ class TestBarGeometry(unittest.TestCase):
     def test_lift_scales_with_zoom_but_the_bar_does_not(self):
         """The sprite grows with the camera, so the bar has to lift further to
         stay clear of its head — while staying a fixed screen size."""
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         seen = {}
         for zoom in (1, 2):
             e = make_enemy(Enemy, 4, 4, hp=1)

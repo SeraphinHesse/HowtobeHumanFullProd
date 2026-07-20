@@ -28,6 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts; the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -85,6 +86,23 @@ engine task; if an engine change forces a caller change, tell the user
   `finish/skip/mark_source_ended` all end it; `enabled=False` starts `done`.
   `length` is a constructor param (engine stays game-agnostic; the prototype's
   44.2 s cap is a caller concern).
+
+## `engine/vfx/` (ESV-3a) — procedural VFX emitters
+Pure Python, no doc of its own yet (this row is it). `params.py` holds frozen
+dataclasses with NO defaults (one per `data/balancing/vfx.json` `procedural.*`
+table — a default here would be a second home for a value that belongs in
+`data/`, G-7); `particle.py` holds the stateful `Particle`/`GoldHighlight`/
+`Slash` objects; `emitters.py` holds pure `emit_*(rng, ...)` functions —
+**every emitter takes an injected `rng`** (`random.Random`-compatible), never
+the stdlib `random` module directly, so seeded-RNG parity tests are possible;
+`system.py`'s `VfxSystem` owns the particle/gold/slash/splatter lists,
+`update(dt)`, and two submit surfaces (world-overlay vs HUD — the host
+interleaves them at different points in the frame, so one submit method would
+reorder the draw). `game/ui/effects.py`'s `_params_from_balance` is the ONE
+place a `data/balancing/vfx.json` key name and an `engine.vfx` dataclass field
+meet — this package never imports a balancing loader, never calls `open()`,
+never learns a JSON key name (D5's top risk here: don't add a convenience
+`load_defaults()` helper, it would smuggle the loader back in).
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,

@@ -260,6 +260,16 @@ imports:
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
   marker / boss-announce / floater fades + an expanding lightning impact
   flash.
+  - **ESV-3a**: the spark/death-shard/muzzle/slash/gold-highlight/splatter
+    emitters + their tunables moved to `engine/vfx/` (pure, injected-RNG
+    emitters + a `VfxSystem`) and `data/balancing/vfx.json` (a new balancing
+    domain, D-10). `FloaterManager` now takes a required third constructor
+    arg, `vfx_balance`, and owns a `VfxSystem` (`self._vfx`) it delegates
+    every FX method's body to; every public method name is unchanged.
+    `_params_from_balance` in `effects.py` is the ONE place a JSON key name
+    meets an `engine.vfx` dataclass field. Craters/beams/lightning/
+    boss-announce (10B/10G/10H) stay module-constant HUD chrome — ESV-3b's
+    scope, not ported here.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
@@ -509,6 +519,11 @@ sprite mutation; splatters/craters draw in the overlay pass, i.e. OVER sprites
 (the prototype drew them under buildings); particle velocities are eyeballed
 around the prototype's presets (life/count/colours are exact); overlay diamond
 BORDERS are opaque lines (`OverlayLines` carries no alpha — fills are exact).
+
+**ESV-3a note**: none of the above changed — the port from module constants +
+inline `random.uniform(...)` to `data/balancing/vfx.json` + `engine/vfx/`'s
+injected-RNG emitters is a landing-condition no-op (byte-identical output);
+these approximations are pre-existing and untouched by it.
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
