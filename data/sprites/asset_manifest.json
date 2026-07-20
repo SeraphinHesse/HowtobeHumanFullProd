@@ -624,14 +624,38 @@
     },
     "boss_era_0": {
       "frame_h": 96,
-      "frame_w": 128,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,

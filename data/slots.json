@@ -468,11 +468,7 @@
             {
               "label": "Era 0",
               "slots": [
-                {
-                  "frame_h": 96,
-                  "frame_w": 128,
-                  "key": "boss_era_0"
-                }
+                "boss_era_0"
               ]
             },
             {
