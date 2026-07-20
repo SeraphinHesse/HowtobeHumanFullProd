@@ -37,7 +37,6 @@ from PySide6.QtCore import Signal
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QDialog,
     QFileDialog,
     QGroupBox,
@@ -47,13 +46,13 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QScrollArea,
-    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from editor import asset_import, registry_ops, selection
 from editor.asset_import import pad_to_frame
+from editor.panels.balancing import _NoWheelComboBox, _NoWheelSpinBox
 from editor.panels.sheet_picker import SheetPickerDialog
 from editor.panels.sheet_preview import SheetPreview
 from engine.assets import load_manifest, load_registry
@@ -87,7 +86,7 @@ class RowEditor(QGroupBox):
 
         top = QHBoxLayout()
         top.addWidget(QLabel("Animation:"))
-        self.anim_combo = QComboBox()
+        self.anim_combo = _NoWheelComboBox()
         if row_index == 0:
             self.anim_combo.addItems(["idle"])   # row 0 = idle, unrepresentable otherwise
             self.anim_combo.setEnabled(False)
@@ -95,9 +94,9 @@ class RowEditor(QGroupBox):
             self.anim_combo.addItems(list(vocabulary))
         top.addWidget(self.anim_combo)
         top.addWidget(QLabel("FPS:"))
-        self.fps_spin = QSpinBox()
+        self.fps_spin = _NoWheelSpinBox()
         self.fps_spin.setRange(1, 60)
-        self.fps_spin.setValue(8)
+        self.fps_spin.setValue(6)
         top.addWidget(self.fps_spin)
         self.static_check = QCheckBox("Static — don't animate")
         self.static_check.setToolTip(
@@ -110,11 +109,11 @@ class RowEditor(QGroupBox):
         loop = QHBoxLayout(self.loop_row)
         loop.setContentsMargins(0, 0, 0, 0)
         loop.addWidget(QLabel("Loop frames"))
-        self.loop_start = QSpinBox()
-        self.loop_end = QSpinBox()
+        self.loop_start = _NoWheelSpinBox()
+        self.loop_end = _NoWheelSpinBox()
         for spin in (self.loop_start, self.loop_end):
             spin.setRange(0, max(0, num_cols - 1))
-        self.loop_count = QSpinBox()
+        self.loop_count = _NoWheelSpinBox()
         self.loop_count.setRange(1, 99)
         loop.addWidget(self.loop_start)
         loop.addWidget(QLabel("to"))
@@ -229,7 +228,7 @@ class RowEditor(QGroupBox):
             index = self.anim_combo.findText(row.get("animation", "idle"))
             if index >= 0:
                 self.anim_combo.setCurrentIndex(index)
-        self.fps_spin.setValue(int(row.get("fps", 8)) or 8)
+        self.fps_spin.setValue(int(row.get("fps", 6)) or 6)
         hidden = {c for c in row.get("hidden", ()) if 0 <= c < self.num_cols}
         for col, box in enumerate(self.hide_boxes):
             box.setChecked(col in hidden)
@@ -277,7 +276,7 @@ class DetailsPanel(QWidget):
         self._sheet_ref = None
         self._row_frame_size = (1, 1)   # set for real by _load_sheet
 
-        self._subcat_combo = QComboBox()
+        self._subcat_combo = _NoWheelComboBox()
         self._subcat_combo.currentIndexChanged.connect(self._on_subcat_changed)
         self._subcat_combo.hide()
 
@@ -306,8 +305,8 @@ class DetailsPanel(QWidget):
 
         offsets = QHBoxLayout()
         offsets.addWidget(QLabel("Offset  X:"))
-        self._offset_x = QSpinBox()
-        self._offset_y = QSpinBox()
+        self._offset_x = _NoWheelSpinBox()
+        self._offset_y = _NoWheelSpinBox()
         for spin in (self._offset_x, self._offset_y):
             spin.setRange(-256, 256)
             spin.valueChanged.connect(lambda _v: self._emit_draft())
@@ -322,10 +321,10 @@ class DetailsPanel(QWidget):
         self._slice_row = QWidget()
         slice_layout = QHBoxLayout(self._slice_row)
         slice_layout.setContentsMargins(0, 0, 0, 0)
-        self._slice_l = QSpinBox()
-        self._slice_t = QSpinBox()
-        self._slice_r = QSpinBox()
-        self._slice_b = QSpinBox()
+        self._slice_l = _NoWheelSpinBox()
+        self._slice_t = _NoWheelSpinBox()
+        self._slice_r = _NoWheelSpinBox()
+        self._slice_b = _NoWheelSpinBox()
         self._slice_spins = (self._slice_l, self._slice_t,
                              self._slice_r, self._slice_b)   # order = manifest order
         slice_layout.addWidget(QLabel("Nine-slice  L:"))
@@ -344,8 +343,8 @@ class DetailsPanel(QWidget):
         # "128" does not write three times on the way there.
         frames = QHBoxLayout()
         frames.addWidget(QLabel("Frame  W:"))
-        self._frame_w = QSpinBox()
-        self._frame_h = QSpinBox()
+        self._frame_w = _NoWheelSpinBox()
+        self._frame_h = _NoWheelSpinBox()
         for spin in (self._frame_w, self._frame_h):
             spin.setRange(1, 1024)          # slots.schema.json bounds (ED-30)
             spin.editingFinished.connect(self._on_frame_size_changed)

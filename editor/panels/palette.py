@@ -30,7 +30,6 @@ from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
-    QComboBox,
     QFileDialog,
     QLabel,
     QMessageBox,
@@ -42,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor.asset_import import import_idle_sheet
+from editor.panels.balancing import _NoWheelComboBox
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -161,7 +161,7 @@ class PalettePanel(QWidget):
 
         # decoration page: type selector above the variant brushes, then the
         # two add-buttons. Brushes insert at index 1 (after the combo).
-        self._deco_type_combo = QComboBox(self)
+        self._deco_type_combo = _NoWheelComboBox(self)
         self._deco_type_combo.currentIndexChanged.connect(
             self._on_deco_type_changed)
         self._pages["decoration"][2].addWidget(self._deco_type_combo)
