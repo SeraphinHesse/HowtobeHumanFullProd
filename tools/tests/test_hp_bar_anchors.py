@@ -33,6 +33,7 @@ from game.ui.effects import FloaterManager, _sprite_top
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
+VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
 
 _BUILDING_BAR_W, _BUILDING_BAR_H = 28, 4   # game/ui/effects.py submit_hp_bars
 
@@ -53,7 +54,7 @@ def store_with_hp_bar_anchor(slot_key, xy):
 class TestEnemyHpBarAnchor(unittest.TestCase):
     def _submit(self, assets, cls=Enemy, hp=1):
         e = make_enemy(cls, 4, 4, hp=hp)
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         r, cs = RecordingRenderer(assets), make_cs()
         fm.submit_enemy_hp_bars(r, cs, FakeScene([e]))
         return r.bars(), r, cs, e
@@ -114,7 +115,7 @@ class TestBuildingHpBarAnchor(unittest.TestCase):
 
     def _submit(self, assets, slot_key):
         b = self._stub_building(slot_key)
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         r, cs = RecordingRenderer(assets), make_cs()
         fm.submit_hp_bars(r, cs, FakeScene([b]))
         return r.bars(), cs, b
