@@ -24,9 +24,10 @@ from tools.tests.test_enemy_hp_bars import (
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.core import GameObject, Health, SpriteAnimator, Transform
+from engine.render import fit_factor
 from game.anchors import screen_offset
 from game.core import load_balance
-from game.enemies.enemy import Enemy
+from game.enemies.enemy import Enemy, Formation
 from game.ui.effects import FloaterManager, _sprite_top
 
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
@@ -50,8 +51,8 @@ def store_with_hp_bar_anchor(slot_key, xy):
 
 
 class TestEnemyHpBarAnchor(unittest.TestCase):
-    def _submit(self, assets):
-        e = make_enemy(Enemy, 4, 4, hp=1)
+    def _submit(self, assets, cls=Enemy, hp=1):
+        e = make_enemy(cls, 4, 4, hp=hp)
         fm = FloaterManager(UI_BAL, CORE_BAL)
         r, cs = RecordingRenderer(assets), make_cs()
         fm.submit_enemy_hp_bars(r, cs, FakeScene([e]))
@@ -64,19 +65,43 @@ class TestEnemyHpBarAnchor(unittest.TestCase):
         self.assertEqual(with_default, with_zero)
 
     def test_anchor_composes_with_the_footprint_fit(self):
-        store = store_with_hp_bar_anchor(Enemy.DEFAULT_SLOT, (12, -6))
-        bars, r, cs, e = self._submit(store)
+        """D3, and the exact ER-1 bug class `_sprite_top` exists to avoid: the
+        offset must ride the SAME downscale `_sprite_top` uses, not a raw
+        sheet-pixel lift. `Formation`'s slot (128px) is wider than the tile
+        (64px), so its footprint fit is measurably < 1 — verified below by
+        number, not assumed from the type/footprint balancing value (the
+        fixture's `Formation.footprint` is 1, a known fixture/doc mismatch
+        outside this phase's scope; what matters here is the SLOT's frame_w
+        vs tile_w, which drives `fit_factor` regardless)."""
+        store = store_with_hp_bar_anchor(Formation.DEFAULT_SLOT, (12, -6))
+        # Formation "dies" (D4 death_spawn) at half HP — damaged but ALIVE,
+        # unlike the other enemy types' hp=1 convenience.
+        bars, r, cs, e = self._submit(store, Formation, hp=300)
         (x, y, w, h), _fill = bars
 
         zoom = cs.camera.zoom
         cx, cy = cs.world_to_screen(4.5, 4.5)
+        anim = e.get_component(SpriteAnimator)
+        frame_w, _frame_h = store.frame_size(anim.slot_key)
+        s = fit_factor(frame_w, cs.geometry.tile_w, anim.fit_tiles) * anim.scale
+        self.assertLess(s, 1.0)   # the fixture really does downscale this sprite
+
         top = _sprite_top(r, cs, e, cy, zoom)
         dsx, dsy = screen_offset(store, cs, e, "hp_bar", zoom)
         self.assertNotEqual((dsx, dsy), (0.0, 0.0))   # the anchor really moved it
-        expected_x = int(cx - Enemy.HP_BAR_W / 2 + dsx)
-        expected_y = int(top - Enemy.HP_BAR_PAD * zoom + dsy) - Enemy.HP_BAR_H
+        expected_x = int(cx - Formation.HP_BAR_W / 2 + dsx)
+        expected_y = (int(top - Formation.HP_BAR_PAD * zoom + dsy)
+                      - Formation.HP_BAR_H)
         self.assertEqual((x, y), (expected_x, expected_y))
-        self.assertEqual((w, h), (Enemy.HP_BAR_W, Enemy.HP_BAR_H))
+        self.assertEqual((w, h), (Formation.HP_BAR_W, Formation.HP_BAR_H))
+
+        # And it genuinely differs from a RAW un-scaled pixel lift (the
+        # composition this test exists to pin, not just "some offset moved
+        # it") — a buggy read-site that dropped the `s` factor and applied
+        # the authored anchor pixel-for-pixel would land here instead.
+        raw_pixel_y = (int(top - Formation.HP_BAR_PAD * zoom - 6 * zoom)
+                       - Formation.HP_BAR_H)
+        self.assertNotEqual(y, raw_pixel_y)
 
 
 class TestBuildingHpBarAnchor(unittest.TestCase):
