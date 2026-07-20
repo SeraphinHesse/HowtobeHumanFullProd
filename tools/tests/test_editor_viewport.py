@@ -51,6 +51,25 @@ FIXTURE_DEFAULTS = {
     }
 }
 
+# UH-4: same fixture, but `btn_new_game` carries an OPTIONAL `display_name`
+# while the other two ids don't — exercises both the mapped surface and the
+# fallback-to-id surface in one fixture, per widget_display_name's contract
+# (`spec.get("display_name") or widget_id`).
+FIXTURE_DEFAULTS_NAMED = {
+    "main_menu": {
+        "widgets": {
+            "btn_new_game": {"rect": [640, 360, 120, 40], "kind": "button",
+                             "label": "START",
+                             "display_name": "New Game button"},
+            "btn_settings": {"rect": [640, 420, 120, 40], "kind": "button",
+                             "label": "SETTINGS"},
+            "title": {"rect": [640, 100, 400, 80], "kind": "label",
+                     "label": "MAIN MENU"},
+        },
+        "mock_note": "test fixture with a display name",
+    }
+}
+
 
 class TestSurfaceToQImage(unittest.TestCase):
     """Pure conversion, pixel-exact on a known 2x2-quadrant pattern."""
@@ -422,6 +441,26 @@ class TestViewportScreenMode(TempDataCase):
         panel.render_frame()
         self.assertTrue(any(isinstance(c, HudLines) for c in calls))
 
+    def test_viewport_selection_caption_shows_display_name(self):
+        """UH-4: the selection outline gains a small `HudText` caption using
+        the SAME `widget_display_name` resolution as the widget list — a
+        mapped id shows its display name, an unmapped one falls back to the
+        raw code id."""
+        panel = self.make_viewport()
+        session = self.make_session()
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS_NAMED)
+        panel.set_selected_widget("btn_new_game")
+        calls = self.record_hud(panel)
+        panel.render_frame()
+        texts = [c.text for c in calls if isinstance(c, HudText)]
+        self.assertIn("New Game button", texts)
+
+        panel.set_selected_widget("btn_settings")   # not in the mapping
+        calls = self.record_hud(panel)
+        panel.render_frame()
+        texts = [c.text for c in calls if isinstance(c, HudText)]
+        self.assertIn("btn_settings", texts)
+
     def test_viewport_drag_move_commits_undo_command(self):
         panel = self.make_viewport()
         session = self.make_session()
@@ -699,6 +738,76 @@ class TestScreenDetailsPanel(TempDataCase):
         panel.background_combo.setCurrentIndex(idx)
         panel.background_combo.activated.emit(idx)
         self.assertEqual(session.doc["background"], {"slot": "ui_bg_main_menu"})
+
+    # -- UH-4: display names — list text/tooltip/UserRole, selection by id ---
+
+    def make_named(self):
+        panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        panel.set_session(session, FIXTURE_DEFAULTS_NAMED)
+        return panel, session
+
+    def test_widget_list_item_text_is_display_name_tooltip_is_code_id(self):
+        panel, _session = self.make_named()
+        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
+                panel.widget_list.item(i)
+                for i in range(panel.widget_list.count())}
+        named_item = items["btn_new_game"]
+        self.assertEqual(named_item.text(), "New Game button")
+        self.assertEqual(named_item.toolTip(), "btn_new_game")
+        self.assertEqual(
+            named_item.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+
+    def test_widget_list_falls_back_to_raw_id_when_unmapped(self):
+        panel, _session = self.make_named()
+        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
+                panel.widget_list.item(i)
+                for i in range(panel.widget_list.count())}
+        unmapped_item = items["btn_settings"]
+        self.assertEqual(unmapped_item.text(), "btn_settings")
+        self.assertEqual(unmapped_item.toolTip(), "btn_settings")
+
+    def test_selection_signal_still_carries_the_code_id(self):
+        panel, _session = self.make_named()
+        selected = []
+        panel.widget_selected.connect(selected.append)
+        for row in range(panel.widget_list.count()):
+            item = panel.widget_list.item(row)
+            if item.data(Qt.ItemDataRole.UserRole) == "btn_new_game":
+                panel.widget_list.setCurrentRow(row)
+                break
+        self.assertEqual(selected, ["btn_new_game"])
+        self.assertEqual(panel._current_widget, "btn_new_game")
+
+    def test_select_widget_by_code_id_selects_the_display_named_row(self):
+        panel, _session = self.make_named()
+        panel.select_widget("btn_new_game")
+        current = panel.widget_list.currentItem()
+        self.assertIsNotNone(current)
+        self.assertEqual(current.text(), "New Game button")
+        self.assertEqual(
+            current.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+        self.assertEqual(panel._current_widget, "btn_new_game")
+
+    def test_display_name_round_trips_as_code_id_on_disk(self):
+        """The override JSON stays keyed by the CODE id and never carries
+        `display_name` — display names are a `screen_defaults.json`-only,
+        editor-cosmetic surface (D4)."""
+        panel, session = self.make_named()
+        panel.select_widget("btn_new_game")
+        session.push_move("btn_new_game", None, [10, 20, 30, 40])
+        session.save()
+
+        on_disk = data_io.load_validated(
+            self.data_dir / "ui" / "screens" / "main_menu.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+        self.assertIn("btn_new_game", on_disk["widgets"])
+        self.assertEqual(
+            on_disk["widgets"]["btn_new_game"]["rect"], [10, 20, 30, 40])
+        self.assertNotIn("display_name", on_disk["widgets"]["btn_new_game"])
+        for widget_override in on_disk.get("widgets", {}).values():
+            self.assertNotIn("display_name", widget_override)
 
 
 class TestMainWindowScreenMode(TempDataCase):
