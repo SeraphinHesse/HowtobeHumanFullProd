@@ -6,6 +6,13 @@ Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
 `EnemyReworkPLAN.md`). Base branch: `Development`. Runnable via
 `/execute-plan-phases planning/BossReworkPLAN.md BR-1-BR-5` or phase-by-phase.
 
+**PREREQUISITE: `planning/EnemyScalingReworkPLAN.md` (ES-1–ES-5) lands first.**
+That rework replaces scale tiers with a global era clock
+(`EnemyScaling.rounds_per_era` / `boss_round_in_era`, resolved via
+`engine.era_math`), deletes `Boss.round_interval` and gives every type per-era
+`eras[]` stat/count rows. The decisions below were amended (ES-5) to sit on
+that foundation; the `§3` line numbers predate it and shift with ES-2.
+
 Package: **game** (`game/enemies`, `game/core`, `game/ui`, `game/main.py`) +
 **data** (`data/balancing/enemies.json`, `data/schemas/enemies.schema.json`,
 `data/slots.json`, `data/sprites/asset_manifest.json`). No engine or editor
@@ -41,7 +48,11 @@ scaling curve; the boss death becomes a staged second phase; and a new
   `sprite_scale`, `shake.strength`/`shake.interval`, and every `round_counts` /
   `second_phase` count key). The Nth boss past the last defined era is
   `last_era_value × factor^N`; counts round to int. `N = max(0, era − (len(stats) − 1))`,
-  where `era` is the existing `round // interval − 1`.
+  where `era` is `engine.era_math.era_of_round(round, rounds_per_era)` — the
+  global era clock from EnemyScalingRework (ES-5 amendment: the old
+  `round // Boss.round_interval − 1` formula and the `round_interval` key no
+  longer exist). BR-4 implements this by REUSING
+  `era_math.resolve_era_row(rows, era, factors)`, not a bespoke helper.
 - **D2 — A boss in second phase is fully invulnerable and its HP bar is hidden.**
   Defenders drop it as a target; projectiles already in flight do nothing.
 - **D3 — `commander` joins the SHARED `$defs/spawn_counts`.** Every
@@ -66,14 +77,17 @@ scaling curve; the boss death becomes a staged second phase; and a new
   global keys are deleted. `round_counts[]` and `second_phase.spawns[]` stay as
   their own index-aligned arrays — they are count tables, not stats.
 - **D8 — The Commander.** Hunts buildings like the boss (`goal_is_base=False` +
-  `repath_on_kill=True`, reusing the existing `PathAgent` flags); **takes** the
-  scale-tier bonuses like Standard/Siege (so it inherits the base
-  `_resolve_stats` — no override); siege-sized **24×2** HP bar; **no** camera
-  shake and **no** `"boss"` scene tag. Stats: `footprint 1` (walker),
+  `repath_on_kill=True`, reusing the existing `PathAgent` flags); its stats are
+  **resolved by the base per-era resolver** like Standard/Siege (so it inherits
+  the base `_resolve_stats` — no override; ES-5 amendment: scale tiers no
+  longer exist, the base resolver reads the type's own `eras[]` rows), so it
+  carries its own `eras[]` block; siege-sized **24×2** HP bar; **no** camera
+  shake and **no** `"boss"` scene tag. Era-0 stats: `footprint 1` (walker),
   `move_speed 2.7` (raider), `hp 2000` (era-0 boss), `dmg 100` (half the era-0
-  boss). `start_round` / `base_count` / `per_round` all **0** so it never enters
-  a normal wave yet — but every schedule key exists so it can be switched on
-  later with a data edit alone.
+  boss). Its schedule keys are the era model's: `start_round 0` and every era
+  row's `count_start` / `count_per_round` at **0** so it never enters a normal
+  wave yet — but every schedule key exists so it can be switched on later with
+  a data edit alone.
 
 ## 3. Where the code is
 
@@ -158,25 +172,29 @@ wave.
   `HP_BAR_W, HP_BAR_H = 24, 2`. `on_spawn` mirrors the Boss's
   `find_path_to_nearest_non_base_building` → `adopt_goal` and sets
   `repath_on_kill=True`. **Deliberately no `_resolve_stats` override** — D8 says
-  it scales with tiers, and the base implementation is what applies them. Leave a
-  one-line comment saying so, because `game/enemies/CLAUDE.md` documents the
-  *opposite* case (Formation) as a trap and the next reader will expect one.
+  the base per-era resolver (`STAT_SUBTREE`-driven since ES-2) applies its
+  `eras[]` rows. Leave a one-line comment saying so, because
+  `game/enemies/CLAUDE.md` documented Formation's pre-ES-2 override as
+  mandatory and the next reader may still expect one.
 - `game/enemies/spawner.py` — `ENABLE_COMMANDER = True` + a `_commander_group`
   that returns 0 at the shipped values. Call it **LAST** among the composition
   groups so every earlier group's rng draw sequence stays byte-identical (the
   deterministic-wave fixtures depend on this — same rule Formation follows).
 - `data/balancing/enemies.json` + `data/schemas/enemies.schema.json` —
-  `EnemyTypes.Commander`: `hp 2000`, `dmg 100`, `move_speed 2.7`, `attack_speed`
-  and `attack_range_tiles` at walker defaults, `footprint 1`, `sprite_scale 1.0`,
-  `start_round 0`, `base_count 0`, `per_round 0`, and a `death_spawn` block with
-  `enabled: false`.
+  `EnemyTypes.Commander` in the post-ES-2 era shape: an `eras[]` block whose
+  rows carry `stats` (`hp 2000`, `dmg 100`, `move_speed 2.7`, `attack_speed`
+  and `attack_range_tiles` at walker defaults), zero `per_round` deltas and
+  `count_start` / `count_per_round` **0**; `endgame_scaling` all 1.0;
+  `footprint 1`, `sprite_scale 1.0`, `start_round 0`, and a `death_spawn`
+  block with `enabled: false`.
 - `data/slots.json` — a `Commander` group under `enemies` with 4 era subchildren;
   grey-X placeholders until art imports.
 - `data/sprites/asset_manifest.json` — placeholder rows per slot (`idle` first per
   the schema, plus `walk`; `death` optional).
 
-**Tests.** `tools/tests/test_enemies.py`: Commander stats come from its own block
-(not `Standard`); it *does* take tier bonuses; it contributes 0 to every wave at
+**Tests.** `tools/tests/test_enemies.py`: Commander stats come from its own
+`eras[]` block (not `Standard`'s); its per-era/per-round resolution runs
+through the same base resolver as Standard; it contributes 0 to every wave at
 the shipped values; and the deterministic composition fixtures for rounds
 1 / 6 / 14 / 10 are byte-identical to BR-1.
 
@@ -243,11 +261,14 @@ correctly at 1× and at 2× combat speed (the phase clock must take the speed-sc
 - `data/schemas/enemies.schema.json` + `data/balancing/enemies.json` —
   `EnemyTypes.Boss.endgame_boss_scaling`, one factor per variable, **all shipped
   at 1.0** so the phase is behaviour-neutral until tuned.
-- `game/enemies/enemy.py` — one `_endgame_scaled(row, n)` helper, applied in
-  `Boss._resolve_stats`; `n = max(0, era − (len(stats) − 1))`.
+- `game/enemies/enemy.py` — `Boss._resolve_stats` resolves its row through
+  `engine.era_math.resolve_era_row(stats, era, endgame_boss_scaling)` (the
+  shared ES-4 helper — no bespoke `_endgame_scaled`);
+  `N = max(0, era − (len(stats) − 1))` is that helper's own formula.
 - `game/enemies/spawner.py` — the same helper applied to `round_counts` and the
-  `second_phase` counts on the past-the-table path (`spawner.py:202-213`),
-  replacing the current fall-back-to-the-standard-formula behaviour.
+  `second_phase` counts on the past-the-table path (ES-2 already replaced the
+  old fall-back-to-the-standard-formula behaviour with era-row counts; this
+  phase swaps that fallback to endgame-scaled `round_counts` instead).
 
 **Tests.** Era 4 unchanged; eras 5 / 6 / 7 scale as `last × f¹ / f² / f³`; counts
 come out as ints; an all-1.0 block is byte-identical to BR-3.
