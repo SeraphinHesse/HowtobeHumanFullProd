@@ -467,14 +467,28 @@ class ScreenDetailsPanel(QWidget):
         kind = spec.get("kind")
         code_owned_fill = color_is_code_owned(kind)
         skinned = resolved_skin(spec, override, style) is not None
-        # UH-6 (D6) repurposes the color row as Tint on a skinned widget: the
-        # sheet IS drawn, so a per-widget multiply is live and honest. UH-3's
-        # honest-controls rule otherwise disables Color for the kinds whose
-        # fill the game hardcodes (panel/field/label). Skinned wins — a drawn
-        # sheet can be tinted even for a code-owned-fill kind, so the row is
-        # only ever disabled when unskinned AND code-owned.
-        self._color_is_tint = skinned
-        if skinned:
+        # Tint (UH-6/D6) is the honest repurposing of a skinned widget's Color
+        # control ONLY where `tint` provably reaches the sheet: `button` kind,
+        # whose `Button.submit` unconditionally threads `tint` into the
+        # HudSprite. It is NOT offered for the code-owned-fill kinds
+        # (panel/field/label): unskinned, the game hardcodes their fill (UH-3);
+        # skinned, the panel draw call sites do NOT uniformly forward `tint`
+        # (`building_ui.py:1252`, `levelup.py:128` drop it) — so presenting an
+        # enabled Tint there would be a control the game may silently ignore,
+        # the exact lie D3 forbids. The final rule:
+        #   skinned button              -> Tint (enabled)
+        #   code-owned fill kind        -> Color disabled (fill is code-owned;
+        #                                  a skin on a panel does not change
+        #                                  that tint is not uniformly wired)
+        #   otherwise                   -> Color enabled (color is live — an
+        #                                  unskinned button, or backdrop/bar,
+        #                                  whose `.color` the game reads; a skin
+        #                                  on those kinds is the separate,
+        #                                  deferred viewport resolution quirk,
+        #                                  not this control's concern)
+        tintable = skinned and kind == "button"
+        self._color_is_tint = tintable
+        if tintable:
             self.color_row_label.setText("Tint")
             self.color_button.setText("Tint…")
             self.color_button.setToolTip(TOOLTIP_TINT_SKINNED)

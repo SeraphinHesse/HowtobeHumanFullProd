@@ -16,13 +16,12 @@ import unittest
 
 from editor.panels._screen_rules import (
     TOOLTIP_COLOR_CODE_OWNED,
-    TOOLTIP_COLOR_SKINNED,
     TOOLTIP_LABEL_CODE_OWNED,
     color_is_code_owned,
     label_is_code_owned,
     resolved_skin,
 )
-from editor.panels.screen_details import ScreenDetailsPanel
+from editor.panels.screen_details import ScreenDetailsPanel, TOOLTIP_TINT_SKINNED
 from editor.ui_screen_session import UIScreenSession
 from tools.tests.test_editor_panels import TempDataCase
 
@@ -169,10 +168,15 @@ class TestHonestControlsQt(TempDataCase):
         panel.set_session(session, FIXTURE_DEFAULTS)
         return panel, session
 
-    def test_color_disabled_with_tooltip_after_skin_assign_then_reenabled(self):
+    def test_button_color_becomes_tint_when_skinned_then_back(self):
+        """UH-6/D6 reconciliation: a skinned BUTTON's Color control is
+        REPURPOSED to a live Tint (Button.submit always threads `tint` to the
+        sheet), not disabled — the honest active control. Clearing the skin
+        returns to plain Color."""
         panel, session = self.make("screen_a")
         panel._populate_widget_form("btn")
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.text(), "Color…")
         self.assertEqual(panel.color_button.toolTip(), "")
 
         idx = panel.skin_combo.findData("ui_button")
@@ -180,8 +184,12 @@ class TestHonestControlsQt(TempDataCase):
         panel.skin_combo.setCurrentIndex(idx)
         panel.skin_combo.activated.emit(idx)   # _on_skin_changed
 
-        self.assertFalse(panel.color_button.isEnabled())
-        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_SKINNED)
+        # Repurposed to Tint: enabled, relabelled, tint tooltip.
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertTrue(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Tint…")
+        self.assertEqual(panel.color_row_label.text(), "Tint")
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_TINT_SKINNED)
         # Text Color is never gated by skin (brief §1.2) — stays enabled.
         self.assertTrue(panel.text_color_button.isEnabled())
 
@@ -190,51 +198,82 @@ class TestHonestControlsQt(TempDataCase):
         panel.skin_combo.activated.emit(none_idx)   # clear the skin
 
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertFalse(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Color…")
         self.assertEqual(panel.color_button.toolTip(), "")
 
-    def test_undo_of_skin_assign_reenables_color(self):
+    def test_undo_of_skin_assign_returns_tint_to_plain_color(self):
         panel, session = self.make("screen_a")
         panel._populate_widget_form("btn")
         idx = panel.skin_combo.findData("ui_button")
         panel.skin_combo.setCurrentIndex(idx)
         panel.skin_combo.activated.emit(idx)
-        self.assertFalse(panel.color_button.isEnabled())
+        # skinned button -> Tint (enabled), not disabled
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertTrue(panel._color_is_tint)
 
         session.undo_stack.undo()   # _refresh_after_undo -> _refresh_widget_form
 
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertFalse(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Color…")
         self.assertEqual(panel.color_button.toolTip(), "")
 
-    def test_disabled_via_default_button_skin_alone(self):
+    def test_tint_via_default_button_skin_alone(self):
+        """A screen-default `button_skin` (no per-widget override) still makes
+        the button resolve to a skin, so its Color control becomes Tint —
+        the same repurposing as an explicit per-widget skin."""
         panel, session = self.make("screen_a")
         panel._populate_widget_form("btn")   # no per-widget override
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertFalse(panel._color_is_tint)
 
         idx = panel.button_skin_combo.findData("ui_button")
         self.assertGreaterEqual(idx, 0)
         panel.button_skin_combo.setCurrentIndex(idx)
         panel.button_skin_combo.activated.emit(idx)   # _on_default_combo_changed
 
-        self.assertFalse(panel.color_button.isEnabled())
-        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_SKINNED)
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertTrue(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Tint…")
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_TINT_SKINNED)
 
         panel._on_reset_default_field("button_skin")
 
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertFalse(panel._color_is_tint)
+        self.assertEqual(panel.color_button.text(), "Color…")
         self.assertEqual(panel.color_button.toolTip(), "")
 
-    def test_dead_color_override_reset_button_stays_enabled_when_skinned(self):
-        """A pre-existing dead `color` override on a now-skinned widget
-        keeps its per-field "reset" enabled (brief §1.5) — honest both
-        ways: you can't AUTHOR a new dead override, but you can still
-        remove one that predates the skin assignment."""
+    def test_dead_color_override_on_skinned_button_removable_by_unskinning(self):
+        """A pre-existing `color` override on a now-skinned BUTTON: the row is
+        repurposed to Tint (UH-6/D6), so its reset now targets the `tint` key
+        (the dead `color` is not reachable from the Tint row). The override is
+        not orphaned — clearing the skin returns the row to Color mode, where
+        its reset removes the dead `color` override. Honest both ways: the
+        Tint control never claims to manage the dead color, and the color is
+        still removable."""
         panel, session = self.make("screen_a")
         session.push_field("btn", "color", None, [255, 0, 255])
         session.push_skin_assign("btn", None, "ui_button")
         panel._populate_widget_form("btn")
 
-        self.assertFalse(panel.color_button.isEnabled())        # honest: no new dead override
-        self.assertTrue(panel.color_reset_button.isEnabled())   # honest: can still remove the old one
+        # Skinned button -> Tint mode; the row manages `tint`, not the dead
+        # `color`, so its reset is disabled (no `tint` override present).
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertTrue(panel._color_is_tint)
+        self.assertEqual(panel._active_color_key(), "tint")
+        self.assertFalse(panel.color_reset_button.isEnabled())
+
+        # Escape hatch: clear the skin -> Color mode -> the dead `color`
+        # override is now reachable and its reset is enabled.
+        none_idx = panel.skin_combo.findData(None)
+        panel.skin_combo.setCurrentIndex(none_idx)
+        panel.skin_combo.activated.emit(none_idx)
+        panel._populate_widget_form("btn")
+        self.assertFalse(panel._color_is_tint)
+        self.assertEqual(panel._active_color_key(), "color")
+        self.assertTrue(panel.color_reset_button.isEnabled())
 
     def test_label_edit_disabled_on_hud_readout_enabled_on_static_title(self):
         panel, _session = self.make("hud")
@@ -282,6 +321,22 @@ class TestHonestControlsQt(TempDataCase):
 
         panel._populate_widget_form("bar_a")
         self.assertTrue(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), "")
+
+    def test_color_stays_enabled_on_skinned_bar(self):
+        """A `skin` override on a non-button, non-code-owned kind (`bar`) does
+        NOT disable Color: the game reads `.color` for a bar (`hud.py:443`
+        `bg=xp_bar.color`) and ignores the skin (`submit_bar` takes no
+        `skin=`). Color is genuinely live, so it stays enabled — the useless
+        skin override is the separate, deferred viewport resolution quirk, not
+        a reason to disable a live control. `bar` is not tintable (only
+        `button` is), so this is Color, not Tint."""
+        panel, session = self.make("screen_a")
+        session.push_skin_assign("bar_a", None, "ui_button")
+        panel._populate_widget_form("bar_a")
+        self.assertFalse(panel._color_is_tint)
+        self.assertTrue(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.text(), "Color…")
         self.assertEqual(panel.color_button.toolTip(), "")
 
     def test_color_disabled_code_owned_tooltip_on_unskinned_label(self):

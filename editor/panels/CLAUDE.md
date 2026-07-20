@@ -656,12 +656,29 @@ import list.**
   BEFORE `_refresh_reset_buttons` in `_populate_widget_form` — the one
   genuine UH-3/UH-6 coupling point) is the single source of truth
   `_active_color_key()` reads, so the button handler and the reset button
-  can never disagree about which doc key is live. **Note (post-merge):**
-  UH-3's honest-controls rule landed a further refinement after UH-6 branched
-  — an UNSKINNED widget whose fill the game hardcodes (`panel`/`field`/`label`,
-  `_screen_rules.color_is_code_owned`) has Color DISABLED with the code-owned
-  tooltip, not plain Color. So the merged rule is: skinned → Tint (enabled);
-  unskinned + code-owned fill → Color disabled; otherwise → plain Color.
+  can never disagree about which doc key is live. **Reconciled rule
+  (UH-3 ∩ UH-6, integration).** UH-3 landed a refinement after UH-6 branched
+  (code-owned fills), and the naive "skinned → Tint" would itself lie for
+  panels, because the panel draw call sites do NOT uniformly forward `tint`
+  (`game/ui/building_ui.py:1252`, `levelup.py:128` take a `skin=` but drop
+  `tint`). So **Tint is offered ONLY for `button` kind**, whose
+  `Button.submit` unconditionally threads `tint` to the sheet. The final,
+  always-honest rule `_refresh_honest_controls` applies:
+  - **skinned `button`** → Tint (enabled, relabelled, `TOOLTIP_TINT_SKINNED`);
+  - **code-owned-fill kind** (`panel`/`field`/`label`,
+    `_screen_rules.color_is_code_owned`) → Color DISABLED with
+    `TOOLTIP_COLOR_CODE_OWNED`, regardless of skin (unskinned: the game
+    hardcodes the fill; skinned panel: tint is not uniformly wired, so an
+    enabled Tint would be a control the game may ignore);
+  - **otherwise** → plain Color enabled — an unskinned button, or a
+    `backdrop`/`bar` whose `.color` the game genuinely reads. A `skin`
+    override on a `backdrop`/`bar` (which the game ignores) does NOT disable
+    Color; that useless-skin case is the separate, deferred viewport
+    resolution quirk, not this control's concern.
+  `TOOLTIP_COLOR_SKINNED` stays exported from `_screen_rules.py` (stable name)
+  but `screen_details.py` no longer uses it — no skinned widget disables Color
+  for the "colors come from the sheet" reason any more (buttons tint;
+  backdrops/bars keep live Color; panels disable for the code-owned reason).
 - **Viewport honesty fix (`panels/viewport.py:933`)**: screen mode now
   tints a skinned widget's preview from its `tint` key, never `color` — the
   pre-UH-6 editor lie (the game has always ignored `color` on a skinned
