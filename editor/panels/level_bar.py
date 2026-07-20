@@ -49,7 +49,7 @@ class LevelBar(QWidget):
         self._add_btn.hide()
         self._add_type_btn = QPushButton("+ Type")
         self._add_type_btn.setToolTip(
-            "Add a brand-new decoration type (its own variant family)")
+            "Add a brand-new type (its own variant family)")
         self._add_type_btn.clicked.connect(self.add_type_requested)
         self._layout.addWidget(self._add_type_btn)
         self._add_type_btn.hide()

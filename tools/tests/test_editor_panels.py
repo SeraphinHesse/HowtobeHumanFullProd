@@ -936,6 +936,54 @@ class TestMainWindowWiring(TempDataCase):
         self.assertTrue(new_slot.startswith("deco_prop_"))
         self.assertEqual(window.details.slot_key, new_slot)
 
+    def test_add_type_button_shown_on_ui_buttons_node(self):
+        """+ Type on ui -> Buttons is a SECOND "+ Type" target (the button
+        FAMILY affordance) alongside deco; every other ui node stays without
+        it, same as any non-deco/non-Buttons category."""
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+        self.assertFalse(window.levelbar._add_type_btn.isHidden())
+
+        window.selector.select_node("ui", ("Backgrounds",))
+        self.assertTrue(window.levelbar._add_type_btn.isHidden())
+
+        window.selector.select_node("enemies", ("Walker",))
+        self.assertTrue(window.levelbar._add_type_btn.isHidden())
+
+    def test_add_button_type_creates_family_and_refreshes_skin_combos(self):
+        """The no-restart pin (§1a): a fresh button family must show up in
+        every skin combo without an editor restart — fails red if the
+        `screen_details.reload_registry()` wiring line is dropped."""
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+
+        window._on_add_button_type(name="Tab")   # injected: no modal
+
+        self.assertEqual(
+            window.details._subcat_combo.currentText().removeprefix("● "),
+            "Tab")
+        skin_values = [window.screen_details.skin_combo.itemData(i)
+                      for i in range(window.screen_details.skin_combo.count())]
+        button_skin_values = [
+            window.screen_details.button_skin_combo.itemData(i)
+            for i in range(window.screen_details.button_skin_combo.count())]
+        self.assertIn("ui_button_tab", skin_values)
+        self.assertIn("ui_button_tab", button_skin_values)
+
+    def test_add_button_type_rejection_reports_not_crashes(self):
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+        window._on_add_button_type(name="Tab")
+
+        slots_path = self.data_dir / "slots.json"
+        before = slots_path.read_bytes()
+
+        window._on_add_button_type(name="Tab")   # duplicate: no crash
+        self.assertIn(
+            "Could not add button type",
+            window.statusBar().currentMessage())
+        self.assertEqual(slots_path.read_bytes(), before)
+
     def test_add_background_variant_from_the_tree(self):
         from engine.assets import load_registry
 
