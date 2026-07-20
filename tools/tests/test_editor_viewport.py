@@ -75,6 +75,76 @@ FIXTURE_DEFAULTS_NAMED = {
     }
 }
 
+# UH-2: hand-authored fixture carrying a `views` block, so the per-view
+# resolver tests below (TestViewportScreenModeViews /
+# TestScreenDetailsPanelViews / TestMainWindowScreenModeViews) don't pin
+# exact widget-id membership to whatever UH-1's exporter currently emits for
+# building_panel — same "pin the fixture" rule as FIXTURE_DEFAULTS above
+# (root CLAUDE.md: "never assert against live data/ content"). Shaped after
+# the REAL building_panel views (close_btn/panel shared across
+# unlock/construct/upgrade/base_info, action_btn in unlock/upgrade only,
+# lightning_btn base_info-only, preview_panel preview-only) so the behavior
+# under test stays representative without depending on it.
+FIXTURE_DEFAULTS_VIEWS = {
+    "building_panel": {
+        "widgets": {
+            "panel": {"rect": [0, 0, 1280, 720], "kind": "panel", "label": ""},
+            "close_btn": {"rect": [1200, 20, 40, 40], "kind": "button", "label": "X"},
+            "action_btn": {"rect": [600, 600, 120, 40], "kind": "button", "label": "GO"},
+            "lightning_btn": {"rect": [50, 50, 40, 40], "kind": "button", "label": "!"},
+            "preview_panel": {"rect": [300, 200, 680, 320], "kind": "panel", "label": ""},
+        },
+        "mock_note": "test fixture (top-level union)",
+        "views": {
+            "unlock": {
+                "widgets": {
+                    "panel": {"rect": [0, 0, 1280, 720], "kind": "panel", "label": ""},
+                    "close_btn": {"rect": [1200, 20, 40, 40], "kind": "button",
+                                 "label": "X"},
+                    "action_btn": {"rect": [600, 600, 120, 40], "kind": "button",
+                                  "label": "GO"},
+                },
+                "mock_note": "unlock view",
+            },
+            "construct": {
+                "widgets": {
+                    "panel": {"rect": [0, 0, 1280, 720], "kind": "panel", "label": ""},
+                    "close_btn": {"rect": [1200, 20, 40, 40], "kind": "button",
+                                 "label": "X"},
+                },
+                "mock_note": "construct view",
+            },
+            "upgrade": {
+                "widgets": {
+                    "panel": {"rect": [0, 0, 1280, 720], "kind": "panel", "label": ""},
+                    "close_btn": {"rect": [1200, 20, 40, 40], "kind": "button",
+                                 "label": "X"},
+                    "action_btn": {"rect": [600, 600, 120, 40], "kind": "button",
+                                  "label": "GO"},
+                },
+                "mock_note": "upgrade view",
+            },
+            "base_info": {
+                "widgets": {
+                    "panel": {"rect": [0, 0, 1280, 720], "kind": "panel", "label": ""},
+                    "close_btn": {"rect": [1200, 20, 40, 40], "kind": "button",
+                                 "label": "X"},
+                    "lightning_btn": {"rect": [50, 50, 40, 40], "kind": "button",
+                                     "label": "!"},
+                },
+                "mock_note": "base_info view",
+            },
+            "preview": {
+                "widgets": {
+                    "preview_panel": {"rect": [300, 200, 680, 320], "kind": "panel",
+                                      "label": ""},
+                },
+                "mock_note": "preview view",
+            },
+        },
+    }
+}
+
 
 class TestSurfaceToQImage(unittest.TestCase):
     """Pure conversion, pixel-exact on a known 2x2-quadrant pattern."""
@@ -600,16 +670,17 @@ class TestViewportScreenMode(TempDataCase):
 
 class TestViewportScreenModeViews(TempDataCase):
     """UH-2: `_current_screen_defaults` resolves the session's active view —
-    against the REAL data/ui/screen_defaults.json (building_panel is the
-    only screen UH-1 exports `views` for; verified shape, not a hand-rolled
-    fixture) rather than a synthetic fixture."""
+    against the hand-authored FIXTURE_DEFAULTS_VIEWS (pinned membership),
+    NOT the real exporter-generated data/ui/screen_defaults.json: which ids
+    land in which view is `tools/export_ui_layouts.py`'s call (UH-1's
+    territory, outside this phase's scope), so pinning to it would make
+    these resolver tests fail for a reason that has nothing to do with the
+    resolver (root CLAUDE.md: never assert against live data/ content)."""
 
     def setUp(self):
         super().setUp()
         self.empty_screens("building_panel", "main_menu")
-        self.real_defaults = data_io.load_validated(
-            self.data_dir / "ui" / "screen_defaults.json",
-            self.data_dir / "schemas" / "screen_defaults.schema.json")
+        self.defaults = FIXTURE_DEFAULTS_VIEWS
 
     def make_viewport(self):
         panel = self.track(ViewportPanel(data_dir=self.data_dir))
@@ -626,19 +697,19 @@ class TestViewportScreenModeViews(TempDataCase):
     def test_no_active_view_returns_the_top_level_union(self):
         panel = self.make_viewport()
         session = self.make_session("building_panel")
-        panel.set_screen_mode(session, self.real_defaults)
+        panel.set_screen_mode(session, self.defaults)
         self.assertEqual(
             panel._current_screen_defaults(),
-            self.real_defaults["building_panel"])
+            self.defaults["building_panel"])
 
     def test_active_view_returns_only_that_views_widgets(self):
         panel = self.make_viewport()
         session = self.make_session("building_panel")
-        panel.set_screen_mode(session, self.real_defaults)
+        panel.set_screen_mode(session, self.defaults)
         session.set_view("construct")
         entry = panel._current_screen_defaults()
         self.assertEqual(
-            entry, self.real_defaults["building_panel"]["views"]["construct"])
+            entry, self.defaults["building_panel"]["views"]["construct"])
         self.assertEqual(set(entry["widgets"]), {"close_btn", "panel"})
 
     def test_switching_view_swaps_the_rendered_widget_set(self):
@@ -646,7 +717,7 @@ class TestViewportScreenModeViews(TempDataCase):
         `preview_*` bleeding into `construct`, and vice versa."""
         panel = self.make_viewport()
         session = self.make_session("building_panel")
-        panel.set_screen_mode(session, self.real_defaults)
+        panel.set_screen_mode(session, self.defaults)
 
         def rendered_widget_ids():
             seen = []
@@ -675,11 +746,11 @@ class TestViewportScreenModeViews(TempDataCase):
         an unrecognized view falls back to the full entry (§2)."""
         panel = self.make_viewport()
         session = self.make_session("building_panel")
-        panel.set_screen_mode(session, self.real_defaults)
+        panel.set_screen_mode(session, self.defaults)
         session.set_view("no_such_view")
         self.assertEqual(
             panel._current_screen_defaults(),
-            self.real_defaults["building_panel"])
+            self.defaults["building_panel"])
 
     def test_no_views_screen_is_unaffected_by_active_view(self):
         """§1.4 regression: a screen with no `views` entry (every screen but
@@ -693,6 +764,20 @@ class TestViewportScreenModeViews(TempDataCase):
         session.set_view("construct")   # no-op: main_menu has no views
         self.assertEqual(
             panel._current_screen_defaults(), FIXTURE_DEFAULTS["main_menu"])
+
+
+class TestRealScreenDefaultsShape(TempDataCase):
+    """Shape/smoke assertion (not a resolver test): the REAL
+    data/ui/screen_defaults.json still parses building_panel into exactly
+    the five pinned view NAMES. Deliberately does NOT pin per-view widget-id
+    membership — that's the exporter's call, not this phase's."""
+
+    def test_building_panel_has_the_five_pinned_view_names(self):
+        real_defaults = data_io.load_validated(
+            self.data_dir / "ui" / "screen_defaults.json",
+            self.data_dir / "schemas" / "screen_defaults.schema.json")
+        self.assertEqual(
+            set(real_defaults["building_panel"]["views"]), set(VIEW_ORDER))
 
 
 def _write_ui_button_entry(data_dir, slot="ui_button"):
@@ -1005,22 +1090,22 @@ class TestScreenDetailsPanel(TempDataCase):
 
 class TestScreenDetailsPanelViews(TempDataCase):
     """UH-2: the widget list follows the session's active view (against the
-    REAL data/ui/screen_defaults.json, building_panel), and an override
-    written from one view round-trips identically regardless of which view
-    was active when it was written (D2: ids are global to the screen)."""
+    hand-authored FIXTURE_DEFAULTS_VIEWS — see TestViewportScreenModeViews
+    for why: per-view id membership is the exporter's call, not this
+    phase's), and an override written from one view round-trips identically
+    regardless of which view was active when it was written (D2: ids are
+    global to the screen)."""
 
     def setUp(self):
         super().setUp()
         self.empty_screens("building_panel")
-        self.real_defaults = data_io.load_validated(
-            self.data_dir / "ui" / "screen_defaults.json",
-            self.data_dir / "schemas" / "screen_defaults.schema.json")
+        self.defaults = FIXTURE_DEFAULTS_VIEWS
 
     def make(self):
         panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
         session = self.track(UIScreenSession(data_dir=self.data_dir))
         session.open("building_panel")
-        panel.set_session(session, self.real_defaults)
+        panel.set_session(session, self.defaults)
         return panel, session
 
     def widget_ids(self, panel):
@@ -1036,10 +1121,7 @@ class TestScreenDetailsPanelViews(TempDataCase):
 
         session.set_view("preview")
         panel._on_screen_opened()
-        self.assertEqual(
-            self.widget_ids(panel),
-            {"preview_cancel_btn", "preview_close_btn", "preview_confirm_btn",
-             "preview_dice_btn", "preview_panel"})
+        self.assertEqual(self.widget_ids(panel), {"preview_panel"})
 
     def test_override_round_trips_regardless_of_active_view(self):
         """§4(b): edit in `construct`, save, reopen — identical
@@ -1067,7 +1149,7 @@ class TestScreenDetailsPanelViews(TempDataCase):
         # the override is visible from base_info too — same global id (D2)
         session2.set_view("base_info")
         panel2 = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
-        panel2.set_session(session2, self.real_defaults)
+        panel2.set_session(session2, self.defaults)
         self.assertIn("close_btn", self.widget_ids(panel2))
         panel2._populate_widget_form("close_btn")
         self.assertEqual(panel2.x_spin.value(), 444)
@@ -1102,7 +1184,17 @@ class TestMainWindowScreenMode(TempDataCase):
 class TestMainWindowScreenModeViews(TempDataCase):
     """UH-2: selecting the Screens-branch parent leaf opens the first view
     (game-mode order); a view leaf opens that specific view; overrides still
-    write to the ONE building_panel.json regardless of active view."""
+    write to the ONE building_panel.json regardless of active view.
+
+    MainWindow reads data/ui/screen_defaults.json itself (no injection
+    path — orchestrator ruling: the selector/MainWindow read it fresh,
+    mirroring `_load_screen_defaults`), so these integration tests can't be
+    pointed at a fixture the way the viewport/screen_details unit tests
+    are. To avoid pinning exact per-view widget-id membership to whatever
+    UH-1's exporter currently emits (the risk the coordinator flagged), the
+    expected value is DERIVED from that same loaded file rather than a
+    hardcoded literal — these assert that the resolution is consistent with
+    the real file, not that the real file contains specific ids."""
 
     def setUp(self):
         super().setUp()
@@ -1112,23 +1204,28 @@ class TestMainWindowScreenModeViews(TempDataCase):
         return self.track(
             MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
 
+    def real_defaults(self):
+        return data_io.load_validated(
+            self.data_dir / "ui" / "screen_defaults.json",
+            self.data_dir / "schemas" / "screen_defaults.schema.json")
+
     def test_selecting_the_parent_screen_leaf_opens_the_first_view(self):
         window = self.make_window()
         window.selector.select_screen("building_panel")
         self.assertEqual(window.screen_session.screen_id, "building_panel")
         self.assertEqual(window.screen_session.view, "unlock")
         self.assertEqual(
-            set(window.screen_details._current_screen_defaults()["widgets"]),
-            {"action_btn", "close_btn", "panel"})
+            window.screen_details._current_screen_defaults(),
+            self.real_defaults()["building_panel"]["views"]["unlock"])
 
     def test_selecting_a_view_leaf_opens_that_view(self):
         window = self.make_window()
         window.selector.select_screen_view("building_panel", "preview")
         self.assertEqual(window.screen_session.screen_id, "building_panel")
         self.assertEqual(window.screen_session.view, "preview")
-        self.assertIn(
-            "preview_panel",
-            window.screen_details._current_screen_defaults()["widgets"])
+        self.assertEqual(
+            window.screen_details._current_screen_defaults(),
+            self.real_defaults()["building_panel"]["views"]["preview"])
 
     def test_switching_views_keeps_the_same_open_doc_no_dirty_prompt(self):
         """§2: switching views on the same open doc never triggers the dirty
