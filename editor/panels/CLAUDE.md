@@ -185,15 +185,28 @@ import list.**
     `tile_background_<n>` type. `_bind_background_code` claims that code in the open
     map (undoable). No map open → registry-only (paintable once some map's `+ Level`
     claims a code).
-  - **`+ Type` (deco only)** → `registry_ops.add_deco_prop` appends a whole leaf
-    CHILD group (`Prop <n>` holding `deco_prop_<n>`) under `Props`. Same handler as
-    the palette's `+ Add Prop`.
+  - **`+ Type` (deco, and ui → Buttons)** → for deco, `registry_ops.add_deco_prop`
+    appends a whole leaf CHILD group (`Prop <n>` holding `deco_prop_<n>`) under
+    `Props` — same handler as the palette's `+ Add Prop`. For ui → Buttons,
+    `MainWindow._on_add_type` dispatches instead to `_on_add_button_type` →
+    `registry_ops.add_button_family`, which appends a new leaf child group
+    (`{label, slots: [ui_button_<slug>]}`, a naming-dialog-derived slug via
+    `registry_ops.button_family_slot`) under Buttons — a brand-new button FAMILY,
+    the ui-category analogue of a deco prop type. `_BUTTON_TYPE_NODE = ("ui",
+    ("Buttons",))` gates both `can_add_type` and the dispatch. Only leaf-group
+    families ("+ Type") get the new-KIND affordance; making a widget of a new
+    *behavior* kind stays a dispatched game-code task.
   - All are pure `write_validated` calls in `editor/registry_ops.py` (`TestPurity`).
     After the write MainWindow reloads every cached registry
-    (`selector`/`details`/`viewport`/`palette` `.reload_registry()`) and
-    `select_last()`s the new slot. No game change needed: `enemy.py:variant_slot`
-    already rolls a random variant per spawn across an era's slots, and a deco
-    placement stores its CONCRETE slot in the map file.
+    (`selector`/`details`/`viewport`/`palette`/`screen_details` `.reload_registry()`)
+    and `select_last()`s the new slot. `screen_details.reload_registry()` is what
+    makes a fresh ui slot (a new button family, or any existing "+ Variant")
+    appear in every skin dropdown (`skin_combo`/`button_skin_combo`/
+    `panel_skin_combo`) **without restarting the editor** — before this wire it
+    was the one reload `MainWindow._reload_registries` skipped. No game change
+    needed otherwise: `enemy.py:variant_slot` already rolls a random variant per
+    spawn across an era's slots, and a deco placement stores its CONCRETE slot in
+    the map file.
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer parity
   (ED-40/41). A *file* import copies the PNG to `data/sprites/imported/<slot>.png`
   AT IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear

@@ -32,8 +32,12 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
+    QFormLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -113,7 +117,7 @@ class MainWindow(QMainWindow):
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.levelbar.add_variant_requested.connect(self._on_add_variant)
-        self.levelbar.add_type_requested.connect(self._on_add_prop)
+        self.levelbar.add_type_requested.connect(self._on_add_type)
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
@@ -488,7 +492,8 @@ class MainWindow(QMainWindow):
         self.levelbar.set_levels(
             slots, assigned,
             can_add=self._variant_target() is not None,
-            can_add_type=category_key == self._DECO_CATEGORY)
+            can_add_type=category_key == self._DECO_CATEGORY
+            or self._node == self._BUTTON_TYPE_NODE)
         self._apply_slot()
 
     # Which categories offer "+ Variant", and (when not None) WHICH of their
@@ -501,6 +506,9 @@ class MainWindow(QMainWindow):
     _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
                         "ui": None}
     _DECO_CATEGORY = "deco"
+    # ui -> Buttons is the second "+ Type" target: a brand-new button FAMILY
+    # (its own variant family), not another skin of an existing one.
+    _BUTTON_TYPE_NODE = ("ui", ("Buttons",))
 
     def _variant_target(self):
         """The leaf child-label a new variant would extend for the current
@@ -578,6 +586,7 @@ class MainWindow(QMainWindow):
         self.selector.reload_registry()
         self.details.reload_registry()
         self.viewport.reload_registry()
+        self.screen_details.reload_registry()
 
     def _bind_background_code(self, slot):
         """Claim a legend code for a new background slot in the OPEN map (an
@@ -638,6 +647,70 @@ class MainWindow(QMainWindow):
             self.details.select_subcategory_label(label)
             self._refresh_levels()
         self.statusBar().showMessage(f"Added prop type {label}", 5000)
+
+    def _on_add_type(self):
+        """Dispatch the LevelBar's '+ Type' button by current selection:
+        ui -> Buttons gets a brand-new button FAMILY (its own variant
+        family, `_on_add_button_type`); every other '+ Type' target (deco)
+        keeps the existing prop-type behavior (`_on_add_prop`)."""
+        if self._node == self._BUTTON_TYPE_NODE:
+            self._on_add_button_type()
+        else:
+            self._on_add_prop()
+
+    def _on_add_button_type(self, name=None):
+        """+ Type on ui -> Buttons: add a brand-new button FAMILY (a leaf
+        child group under Buttons, ready for its own variants) rather than
+        another skin of an existing one. ``name=None`` opens the naming
+        dialog; passing ``name=`` is the test seam (same philosophy as
+        ``dirty_policy`` / injectable ``detach`` elsewhere — tests never
+        exec a modal)."""
+        if name is None:
+            name = self._prompt_button_type_name()
+            if name is None:
+                return
+        try:
+            label, new_slot = registry_ops.add_button_family(
+                self._data_dir, name)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(
+                f"Could not add button type: {exc}", 5000)
+            return
+        self._reload_registries()
+        self.details.set_context("ui", ("Buttons",))
+        self.details.select_subcategory_label(label)
+        self._refresh_levels()
+        self.statusBar().showMessage(
+            f"Added button type {label} ({new_slot})", 5000)
+
+    def _prompt_button_type_name(self):
+        """Modal naming dialog for a new button family: a name field that
+        live-previews the derived slot key (`registry_ops.button_family_slot`).
+        Returns the typed name, or None if cancelled."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add button type")
+        form = QFormLayout(dialog)
+        name_edit = QLineEdit(dialog)
+        form.addRow("Type name", name_edit)
+        preview = QLabel("", dialog)
+        form.addRow("Slot key", preview)
+
+        def update_preview(text):
+            try:
+                preview.setText(registry_ops.button_family_slot(text))
+            except ValueError:
+                preview.setText("—")
+
+        name_edit.textChanged.connect(update_preview)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel, parent=dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return name_edit.text()
 
     def _apply_slot(self):
         category_key, group_path = self._node
