@@ -255,8 +255,8 @@
       "starts_unlocked": true,
       "tiers": [
         {
-          "attack_speed": 0.6,
-          "base_dmg": 25,
+          "attack_speed": 1.0,
+          "base_dmg": 28,
           "base_hp": 120,
           "base_upkeep": 0,
           "build_cost": 10,
@@ -289,7 +289,7 @@
           "upkeep_per_level": 2
         },
         {
-          "attack_speed": 0.55,
+          "attack_speed": 0.5,
           "base_dmg": 90,
           "base_hp": 450,
           "base_upkeep": 5,
@@ -488,7 +488,7 @@
       "starts_unlocked": true,
       "tiers": [
         {
-          "base_hp": 100,
+          "base_hp": 120,
           "base_yield": 5,
           "build_cost": 10,
           "explanation": "Plays music for love.",
