@@ -503,6 +503,57 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+## Phase ESV-4 — vfx preview (`panels/vfx_preview.py`, `editor/vfx_params.py`)
+- **A DEDICATED panel, not a fourth `ViewportPanel` mode.** ESV-2 owns
+  `viewport.py` concurrently (anchor handles + drag); a `set_vfx_mode`
+  branch there would collide with that diff for no architectural gain, so
+  `VfxPreviewPanel` builds its own `Renderer`/`AssetStore`/coordinate system
+  (structurally copying `ViewportPanel.__init__`/`_build_store`/
+  `render_frame`) — the router's ED-22 section explains why a second
+  `Renderer` instance is still one render path. Selected by routing the
+  selector's `vfx` node to `right_stack` index 3 (`MainWindow._enter_vfx_mode`/
+  `_leave_vfx_mode`, mirroring `_enter_screen_mode`/`_leave_screen_mode`);
+  frames advance on the SAME 16 ms `QTimer` as the viewport, gated on
+  `right_stack.currentWidget() is self.vfx_preview` so an inactive preview
+  costs nothing.
+- **Composes with the generic balancing form, never duplicates it.** `vfx`
+  is a real balancing domain (ESV-3a) and already gets the recursive form
+  for free (`domains.py`'s derivation). The preview adds only what the
+  generic form structurally cannot: a picture, colour-picker swatches for
+  the named-stop ramps, and a curated 2-3-number lever strip for the family
+  currently playing — every other tunable stays in the generic tree,
+  reachable exactly as before.
+- **One staging store, no second writer (§2.3).** The panel holds no copy of
+  `vfx.json` and never calls `write_validated`: `BalancingPanel.staged_value(path)`
+  / `.stage_value(path, value)` are the ONLY read/write seam, and
+  `BalancingPanel.value_staged(path, value)` (emitted from `_commit`, so it
+  fires for a generic-form edit OR a preview-driven `stage_value` alike) is
+  what lets a lever here and its twin row in the generic form never
+  disagree. Save stays the balancing panel's one existing button; there is
+  exactly one dirty state in the app. A `stage_value(path, value)` whose
+  `path` addresses a whole ARRAY (a named-stop colour: `.../ramp/stop_0`,
+  a 3-int RGB list) falls back to the PER-INDEX widgets `_build_array`'s
+  array-of-scalars branch actually registers (`.../stop_0/0`, `/1`, `/2`) —
+  there is no single widget at the array's own path to push into.
+- **Family list is data-driven** (the keys under `procedural` in the loaded
+  doc, sorted — never a hardcoded literal list), so ESV-3b's
+  `beam`/`crater`/`lightning`/`announce` show up with zero panel edits. A
+  family with no emitter binding (`floaters` today) degrades to a
+  placeholder message (E-37) — never an exception, never a crash from a
+  combo-box selection change.
+- **Determinism (§2.6): `self._rng` is reseeded to the SAME fixed seed on
+  every `_emit()` call**, and `_emit()` builds a brand-new `VfxSystem` from
+  scratch every time (never mutated in place) — which is also how "any
+  lever edit clears the currently-live particles first" (§1.4) falls out
+  for free, with no separate clear-then-rebuild step. Tests assert the
+  PARAMS `_emit()` handed to `VfxSystem`'s constructor (a spy swapped in
+  for `vfx_preview.VfxSystem`), never a rendered pixel.
+- **`editor/vfx_params.py`** is the editor's own local mirror of
+  `game/ui/effects.py`'s `_color`/`_ramp`/`_params_from_balance` — pure
+  (stdlib + `engine.vfx` only), because `editor/` may never import `game/`
+  (D5's layering argument lives in the router). This is a KNOWN, reported
+  duplication, not an oversight — do not "fix" it by importing `game.ui`.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State

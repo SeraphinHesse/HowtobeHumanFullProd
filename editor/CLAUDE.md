@@ -223,6 +223,30 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/completed plans/Agent
   warning banner) are deliberately theme-independent — keep any new hardcoded
   color legible on BOTH backgrounds, or read it from the palette.
 
+## VFX preview (`panels/vfx_preview.py`, ESV-4) — a second `Renderer`, still ED-22
+
+`VfxPreviewPanel` builds its OWN `load_coordinate_system` + `AssetStore` +
+`Renderer` + offscreen `pygame.Surface`, structurally copying
+`ViewportPanel.__init__`/`_build_store`/`render_frame` (see `editor/panels/
+CLAUDE.md` for the panel's own architecture). **A second `Renderer` instance
+is not a second render path.** ED-22 bans a second QPainter-drawn surface of
+game content, not a second orchestrator object — everything the preview
+draws goes out as the same `HudRect`/`HudLines`/overlay primitives
+`engine.vfx.VfxSystem` submits for the real game, through the SAME
+`engine/render` backend. `panels/sheet_preview.py` already sanctioned this
+reading (see the panels doc); the vfx preview is the second precedent.
+
+Layering: `engine.vfx`'s emitters take injected params + an injected RNG
+specifically so `editor/` can drive the SAME emitter the game does without
+either package importing the other (D5). Since `editor/` may never import
+`game/`, the JSON-key -> dataclass adapter game/ui/effects.py owns
+(`_params_from_balance`) is DUPLICATED as `editor/vfx_params.py` — a
+deliberate, reported drift, precedented by `editor/panels/
+_screen_primitives.py` re-implementing `game/ui`'s unskinned widget look for
+the same reason. Do not resolve the duplication by importing `game.ui.effects`
+or by moving the mapping into `engine/vfx` (that would give the engine
+package JSON vocabulary, which D5 exists to prevent).
+
 ## Testing the editor — two rules, both learned the hard way
 
 **1. Every widget you construct in a test must be destroyed.** Subclass

@@ -60,6 +60,7 @@ from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
+from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
 from tools.smoke import validate_data
 
@@ -99,6 +100,7 @@ class MainWindow(QMainWindow):
         self.map_session = MapSession(data_dir=data_dir, parent=self)
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
+        self.vfx_preview = VfxPreviewPanel(data_dir=data_dir)
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         self._node = None   # (category_key, group_path) of the tree selection
         # dirty policy when opening a DIFFERENT map/screen over unsaved edits:
@@ -154,6 +156,10 @@ class MainWindow(QMainWindow):
         self.screen_details.set_session(self.screen_session)
         self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
         self.viewport.widget_selected.connect(self.screen_details.select_widget)
+
+        # ESV-4: vfx preview <-> balancing staging wiring
+        self.vfx_preview.set_balancing_panel(self.balancing)
+        self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -281,6 +287,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.details)         # index 0: asset import
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
+        self.right_stack.addWidget(self.vfx_preview)  # index 3: vfx preview (ESV-4)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -315,6 +322,10 @@ class MainWindow(QMainWindow):
         self._node = (category_key, tuple(group_path))
         self.details.set_context(category_key, group_path)
         self._refresh_levels()
+        if category_key == "vfx":
+            self._enter_vfx_mode()
+        else:
+            self._leave_vfx_mode()
 
     # -- tilemap mode (ED-20): map node selected -----------------------------
 
@@ -403,6 +414,14 @@ class MainWindow(QMainWindow):
             return data_io.load_validated(path, schema)
         except Exception:   # noqa: BLE001 - a bad file degrades, never raises
             return {}
+
+    # -- vfx preview mode (ESV-4): a "vfx" tree node selected ----------------
+
+    def _enter_vfx_mode(self):
+        self.right_stack.setCurrentWidget(self.vfx_preview)
+
+    def _leave_vfx_mode(self):
+        self.right_stack.setCurrentWidget(self.details)
 
     def _on_refresh_layouts(self):
         self.run_controls.export_layouts()
@@ -797,6 +816,8 @@ class MainWindow(QMainWindow):
         self._last_tick = now
 
         self.viewport.render_frame()
+        if self.right_stack.currentWidget() is self.vfx_preview:
+            self.vfx_preview.render_frame()
         self.frames += 1
         self._fps_window += 1
         self._fps_elapsed += dt
