@@ -36,7 +36,11 @@ _DEFAULTS_FILE = ("ui", "screen_defaults.json")
 _DEFAULTS_SCHEMA = "screen_defaults.schema.json"
 
 #: JSON override key -> the widget attribute it mutates. Everything else
-#: (rect/skin/label/color/text_color/visible) maps 1:1 onto the same name.
+#: (rect/skin/label/color/text_color/visible/tint) maps 1:1 onto the same
+#: name — ``tint`` (D6/UH-6, the sheet-multiply color for a skinned widget)
+#: needs no entry here for exactly that reason: ``apply``'s generic setattr
+#: loop already threads it onto the widget for free, the same way it always
+#: has for ``skin``.
 _SPEC_TO_ATTR = {"font": "font_key"}
 
 

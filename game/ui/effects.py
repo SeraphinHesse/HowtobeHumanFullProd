@@ -26,9 +26,9 @@ from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
 from .widgets import (
-    C_GOLD, C_HP_GREEN, C_HP_RED, C_UI_TEXT, HEART, submit_bar,
-    submit_centered, submit_text,
+    HEART, submit_bar, submit_centered, submit_text
 )
+from . import widgets
 
 _UPKEEP_BLUE = (120, 170, 230)
 _XP_PURPLE = (202, 140, 245)
@@ -245,7 +245,7 @@ class FloaterManager:
         if not self._enabled:
             return
         for col, row, amount, kind in state.income_events:
-            color = C_GOLD if kind == "income" else _UPKEEP_BLUE
+            color = widgets.C_GOLD if kind == "income" else _UPKEEP_BLUE
             text = f"+{amount}{HEART}" if amount >= 0 else str(amount)
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
@@ -615,7 +615,7 @@ class FloaterManager:
             x = int(cx - w / 2)
             y = int(cy - tile_h * zoom)  # a little above the tile centre
             submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
-                       bg=C_HP_RED, fill=C_HP_GREEN, border=(0, 0, 0))
+                       bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN, border=(0, 0, 0))
 
     def submit_enemy_hp_bars(self, renderer, cs, scene):
         """A red/green bar over every live enemy below full HP — the boss
@@ -661,7 +661,7 @@ class FloaterManager:
                 x = int(cx - w / 2)
                 y = int(top - pad * zoom) - h - slot * _ENEMY_BAR_STACK
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
-                           bg=C_HP_RED, fill=C_HP_GREEN)
+                           bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
 
     # -- 10G boss: announcement + boss HP bars ------------------------------
@@ -724,8 +724,8 @@ class FloaterManager:
         y = view_h - _BOSS_HUD_BAR_LIFT
         ratio = health.hp / health.max_hp if health.max_hp else 0.0
         submit_bar(renderer, x, y, w, h, ratio,
-                   bg=C_HP_RED, fill=C_HP_GREEN, border=(0, 0, 0))
-        submit_text(renderer, "BOSS", (x - 10, y - 2), "md", C_HP_RED,
+                   bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN, border=(0, 0, 0))
+        submit_text(renderer, "BOSS", (x - 10, y - 2), "md", widgets.C_HP_RED,
                     align="right")
         submit_text(renderer, f"{health.hp}/{health.max_hp}",
-                    (x + w + 10, y - 2), "md", C_UI_TEXT)
+                    (x + w + 10, y - 2), "md", widgets.C_UI_TEXT)

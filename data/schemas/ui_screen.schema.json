@@ -105,6 +105,16 @@
               "minItems": 3,
               "type": "array"
             },
+            "tint": {
+              "items": {
+                "maximum": 255,
+                "minimum": 0,
+                "type": "integer"
+              },
+              "maxItems": 4,
+              "minItems": 3,
+              "type": "array"
+            },
             "visible": {
               "type": "boolean"
             }
