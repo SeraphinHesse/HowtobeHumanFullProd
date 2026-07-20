@@ -55,16 +55,27 @@ def resolved_skin(spec, override, style):
 # `HudRect(self.field_rect, C_PANEL_STONE)` plus a hardcoded border
 # (`cheat_menu.py:231-234`); no `.color` is ever read, and `resolved_skin`
 # never resolves a skin for `field` either.
+# `label`: every label-kind widget renders through `submit_centered(...,
+# text_color)` only — `text_color` is genuinely live (the pink test
+# exercises exactly that), but nothing ever reads a label's `.color`; there
+# is no box to fill, on either side (`_screen_primitives.fallback_hud_items`
+# draws no `HudRect` for `kind == "label"` either, `:58-60`). Conflating
+# "no box to fill" with "the override still applies" was the bug — `color`
+# is dead for `label` regardless of skin, exactly like `panel`/`field`.
 #
 # NOT in this set (verified live, do not add): `backdrop` — every screen's
 # `_backdrop` reads `.color` directly (`HudRect(self._backdrop.rect,
-# self._backdrop.color)`, e.g. `main_menu.py:107`, `boss_cutscene.py:134`,
-# and 6 more). `bar` — `hud.py` forwards `self._xp_bar.color` as
-# `submit_bar`'s `bg=` (`hud.py:441-443`). `button` is handled entirely by
-# the skin check above (`Button.submit`'s `fill = color or ...` reads
-# `.color` whenever unskinned — only a skin makes it dead, which
-# `resolved_skin` already catches).
-_COLOR_DEAD_KINDS = frozenset({"panel", "field"})
+# self._backdrop.color)`, e.g. `main_menu.py:107`, `add_name.py:132`,
+# `boss_cutscene.py:134`, `credits.py:86`, `game_over.py:66`,
+# `levelup.py:108`, `pause.py:92`, `settings.py:150`). `bar` — `hud.py`
+# forwards `self._xp_bar.color` as `submit_bar`'s `bg=` (`hud.py:443`).
+# `button` — `skinning.button_kwargs` forwards `.color` generically for
+# every id'd button; `Button.submit`'s `fill = color or ...` reads it
+# whenever unskinned (only a skin makes it dead, which `resolved_skin`
+# already catches). That is the full six-kind split, no kind left
+# unaccounted for: dead = `panel`/`field`/`label`, live = `button`/
+# `backdrop`/`bar`.
+_COLOR_DEAD_KINDS = frozenset({"panel", "field", "label"})
 
 
 def color_is_code_owned(kind):

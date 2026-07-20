@@ -142,10 +142,13 @@ class TestColorIsCodeOwned(unittest.TestCase):
         # this predicate) already catches.
         self.assertFalse(color_is_code_owned("button"))
 
-    def test_label_kind_not_flagged_by_this_predicate(self):
-        # label kind draws no fill at all; this predicate only answers the
-        # panel/field call-site question the review raised.
-        self.assertFalse(color_is_code_owned("label"))
+    def test_label_kind_is_also_code_owned(self):
+        # Every label-kind widget renders through submit_centered(...,
+        # text_color) only — text_color is live, but no label-kind widget's
+        # `.color` is ever read anywhere (no box to fill on either side).
+        # Final split, all six kinds accounted for: dead = panel/field/
+        # label, live = button/backdrop/bar.
+        self.assertTrue(color_is_code_owned("label"))
 
 
 class TestHonestControlsQt(TempDataCase):
@@ -280,6 +283,17 @@ class TestHonestControlsQt(TempDataCase):
         panel._populate_widget_form("bar_a")
         self.assertTrue(panel.color_button.isEnabled())
         self.assertEqual(panel.color_button.toolTip(), "")
+
+    def test_color_disabled_code_owned_tooltip_on_unskinned_label(self):
+        """Third instance of the same defect (re-review finding): label-kind
+        Color is dead on arrival too — labels render through
+        submit_centered(..., text_color) only, `.color` is never read.
+        `text_color` stays genuinely live and must stay enabled."""
+        panel, _session = self.make("main_menu")
+        panel._populate_widget_form("title")
+        self.assertFalse(panel.color_button.isEnabled())
+        self.assertEqual(panel.color_button.toolTip(), TOOLTIP_COLOR_CODE_OWNED)
+        self.assertTrue(panel.text_color_button.isEnabled())
 
     def test_panel_stays_color_disabled_even_when_also_skinned(self):
         """Assigning a skin to an already-code-owned kind must not change
