@@ -26,7 +26,10 @@ drive it to done. You execute plans; you never write or rewrite them.
    to.
 
 ## Exit gate
-- `py tools/smoke.py` green; suite has **0 failures, 0 errors**.
+- **Umbrella workflow — MINIMAL gate only.** `py tools/smoke.py` green +
+  `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Never run
+  the full suite; the full run happens once, after this work is merged into the
+  umbrella branch, owned by whoever does that merge.
 - Run the brief's in-game Quick Test and state the result.
 - **Status write-back (always):** edit the phase's entry in the plan doc —
   `*(LANDED)*` with deferrals/divergences as sub-bullets, or the honest partial/
