@@ -53,5 +53,82 @@ class TestUILayoutExportStaleness(unittest.TestCase):
         self.assertEqual(bytes_a, bytes_b)
 
 
+class TestBuildingPanelViews(unittest.TestCase):
+    """UH-1: ``building_panel`` gains a five-key ``views`` object mirroring
+    the game's mode dispatch (building_ui.py hover/click branches). Regenerate
+    into a tempdir every time — never assert against live ``data/`` content
+    (the house rule; a fixture pin would go stale the moment a mock changes)."""
+
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            export_main(data_root=REPO / "data", output_dir=tmpdir)
+            import json
+            cls.defaults = json.loads(
+                (tmpdir / "ui" / "screen_defaults.json").read_text(
+                    encoding="utf-8"))
+
+    def test_five_view_keys(self):
+        views = self.defaults["building_panel"]["views"]
+        self.assertEqual(
+            set(views.keys()),
+            {"unlock", "construct", "upgrade", "base_info", "preview"})
+
+    def test_action_btn_differs_between_unlock_and_upgrade(self):
+        views = self.defaults["building_panel"]["views"]
+        unlock_rect = views["unlock"]["widgets"]["action_btn"]["rect"]
+        upgrade_rect = views["upgrade"]["widgets"]["action_btn"]["rect"]
+        self.assertIn("action_btn", views["unlock"]["widgets"])
+        self.assertIn("action_btn", views["upgrade"]["widgets"])
+        self.assertNotEqual(unlock_rect, upgrade_rect)
+
+    def test_rename_dice_btn_only_in_upgrade(self):
+        views = self.defaults["building_panel"]["views"]
+        for name, view in views.items():
+            if name == "upgrade":
+                self.assertIn("rename_dice_btn", view["widgets"])
+            else:
+                self.assertNotIn("rename_dice_btn", view["widgets"])
+
+    def test_lightning_btn_only_in_base_info(self):
+        views = self.defaults["building_panel"]["views"]
+        for name, view in views.items():
+            if name == "base_info":
+                self.assertIn("lightning_btn", view["widgets"])
+            else:
+                self.assertNotIn("lightning_btn", view["widgets"])
+
+    def test_preview_ids_only_in_preview(self):
+        views = self.defaults["building_panel"]["views"]
+        for name, view in views.items():
+            preview_ids = [k for k in view["widgets"] if k.startswith("preview_")]
+            if name == "preview":
+                self.assertTrue(preview_ids)
+            else:
+                self.assertEqual(preview_ids, [])
+
+    def test_panel_and_close_btn_in_four_panel_views(self):
+        views = self.defaults["building_panel"]["views"]
+        for name in ("unlock", "construct", "upgrade", "base_info"):
+            self.assertIn("panel", views[name]["widgets"])
+            self.assertIn("close_btn", views[name]["widgets"])
+
+    def test_top_level_widgets_is_union_of_view_keysets(self):
+        bp = self.defaults["building_panel"]
+        expected = set()
+        for view in bp["views"].values():
+            expected |= set(view["widgets"].keys())
+        self.assertEqual(set(bp["widgets"].keys()), expected)
+
+    def test_no_other_screen_carries_views(self):
+        for screen_id, entry in self.defaults.items():
+            if screen_id == "building_panel":
+                continue
+            self.assertNotIn(
+                "views", entry,
+                f"{screen_id!r} unexpectedly carries a 'views' key")
+
+
 if __name__ == "__main__":
     unittest.main()

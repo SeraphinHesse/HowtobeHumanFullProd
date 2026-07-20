@@ -110,14 +110,231 @@
     }
   },
   "building_panel": {
-    "mock_note": "love=123, round=7; mid-game selection — BuildingUI panel + a ConstructPreview('defence') modal open (disjoint preview_* id namespace)",
+    "mock_note": "love=123, round=7; first-wins union of the five per-mode views ('unlock', 'construct', 'upgrade', 'base_info', 'preview') for ids shared across modes (panel/close_btn) — see views.<name>.mock_note for that mode's own mock state",
+    "views": {
+      "base_info": {
+        "mock_note": "love=123, round=7; mock lightning_level=1",
+        "widgets": {
+          "boss_btn": {
+            "kind": "button",
+            "label": "BOSS CHOICES",
+            "rect": [
+              1032,
+              420,
+              236,
+              32
+            ]
+          },
+          "boss_close_btn": {
+            "kind": "button",
+            "label": "CLOSE",
+            "rect": [
+              580,
+              446,
+              120,
+              32
+            ]
+          },
+          "close_btn": {
+            "kind": "button",
+            "label": "X",
+            "rect": [
+              1252,
+              8,
+              20,
+              18
+            ]
+          },
+          "lightning_btn": {
+            "kind": "button",
+            "label": "UPGRADE LIGHTNING  ♥35",
+            "rect": [
+              1032,
+              370,
+              236,
+              36
+            ]
+          },
+          "panel": {
+            "kind": "panel",
+            "label": "",
+            "rect": [
+              1020,
+              0,
+              260,
+              720
+            ]
+          }
+        }
+      },
+      "construct": {
+        "mock_note": "love=123, round=7; construct cards are dynamic-count and deliberately un-id'd (B3 rule) — they inherit defaults.button_skin instead of an individual override",
+        "widgets": {
+          "close_btn": {
+            "kind": "button",
+            "label": "X",
+            "rect": [
+              1252,
+              8,
+              20,
+              18
+            ]
+          },
+          "panel": {
+            "kind": "panel",
+            "label": "",
+            "rect": [
+              1020,
+              0,
+              260,
+              720
+            ]
+          }
+        }
+      },
+      "preview": {
+        "mock_note": "love=123, round=7; ConstructPreview('defence') modal open, count=1, tier_idx=0 (preview_cancel_btn present iff ui.Timing.construct_show_cancel)",
+        "widgets": {
+          "preview_cancel_btn": {
+            "kind": "button",
+            "label": "CANCEL",
+            "rect": [
+              486,
+              462,
+              140,
+              34
+            ]
+          },
+          "preview_close_btn": {
+            "kind": "button",
+            "label": "X",
+            "rect": [
+              784,
+              216,
+              20,
+              18
+            ]
+          },
+          "preview_confirm_btn": {
+            "kind": "button",
+            "label": "CONFIRM",
+            "rect": [
+              654,
+              462,
+              140,
+              34
+            ]
+          },
+          "preview_dice_btn": {
+            "kind": "button",
+            "label": "⚄",
+            "rect": [
+              764,
+              306,
+              30,
+              30
+            ]
+          },
+          "preview_panel": {
+            "kind": "panel",
+            "label": "",
+            "rect": [
+              470,
+              210,
+              340,
+              300
+            ]
+          }
+        }
+      },
+      "unlock": {
+        "mock_note": "love=123, round=7; mock tile (0,0), a single-tile chunk, fixed unlock_cost=40, can_unlock=True (always adjacent)",
+        "widgets": {
+          "action_btn": {
+            "kind": "button",
+            "label": "UNLOCK  ♥40",
+            "rect": [
+              1032,
+              150,
+              236,
+              36
+            ]
+          },
+          "close_btn": {
+            "kind": "button",
+            "label": "X",
+            "rect": [
+              1252,
+              8,
+              20,
+              18
+            ]
+          },
+          "panel": {
+            "kind": "panel",
+            "label": "",
+            "rect": [
+              1020,
+              0,
+              260,
+              720
+            ]
+          }
+        }
+      },
+      "upgrade": {
+        "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) with a fresh RunState.from_balance() run-state — upgrade_gate resolves 'in_tier' deterministically",
+        "widgets": {
+          "action_btn": {
+            "kind": "button",
+            "label": "UPGRADE  ♥10",
+            "rect": [
+              1032,
+              600,
+              236,
+              36
+            ]
+          },
+          "close_btn": {
+            "kind": "button",
+            "label": "X",
+            "rect": [
+              1252,
+              8,
+              20,
+              18
+            ]
+          },
+          "panel": {
+            "kind": "panel",
+            "label": "",
+            "rect": [
+              1020,
+              0,
+              260,
+              720
+            ]
+          },
+          "rename_dice_btn": {
+            "kind": "button",
+            "label": "⚄",
+            "rect": [
+              1236,
+              40,
+              24,
+              22
+            ]
+          }
+        }
+      }
+    },
     "widgets": {
       "action_btn": {
         "kind": "button",
-        "label": "",
+        "label": "UNLOCK  ♥40",
         "rect": [
           1032,
-          0,
+          150,
           236,
           36
         ]

@@ -165,24 +165,108 @@ def _build_hud(view_w, view_h, data_root):
             f"{_COMMON_NOTE} (layout() + the _layout_readouts() second pass)")
 
 
-def _build_building_panel(view_w, view_h, data_root):
+# -- UH-1: per-mode building_panel views --------------------------------
+# The exporter used to superimpose all four BuildingUI modes plus the
+# ConstructPreview modal into one flattened snapshot the game never shows,
+# recording mode-dependent geometry (e.g. action_btn) from __init__ before any
+# mode builder ran. Each view below builds its OWN fresh BuildingUI (never
+# shared — this is the determinism guarantee at the object level: no mode's
+# state leaks into another's rect/label) and records only the ids that mode
+# actually draws (building_ui.py hover/click dispatch + the mode builders).
+_BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
+
+# Per-view id membership — mirrors building_ui.py's mode dispatch exactly
+# (unlock/construct/upgrade panel views + the base_info stand-in + the
+# ConstructPreview modal's own disjoint "preview_*" namespace).
+_BP_UNLOCK_IDS = ("panel", "close_btn", "action_btn")
+_BP_CONSTRUCT_IDS = ("panel", "close_btn")
+_BP_UPGRADE_IDS = ("panel", "close_btn", "action_btn", "rename_dice_btn")
+_BP_BASE_INFO_IDS = ("panel", "close_btn", "boss_btn", "boss_close_btn")
+
+# Fixed unlock-cost mock (view §2: "mock values go in the view's mock_note") —
+# any deterministic constant works since the union exists for the id set, not
+# per-mode cost accuracy.
+_MOCK_UNLOCK_COST = 40
+
+
+def _bp_view_widgets(panel, id_names):
+    """``_widgets_from_ids`` over a fixed subset of a BuildingUI's mode-
+    independent ``ids`` — every view/union entry still routes through the
+    one entry-construction path (``_widget_entry``/``_widgets_from_ids``)."""
+    return _widgets_from_ids({name: panel.ids[name] for name in id_names})
+
+
+def _build_bp_unlock(view_w, view_h, ui_balance):
     from types import SimpleNamespace
 
-    from game.buildings.registry import build_cost
-    from game.core.balance import load_balance
-    from game.ui.building_ui import BuildingUI, ConstructPreview
+    from game.ui.building_ui import BuildingUI
 
-    buildings_balance = load_balance(data_root, "buildings")
-    ui_balance = load_balance(data_root, "ui")
-    core_balance = load_balance(data_root, "core")
-
-    # BuildingUI's mode-independent ids (panel/close_btn/action_btn/boss_btn/
-    # rename_dice_btn/boss_close_btn) are set once in __init__ — no
-    # open_for_tile()/layout() call needed to populate them (game/ui/
-    # CLAUDE.md "mode-independent ids").
     panel = BuildingUI(view_w, view_h, ui_balance)
-    widgets = dict(_widgets_from_ids(panel.ids))
+    tile = SimpleNamespace(col=0, row=0)
+    panel.selected_tiles = [tile]
+    # A minimal stand-in "session" exposing only the three callables
+    # ``_build_unlock`` reads (building_ui.py:472-476) — no real tilemap.
+    session = SimpleNamespace(tilemap=SimpleNamespace(
+        get_chunk_for_tile=lambda t: [t],
+        unlock_cost=lambda t: _MOCK_UNLOCK_COST,
+        can_unlock=lambda t: True,
+    ))
+    panel._build_unlock(session)
+    widgets = _bp_view_widgets(panel, _BP_UNLOCK_IDS)
+    note = (f"{_COMMON_NOTE}; mock tile (0,0), a single-tile chunk, fixed "
+            f"unlock_cost={_MOCK_UNLOCK_COST}, can_unlock=True (always "
+            "adjacent)")
+    return {"widgets": widgets, "mock_note": note}
 
+
+def _build_bp_construct(view_w, view_h, ui_balance):
+    from game.ui.building_ui import BuildingUI
+
+    panel = BuildingUI(view_w, view_h, ui_balance)
+    widgets = _bp_view_widgets(panel, _BP_CONSTRUCT_IDS)
+    note = (f"{_COMMON_NOTE}; construct cards are dynamic-count and "
+            "deliberately un-id'd (B3 rule) — they inherit "
+            "defaults.button_skin instead of an individual override")
+    return {"widgets": widgets, "mock_note": note}
+
+
+def _build_bp_upgrade(view_w, view_h, ui_balance, buildings_balance,
+                      core_balance):
+    from types import SimpleNamespace
+
+    from game.buildings.registry import create
+    from game.core.game_state import RunState
+    from game.ui.building_ui import BuildingUI
+
+    panel = BuildingUI(view_w, view_h, ui_balance)
+    building = create(_MOCK_BUILDING_TYPE, 0, 0, buildings_balance)
+    tile = SimpleNamespace(col=0, row=0)
+    panel._selected = building
+    panel.selected_tiles = [tile]
+    panel._buildings_balance = buildings_balance
+    # Open item ruling #3: a real, freshly-constructed run-state
+    # (``RunState.from_balance``) constructs headlessly with no world, so it
+    # is preferred over a SimpleNamespace stand-in. ``upgrade_gate`` on a
+    # freshly-created tier-0/level-1 building resolves the "in_tier" branch
+    # deterministically (measured: `upgrade_gate` -> ("in_tier", None, 10)
+    # for the mock building type) without touching any research/round field.
+    panel._session = SimpleNamespace(
+        state=RunState.from_balance(core_balance, buildings_balance))
+    panel._build_upgrade()
+    widgets = _bp_view_widgets(panel, _BP_UPGRADE_IDS)
+    note = (f"{_COMMON_NOTE}; a freshly created {_MOCK_BUILDING_TYPE!r} "
+            "building (tier 0, level 1) with a fresh "
+            "RunState.from_balance() run-state — upgrade_gate resolves "
+            "'in_tier' deterministically")
+    return {"widgets": widgets, "mock_note": note}
+
+
+def _build_bp_base_info(view_w, view_h, ui_balance, core_balance):
+    from types import SimpleNamespace
+
+    from game.ui.building_ui import BuildingUI
+
+    panel = BuildingUI(view_w, view_h, ui_balance)
     # lightning_btn is the one id that is NOT mode-independent — it is
     # (re)created inside _build_base_info, so a bare construction never
     # populates it. A minimal stand-in "session" (only the two attributes
@@ -192,24 +276,66 @@ def _build_building_panel(view_w, view_h, data_root):
     # override naming it would raise ValueError at load (Phase 3).
     panel._build_base_info(SimpleNamespace(
         state=SimpleNamespace(lightning_level=1), core_balance=core_balance))
+    widgets = _bp_view_widgets(panel, _BP_BASE_INFO_IDS)
     if panel.lightning_btn is not None:
         widgets.update(_widgets_from_ids(
             {"lightning_btn": ("button", panel.lightning_btn)}))
+    note = f"{_COMMON_NOTE}; mock lightning_level=1"
+    return {"widgets": widgets, "mock_note": note}
+
+
+def _build_bp_preview(view_w, view_h, ui_balance, buildings_balance):
+    from game.buildings.registry import build_cost
+    from game.ui.building_ui import ConstructPreview
 
     # ConstructPreview's disjoint "preview_*" ids (mid-game: a building
     # chosen, the construct-confirm modal open) — its own ids/apply pass runs
-    # once in __init__ too.
+    # once in __init__.
     tier_idx = 0
     cost = build_cost(_MOCK_BUILDING_TYPE, buildings_balance, tier_idx)
     preview = ConstructPreview(
         _MOCK_BUILDING_TYPE, cost, buildings_balance, ui_balance,
         view_w, view_h, count=1, tier_idx=tier_idx)
-    widgets.update(_widgets_from_ids(preview.ids))
+    widgets = _widgets_from_ids(preview.ids)
+    note = (f"{_COMMON_NOTE}; ConstructPreview({_MOCK_BUILDING_TYPE!r}) "
+            "modal open, count=1, tier_idx=0 (preview_cancel_btn present "
+            "iff ui.Timing.construct_show_cancel)")
+    return {"widgets": widgets, "mock_note": note}
 
-    note = (f"{_COMMON_NOTE}; mid-game selection — BuildingUI panel + a "
-            f"ConstructPreview({_MOCK_BUILDING_TYPE!r}) modal open "
-            "(disjoint preview_* id namespace)")
-    return widgets, note
+
+def _build_building_panel(view_w, view_h, data_root):
+    """Five per-mode views (D2) + a deterministic first-wins union over
+    ``_BP_VIEW_ORDER`` as the top-level ``widgets`` (the game's known-id set,
+    ``game/ui/skinning.py:190-194`` — unchanged by this phase; the game never
+    reads ``views``)."""
+    from game.core.balance import load_balance
+
+    buildings_balance = load_balance(data_root, "buildings")
+    ui_balance = load_balance(data_root, "ui")
+    core_balance = load_balance(data_root, "core")
+
+    views = {
+        "unlock": _build_bp_unlock(view_w, view_h, ui_balance),
+        "construct": _build_bp_construct(view_w, view_h, ui_balance),
+        "upgrade": _build_bp_upgrade(
+            view_w, view_h, ui_balance, buildings_balance, core_balance),
+        "base_info": _build_bp_base_info(view_w, view_h, ui_balance,
+                                         core_balance),
+        "preview": _build_bp_preview(view_w, view_h, ui_balance,
+                                     buildings_balance),
+    }
+
+    widgets = {}
+    for view_name in _BP_VIEW_ORDER:
+        for widget_id, entry in views[view_name]["widgets"].items():
+            if widget_id not in widgets:
+                widgets[widget_id] = entry
+
+    note = (f"{_COMMON_NOTE}; first-wins union of the five per-mode views "
+            f"{_BP_VIEW_ORDER} for ids shared across modes (panel/"
+            "close_btn) — see views.<name>.mock_note for that mode's own "
+            "mock state")
+    return widgets, note, views
 
 
 def _build_cheat_menu(view_w, view_h, data_root):
@@ -266,15 +392,20 @@ _BUILDERS = {
 
 
 def build_screen_defaults(screen_id, view_w, view_h, data_root):
-    """``{widgets, mock_note}`` for one screen — any construction failure
-    propagates with context (brief §2 Edit 1.6: "no silent skips")."""
+    """``{widgets, mock_note}`` for one screen (``{widgets, views, mock_note}``
+    for ``building_panel`` — UH-1's per-mode views, D2) — any construction
+    failure propagates with context (brief §2 Edit 1.6: "no silent skips")."""
     builder = _BUILDERS[screen_id]
     try:
-        widgets, mock_note = builder(view_w, view_h, data_root)
+        result = builder(view_w, view_h, data_root)
     except Exception as exc:
         raise RuntimeError(
             f"export_ui_layouts: screen {screen_id!r} failed to construct "
             f"headless: {exc}") from exc
+    if screen_id == "building_panel":
+        widgets, mock_note, views = result
+        return {"widgets": widgets, "views": views, "mock_note": mock_note}
+    widgets, mock_note = result
     return {"widgets": widgets, "mock_note": mock_note}
 
 
