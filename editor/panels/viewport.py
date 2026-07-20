@@ -282,9 +282,12 @@ class ViewportPanel(QWidget):
         camera). None → leaves screen mode.
 
         `defaults` is the loaded data/ui/screen_defaults.json dict, keyed by
-        screen_id -> {widgets, mock_note}. Missing/empty is HARD REQUIRED to
-        degrade gracefully (pre-B3, or a broken dev machine): render_frame
-        never raises over it — see _submit_screen_items's placeholder path.
+        screen_id -> {widgets, mock_note} (building_panel additionally
+        carries a `views` mapping of view_id -> {widgets, mock_note} — UH-2;
+        `_current_screen_defaults` resolves the session's active view, if
+        any, to the same shape). Missing/empty is HARD REQUIRED to degrade
+        gracefully (pre-B3, or a broken dev machine): render_frame never
+        raises over it — see _submit_screen_items's placeholder path.
         """
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
@@ -353,10 +356,25 @@ class ViewportPanel(QWidget):
     def _current_screen_defaults(self):
         """The open screen's own {widgets, mock_note} sub-dict, or None when
         absent (no defaults file, or this screen isn't in it yet) — the ONE
-        place every screen-mode code path checks for graceful degrade."""
+        place every screen-mode code path checks for graceful degrade.
+
+        UH-2: if the entry carries a `views` mapping and the session's
+        active `view` names one, resolve to that view's own {widgets,
+        mock_note} sub-dict (the same shape) instead — this single change
+        IS the widget-list/render/hit-test filtering, since every caller
+        already funnels through this function. A screen with no `views`
+        (every screen but building_panel) or a session with no active view
+        (view=None) behaves exactly as before."""
         if self._screen_session is None:
             return None
-        return self._screen_defaults.get(self._screen_session.screen_id)
+        entry = self._screen_defaults.get(self._screen_session.screen_id)
+        if entry is None:
+            return None
+        views = entry.get("views")
+        view = self._screen_session.view
+        if views and view in views:
+            return views[view]
+        return entry
 
     def _screen_scale_offset(self):
         """Uniform scale + letterbox offset fitting the 1280x720 logical

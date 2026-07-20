@@ -51,7 +51,7 @@ from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
-from editor.ui_screen_session import UIScreenSession
+from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.level_bar import LevelBar
@@ -69,7 +69,8 @@ PREFS_PATH = REPO / ".editor_prefs.json"
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, max_frames=None, data_dir=None, prefs_path=None):
+    def __init__(self, max_frames=None, data_dir=None, prefs_path=None,
+                 auto_refresh_layouts=True):
         super().__init__()
         self._prefs_path = Path(prefs_path) if prefs_path is not None else PREFS_PATH
         self.setWindowTitle("How To Be Human — editor")
@@ -104,11 +105,17 @@ class MainWindow(QMainWindow):
         # dirty policy when opening a DIFFERENT map/screen over unsaved edits:
         # "ask" (QMessageBox Save/Discard/Cancel) | "save" | "discard"
         self.dirty_policy = "ask"
+        # UH-2: auto-run Refresh Layouts once per screen-mode entry (never on
+        # a view/screen switch while already in screen mode). Injectable so
+        # tests never spawn a real subprocess.
+        self._auto_refresh_layouts = auto_refresh_layouts
+        self._screen_mode_entered = False
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
         self.selector.map_selected.connect(self._on_map_selected)
         self.selector.screen_selected.connect(self._on_screen_selected)
+        self.selector.screen_view_selected.connect(self._on_screen_view_selected)
         self.selector.add_requested.connect(self._on_add_requested)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
@@ -361,6 +368,7 @@ class MainWindow(QMainWindow):
         self._leave_map_mode()
         session = self.screen_session
         if session.doc is not None and session.screen_id == screen_id:
+            session.set_view(self._default_view(screen_id))
             self._enter_screen_mode()   # same doc (possibly dirty): keep edits
             return
         if not self._resolve_dirty(session):
@@ -368,7 +376,34 @@ class MainWindow(QMainWindow):
             self.selector.select_screen(session.screen_id)
             return
         session.open(screen_id)
+        session.set_view(self._default_view(screen_id))
         self._enter_screen_mode()
+
+    def _on_screen_view_selected(self, screen_id, view_id):
+        # UH-2: a Screens-branch VIEW leaf (a child of a screen leaf) was
+        # selected — identical flow to _on_screen_selected, but the view is
+        # the one the user picked, not the screen's default.
+        self._leave_map_mode()
+        session = self.screen_session
+        if session.doc is not None and session.screen_id == screen_id:
+            session.set_view(view_id)
+            self._enter_screen_mode()   # same doc (possibly dirty): keep edits
+            return
+        if not self._resolve_dirty(session):
+            # cancelled: put the selection back on the still-open screen
+            self.selector.select_screen(session.screen_id)
+            return
+        session.open(screen_id)
+        session.set_view(view_id)
+        self._enter_screen_mode()
+
+    def _default_view(self, screen_id):
+        """The view a bare screen-leaf selection opens: the first view in
+        game-mode order if the screen has views (D-3's sorted-keys JSON
+        would otherwise alphabetize them), else None (the screen's single
+        implicit view — every non-building screen)."""
+        views = self._load_screen_defaults().get(screen_id, {}).get("views")
+        return ordered_views(views)[0] if views else None
 
     def _enter_screen_mode(self):
         # ED-42: re-read the manifest on every entry, not just after an
@@ -379,6 +414,15 @@ class MainWindow(QMainWindow):
         # loads sheets lazily, so this is just a fresh manifest read + a
         # fresh AssetStore (engine/assets/CLAUDE.md "no cache invalidation").
         self.viewport.reload_assets()
+        # UH-2: auto Refresh Layouts ONCE per screen-mode entry (switching
+        # screens/views while already in screen mode does not re-run it).
+        # Reuses the tracked export_layouts subprocess — its own
+        # completion handler (_on_export_layouts_finished) already refreshes
+        # the defaults/status bar; a run already in flight silently refuses
+        # the auto-call (run_controls' one-tracked-process rule).
+        if self._auto_refresh_layouts and not self._screen_mode_entered:
+            self.run_controls.export_layouts()
+        self._screen_mode_entered = True
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
@@ -390,6 +434,7 @@ class MainWindow(QMainWindow):
         if self.viewport.in_screen_mode():
             self.viewport.set_screen_mode(None)
         self.right_stack.setCurrentWidget(self.details)
+        self._screen_mode_entered = False
 
     def _load_screen_defaults(self):
         """data/ui/screen_defaults.json (B3's exporter output). Missing or

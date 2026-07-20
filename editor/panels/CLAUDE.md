@@ -503,6 +503,77 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+## Phase UH-2 — per-mode screen views + auto Refresh Layouts on entry
+- **`building_panel` gets five views, exported by UH-1's per-mode snapshot
+  exporter** (`unlock`/`construct`/`upgrade`/`base_info`/`preview`) instead of
+  one superimposed pile of every mode's widgets. `data/ui/screen_defaults.json`
+  per-screen shape is unchanged for every OTHER screen; `building_panel` gains
+  an optional `views` key: `{view_id: {widgets, mock_note}}` — the SAME shape
+  as a per-screen entry, so the resolver below returns either interchangeably.
+  Top-level `widgets` stays the required first-wins union (back-compat: the
+  game's known-id check and any pre-UH-2 reader still work); the editor
+  ignores it whenever `views` is present.
+- **`VIEW_ORDER`/`ordered_views()`** (`editor/ui_screen_session.py`, module
+  level, one authority) pin the game-mode display order
+  (`unlock, construct, upgrade, base_info, preview`) — needed because D-3's
+  sorted-keys JSON alphabetizes the `views` object (`base_info` first).
+  Selector and `MainWindow` both import it from here.
+- **`UIScreenSession.view`** (non-doc, non-undoable) is the active view, or
+  `None` for a screen's single implicit view (every screen but
+  building_panel). `open()` resets it to `None`; `set_view(view_id)` sets it
+  and emits `view_changed` — the session does NOT validate view names (it
+  holds only the override doc, not defaults); validity is the caller's job.
+- **One resolution point per consumer, no per-call-site changes.**
+  `ViewportPanel._current_screen_defaults()` and
+  `ScreenDetailsPanel._current_screen_defaults()` both: get the screen's
+  entry, and if it carries `views` and the session's `view` names one, return
+  `entry["views"][view]` instead of `entry`. Because every render/hit-test/
+  nudge path and the widget list already funnel through these two functions,
+  this single change IS the per-view filtering — `_refresh_widget_list` needs
+  no code change, it just iterates whichever dict comes back.
+  `ViewportPanel._effective_rect` layers the session doc's override on top of
+  whichever `defaults` came back, so an id present in several views (`panel`,
+  `close_btn`) carries ONE override applying in every view (D2) with zero
+  extra plumbing.
+- **Selector**: the "Screens" branch (B4) gains a child leaf per view under
+  any screen whose `screen_defaults.json` entry carries `views` — a NEW
+  `_screen_views_from_disk()` helper (a fresh degrade-to-`{}` read mirroring
+  `MainWindow._load_screen_defaults`, approved over adding a MainWindow
+  injection path) reads the file itself. View leaves carry `_VIEW_ROLE`
+  (`(screen_id, view_id)`) and emit `screen_view_selected(screen_id,
+  view_id)` + `domain_selected("ui")` — never `screen_selected`/
+  `node_selected` (the exact `_SCREEN_ROLE` pattern, one level deeper).
+  `select_screen_view()` mirrors `select_screen()`; `refresh_screens()`'s
+  selection-preserving rebuild also preserves a selected VIEW leaf, falling
+  back to the screen leaf if the view vanished.
+- **`MainWindow` wiring**: `_on_screen_selected` (a bare screen-leaf pick)
+  sets the DEFAULT view — `ordered_views(views)[0]` if the screen has views
+  (`"unlock"` for building_panel), else `None` — then calls
+  `_enter_screen_mode()`. New `_on_screen_view_selected(screen_id, view_id)`
+  is the identical flow (same-doc fast path; `_resolve_dirty` only when
+  opening a DIFFERENT screen) but sets the CHOSEN view. **View switching
+  re-runs `_enter_screen_mode()` in full** — `viewport.set_screen_mode`
+  already resets widget selection/drag state and `screen_details.set_defaults`
+  → `_on_screen_opened` rebuilds the list/form, so no stale-selection handling
+  is needed; the repeated `reload_assets()` is cheap by design (above).
+  Switching views on the SAME open doc never triggers the dirty prompt and
+  never clears the undo stack (only `_resolve_dirty` does that, and it's
+  skipped on the same-doc path).
+- **Auto Refresh Layouts on screen-mode entry**: `MainWindow(...,
+  auto_refresh_layouts=True)` (injectable, the `prefs_path=` precedent) plus
+  `self._screen_mode_entered` gate `_enter_screen_mode()`: immediately after
+  `reload_assets()`, if `auto_refresh_layouts` and not yet entered this
+  session, call `self.run_controls.export_layouts()` (the SAME tracked-
+  QProcess path "Refresh Layouts" the toolbar button uses — its own
+  completion handler already refreshes defaults/status bar; a run already in
+  flight silently refuses the auto-call, run_controls' one-tracked-process
+  rule). Set the flag true; `_leave_screen_mode()` resets it, so re-entering
+  screen mode later fires again exactly once. Switching views or screens
+  WHILE already in screen mode does NOT re-fire it. Every test-suite
+  `MainWindow(...)` construction passes `auto_refresh_layouts=False` except
+  the dedicated auto-refresh tests (which stub `run_controls.export_layouts`
+  with a recorder — never a real subprocess in tests).
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State
