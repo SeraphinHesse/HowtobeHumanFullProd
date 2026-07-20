@@ -17,8 +17,12 @@ Stdlib + ``engine.vfx`` only. No Qt, no pygame, no ``data/`` access, no
 ``game`` import.
 """
 from engine.vfx import (
+    AnnounceParams,
+    BeamParams,
     BurstParams,
+    CraterParams,
     GoldParams,
+    LightningParams,
     MuzzleParams,
     ShardBurstParams,
     SlashParams,
@@ -97,6 +101,36 @@ def splatter_params(sp):
         radius_px=sp["radius_px"], jitter=sp["jitter"])
 
 
+def beam_params(bm):
+    return BeamParams(
+        colors=ramp(bm["colors"]), width_base=bm["width_base"],
+        origin_lift_tiles=bm["origin_lift_tiles"])
+
+
+def crater_params(cr):
+    return CraterParams(
+        color=color(cr["color"]), alpha=cr["alpha"], life=cr["life"])
+
+
+def lightning_params(lp):
+    return LightningParams(
+        bolt_segments=lp["bolt_segments"], bolt_jitter_px=lp["bolt_jitter_px"],
+        bolt_color_start=color(lp["bolt_color_start"]),
+        bolt_color_end=color(lp["bolt_color_end"]),
+        bolt_width=lp["bolt_width"], bolt_life=lp["bolt_life"],
+        flash_radius_px=lp["flash_radius_px"],
+        flash_color=color(lp["flash_color"]), flash_alpha=lp["flash_alpha"],
+        marker_color=color(lp["marker_color"]),
+        marker_fill_alpha=lp["marker_fill_alpha"],
+        marker_outline_width=lp["marker_outline_width"],
+        marker_life=lp["marker_life"])
+
+
+def announce_params(an):
+    return AnnounceParams(
+        color=color(an["color"]), max_alpha=an["max_alpha"])
+
+
 def params_from_balance(proc):
     """Mirrors ``game/ui/effects.py::_params_from_balance``'s structure, but
     takes the already-unwrapped ``procedural`` dict — the vfx preview panel
@@ -111,4 +145,8 @@ def params_from_balance(proc):
         muzzle=muzzle_params(proc["muzzle"]),
         slash=slash_params(proc["slash"]),
         gold=gold_params(proc["gold_highlight"]),
-        splatter=splatter_params(proc["splatter"]))
+        splatter=splatter_params(proc["splatter"]),
+        beam=beam_params(proc["beam"]),
+        crater=crater_params(proc["crater"]),
+        lightning=lightning_params(proc["lightning"]),
+        announce=announce_params(proc["announce"]))
