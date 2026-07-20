@@ -15,6 +15,8 @@ that ``data/slots.json`` does not carry (revisit at 10L / the 11 parity audit).
 import math
 from types import SimpleNamespace
 
+from engine.render.fonts import layout_h
+
 from game.core.boss_bonuses import (
     aoe_count, boss1b_income, boss3b_income, defence_count,
 )
@@ -25,7 +27,7 @@ from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     C_GOLD, C_HP_GREEN, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED,
     C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, anim_ms, contains, submit_bar,
-    submit_centered, submit_text, text_h, text_size,
+    submit_centered, submit_panel, submit_text, text_h, text_size,
 )
 
 # -- 10H: lightning + cheat menu --
@@ -50,6 +52,10 @@ _PHASE_COLOR = {
 _INCOME_PINK = (214, 96, 136)
 _XP_PURPLE = (168, 105, 222)
 _XP_TRACK = (48, 34, 66)
+# -- 10L wave-3 phase 4: baked icon slots beside the readouts --
+_ICON_SIZE = 18   # fits the ~16-20px HUD rows without crowding the text
+_ICON_GAP = 4
+# -- /10L wave-3 --
 # -- 10J income tooltip (prototype hud.py:519-554 colours) --
 _TOOLTIP_BG = (20, 15, 35)
 _TOOLTIP_RED = (180, 80, 80)
@@ -172,6 +178,20 @@ class Hud:
                                            text_color=C_UI_TEXT_DIM, visible=True)
         self._round_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
                                             text_color=C_UI_TEXT_DIM, visible=True)
+        # -- 10L wave-3 phase 4: three baked icon slots beside their readouts.
+        # Panel-kind holders (rect/skin/visible) routed through the skinned
+        # submit_panel() path (10L-A) — a code-default skin means every
+        # no-override draw already goes through the HudSprite branch (the
+        # baked art is part of the real HUD, not an opt-in). Rects are
+        # finalized in _layout_readouts() below (pill/bar-relative), never
+        # inline at submit() time, per the anchor-rect convention. --
+        self._icon_love = SimpleNamespace(rect=(0, 0, 0, 0),
+                                          skin="ui_icon_love", visible=True)
+        self._icon_xp = SimpleNamespace(rect=(0, 0, 0, 0),
+                                        skin="ui_icon_xp", visible=True)
+        self._icon_lives = SimpleNamespace(rect=(0, 0, 0, 0),
+                                           skin="ui_icon_lives", visible=True)
+        # -- /10L wave-3 --
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -202,16 +222,31 @@ class Hud:
         the first pass without a chicken-and-egg ordering problem."""
         pill = self._love_panel.rect
         lvl_x, lvl_y = pill[0] + pill[2] + 12, pill[1]
-        bar_y = lvl_y + text_h("hud_lvl") + 3
-        self._love_text.rect = (pill[0] + 10, pill[1] + 7, 0, 0)
+        # layout_h: xp_bar's stored/id'd rect feeds screen_defaults.json.
+        bar_y = lvl_y + layout_h("hud_lvl") + 3
+        # -- 10L wave-3: icon_love sits inside the pill, left of the love
+        # count; icon_xp sits left of the bar (lvl_label stays put — it's a
+        # separate row above); icon_lives sits left of the lives text. Each
+        # icon keeps its OLD anchor x, the text/bar it displaces moves right
+        # by ICON + GAP. --
+        icon_love_y = pill[1] + (pill[3] - _ICON_SIZE) // 2
+        self._icon_love.rect = (pill[0] + 6, icon_love_y, _ICON_SIZE, _ICON_SIZE)
+        love_x = self._icon_love.rect[0] + _ICON_SIZE + _ICON_GAP
+        self._love_text.rect = (love_x, pill[1] + 7, 0, 0)
         self._lvl_label.rect = (lvl_x, lvl_y, 0, 0)
-        self._xp_bar.rect = (lvl_x, bar_y, 110, 9)
-        self._xp_text.rect = (lvl_x, bar_y + 9 + 2, 0, 0)
+        icon_xp_y = bar_y - (_ICON_SIZE - 9) // 2
+        self._icon_xp.rect = (lvl_x, icon_xp_y, _ICON_SIZE, _ICON_SIZE)
+        bar_x = lvl_x + _ICON_SIZE + _ICON_GAP
+        self._xp_bar.rect = (bar_x, bar_y, 110, 9)
+        self._xp_text.rect = (bar_x, bar_y + 9 + 2, 0, 0)
         self._income_text.rect = (pill[0] + 4, 50, 0, 0)
-        self._lives_text.rect = (pill[0] + 4, 66, 0, 0)
+        self._icon_lives.rect = (pill[0] + 4, 66, _ICON_SIZE, _ICON_SIZE)
+        lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
+        self._lives_text.rect = (lives_x, 66, 0, 0)
         self._tiles_text.rect = (pill[0] + 4, 84, 0, 0)
         bx, by, bw, _bh = self.end_turn.rect
-        self._round_label.rect = (bx + bw // 2, by - text_h("md") - 4, 0, 0)
+        # layout_h: round_label's stored/id'd rect feeds screen_defaults.json.
+        self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 4, 0, 0)
         self.ids.update({
             "love_text": ("label", self._love_text),
             "lvl_label": ("label", self._lvl_label),
@@ -221,6 +256,9 @@ class Hud:
             "lives_text": ("label", self._lives_text),
             "tiles_text": ("label", self._tiles_text),
             "round_label": ("label", self._round_label),
+            "icon_love": ("panel", self._icon_love),
+            "icon_xp": ("panel", self._icon_xp),
+            "icon_lives": ("panel", self._icon_lives),
         })
         self.skinning.apply(self.screen_id, self.ids)
 
@@ -262,6 +300,7 @@ class Hud:
         self.layout(view_w, view_h)
         self._layout_readouts()  # 10L-B: second apply() pass (pill-relative)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
+        t = anim_ms(self._clock)  # 10L-A skin anim clock, shared by every skin draw
 
         # -- love pill (top-left) -----------------------------------------
         pill = self._love_panel.rect
@@ -269,6 +308,10 @@ class Hud:
             renderer.submit_hud(HudRect(pill, C_PANEL_STONE, border_radius=4))
             renderer.submit_hud(
                 HudRect(pill, C_PANEL_INSET, border_radius=4, width=1))
+        # -- 10L wave-3: love icon, left of the count inside the pill ------
+        if is_visible(self._icon_love):
+            submit_panel(renderer, self._icon_love.rect,
+                        skin=self._icon_love.skin, anim_ms=t)
         if hover_cost is not None:
             remaining = st.love - hover_cost
             love_txt = f"{HEART} {remaining}" if remaining >= 0 else f"{HEART} -"
@@ -298,6 +341,9 @@ class Hud:
             self._submit_income_tooltip(renderer, sources, income_pill)
 
         # -- lives + tile counter -----------------------------------------
+        if is_visible(self._icon_lives):
+            submit_panel(renderer, self._icon_lives.rect,
+                        skin=self._icon_lives.skin, anim_ms=t)
         if self._lives_text.visible:
             submit_text(renderer, f"LIVES {st.base_lives}",
                        self._lives_text.rect[:2], self._lives_text.font_key,
@@ -322,7 +368,6 @@ class Hud:
         # wholesale while that panel is open — drawing only part of it would
         # leave the round label floating over the panel.
         if not self._panel_open:
-            t = anim_ms(self._clock)
             bx, by, bw, bh = self.end_turn.rect
             if self._round_label.visible:
                 submit_centered(renderer, f"ROUND {st.round_num}",
@@ -388,6 +433,10 @@ class Hud:
             submit_text(renderer, f"LVL {st.village_level}",
                        self._lvl_label.rect[:2], self._lvl_label.font_key,
                        self._lvl_label.text_color)
+        # -- 10L wave-3: xp icon, left of the bar --------------------------
+        if is_visible(self._icon_xp):
+            submit_panel(renderer, self._icon_xp.rect,
+                        skin=self._icon_xp.skin, anim_ms=anim_ms(self._clock))
         if self._xp_bar.visible:
             bx, by, bw, bh = self._xp_bar.rect
             submit_bar(renderer, bx, by, bw, bh, ratio,

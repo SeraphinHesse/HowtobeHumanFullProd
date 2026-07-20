@@ -635,6 +635,80 @@ class TestPaletteImport(MapModeCase):
         spy.assert_called_once()
 
 
+class TestBackgroundBrushes(MapModeCase):
+    """Every registry Background variant is a brush, even with no legend
+    code in the open map (bug: the palette used to enumerate only the
+    open map's legend, hiding un-bound registry variants). first_light's
+    legend only binds forest/ocean/cliff — the registry's
+    tile_background_1..9 slots are ALREADY unbound in it, no fixture
+    mutation needed. Clicking an un-bound variant BINDS a legend code
+    (undoable), reusing '+ Level's machinery."""
+
+    UNBOUND_SLOT = "tile_background_1"
+
+    def test_all_registry_background_slots_are_brushes(self):
+        self.open_map()
+        self.window.palette.set_mode("background")
+        registry = self.window.selector.registry
+        expected = len(registry.group_slots("map", ("Tiles", "Background")))
+        background_keys = [k for k in self.window.palette._brush_buttons
+                            if k[0] == "bgslot"
+                            or (k[0] == "code"
+                                and not self.session.doc.legend[k[1]]["checker"])]
+        self.assertEqual(len(background_keys), expected)
+        # the unbound slot shows up as a "bgslot" brush
+        self.assertIn(("bgslot", self.UNBOUND_SLOT),
+                       self.window.palette._brush_buttons)
+
+    def test_arming_unbound_slot_binds_a_new_legend_code(self):
+        self.open_map()
+        self.window.palette.set_mode("background")
+        before_codes = set(self.session.doc.legend.keys())
+        self.assertTrue(self.session.undo_stack.isClean())
+
+        self.window.palette.arm_background_slot(self.UNBOUND_SLOT)
+
+        after_codes = set(self.session.doc.legend.keys())
+        self.assertEqual(len(after_codes), len(before_codes) + 1)
+        new_code = next(iter(after_codes - before_codes))
+        self.assertEqual(
+            self.session.doc.legend[new_code]["slot"], self.UNBOUND_SLOT)
+        self.assertFalse(self.session.undo_stack.isClean())
+        self.assertEqual(self.window.palette.armed_code(), new_code)
+
+        self.session.undo_stack.undo()
+        self.assertEqual(set(self.session.doc.legend.keys()), before_codes)
+
+    def test_arming_bound_slot_adds_no_new_code(self):
+        self.open_map()
+        self.window.palette.set_mode("background")
+        before_codes = set(self.session.doc.legend.keys())
+
+        self.window.palette.arm_code("f")   # tile_forest, already bound
+
+        self.assertEqual(set(self.session.doc.legend.keys()), before_codes)
+        self.assertEqual(self.window.palette.armed_code(), "f")
+
+    def test_palette_content_is_scrollable(self):
+        from PySide6.QtWidgets import QScrollArea
+        self.assertIsNotNone(self.window.palette.findChild(QScrollArea))
+
+    def test_two_codes_bound_to_same_slot_both_get_brushes(self):
+        """Regression: a legend with TWO non-checker codes bound to the SAME
+        background slot must produce a brush for EACH code — the old
+        slot-keyed dict silently dropped all but one. Legacy/hand-edited map
+        data can hit this; the palette must never drop a bound code."""
+        self.open_map()
+        legend = self.session.doc.legend
+        # 'f' already binds tile_forest — add a second code to the same slot.
+        legend["f2"] = {"checker": False, "slot": legend["f"]["slot"]}
+        self.window.palette.set_legend(legend)
+        self.window.palette.set_mode("background")
+
+        self.assertIn(("code", "f"), self.window.palette._brush_buttons)
+        self.assertIn(("code", "f2"), self.window.palette._brush_buttons)
+
+
 class TestKeybindShortcuts(MapModeCase):
     """ED settings panel: window-level QActions drive tool switching and
     Game-tiles brush arming; number-key brushes are positional

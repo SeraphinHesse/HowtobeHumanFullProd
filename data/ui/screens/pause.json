@@ -1,1 +1,16 @@
-{}
+{
+  "widgets": {
+    "btn_quit_game": {
+      "skin": "ui_button"
+    },
+    "btn_quit_to_menu": {
+      "skin": "ui_button"
+    },
+    "btn_resume": {
+      "skin": "ui_button"
+    },
+    "btn_settings": {
+      "skin": "ui_button"
+    }
+  }
+}

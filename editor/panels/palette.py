@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -75,6 +76,7 @@ class PalettePanel(QWidget):
     add_level_requested = Signal()   # + Level (new background type)
     add_prop_requested = Signal()    # + Add Prop (new deco type)
     add_deco_variant_requested = Signal(str)  # + Variant (deco type label)
+    background_slot_armed = Signal(str)  # a not-yet-bound background slot clicked
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -90,7 +92,17 @@ class PalettePanel(QWidget):
         self._tool_keybinds = {}
         self._brush_keybinds = []
 
-        layout = QVBoxLayout(self)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.Shape.NoFrame)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        content = QWidget()
+        scroll.setWidget(content)
+        outer.addWidget(scroll)
+
+        layout = QVBoxLayout(content)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(2)
 
@@ -263,6 +275,40 @@ class PalettePanel(QWidget):
 
         return sorted(codes, key=rank)
 
+    def _background_brush_order(self):
+        """Ordered list of (key, label) for every Background brush: ALL
+        registry background slots, each bound code getting its own
+        ("code", code) brush (a slot bound to 2+ codes yields 2+ brushes —
+        never drop a bound code) and unbound slots getting a single
+        ("bgslot", slot) brush, in registry order; then any ORPHAN legend
+        codes whose slot isn't in the registry order at all. Labels number
+        continuously as 'Level N'."""
+        codes_by_slot = {}
+        if self._legend:
+            for c, e in self._legend.items():
+                if not e["checker"]:
+                    codes_by_slot.setdefault(e["slot"], []).append(c)
+        for codes in codes_by_slot.values():
+            codes.sort()
+
+        order = self._background_slot_order()
+        result = []
+        for slot in order:
+            if slot in codes_by_slot:
+                for code in codes_by_slot[slot]:
+                    result.append((("code", code), None))
+            else:
+                result.append((("bgslot", slot), None))
+
+        orphan_codes = sorted(
+            code for slot, codes in codes_by_slot.items()
+            if slot not in order for code in codes
+        )
+        for code in orphan_codes:
+            result.append((("code", code), None))
+
+        return [(key, f"Level {i + 1}") for i, (key, _) in enumerate(result)]
+
     # -- brush-button construction -------------------------------------------
 
     def _add_brush_button(self, page_layout, key, label, insert_at):
@@ -280,6 +326,9 @@ class PalettePanel(QWidget):
             btn.clicked.connect(lambda _=False, v=value: self.arm_camera(v))
         elif kind == "start_area":
             btn.clicked.connect(lambda _=False, v=value: self.arm_start_area(v))
+        elif kind == "bgslot":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_background_slot(v))
         else:
             btn.clicked.connect(lambda _=False, v=value: self.arm_base(v))
         self._brush_group.addButton(btn)
@@ -325,16 +374,17 @@ class PalettePanel(QWidget):
 
     def _rebuild_background(self):
         _title_w, _page, page_layout = self._pages["background"]
-        # keep the trailing "+ Level" button; only clear the level brushes
-        for key in [k for k in self._brush_buttons if k[0] == "code"
-                    and self._legend and not self._legend[k[1]]["checker"]]:
+        # keep the trailing "+ Level" button; only clear the level brushes —
+        # bound "code" background buttons AND unbound "bgslot" buttons.
+        for key in [k for k in self._brush_buttons if k[0] == "bgslot"
+                    or (k[0] == "code" and self._legend
+                        and not self._legend[k[1]]["checker"])]:
             btn = self._brush_buttons.pop(key)
             self._brush_group.removeButton(btn)
             page_layout.removeWidget(btn)
             btn.deleteLater()
-        for i, code in enumerate(self._background_codes()):
-            self._add_brush_button(
-                page_layout, ("code", code), f"Level {i + 1}", i)
+        for i, (key, label) in enumerate(self._background_brush_order()):
+            self._add_brush_button(page_layout, key, label, i)
         self.refresh_icons()
 
     def _rebuild_deco_types(self):
@@ -443,9 +493,13 @@ class PalettePanel(QWidget):
                 if bases:
                     self.arm_base(bases[0])
         elif self._mode == "background":
-            codes = self._background_codes()
-            if codes:
-                self.arm_code(codes[0])
+            order = self._background_brush_order()
+            if order:
+                key, _label = order[0]
+                if key[0] == "code":
+                    self.arm_code(key[1])
+                else:
+                    self.arm_background_slot(key[1])
         else:
             decos = self._deco_slots()
             if decos:
@@ -581,6 +635,17 @@ class PalettePanel(QWidget):
             return
         btn.setChecked(True)
         self.start_area_armed.emit(slot)
+
+    def arm_background_slot(self, slot):
+        """Claim a legend code for a not-yet-bound registry background slot
+        (MainWindow._on_background_slot_armed does the actual bind + rearms
+        with the real code) — a no-op if this slot has no 'bgslot' button
+        (already bound, or not a background slot at all)."""
+        btn = self._brush_buttons.get(("bgslot", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.background_slot_armed.emit(slot)
 
     def eye(self, name):
         return self._eye_boxes[name].isChecked()

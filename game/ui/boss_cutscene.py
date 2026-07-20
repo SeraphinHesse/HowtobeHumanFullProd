@@ -22,13 +22,14 @@ true only until a skinned path existed)."""
 from types import SimpleNamespace
 
 from engine.render import HudRect
+from engine.render.fonts import layout_h
 
 from game.core.boss_bonuses import choice_desc
 
-from .skinning import ScreenSkinning
+from .skinning import ScreenSkinning, is_visible
 from .widgets import (
     C_GOLD, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM,
-    anim_ms, contains, submit_centered, submit_panel, text_h,
+    anim_ms, contains, submit_centered, submit_panel,
 )
 
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
@@ -92,10 +93,12 @@ class BossCutscene:
         # these; they'd need their own rect override to follow it).
         cx = view_w // 2
         top = y0
+        # layout_h: headline/subtitle are stored/id'd rects (screen_defaults.
+        # json + the golden parity stream).
         self._headline.rect = (
-            cx, top - text_h(self._headline.font_key)
-            - text_h(self._subtitle.font_key) - 28, 0, 0)
-        self._subtitle.rect = (cx, top - text_h(self._subtitle.font_key) - 12,
+            cx, top - layout_h(self._headline.font_key)
+            - layout_h(self._subtitle.font_key) - 28, 0, 0)
+        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 12,
                               0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
@@ -112,13 +115,13 @@ class BossCutscene:
         self._clock += dt
         self.hovered = next(
             (i for i, box in enumerate((self.box_a, self.box_b))
-             if contains(box.rect, mx, my)), -1)
+             if is_visible(box) and contains(box.rect, mx, my)), -1)
 
     def hit(self, mx, my):
         """``"A"`` / ``"B"`` for a click on an option box, else None. There is
         NO dismiss path — the host swallows every other click."""
         for i, box in enumerate((self.box_a, self.box_b)):
-            if contains(box.rect, mx, my):
+            if is_visible(box) and contains(box.rect, mx, my):
                 return "A" if i == 0 else "B"
         return None
 
@@ -142,6 +145,8 @@ class BossCutscene:
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(
                 (("A", self.box_a), ("B", self.box_b))):
+            if not is_visible(box):
+                continue
             self._submit_box(renderer, box, prefix + option,
                              choice_desc(set_idx, option), i == self.hovered, t)
 
@@ -165,7 +170,9 @@ class BossCutscene:
         label_color = (box.text_color if box.text_color is not None
                        else (C_GOLD if hovered else C_UI_TEXT))
         submit_centered(renderer, label, cx, cursor, box.font_key, label_color)
-        cursor += text_h(box.font_key) + 10
+        # layout_h: this cursor position lands directly in HudText.pos
+        # entries the golden parity stream captures.
+        cursor += layout_h(box.font_key) + 10
         for line in desc.split("\n"):
             submit_centered(renderer, line, cx, cursor, "sm", C_UI_TEXT_DIM)
-            cursor += text_h("sm") + 2
+            cursor += layout_h("sm") + 2

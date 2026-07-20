@@ -178,6 +178,17 @@ class Manifest:
             entries[slot_key] = entry
         return Manifest(entries)
 
+    def animation_ms(self, slot_key, name):
+        """The named animation's total playback duration in ms, or ``None`` when
+        the slot or that animation is absent. Unlike ``current_frame`` this does
+        NOT fall back to idle — a missing row means the caller has no such
+        animation (e.g. no ``death`` track ⇒ despawn instantly, don't linger)."""
+        entry = self._entries.get(slot_key)
+        if entry is None:
+            return None
+        track = entry.animations.get(name)
+        return track.total_ms if track is not None else None
+
     def current_frame(self, slot_key, animation, time_ms, phase_ms=0):
         """(sheet_row, sheet_col) for a slot/animation at a time — pure
         function of time (E-36). Missing animation falls back to idle;

@@ -1,1 +1,28 @@
-{}
+{
+  "widgets": {
+    "btn_add_love": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_close": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_goto": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_inf_money": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_skip_round": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_trigger_levelup": {
+      "skin": "ui_button_cheat"
+    },
+    "btn_unlock_all": {
+      "skin": "ui_button_cheat"
+    },
+    "panel": {
+      "skin": "ui_panel"
+    }
+  }
+}

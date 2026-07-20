@@ -8,7 +8,7 @@ enforces this). Colors mirror the prototype's ``src/core/constants.py`` palette
 verbatim; hit-testing is plain rect math so it is fully headless-testable.
 """
 from engine.render import HudRect, HudSprite, HudText
-from engine.render.fonts import TextMetrics
+from engine.render.fonts import TextMetrics, layout_h
 
 _METRICS = TextMetrics()
 
@@ -260,5 +260,7 @@ class Button:
             renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
             renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER,
                                         border_radius=3, width=1))
-        ty = y + (h - text_h(self.font_key)) // 2
+        # layout_h, not text_h: this positions every Button label recorded in
+        # the parity/exporter streams (engine/render/fonts.py "layout_h").
+        ty = y + (h - layout_h(self.font_key)) // 2
         submit_centered(renderer, label, x + w // 2, ty, self.font_key, tcol)

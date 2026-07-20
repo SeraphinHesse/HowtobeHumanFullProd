@@ -43,6 +43,12 @@ class AssetStore:
         self._frames = {}   # (slot_key, row, col) -> Surface | _LOAD_FAILED
         self._hit_masks = {}   # (slot_key, row, col) -> pygame.Mask
 
+    def animation_total_ms(self, slot_key, name):
+        """The named animation's total playback duration in ms for a slot, or
+        ``None`` when the slot or that animation is absent (no idle fallback).
+        Pure metadata lookup — delegates to the manifest."""
+        return self._manifest.animation_ms(slot_key, name)
+
     def frame_size(self, slot_key):
         """(w, h) for a slot: manifest entry > registry > frame_sizes > default."""
         entry = self._manifest.entry(slot_key)

@@ -136,6 +136,8 @@ class MainWindow(QMainWindow):
         self.palette.add_prop_requested.connect(self._on_add_prop)
         self.palette.add_deco_variant_requested.connect(
             self._on_add_deco_variant)
+        self.palette.background_slot_armed.connect(
+            self._on_background_slot_armed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.cursor_world.connect(self._on_cursor_world)
@@ -369,6 +371,14 @@ class MainWindow(QMainWindow):
         self._enter_screen_mode()
 
     def _enter_screen_mode(self):
+        # ED-42: re-read the manifest on every entry, not just after an
+        # import-panel save — a designer who ran the asset importer while
+        # this editor instance stayed open (or restored data/sprites/
+        # asset_manifest.json from another branch) would otherwise see
+        # grey-X/flat-rect skins until an editor restart. Cheap: AssetStore
+        # loads sheets lazily, so this is just a fresh manifest read + a
+        # fresh AssetStore (engine/assets/CLAUDE.md "no cache invalidation").
+        self.viewport.reload_assets()
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
@@ -399,6 +409,11 @@ class MainWindow(QMainWindow):
 
     def _on_export_layouts_finished(self, code):
         if code == 0:
+            # the exporter subprocess may have run alongside a fresh asset
+            # import, or the manifest may simply be stale in this running
+            # editor — refresh it the same way _enter_screen_mode does
+            # (ED-42) so "Refresh Layouts" also picks up new skins.
+            self.viewport.reload_assets()
             self._screen_defaults = self._load_screen_defaults()
             self.viewport.refresh_screen_defaults(self._screen_defaults)
             self.screen_details.set_defaults(self._screen_defaults)
@@ -575,6 +590,15 @@ class MainWindow(QMainWindow):
         code = self.map_session.push_add_background(slot)
         self.palette.set_legend(self.map_session.doc.legend)
         return code
+
+    def _on_background_slot_armed(self, slot):
+        """A background variant with no legend code in the open map was
+        clicked in the palette: claim a code for it (undoable, like '+
+        Level' minus creating a new slot) and arm it. No-op with no map
+        open."""
+        code = self._bind_background_code(slot)
+        if code is not None:
+            self.palette.arm_code(code)
 
     def _on_add_level(self):
         """+ Level: add a new background tile type — a fresh slot in slots.json
