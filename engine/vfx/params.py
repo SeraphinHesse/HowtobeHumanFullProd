@@ -1,4 +1,5 @@
-"""Frozen param dataclasses for the procedural VFX emitters (ESV-3a).
+"""Frozen param dataclasses for the procedural VFX emitters (ESV-3a) and the
+scene-object / continuous VFX (ESV-3b: beam / crater / lightning / announce).
 
 No defaults on any field: a default here would be a second home for a value
 that belongs in ``data/balancing/vfx.json`` (G-7). ``game/ui/effects.py`` is
@@ -11,6 +12,13 @@ their call sites in ``game/ui/effects.py`` — not an engine concern, see that
 module) and ``spark`` presets (game-vocabulary preset keys like
 ``"place"``/``"tier"`` are resolved to a ``BurstParams`` on the game side; the
 engine only ever sees the resolved dataclass).
+
+ESV-3b's four dataclasses (``BeamParams``/``CraterParams``/``LightningParams``/
+``AnnounceParams``) are NOT consumed by ``VfxSystem`` — those effects own no
+particle/gold/slash/splatter LIST (the scene already owns the state: a
+``Crater``/``LightningFX`` GameObject ages itself). ``game/ui/effects.py``
+reads them straight off the ``VfxParams`` bundle it holds, the same way it
+already reads ``floaters``.
 """
 from dataclasses import dataclass
 
@@ -123,14 +131,82 @@ class SplatterParams:
 
 
 @dataclass(frozen=True)
+class BeamParams:
+    """A continuous line from a beam-tier defender to its live target (Sun
+    Scorcher): a 3-tier colour ``ramp`` indexed (clamped) by the building's
+    tier, a base line width that thickens by +1 px per tier, and how many
+    tile-heights above the origin the line starts. Draws no random numbers —
+    read fresh off the live scene every frame, never emitted/cached."""
+
+    colors: tuple
+    width_base: int
+    origin_lift_tiles: float
+
+
+@dataclass(frozen=True)
+class CraterParams:
+    """A fading world-space scorch mark at a mortar shell's landing point.
+    ``life`` seconds is the fade lifetime (carried on the ``Crater``
+    GameObject's ``CraterFade`` component, not read from here at fade time —
+    this dataclass only feeds the DRAW). The fill alpha scales linearly with
+    the remaining fade fraction. Draws no random numbers."""
+
+    color: tuple
+    alpha: int
+    life: float
+
+
+@dataclass(frozen=True)
+class LightningParams:
+    """A lightning strike's jagged bolt + impact flash + ground marker. The
+    bolt is the one ESV-3b effect that draws random numbers — EVERY
+    submitted frame, not once at emit, so its horizontal jitter re-rolls and
+    shimmers frame to frame (the caller's injected ``rng``, never a fresh
+    ``random.Random()`` — that would desync the shared global draw stream).
+    ``bolt_life``/``marker_life`` are carried on the ``LightningFX``
+    GameObject's ``LightningFXFade`` component, not read from here at fade
+    time — this dataclass only feeds the DRAW."""
+
+    bolt_segments: int
+    bolt_jitter_px: int
+    bolt_color_start: tuple
+    bolt_color_end: tuple
+    bolt_width: int
+    bolt_life: float
+    flash_radius_px: float
+    flash_color: tuple
+    flash_alpha: int
+    marker_color: tuple
+    marker_fill_alpha: int
+    marker_outline_width: int
+    marker_life: float
+
+
+@dataclass(frozen=True)
+class AnnounceParams:
+    """The boss-round announcement banner's colour + alpha ceiling. The two
+    copy strings (game vocabulary — screen-skinning territory) and the
+    fade-in/hold/fade-out timings (already in ``ui.json`` ``FX.boss_announce``)
+    stay OUT of this dataclass."""
+
+    color: tuple
+    max_alpha: int
+
+
+@dataclass(frozen=True)
 class VfxParams:
     """Everything a ``VfxSystem`` needs beyond spark (spark presets are
     game vocabulary — the caller resolves a preset key to a ``BurstParams``
     and passes it explicitly to ``emit_burst``, so the engine never learns
-    the preset names)."""
+    the preset names), plus ESV-3b's four scene-object/continuous param
+    blocks, which ``VfxSystem`` never touches (see the module docstring)."""
 
     death_burst: ShardBurstParams
     muzzle: MuzzleParams
     slash: SlashParams
     gold: GoldParams
     splatter: SplatterParams
+    beam: BeamParams
+    crater: CraterParams
+    lightning: LightningParams
+    announce: AnnounceParams

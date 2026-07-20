@@ -23,9 +23,22 @@ shards, muzzle spray, melee slash, gold tile highlight, blood splatter, and
 floater colour/lifetime params). ``_params_from_balance`` is the ONE place the
 JSON key names and the engine's dataclass fields meet — ``engine.vfx`` never
 learns a key name (D5). ``FloaterManager`` keeps every public method name and
-delegates their bodies to the ``VfxSystem`` it now owns (``self._vfx``);
-craters/beams/lightning/boss-announce (ESV-3b) and the HP bars (ESV-1) are
-untouched by this port.
+delegates their bodies to the ``VfxSystem`` it now owns (``self._vfx``).
+
+**ESV-3b**: the Sun Scorcher beam, mortar crater, lightning bolt/flash/marker
+and boss announce colour/alpha params moved the same way (``self._vfx_params``,
+held alongside ``self._vfx`` — these four are NOT ``VfxSystem`` state, since
+the scene already owns the crater/lightning GameObjects' fade clocks; see
+``engine/vfx/params.py``'s module docstring). ``submit_lightning`` is the one
+draw that consumes random numbers (re-rolled every submitted frame, not once
+at emit) — it now draws through ``self._rng`` (the same injected stdlib
+``random`` module ``self._vfx`` shares) instead of the bare module-level call,
+so a seeded test can pin it without touching the live game's shared draw
+stream. The two scene-object fade lifetimes (``crater.life``,
+``lightning.bolt_life``/``marker_life``) are threaded from here down through
+``resolve_combat``/``lightning.strike`` to the ``CraterFade``/``LightningFXFade``
+components that actually own the despawn clocks — see ``game/enemies/combat.py``
+and ``game/core/lightning.py``.
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
@@ -34,7 +47,8 @@ from engine.render import HudLines, HudRect, block_center_offset, fit_factor
 from game.anchors import screen_offset
 from engine.render.fonts import layout_h
 from engine.vfx import (
-    BurstParams, GoldParams, MuzzleParams, ShardBurstParams, SlashParams,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, GoldParams,
+    LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
     SplatterParams, VfxParams, VfxSystem,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
@@ -55,14 +69,11 @@ _PAINTER_LOST = (255, 100, 100)
 _PAINTER_LIFE = 1.5
 _BOOST_WHITE = (255, 255, 255)   # prototype boost floater colour
 
-# Sun Scorcher beam colour per tier (prototype outer-beam colour, simplified to
-# one line since the HUD pass has no per-pixel alpha for a glow — 10J polish):
-# yellow -> orange -> red as the line thickens with tier.
-_BEAM_COLORS = ((255, 200, 40), (255, 110, 15), (210, 20, 10))
-_CRATER_COLOR = (120, 78, 66)   # spent-shell scorch (world-space diamond)
+# Sun Scorcher beam colour ramp, mortar crater scorch colour and the boss
+# announce colour/alpha are now in data/balancing/vfx.json (ESV-3b) — see
+# _params_from_balance below.
 
 # -- 10G boss: announcement + HP-bar constants ------------------------------
-_ANNOUNCE_RED = (220, 40, 40)      # prototype banner colour (10J: alpha fade)
 _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
@@ -76,14 +87,9 @@ _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 _ENEMY_BAR_STACK = 4       # px between stacked bars (prototype `bar_slot * 4`)
 _ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
 # -- 10H: lightning + cheat menu --
-# Bolt colour ramp (white -> yellow over BOLT_LIFE) + the ground-marker yellow
-# (prototype effects.py:222-289 fill (255,240,120)). 8-segment polyline, ±6 px
-# horizontal jitter re-rolled every frame — prototype-exact.
-_BOLT_SEGMENTS = 8
-_BOLT_JITTER = 6
-_BOLT_WHITE = (255, 255, 255)
-_BOLT_YELLOW = (255, 240, 80)
-_LIGHTNING_MARKER = (255, 240, 120)
+# Bolt colour ramp, jitter, segment count, flash + ground-marker params are
+# now in data/balancing/vfx.json procedural.lightning (ESV-3b) — see
+# _params_from_balance below.
 # -- /10H --
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
@@ -170,9 +176,38 @@ def _params_from_balance(vfx):
         color=_color(sp["color"]), alpha=sp["alpha"],
         radius_px=sp["radius_px"], jitter=sp["jitter"])
 
+    # -- ESV-3b: beam / crater / lightning / announce --------------------
+    bm = proc["beam"]
+    beam = BeamParams(
+        colors=_ramp(bm["colors"]), width_base=bm["width_base"],
+        origin_lift_tiles=bm["origin_lift_tiles"])
+
+    cr = proc["crater"]
+    crater = CraterParams(
+        color=_color(cr["color"]), alpha=cr["alpha"], life=cr["life"])
+
+    lp = proc["lightning"]
+    lightning = LightningParams(
+        bolt_segments=lp["bolt_segments"], bolt_jitter_px=lp["bolt_jitter_px"],
+        bolt_color_start=_color(lp["bolt_color_start"]),
+        bolt_color_end=_color(lp["bolt_color_end"]),
+        bolt_width=lp["bolt_width"], bolt_life=lp["bolt_life"],
+        flash_radius_px=lp["flash_radius_px"],
+        flash_color=_color(lp["flash_color"]), flash_alpha=lp["flash_alpha"],
+        marker_color=_color(lp["marker_color"]),
+        marker_fill_alpha=lp["marker_fill_alpha"],
+        marker_outline_width=lp["marker_outline_width"],
+        marker_life=lp["marker_life"])
+
+    an = proc["announce"]
+    announce = AnnounceParams(
+        color=_color(an["color"]), max_alpha=an["max_alpha"])
+    # -- /ESV-3b -----------------------------------------------------------
+
     return spark_presets, VfxParams(
         death_burst=death_burst, muzzle=muzzle, slash=slash, gold=gold,
-        splatter=splatter)
+        splatter=splatter, beam=beam, crater=crater, lightning=lightning,
+        announce=announce)
 
 
 def _sprite_top(renderer, cs, enemy, cy, zoom):
@@ -242,6 +277,15 @@ class FloaterManager:
         # inline random.uniform/randint calls used — byte-identical output.
         self._spark_presets, vfx_params = _params_from_balance(vfx_balance)
         self._vfx = VfxSystem(vfx_params, rng=random)
+        # ESV-3b: beam/crater/lightning/announce params are not VfxSystem
+        # state (the scene already owns the crater/lightning fade clocks —
+        # engine/vfx/params.py's module docstring) — held here instead, read
+        # straight off by submit_beams/submit_craters/submit_lightning/
+        # submit_announce. `self._rng` is the SAME `random` module `self._vfx`
+        # was given — submit_lightning is the one draw that consumes random
+        # numbers, and it must share the global stream, not a second handle.
+        self._vfx_params = vfx_params
+        self._rng = random
         # -- /10J --
 
     def spawn_income_events(self, state):
@@ -450,7 +494,10 @@ class FloaterManager:
         (Phase 10B). Reads the live ``BeamAttacker._target`` the combat sweep
         sets — so the beam shows only while the beam is actually engaging and
         vanishes during its target-death cooldown. Screen-space HudLines (no
-        alpha glow — 10J)."""
+        alpha glow — 10J). Params from ``self._vfx_params.beam`` (ESV-3b) — the
+        clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
+        shape), not itself a tunable. Draws no random numbers."""
+        bp = self._vfx_params.beam
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
@@ -459,20 +506,25 @@ class FloaterManager:
             if target is None or not getattr(target, "alive", False):
                 continue
             tier = b.get_component(TierState).current_tier
-            color = _BEAM_COLORS[min(tier, len(_BEAM_COLORS) - 1)]
+            color = bp.colors[min(tier, len(bp.colors) - 1)]
             ox, oy = cs.world_to_screen(b.transform.wx + 0.5, b.transform.wy + 0.5)
             tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
                                         target.transform.wy + 0.5)
-            top = int(cs.geometry.tile_h * cs.camera.zoom)  # crystal-ball height
+            # crystal-ball height: origin_lift_tiles tile-heights above centre
+            top = int(cs.geometry.tile_h * cs.camera.zoom * bp.origin_lift_tiles)
             renderer.submit_hud(HudLines(
                 ((int(ox), int(oy) - top), (int(tx), int(ty))),
-                color, width=2 + tier))
+                color, width=bp.width_base + tier))
 
     def submit_craters(self, renderer, cs, scene):
         """A fading world-space scorch where each mortar shell landed (Phase
         10B). Purely cosmetic — the ``Crater`` GameObjects age + self-despawn in
         the scene; since 10J the diamond is alpha-FILLED and fades by alpha
-        (prototype's SRCALPHA ground ellipse)."""
+        (prototype's SRCALPHA ground ellipse). Params from
+        ``self._vfx_params.crater`` (ESV-3b); the fade LIFETIME itself is on
+        the ``Crater``'s own ``CraterFade`` component, not read here. Draws no
+        random numbers."""
+        cp = self._vfx_params.crater
         for c in scene.by_tag("crater"):
             frac = c.fade_frac
             r = c.radius
@@ -480,7 +532,7 @@ class FloaterManager:
             pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
                    (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
             renderer.submit_overlay_polys(
-                pts, _CRATER_COLOR + (int(150 * frac),))
+                pts, cp.color + (int(cp.alpha * frac),))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -488,43 +540,51 @@ class FloaterManager:
         """Bolt + ground marker for each live ``"lightning_fx"`` object (Phase
         10H, prototype ``effects.py LightningEffect``): (1) a jagged
         screen-space polyline from the top of the screen (y=0) down to the
-        impact point — ±6 px horizontal jitter re-rolled every frame, colour
-        fading white -> yellow over the 0.5 s bolt life; (2) a fading yellow
-        world-space diamond sized to the REAL blast radius (the crater
-        pattern; a world diamond of r tiles projects to a 2:1 screen lozenge —
-        exactly the prototype's w = 2r, h = r ground ellipse). The alpha
-        impact-flash circle is 10J (no per-pixel alpha in the HUD/overlay
-        pass). The FX objects age + self-despawn in the scene on the host's
-        ENEMY-scaled sim dt; here we only draw them."""
+        impact point — horizontal jitter re-rolled every SUBMITTED frame
+        (through ``self._rng`` — the shared injected stdlib ``random``, never a
+        fresh ``Random()``, ESV-3b §2.2), colour fading start -> end over the
+        bolt life; (2) a fading world-space diamond sized to the REAL blast
+        radius (the crater pattern; a world diamond of r tiles projects to a
+        2:1 screen lozenge — exactly the prototype's w = 2r, h = r ground
+        ellipse). The alpha impact-flash circle is 10J (no per-pixel alpha in
+        the HUD/overlay pass). Params from ``self._vfx_params.lightning``
+        (ESV-3b); the fade LIFETIMES (``bolt_life``/``marker_life``) are on the
+        FX object's own ``LightningFXFade`` component, not read here — the FX
+        objects age + self-despawn in the scene on the host's ENEMY-scaled sim
+        dt; here we only draw them."""
+        lp = self._vfx_params.lightning
         for fx in scene.by_tag("lightning_fx"):
             wx, wy = fx.transform.world_pos
             bolt = fx.bolt_frac
             if bolt > 0:
                 sx, sy = cs.world_to_screen(wx, wy)
                 pts = []
-                for i in range(_BOLT_SEGMENTS + 1):
-                    t = i / _BOLT_SEGMENTS
-                    jitter = (random.uniform(-_BOLT_JITTER, _BOLT_JITTER)
-                              if 0 < i < _BOLT_SEGMENTS else 0.0)
+                for i in range(lp.bolt_segments + 1):
+                    t = i / lp.bolt_segments
+                    jitter = (self._rng.uniform(-lp.bolt_jitter_px,
+                                                lp.bolt_jitter_px)
+                              if 0 < i < lp.bolt_segments else 0.0)
                     pts.append((int(sx + jitter), int(sy * t)))
-                # white -> yellow along the fade, darkening out (no alpha).
+                # start -> end along the fade, darkening out (no alpha).
                 progress = 1.0 - bolt
                 color = tuple(
-                    int((w + (yl - w) * progress) * bolt)
-                    for w, yl in zip(_BOLT_WHITE, _BOLT_YELLOW))
-                renderer.submit_hud(HudLines(tuple(pts), color, width=2))
+                    int((s + (e - s) * progress) * bolt)
+                    for s, e in zip(lp.bolt_color_start, lp.bolt_color_end))
+                renderer.submit_hud(HudLines(tuple(pts), color,
+                                             width=lp.bolt_width))
             if bolt > 0:
                 # 10J: the expanding alpha impact flash (prototype
-                # effects.py:222-290 — flash radius grows to ~20 px). An
-                # 8-gon in world units projects to the 2:1 ground ellipse.
-                fr = (1.0 - bolt) * (20.0 / (cs.geometry.tile_w / 2.0))
+                # effects.py:222-290). An 8-gon in world units projects to
+                # the 2:1 ground ellipse.
+                fr = (1.0 - bolt) * (lp.flash_radius_px
+                                     / (cs.geometry.tile_w / 2.0))
                 if fr > 0:
                     k = 0.7071 * fr
                     pts = [(wx, wy - fr), (wx + k, wy - k), (wx + fr, wy),
                            (wx + k, wy + k), (wx, wy + fr), (wx - k, wy + k),
                            (wx - fr, wy), (wx - k, wy - k)]
                     renderer.submit_overlay_polys(
-                        pts, (255, 250, 200, int(200 * bolt)))
+                        pts, lp.flash_color + (int(lp.flash_alpha * bolt),))
             frac = fx.fade_frac
             if frac > 0:
                 r = fx.radius_tiles
@@ -532,10 +592,10 @@ class FloaterManager:
                 # 10J: alpha-filled ground marker fading out (prototype fill);
                 # the outline keeps the old colour-fade (lines carry no alpha)
                 renderer.submit_overlay_polys(
-                    pts, _LIGHTNING_MARKER + (int(120 * frac),))
+                    pts, lp.marker_color + (int(lp.marker_fill_alpha * frac),))
                 renderer.submit_overlay_lines(
-                    pts, tuple(int(ch * frac) for ch in _LIGHTNING_MARKER),
-                    width=2, closed=True)
+                    pts, tuple(int(ch * frac) for ch in lp.marker_color),
+                    width=lp.marker_outline_width, closed=True)
 
     # -- /10H ---------------------------------------------------------------
 
@@ -632,9 +692,11 @@ class FloaterManager:
     def submit_announce(self, renderer, view_w, view_h):
         """The screen-centred "SOMETHING BIG / IS APPROACHING!" banner
         (prototype ``effects.py:292-337``): fade in -> hold -> fade out on the
-        ``ui.FX.boss_announce`` timings. Since 10J the fade is a real text
-        alpha (RGBA ``HudText``). Ignores the camera; drawn over the game
-        surface."""
+        ``ui.FX.boss_announce`` timings (unchanged — not this phase's
+        concern). Since 10J the fade is a real text alpha (RGBA ``HudText``);
+        the colour + alpha ceiling are ``self._vfx_params.announce`` (ESV-3b).
+        Ignores the camera; drawn over the game surface. Draws no random
+        numbers."""
         if self._announce_age is None:
             return
         a = self._announce
@@ -647,7 +709,8 @@ class FloaterManager:
             out = t - a["fade_in"] - a["hold"]
             k = 1.0 - out / a["fade_out"] if a["fade_out"] > 0 else 0.0
         k = max(0.0, min(1.0, k))
-        color = _ANNOUNCE_RED + (int(255 * k),)
+        ap = self._vfx_params.announce
+        color = ap.color + (int(ap.max_alpha * k),)
         cx = view_w // 2
         # layout_h: a screen-centred layout position (engine/render/fonts.py).
         cy = view_h // 2 - layout_h("xl") - 6

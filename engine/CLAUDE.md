@@ -28,7 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts; the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
-| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a) |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -103,6 +103,24 @@ place a `data/balancing/vfx.json` key name and an `engine.vfx` dataclass field
 meet — this package never imports a balancing loader, never calls `open()`,
 never learns a JSON key name (D5's top risk here: don't add a convenience
 `load_defaults()` helper, it would smuggle the loader back in).
+
+**ESV-3b** added four more frozen dataclasses to `params.py` — `BeamParams` /
+`CraterParams` / `LightningParams` / `AnnounceParams` (Sun Scorcher beam,
+mortar crater, lightning bolt/flash/marker, boss announce). Unlike the
+ESV-3a five, `VfxSystem` owns **none** of their state: the scene already owns
+the crater/lightning fade clocks (`CraterFade`/`LightningFXFade` components in
+`game/enemies/combat.py`/`game/core/lightning.py`), so a parallel engine-side
+list would be a second source of truth for the same fade. `game/ui/effects.py`
+holds these four straight off its `VfxParams` bundle (`self._vfx_params`) and
+draws them itself (`submit_beams`/`submit_craters`/`submit_lightning`/
+`submit_announce` stay in `game/ui/` — they read `scene.by_tag(...)` and
+building components, game vocabulary the engine must not learn). The two
+cosmetic fade lifetimes NOT captured in these dataclasses (`crater.life`,
+`lightning.bolt_life`/`marker_life`) are threaded as required constructor
+arguments all the way from `resolve_combat`'s/`lightning.strike`'s
+`vfx_balance` argument down to the `CraterFade`/`LightningFXFade` component
+fields that actually own the despawn clock — never a `None`-defaulted
+optional (G-7).
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,

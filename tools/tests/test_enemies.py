@@ -44,6 +44,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
@@ -477,7 +478,7 @@ class TestCombatLedger(unittest.TestCase):
         alive_frames = 0
         for _ in range(1000):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
             alive_frames += 1
@@ -527,7 +528,7 @@ class TestBaseArrival(unittest.TestCase):
         scene.spawn(e)
         for _ in range(200):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
         else:
@@ -740,7 +741,7 @@ class TestFormationBreak(unittest.TestCase):
         session.pre_sim(dt, scene)
         if session.state.state == GameState.GAMEPLAY and not session.frozen:
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD,
+            resolve_combat(scene, tm, dt, BUILD, VFX,
                            on_base_hit=session.on_base_hit,
                            on_enemy_death=session.on_enemy_death)
             session.post_sim(scene)

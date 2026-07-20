@@ -1,6 +1,9 @@
 """ESV-3a: engine.vfx emitters + the new `vfx` balancing domain.
+ESV-3b adds the scene-object / continuous VFX (beam / crater / lightning /
+announce) — see the second module docstring paragraph below.
 
-Six tests per the phase brief (docs/briefs/phase-esv-3a-vfx-emitters.md §4):
+Six tests per the ESV-3a phase brief
+(docs/briefs/phase-esv-3a-vfx-emitters.md §4):
 1. Seeded parity, muzzle spray (standard + siege-strong).
 2. Seeded parity, building-death shard burst.
 3. D5 as a RULE over engine/vfx/ source text (not just an import graph).
@@ -10,6 +13,21 @@ Six tests per the phase brief (docs/briefs/phase-esv-3a-vfx-emitters.md §4):
    minimum + maximum (D-12).
 6. Default round-trip: data/balancing/vfx.json's values equal the "today"
    column this phase ported off game/ui/effects.py's old module constants.
+
+Nine more per the ESV-3b phase brief
+(docs/briefs/phase-esv-3b-scene-vfx.md §4), appended at the bottom of this
+file (extending this module is explicitly sanctioned over a sibling module):
+1. Seeded parity, lightning bolt (draw order + count + endpoints + re-roll).
+2. Seeded parity, bolt colour fade (zero RNG).
+3. Beam parity (tier clamp + width, zero RNG).
+4. Crater + lightning-marker alpha parity (zero RNG).
+5. Announce parity (zero RNG).
+6. Crater/lightning lifetime round-trip (threaded, not the module constant)
+   + the D4 negative guard (AOE_TRAVEL_TIME/BEAM_MIN_TICK stay simulation
+   timing, never in vfx.json).
+7. Purity scan file-count guard (no module can slip past the glob).
+8. Schema completeness — confirmed already covered by the generic walker.
+9. Default round-trip for beam/crater/lightning/announce.
 
 Every test that reads data uses the pinned FIXTURE_DATA snapshot (never live
 data/, TestFixturePinningPLAN) or a random.Random(seed) with values encoded
@@ -31,7 +49,8 @@ def ramp_stops(stop_0, stop_1, stop_2):
 from editor import domains
 from engine import data_io
 from engine.vfx import (
-    BurstParams, GoldParams, MuzzleParams, ShardBurstParams, SlashParams,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, GoldParams,
+    LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
     SplatterParams, VfxParams, VfxSystem,
 )
 
@@ -88,8 +107,25 @@ GOLD = GoldParams(
 SPLATTER = SplatterParams(color=(180, 30, 30), alpha=170, radius_px=4.0,
                           jitter=0.6)
 
+# -- ESV-3b "today" column (docs/briefs/phase-esv-3b-scene-vfx.md §1.2) -----
+BEAM = BeamParams(colors=((255, 200, 40), (255, 110, 15), (210, 20, 10)),
+                  width_base=2, origin_lift_tiles=1.0)
+
+CRATER = CraterParams(color=(120, 78, 66), alpha=150, life=1.0)
+
+LIGHTNING = LightningParams(
+    bolt_segments=8, bolt_jitter_px=6,
+    bolt_color_start=(255, 255, 255), bolt_color_end=(255, 240, 80),
+    bolt_width=2, bolt_life=0.5,
+    flash_radius_px=20.0, flash_color=(255, 250, 200), flash_alpha=200,
+    marker_color=(255, 240, 120), marker_fill_alpha=120,
+    marker_outline_width=2, marker_life=1.0)
+
+ANNOUNCE = AnnounceParams(color=(220, 40, 40), max_alpha=255)
+
 VFX_PARAMS = VfxParams(death_burst=DEATH_BURST, muzzle=MUZZLE, slash=SLASH,
-                       gold=GOLD, splatter=SPLATTER)
+                       gold=GOLD, splatter=SPLATTER, beam=BEAM, crater=CRATER,
+                       lightning=LIGHTNING, announce=ANNOUNCE)
 
 
 def make_system(seed):
@@ -219,6 +255,22 @@ class TestEnginePurity(unittest.TestCase):
             if hits:
                 offenders[path.name] = hits
         self.assertEqual(offenders, {}, f"engine/vfx purity violation: {offenders}")
+
+    def test_scanned_file_count_matches_the_package_no_subpackage_slips_past(self):
+        """ESV-3b §2.4: ESV-3b added no new engine/vfx module (only appended
+        to params.py/__init__.py — see engine/vfx/params.py's/module
+        docstring), so the existing `*.py` glob already covers it. This locks
+        that down: if a future phase adds a subpackage (a directory, which
+        `*.py` cannot see), the scanned count silently dropping below the
+        real module count is the tripwire — widen the glob to `**/*.py` when
+        it fires."""
+        vfx_dir = REPO / "engine" / "vfx"
+        scanned = sorted((vfx_dir).glob("*.py"))
+        actual = sorted(p for p in vfx_dir.rglob("*.py"))
+        self.assertEqual(scanned, actual)
+        self.assertEqual({p.name for p in scanned},
+                         {"__init__.py", "emitters.py", "params.py",
+                          "particle.py", "system.py"})
 
 
 class TestDomainPromotion(unittest.TestCase):
@@ -352,6 +404,437 @@ class TestDefaultRoundTrip(unittest.TestCase):
         self.assertEqual(f["painter_lost_color"], [255, 100, 100])
         self.assertEqual(f["painter_life"], 1.5)
         self.assertEqual(f["boost_color"], [255, 255, 255])
+
+    # -- ESV-3b: beam / crater / lightning / announce (brief §4 test 9) ----
+
+    def test_beam(self):
+        b = self.data["procedural"]["beam"]
+        self.assertEqual(b["colors"],
+                         ramp_stops([255, 200, 40], [255, 110, 15], [210, 20, 10]))
+        self.assertEqual(b["width_base"], 2)
+        self.assertEqual(b["origin_lift_tiles"], 1.0)
+
+    def test_crater(self):
+        c = self.data["procedural"]["crater"]
+        self.assertEqual(c["color"], [120, 78, 66])
+        self.assertEqual(c["alpha"], 150)
+        self.assertEqual(c["life"], 1.0)
+
+    def test_lightning(self):
+        lp = self.data["procedural"]["lightning"]
+        self.assertEqual(lp["bolt_segments"], 8)
+        self.assertEqual(lp["bolt_jitter_px"], 6)
+        self.assertEqual(lp["bolt_color_start"], [255, 255, 255])
+        self.assertEqual(lp["bolt_color_end"], [255, 240, 80])
+        self.assertEqual(lp["bolt_width"], 2)
+        self.assertEqual(lp["bolt_life"], 0.5)
+        self.assertEqual(lp["flash_radius_px"], 20.0)
+        self.assertEqual(lp["flash_color"], [255, 250, 200])
+        self.assertEqual(lp["flash_alpha"], 200)
+        self.assertEqual(lp["marker_color"], [255, 240, 120])
+        self.assertEqual(lp["marker_fill_alpha"], 120)
+        self.assertEqual(lp["marker_outline_width"], 2)
+        self.assertEqual(lp["marker_life"], 1.0)
+
+    def test_announce(self):
+        a = self.data["procedural"]["announce"]
+        self.assertEqual(a["color"], [220, 40, 40])
+        self.assertEqual(a["max_alpha"], 255)
+
+
+# ===========================================================================
+# ESV-3b: scene-object / continuous VFX (beam / crater / lightning / announce)
+# docs/briefs/phase-esv-3b-scene-vfx.md §4. submit_beams/submit_craters/
+# submit_lightning/submit_announce stay in game/ui/effects.py (they read
+# scene.by_tag(...) and building components — game vocabulary the engine must
+# not learn, ESV-3b brief §2.1) — these tests exercise that PRODUCTION code
+# through a FloaterManager whose ``_vfx_params`` is swapped for the literal
+# bundle above, so the assertions pin against independently stated literals,
+# never against data/balancing/vfx.json (TestDefaultRoundTrip above closes
+# that loop separately).
+# ===========================================================================
+from engine.core import GameObject, Scene, Transform
+from engine.coords import CoordinateSystem, Geometry
+from game.buildings.components import BeamAttacker, TierState
+from game.core.balance import load_balance
+from game.core.lightning import (
+    BOLT_LIFE, MARKER_LIFE, LightningFX, LightningFXFade,
+)
+from game.enemies.combat import (
+    AOE_TRAVEL_TIME, BEAM_MIN_TICK, CRATER_LIFE, Crater, CraterFade,
+)
+from game.ui.effects import FloaterManager
+
+
+class _TagScene:
+    """The minimal ``scene.by_tag(tag)`` surface submit_beams/submit_craters/
+    submit_lightning actually read — no TileMap/TileOccupancy/spawn-queue
+    machinery needed to exercise a pure draw function."""
+
+    def __init__(self, objects):
+        self._objects = list(objects)
+
+    def by_tag(self, tag):
+        return [o for o in self._objects if tag in o.tags]
+
+
+class _AliveObj(GameObject):
+    """A GameObject that reads as alive (E-11 forbids a bare public
+    ``.alive`` attribute — override it as a property instead)."""
+
+    @property
+    def alive(self):
+        return True
+
+
+class FakeRenderer:
+    """Records every submit_* call instead of drawing — the same role a
+    fake backend plays anywhere else in this suite."""
+
+    def __init__(self):
+        self.hud = []
+        self.overlay_polys = []
+        self.overlay_lines = []
+
+    def submit_hud(self, item):
+        self.hud.append(item)
+
+    def submit_overlay_polys(self, points, color):
+        self.overlay_polys.append((tuple(points), color))
+
+    def submit_overlay_lines(self, points, color, width=1, closed=False):
+        self.overlay_lines.append((tuple(points), color, width, closed))
+
+
+def make_floater_manager():
+    """A real ``FloaterManager`` (needs valid ui_balance/core_balance/
+    vfx_balance shapes to construct) with ``_vfx_params`` immediately swapped
+    for the literal ``VFX_PARAMS`` bundle above — so every assertion below is
+    pinned against the literals, never against the fixture JSON just used to
+    satisfy the constructor's shape."""
+    ui_bal = load_balance(FIXTURE_DATA, "ui")
+    core_bal = load_balance(FIXTURE_DATA, "core")
+    vfx_bal = data_io.load_json(VFX_DATA_PATH)
+    fm = FloaterManager(ui_bal, core_bal, vfx_bal)
+    fm._vfx_params = VFX_PARAMS
+    return fm
+
+
+def make_cs():
+    return CoordinateSystem(Geometry(
+        tile_w=64, tile_h=32, map_cols=8, map_rows=8, zoom_levels=(1.0,)))
+
+
+class TestLightningBoltSeededParity(unittest.TestCase):
+    """Draw order per §2.2: for i in range(bolt_segments + 1) — i=0 and
+    i=bolt_segments (the endpoints) draw NOTHING; i=1..bolt_segments-1 each
+    draw exactly one uniform(-jitter, +jitter). At the default 8 segments
+    that is exactly 7 draws, ascending i order. The RNG is consumed at
+    SUBMIT time, not emit time: a second submit of the SAME FX object
+    re-rolls (the shimmer IS the effect) — pinned below by asserting the two
+    point lists differ while the endpoints stay identical.
+
+    Points independently computed by replaying the exact algorithm with
+    random.Random(42) against cs.world_to_screen(2.0, 3.0) = (-32.0, 80.0)
+    on a 64x32 tile_w/tile_h CoordinateSystem — not by calling
+    submit_lightning and trusting it."""
+
+    SEED = 42
+    EXPECTED_FIRST = [(-32, 0), (-30, 10), (-37, 20), (-34, 30), (-35, 40),
+                      (-29, 50), (-29, 60), (-27, 70), (-32, 80)]
+    EXPECTED_SECOND = [(-32, 0), (-36, 10), (-32, 20), (-37, 30), (-35, 40),
+                       (-31, 50), (-37, 60), (-35, 70), (-32, 80)]
+
+    def _fx(self):
+        fx = LightningFX(2.0, 3.0, 1.5, LIGHTNING.bolt_life,
+                          LIGHTNING.marker_life)
+        return fx
+
+    def test_draw_order_count_and_unjittered_endpoints(self):
+        fm = make_floater_manager()
+        fm._rng = random.Random(self.SEED)
+        cs = make_cs()
+        fx = self._fx()   # age 0.0 -> bolt_frac == 1.0
+        scene = _TagScene([fx])
+        renderer = FakeRenderer()
+
+        fm.submit_lightning(renderer, cs, scene)
+
+        bolt_lines = [item for item in renderer.hud
+                     if len(item.points) == LIGHTNING.bolt_segments + 1]
+        self.assertEqual(len(bolt_lines), 1)
+        pts = list(bolt_lines[0].points)
+        self.assertEqual(pts, self.EXPECTED_FIRST)
+        # endpoints exact, un-jittered
+        self.assertEqual(pts[0][0], int(-32.0))
+        self.assertEqual(pts[-1][0], int(-32.0))
+
+    def test_second_submit_rerolls_the_shimmer(self):
+        fm = make_floater_manager()
+        fm._rng = random.Random(self.SEED)
+        cs = make_cs()
+        fx = self._fx()
+        scene = _TagScene([fx])
+        renderer = FakeRenderer()
+
+        fm.submit_lightning(renderer, cs, scene)   # 1st submit consumes 7
+        fm.submit_lightning(renderer, cs, scene)   # 2nd submit, same fx
+
+        first_pts = list(renderer.hud[0].points)
+        second_hud = [item for item in renderer.hud
+                     if len(item.points) == LIGHTNING.bolt_segments + 1]
+        second_pts = list(second_hud[1].points)
+        self.assertEqual(first_pts, self.EXPECTED_FIRST)
+        self.assertEqual(second_pts, self.EXPECTED_SECOND)
+        self.assertNotEqual(first_pts, second_pts)          # re-rolled
+        self.assertEqual(first_pts[0], second_pts[0])        # endpoints fixed
+        self.assertEqual(first_pts[-1], second_pts[-1])
+
+
+class TestLightningColourFade(unittest.TestCase):
+    """int((start + (end - start) * (1 - bolt)) * bolt) per channel — zero
+    RNG draws. At bolt=1.0/0.5 the formula is exercised THROUGH
+    submit_lightning's real output (both > 0, so the bolt is actually
+    drawn); at bolt=0.0 submit_lightning draws NOTHING at all (the `if bolt
+    > 0` gate), so that data point is the same arithmetic expression
+    evaluated directly — independently computed, not re-derived from the
+    function under test."""
+
+    def test_bolt_1_0_is_the_start_colour(self):
+        fm = make_floater_manager()
+        fm._rng = random.Random(1)
+        cs = make_cs()
+        fx = LightningFX(2.0, 3.0, 1.5, LIGHTNING.bolt_life,
+                         LIGHTNING.marker_life)   # age 0.0 -> bolt_frac 1.0
+        renderer = FakeRenderer()
+        fm.submit_lightning(renderer, cs, _TagScene([fx]))
+        bolt_lines = [i for i in renderer.hud
+                     if len(i.points) == LIGHTNING.bolt_segments + 1]
+        self.assertEqual(bolt_lines[0].color, (255, 255, 255))
+
+    def test_bolt_0_5_is_the_hand_computed_midpoint(self):
+        fm = make_floater_manager()
+        fm._rng = random.Random(1)
+        cs = make_cs()
+        fx = LightningFX(2.0, 3.0, 1.5, LIGHTNING.bolt_life,
+                         LIGHTNING.marker_life)
+        fx.get_component(LightningFXFade).age = LIGHTNING.bolt_life / 2
+        renderer = FakeRenderer()
+        fm.submit_lightning(renderer, cs, _TagScene([fx]))
+        bolt_lines = [i for i in renderer.hud
+                     if len(i.points) == LIGHTNING.bolt_segments + 1]
+        # int((255+(255-255)*0.5)*0.5, int((255+(240-255)*0.5)*0.5), int((255+(80-255)*0.5)*0.5))
+        self.assertEqual(bolt_lines[0].color, (127, 123, 83))
+
+    def test_bolt_0_0_is_the_zero_limit_no_line_drawn(self):
+        # bolt_frac == 0.0 at age == bolt_life: submit_lightning's `if bolt >
+        # 0` gate means NO bolt HudLines is submitted at all.
+        fm = make_floater_manager()
+        fm._rng = random.Random(1)
+        cs = make_cs()
+        fx = LightningFX(2.0, 3.0, 1.5, LIGHTNING.bolt_life,
+                         LIGHTNING.marker_life)
+        fx.get_component(LightningFXFade).age = LIGHTNING.bolt_life
+        renderer = FakeRenderer()
+        fm.submit_lightning(renderer, cs, _TagScene([fx]))
+        bolt_lines = [i for i in renderer.hud
+                     if len(i.points) == LIGHTNING.bolt_segments + 1]
+        self.assertEqual(bolt_lines, [])
+        # the formula's algebraic limit, independently computed (not by
+        # calling submit_lightning, which never evaluates it at bolt=0):
+        progress = 1.0 - 0.0
+        limit = tuple(int((s + (e - s) * progress) * 0.0)
+                     for s, e in zip(LIGHTNING.bolt_color_start,
+                                     LIGHTNING.bolt_color_end))
+        self.assertEqual(limit, (0, 0, 0))
+
+
+class TestBeamParity(unittest.TestCase):
+    """submit_beams: colour = colors[clamp(tier, 2)], width = width_base +
+    tier. **verified**: submit_beams's body (game/ui/effects.py) calls no
+    rng method anywhere — zero random draws."""
+
+    def _beam_building(self, tier):
+        building = GameObject(
+            tags=("combat",), transform=Transform(wx=1.0, wy=1.0),
+            components=[BeamAttacker(), TierState(current_tier=tier)])
+        return building
+
+    def test_tier_clamp_and_width(self):
+        fm = make_floater_manager()
+        cs = make_cs()
+        target = _AliveObj(transform=Transform(wx=3.0, wy=1.0))
+        cases = [(0, BEAM.colors[0], 2), (1, BEAM.colors[1], 3),
+                 (2, BEAM.colors[2], 4), (3, BEAM.colors[2], 5)]  # 3 clamps
+        for tier, expected_color, expected_width in cases:
+            with self.subTest(tier=tier):
+                building = self._beam_building(tier)
+                building.get_component(BeamAttacker)._target = target
+                renderer = FakeRenderer()
+                fm.submit_beams(renderer, cs, _TagScene([building]))
+                self.assertEqual(len(renderer.hud), 1)
+                self.assertEqual(renderer.hud[0].color, expected_color)
+                self.assertEqual(renderer.hud[0].width, expected_width)
+
+    def test_no_beam_when_target_not_alive(self):
+        fm = make_floater_manager()
+        cs = make_cs()
+        building = self._beam_building(0)
+        # no _target set at all -> getattr(..., None) -> skipped
+        renderer = FakeRenderer()
+        fm.submit_beams(renderer, cs, _TagScene([building]))
+        self.assertEqual(renderer.hud, [])
+
+
+class TestCraterAndMarkerAlphaParity(unittest.TestCase):
+    """Crater fill alpha + lightning ground-marker fill alpha both scale
+    linearly with their fade fraction. Zero RNG draws (**verified**: neither
+    submit_craters nor the marker-drawing tail of submit_lightning calls any
+    rng method)."""
+
+    def test_crater_alpha_at_1_0_0_5_0_0(self):
+        fm = make_floater_manager()
+        cs = make_cs()
+        for frac, expected_alpha in ((1.0, 150), (0.5, 75), (0.0, 0)):
+            with self.subTest(frac=frac):
+                crater = Crater(2.0, 2.0, 0.8, CRATER.life)
+                cf = crater.get_component(CraterFade)
+                cf.age = cf.life * (1.0 - frac)
+                renderer = FakeRenderer()
+                fm.submit_craters(renderer, cs, _TagScene([crater]))
+                self.assertEqual(len(renderer.overlay_polys), 1)
+                _, color = renderer.overlay_polys[0]
+                self.assertEqual(color, CRATER.color + (expected_alpha,))
+
+    def test_lightning_marker_alpha_at_1_0_0_5_0_0(self):
+        """``age`` drives fade_frac == 1 - age/marker_life directly; the
+        4-point marker diamond is distinguished from the 8-point flash
+        octagon by point count, so no extra isolation is needed (and at
+        frac=0.5/0.0 here age >= bolt_life anyway, so the flash's own `if
+        fr > 0` gate is already false)."""
+        fm = make_floater_manager()
+        cs = make_cs()
+        for frac, expected_alpha in ((1.0, 120), (0.5, 60), (0.0, 0)):
+            with self.subTest(frac=frac):
+                fx = LightningFX(2.0, 3.0, 1.5, LIGHTNING.bolt_life,
+                                 LIGHTNING.marker_life)
+                fxf = fx.get_component(LightningFXFade)
+                fxf.age = fxf.marker_life * (1.0 - frac)
+                renderer = FakeRenderer()
+                fm.submit_lightning(renderer, cs, _TagScene([fx]))
+                if frac == 0.0:
+                    self.assertEqual(renderer.overlay_polys, [])
+                    continue
+                marker_polys = [p for p in renderer.overlay_polys
+                               if len(p[0]) == 4]
+                self.assertEqual(len(marker_polys), 1)
+                _, color = marker_polys[0]
+                self.assertAlmostEqual(color[3], expected_alpha, delta=1)
+                self.assertEqual(color[:3], LIGHTNING.marker_color)
+
+
+class TestAnnounceParity(unittest.TestCase):
+    """color + int(max_alpha * k) — zero RNG draws (**verified**:
+    submit_announce calls no rng method)."""
+
+    def _fm_with_announce(self, k, fade_in=1.0, hold=1.0, fade_out=1.0):
+        fm = make_floater_manager()
+        fm._announce = {"fade_in": fade_in, "hold": hold,
+                        "fade_out": fade_out, "enabled": True}
+        # k==1.0 -> mid-hold; k==0.5/0.0 -> mid fade-out (linear, exact)
+        if k == 1.0:
+            fm._announce_age = fade_in + hold / 2
+        else:
+            out_frac = 1.0 - k
+            fm._announce_age = fade_in + hold + out_frac * fade_out
+        return fm
+
+    def test_k_1_0_0_5_0_0(self):
+        for k, expected_alpha in ((1.0, 255), (0.5, 127), (0.0, 0)):
+            with self.subTest(k=k):
+                fm = self._fm_with_announce(k)
+                renderer = FakeRenderer()
+                # Spy on submit_centered (the colour is what we're pinning;
+                # text layout position is out of ESV-3b's scope).
+                import game.ui.effects as effects_mod
+                calls = []
+                orig = effects_mod.submit_centered
+                effects_mod.submit_centered = (
+                    lambda r, text, x, y, size, color: calls.append(color))
+                try:
+                    fm.submit_announce(renderer, 800, 600)
+                finally:
+                    effects_mod.submit_centered = orig
+                self.assertEqual(len(calls), 2)
+                for color in calls:
+                    self.assertEqual(color[:3], ANNOUNCE.color)
+                    self.assertAlmostEqual(color[3], expected_alpha, delta=1)
+
+
+class TestLifetimeThreading(unittest.TestCase):
+    """ESV-3b §2.3 Option A: crater.life / lightning.bolt_life /
+    lightning.marker_life flow from the caller's vfx_balance argument, not
+    the CRATER_LIFE/BOLT_LIFE/MARKER_LIFE module constants. Construct with a
+    life DELIBERATELY DIFFERENT from the module default and confirm the
+    despawn clock follows the threaded value, not the constant — the module
+    constant is only the Component base's required declared-field fallback
+    (`engine/core/CLAUDE.md`: "declared field needs a default"), never the
+    runtime source of truth."""
+
+    def test_crater_fades_on_the_threaded_life_not_the_module_constant(self):
+        threaded_life = CRATER_LIFE + 5.0
+        scene = Scene()
+        crater = Crater(1.0, 1.0, 0.8, threaded_life)
+        crater.get_component(CraterFade)._scene = scene
+        scene.spawn(crater)
+        scene.update(0.0)
+        self.assertEqual(scene.by_tag("crater"), [crater])
+        # past the MODULE constant, still alive: proves no silent fallback
+        scene.update(CRATER_LIFE + 1.0)
+        self.assertEqual(scene.by_tag("crater"), [crater])
+        # past the THREADED life: now despawns (queued+applied same update)
+        scene.update(10.0)
+        self.assertEqual(scene.by_tag("crater"), [])
+
+    def test_lightning_fades_on_the_threaded_lifetimes_not_the_module_constants(self):
+        threaded_bolt = BOLT_LIFE + 1.0
+        threaded_marker = MARKER_LIFE + 5.0
+        scene = Scene()
+        fx = LightningFX(1.0, 1.0, 1.5, threaded_bolt, threaded_marker)
+        fx.get_component(LightningFXFade)._scene = scene
+        scene.spawn(fx)
+        scene.update(0.0)
+        scene.update(BOLT_LIFE + 0.1)   # past the MODULE bolt life...
+        self.assertGreater(fx.bolt_frac, 0.0)  # ...but not the threaded one
+        scene.update(threaded_bolt)
+        self.assertEqual(fx.bolt_frac, 0.0)
+        scene.update(MARKER_LIFE + 0.1)          # past the MODULE marker life
+        self.assertEqual(scene.by_tag("lightning_fx"), [fx])  # still alive
+        scene.update(threaded_marker)
+        self.assertEqual(scene.by_tag("lightning_fx"), [])
+
+    def test_d4_guard_simulation_timing_never_moved_into_vfx_json(self):
+        """AOE_TRAVEL_TIME/BEAM_MIN_TICK stay module constants in
+        game/enemies/combat.py and appear NOWHERE in
+        data/balancing/vfx.json (D4 fence, §1.3). Write this test even under
+        Option B — required unconditionally by the brief."""
+        self.assertEqual(AOE_TRAVEL_TIME, 0.55)
+        self.assertEqual(BEAM_MIN_TICK, 0.02)
+        src = (REPO / "game" / "enemies" / "combat.py").read_text(
+            encoding="utf-8")
+        self.assertIn("AOE_TRAVEL_TIME = 0.55", src)
+        self.assertIn("BEAM_MIN_TICK = 0.02", src)
+        # The KEY names are the guard — a bare literal-value scan would false
+        # -positive on an unrelated ESV-3a value (spark.presets.level1.life
+        # is coincidentally 0.55 too).
+        vfx_src = VFX_DATA_PATH.read_text(encoding="utf-8")
+        self.assertNotIn("AOE_TRAVEL_TIME", vfx_src)
+        self.assertNotIn("BEAM_MIN_TICK", vfx_src)
+        vfx_data = data_io.load_json(VFX_DATA_PATH)
+        proc = vfx_data["procedural"]
+        for block in proc.values():
+            self.assertNotIn("aoe_travel_time", block)
+            self.assertNotIn("beam_min_tick", block)
 
 
 if __name__ == "__main__":

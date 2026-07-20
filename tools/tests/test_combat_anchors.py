@@ -31,6 +31,8 @@ from game.map.tile_map import TileMap
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
+CRATER_LIFE = VFX["procedural"]["crater"]["life"]
 
 CS = load_coordinate_system(FIXTURE_DATA)   # tile_w=64/tile_h=32, fixture geometry
 
@@ -98,7 +100,7 @@ class TestMuzzleShiftsTheSpawnPoint(unittest.TestCase):
         assets = make_store("anchor_test", anchor_xy=(40, -10))
 
         scene.update(0.05)
-        resolve_combat(scene, tm, 0.05, BUILD, assets=assets, cs=CS)
+        resolve_combat(scene, tm, 0.05, BUILD, VFX, assets=assets, cs=CS)
         scene.update(0.0)   # flush the spawn queue
         projectiles = scene.by_tag("projectile")
         self.assertEqual(len(projectiles), 1)
@@ -125,7 +127,7 @@ class TestDamageTimingInvariantUnderAnchor(unittest.TestCase):
         ledger = []
         for _ in range(n_frames):
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD, assets=assets, cs=CS)
+            resolve_combat(scene, tm, dt, BUILD, VFX, assets=assets, cs=CS)
             ledger.append(health.hp)
         return ledger
 
@@ -191,7 +193,7 @@ class TestFireSplashUnaffectedByAnchor(unittest.TestCase):
         bx, by = mortar.transform.world_pos
 
         assets = make_store("anchor_test", anchor_xy=(2000, -1800))
-        _fire_splash(mortar, target, scene, dmg_bonus=0, assets=assets, cs=CS)
+        _fire_splash(mortar, target, scene, CRATER_LIFE, dmg_bonus=0, assets=assets, cs=CS)
         scene.update(0.0)   # flush the spawn queue
 
         shells = scene.by_tag("projectile")

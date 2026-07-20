@@ -55,9 +55,20 @@ validating writer; don't hand-edit the JSON.
   building-death shards, muzzle spray, melee slash, gold tile highlight,
   blood splatter, floater colour/lifetime); `engine/vfx/` holds the pure
   emitters, injected with these values as frozen dataclasses (D5 — the
-  engine never reads `data/` itself). ESV-3b adds keys inside the same
-  `procedural` object (craters/beams/lightning/boss-announce); ESV-5 adds a
-  sibling `triggers` object at the top level. Since **Phase 9A** the other
+  engine never reads `data/` itself). **ESV-3b** added four more sibling
+  blocks inside the same `procedural` object — `beam` (Sun Scorcher line
+  colour ramp/width/origin-lift), `crater` (mortar scorch colour/alpha/fade
+  life), `lightning` (bolt/flash/marker colours, widths, jitter, segment
+  count, the two fade lifetimes), `announce` (boss-banner colour/alpha
+  ceiling) — reusing the same `$defs/color`/`$defs/ramp` schema shapes.
+  Unlike ESV-3a's five, none of these four are `VfxSystem` state: the scene
+  already owns the crater/lightning fade clocks (`CraterFade`/
+  `LightningFXFade` components), so the two cosmetic lifetimes
+  (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+  REQUIRED constructor arguments from `game/enemies/combat.py`'s
+  `resolve_combat` / `game/core/lightning.py`'s `strike` down to those
+  components — never a code-side default. ESV-5 adds a sibling `triggers`
+  object at the top level. Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

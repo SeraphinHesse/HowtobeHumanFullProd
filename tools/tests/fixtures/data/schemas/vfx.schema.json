@@ -60,12 +60,86 @@
   "$id": "vfx.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Procedural VFX balancing domain (D-10): particle/gold/slash/splatter cosmetic tunables ported from game/ui/effects.py (ESV-3a). Bounds policy: seconds 0-60, px/s velocities and px/s^2 gravity +-1000, sizes/radii 0-256 px, alpha 0-255, fractions/chances 0-1, line counts 0-100.",
+  "description": "Procedural VFX balancing domain (D-10): particle/gold/slash/splatter cosmetic tunables ported from game/ui/effects.py (ESV-3a), plus scene-object/continuous cosmetic tunables (beam/crater/lightning/announce, ESV-3b). ESV-3a bounds: seconds 0-60, px/s velocities and px/s^2 gravity +-1000, sizes/radii 0-256 px, alpha 0-255, fractions/chances 0-1, line counts 0-100. ESV-3b bounds (data/CLAUDE.md house policy): alphas 0-255, seconds 0-60, pixels +-4096, counts 0-10000.",
   "properties": {
     "procedural": {
       "additionalProperties": false,
-      "description": "Every procedural cosmetic VFX tunable ESV-3a ports out of game/ui/effects.py module constants. ESV-3b adds keys inside this same object (craters/beams/lightning/boss-announce); ESV-5 adds a sibling triggers object at the top level.",
+      "description": "Every procedural cosmetic VFX tunable ESV-3a/ESV-3b port out of game/ui/effects.py module constants (and, for the two scene-object fade lifetimes, game/enemies/combat.py + game/core/lightning.py). ESV-5 adds a sibling triggers object at the top level.",
       "properties": {
+        "announce": {
+          "additionalProperties": false,
+          "description": "The boss-round announcement banner (submit_announce): colour + alpha ceiling only. The two copy strings stay game-side (screen-skinning territory) and the fade-in/hold/fade-out timings stay in ui.json FX.boss_announce.",
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "max_alpha": {
+              "description": "Alpha at full opacity (k=1.0), scaled by the fade-in/hold/fade-out curve.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "color",
+            "max_alpha"
+          ],
+          "type": "object"
+        },
+        "beam": {
+          "additionalProperties": false,
+          "description": "The Sun Scorcher's continuous beam line (submit_beams): a 3-tier colour ramp indexed (clamped) by the defender's tier, a base width that thickens by +1 px per tier, and how many tile-heights above the origin the line starts.",
+          "properties": {
+            "colors": {
+              "$ref": "#/$defs/ramp"
+            },
+            "origin_lift_tiles": {
+              "description": "How many tile-heights above the defender's centre the beam line starts (multiplies tile_h * zoom).",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            "width_base": {
+              "description": "Base line width in px before the +1-per-tier bonus.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "colors",
+            "origin_lift_tiles",
+            "width_base"
+          ],
+          "type": "object"
+        },
+        "crater": {
+          "additionalProperties": false,
+          "description": "A mortar shell's fading world-space scorch mark (submit_craters + CraterFade on the Crater GameObject). life is the fade lifetime in seconds; nothing but this cosmetic despawn clock reads it (D4 - not simulation timing).",
+          "properties": {
+            "alpha": {
+              "description": "Fill alpha at spawn (frac=1.0), scaling linearly to 0 as the crater fades.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "life": {
+              "description": "Fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "alpha",
+            "color",
+            "life"
+          ],
+          "type": "object"
+        },
         "death_burst": {
           "additionalProperties": false,
           "description": "Building-death shard burst (watch_buildings): each shard picks ONE colour from colors, held for its whole life, and an independent w/h size drawn from a range.",
@@ -248,6 +322,94 @@
             "fill_color",
             "hold",
             "life"
+          ],
+          "type": "object"
+        },
+        "lightning": {
+          "additionalProperties": false,
+          "description": "A lightning strike's jagged bolt + impact flash + ground marker (submit_lightning). bolt_life/marker_life are the fade lifetimes carried on LightningFXFade; nothing but the cosmetic despawn clocks read them (D4 - not simulation timing, unlike LightningStrike's damage/radius/cooldown in core.json).",
+          "properties": {
+            "bolt_color_end": {
+              "$ref": "#/$defs/color"
+            },
+            "bolt_color_start": {
+              "$ref": "#/$defs/color"
+            },
+            "bolt_jitter_px": {
+              "description": "Per-segment horizontal jitter magnitude in px, re-rolled every submitted frame (uniform(-jitter, +jitter)).",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "bolt_life": {
+              "description": "Bolt fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "bolt_segments": {
+              "description": "Polyline segment count. A 1-segment bolt has no jitter point and degenerates to a straight line, so the minimum is 2.",
+              "maximum": 10000,
+              "minimum": 2,
+              "type": "integer"
+            },
+            "bolt_width": {
+              "description": "Bolt polyline width in px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "flash_alpha": {
+              "description": "Impact flash alpha at bolt=1.0 (fresh strike), scaling with the bolt fraction.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "flash_color": {
+              "$ref": "#/$defs/color"
+            },
+            "flash_radius_px": {
+              "description": "Impact flash radius in screen px at zoom 1, converted to world units by /(tile_w/2) like splatter.radius_px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "number"
+            },
+            "marker_color": {
+              "$ref": "#/$defs/color"
+            },
+            "marker_fill_alpha": {
+              "description": "Ground marker fill alpha at frac=1.0 (fresh strike), scaling linearly to 0 as it fades.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "marker_life": {
+              "description": "Ground marker fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "marker_outline_width": {
+              "description": "Ground marker outline width in px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "bolt_color_end",
+            "bolt_color_start",
+            "bolt_jitter_px",
+            "bolt_life",
+            "bolt_segments",
+            "bolt_width",
+            "flash_alpha",
+            "flash_color",
+            "flash_radius_px",
+            "marker_color",
+            "marker_fill_alpha",
+            "marker_life",
+            "marker_outline_width"
           ],
           "type": "object"
         },
@@ -552,9 +714,13 @@
         }
       },
       "required": [
+        "announce",
+        "beam",
+        "crater",
         "death_burst",
         "floaters",
         "gold_highlight",
+        "lightning",
         "muzzle",
         "slash",
         "spark",

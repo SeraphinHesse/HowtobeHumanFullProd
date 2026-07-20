@@ -28,6 +28,7 @@ from tools.tests.test_buildings_tier_math import TierWalkMixin
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 AOE = BUILD["DefenceBuildings"]["AOEDefence"]["tiers"]
 BEAM = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"]
@@ -109,7 +110,7 @@ class TestSplash(unittest.TestCase):
         hp0 = {e: e.get_component(Health).hp for e in watch}
         for _ in range(400):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if any(e.get_component(Health).hp < hp0[e] for e in watch):
                 # The impact queues the Crater during this update; one more
                 # step flushes the spawn queue so it materialises in the scene.
@@ -216,7 +217,7 @@ class TestBeam(unittest.TestCase):
         out = []
         for _ in range(2000):
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD)
+            resolve_combat(scene, tm, dt, BUILD, VFX)
             now = target.get_component(Health).hp
             if now < prev:
                 out.append(prev - now)
@@ -265,7 +266,7 @@ class TestBeam(unittest.TestCase):
         waiting = frozen_enemy(scene, tm, 2, 1, hp=2)
         for _ in range(30):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if not to_kill.alive:
                 break
         ba = beam.get_component(BeamAttacker)
@@ -276,7 +277,7 @@ class TestBeam(unittest.TestCase):
         hp_wait = waiting.get_component(Health).hp
         for _ in range(int(beam.target_death_cooldown() / 0.05) - 1):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
         self.assertEqual(waiting.get_component(Health).hp, hp_wait)
         # After the cooldown elapses it starts taking damage again.
         dealt = self._tick_damages(scene, tm, waiting, 1)
@@ -291,7 +292,7 @@ class TestBeam(unittest.TestCase):
         weak = frozen_enemy(scene, tm, 2, 0, hp=50)
         tank = frozen_enemy(scene, tm, 2, 1, hp=100000)
         scene.update(0.05)
-        resolve_combat(scene, tm, 0.05, BUILD)
+        resolve_combat(scene, tm, 0.05, BUILD, VFX)
         self.assertIs(beam.get_component(BeamAttacker)._target, tank)
 
     def test_beam_min_tick_beats_the_shared_floor(self):
@@ -310,7 +311,7 @@ class TestBeam(unittest.TestCase):
         prev = tank.get_component(Health).hp
         for _ in range(10):                 # 10 * 0.02 = 0.2s
             scene.update(0.02)
-            resolve_combat(scene, tm, 0.02, BUILD)
+            resolve_combat(scene, tm, 0.02, BUILD, VFX)
             now = tank.get_component(Health).hp
             if now < prev:
                 ticks += 1

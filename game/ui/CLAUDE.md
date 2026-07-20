@@ -93,7 +93,11 @@ logic is `game/core` — see that doc.)
   `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
   "SOMETHING BIG / IS APPROACHING!" banner over the
   `boss_announce.{fade_in,hold,fade_out}` timings (a real text-alpha fade
-  since 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
+  since 10J; **ESV-3b**: the colour + max alpha are now
+  `data/balancing/vfx.json procedural.announce`, read off
+  `FloaterManager._vfx_params.announce` — the two copy strings and the
+  timings stay put, screen-skinning/`ui.json` territory respectively);
+  `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
   NOT drawn here — see the enemy HP bars below, which own every overhead bar in
@@ -164,7 +168,10 @@ world-space diamond for each `"crater"` GameObject a mortar shell left (the
 the sanctioned `game/ui → game/buildings.components` read (building_ui already
 imports it). 10J made the crater an alpha-filled diamond; the beam stays a
 plain line (an alpha GLOW under it remains unported — `HudLines` carries no
-alpha; accepted).
+alpha; accepted). **ESV-3b**: the beam colour ramp/width/origin-lift and the
+crater colour/alpha are now `data/balancing/vfx.json` (`procedural.beam`/
+`.crater`), read off `FloaterManager._vfx_params`; the crater's fade LIFE is
+still on its own `CraterFade` component, now fed from the same domain.
 
 ## Lightning + cheat menu UI (10H)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
@@ -198,7 +205,14 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
   fading yellow world-space diamond sized to the real blast radius (projects
   to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
-  expanding impact-flash polygon, and the alpha marker fade.
+  expanding impact-flash polygon, and the alpha marker fade. **ESV-3b**:
+  every colour/width/segment/jitter/flash/marker-alpha number here is now
+  `data/balancing/vfx.json procedural.lightning`, read off
+  `FloaterManager._vfx_params.lightning`; the bolt's per-frame jitter now
+  draws through `self._rng` (shared with `self._vfx`'s injected `random`)
+  instead of the bare module-level call. The two fade LIFEs
+  (`bolt_life`/`marker_life`) are on `LightningFXFade`, fed from the same
+  domain via `lightning.strike`'s new required `vfx` argument.
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
@@ -275,9 +289,32 @@ imports:
     arg, `vfx_balance`, and owns a `VfxSystem` (`self._vfx`) it delegates
     every FX method's body to; every public method name is unchanged.
     `_params_from_balance` in `effects.py` is the ONE place a JSON key name
-    meets an `engine.vfx` dataclass field. Craters/beams/lightning/
-    boss-announce (10B/10G/10H) stay module-constant HUD chrome — ESV-3b's
-    scope, not ported here.
+    meets an `engine.vfx` dataclass field.
+  - **ESV-3b**: craters/beams/lightning/boss-announce (10B/10G/10H) are now
+    also ported — colours/alphas/widths/segments/jitter/flash params live in
+    `data/balancing/vfx.json` (`procedural.beam/.crater/.lightning/
+    .announce`, `engine.vfx.BeamParams`/`CraterParams`/`LightningParams`/
+    `AnnounceParams`). Unlike ESV-3a, `submit_beams`/`submit_craters`/
+    `submit_lightning`/`submit_announce` **stay in `effects.py`** — they read
+    `scene.by_tag(...)` and building components the engine must not learn —
+    and read the four new blocks straight off `FloaterManager._vfx_params`
+    (held alongside `self._vfx`, not inside it: the scene already owns the
+    crater/lightning fade clocks, so `VfxSystem` gained no new state).
+    `submit_lightning` is the one draw that consumes random numbers — every
+    SUBMITTED frame, not once at emit — and now draws through
+    `self._rng` (the same injected `random` module `self._vfx` shares)
+    instead of a bare module-level call. The two cosmetic fade lifetimes
+    (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+    REQUIRED arguments from `resolve_combat`/`lightning.strike`'s new
+    `vfx_balance`/`vfx` parameter (5th/3rd) all the way to the `CraterFade`/
+    `LightningFXFade` component fields that own the despawn clock —
+    `game/enemies/combat.py`'s `resolve_combat`/`Crater`/`ProjectileAOE` and
+    `game/core/lightning.py`'s `strike`/`LightningFX` all gained a required
+    argument; `Session.lightning_strike` gained a required 5th
+    `vfx_balance` too (not stored on `Session` — passed per call, like
+    `scene`/`cs`). The two copy strings (`_ANNOUNCE_L1/L2`) and the
+    `ui.json FX.boss_announce` timings stay put — copy is screen-skinning
+    territory, timings were already datafied.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
