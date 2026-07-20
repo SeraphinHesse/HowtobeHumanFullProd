@@ -22,9 +22,14 @@ from PySide6.QtWidgets import QApplication
 
 from editor.main import MainWindow
 from editor.panels.screen_details import ScreenDetailsPanel
-from editor.panels.selector import _PAYLOAD_ROLE, _SCREEN_ROLE, SelectorPanel
+from editor.panels.selector import (
+    _PAYLOAD_ROLE,
+    _SCREEN_ROLE,
+    _VIEW_ROLE,
+    SelectorPanel,
+)
 from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
-from editor.ui_screen_session import UIScreenSession
+from editor.ui_screen_session import VIEW_ORDER, UIScreenSession, ordered_views
 from engine import data_io
 from engine.render import HudLines, HudRect, HudSprite, HudText
 from tools.tests.test_editor_panels import TempDataCase
@@ -325,6 +330,57 @@ class TestSelectorScreensBranch(TempDataCase):
         item = selector.selectedItems()[0]
         self.assertEqual(item.data(0, _SCREEN_ROLE), "main_menu")
 
+    def test_screen_with_views_shows_child_leaves_in_pinned_order(self):
+        """UH-2: building_panel (the only screen UH-1 exports `views` for,
+        verified against the real data/ui/screen_defaults.json) gets one
+        child leaf per view, in VIEW_ORDER — NOT sorted-keys JSON order
+        (which would alphabetize `base_info` first, D-3)."""
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        building_item = None
+        for i in range(selector._screens_branch.childCount()):
+            item = selector._screens_branch.child(i)
+            if item.data(0, _SCREEN_ROLE) == "building_panel":
+                building_item = item
+                break
+        self.assertIsNotNone(building_item)
+        labels = [building_item.child(j).text(0)
+                 for j in range(building_item.childCount())]
+        self.assertEqual(labels, list(VIEW_ORDER))
+
+    def test_screen_with_no_views_gets_no_child_leaves(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        for i in range(selector._screens_branch.childCount()):
+            item = selector._screens_branch.child(i)
+            if item.data(0, _SCREEN_ROLE) == "main_menu":
+                self.assertEqual(item.childCount(), 0)
+                return
+        self.fail("no main_menu leaf in the Screens branch")
+
+    def test_view_leaf_emits_screen_view_selected_not_screen_selected(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        view_calls = []
+        screen_calls = []
+        selector.screen_view_selected.connect(
+            lambda *a: view_calls.append(a))
+        selector.screen_selected.connect(screen_calls.append)
+        selector.select_screen_view("building_panel", "construct")
+        self.assertEqual(view_calls, [("building_panel", "construct")])
+        self.assertEqual(screen_calls, [])
+
+    def test_selecting_parent_screen_leaf_still_emits_screen_selected(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        screen_calls = []
+        selector.screen_selected.connect(screen_calls.append)
+        selector.select_screen("building_panel")
+        self.assertEqual(screen_calls, ["building_panel"])
+
+    def test_refresh_screens_preserves_view_selection(self):
+        selector = self.track(SelectorPanel(data_dir=self.data_dir))
+        selector.select_screen_view("building_panel", "preview")
+        selector.refresh_screens()
+        item = selector.selectedItems()[0]
+        self.assertEqual(item.data(0, _VIEW_ROLE), ("building_panel", "preview"))
+
 
 class TestUIScreenSession(TempDataCase):
     """B4 §1b: UIScreenSession mirrors MapSession — open/save lifecycle,
@@ -374,6 +430,45 @@ class TestUIScreenSession(TempDataCase):
             self.data_dir / "ui" / "screens" / "main_menu.json",
             self.data_dir / "schemas" / "ui_screen.schema.json")
         self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW")
+
+    def test_open_resets_view_to_none(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        session.set_view("construct")
+        session.open("main_menu")
+        self.assertIsNone(session.view)
+
+    def test_set_view_emits_view_changed(self):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("main_menu")
+        seen = []
+        session.view_changed.connect(seen.append)
+        session.set_view("construct")
+        self.assertEqual(session.view, "construct")
+        self.assertEqual(seen, ["construct"])
+        session.set_view(None)
+        self.assertIsNone(session.view)
+        self.assertEqual(seen, ["construct", None])
+
+
+class TestOrderedViews(unittest.TestCase):
+    """UH-2: VIEW_ORDER/ordered_views — the pinned game-mode display order,
+    since D-3's sorted-keys JSON would alphabetize `views` (base_info
+    first)."""
+
+    def test_known_views_come_back_in_pinned_order(self):
+        self.assertEqual(
+            ordered_views({"preview", "unlock", "base_info", "construct", "upgrade"}),
+            VIEW_ORDER)
+
+    def test_subset_keeps_relative_pinned_order(self):
+        self.assertEqual(
+            ordered_views({"preview", "unlock"}), ("unlock", "preview"))
+
+    def test_unknown_views_sort_after_known_ones(self):
+        self.assertEqual(
+            ordered_views({"unlock", "zzz_custom", "aaa_custom"}),
+            ("unlock", "aaa_custom", "zzz_custom"))
 
 
 class TestViewportScreenMode(TempDataCase):
@@ -503,6 +598,103 @@ class TestViewportScreenMode(TempDataCase):
         self.assertEqual(sprites[0].animation, "hover")
 
 
+class TestViewportScreenModeViews(TempDataCase):
+    """UH-2: `_current_screen_defaults` resolves the session's active view —
+    against the REAL data/ui/screen_defaults.json (building_panel is the
+    only screen UH-1 exports `views` for; verified shape, not a hand-rolled
+    fixture) rather than a synthetic fixture."""
+
+    def setUp(self):
+        super().setUp()
+        self.empty_screens("building_panel", "main_menu")
+        self.real_defaults = data_io.load_validated(
+            self.data_dir / "ui" / "screen_defaults.json",
+            self.data_dir / "schemas" / "screen_defaults.schema.json")
+
+    def make_viewport(self):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(SCREEN_W, SCREEN_H)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def make_session(self, screen_id):
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open(screen_id)
+        return session
+
+    def test_no_active_view_returns_the_top_level_union(self):
+        panel = self.make_viewport()
+        session = self.make_session("building_panel")
+        panel.set_screen_mode(session, self.real_defaults)
+        self.assertEqual(
+            panel._current_screen_defaults(),
+            self.real_defaults["building_panel"])
+
+    def test_active_view_returns_only_that_views_widgets(self):
+        panel = self.make_viewport()
+        session = self.make_session("building_panel")
+        panel.set_screen_mode(session, self.real_defaults)
+        session.set_view("construct")
+        entry = panel._current_screen_defaults()
+        self.assertEqual(
+            entry, self.real_defaults["building_panel"]["views"]["construct"])
+        self.assertEqual(set(entry["widgets"]), {"close_btn", "panel"})
+
+    def test_switching_view_swaps_the_rendered_widget_set(self):
+        """§4(a): view switching shows/hides the right widget set — no
+        `preview_*` bleeding into `construct`, and vice versa."""
+        panel = self.make_viewport()
+        session = self.make_session("building_panel")
+        panel.set_screen_mode(session, self.real_defaults)
+
+        def rendered_widget_ids():
+            seen = []
+            original = panel._submit_screen_widget
+
+            def wrapper(widget_id, *a, **kw):
+                seen.append(widget_id)
+                return original(widget_id, *a, **kw)
+
+            panel._submit_screen_widget = wrapper
+            panel.render_frame()
+            panel._submit_screen_widget = original
+            return set(seen)
+
+        session.set_view("construct")
+        self.assertEqual(rendered_widget_ids(), {"close_btn", "panel"})
+
+        session.set_view("preview")
+        preview_ids = rendered_widget_ids()
+        self.assertIn("preview_panel", preview_ids)
+        self.assertNotIn("close_btn", preview_ids)
+        self.assertNotIn("preview_panel", {"close_btn", "panel"})
+
+    def test_unknown_view_degrades_to_the_top_level_union(self):
+        """The session holds no defaults, so it can't validate view names —
+        an unrecognized view falls back to the full entry (§2)."""
+        panel = self.make_viewport()
+        session = self.make_session("building_panel")
+        panel.set_screen_mode(session, self.real_defaults)
+        session.set_view("no_such_view")
+        self.assertEqual(
+            panel._current_screen_defaults(),
+            self.real_defaults["building_panel"])
+
+    def test_no_views_screen_is_unaffected_by_active_view(self):
+        """§1.4 regression: a screen with no `views` entry (every screen but
+        building_panel) renders byte-for-byte as pre-UH-2 regardless of
+        session.view."""
+        panel = self.make_viewport()
+        session = self.make_session("main_menu")
+        panel.set_screen_mode(session, FIXTURE_DEFAULTS)
+        self.assertEqual(
+            panel._current_screen_defaults(), FIXTURE_DEFAULTS["main_menu"])
+        session.set_view("construct")   # no-op: main_menu has no views
+        self.assertEqual(
+            panel._current_screen_defaults(), FIXTURE_DEFAULTS["main_menu"])
+
+
 def _write_ui_button_entry(data_dir, slot="ui_button"):
     """A real manifest entry + a tiny sheet PNG for `slot` — the same shape
     a fresh import would leave, used by the tests below to exercise the
@@ -614,7 +806,8 @@ class TestScreenModeReloadOnEntry(TempDataCase):
             self.data_dir / "schemas" / "ui_screen.schema.json")
 
     def test_entering_screen_mode_after_manifest_change_picks_up_new_entry(self):
-        window = self.track(MainWindow(data_dir=self.data_dir))
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
         # The manifest write lands on disk AFTER the window (and its
         # ViewportPanel's __init__-time AssetStore) already exist — exactly
         # the "editor stayed open while art landed" scenario the user hit.
@@ -810,18 +1003,89 @@ class TestScreenDetailsPanel(TempDataCase):
             self.assertNotIn("display_name", widget_override)
 
 
+class TestScreenDetailsPanelViews(TempDataCase):
+    """UH-2: the widget list follows the session's active view (against the
+    REAL data/ui/screen_defaults.json, building_panel), and an override
+    written from one view round-trips identically regardless of which view
+    was active when it was written (D2: ids are global to the screen)."""
+
+    def setUp(self):
+        super().setUp()
+        self.empty_screens("building_panel")
+        self.real_defaults = data_io.load_validated(
+            self.data_dir / "ui" / "screen_defaults.json",
+            self.data_dir / "schemas" / "screen_defaults.schema.json")
+
+    def make(self):
+        panel = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        session = self.track(UIScreenSession(data_dir=self.data_dir))
+        session.open("building_panel")
+        panel.set_session(session, self.real_defaults)
+        return panel, session
+
+    def widget_ids(self, panel):
+        return {panel.widget_list.item(i).text()
+               for i in range(panel.widget_list.count())}
+
+    def test_widget_list_follows_the_active_view(self):
+        panel, session = self.make()
+        session.set_view("construct")
+        panel._on_screen_opened()   # mirrors _enter_screen_mode's set_defaults
+        self.assertEqual(self.widget_ids(panel), {"close_btn", "panel"})
+
+        session.set_view("preview")
+        panel._on_screen_opened()
+        self.assertEqual(
+            self.widget_ids(panel),
+            {"preview_cancel_btn", "preview_close_btn", "preview_confirm_btn",
+             "preview_dice_btn", "preview_panel"})
+
+    def test_override_round_trips_regardless_of_active_view(self):
+        """§4(b): edit in `construct`, save, reopen — identical
+        building_panel.json content, and the override visible from
+        `base_info` too (close_btn appears in both views)."""
+        panel, session = self.make()
+        session.set_view("construct")
+        panel._on_screen_opened()
+        panel._populate_widget_form("close_btn")
+        panel.x_spin.setValue(444)
+        panel.x_spin.editingFinished.emit()
+        session.save()
+
+        on_disk_after_construct_save = data_io.load_validated(
+            self.data_dir / "ui" / "screens" / "building_panel.json",
+            self.data_dir / "schemas" / "ui_screen.schema.json")
+
+        # reopen the same doc (as MainWindow._on_screen_selected would)
+        session2 = self.track(UIScreenSession(data_dir=self.data_dir))
+        session2.open("building_panel")
+        self.assertEqual(session2.doc, on_disk_after_construct_save)
+        self.assertEqual(
+            session2.doc["widgets"]["close_btn"]["rect"][0], 444)
+
+        # the override is visible from base_info too — same global id (D2)
+        session2.set_view("base_info")
+        panel2 = self.track(ScreenDetailsPanel(data_dir=self.data_dir))
+        panel2.set_session(session2, self.real_defaults)
+        self.assertIn("close_btn", self.widget_ids(panel2))
+        panel2._populate_widget_form("close_btn")
+        self.assertEqual(panel2.x_spin.value(), 444)
+
+
 class TestMainWindowScreenMode(TempDataCase):
     """B4 §1e: selector → _on_screen_selected → dirty check → session.open →
     viewport.set_screen_mode → right_stack switch (exactly like maps)."""
 
     def test_main_window_on_screen_selected_enters_screen_mode(self):
-        window = self.track(MainWindow(data_dir=self.data_dir))
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
         window.selector.select_screen("main_menu")
         self.assertTrue(window.viewport.in_screen_mode())
         self.assertIs(window.right_stack.currentWidget(), window.screen_details)
 
     def test_main_window_resolve_dirty_prompts_before_switching_screens(self):
-        window = self.track(MainWindow(data_dir=self.data_dir))
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
         window.selector.select_screen("main_menu")
         window.screen_session.push_field("title", "label", None, "NEW TITLE")
         self.assertTrue(window.screen_session.dirty)
@@ -832,6 +1096,118 @@ class TestMainWindowScreenMode(TempDataCase):
             self.data_dir / "ui" / "screens" / "main_menu.json",
             self.data_dir / "schemas" / "ui_screen.schema.json")
         self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW TITLE")
+
+
+class TestMainWindowScreenModeViews(TempDataCase):
+    """UH-2: selecting the Screens-branch parent leaf opens the first view
+    (game-mode order); a view leaf opens that specific view; overrides still
+    write to the ONE building_panel.json regardless of active view."""
+
+    def setUp(self):
+        super().setUp()
+        self.empty_screens("building_panel")
+
+    def make_window(self):
+        return self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
+
+    def test_selecting_the_parent_screen_leaf_opens_the_first_view(self):
+        window = self.make_window()
+        window.selector.select_screen("building_panel")
+        self.assertEqual(window.screen_session.screen_id, "building_panel")
+        self.assertEqual(window.screen_session.view, "unlock")
+        self.assertEqual(
+            set(window.screen_details._current_screen_defaults()["widgets"]),
+            {"action_btn", "close_btn", "panel"})
+
+    def test_selecting_a_view_leaf_opens_that_view(self):
+        window = self.make_window()
+        window.selector.select_screen_view("building_panel", "preview")
+        self.assertEqual(window.screen_session.screen_id, "building_panel")
+        self.assertEqual(window.screen_session.view, "preview")
+        self.assertIn(
+            "preview_panel",
+            window.screen_details._current_screen_defaults()["widgets"])
+
+    def test_switching_views_keeps_the_same_open_doc_no_dirty_prompt(self):
+        """§2: switching views on the same open doc never triggers the dirty
+        prompt and never clears the undo stack."""
+        window = self.make_window()
+        window.selector.select_screen_view("building_panel", "construct")
+        window.screen_session.push_field(
+            "close_btn", "label", None, "CLOSE")
+        self.assertTrue(window.screen_session.dirty)
+        window.dirty_policy = "ask"   # would block on a real prompt if hit
+
+        window.selector.select_screen_view("building_panel", "base_info")
+
+        self.assertEqual(window.screen_session.screen_id, "building_panel")
+        self.assertEqual(window.screen_session.view, "base_info")
+        self.assertTrue(window.screen_session.dirty)   # undo stack untouched
+        self.assertEqual(
+            window.screen_session.doc["widgets"]["close_btn"]["label"], "CLOSE")
+
+    def test_no_such_screen_selected_falls_back_gracefully(self):
+        """§1.4 degrade: selecting a screen with no `views` key still opens
+        with view=None (not a KeyError)."""
+        window = self.make_window()
+        window.selector.select_screen("main_menu")
+        self.assertIsNone(window.screen_session.view)
+
+
+class TestAutoRefreshLayoutsOnScreenModeEntry(TempDataCase):
+    """UH-2 §3: "Refresh Layouts" auto-runs ONCE per screen-mode entry —
+    zero times on a view/screen switch while already in screen mode. Stubs
+    `run_controls.export_layouts` with a recorder; no real subprocess."""
+
+    def setUp(self):
+        super().setUp()
+        self.empty_screens("building_panel", "main_menu")
+
+    def make_window(self):
+        # The dedicated auto-refresh test: auto_refresh_layouts=True (the
+        # default) is exactly what is under test here.
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        calls = []
+        window.run_controls.export_layouts = lambda: calls.append(True)
+        return window, calls
+
+    def test_fires_once_on_entry_from_non_screen_mode(self):
+        window, calls = self.make_window()
+        window.selector.select_screen("building_panel")
+        self.assertEqual(len(calls), 1)
+
+    def test_does_not_fire_again_on_view_switch(self):
+        window, calls = self.make_window()
+        window.selector.select_screen("building_panel")
+        self.assertEqual(len(calls), 1)
+        window.selector.select_screen_view("building_panel", "construct")
+        window.selector.select_screen_view("building_panel", "preview")
+        self.assertEqual(len(calls), 1)
+
+    def test_does_not_fire_again_on_screen_switch_within_screen_mode(self):
+        window, calls = self.make_window()
+        window.selector.select_screen("building_panel")
+        self.assertEqual(len(calls), 1)
+        window.selector.select_screen("main_menu")
+        self.assertEqual(len(calls), 1)
+
+    def test_fires_again_after_leaving_and_re_entering_screen_mode(self):
+        window, calls = self.make_window()
+        window.selector.select_screen("building_panel")
+        self.assertEqual(len(calls), 1)
+        window.selector.select_node("buildings", ("Painter",))   # leaves screen mode
+        self.assertFalse(window.viewport.in_screen_mode())
+        window.selector.select_screen("main_menu")
+        self.assertEqual(len(calls), 2)
+
+    def test_auto_refresh_disabled_when_flag_is_false(self):
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
+        calls = []
+        window.run_controls.export_layouts = lambda: calls.append(True)
+        window.selector.select_screen("building_panel")
+        self.assertEqual(calls, [])
 
 
 class TestPurity(unittest.TestCase):

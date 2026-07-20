@@ -823,7 +823,8 @@ class TestMainWindowWiring(TempDataCase):
     def make_window(self):
         from editor.main import MainWindow
 
-        window = self.track(MainWindow(data_dir=self.data_dir))
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
         window._timer.stop()  # no frame drive needed here
         return window
 
@@ -1020,7 +1021,8 @@ class TestThemeSwitch(TempDataCase):
         from editor.main import MainWindow
 
         window = self.track(MainWindow(data_dir=self.data_dir,
-                                       prefs_path=prefs_path))
+                                       prefs_path=prefs_path,
+                                       auto_refresh_layouts=False))
         window._timer.stop()
         return window
 
@@ -1121,7 +1123,8 @@ class TestSettingsDialog(TempDataCase):
 
         self.prefs = Path(self.data_dir).parent / ".editor_prefs.json"
         window = self.track(MainWindow(data_dir=self.data_dir,
-                                       prefs_path=self.prefs))
+                                       prefs_path=self.prefs,
+                                       auto_refresh_layouts=False))
         window._timer.stop()
         return window
 

@@ -328,9 +328,18 @@ class ScreenDetailsPanel(QWidget):
         self._on_screen_opened()
 
     def _current_screen_defaults(self):
+        """The open screen's own {widgets, mock_note} sub-dict — resolves
+        the session's active `view` (UH-2) the same way
+        ViewportPanel._current_screen_defaults does, so `_refresh_widget_list`
+        needs no code change: it just iterates whichever dict comes back."""
         if self._session is None or self._session.doc is None:
             return {}
-        return self._all_defaults.get(self._session.screen_id, {})
+        entry = self._all_defaults.get(self._session.screen_id, {})
+        views = entry.get("views")
+        view = self._session.view
+        if views and view in views:
+            return views[view]
+        return entry
 
     def _on_screen_opened(self):
         self._current_widget = None

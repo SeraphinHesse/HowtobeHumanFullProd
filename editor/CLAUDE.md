@@ -138,6 +138,18 @@ undo routing). Panel-level rendering/interaction detail lives in
   look is re-implemented in `editor/panels/_screen_primitives.py`, an accepted
   drift kept aligned to the game's real skinned look by eye + the B2 parity
   pin, not by sharing code.
+- **UH-2: per-mode views + auto Refresh Layouts on entry.** `building_panel`
+  carries five VIEWS in `data/ui/screen_defaults.json` (`unlock`/`construct`/
+  `upgrade`/`base_info`/`preview` — UH-1's per-mode exporter output), shown as
+  child leaves under its Screens-branch leaf; `UIScreenSession.view` (non-doc,
+  non-undoable) tracks the active one and both panels'
+  `_current_screen_defaults()` resolve it — full detail in
+  `editor/panels/CLAUDE.md` "Phase UH-2". Overrides still write to the ONE
+  `data/ui/screens/building_panel.json` regardless of active view (D2, ids
+  global to the screen). `MainWindow(..., auto_refresh_layouts=True)` auto-runs
+  "Refresh Layouts" once per screen-mode entry (never on a view/screen switch
+  within screen mode) — tests inject `auto_refresh_layouts=False` everywhere
+  except the dedicated auto-refresh tests.
 
 ## Agent dispatch (`spawnclaude.py`, `agent_forms.py`, `agent_form_dialog.py`, `plans.py`, AD-1/2/3/6/7) — invariants
 The "Summon a Drunken Robot" toolbar button (label is fixed) opens the LAUNCHER.
