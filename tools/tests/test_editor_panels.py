@@ -147,7 +147,13 @@ class TestDomainsDerivation(TempDataCase):
     categories with a data/balancing/<key>.json), never hardcoded — a new
     balancing domain reaches the editor with zero editor edits."""
 
-    CANONICAL = ("buildings", "enemies", "map", "ui", "core")
+    # ESV-3a promoted "vfx" from an asset-only slots.json category to a real
+    # balancing domain (data/balancing/vfx.json + data/schemas/vfx.schema.json)
+    # — it now belongs in the CANONICAL tuple, positioned exactly where
+    # slots.json's category order puts it: right after "core" (confirmed
+    # directly against data/slots.json's categories[] order, never inferred
+    # from this file's own prior expectation).
+    CANONICAL = ("buildings", "enemies", "map", "ui", "core", "vfx")
 
     def add_domain_files(self, key):
         """A new balancing domain in the temp tree: schema + content, content
@@ -184,20 +190,28 @@ class TestDomainsDerivation(TempDataCase):
     def test_removing_a_balancing_file_drops_the_domain(self):
         (self.data_dir / "balancing" / "map.json").unlink()
         self.assertEqual(
-            domains.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+            domains.domains(self.data_dir),
+            ("buildings", "enemies", "ui", "core", "vfx"))
 
     def test_new_balancing_file_adds_a_domain_in_slots_order(self):
-        """vfx is an asset-only category TODAY; give it balancing files and it
-        becomes a domain — positioned where slots.json puts it (after core),
-        with no editor edit anywhere."""
-        self.add_domain_files("vfx")
+        """deco is an asset-only category TODAY (vfx was this class's
+        example until ESV-3a promoted it to a real domain — see CANONICAL);
+        give deco balancing files and it becomes a domain — positioned where
+        slots.json puts it (after vfx), with no editor edit anywhere."""
+        self.add_domain_files("deco")
         self.assertEqual(
-            domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
+            domains.domains(self.data_dir), self.CANONICAL + ("deco",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
-        self.assertNotIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
-        self.add_domain_files("vfx")
-        self.assertIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        # "backgrounds", not "deco": SelectorPanel.domains() only walks TOP-
+        # LEVEL tree items, and deco's root is nested under "map" (a
+        # tree-construction-only choice, see selector.py) — invisible to
+        # this check regardless of domain-ness. backgrounds stays top-level.
+        self.assertNotIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        self.add_domain_files("backgrounds")
+        self.assertIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
 
 
 class TestSelectorContextMenu(TempDataCase):
@@ -257,9 +271,11 @@ class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
         # the LITERAL canonical tuple, not domains.domains(...) — both sides
-        # derive now, so comparing them would be a tautology
+        # derive now, so comparing them would be a tautology. "vfx" joined
+        # (ESV-3a promoted it from asset-only to a real balancing domain).
         self.assertEqual(
-            panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
+            panel.domains(),
+            ("buildings", "enemies", "map", "ui", "core", "vfx"))
 
     def test_domain_without_file_is_omitted(self):
         """A category INTENDED as a domain (it has a schema) whose balancing
@@ -268,7 +284,8 @@ class TestSelector(TempDataCase):
         balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
-        self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
+        self.assertEqual(
+            panel.domains(), ("buildings", "enemies", "ui", "core", "vfx"))
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
 
@@ -341,12 +358,15 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(domains[-1], "enemies")
 
     def test_asset_only_categories_exist_but_are_not_domains(self):
+        """`vfx` was this class's asset-only example until ESV-3a gave it
+        data/balancing/vfx.json + data/schemas/vfx.schema.json, promoting it
+        to a real domain (D8 fallout) — `deco` is still asset-only and keeps
+        the assertion's meaning intact."""
         panel = self.make()
-        self.assertNotIn("vfx", panel.domains())
         self.assertNotIn("deco", panel.domains())
         domains = []
         panel.domain_selected.connect(domains.append)
-        panel.select_node("vfx", ("Effects",))   # node exists and is selectable
+        panel.select_node("deco", ("Props",))    # node exists and is selectable
         self.assertEqual(domains, [])            # but drives no balancing form
 
     def test_unknown_node_raises(self):

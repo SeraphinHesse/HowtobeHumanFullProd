@@ -199,6 +199,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
     enemies_balance = load_balance(data_dir, "enemies")
     core_balance = load_balance(data_dir, "core")
     ui_balance = load_balance(data_dir, "ui")
+    vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -260,7 +261,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
-        gp["floaters"] = FloaterManager(ui_balance, core_balance)
+        gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --

@@ -20,7 +20,7 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`) (D-10).
+  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
 - `balancing_history/` — one file per domain (`buildings.json`, …, matching
   `balancing/`'s stems), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
@@ -45,10 +45,22 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- All five domains exist: `balancing/{buildings,enemies,map,ui,core}.json`,
-  each with `schemas/<domain>.schema.json`. Since **Phase 9A** they hold the
-  prototype's live tuning verbatim, restructured into the REPLAN nested
-  feature tree (see planning/MIGRATION_PLAN.md): PascalCase group objects
+- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
+  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+  it promoted `vfx` from an asset-only `slots.json` category to a full
+  balancing domain (`editor/domains.py::domains()` derives the domain list,
+  so this needed zero editor edits — see `/add-category`). Its `procedural`
+  top-level block holds the particle/gold/slash/splatter emitter tunables
+  ported out of `game/ui/effects.py` module constants (spark bursts,
+  building-death shards, muzzle spray, melee slash, gold tile highlight,
+  blood splatter, floater colour/lifetime); `engine/vfx/` holds the pure
+  emitters, injected with these values as frozen dataclasses (D5 — the
+  engine never reads `data/` itself). ESV-3b adds keys inside the same
+  `procedural` object (craters/beams/lightning/boss-announce); ESV-5 adds a
+  sibling `triggers` object at the top level. Since **Phase 9A** the other
+  five hold the prototype's live tuning verbatim, restructured into the
+  REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
+  group objects
   (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
   tier struct-lists under a `tiers` key with the prototype's field names
   verbatim. The prototype's 4 stringified
