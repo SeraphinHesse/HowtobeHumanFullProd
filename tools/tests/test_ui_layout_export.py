@@ -130,5 +130,74 @@ class TestBuildingPanelViews(unittest.TestCase):
                 f"{screen_id!r} unexpectedly carries a 'views' key")
 
 
+class TestWidgetDisplayNames(unittest.TestCase):
+    """UH-4: an OPTIONAL cosmetic ``display_name`` per widget (D4 — the code
+    id stays the on-disk contract everywhere). Regenerate into a tempdir every
+    time — never assert against live ``data/`` content."""
+
+    _BUILDING_PANEL_NAMES = {
+        "panel": "Building panel",
+        "close_btn": "Close button",
+        "action_btn": "Unlock / Build / Upgrade button",
+        "boss_btn": "Boss history button",
+        "boss_close_btn": "Boss history close button",
+        "rename_dice_btn": "Rename dice button",
+        "lightning_btn": "Lightning upgrade button",
+        "preview_panel": "Construct preview window",
+        "preview_confirm_btn": "Construct confirm button",
+        "preview_cancel_btn": "Construct cancel button",
+        "preview_close_btn": "Construct preview close button",
+        "preview_dice_btn": "Construct preview dice button",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            export_main(data_root=REPO / "data", output_dir=tmpdir)
+            import json
+            cls.defaults = json.loads(
+                (tmpdir / "ui" / "screen_defaults.json").read_text(
+                    encoding="utf-8"))
+
+    def test_building_panel_top_level_fully_mapped(self):
+        """Full coverage gate (orchestrator ruling #2): every top-level
+        ``building_panel`` widget id carries the mapped ``display_name``."""
+        widgets = self.defaults["building_panel"]["widgets"]
+        self.assertEqual(set(widgets.keys()),
+                         set(self._BUILDING_PANEL_NAMES.keys()))
+        for widget_id, expected_name in self._BUILDING_PANEL_NAMES.items():
+            self.assertEqual(
+                widgets[widget_id].get("display_name"), expected_name,
+                f"{widget_id!r} display_name mismatch")
+
+    def test_action_btn_spot_check(self):
+        widgets = self.defaults["building_panel"]["widgets"]
+        self.assertEqual(
+            widgets["action_btn"]["display_name"],
+            "Unlock / Build / Upgrade button")
+
+    def test_building_panel_views_carry_display_names_too(self):
+        """R1: the post-pass walks EVERY ``widgets`` mapping — the flat top
+        level AND inside each per-mode view — so a widget id shared across
+        modes (e.g. panel/close_btn) carries the SAME name in every view
+        (D2's "override ids stay global to the screen")."""
+        views = self.defaults["building_panel"]["views"]
+        for view in views.values():
+            for widget_id, spec in view["widgets"].items():
+                expected = self._BUILDING_PANEL_NAMES.get(widget_id)
+                if expected is not None:
+                    self.assertEqual(spec.get("display_name"), expected)
+
+    def test_unmapped_id_carries_no_display_name_key(self):
+        """An id absent from ``_DISPLAY_NAMES`` gets NO ``display_name`` key
+        at all (the file stays minimal; fallback is the reader's job) — hud's
+        second-pass readouts (``love_text``, ``lvl_label``, ...) are real,
+        always-present ids that are NOT in ``_DISPLAY_NAMES["hud"]``."""
+        hud_widgets = self.defaults["hud"]["widgets"]
+        self.assertIn("love_text", hud_widgets)
+        self.assertNotIn("display_name", hud_widgets["love_text"])
+
+
 if __name__ == "__main__":
     unittest.main()

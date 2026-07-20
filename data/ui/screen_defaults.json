@@ -3,6 +3,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -13,6 +14,7 @@
         ]
       },
       "btn_add": {
+        "display_name": "Add button",
         "kind": "button",
         "label": "ADD NAME",
         "rect": [
@@ -23,6 +25,7 @@
         ]
       },
       "btn_back": {
+        "display_name": "Back button",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -33,6 +36,7 @@
         ]
       },
       "panel": {
+        "display_name": "Add name panel",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -43,6 +47,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "ADD A NAME",
         "rect": [
@@ -58,6 +63,7 @@
     "mock_note": "open(1, 'win')",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -68,6 +74,7 @@
         ]
       },
       "box_a": {
+        "display_name": "Boss option A box",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -78,6 +85,7 @@
         ]
       },
       "box_b": {
+        "display_name": "Boss option B box",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -88,6 +96,7 @@
         ]
       },
       "headline": {
+        "display_name": "Headline label",
         "kind": "label",
         "label": "",
         "rect": [
@@ -98,6 +107,7 @@
         ]
       },
       "subtitle": {
+        "display_name": "Subtitle label",
         "kind": "label",
         "label": "",
         "rect": [
@@ -116,6 +126,7 @@
         "mock_note": "love=123, round=7; mock lightning_level=1",
         "widgets": {
           "boss_btn": {
+            "display_name": "Boss history button",
             "kind": "button",
             "label": "BOSS CHOICES",
             "rect": [
@@ -126,6 +137,7 @@
             ]
           },
           "boss_close_btn": {
+            "display_name": "Boss history close button",
             "kind": "button",
             "label": "CLOSE",
             "rect": [
@@ -136,6 +148,7 @@
             ]
           },
           "close_btn": {
+            "display_name": "Close button",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -146,6 +159,7 @@
             ]
           },
           "lightning_btn": {
+            "display_name": "Lightning upgrade button",
             "kind": "button",
             "label": "UPGRADE LIGHTNING  ♥35",
             "rect": [
@@ -156,6 +170,7 @@
             ]
           },
           "panel": {
+            "display_name": "Building panel",
             "kind": "panel",
             "label": "",
             "rect": [
@@ -171,6 +186,7 @@
         "mock_note": "love=123, round=7; construct cards are dynamic-count and deliberately un-id'd (B3 rule) — they inherit defaults.button_skin instead of an individual override",
         "widgets": {
           "close_btn": {
+            "display_name": "Close button",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -181,6 +197,7 @@
             ]
           },
           "panel": {
+            "display_name": "Building panel",
             "kind": "panel",
             "label": "",
             "rect": [
@@ -196,6 +213,7 @@
         "mock_note": "love=123, round=7; ConstructPreview('defence') modal open, count=1, tier_idx=0 (preview_cancel_btn present iff ui.Timing.construct_show_cancel)",
         "widgets": {
           "preview_cancel_btn": {
+            "display_name": "Construct cancel button",
             "kind": "button",
             "label": "CANCEL",
             "rect": [
@@ -206,6 +224,7 @@
             ]
           },
           "preview_close_btn": {
+            "display_name": "Construct preview close button",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -216,6 +235,7 @@
             ]
           },
           "preview_confirm_btn": {
+            "display_name": "Construct confirm button",
             "kind": "button",
             "label": "CONFIRM",
             "rect": [
@@ -226,6 +246,7 @@
             ]
           },
           "preview_dice_btn": {
+            "display_name": "Construct preview dice button",
             "kind": "button",
             "label": "⚄",
             "rect": [
@@ -236,6 +257,7 @@
             ]
           },
           "preview_panel": {
+            "display_name": "Construct preview window",
             "kind": "panel",
             "label": "",
             "rect": [
@@ -251,6 +273,7 @@
         "mock_note": "love=123, round=7; mock tile (0,0), a single-tile chunk, fixed unlock_cost=40, can_unlock=True (always adjacent)",
         "widgets": {
           "action_btn": {
+            "display_name": "Unlock / Build / Upgrade button",
             "kind": "button",
             "label": "UNLOCK  ♥40",
             "rect": [
@@ -261,6 +284,7 @@
             ]
           },
           "close_btn": {
+            "display_name": "Close button",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -271,6 +295,7 @@
             ]
           },
           "panel": {
+            "display_name": "Building panel",
             "kind": "panel",
             "label": "",
             "rect": [
@@ -286,6 +311,7 @@
         "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) with a fresh RunState.from_balance() run-state — upgrade_gate resolves 'in_tier' deterministically",
         "widgets": {
           "action_btn": {
+            "display_name": "Unlock / Build / Upgrade button",
             "kind": "button",
             "label": "UPGRADE  ♥10",
             "rect": [
@@ -296,6 +322,7 @@
             ]
           },
           "close_btn": {
+            "display_name": "Close button",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -306,6 +333,7 @@
             ]
           },
           "panel": {
+            "display_name": "Building panel",
             "kind": "panel",
             "label": "",
             "rect": [
@@ -316,6 +344,7 @@
             ]
           },
           "rename_dice_btn": {
+            "display_name": "Rename dice button",
             "kind": "button",
             "label": "⚄",
             "rect": [
@@ -330,6 +359,7 @@
     },
     "widgets": {
       "action_btn": {
+        "display_name": "Unlock / Build / Upgrade button",
         "kind": "button",
         "label": "UNLOCK  ♥40",
         "rect": [
@@ -340,6 +370,7 @@
         ]
       },
       "boss_btn": {
+        "display_name": "Boss history button",
         "kind": "button",
         "label": "BOSS CHOICES",
         "rect": [
@@ -350,6 +381,7 @@
         ]
       },
       "boss_close_btn": {
+        "display_name": "Boss history close button",
         "kind": "button",
         "label": "CLOSE",
         "rect": [
@@ -360,6 +392,7 @@
         ]
       },
       "close_btn": {
+        "display_name": "Close button",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -370,6 +403,7 @@
         ]
       },
       "lightning_btn": {
+        "display_name": "Lightning upgrade button",
         "kind": "button",
         "label": "UPGRADE LIGHTNING  ♥35",
         "rect": [
@@ -380,6 +414,7 @@
         ]
       },
       "panel": {
+        "display_name": "Building panel",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -390,6 +425,7 @@
         ]
       },
       "preview_cancel_btn": {
+        "display_name": "Construct cancel button",
         "kind": "button",
         "label": "CANCEL",
         "rect": [
@@ -400,6 +436,7 @@
         ]
       },
       "preview_close_btn": {
+        "display_name": "Construct preview close button",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -410,6 +447,7 @@
         ]
       },
       "preview_confirm_btn": {
+        "display_name": "Construct confirm button",
         "kind": "button",
         "label": "CONFIRM",
         "rect": [
@@ -420,6 +458,7 @@
         ]
       },
       "preview_dice_btn": {
+        "display_name": "Construct preview dice button",
         "kind": "button",
         "label": "⚄",
         "rect": [
@@ -430,6 +469,7 @@
         ]
       },
       "preview_panel": {
+        "display_name": "Construct preview window",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -440,6 +480,7 @@
         ]
       },
       "rename_dice_btn": {
+        "display_name": "Rename dice button",
         "kind": "button",
         "label": "⚄",
         "rect": [
@@ -455,6 +496,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "btn_add_love": {
+        "display_name": "Add Love button",
         "kind": "button",
         "label": "+10 Love",
         "rect": [
@@ -465,6 +507,7 @@
         ]
       },
       "btn_close": {
+        "display_name": "Close button",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -475,6 +518,7 @@
         ]
       },
       "btn_goto": {
+        "display_name": "Go To Round button",
         "kind": "button",
         "label": "Go to Round",
         "rect": [
@@ -485,6 +529,7 @@
         ]
       },
       "btn_inf_money": {
+        "display_name": "Infinite Money button",
         "kind": "button",
         "label": "Infinite Money",
         "rect": [
@@ -495,6 +540,7 @@
         ]
       },
       "btn_skip_round": {
+        "display_name": "Skip Round button",
         "kind": "button",
         "label": "Skip Round",
         "rect": [
@@ -505,6 +551,7 @@
         ]
       },
       "btn_trigger_levelup": {
+        "display_name": "Trigger Levelup button",
         "kind": "button",
         "label": "LEVEL UP",
         "rect": [
@@ -515,6 +562,7 @@
         ]
       },
       "btn_unlock_all": {
+        "display_name": "Unlock All Tech button",
         "kind": "button",
         "label": "Unlock All Tech",
         "rect": [
@@ -525,6 +573,7 @@
         ]
       },
       "jump_label": {
+        "display_name": "Jump label",
         "kind": "label",
         "label": "",
         "rect": [
@@ -535,6 +584,7 @@
         ]
       },
       "panel": {
+        "display_name": "Cheat menu panel",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -545,6 +595,7 @@
         ]
       },
       "round_field": {
+        "display_name": "Round field",
         "kind": "field",
         "label": "",
         "rect": [
@@ -555,6 +606,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "",
         "rect": [
@@ -570,6 +622,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -580,6 +633,7 @@
         ]
       },
       "btn_back": {
+        "display_name": "Back button",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -590,6 +644,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "CREDITS",
         "rect": [
@@ -605,6 +660,7 @@
     "mock_note": "love=123, round=7 (empty log, no messages queued)",
     "widgets": {
       "log": {
+        "display_name": "Game log",
         "kind": "label",
         "label": "",
         "rect": [
@@ -620,6 +676,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -630,6 +687,7 @@
         ]
       },
       "btn_return_to_menu": {
+        "display_name": "Return To Menu button",
         "kind": "button",
         "label": "RETURN TO MENU",
         "rect": [
@@ -640,6 +698,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "THE COLONY WAS DESTROYED",
         "rect": [
@@ -655,6 +714,7 @@
     "mock_note": "love=123, round=7 (layout() + the _layout_readouts() second pass)",
     "widgets": {
       "btn_end_turn": {
+        "display_name": "End Turn button",
         "kind": "button",
         "label": "END TURN",
         "rect": [
@@ -665,6 +725,7 @@
         ]
       },
       "btn_pause": {
+        "display_name": "Pause button",
         "kind": "button",
         "label": "PAUSE",
         "rect": [
@@ -725,6 +786,7 @@
         ]
       },
       "love_panel": {
+        "display_name": "Love panel",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -755,6 +817,7 @@
         ]
       },
       "phase_label": {
+        "display_name": "Phase label",
         "kind": "label",
         "label": "",
         "rect": [
@@ -785,6 +848,7 @@
         ]
       },
       "xp_bar": {
+        "display_name": "XP bar",
         "kind": "bar",
         "label": "",
         "rect": [
@@ -810,6 +874,7 @@
     "mock_note": "love=123, round=7 (backdrop only — the 1-3 option boxes are dynamic-count content, not individually overridable)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -825,6 +890,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -835,6 +901,7 @@
         ]
       },
       "btn_add_name": {
+        "display_name": "Add A Name button",
         "kind": "button",
         "label": "ADD A NAME",
         "rect": [
@@ -845,6 +912,7 @@
         ]
       },
       "btn_credits": {
+        "display_name": "Credits button",
         "kind": "button",
         "label": "CREDITS",
         "rect": [
@@ -855,6 +923,7 @@
         ]
       },
       "btn_new_game": {
+        "display_name": "Start New Game button",
         "kind": "button",
         "label": "START NEW GAME",
         "rect": [
@@ -865,6 +934,7 @@
         ]
       },
       "btn_quit": {
+        "display_name": "Quit button",
         "kind": "button",
         "label": "QUIT",
         "rect": [
@@ -875,6 +945,7 @@
         ]
       },
       "btn_settings": {
+        "display_name": "Settings button",
         "kind": "button",
         "label": "SETTINGS",
         "rect": [
@@ -885,6 +956,7 @@
         ]
       },
       "subtitle": {
+        "display_name": "Subtitle label",
         "kind": "label",
         "label": "defend the munckins",
         "rect": [
@@ -895,6 +967,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "HOW TO BE HUMAN",
         "rect": [
@@ -910,6 +983,7 @@
     "mock_note": "love=123, round=7 (idle, no world state — the two toggle pills)",
     "widgets": {
       "btn_heatmap": {
+        "display_name": "Heatmap overlay toggle",
         "kind": "button",
         "label": "HEATMAP",
         "rect": [
@@ -920,6 +994,7 @@
         ]
       },
       "btn_range": {
+        "display_name": "Range overlay toggle",
         "kind": "button",
         "label": "RANGE",
         "rect": [
@@ -935,6 +1010,7 @@
     "mock_note": "love=123, round=7 (idle, no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -945,6 +1021,7 @@
         ]
       },
       "btn_quit_game": {
+        "display_name": "Quit Game button",
         "kind": "button",
         "label": "QUIT GAME",
         "rect": [
@@ -955,6 +1032,7 @@
         ]
       },
       "btn_quit_to_menu": {
+        "display_name": "Quit To Menu button",
         "kind": "button",
         "label": "QUIT TO MENU",
         "rect": [
@@ -965,6 +1043,7 @@
         ]
       },
       "btn_resume": {
+        "display_name": "Resume button",
         "kind": "button",
         "label": "RESUME",
         "rect": [
@@ -975,6 +1054,7 @@
         ]
       },
       "btn_settings": {
+        "display_name": "Settings button",
         "kind": "button",
         "label": "SETTINGS",
         "rect": [
@@ -985,6 +1065,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "PAUSED",
         "rect": [
@@ -1000,6 +1081,7 @@
     "mock_note": "love=123, round=7 (idle, default SessionSettings — no world state)",
     "widgets": {
       "backdrop": {
+        "display_name": "Background backdrop",
         "kind": "backdrop",
         "label": "",
         "rect": [
@@ -1010,6 +1092,7 @@
         ]
       },
       "btn_back": {
+        "display_name": "Back button",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -1020,6 +1103,7 @@
         ]
       },
       "btn_dm_left": {
+        "display_name": "Display mode left button",
         "kind": "button",
         "label": "<",
         "rect": [
@@ -1030,6 +1114,7 @@
         ]
       },
       "btn_dm_right": {
+        "display_name": "Display mode right button",
         "kind": "button",
         "label": ">",
         "rect": [
@@ -1040,6 +1125,7 @@
         ]
       },
       "btn_toggle_bg_art": {
+        "display_name": "Background Art toggle",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -1050,6 +1136,7 @@
         ]
       },
       "btn_toggle_gore": {
+        "display_name": "Gore toggle",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -1060,6 +1147,7 @@
         ]
       },
       "btn_toggle_income_floaters": {
+        "display_name": "Income Floaters toggle",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -1070,6 +1158,7 @@
         ]
       },
       "title": {
+        "display_name": "Title label",
         "kind": "label",
         "label": "SETTINGS",
         "rect": [

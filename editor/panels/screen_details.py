@@ -35,12 +35,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from editor.panels._screen_primitives import widget_display_name
 from editor.panels.balancing import (
     CollapsibleSection,
     _NoWheelComboBox,
@@ -100,7 +102,7 @@ class ScreenDetailsPanel(QWidget):
 
         layout.addWidget(QLabel("Widgets", self))
         self.widget_list = QListWidget(self)
-        self.widget_list.currentTextChanged.connect(self._on_widget_list_selected)
+        self.widget_list.currentItemChanged.connect(self._on_widget_list_selected)
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -343,27 +345,35 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_widget_list(self):
         self.widget_list.blockSignals(True)
         self.widget_list.clear()
-        for widget_id in self._current_screen_defaults().get("widgets", {}):
-            self.widget_list.addItem(widget_id)
+        widgets = self._current_screen_defaults().get("widgets", {})
+        for widget_id, spec in widgets.items():
+            item = QListWidgetItem(widget_display_name(widget_id, spec))
+            item.setToolTip(widget_id)
+            item.setData(Qt.ItemDataRole.UserRole, widget_id)
+            self.widget_list.addItem(item)
         self.widget_list.blockSignals(False)
 
-    def _on_widget_list_selected(self, widget_id):
-        if not widget_id:
+    def _on_widget_list_selected(self, current, _previous=None):
+        if current is None:
             return
+        widget_id = current.data(Qt.ItemDataRole.UserRole)
         self._populate_widget_form(widget_id)
         self.widget_selected.emit(widget_id)
 
     def select_widget(self, widget_id):
         """External sync (the viewport tells us a widget was clicked/
         dragged there) — populates the form WITHOUT re-emitting
-        widget_selected (avoids a viewport<->panel selection feedback loop)."""
-        items = self.widget_list.findItems(
-            widget_id or "", Qt.MatchFlag.MatchExactly)
+        widget_selected (avoids a viewport<->panel selection feedback loop).
+        Matches on `Qt.ItemDataRole.UserRole` (the code id), never item TEXT
+        — display names are not guaranteed unique, the id is (UH-4)."""
+        target_row = -1
+        for row in range(self.widget_list.count()):
+            if self.widget_list.item(row).data(
+                    Qt.ItemDataRole.UserRole) == widget_id:
+                target_row = row
+                break
         self.widget_list.blockSignals(True)
-        if items:
-            self.widget_list.setCurrentItem(items[0])
-        else:
-            self.widget_list.setCurrentRow(-1)
+        self.widget_list.setCurrentRow(target_row)
         self.widget_list.blockSignals(False)
         if widget_id:
             self._populate_widget_form(widget_id)

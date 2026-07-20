@@ -3,6 +3,10 @@
     "widget": {
       "additionalProperties": false,
       "properties": {
+        "display_name": {
+          "minLength": 1,
+          "type": "string"
+        },
         "kind": {
           "enum": [
             "button",
