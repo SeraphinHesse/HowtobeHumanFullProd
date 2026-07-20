@@ -111,6 +111,7 @@ TIERS = {
     "test_scene_query": "core",
     "test_shell": "core",
     "test_structure": "core",
+    "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",
     "test_tile_runtime": "core",
     "test_tile_unlock": "core",

@@ -33,6 +33,13 @@ domain_selected("ui") — never node_selected, so entity-preview machinery
 stays untouched (the _MAP_ROLE branch's exact pattern, applied to
 _SCREEN_ROLE).
 
+UH-6 adds a single "Theme" LEAF (not a branch — there is exactly one theme
+document pair) as the SECOND child of the "ui" category, right after
+"Screens" (which stays FIRST, per the invariant above). Selecting it emits
+theme_selected() + domain_selected("ui") — same never-node_selected rule,
+via its own marker role (_THEME_ROLE) rather than a from-disk id list like
+Maps/Screens, since there is nothing to enumerate.
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -79,9 +86,11 @@ _PAYLOAD_ROLE = Qt.ItemDataRole.UserRole        # (category_key, group_path)
 _LABEL_ROLE = Qt.ItemDataRole.UserRole + 1      # clean label, no ● prefix
 _MAP_ROLE = Qt.ItemDataRole.UserRole + 2        # map_id (Maps-branch leaves)
 _SCREEN_ROLE = Qt.ItemDataRole.UserRole + 3     # screen_id (Screens-branch leaves)
+_THEME_ROLE = Qt.ItemDataRole.UserRole + 4      # True on the single Theme leaf
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
+_THEME_LABEL = "Theme"
 
 # The one form reachable from EMPTY tree space: it creates a category, so it
 # belongs to no category node and carries no selector_context.
@@ -93,6 +102,7 @@ class SelectorPanel(QTreeWidget):
     node_selected = Signal(str, tuple)
     map_selected = Signal(str)
     screen_selected = Signal(str)    # B4: a Screens-branch leaf was selected
+    theme_selected = Signal()        # UH-6: the single Theme leaf was selected
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -106,6 +116,7 @@ class SelectorPanel(QTreeWidget):
         self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._maps_branch = None
         self._screens_branch = None
+        self._theme_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -145,6 +156,16 @@ class SelectorPanel(QTreeWidget):
                     _SCREENS_BRANCH_LABEL, "ui", (_SCREENS_BRANCH_LABEL,))
                 root.insertChild(0, branch)
                 self._screens_branch = branch
+                # UH-6: a single "Theme" leaf, second child (Screens stays
+                # FIRST, per the invariant docstring above) — there is
+                # nothing to enumerate (one document pair), so it is a
+                # leaf, not a branch, marked via _THEME_ROLE rather than a
+                # from-disk id list.
+                theme_item = self._make_item(
+                    _THEME_LABEL, "ui", (_THEME_LABEL,))
+                theme_item.setData(0, _THEME_ROLE, True)
+                root.insertChild(1, theme_item)
+                self._theme_item = theme_item
         self.refresh_maps()
         self.refresh_screens()
         self.refresh_markers()
@@ -318,6 +339,16 @@ class SelectorPanel(QTreeWidget):
         if selected is not None and selected in self.screen_ids():
             self.select_screen(selected)
 
+    # -- Theme leaf (UH-6, D5) --------------------------------------------------
+
+    def select_theme(self):
+        """Programmatic selection of the Theme leaf (tests, initial
+        selection) — mirrors select_map/select_screen."""
+        if self._theme_item is None:
+            raise KeyError("no Theme leaf (no ui category in the registry)")
+        self._theme_item.parent().setExpanded(True)
+        self.setCurrentItem(self._theme_item)
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -352,6 +383,13 @@ class SelectorPanel(QTreeWidget):
     def _emit_selection(self):
         items = self.selectedItems()
         if not items:
+            return
+        if items[0].data(0, _THEME_ROLE):
+            # Theme leaf: same never-node_selected rule as Maps/Screens —
+            # entity-preview machinery must not react.
+            self.theme_selected.emit()
+            if "ui" in self._domains:
+                self.domain_selected.emit("ui")
             return
         screen_id = items[0].data(0, _SCREEN_ROLE)
         if screen_id is not None:
