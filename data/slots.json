@@ -599,7 +599,11 @@
             {
               "label": "Panel Button",
               "slots": [
-                "ui_button_panel"
+                {
+                  "frame_h": 23,
+                  "frame_w": 70,
+                  "key": "ui_button_panel"
+                }
               ]
             },
             {
