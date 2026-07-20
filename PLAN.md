@@ -68,12 +68,19 @@ subprocess preview) are deliberately **out of scope** — see Risks.
 
 | Phase | What | Status |
 |-------|------|--------|
-| UH-1 | Tools + data — per-mode snapshot exporter (`building_panel` views) | not started |
-| UH-2 | Editor — per-mode screen views + auto Refresh Layouts on entry | not started |
-| UH-3 | Editor — honest controls (grey-out no-op Color/label; tooltips) + pink-test verdict | not started |
-| UH-4 | Tools + editor — widget display-name layer | not started |
-| UH-5 | Editor — "+ Button Type" (new ui slot-registry family) | not started |
-| UH-6 | Engine + data + editor + game — theme data (fonts/palette) + Theme panel + optional skin tint | not started |
+| UH-1 | Tools + data — per-mode snapshot exporter (`building_panel` views) | done — reviewed clean |
+| UH-2 | Editor — per-mode screen views + auto Refresh Layouts on entry | done — reviewed; view tests pinned to a fixture |
+| UH-3 | Editor — honest controls (grey-out no-op Color/label; tooltips) + pink-test verdict | done — 3 review rounds (panel/field/label fills); reconciled with UH-6 tint |
+| UH-4 | Tools + editor — widget display-name layer | done — reviewed clean |
+| UH-5 | Editor — "+ Button Type" (new ui slot-registry family) | done — reviewed clean |
+| UH-6 | Engine + data + editor + game — theme data (fonts/palette) + Theme panel + optional skin tint | done — Tint editor-authorable for buttons + panels (UH-6 review) |
+
+**Landed** on branch `phase-UH-1-UH-6-umbrella` (off `Development`) as one PR.
+Full gate green (`1465 ran | 0 failures` at the button-only checkpoint;
+re-certified after the buttons+panels tint reconciliation). **Naming
+correction:** the phase text below writes `editor/main_window.py`; the real
+file is `editor/main.py` (no `main_window.py` exists) — the phases edited
+`editor/main.py`.
 
 UH-1 → UH-2 is the only hard dependency chain. UH-3/UH-4/UH-5 are independent
 of each other and of UH-1/2 (UH-4 touches the exporter — coordinate the
@@ -100,7 +107,7 @@ largest; last so the honest-editor wave lands even if UH-6 slips.
 - **Goal**: selecting Screens → Building Panel offers its five views, each an
   editable, uncluttered canvas (this IS the editor-side split of issues 5+6);
   entering screen mode auto-runs Refresh Layouts so snapshots can't be stale.
-- **Files**: mod `editor/main_window.py` (selector sub-leaves / view picker),
+- **Files**: mod `editor/main.py` (selector sub-leaves / view picker),
   viewport screen mode + `editor/ui_screen_session.py` (current view state —
   overrides still write to the one screen JSON), `editor/panels/
   screen_details.py` (widget list filtered to the active view); auto-invoke
@@ -144,7 +151,7 @@ largest; last so the honest-editor wave lands even if UH-6 slips.
   ui → Buttons) from the editor, beside "+ Variant" — new type is immediately
   importable and appears in every skin dropdown.
 - **Files**: mod `editor/registry_ops.py` (new-family op, validated write to
-  `data/slots.json`), `editor/main_window.py` (affordance + naming dialog),
+  `data/slots.json`), `editor/main.py` (affordance + naming dialog),
   skin combo already registry-driven (verify, no change expected).
 - **Tests**: registry_ops unit tests (name collision, schema-valid result,
   frame-size default per D-rules); editor integration: new family appears in
