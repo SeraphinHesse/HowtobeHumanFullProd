@@ -1,5 +1,43 @@
 {
   "procedural": {
+    "announce": {
+      "color": [
+        220,
+        40,
+        40
+      ],
+      "max_alpha": 255
+    },
+    "beam": {
+      "colors": {
+        "stop_0": [
+          255,
+          200,
+          40
+        ],
+        "stop_1": [
+          255,
+          110,
+          15
+        ],
+        "stop_2": [
+          210,
+          20,
+          10
+        ]
+      },
+      "origin_lift_tiles": 1.0,
+      "width_base": 2
+    },
+    "crater": {
+      "alpha": 150,
+      "color": [
+        120,
+        78,
+        66
+      ],
+      "life": 1.0
+    },
     "death_burst": {
       "colors": {
         "stop_0": [
@@ -75,6 +113,37 @@
       ],
       "hold": 0.35,
       "life": 1.2
+    },
+    "lightning": {
+      "bolt_color_end": [
+        255,
+        240,
+        80
+      ],
+      "bolt_color_start": [
+        255,
+        255,
+        255
+      ],
+      "bolt_jitter_px": 6,
+      "bolt_life": 0.5,
+      "bolt_segments": 8,
+      "bolt_width": 2,
+      "flash_alpha": 200,
+      "flash_color": [
+        255,
+        250,
+        200
+      ],
+      "flash_radius_px": 20.0,
+      "marker_color": [
+        255,
+        240,
+        120
+      ],
+      "marker_fill_alpha": 120,
+      "marker_life": 1.0,
+      "marker_outline_width": 2
     },
     "muzzle": {
       "count": 8,

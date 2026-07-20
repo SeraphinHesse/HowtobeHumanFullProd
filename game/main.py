@@ -407,7 +407,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # game.py:426-431 — a non-drag left-up no UI element consumed) --
         elif session.state.phase == GamePhase.ENEMY:
             wx, wy = cs.screen_to_world(mx, my)
-            session.lightning_strike(world.scene, cs, wx, wy)
+            session.lightning_strike(world.scene, cs, wx, wy, vfx_balance)
         # -- /10H --
 
     def handle_world_right_click(mx, my):
@@ -632,7 +632,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                             spawn_corpse(_scene, enemy, ms)
 
                 resolve_combat(world.scene, world.tile_map, sim_dt,
-                               buildings_balance,
+                               buildings_balance, vfx_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
                                dmg_bonus=dmg_bonus,
