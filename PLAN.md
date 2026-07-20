@@ -1,465 +1,315 @@
-<!-- active-plan: UI_EDITOR_PLAN.md | set: 2026-07-19 -->
-> **Active plan:** UI_EDITOR_PLAN.md (mirror). Source of truth:
-> `planning/UI_EDITOR_PLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: EntitySceneVfxPLAN.md | set: 2026-07-20 -->
+> **Active plan:** EntitySceneVfxPLAN.md (mirror). Source of truth:
+> `planning/EntitySceneVfxPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-# UI_EDITOR_PLAN.md — Phase 10L: UI Asset Pipeline + Screen Editing
+<!-- status: NOT STARTED — 0/6 phases (ESV-1–ESV-6), authored 2026-07-15 -->
 
-Status: **WAVE 3 CODE COMPLETE — 2026-07-19, on branch
-`phase-10L-wave3-bake-ui-assets`.** PR #41 (waves 2a/2b) is **MERGED** into
-`Development` (commit 9710780 — the "open and awaiting the human gate" note
-below is historical). Wave 3 ("Bake + wire real UI assets", table below) closed
-the loop the earlier waves left open: the pipeline existed but **no UI art had
-ever been imported** — zero `ui_*` manifest entries, every ui slot a grey-X,
-all screen JSONs empty `{}`. Wave 3 bakes the procedural rendering into
-committed spritesheet PNGs, imports them, populates every screen JSON, and
-wires HUD icons — the game now renders its UI from assets. **The only open
-items remain the two HUMAN live Quick Tests (A6/B5)** — now best run on the
-wave-3 branch, where skins are actually assigned (no temporary hardcoded skin
-needed). Sequence to close the plan: run both Quick Tests → merge the wave-3
-PR → move this doc to `planning/completed plans/`.
-Two slices: **10L-A** (import animated UI spritesheets) and **10L-B** (edit
-every UI screen from the editor); 10L-B depends on 10L-A. Three user
-requirements were folded in on 2026-07-15 (see "New requirements" below):
-per-variant pixel size (→ A7), pixel-perfect clickable surfaces (→ A8 + A5′),
-and the 12-screen live-edit scope (cheat_menu, game_log, boss_cutscene join
-v1 — they exist in `game/ui` now).
+# EntitySceneVfxPLAN.md — Entity Scene Editor + VFX System
 
-## Phase table
+Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
+`MIGRATION_PLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/EntitySceneVfxPLAN.md ESV-1-ESV-6` or
+phase-by-phase. Four packages: **data · engine · game · editor**. Design brief
+(verified current-state + decisions): the published artifact
+`Entity Scene Editor + VFX System — Design Brief`.
 
-| Phase | What | Status |
-|-------|------|--------|
-| A1 | Engine — animated `HudSprite` | **done** (2026-07-14) |
-| A2 | Engine + data — nine-slice | **done** (2026-07-14) |
-| A3 | Data — `ui` category expansion | **done** (2026-07-14) |
-| A4 | Editor — slice-margins editor | **done** (2026-07-15, umbrella; reviewed, 1 Medium carry-over below) |
-| A5′ | Game — skinned `widgets.Button` / `submit_panel` + R2 hit seam | **done** (2026-07-15, wave-2b umbrella; reviewed clean) |
-| A6 | Exit gate — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
-| A7 | Editor — per-variant pixel size (R1: `add_variant` inherits stem override) | **done** (2026-07-15, umbrella; reviewed clean) |
-| A8 | Engine — pixel hit-mask (`nine_slice.dest_to_source` + `AssetStore.hit_opaque`) | **done** (2026-07-15; + wave-2b exactness fixes: degenerate-band miss, corner/edge/centre `_scale_index` inversion — reviewed ×2) |
-| B1 | Data — screen override format (12 screens) | **done** (2026-07-15, umbrella; review findings fixed) |
-| B2 | Game — ids + `skinning.py` + golden parity pin | **done** (2026-07-15, wave-2b umbrella; 2 review rounds, findings fixed) |
-| B3 | Tools — layout exporter + committed `screen_defaults.json` | **done** (2026-07-15, wave-2b umbrella; reviewed clean, determinism measured) |
-| B4 | Editor — screen mode (selector/session/viewport/details) | **done** (2026-07-15, wave-2b umbrella; review finding fixed; B4i vs real defaults verified) |
-| B5 | Exit gate (10L-B) — live Quick Test + docs | **docs+suite done; live Quick Test pending user** (steps in PR #41) |
-| W3-1 | Tools + data — `tools/bake_ui_sheets.py` bakes procedural UI into committed 4-state sheets (`ui_button`, `ui_panel`, `ui_panel_stone`, 3 icons) + manifest entries; `ui_bg_main_menu` shares `main_menu_bg.png` | **done** (2026-07-19, wave 3; idempotency measured) |
-| W3-2 | Data + game — all 13 screen JSONs populated (overlays.json NEW: `MapOverlays` is the 13th screen); `ScreenSkinning.defaults()` consumed by dynamic content; ids for `rename_dice_btn`/`lightning_btn`/`boss_close_btn`; levelup conditional-skin path; panel `visible` gating carry-over fixed | **done** (2026-07-19, wave 3; parity pin green) |
-| W3-3 | Game — HUD icons `icon_love`/`icon_xp`/`icon_lives` (panel-kind holders, code-default skins, editable ids); hud golden re-captured; defaults re-exported | **done** (2026-07-19, wave 3) |
-| W3-4 | Engine + game — `fonts.layout_h` pinned constant table; every layout/anchor use of live `text_h` converted (incl. `Button.submit` label centring, caught in audit); invariant test (`test_layout_h_invariant.py`) monkeypatches font heights +1 and pins streams/exports unchanged | **done** (2026-07-19, wave-3 fix; root cause of the PR #43 CI failure — SysFont metrics differ ±1px Windows vs Linux) |
-| W3-5 | Data + tools — per-type button slots (USER DECISION, reverses W3-1's single shared sheet): 8 Buttons leaves (`ui_button`, `_end_turn`, `_pause`, `_panel`, `_card`, `_cheat`, `_pill`, `ui_choice_box`), one PNG per slot, screens re-wired per type | **done** (2026-07-19, wave-3 fix) |
-| W3-6 | Editor — `reload_assets()` on screen-mode entry + after Refresh Layouts (stale AssetStore manifest snapshot was the user-visible "screens not wired" — grey-X in a running editor); 3 new integration tests incl. proven-red-without-fix regression | **done** (2026-07-19, wave-3 fix; live-verified with screenshots: game menu, in-round HUD, editor screen mode ×2) |
+## 1. Vision
 
-### Wave 3 — Bake + wire real UI assets (2026-07-19)
+Two editor capabilities on one plan, both following the same arc — **lift a
+hardcoded value into `data/`, give it a handle/lever in the editor viewport,
+teach the game to read it back**:
 
-User request: every UI asset in the editor and editable, every screen wired to
-the real game screen, a button asset per button type, and all procedural
-rendering baked once to spritesheet PNGs imported into `data/`. Findings and
-decisions of record:
-- **Exactly ONE button style exists game-wide** (every `Button.submit` call
-  site uses the default fill logic; `overlays.py`'s active pill passes the
-  default colour and draws a separate gold rim) — so "per button type" resolved
-  to the single `ui_button` sheet, and NO `ui_button_v2+` variant slots were
-  needed. Two panel styles (`ui_panel`, `ui_panel_stone`) were confirmed.
-- Sheets are pixel-faithful bakes of `widgets.py`'s colours (no fonts — labels
-  stay live), 4 rows idle/hover/pressed/disabled, slice `[4,4,4,4]` on
-  buttons/panels, icons plain. Re-runnable via `py tools/bake_ui_sheets.py`
-  (byte-idempotent, sha-measured).
-- **`overlays` became the 13th screen** via the sanctioned drop-in-a-file path
-  (B1) — `data/ui/screens/overlays.json`, ids `btn_range`/`btn_heatmap`,
-  exporter entry.
-- HUD icons ship with **code-default skins** (unlike every other holder whose
-  skin defaults to `None`) — the icons ARE the HUD now; JSON can move/hide/
-  reskin them. The hud golden parity baseline was re-captured for this (the
-  one legitimate stream change; all other screens byte-identical).
-- The old A6 note about a "temporary hardcoded skin" for the live Quick Test is
-  obsolete — skins are now permanently assigned via the screen JSONs.
+- **Track A — Entity Scene Editor.** When a designer selects an entity (a
+  building level or an enemy) in the editor's entity-preview viewport, its
+  **attach points** appear as **draggable handles**: the muzzle a defender
+  fires from, the impact point where a hit lands, the overhead HP-bar position,
+  and other attach points (floater origin, status-icon, beam endpoint). Drag =
+  authoring; the game then fires, bars and impacts from those points. Today all
+  of these are hardcoded in Python (`combat.py:475` fires from the tile centre
+  with **no** muzzle offset; HP-bar position is derived from the sprite's drawn
+  top; there is no impact-point concept).
 
-### Run state (2026-07-15, wave 2b complete — carry-overs consolidated)
+- **Track B — the VFX system.** The game's effects are all procedural today
+  (`game/ui/effects.py`) and the `vfx` slot category has two orphan slots with
+  no consumers and no art. Three parts: **(1)** six discrete one-shot effects
+  become **swappable spritesheets** (import art → it plays; grey-X placeholder +
+  procedural fallback until then); **(2)** the effects that stay procedural
+  become **tunable + previewable** (colours/counts/lifetimes move to `data/`,
+  with editor control levers and a live preview); **(3)** a **reassignable
+  trigger table** in `data/` binds each game event to the effect it plays.
 
-- **Post-run verification (2026-07-15, this update)**: all wave-2b deliverables
-  confirmed present on disk at HEAD — 12 `data/ui/screens/*.json` +
-  `data/ui/screen_defaults.json`, `game/ui/skinning.py`,
-  `engine/assets/nine_slice.py`, `editor/ui_screen_session.py`,
-  `editor/panels/screen_details.py`, `tools/export_ui_layouts.py`. NOTE: the
-  working-tree copy of THIS doc was found silently reverted to the wave-2a
-  ("UNFINISHED") version — OneDrive sync suspected — and was restored from git.
-  If a plan doc ever contradicts git history + the files on disk, trust git.
-- **Landed on `phase-10L-wave2b-umbrella`** (targeted gate after every merge;
-  full suite green at the end — 1323 ran, 0 failures, 0 unexpected skips):
-  A8-fix `phase-A8fix-degenerate-band` (3 commits: degenerate-band miss
-  6d894d1, resampled-corner `_scale_index` 64730f7, centre-band exactness
-  577d6fe — the wave-2a High carry-over CONFIRMED and fixed, plus two further
-  same-class bugs found and fixed in review; `dest_to_source` now inverts
-  `pygame.transform.scale` bit-exactly for every band), A5′
-  `phase-A5p-skinned-button` 37a75b7, B4 `phase-B4-screen-mode` (dbe1c71 +
-  per-field-reset fix 8a7b34a), B2 `phase-B2-ids-skinning` (parity baseline
-  4aabb3d, implementation ff3e8e2, review fixes e8e0473 — titles/HUD-readout
-  ids + button color/text_color/visible forwarding), B3
-  `phase-B3-layout-exporter` 11487d4 (72 widgets / 12 screens, byte-
-  deterministic, sha-measured).
-- **RESOLVED (was Medium, from B3)**: the five inline-positioned label ids
-  (`hud.phase_label`, `cheat_menu.title`, `cheat_menu.jump_label`,
-  `boss_cutscene.headline`, `boss_cutscene.subtitle`) now carry stored
-  `(x, y, 0, 0)` anchor rects, override-respecting, with the anchor-rect
-  convention documented in `game/ui/CLAUDE.md` — B2fix `8041de4` merged +
-  defaults re-exported. The agent was stopped mid-fix and later resumed to
-  completion; if that resume was unintended, revert the B2fix merge commit
-  and the defaults-refresh commit together.
-- **Carry-over (Low, NEW from B4i)**: `game_log`'s single `log` widget is a
-  0×0 anchor rect with an empty label — the editor viewport draws nothing for
-  it (invisible/unclickable on canvas); it is editable only via the details
-  panel's widget list. A small anchor-marker glyph in screen mode would fix it.
-- **Carry-over (Low, from B2's verify round)**: panel-kind holders never read
-  their own `visible` override (`is_visible` gating was scoped to buttons);
-  `building_ui`'s un-id'd mode-dependent buttons (construct cards, rename dice,
-  lightning, boss-popup close) have no override path — both documented in
-  `game/ui/CLAUDE.md`.
-- **Carry-over (Medium, from wave 2a, UNCHANGED)**: A4's
-  `_on_frame_size_changed` in `editor/panels/details.py` doesn't re-clamp the
-  slice spinboxes when a frame-size override SHRINKS. Fix + test when A4 is
-  next touched.
-- **Tooling bug (root-caused this run)**: `py tools/testgate.py check
-  --affected` vacuously passes ("0 ran") when the affected test modules are
-  all non-`core` tier — `tools/testgate.py:222-238` ANDs `-m core` onto the
-  file selection. Run the explicit pytest on your test modules until fixed.
-- **Test-infra gap (from B2)**: `tools/tests/fixtures/data/` snapshot is stale
-  since B1 — missing `data/ui/` and both B1 schemas. Any future fixture-based
-  UI test needs a refresh (`py tools/tests/fixture_data.py --refresh` or
-  equivalent); B2/B3 worked around it (live-schema tempdir copies + the
-  fixture-guard ALLOWED entry).
-- **Stale worktrees with uncommitted drafts** (user to discard or salvage):
-  the two pre-run drafts from wave 2a (`agent-aaae066e177974fe9` A4 draft,
-  `agent-a49ee230114fc0dbc` old-A5 draft). This run's agent worktrees are all
-  committed and merged — safe to clean with `/worktreecleanup`.
+**Hard guardrail — purely cosmetic.** Nothing in either track reads or writes
+damage, range, splash, or simulation state. The impact anchor decides where the
+hit VFX *draws*, never where damage *resolves*.
 
-A1–A3 shipped on branch `phase-A1-A6-umbrella` (one PR into `Development`).
-Per-phase briefs live in `docs/briefs/phase-A[1-5]-*.md`, with the binding
-file-scope reconciliation in `docs/briefs/phase-A1-A5-coordination.md` — A4 and
-A5 have briefs written and reviewed, so they can be picked up directly.
+## 2. Architecture
 
-(Historical note: the A4/A5 coordination guidance that used to sit here was
-consumed by the wave-2a and wave-2b runs — both phases are done; their briefs
-in `docs/briefs/` remain the record of the binding contracts.)
+```
+data/                             engine/                         game/ + editor/
+─────                             ───────                         ───────────────
+sprites/asset_manifest.json       vfx/ (NEW, data-driven)         game/ui/effects.py
+  entry.anchors  (NEW, optional)    ├ particle emitters ◄──────┐    thin trigger site
+  {muzzle,impact,hp_bar,…}          │  (params injected)       ├─► renders via Renderer
+                                    └ PlayOnceVfx (SpriteAnimator  editor/panels/
+balancing/vfx.json (NEW domain)        loop_count=1) GameObject     ├ anchor handles (viewport)
+  procedural params + defaults                                      ├ vfx preview + levers
+  trigger table (event→effect)    engine/render (unchanged path)    └ both consume engine/ + data/
+slots.json  vfx category
+  vfx_muzzle/hit/explosion/…(NEW)
+```
 
-### Known follow-up surfaced during A3 — now phase A7
+**Flow, Track A**: select entity → editor draws each anchor as an overlay
+handle over the live preview (through `submit_overlay_lines`, ED-22 — never
+QPainter) → drag maps mouse-world → frame-pixels → `write_validated` into the
+manifest entry's `anchors` → game reads the offset at fire/bar/impact time.
 
-"+ Variant" on `Backgrounds → Main Menu` yields a **64×64** slot, not 480×270 —
-the per-slot frame-size override does not propagate to variants (documented
-`add_variant` behavior). **Fixed by phase A7** (R1 below): `add_variant`
-inherits the family stem's frame-size override, so 10L-B's background picker
-can safely source ui `Backgrounds` slots.
+**Flow, Track B**: a game event fires → the **trigger table** (`data/`) names
+the effect → either a **`PlayOnceVfx`** GameObject spawns at the anchor and
+plays a `vfx_*` sheet once (falling back to the procedural emitter when the slot
+has no art), or the **data-driven procedural emitter** runs with params from
+`balancing/vfx.json`. The editor previews the exact same engine emitter.
 
-## New requirements (2026-07-15, user-approved designs)
+### Decisions (with rationale)
 
-- **R1 — manual pixel size per variant of each UI type → phase A7.** The
-  per-slot size writer (`registry_ops.set_slot_frame_size`) and DetailsPanel's
-  Frame W/H spinboxes already work for any slot, variants included; the only
-  gap is creation-time inheritance. `add_variant` now inherits the family
-  stem's (`slots[0]`) frame-size override — ALL categories, not ui-only (a
-  variant family is interchangeable art for one thing; the schema already
-  allows the object form everywhere). Divergence afterwards = the existing
-  spinboxes. No schema change.
-- **R2 — pixel-perfect clickable surface → phases A8 (engine) + A5′ (game).**
-  Skinned buttons hover AND click only over drawn pixels (alpha > 0). New pure
-  `engine/assets/nine_slice.py` owns `clamp_pair` (moved from the backend) +
-  `dest_to_source` (exact piecewise inverse of `_nine_patch`'s band layout).
-  `AssetStore.hit_opaque(slot, animation, anim_time_ms, dest_size, rel_xy)`
-  reads a cached `pygame.mask.from_surface(threshold=0)` keyed
-  `(slot_key, row, col)`; placeholder/missing sheet → opaque everywhere (E-37
-  degrade-to-rect). Game side stays pygame-free via a
-  `widgets.set_skin_hit_test(fn)` seam injected by `game/main.py`
-  (`assets.hit_opaque`); unset seam or `skin=None` reduces to today's rect
-  test. **Canonical-silhouette convention:** widgets always query
-  `("idle", 0)` — hit-testing the drawn state row oscillates at silhouette
-  holes. Consequence to feel live in B5: clicks on transparent corners fall
-  through to the world (including `over_ui` pan-arming).
-- **R3 — ALL current live screens editable → widened B1/B2 scope.** v1 covers
-  **12** screens: the original 9 plus `cheat_menu`, `game_log`,
-  `boss_cutscene` (they exist in `game/ui` now). No "create new screen"
-  feature — the editor edits the live roster only. Contracts for the three:
-  - **cheat_menu** — full template. Ids: `panel, title, btn_close,
-    btn_add_love, btn_skip_round, btn_trigger_levelup, btn_inf_money,
-    btn_unlock_all, round_field, btn_goto, jump_label`. Its `submit()` calls
-    `layout()` every frame → `skinning.apply` must be a cached-dict setattr
-    loop (pinned by a "loads once" test).
-  - **game_log** — container-only (decision 4: dynamic lists are styled, not
-    positioned). ONE widget `log`: rect (anchor of the newest line), font,
-    text_color (age fade keeps multiplying alpha), visible. Line timings stay
-    code constants.
-  - **boss_cutscene** — an A/B modal, NOT timed (the announce fade lives in
-    `effects.py` / `ui.json FX` and stays out of screen JSON). Ids: `backdrop`
-    (color), `headline` (font only — color is win/loss logic), `subtitle`
-    (font, text_color), `box_a`/`box_b` (rect — moves draw AND hit coherently;
-    skin via the skinned `submit_panel`; font; text_color). Gets the standard
-    per-screen anim clock. Exporter mock: `open(1, "win")` +
-    `layout(1280, 720)`.
+- **D1 — Anchors are an OPTIONAL `anchors` key on the asset-manifest entry**,
+  per-slot (one set per spritesheet, applied to the whole sheet). Exact
+  precedent: the entry already carries `offset_x`/`offset_y` and the optional
+  `slice` key (`data/CLAUDE.md`) — a slot with no anchors stays **byte-identical**,
+  like an unsliced slot today. Reuses the whole import/validate/`write_validated`
+  pipeline; no parallel store. Matches the user's "one anchor set for the whole
+  sheet, set per level / per enemy."
+- **D2 — Anchor coordinates are frame-pixels relative to the sprite anchor** —
+  same convention as `offset_x`/`offset_y`, so a muzzle at `[+18, -40]` means the
+  same thing at every zoom and map scale. The drag handle maps mouse-world →
+  frame-space; the numeric side panel shows the raw ints.
+- **D3 — HP-bar offset is relative to the footprint-fit top, not raw sheet
+  pixels.** Since ER-1 the bar rides the sprite's *drawn* top (`_sprite_top`),
+  which is the footprint fit, not the sheet size. A raw-pixel offset would float
+  for downscaled units. The offset is applied *from* the existing fit anchor.
+- **D4 — The impact anchor is VISUAL-ONLY.** Damage geometry (Chebyshev range,
+  splash radius, predictive lead) keeps measuring from footprint centres. The
+  impact anchor only positions the hit/explosion VFX. This is the guardrail made
+  concrete — Track A never touches `resolve_combat`'s math.
+- **D5 — The procedural emitters move into `engine/vfx/` as a data-driven
+  subsystem**, because the editor **cannot import `game/`** (layering rule) yet
+  must render a live preview through the one render path. The subsystem takes
+  params as injected plain values/dataclasses (engine stays pure — it does not
+  hardcode a data path); **game** loads them from `data/balancing/vfx.json` and
+  **editor** loads the same for preview. Behaviour is byte-identical on landing:
+  the current `game/ui/effects.py` constants become the shipped defaults. Chosen
+  over an `editor/`-side lookalike (accepted for the simple UI-widget fallback,
+  but particle systems are too much to keep in sync by eye).
+- **D6 — One reusable `PlayOnceVfx` GameObject** (engine, using `SpriteAnimator`
+  + `loop_count=1`) drives every sprite one-shot: spawn at a world point,
+  despawn on the last frame. Mirrors how enemies pick a sprite by
+  `REGISTRY_GROUP` — one mechanism, many slots; a future effect is "add a slot +
+  a trigger row," never a new system.
+- **D7 — The trigger table lives in `data/` (in the new `vfx` domain)**, mapping
+  each game event (`defender_fire`, `enemy_death`, `splash_impact`, …) to the
+  effect it plays — a `vfx_*` sprite slot **or** a procedural kind. Reassigning
+  an effect is a one-row edit in the editor, never code.
+- **D8 — `vfx` becomes a real balancing domain.** Adding `data/balancing/vfx.json`
+  + `data/schemas/vfx.schema.json` promotes the asset-only `vfx` category to a
+  derived domain automatically (the domain list is `slots.json` categories ∩
+  those with a balancing file — `editor/domains.py`, AD-6). Its numeric params
+  get a generic balancing form for free; the **live-preview levers** are a
+  dedicated panel on top of that domain, not a replacement for it.
 
-## User decisions (binding)
+Vocabulary/invariants come from root `CLAUDE.md`: one render path (ED-22),
+data is the only value store (D-1, schema-first via `write_validated`), strict
+layering (`editor/` and `game/` never import each other; both consume `engine/`
++ `data/`), every new editor module joins `test_editor_viewport.TestPurity`,
+and **the gate is ZERO**.
 
-1. **Edit depth = skin + layout overrides.** Screens keep computing their
-   prototype-exact default layout in `game/ui` code; a per-screen JSON under
-   `data/ui/screens/` can override any *named* widget's rect / skin / font /
-   colors / label, plus a screen background. No engine layout-container
-   system; the `game_over.py` template stays.
-2. **Button states = animation rows.** The `ui` category's animation
-   vocabulary becomes `["idle", "hover", "pressed", "disabled"]` (row 0 =
-   idle, schema-enforced as everywhere). One sheet per widget skin; each
-   state row may itself be multi-frame (manifest v2 `playback_order`
-   semantics apply unchanged).
-3. **Nine-slice scaling.** Manifest entries gain optional slice margins;
-   the backend blits corners fixed / edges axis-stretched / centre
-   both-stretched. Applies to HUD sprites only (world sprites keep uniform
-   zoom scaling).
-4. **Sequencing = own phase now, assets first.** 10L-A ships alone so UI art
-   can be imported immediately; 10L-B follows. Within 10L-B: shell menus
-   first (static layouts), HUD + building panel last (dynamic layouts).
+## 3. Package routing (read the ONE doc per phase)
 
-## Architecture decisions (agent-settled — veto in review)
+| Phase touches | Read |
+|---|---|
+| manifest `anchors` schema, `vfx.json` domain, `slots.json` vfx slots | `data/CLAUDE.md` |
+| `engine/vfx/` emitters + `PlayOnceVfx` | `engine/CLAUDE.md`, `engine/render/CLAUDE.md` |
+| combat / HP-bar / effects trigger sites | `game/CLAUDE.md`, `game/enemies/CLAUDE.md`, `game/ui/CLAUDE.md` |
+| anchor handles, vfx preview + levers | `editor/CLAUDE.md`, `editor/panels/CLAUDE.md` |
 
-- **Editor never imports `game/**`** (pillar), so the editor cannot run
-  screen `layout()` code. Instead `tools/export_ui_layouts.py` (tools MAY
-  import game) constructs every screen headless with canned mock state at
-  the logical resolution from `data/display.json` and writes
-  **`data/ui/screen_defaults.json`** — a generated-but-committed file,
-  written via `write_validated`. The editor renders previews from
-  defaults + overrides only. A test re-runs the exporter and diffs, so a
-  stale committed export fails the suite; the editor gets a "Refresh
-  Layouts" button that runs the exporter as a subprocess (reusing the
-  `run_controls` subprocess machinery + SDL-dummy strip is NOT needed —
-  the exporter is headless by design).
-- **Unskinned = today's flat-rect rendering, byte-identical.** Overrides
-  and skins are strictly additive: a screen with no JSON (or an empty one)
-  must produce the exact HUD-primitive stream it produces today — pinned by
-  a parity test. A skin assigned to a slot with no imported sheet renders
-  the grey X (E-37 — the universal "no asset yet" state), same as buildings.
-- **Dynamic lists are styled, not positioned.** Widgets with stable
-  identities (menu buttons, HUD panels, End Turn, panel headers) get ids and
-  full overrides. Per-item dynamic content (construct list entries,
-  levelup options, log lines) is NOT individually overridable in v1 — it
-  inherits skin/font through screen-level `defaults` (per widget kind).
-  Their *container* widget (the panel) is overridable.
-- **Pressed state**: `widgets.Button` today tracks hover + flash only. The
-  host already owns mouse-down; `Button.hover(mx, my)` grows an optional
-  `mouse_down` arg → `pressed` property. State→animation mapping:
-  `disabled` → disabled row, flash → pressed row (the not-enough-love red
-  flash becomes the pressed art when skinned; label overlay unchanged),
-  else pressed/hover/idle rows. Missing rows fall back to idle
-  (existing manifest semantics — partial sheets are fine).
-- **UI animation clock**: screens accumulate one `anim_ms` in their
-  `update(dt)` and pass it to skinned submits (no per-widget phase in v1;
-  matches the wall-clock model the editor entity preview uses).
-- **Editor screen mode gets a real undo stack** (`editor/ui_screen_session.py`
-  mirroring `map_session.py`: one open screen, QUndoStack, dirty =
-  `not isClean()`, Ctrl+Z/Y reuse the window-level actions) because
-  drag-to-move is the primary interaction. Writes go to disk only on Save,
-  via `write_validated`.
-- **Backgrounds are whole-sheet single frames**: the importer already
-  writes per-entry `frame_w/h` (manifest > registry precedence), so a menu
-  background is one slot whose entry's frame size = the sheet size. No
-  registry change needed beyond the slots.
-- **Smoke pairing**: `data/ui/screens/*.json` all validate against
-  `schemas/ui_screen.schema.json` — a directory-rule exception exactly like
-  `maps/` and `balancing_history/`; `tools/smoke.py` special-cases the
-  directory. `data/ui/screen_defaults.json` pairs with
-  `schemas/screen_defaults.schema.json` by stem as normal.
+Cross-package phases (ESV-1, ESV-3, ESV-5) are flagged as such — tell the user;
+they decide whether the executing agent reads both docs.
+
+## 4. Build order
+
+| Phase | Scope | Track | Status |
+|-------|-------|-------|--------|
+| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | not started |
+| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | not started |
+| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | not started |
+| ESV-4 | Procedural preview + control levers panel | B · editor | not started |
+| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | not started |
+| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | not started |
+
+Ordering rule: **nothing changes visible behaviour until the piece behind it is
+real.** ESV-1 and ESV-3 land as byte-identical no-ops (defaults reproduce
+today's values); the visible change arrives with the editor handles (ESV-2),
+the levers (ESV-4), imported art (ESV-5), and the convergence (ESV-6).
 
 ---
 
-## Slice 10L-A — animated UI asset pipeline
+### ESV-1 — Anchor schema + game read (Track A · data + game · cross-package)
 
-Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-assets`).
-Packages: engine + data + editor + a thin game hook. Goal: import a multi-state animated button sheet in the editor,
-preview it there, and see it drawn (animated, nine-sliced) in game.
+**Goal**: the manifest entry gains an OPTIONAL `anchors` block; combat, HP-bar
+and impact code read the offset with **today's values as the default**, so the
+game looks identical. No editor UI yet.
 
-### A1. Engine — animated `HudSprite`
-- `engine/render/hud.py`: `HudSprite` gains `animation: str = "idle"` and
-  `anim_time_ms: int = 0`.
-- `engine/render/renderer.py`: HUD resolution becomes
-  `assets.frame(hud.slot_key, hud.animation, hud.anim_time_ms)` (the store
-  API already takes both — today's call just omits them).
-- Tests: a two-row manifest entry submitted as HudSprite at two times
-  resolves different frames; default args keep old behavior.
+**Files** — new: none. Modified: `data/schemas/asset_manifest.schema.json`
+(add optional `anchors` object: `muzzle`/`impact`/`hp_bar`/… each `[x,y]`
+frame-px int pairs, all keys optional, `additionalProperties:false`);
+`engine/assets/manifest.py` + `store.py` (parse/expose anchors on the entry,
+absent → `None`); `game/enemies/combat.py` (`_fire`/`_fire_splash` add the
+muzzle offset to `world_pos` when present); `game/ui/effects.py`
+(`submit_enemy_hp_bars`/building bar apply the hp_bar offset relative to
+`_sprite_top`, D3). **Executor scouts exact symbols** — this list is indicative.
 
-### A2. Engine + data — nine-slice
-- `data/schemas/asset_manifest.schema.json`: optional per-entry
-  `"slice": [left, top, right, bottom]` (ints ≥ 0; omitted = plain scale).
-- `engine/assets/manifest.py`: `ManifestEntry` carries `slice`;
-  `entry_from_dict` parses it. `engine/assets/store.py`: `Frame` carries it.
-- `engine/render/renderer.py`: HudSprite → DrawCall passes `slice` through
-  (DrawCall gains the field, default None; world-sprite path never sets it).
-- `engine/render/backend.py`: a DrawCall with slice margins and
-  dest size ≠ frame size renders 9-patch (corners fixed, edges stretched on
-  one axis, centre on both). Composite once per (surface, size) into the
-  existing scaled-frame `WeakKeyDictionary` cache. Degenerate sizes
-  (smaller than the summed margins) clamp margins proportionally.
-- Tests: pixel assertions on a synthetic 3-color sheet (corner pixels
-  unmoved, centre color fills), cache hit test, degenerate-size test.
+**Tests**: manifest round-trips with and without `anchors` (byte-identical when
+absent); an entry with a muzzle anchor shifts the projectile spawn point by the
+declared frame-px (headless, deterministic); an hp_bar offset shifts the bar and
+still tracks the footprint fit for a downscaled unit; **no** change to any
+damage/range/splash assertion (guardrail D4).
 
-### A3. Data — `ui` category expansion (`data/slots.json`)
-- `animations`: `["idle", "hover", "pressed", "disabled"]`.
-- Groups replace the placeholder `HUD` group:
-  - **Buttons**: `ui_button` (+ variants via "+ Skin").
-  - **Panels**: `ui_panel`, `ui_panel_stone`.
-  - **Icons**: `ui_icon_love`, `ui_icon_xp`, `ui_icon_lives` (64×64).
-  - **Backgrounds**: `ui_bg_main_menu` (whole-sheet frame; also satisfies
-    phase 10K's asset half).
-- Editor variant support: add `"ui": None` to
-  `MainWindow._VARIANT_TARGETS` so every ui leaf offers "+ Variant"
-  (`registry_ops.add_variant`, `<stem>_v<k>`), labeled as the skin-add
-  affordance.
+**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check` → GATE PASS.
+Live: `py game/main.py` a round — projectiles/bars look exactly as before
+(defaults reproduce current behaviour).
 
-### A4. Editor — importer verification (mostly free)
-- `DetailsPanel` is registry-driven: with the vocab extended it already
-  offers per-row animation dropdowns (idle locked on row 0), fps, hidden,
-  loop, offset — verify against a real 4-row button sheet.
-- Details gains a **slice-margins editor** (4 spinboxes, ui category only,
-  writing the manifest `slice` field) + the viewport entity preview shows
-  the slot animating per selected animation (already works via the one
-  render path once A1 lands — verify).
+### ESV-2 — Anchor handles in the viewport (Track A · editor)
 
-### A5′. Game — skinned `widgets.Button` / `submit_panel` + hit seam
-- Extends the reviewed A5 brief with the R2 game half: a
-  `widgets.set_skin_hit_test(fn)` module seam (default None → rect
-  behaviour), `Button._surface_hit` routing both `hover()` and `hit()`
-  through the injected `("idle", 0)` canonical-silhouette query, and the one
-  `set_skin_hit_test(assets.hit_opaque)` line in `game/main.py`.
-- `widgets.Button` gains optional `skin` (slot key) + pressed tracking;
-  `submit()` with a skin draws
-  `HudSprite(skin, dest=rect, size=rect_size, animation=state,
-  anim_time_ms=clock)` + the centred label (flat rects skipped); without a
-  skin, unchanged byte-identical output. `submit_panel` gains the same
-  optional skin. Nothing assigns skins yet — 10L-B's screen JSON does.
-  (Interim manual hook for testing: a temporary hardcoded skin on one menu
-  button during the live Quick Test, reverted before commit.)
+**Goal**: selecting an entity shows its anchors as draggable handles over the
+live preview; dragging writes the manifest `anchors` via `write_validated`; a
+numeric X/Y side panel stays in sync.
 
-### A6. Exit gate (10L-A)
-- `py -m unittest discover -s tools/tests -t .` + `py tools/smoke.py`.
-- **Quick Test**: in the live editor, import a 4-row animated button sheet
-  onto `ui_button`, set slice margins, watch hover/pressed rows animate in
-  the entity preview; temporary-skin a main-menu button, `py game/main.py`,
-  see it nine-sliced at 320×52 animating idle→hover→pressed→disabled.
-- Docs: `engine/render/CLAUDE.md` (HudSprite anim + nine-slice),
-  `engine/assets/CLAUDE.md` (slice field), `data/CLAUDE.md` (ui slots),
-  `editor/panels/CLAUDE.md` (slice editor, ui variants).
+**Files** — modified: `editor/panels/viewport.py` (handle draw + hit-test +
+drag, submitted through the engine overlay path `submit_overlay_lines`, ED-22 —
+never QPainter; hangs off the existing entity-preview selection, not a new
+mode); `editor/panels/details.py` or a small new panel module for the numeric
+readout (new modules → `TestPurity`). New: possibly
+`editor/anchor_ops.py` (pure mouse-world → frame-px + `write_validated`, in
+`TestPurity`).
 
-### A7. Editor — per-variant pixel size (R1)
-- `editor/registry_ops.py::add_variant`: inherit the family stem's
-  (`slots[0]`) frame-size override object on creation; bare stems stay bare
-  (regression pin for enemies/deco). `tools/tests/test_registry_ops.py` gains
-  inherit-on-add / bare-stays-bare / independently-resizable-after tests.
-- No schema change; no editor UI change (Frame W/H spinboxes already cover
-  every slot). `data/CLAUDE.md` bullet correction ships with B1 (same wave).
+**Tests** (offscreen Qt, temp data dir): a synthetic drag on a handle writes the
+expected frame-px into the entry and the on-disk JSON validates; the numeric
+panel and the handle agree after a drag and after an external value change;
+`TestPurity` import sweep includes every new module.
 
-### A8. Engine — pixel hit-mask (R2 engine half)
-- NEW pure `engine/assets/nine_slice.py`: `clamp_pair` (moved from
-  `engine/render/backend.py`, which re-imports it) + `dest_to_source(rel_xy,
-  dest_size, src_size, margins)` — piecewise inverse of `_nine_patch`.
-- `engine/assets/store.py::AssetStore.hit_opaque(...)` → bool; mask cache
-  keyed `(slot_key, row, col)` (same key space as `_frames`);
-  placeholder/corrupt → True everywhere. Tests: `test_nine_slice.py`
-  (inverse math + composite cross-check), `test_asset_store.py` (hole/
-  placeholder/cache).
+**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py`, select a
+defender, drag the muzzle handle, confirm the JSON on disk, then Play and see
+the projectile emit from the new point.
+
+### ESV-3 — Procedural VFX → engine, params → data (Track B · engine + game · cross-package)
+
+**Goal**: the particle/effect emitters move from `game/ui/effects.py` into a
+data-driven `engine/vfx/` subsystem; their colours/counts/lifetimes/gravity move
+into a new `vfx` balancing domain. **Byte-identical** using today's constants as
+the shipped defaults — no visible change.
+
+**Files** — new: `engine/vfx/` package (emitters taking injected params;
+submits through `Renderer`, no data-path knowledge); `data/balancing/vfx.json` +
+`data/schemas/vfx.schema.json` (procedural params, D8 — becomes a derived domain
+automatically). Modified: `game/ui/effects.py` (becomes a thin caller that loads
+params from `data/balancing/vfx.json` and drives the engine emitters);
+`game/core/balance.py` loader if needed.
+
+**Tests**: an emitter produces the same particle set (count/colour/lifetime) from
+the default params as the old constants (pin a representative effect — muzzle,
+death burst); `vfx` appears in `editor/domains.domains()` once the balancing file
+exists; schema `description`/`minimum`/`maximum` present on every key (D-12).
+
+**Exit gate**: suite + smoke → GATE PASS. Live: `py game/main.py` — every effect
+looks unchanged. Update `engine/CLAUDE.md` (new subsystem) + `game/ui/CLAUDE.md`.
+
+### ESV-4 — Procedural preview + control levers (Track B · editor)
+
+**Goal**: an editor panel exposes the procedural params as levers (colour
+pickers, counts, lifetimes) with a **live preview** rendered through the one
+render path (the editor drives the same `engine/vfx/` emitter).
+
+**Files** — new: `editor/panels/vfx_preview.py` (+ any pure helper; all →
+`TestPurity`). Modified: `editor/main.py` wiring (select the `vfx` domain/leaf →
+show the preview + levers; writes go through the balancing writer / `write_validated`).
+
+**Tests** (offscreen Qt, temp data dir): a lever edit stages/writes a valid
+`vfx.json`; the preview requests the engine emitter with the edited params
+(assert the params passed, not pixels); `TestPurity` covers the new modules.
+
+**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py`, retint a
+muzzle spray / slow a death burst, watch the preview, save, Play and confirm.
+
+### ESV-5 — Sprite one-shots + trigger table + importer slots (Track B · data + game + editor)
+
+**Goal**: the six discrete effects can be spritesheets. `PlayOnceVfx` plays an
+imported `vfx_*` sheet once at a world point; a `data/` trigger table binds
+events → effect; unimported slots fall back to the procedural emitter, so day-one
+is identical.
+
+**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6 —
+note `SpriteAnimator` has **no `loop_count` field today**
+(`engine/core/sprite_animator.py`); ESV-5 adds the one-shot mechanism, either
+as a new animator field or completion-tracking inside `PlayOnceVfx`).
+Modified: `data/slots.json` (add `vfx_muzzle`, `vfx_hit`, `vfx_explosion`,
+`vfx_death`, `vfx_slash`, `vfx_crater` to the vfx category — note `vfx_hit`/
+`vfx_explosion` already exist); `data/balancing/vfx.json` + schema (the trigger
+table, D7); `game/ui/effects.py` + the fire/death/impact sites (consult the
+table: spawn `PlayOnceVfx` when the slot has art, else the procedural emitter).
+The existing asset importer handles the sheets with no editor change (registry +
+`/add-asset-importer` semantics).
+
+**Tests**: with no art, each triggered event runs the procedural fallback
+(behaviour unchanged); with a fixture sheet, the event spawns a `PlayOnceVfx`
+that despawns after one loop; the trigger table validates and an event with a
+missing binding is a safe no-op (art tolerance E-37); reassigning a row in the
+table swaps which effect an event plays.
+
+**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py` import a
+placeholder sheet into `vfx_muzzle`; `py game/main.py` — a defender's shot now
+plays the sheet; clear it → procedural muzzle returns.
+
+### ESV-6 — Converge: anchored impact & muzzle VFX (Track A × B)
+
+**Goal**: the two tracks meet — the muzzle VFX (ESV-5) spawns at the muzzle
+anchor (ESV-1/2), and the hit/explosion VFX spawns at the target's impact
+anchor. Still purely visual (D4).
+
+**Files** — modified: the fire site passes the shooter's muzzle anchor as the
+`PlayOnceVfx` spawn point; the impact/death site passes the target's impact
+anchor. No new schema — both anchors already exist from ESV-1.
+
+**Tests**: a defender with a muzzle anchor spawns its muzzle VFX at the anchored
+world point (headless); a target with an impact anchor spawns the hit VFX there;
+damage/kill assertions are unchanged (guardrail).
+
+**Exit gate**: suite + smoke → GATE PASS. Live: drag a muzzle anchor in the
+editor, import a muzzle sheet, Play — the flash follows the handle. Confirm HP
+ledger is identical to before (nothing touched the sim).
 
 ---
 
-## Slice 10L-B — edit UI screens from the editor
+## 5. Risks / open items
 
-Branch: the `phase-10L-finish-umbrella` run (was `phase-10L-ui-screens`).
-Packages: data + game + editor + tools.
-Goal: select "Main Menu" in the editor tree, see the real screen rendered
-through the engine HUD pass, drag a button, assign a skin, save; the game
-picks it up on next Play.
-
-### B1. Data — screen override format
-- `data/ui/screens/<screen_id>.json`, one per screen. Screen ids (v1, R3):
-  `main_menu, pause, settings, credits, add_name, game_over, levelup, hud,
-  building_panel, cheat_menu, game_log, boss_cutscene` — every live screen;
-  future screens join by dropping in a file + ids, no format change.
-- `schemas/ui_screen.schema.json`: everything optional —
-  `background: {slot} | {color}`, `defaults: {button_skin?, panel_skin?,
-  font?, text_color?}` (kind-level styling for dynamic items),
-  `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
-  visible?}}`. `additionalProperties:false` inside entries; widget ids
-  validated against `screen_defaults.json` at load (fail loud in dev on an
-  unknown id — catches renames).
-- `schemas/screen_defaults.schema.json` for the generated defaults file:
-  per screen `{widgets: {<id>: {rect, kind, label}}, mock_note}`.
-- `tools/smoke.py`: directory rule for `data/ui/screens/`.
-
-### B2. Game — ids + override application
-- `game/ui/skinning.py` (pure, in `TestPurity`): loads + validates all
-  screen JSONs once at shell construction; `apply(screen_id, widgets)`
-  mutates rects/labels/skins/fonts/colors after a screen's `layout()`;
-  `screen_background(screen_id)` for submit-time. Missing file/empty doc →
-  no-op.
-- Each screen names its fixed widgets (`btn_new_game`, `btn_settings`,
-  `title`, `love_panel`, `end_turn`, `phase_banner`, panel-mode headers, …)
-  in an `ids` mapping and calls `skinning.apply` at the end of `layout()`;
-  `submit()` draws the background first when overridden. HUD/building-panel
-  dynamic items pull kind styling from `defaults`.
-- **Parity pin**: a test constructs every screen with no override files and
-  asserts the submitted HUD-primitive stream is identical to a pre-change
-  golden capture.
-
-### B3. Tools — layout exporter
-- `tools/export_ui_layouts.py`: builds each screen headless (mock state:
-  love=123, round=7, a mid-run building selection for the panel, etc.) at
-  the `display.json` logical resolution, dumps every named widget's
-  `{rect, kind, label}` to `data/ui/screen_defaults.json` via
-  `write_validated`. Idempotent; committed output.
-- `tools/tests/test_ui_layout_export.py`: regenerates in a temp dir and
-  diffs against the committed file (the staleness gate).
-
-### B4. Editor — screen mode
-- **Selector**: the `ui` category gains a `Screens` branch above the slot
-  groups — one leaf per `data/ui/screens/*.json`; emits
-  `screen_selected(screen_id)` (never `node_selected`), mirroring how map
-  leaves work.
-- **`editor/ui_screen_session.py`**: open doc + QUndoStack (move/resize/
-  field-edit/skin-assign commands), dirty/save/`_resolve_dirty` reusing the
-  map-mode policy. In `TestPurity`.
-- **Viewport screen mode** (`set_screen_mode(session, defaults)`): renders
-  background + every widget from defaults+overrides through
-  `Renderer.submit_hud` into the same offscreen surface — buttons as
-  skinned HudSprites (or the flat-rect fallback drawn with the SAME
-  primitives the game uses — reuse is via primitive-level helpers mirrored
-  from `screen_defaults` kinds, NOT by importing `game/ui`), labels via
-  HudText. Click = topmost rect hit → selection outline (HudLines); drag =
-  move (undoable, arrow keys nudge); handles on corners = resize. A state
-  dropdown (idle/hover/pressed/disabled) + running anim clock previews
-  skins live.
-- **`panels/screen_details.py`** (right pane in screen mode): widget list,
-  per-widget form — rect spinboxes, skin combo (ui slots from the
-  registry), font combo (`fonts.py` keys), color buttons, label edit,
-  per-field "reset to default"; screen background picker; `defaults`
-  section. Save writes via `write_validated`. Every new module into
-  `TestPurity`.
-
-### B5. Exit gate (10L-B)
-- Suite + smoke; exporter-sync test green; parity pin green.
-- **Quick Test (live)**: editor → Screens → Main Menu: drag START NEW GAME
-  40px up, assign `ui_button` skin to all five buttons, set a background
-  slot, Save, Ctrl+Z/Y round-trip; Play → the menu matches the editor
-  preview pixel-for-pixel (allowing anim phase); pause/settings/game-over
-  each get one edit; HUD: move the love panel to the top-right, verify
-  in-round; delete `main_menu.json` → game renders today's stock menu.
-- Docs: `game/ui/CLAUDE.md` (ids + skinning), `editor/CLAUDE.md` +
-  `editor/panels/CLAUDE.md` (screen mode/session), `data/CLAUDE.md`
-  (ui screens + defaults formats), MIGRATION_PLAN.md gets the 10L row,
-  PLAN.md phase table on completion.
-
-## Risks / open items
-
-- **Golden parity capture (B2)** must be recorded before any widget refactor
-  lands on the branch — first commit of 10L-B.
-- **Nine-slice + `pygame.transform` interaction**: edge stretching of
-  per-pixel-alpha art needs `smoothscale` vs `scale` choice — decide by eye
-  on real art in A2; cache whichever wins.
-- **HUD per-pixel alpha** stays out of scope (same limit that deferred the
-  pause dim / level-up translucency to 10J) — skins are opaque or
-  color-keyed sheets for now.
-- **`screen_defaults.json` merge friction**: regenerating on two branches
-  will conflict; it's deterministic output, so resolve by re-running the
-  exporter, never by hand-merge.
+- **Engine purity vs. data-driven params (D5).** `engine/vfx/` must not learn a
+  `data/` path or import a balancing loader — params are injected by each
+  consumer. If a phase is tempted to `open()` a JSON inside `engine/`, stop: load
+  in `game/`/`editor/` and pass values in. Pin with an engine-layer import test.
+- **HP-bar footprint coupling (D3).** The offset must compose with `_sprite_top`
+  / ER-1 fit, not replace it. Test a downscaled (footprint > 1) unit explicitly,
+  or bars will float — this is the ER-4 cosmetic caveat's neighbourhood.
+- **`vfx` domain promotion (D8).** Adding `balancing/vfx.json` changes
+  `editor/domains.domains()` output and the selector tree; a few tests assert the
+  domain list. Update the pinned fixtures, don't assert against live `data/`.
+- **Trigger-table event vocabulary (D7).** The set of events
+  (`defender_fire`, `enemy_death`, `splash_impact`, `melee_hit`, …) is a schema
+  enum — enumerate it deliberately in ESV-5 from the real fire/death/impact sites
+  in `game/ui/effects.py`; adding an event later is a schema + one call-site edit.
+- **Which effects are truly one-shot vs. continuous.** The six sprite effects are
+  bursts. Beams/lightning are continuous and stay procedural (Part 2) — do not
+  force them into `PlayOnceVfx`. Revisit only if a designer asks.
+- **Scope of "other attach points" (Track A).** Muzzle / impact / hp_bar are
+  concrete in ESV-1. Floater-origin / status-icon / beam-endpoint anchors are the
+  same schema shape but need their own game read-sites; land them incrementally
+  under ESV-1's schema rather than blocking the phase.

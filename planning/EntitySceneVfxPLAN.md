@@ -241,7 +241,10 @@ imported `vfx_*` sheet once at a world point; a `data/` trigger table binds
 events → effect; unimported slots fall back to the procedural emitter, so day-one
 is identical.
 
-**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6).
+**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6 —
+note `SpriteAnimator` has **no `loop_count` field today**
+(`engine/core/sprite_animator.py`); ESV-5 adds the one-shot mechanism, either
+as a new animator field or completion-tracking inside `PlayOnceVfx`).
 Modified: `data/slots.json` (add `vfx_muzzle`, `vfx_hit`, `vfx_explosion`,
 `vfx_death`, `vfx_slash`, `vfx_crater` to the vfx category — note `vfx_hit`/
 `vfx_explosion` already exist); `data/balancing/vfx.json` + schema (the trigger
