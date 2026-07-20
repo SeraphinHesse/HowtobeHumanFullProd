@@ -975,6 +975,15 @@ class ViewportPanel(QWidget):
         for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
             self._renderer.submit_hud(HudRect(
                 (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        # UH-4: a small caption above the outline naming the selected widget
+        # (display name, falls back to the code id — D4, `widget_display_name`
+        # is the ONE resolution rule shared with the widget list). Clamped to
+        # the canvas top (`oy`) so a widget at y=0 still shows a caption.
+        name = _screen_primitives.widget_display_name(
+            widget_id, defaults.get("widgets", {}).get(widget_id))
+        caption_y = max(oy, y - 14)
+        self._renderer.submit_hud(HudText(
+            name, (x, caption_y), "sm", SELECTION_COLOR))
 
     def paintEvent(self, event):
         if self._qimage is None:

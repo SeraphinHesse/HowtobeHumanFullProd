@@ -63,6 +63,138 @@ _COMMON_NOTE = f"love={_LOVE}, round={_ROUND}"
 # CLAUDE.md: "only defence/economic start unlocked").
 _MOCK_BUILDING_TYPE = "defence"
 
+# -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
+# contract everywhere; this mapping only feeds an OPTIONAL `display_name` that
+# the editor prefers and falls back from). {screen_id: {widget_id:
+# display_name}}. `building_panel` is the gated, complete mapping (all 12
+# ids, plan's motivating screen); the other 12 screens are mapped on a
+# best-effort basis — any id absent here simply gets no `display_name` key
+# and the editor falls back to the raw id (harmless, D4).
+_DISPLAY_NAMES = {
+    "building_panel": {
+        "panel": "Building panel",
+        "close_btn": "Close button",
+        "action_btn": "Unlock / Build / Upgrade button",
+        "boss_btn": "Boss history button",
+        "boss_close_btn": "Boss history close button",
+        "rename_dice_btn": "Rename dice button",
+        "lightning_btn": "Lightning upgrade button",
+        "preview_panel": "Construct preview window",
+        "preview_confirm_btn": "Construct confirm button",
+        "preview_cancel_btn": "Construct cancel button",
+        "preview_close_btn": "Construct preview close button",
+        "preview_dice_btn": "Construct preview dice button",
+    },
+    "main_menu": {
+        "backdrop": "Background backdrop",
+        "title": "Title label",
+        "subtitle": "Subtitle label",
+        "btn_new_game": "Start New Game button",
+        "btn_add_name": "Add A Name button",
+        "btn_settings": "Settings button",
+        "btn_credits": "Credits button",
+        "btn_quit": "Quit button",
+    },
+    "pause": {
+        "backdrop": "Background backdrop",
+        "title": "Title label",
+        "btn_resume": "Resume button",
+        "btn_settings": "Settings button",
+        "btn_quit_to_menu": "Quit To Menu button",
+        "btn_quit_game": "Quit Game button",
+    },
+    "settings": {
+        "backdrop": "Background backdrop",
+        "title": "Title label",
+        "btn_dm_left": "Display mode left button",
+        "btn_dm_right": "Display mode right button",
+        "btn_back": "Back button",
+        "btn_toggle_income_floaters": "Income Floaters toggle",
+        "btn_toggle_bg_art": "Background Art toggle",
+        "btn_toggle_gore": "Gore toggle",
+    },
+    "credits": {
+        "backdrop": "Background backdrop",
+        "title": "Title label",
+        "btn_back": "Back button",
+    },
+    "add_name": {
+        "backdrop": "Background backdrop",
+        "panel": "Add name panel",
+        "title": "Title label",
+        "btn_add": "Add button",
+        "btn_back": "Back button",
+    },
+    "game_over": {
+        "backdrop": "Background backdrop",
+        "title": "Title label",
+        "btn_return_to_menu": "Return To Menu button",
+    },
+    "cheat_menu": {
+        "panel": "Cheat menu panel",
+        "title": "Title label",
+        "btn_close": "Close button",
+        "round_field": "Round field",
+        "btn_goto": "Go To Round button",
+        "jump_label": "Jump label",
+        "btn_add_love": "Add Love button",
+        "btn_skip_round": "Skip Round button",
+        "btn_trigger_levelup": "Trigger Levelup button",
+        "btn_inf_money": "Infinite Money button",
+        "btn_unlock_all": "Unlock All Tech button",
+    },
+    "game_log": {
+        "log": "Game log",
+    },
+    "boss_cutscene": {
+        "backdrop": "Background backdrop",
+        "headline": "Headline label",
+        "subtitle": "Subtitle label",
+        "box_a": "Boss option A box",
+        "box_b": "Boss option B box",
+    },
+    "overlays": {
+        "btn_range": "Range overlay toggle",
+        "btn_heatmap": "Heatmap overlay toggle",
+    },
+    "hud": {
+        "btn_end_turn": "End Turn button",
+        "btn_pause": "Pause button",
+        "love_panel": "Love panel",
+        "phase_label": "Phase label",
+        "xp_bar": "XP bar",
+    },
+    "levelup": {
+        "backdrop": "Background backdrop",
+    },
+}
+
+
+def _apply_display_names(screen_id, entry):
+    """Annotate ``widget["display_name"]`` wherever a ``widgets`` mapping
+    appears in ``entry`` — the flat top level AND inside every per-mode
+    ``views.<name>`` value (R1: walked by key name so this needs no edit when
+    a screen grows/loses a ``views`` level). Ids absent from
+    ``_DISPLAY_NAMES[screen_id]`` are left untouched — the file stays minimal,
+    fallback-to-id is the reader's job (D4). Does not touch ``_widget_entry``/
+    ``_widgets_from_ids``/the ``_build_*`` builders (R1 — none of them receive
+    the screen id)."""
+    names = _DISPLAY_NAMES.get(screen_id)
+    if not names:
+        return
+    for key, value in entry.items():
+        if key == "widgets":
+            for widget_id, spec in value.items():
+                name = names.get(widget_id)
+                if name:
+                    spec["display_name"] = name
+        elif key == "views":
+            for view in value.values():
+                for widget_id, spec in view.get("widgets", {}).items():
+                    name = names.get(widget_id)
+                    if name:
+                        spec["display_name"] = name
+
 
 def _logical_resolution(data_root):
     """The logical (view_w, view_h) resolution from ``data/display.json`` —
@@ -404,9 +536,12 @@ def build_screen_defaults(screen_id, view_w, view_h, data_root):
             f"headless: {exc}") from exc
     if screen_id == "building_panel":
         widgets, mock_note, views = result
-        return {"widgets": widgets, "views": views, "mock_note": mock_note}
-    widgets, mock_note = result
-    return {"widgets": widgets, "mock_note": mock_note}
+        entry = {"widgets": widgets, "views": views, "mock_note": mock_note}
+    else:
+        widgets, mock_note = result
+        entry = {"widgets": widgets, "mock_note": mock_note}
+    _apply_display_names(screen_id, entry)
+    return entry
 
 
 def main(data_root=None, output_dir=None):

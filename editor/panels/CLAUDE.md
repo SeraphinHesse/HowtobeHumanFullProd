@@ -467,6 +467,26 @@ import list.**
   leading-underscore cross-module name). `session.undo_stack.indexChanged`
   refreshes the visible form/background/defaults section after Ctrl+Z/Y so
   nothing goes stale.
+  - **Widget list is display-named, selection is UserRole-keyed (UH-4, D4)**:
+    each `QListWidgetItem`'s TEXT is `widget_display_name(widget_id, spec)` —
+    `spec.get("display_name") or widget_id` (`editor.panels._screen_primitives.
+    widget_display_name`, the ONE resolution rule shared with the viewport
+    caption below) — and its TOOLTIP is always the raw code id (the id's
+    secondary surface). The selection contract itself never reads item text:
+    `item.setData(Qt.ItemDataRole.UserRole, widget_id)` at construction, the
+    list's `currentItemChanged` connect (not `currentTextChanged` — display
+    names aren't guaranteed unique, the id is) reads `item.data(UserRole)` in
+    `_on_widget_list_selected` and still emits the CODE id on
+    `widget_selected`; `select_widget(widget_id)` scans rows for
+    `item.data(UserRole) == widget_id` instead of `findItems(text, …)`.
+    `display_name` is a cosmetic, editor-only field (`screen_defaults.json`,
+    OPTIONAL per widget, authored by `tools/export_ui_layouts.py`'s
+    `_DISPLAY_NAMES` mapping) — it never appears in an override doc, and
+    `_populate_widget_form`/every `push_*` call is unchanged, still keyed by
+    the code id via `self._current_widget`. The viewport's selection outline
+    (`viewport._submit_screen_selection`) gains a matching `HudText` caption
+    above the outline using the SAME `widget_display_name` helper, so the
+    list and the canvas can never show two different names for one widget.
 - **`MainWindow`**: `_on_screen_selected` → `_resolve_dirty(session=None)`
   (generalized to take ANY session — every pre-B4 call site passes none and
   gets `map_session`; screen mode passes `self.screen_session`) →

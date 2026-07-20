@@ -35,16 +35,24 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from editor.panels._screen_primitives import widget_display_name
 from editor.panels.balancing import (
     CollapsibleSection,
     _NoWheelComboBox,
     _NoWheelSpinBox,
+)
+from editor.panels._screen_rules import (
+    TOOLTIP_COLOR_SKINNED,
+    TOOLTIP_LABEL_CODE_OWNED,
+    label_is_code_owned,
+    resolved_skin,
 )
 from engine.assets import load_registry
 
@@ -94,7 +102,7 @@ class ScreenDetailsPanel(QWidget):
 
         layout.addWidget(QLabel("Widgets", self))
         self.widget_list = QListWidget(self)
-        self.widget_list.currentTextChanged.connect(self._on_widget_list_selected)
+        self.widget_list.currentItemChanged.connect(self._on_widget_list_selected)
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -346,27 +354,35 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_widget_list(self):
         self.widget_list.blockSignals(True)
         self.widget_list.clear()
-        for widget_id in self._current_screen_defaults().get("widgets", {}):
-            self.widget_list.addItem(widget_id)
+        widgets = self._current_screen_defaults().get("widgets", {})
+        for widget_id, spec in widgets.items():
+            item = QListWidgetItem(widget_display_name(widget_id, spec))
+            item.setToolTip(widget_id)
+            item.setData(Qt.ItemDataRole.UserRole, widget_id)
+            self.widget_list.addItem(item)
         self.widget_list.blockSignals(False)
 
-    def _on_widget_list_selected(self, widget_id):
-        if not widget_id:
+    def _on_widget_list_selected(self, current, _previous=None):
+        if current is None:
             return
+        widget_id = current.data(Qt.ItemDataRole.UserRole)
         self._populate_widget_form(widget_id)
         self.widget_selected.emit(widget_id)
 
     def select_widget(self, widget_id):
         """External sync (the viewport tells us a widget was clicked/
         dragged there) — populates the form WITHOUT re-emitting
-        widget_selected (avoids a viewport<->panel selection feedback loop)."""
-        items = self.widget_list.findItems(
-            widget_id or "", Qt.MatchFlag.MatchExactly)
+        widget_selected (avoids a viewport<->panel selection feedback loop).
+        Matches on `Qt.ItemDataRole.UserRole` (the code id), never item TEXT
+        — display names are not guaranteed unique, the id is (UH-4)."""
+        target_row = -1
+        for row in range(self.widget_list.count()):
+            if self.widget_list.item(row).data(
+                    Qt.ItemDataRole.UserRole) == widget_id:
+                target_row = row
+                break
         self.widget_list.blockSignals(True)
-        if items:
-            self.widget_list.setCurrentItem(items[0])
-        else:
-            self.widget_list.setCurrentRow(-1)
+        self.widget_list.setCurrentRow(target_row)
         self.widget_list.blockSignals(False)
         if widget_id:
             self._populate_widget_form(widget_id)
@@ -405,6 +421,22 @@ class ScreenDetailsPanel(QWidget):
         self.text_color_reset_button.setEnabled("text_color" in override)
         self.label_reset_button.setEnabled("label" in override)
         self.visible_reset_button.setEnabled("visible" in override)
+
+    def _refresh_honest_controls(self, spec, override, style):
+        """D3 (plan): a control that cannot take effect in the game is
+        disabled with an explanatory tooltip, never silently accepted.
+        Recomputed live (never stored) from the SAME `spec`/`override`/
+        `style` accessors `_populate_widget_form` already uses, so it
+        composes with UH-2's per-view filtering regardless of merge order.
+        """
+        screen_id = self._session.screen_id if self._session is not None else None
+        skinned = resolved_skin(spec, override, style) is not None
+        self.color_button.setEnabled(not skinned)
+        self.color_button.setToolTip(TOOLTIP_COLOR_SKINNED if skinned else "")
+
+        code_owned = label_is_code_owned(screen_id, self._current_widget, spec.get("kind"))
+        self.label_edit.setEnabled(not code_owned)
+        self.label_edit.setToolTip(TOOLTIP_LABEL_CODE_OWNED if code_owned else "")
 
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
@@ -452,6 +484,8 @@ class ScreenDetailsPanel(QWidget):
         self._populating = False
         self._set_widget_form_enabled(True)
         self._refresh_reset_buttons(override)
+        style = self._session.doc.get("defaults", {})
+        self._refresh_honest_controls(spec, override, style)
 
     def _refresh_widget_form(self):
         if self._current_widget is not None:
@@ -477,6 +511,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_skin_assign(self._current_widget, old_skin, new_skin)
         self._skin_baseline = new_skin
+        self._refresh_widget_form()
 
     def _on_font_changed(self, index):
         if self._current_widget is None:
@@ -647,6 +682,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_default_field(field_key, old_value, new_value)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_reset_default_field(self, field_key):
         if self._session is None or self._session.doc is None:
@@ -657,6 +693,7 @@ class ScreenDetailsPanel(QWidget):
         old_value = style[field_key]
         self._session.push_default_field(field_key, old_value, None)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_default_text_color_clicked(self):
         style = self._session.doc.get("defaults", {})
