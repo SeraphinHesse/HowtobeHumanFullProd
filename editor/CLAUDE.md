@@ -38,8 +38,9 @@ else.
   the list is a function of slots.json ∩ `data/balancing/*.json`, never a
   hardcoded constant.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
-  `registry_ops.py`, `asset_import.py`, `agent_forms.py` (all Qt-free/pygame-free,
-  in `TestPurity`).
+  `registry_ops.py`, `asset_import.py`, `agent_forms.py`, `theme_ops.py` (UH-6:
+  fonts/palette load-validate-write, `panels/game_theme.py`'s home) — all
+  Qt-free/pygame-free, in `TestPurity`.
 - `ui_screen_session.py` — `UIScreenSession`, screen mode's session (B4, §
   below); Qt-only (a `QUndoStack`), no game imports, in `TestPurity`.
 

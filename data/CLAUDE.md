@@ -255,6 +255,44 @@ validating writer; don't hand-edit the JSON.
   2, landed A3). Widget skins source the `ui` slots; per-slot animation
   vocabulary + partial-sheet fallback apply uniformly.
 
+## Theme data (UH-6, D5/D6)
+- **`data/ui/fonts.json`** ↔ `schemas/fonts.schema.json` (normal stem
+  pairing, no directory exception): exactly the 7 keys
+  `engine/render/fonts.py`'s `_FONT_SPECS` ships (`sm/md/lg/xl/xxl/hud_phase/
+  hud_lvl`), each `{"size": int 4-72, "bold": bool}`, all required
+  (`additionalProperties: false` — a designer cannot invent a new preset key
+  through this schema; adding one is a schema change). The game loads +
+  validates it at boot (`game/main.py`, before the `Shell`/screens are
+  built) and calls `engine.render.fonts.configure_fonts(doc)`; a missing/
+  invalid file fails LOUD (D-2 — this is data, not art; E-37 does not
+  apply). The editor's Theme panel (`editor/panels/game_theme.py`) is the
+  only writer, through `write_validated`, staged like `balancing.py`.
+  `configure_fonts` never moves `layout_h`/`_LAYOUT_H` (`engine/render/
+  CLAUDE.md`) — font size is drawn-glyph-only, not stored layout.
+- **`data/ui/palette.json`** ↔ `schemas/palette.schema.json` (same normal
+  pairing): one key per `game/ui/widgets.py` `C_*` constant, snake_case with
+  the `C_` prefix dropped (`gold`, `ui_panel`, `panel_stone`, …), each an RGB
+  3-int array 0-255, all required. The game loads + validates it at boot and
+  calls `widgets.configure_palette(doc)`, which rebinds every `C_*` module
+  attribute (mechanical `"C_" + key.upper()`). This IS the whole `C_*`
+  block — `widgets.COND_LABELS` and every other inline color literal in
+  `game/ui` stay code, deliberately out of scope.
+- **Parity is the safety net for both files**: the committed content is
+  today's hardcoded values verbatim, and `tools/tests/test_theme_data.py`
+  pins that (a) configuring from the stock fixture doc reproduces
+  `test_ui_skinning.py`'s golden baseline byte-for-byte, and (b) the
+  UNCONFIGURED module defaults (the fallback bare construction uses) equal
+  that same fixture — the two value sets can never silently drift apart.
+- **`ui_screen.schema.json` widget `tint` (D6)**: one new key in the
+  per-widget override object, same 3-4-int-array shape as `color` — like
+  every other widget override key (`rect`/`skin`/`font`/`label`/`color`/
+  `text_color`/`visible`), it is absent-by-default (the object carries no
+  `required` array: a widget's override is always a PARTIAL patch, never a
+  full record). A skinned widget's `tint` multiplies its sheet at draw time
+  (`engine/render/CLAUDE.md`'s nine-slice/`BLEND_RGBA_MULT` section);
+  omitted = unchanged, so an existing screen doc that predates `tint` keeps
+  validating and rendering exactly as before.
+
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
   `display_name`, `cols`/`rows` (each map owns its dims, 4..1024; geometry.json
