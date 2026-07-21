@@ -27,10 +27,12 @@ roll").
    combat scale for HP/DMG. (See `/add-balancing-value` for the schema-mirror
    discipline.)
 3. **Research row** — add ONE `ResearchSpec` row to `game/buildings/research.py`
-   (`starts_unlocked`, `starts_with_tier`, `gate_kind`/`gate_path`, `unlock_group`,
-   UI copy). A spec stores WHERE in `buildings.json` to read a gate, never a gate
-   VALUE. **Do NOT reopen or restructure the level-up roll** — adding a row is the
-   whole integration.
+   (`starts_unlocked`, `gate_kind`/`gate_path`, `unlock_group`, UI copy). A spec
+   stores WHERE in `buildings.json` to read a gate, never a gate VALUE.
+   Unlocking a type makes its tier 1 immediately placeable — the type's UNLOCK
+   card is itself gated by its own `tiers[0].unlock_min_round`, so there is no
+   separate "starts researched at tier 0" field. **Do NOT reopen or restructure
+   the level-up roll** — adding a row is the whole integration.
 4. **Registry** — confirm `game/buildings/registry.py`'s `create(...)` factory
    covers the new `BUILDING_TYPE` (it re-exports `LEAF_CLASSES`); add it if the
    factory dispatches explicitly.

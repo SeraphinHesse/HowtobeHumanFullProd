@@ -468,7 +468,11 @@
             {
               "label": "Era 0",
               "slots": [
-                "boss_era_0"
+                {
+                  "frame_h": 96,
+                  "frame_w": 128,
+                  "key": "boss_era_0"
+                }
               ]
             },
             {
@@ -595,7 +599,11 @@
             {
               "label": "Panel Button",
               "slots": [
-                "ui_button_panel"
+                {
+                  "frame_h": 23,
+                  "frame_w": 70,
+                  "key": "ui_button_panel"
+                }
               ]
             },
             {

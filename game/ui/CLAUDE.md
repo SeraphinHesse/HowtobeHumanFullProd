@@ -494,6 +494,71 @@ starts pinning them). Pinned by `tools/tests/test_layout_h_invariant.py`
 (monkeypatches the measurement +1px and asserts both artifacts are
 unaffected).
 
+## Fonts + palette are DATA now (UH-6, D5) + optional per-widget tint (D6)
+`data/ui/fonts.json` / `data/ui/palette.json` ship the exact 7 font presets /
+18 `C_*` colors this file used to hardcode alone — `game/main.py` loads +
+schema-validates both at boot (before the `Shell`/screens are built) and
+calls `engine.render.fonts.configure_fonts(doc)` / `widgets.
+configure_palette(doc)`. The literals in `widgets.py`/`engine/render/
+fonts.py` are now the UNCONFIGURED FALLBACK (the `ScreenSkinning.empty()`
+precedent — bare test/tool construction stays deterministic); a pin test
+(`tools/tests/test_theme_data.py`) proves the fallback equals the committed
+data, so the two can never silently drift apart.
+
+- **Every consumer reads the palette via `widgets.C_GOLD` attribute access,
+  never `from .widgets import C_GOLD`.** An early-bound import captures the
+  tuple at IMPORT time — a later `configure_palette` rebind (a module
+  attribute reassignment) can never reach it. All 14 `game/ui/*.py` files
+  (13 + `effects.py`) were swept onto `from . import widgets` +
+  `widgets.C_*`. **This applies to EVERY reference, not just def-line
+  defaults** — a module-level constant copying a color (the old `levelup.py
+  _BOX_BG = C_UI_PANEL`, `hud.py _PHASE_COLOR` dict) is the SAME trap at
+  module scope: it freezes the value at import time. `levelup.py` inlines
+  the attribute read at its one call site instead of a module constant;
+  `hud.py`'s `_phase_color(phase, default)` is a FUNCTION, not a dict, for
+  the same reason. `widgets.submit_panel`'s `fill`/`border` used to default
+  to `C_UI_PANEL`/`C_UI_BORDER` at DEF time (the one place a bare name
+  inside `widgets.py` itself still traps, since default-argument
+  expressions evaluate once at import) — they now default to `None` and
+  resolve inside the function body.
+- **`configure_fonts`/`configure_palette` fail loud on a key-set mismatch**
+  (missing or unknown key) — a renamed/dropped preset or color would
+  otherwise leave some `font_key`/`C_*` silently un-rebound.
+- **`layout_h`/`_LAYOUT_H` are UNTOUCHED by `configure_fonts`** (see the
+  section above) — a designer enlarging a preset changes drawn glyphs only;
+  stored layout rects don't move, so text can overflow its widget. That is
+  the pinned-layout contract, not a bug (the editor's Theme panel says so
+  in a tooltip).
+- **Optional per-widget `tint`** (`data/ui/screens/<id>.json`'s `widgets.
+  <id>.tint`, `data/schemas/ui_screen.schema.json`): a sheet-multiply color
+  on the DATA/ENGINE side for any widget that resolves to a skin (per-widget
+  `skin` OR a kind-matched `defaults.button_skin`/`panel_skin`).
+  `ScreenSkinning.apply`'s generic setattr loop threads it onto the widget
+  for free (same as `skin` — no `_SPEC_TO_ATTR` entry needed). Wired into
+  the engine for free too: `widgets.Button.submit`/`submit_panel` pass
+  `tint=getattr(self_or_holder, "tint", None)` into the `HudSprite`; the
+  engine's `HudSprite.tint` → `DrawCall.tint` → `BLEND_RGBA_MULT` path
+  already existed (`engine/render/CLAUDE.md`). **Omitted = `None` = today's
+  rendering, pinned** — every pre-UH-6 skin test holds unchanged.
+  **Editor-authoring note (post-reconciliation):** the editor's details panel
+  offers a Tint control for the kinds whose draw path threads `tint` —
+  **`button` and `panel`**. `Button.submit` always forwards `tint`; every
+  *id'd* panel widget forwards it at its `submit_panel` site. The two
+  `submit_panel` sites that DROP `tint` (`building_ui.py:1252` boss popup,
+  `levelup.py:128` boxes) draw dynamic, non-id'd content that is not
+  editor-selectable, so this is honest. `field`/`label` never draw a skin, so
+  they get no Tint control. One residual: `hud.love_panel` is kind `panel` but
+  drawn via `HudRect` (no sheet), so a `tint` on it no-ops — the same deferred
+  skin-on-a-non-skinnable-widget quirk as `backdrop`/`bar`. See
+  `editor/panels/CLAUDE.md` "Reconciled rule".
+- **The editor's screen-mode preview honesty fix (ties to UH-3)**: the
+  editor used to tint a skinned widget's preview from its `color` override
+  — a lie, since the game has always ignored `color` on a skinned widget
+  (`skinning.py`'s `button_kwargs` docstring). It now tints from `tint`
+  only (`editor/panels/viewport.py`), and the details-panel Color control
+  is repurposed into Tint (enabled, not disabled) on a skinned widget —
+  `editor/panels/CLAUDE.md`.
+
 ## Known divergences (deliberate)
 The XP bar/floaters still drop the prototype's mascot face (never ported); the
 prototype's `xp_icon` gap itself is closed — wave-3 phase 4 wired a baked

@@ -41,23 +41,13 @@
       "type": "boolean"
     },
     {
-      "default": 1,
-      "description": "ResearchSpec.starts_with_tier. 0 means even tier 1 must be researched.",
-      "key": "starts_with_tier",
-      "label": "Starts with tier",
-      "maximum": 3,
-      "minimum": 0,
-      "type": "integer"
-    },
-    {
       "default": "none",
       "description": "ResearchSpec.gate_kind. The spec stores WHERE in buildings.json the gate value lives, never the value. `none` = no gate_kind: leave it unset (ResearchSpec's default is Python None, not the string 'none').",
       "key": "gate_kind",
       "label": "Unlock gate",
       "options": [
         "none",
-        "min_village_level",
-        "min_round"
+        "min_village_level"
       ],
       "type": "enum"
     },

@@ -19,10 +19,9 @@ from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_GREEN_STAT, C_PANEL_STONE, C_RED, C_UI_BORDER, C_UI_PANEL,
-    C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, contains, submit_centered,
-    submit_panel, submit_text,
+    Button, anim_ms, contains, submit_centered, submit_panel, submit_text
 )
+from . import widgets
 
 _MAX_CHARS = 20
 _BG = (12, 20, 14)
@@ -38,14 +37,14 @@ class AddNameScreen:
         self.name = ""
         self.editing = True          # focused on open so typing works instantly
         self.msg = ""
-        self.msg_color = C_UI_TEXT_DIM
+        self.msg_color = widgets.C_UI_TEXT_DIM
         self.pool_count = 0
         self.add_btn = Button((0, 0, 160, 40), "ADD NAME")
         self.back_btn = Button((0, 0, 130, 40), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
-                                      text_color=C_GOLD, label="ADD A NAME",
+                                      text_color=widgets.C_GOLD, label="ADD A NAME",
                                       visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -76,7 +75,7 @@ class AddNameScreen:
         self.name = ""
         self.editing = True
         self.msg = ""
-        self.msg_color = C_UI_TEXT_DIM
+        self.msg_color = widgets.C_UI_TEXT_DIM
         self.pool_count = pool_count
 
     def set_result(self, added, name, pool_count):
@@ -84,13 +83,13 @@ class AddNameScreen:
         feedback (added / blank / duplicate) and refresh the pool count."""
         stripped = name.strip()
         if added:
-            self.msg, self.msg_color = f"Added '{stripped}'!", C_GREEN_STAT
+            self.msg, self.msg_color = f"Added '{stripped}'!", widgets.C_GREEN_STAT
             self.name = ""
         elif not stripped:
-            self.msg, self.msg_color = "Type a name first.", C_RED
+            self.msg, self.msg_color = "Type a name first.", widgets.C_RED
         else:
             self.msg = f"'{stripped}' is already in the list."
-            self.msg_color = C_GOLD
+            self.msg_color = widgets.C_GOLD
         self.pool_count = pool_count
 
     def update(self, dt, mx, my, mouse_down=False):
@@ -132,32 +131,33 @@ class AddNameScreen:
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         x, y, w, h = self.rect
         if is_visible(self._panel):
-            submit_panel(renderer, self.rect, fill=C_UI_PANEL,
-                        border=C_UI_BORDER, skin=self._panel.skin, anim_ms=t)
+            submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
+                        border=widgets.C_UI_BORDER, skin=self._panel.skin,
+                        tint=getattr(self._panel, "tint", None), anim_ms=t)
         cx = x + w // 2
         if self._title.visible:
             submit_centered(renderer, self._title.label, self._title.rect[0],
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
         submit_centered(renderer, "Appears on the building-naming dice button.",
-                        cx, y + 62, "sm", C_UI_TEXT_DIM)
+                        cx, y + 62, "sm", widgets.C_UI_TEXT_DIM)
 
         nx, ny, nw, nh = self.name_rect
-        renderer.submit_hud(HudRect(self.name_rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
-            self.name_rect, C_GOLD if self.editing else C_UI_BORDER, width=1))
+            self.name_rect, widgets.C_GOLD if self.editing else widgets.C_UI_BORDER, width=1))
         if self.name or self.editing:
             shown = self.name + ("_" if self.editing else "")
-            tcol = C_UI_TEXT
+            tcol = widgets.C_UI_TEXT
         else:
             shown = "type a name..."
-            tcol = C_UI_TEXT_DIM
+            tcol = widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 8, ny + 9), "md", tcol)
 
         if self.msg:
             submit_centered(renderer, self.msg, cx, y + 156, "sm", self.msg_color)
         submit_text(renderer, f"Names in pool: {self.pool_count}",
-                    (x + 24, y + _PH - 78), "sm", C_UI_TEXT_DIM)
+                    (x + 24, y + _PH - 78), "sm", widgets.C_UI_TEXT_DIM)
 
         if is_visible(self.add_btn):
             self.add_btn.submit(renderer, anim_ms=t, **button_kwargs(self.add_btn))

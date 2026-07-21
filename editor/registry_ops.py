@@ -13,6 +13,9 @@ adding a slot here needs no game change — only art imported onto it.
 Background tiles have no variant dimension: one legend code per slot, so
 "another background variant" IS "another background type"
 (`add_background_slot`).
+
+A ui button FAMILY (`add_button_family`) is the ui-category analogue of a deco
+prop type: a new leaf child group under Buttons, ready for its own variants.
 """
 import re
 from pathlib import Path
@@ -266,4 +269,54 @@ def add_deco_prop(data_dir):
     n = _next_numbered_suffix("deco_prop_", _all_slots(doc))
     label, slot = f"Prop {n}", f"deco_prop_{n}"
     _append_child_group(data_dir, "deco", ("Props",), label, slot)
+    return label, slot
+
+
+_SLUG_COLLAPSE = re.compile(r"[^a-z0-9]+")
+
+
+def button_family_slot(name):
+    """Derive the slot key for a new ui button family from a human name.
+
+    Slug = lowercased, every non-``[a-z0-9]`` run collapsed to one ``"_"``,
+    trimmed. Prefix ``"ui_button_"`` is added unless the slug already starts
+    with ``"ui_button"`` (typing the key itself must not double-prefix).
+    Raises ``ValueError`` when nothing slug-like survives."""
+    slug = _SLUG_COLLAPSE.sub("_", (name or "").strip().lower()).strip("_")
+    if not slug:
+        raise ValueError(f"no valid slot key derivable from {name!r}")
+    if slug.startswith("ui_button"):
+        return slug
+    return f"ui_button_{slug}"
+
+
+def add_button_family(data_dir, name):
+    """Append a new leaf child group ``{label, slots: [key]}`` under
+    ui -> Buttons — a new button FAMILY, the ui-category analogue of
+    ``add_deco_prop``. ``label`` is ``name.strip()``; ``key`` is
+    ``button_family_slot(name)``.
+
+    Raises ``ValueError`` (BEFORE any write) when the key collides with any
+    slot already in the registry (``_all_slots``) or the label collides with
+    an existing Buttons child label; ``KeyError`` for structural path
+    problems (no 'ui' category / no 'Buttons' group). Returns
+    ``(label, slot_key)``, like ``add_deco_prop``."""
+    data_dir = Path(data_dir)
+    doc = data_io.load_json(data_dir / "slots.json")
+    slot = button_family_slot(name)
+    label = name.strip()
+
+    category = next(
+        (c for c in doc["categories"] if c["key"] == "ui"), None)
+    if category is None:
+        raise KeyError("no category 'ui'")
+    buttons_group = _find_group(category["groups"], ("Buttons",))
+    existing_labels = {child["label"]
+                       for child in buttons_group.get("children", ())}
+    if label in existing_labels:
+        raise ValueError(f"a Buttons family named {label!r} already exists")
+    if slot in _all_slots(doc):
+        raise ValueError(f"slot {slot!r} already exists in the registry")
+
+    _append_child_group(data_dir, "ui", ("Buttons",), label, slot)
     return label, slot

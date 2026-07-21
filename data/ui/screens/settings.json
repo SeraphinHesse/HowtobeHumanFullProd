@@ -1,22 +1,54 @@
 {
   "widgets": {
+    "backdrop": {
+      "rect": [
+        0,
+        0,
+        1280,
+        720
+      ]
+    },
     "btn_back": {
-      "skin": "ui_button"
+      "rect": [
+        540,
+        558,
+        200,
+        46
+      ],
+      "skin": "ui_button_panel"
     },
     "btn_dm_left": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "btn_dm_right": {
-      "skin": "ui_button"
+      "skin": "ui_button_panel"
     },
     "btn_toggle_bg_art": {
-      "skin": "ui_button"
+      "rect": [
+        700,
+        368,
+        90,
+        40
+      ],
+      "skin": "ui_button_panel"
     },
     "btn_toggle_gore": {
-      "skin": "ui_button"
+      "rect": [
+        700,
+        424,
+        90,
+        40
+      ],
+      "skin": "ui_button_panel"
     },
     "btn_toggle_income_floaters": {
-      "skin": "ui_button"
+      "rect": [
+        700,
+        312,
+        90,
+        40
+      ],
+      "skin": "ui_button_panel"
     }
   }
 }

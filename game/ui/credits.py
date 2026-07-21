@@ -15,9 +15,9 @@ from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms, submit_centered,
-    submit_text,
+    Button, anim_ms, submit_centered, submit_text
 )
+from . import widgets
 
 _BG = (12, 20, 14)
 
@@ -51,7 +51,7 @@ class CreditsScreen:
         self.back_btn = Button((0, 0, 200, 46), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                      text_color=C_GOLD, label="CREDITS",
+                                      text_color=widgets.C_GOLD, label="CREDITS",
                                       visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -94,9 +94,9 @@ class CreditsScreen:
             if not role and not name:
                 y += _SPACER_H
                 continue
-            submit_text(renderer, role, (cx - 40, y), "sm", C_UI_TEXT_DIM,
+            submit_text(renderer, role, (cx - 40, y), "sm", widgets.C_UI_TEXT_DIM,
                         align="right")
-            submit_text(renderer, name, (cx + 40, y), "md", C_UI_TEXT)
+            submit_text(renderer, name, (cx + 40, y), "md", widgets.C_UI_TEXT)
             y += _LINE_H
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

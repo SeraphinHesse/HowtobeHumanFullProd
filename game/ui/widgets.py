@@ -6,6 +6,14 @@ via ``renderer.submit_hud`` and measures strings with
 ``engine.render.fonts.TextMetrics`` — it NEVER imports pygame (a purity test
 enforces this). Colors mirror the prototype's ``src/core/constants.py`` palette
 verbatim; hit-testing is plain rect math so it is fully headless-testable.
+
+The C_* palette (UH-6, D5) is DATA-BACKED: ``data/ui/palette.json`` ships the
+same values as committed content, loaded once at boot (``game/main.py``) and
+applied via ``configure_palette`` — the literals below are the unconfigured
+fallback (bare test/tool construction stays deterministic; a pin test proves
+they equal the stock file). Every consumer reads ``widgets.C_GOLD`` etc. via
+attribute access, never ``from .widgets import C_GOLD`` (an early binding a
+later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 """
 from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
@@ -52,6 +60,40 @@ C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
+
+# data/ui/palette.json's keys, in the same order as the C_* block above (UH-6,
+# D5) — snake_case with the C_ prefix dropped. configure_palette's key ->
+# attribute mapping is the mechanical `"C_" + key.upper()`.
+_PALETTE_KEYS = (
+    "gold", "red", "hp_green", "hp_red", "green_stat", "ui_panel",
+    "ui_border", "ui_btn", "ui_btn_hover", "ui_btn_active", "ui_btn_disabled",
+    "ui_text", "ui_text_dim", "highlight", "highlight2", "range_highlight",
+    "panel_stone", "panel_inset",
+)
+
+
+def configure_palette(doc):
+    """Rebind every C_* module constant IN PLACE from a loaded
+    ``data/ui/palette.json`` doc (D5/UH-6) — mirrors
+    ``engine.render.fonts.configure_fonts``: the host (``game/main.py``)
+    loads + schema-validates the file and passes the plain dict, so this
+    module stays data-dir-free (bare construction — tests/tools — never
+    needs a ``data/`` tree). Fails loud on an unknown/missing key (same
+    "no silent break" argument as ``configure_fonts`` — a renamed/dropped
+    key would otherwise leave some C_* constant silently un-rebound).
+
+    Every consumer reads these through ``widgets.C_*`` attribute access
+    (never ``from .widgets import C_GOLD``, an early binding a later
+    rebind here cannot reach) — see ``game/ui/CLAUDE.md``."""
+    unknown = set(doc) - set(_PALETTE_KEYS)
+    missing = set(_PALETTE_KEYS) - set(doc)
+    if unknown or missing:
+        raise ValueError(
+            f"palette.json key set mismatch: missing {sorted(missing)}, "
+            f"unknown {sorted(unknown)}")
+    for key, value in doc.items():
+        globals()["C_" + key.upper()] = tuple(value)
+
 
 HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
 
@@ -105,17 +147,29 @@ def contains(rect, mx, my):
     return x <= mx < x + w and y <= my < y + h
 
 
-def submit_panel(renderer, rect, *, fill=C_UI_PANEL, border=C_UI_BORDER,
-                 skin=None, anim_ms=0):
+def submit_panel(renderer, rect, *, fill=None, border=None, skin=None,
+                 tint=None, anim_ms=0):
     """A filled, bordered panel body. With ``skin`` (a slot key, 10L-A) the
     two flat rects are replaced by one nine-sliced HudSprite covering the same
-    rect; ``fill``/``border`` are then ignored. Panels carry no interaction
-    state, so they always animate the ``idle`` row. Panels are not click
-    targets — no hit-test wiring."""
+    rect; ``fill``/``border`` are then ignored and ``tint`` (D6/UH-6 — the
+    sheet-multiply color, ``None`` = unchanged) rides along instead. Panels
+    carry no interaction state, so they always animate the ``idle`` row.
+    Panels are not click targets — no hit-test wiring.
+
+    ``fill``/``border`` default to ``None`` and resolve to the CURRENT
+    ``C_UI_PANEL``/``C_UI_BORDER`` inside the body, never as a def-time
+    default (UH-6: a default-arg literal is evaluated once at import and
+    would never see a later ``configure_palette`` rebind — the one trap
+    that survives switching every OTHER reference to attribute access)."""
+    if fill is None:
+        fill = C_UI_PANEL
+    if border is None:
+        border = C_UI_BORDER
     if skin:
         x, y, w, h = rect
         renderer.submit_hud(HudSprite(skin, (x, y), (w, h),
-                                      animation="idle", anim_time_ms=anim_ms))
+                                      animation="idle", anim_time_ms=anim_ms,
+                                      tint=tint))
         return
     renderer.submit_hud(HudRect(rect, fill))
     renderer.submit_hud(HudRect(rect, border, width=1))
@@ -253,9 +307,15 @@ class Button:
         if self.skin:
             # 10L-A: the sprite replaces both rects; ``color`` (a fill
             # override) has nothing to fill and is ignored. Label unchanged.
+            # D6/UH-6: ``tint`` (a sheet-multiply color, ``None`` = unchanged)
+            # rides along the same setattr an override applies — only a
+            # skinned button (or one whose screen doc assigned it) ever
+            # carries the attribute, so ``getattr`` covers dynamic
+            # (non-id'd) buttons too, which never gain one.
             renderer.submit_hud(HudSprite(self.skin, (x, y), (w, h),
                                           animation=self._state(),
-                                          anim_time_ms=anim_ms))
+                                          anim_time_ms=anim_ms,
+                                          tint=getattr(self, "tint", None)))
         else:
             renderer.submit_hud(HudRect((x, y, w, h), fill, border_radius=3))
             renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER,

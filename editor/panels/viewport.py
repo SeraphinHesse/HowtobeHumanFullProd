@@ -35,10 +35,11 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 import pygame
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
-from PySide6.QtWidgets import QComboBox, QWidget
+from PySide6.QtWidgets import QWidget
 
 from editor import tilemap_ops
 from editor.panels import _screen_primitives
+from editor.panels.balancing import _NoWheelComboBox
 from engine import tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
@@ -132,7 +133,7 @@ class ViewportPanel(QWidget):
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
-        self._anim_combo = QComboBox(self)
+        self._anim_combo = _NoWheelComboBox(self)
         self._anim_combo.move(8, 8)
         self._anim_combo.hide()
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
@@ -153,7 +154,7 @@ class ViewportPanel(QWidget):
         self._screen_anim_last_t = None
         # Button-state dropdown (idle/hover/pressed/disabled), same floating-
         # child pattern as the entity-preview animation combo above.
-        self._state_combo = QComboBox(self)
+        self._state_combo = _NoWheelComboBox(self)
         self._state_combo.move(8, 8)
         self._state_combo.hide()
         self._state_combo.currentTextChanged.connect(self.set_screen_state)
@@ -282,9 +283,12 @@ class ViewportPanel(QWidget):
         camera). None → leaves screen mode.
 
         `defaults` is the loaded data/ui/screen_defaults.json dict, keyed by
-        screen_id -> {widgets, mock_note}. Missing/empty is HARD REQUIRED to
-        degrade gracefully (pre-B3, or a broken dev machine): render_frame
-        never raises over it — see _submit_screen_items's placeholder path.
+        screen_id -> {widgets, mock_note} (building_panel additionally
+        carries a `views` mapping of view_id -> {widgets, mock_note} — UH-2;
+        `_current_screen_defaults` resolves the session's active view, if
+        any, to the same shape). Missing/empty is HARD REQUIRED to degrade
+        gracefully (pre-B3, or a broken dev machine): render_frame never
+        raises over it — see _submit_screen_items's placeholder path.
         """
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
@@ -353,10 +357,25 @@ class ViewportPanel(QWidget):
     def _current_screen_defaults(self):
         """The open screen's own {widgets, mock_note} sub-dict, or None when
         absent (no defaults file, or this screen isn't in it yet) — the ONE
-        place every screen-mode code path checks for graceful degrade."""
+        place every screen-mode code path checks for graceful degrade.
+
+        UH-2: if the entry carries a `views` mapping and the session's
+        active `view` names one, resolve to that view's own {widgets,
+        mock_note} sub-dict (the same shape) instead — this single change
+        IS the widget-list/render/hit-test filtering, since every caller
+        already funnels through this function. A screen with no `views`
+        (every screen but building_panel) or a session with no active view
+        (view=None) behaves exactly as before."""
         if self._screen_session is None:
             return None
-        return self._screen_defaults.get(self._screen_session.screen_id)
+        entry = self._screen_defaults.get(self._screen_session.screen_id)
+        if entry is None:
+            return None
+        views = entry.get("views")
+        view = self._screen_session.view
+        if views and view in views:
+            return views[view]
+        return entry
 
     def _screen_scale_offset(self):
         """Uniform scale + letterbox offset fitting the 1280x720 logical
@@ -930,7 +949,11 @@ class ViewportPanel(QWidget):
         font_key = override.get("font", style.get("font", "md"))
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
-            tint = tuple(override["color"]) if "color" in override else None
+            # D6/UH-6: tint from the widget's own `tint` key — `color` on a
+            # skinned widget is INERT in the game (skinning.py's
+            # button_kwargs docstring), so tinting from it here was an
+            # editor lie (the editor showed a color the game ignored).
+            tint = tuple(override["tint"]) if "tint" in override else None
             self._renderer.submit_hud(HudSprite(
                 skin, (dest[0], dest[1]), (dest[2], dest[3]), tint,
                 animation=self._screen_state,
@@ -957,6 +980,15 @@ class ViewportPanel(QWidget):
         for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
             self._renderer.submit_hud(HudRect(
                 (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        # UH-4: a small caption above the outline naming the selected widget
+        # (display name, falls back to the code id — D4, `widget_display_name`
+        # is the ONE resolution rule shared with the widget list). Clamped to
+        # the canvas top (`oy`) so a widget at y=0 still shows a caption.
+        name = _screen_primitives.widget_display_name(
+            widget_id, defaults.get("widgets", {}).get(widget_id))
+        caption_y = max(oy, y - 14)
+        self._renderer.submit_hud(HudText(
+            name, (x, caption_y), "sm", SELECTION_COLOR))
 
     def paintEvent(self, event):
         if self._qimage is None:

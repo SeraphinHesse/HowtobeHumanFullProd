@@ -34,11 +34,10 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_GREEN_STAT, C_HIGHLIGHT, C_HIGHLIGHT2, C_PANEL_STONE,
-    C_RANGE_HIGHLIGHT, C_RED, C_UI_BORDER, C_UI_PANEL, C_UI_TEXT,
-    C_UI_TEXT_DIM, COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
-    submit_tile_diamond, submit_text, text_h, text_size,
+    COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
+    submit_tile_diamond, submit_text, text_h, text_size
 )
+from . import widgets
 
 # Both BuildingUI and its nested ConstructPreview share ONE screen id (they
 # are one editable "screen" — the panel and its modal preview) with disjoint
@@ -236,34 +235,35 @@ class ConstructPreview:
 
         x, y, w, h = self.rect
         if is_visible(self._panel):
-            submit_panel(renderer, self.rect, fill=C_UI_PANEL,
-                        border=C_UI_BORDER, skin=self._panel.skin,
+            submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
+                        border=widgets.C_UI_BORDER, skin=self._panel.skin,
+                        tint=getattr(self._panel, "tint", None),
                         anim_ms=anim_ms)
         cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 12), "lg", C_UI_TEXT,
+        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
                     align="center")
         submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
-                    "md", C_GOLD, align="center")
-        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", C_UI_TEXT_DIM)
+                    "md", widgets.C_GOLD, align="center")
+        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
         nx, ny, nw, nh = self.name_rect
-        renderer.submit_hud(HudRect(self.name_rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
-            self.name_rect, C_HIGHLIGHT if self.editing else C_UI_BORDER,
+            self.name_rect, widgets.C_HIGHLIGHT if self.editing else widgets.C_UI_BORDER,
             width=1))
         if self.name or self.editing:
             shown = self.name + ("_" if self.editing else "")
-            tcol = C_UI_TEXT
+            tcol = widgets.C_UI_TEXT
         else:
             shown = "click to name"
-            tcol = C_UI_TEXT_DIM
+            tcol = widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.dice_btn))
         sy = y + 138
         for label, value in self.stats:
-            submit_text(renderer, label, (x + 16, sy), "sm", C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (x + w - 16, sy), "sm", C_UI_TEXT,
+            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
+            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
                         align="right")
             sy += 20
         if is_visible(self.confirm_btn):
@@ -451,7 +451,7 @@ class BuildingUI:
                     # range diamond only on a single selection (prototype
                     # game.py:552-556); a batch highlights its tiles.
                     self._highlight_tiles = [
-                        (t.col, t.row, C_HIGHLIGHT)
+                        (t.col, t.row, widgets.C_HIGHLIGHT)
                         for t in self.selected_tiles]
         # SPAWNING / BACKGROUND / empty BUILT -> stays closed
 
@@ -486,10 +486,10 @@ class BuildingUI:
             self.action_btn.label = f"UNLOCK  {HEART}{cost}"
         hl = []
         for sel in self.selected_tiles:
-            hl.append((sel.col, sel.row, C_HIGHLIGHT))
+            hl.append((sel.col, sel.row, widgets.C_HIGHLIGHT))
             for t in tm.get_chunk_for_tile(sel):
                 if t is not sel:
-                    hl.append((t.col, t.row, C_HIGHLIGHT2))
+                    hl.append((t.col, t.row, widgets.C_HIGHLIGHT2))
         self._highlight_tiles = hl
 
     def _build_construct(self):
@@ -511,7 +511,7 @@ class BuildingUI:
                          f"{name}  {HEART}{cost}", "md", skin=skin)
             self.cards.append((btype, btn))
             y += 50
-        self._highlight_tiles = [(t.col, t.row, C_HIGHLIGHT)
+        self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
                                  for t in self.selected_tiles]
 
     def _batch_upgrade_targets(self):
@@ -624,7 +624,7 @@ class BuildingUI:
     # -- /10H ---------------------------------------------------------------
 
     def _set_range_highlight(self, b, tilemap):
-        hl = [(b.col, b.row, C_HIGHLIGHT)]
+        hl = [(b.col, b.row, widgets.C_HIGHLIGHT)]
         # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
         # range — a consumption site of the effective value (prototype
         # game.py:578-581); pathfinding coverage stays on the raw range.
@@ -637,7 +637,7 @@ class BuildingUI:
                     if dc == 0 and dr == 0:
                         continue
                     if tilemap.get(b.col + dc, b.row + dr) is not None:
-                        hl.append((b.col + dc, b.row + dr, C_RANGE_HIGHLIGHT))
+                        hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
         self._highlight_tiles = hl
 
     # -- input ------------------------------------------------------------
@@ -930,7 +930,7 @@ class BuildingUI:
                                         self.view_w, self.view_h)
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
-                        anim_ms=t)
+                        tint=getattr(self._panel, "tint", None), anim_ms=t)
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
         if self.mode == "unlock":
@@ -951,12 +951,12 @@ class BuildingUI:
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
         x = self.panel_x + 14
-        submit_text(renderer, "UNLOCK TILE", (x, 16), "lg", C_UI_TEXT)
+        submit_text(renderer, "UNLOCK TILE", (x, 16), "lg", widgets.C_UI_TEXT)
         submit_text(renderer, "Unlocks a 2x2 area", (x, 70), "sm",
-                    C_UI_TEXT_DIM)
+                    widgets.C_UI_TEXT_DIM)
         if not session.tilemap.can_unlock(self.tile):
             submit_text(renderer, "Must touch your territory", (x, 196), "sm",
-                        C_UI_TEXT_DIM)
+                        widgets.C_UI_TEXT_DIM)
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
@@ -966,7 +966,7 @@ class BuildingUI:
         # -- /10I --
 
     def _submit_construct(self, renderer, anim_ms=0):
-        submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", C_UI_TEXT)
+        submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", widgets.C_UI_TEXT)
         for _, btn in self.cards:
             btn.submit(renderer, anim_ms=anim_ms)
         # -- 10I: tile terrain footer badge (tooltip above) --
@@ -1021,24 +1021,24 @@ class BuildingUI:
         up_mode, _, _, _ = self._upgrade_state(b)
         # 10J: the title is the DISPLAY name — custom names + rebirth ordinals
         # finally show; the tier name moves to the Level row.
-        submit_text(renderer, _display_name(b), (x, 10), "lg", C_UI_TEXT)
+        submit_text(renderer, _display_name(b), (x, 10), "lg", widgets.C_UI_TEXT)
         # -- 10J rename row: input box + dice --
         nx, ny, nw, nh = self._name_box_rect
-        renderer.submit_hud(HudRect(self._name_box_rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(self._name_box_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self._name_box_rect,
-            C_HIGHLIGHT if self._name_editing else C_UI_BORDER, width=1))
+            widgets.C_HIGHLIGHT if self._name_editing else widgets.C_UI_BORDER, width=1))
         if self._name_buf or self._name_editing:
-            shown, tcol = self._name_buf + "_", C_UI_TEXT
+            shown, tcol = self._name_buf + "_", widgets.C_UI_TEXT
         else:
-            shown, tcol = "click here to change name", C_UI_TEXT_DIM
+            shown, tcol = "click here to change name", widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 6, ny + 4), "sm", tcol)
         if is_visible(self._dice_up):
             self._dice_up.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self._dice_up))
         # -- /10J --
         submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 68),
-                    "md", C_UI_TEXT_DIM)
+                    "md", widgets.C_UI_TEXT_DIM)
         # -- 10I: terrain badge (ALWAYS shown incl. Grass), reading the
         # building's placement snapshot; tooltip below the badge --
         self._submit_cond_badge(
@@ -1053,32 +1053,32 @@ class BuildingUI:
             preview = dict(self._next_level_rows(b) or ())
         y = 116
         for label, value in _building_stats(b):
-            submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
+            submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
             pv = preview.get(label) if preview else None
             if pv is not None and pv != value:
                 submit_text(renderer, str(pv), (self._right, y), "md",
-                            C_GREEN_STAT, align="right")
+                            widgets.C_GREEN_STAT, align="right")
             else:
                 submit_text(renderer, str(value), (self._right, y), "md",
-                            C_UI_TEXT, align="right")
+                            widgets.C_UI_TEXT, align="right")
             y += 24
         rs = b.get_component(RoundStats)
         if rs is not None:
             y += 10
-            submit_text(renderer, "Damage dealt", (x, y), "sm", C_UI_TEXT_DIM)
+            submit_text(renderer, "Damage dealt", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_dealt_last_round), (self._right, y),
-                        "sm", C_UI_TEXT, align="right")
+                        "sm", widgets.C_UI_TEXT, align="right")
             y += 18
-            submit_text(renderer, "Damage taken", (x, y), "sm", C_UI_TEXT_DIM)
+            submit_text(renderer, "Damage taken", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_taken_last_round), (self._right, y),
-                        "sm", C_UI_TEXT, align="right")
+                        "sm", widgets.C_UI_TEXT, align="right")
             y += 18
             # -- 10J: a building whose last-round damage covered its full HP
             # died last round (prototype building_ui.py:1083-86) --
             if rs.dmg_taken_last_round >= b.max_hp():
                 submit_text(renderer, "DIED LAST ROUND",
                             (self.panel_x + self.panel_w // 2, y), "sm",
-                            C_RED, align="center")
+                            widgets.C_RED, align="center")
                 y += 18
         # -- 10J: next-tier card when a tier advance is on the table
         # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --
@@ -1088,16 +1088,16 @@ class BuildingUI:
                 slot, header, rows = card
                 y += 8
                 renderer.submit_hud(HudRect(
-                    (x, y, self.panel_w - 28, 1), C_UI_BORDER))
+                    (x, y, self.panel_w - 28, 1), widgets.C_UI_BORDER))
                 y += 8
-                submit_text(renderer, header, (x, y), "md", C_GREEN_STAT)
+                submit_text(renderer, header, (x, y), "md", widgets.C_GREEN_STAT)
                 y += 22
                 if slot:
                     renderer.submit_hud(HudSprite(slot, (x, y), (38, 38)))
                 ry = y
                 for label, value in rows:
                     submit_text(renderer, f"{label}  {value}", (x + 46, ry),
-                                "sm", C_UI_TEXT_DIM)
+                                "sm", widgets.C_UI_TEXT_DIM)
                     ry += 16
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
@@ -1105,7 +1105,7 @@ class BuildingUI:
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
-                        "sm", C_UI_TEXT_DIM, align="center")
+                        "sm", widgets.C_UI_TEXT_DIM, align="center")
 
     # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
     # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----
@@ -1151,7 +1151,7 @@ class BuildingUI:
         x = self.panel_x + (self.panel_w - w) // 2
         rect = (x, y, w, h)
         self._cond_badge_rect = rect
-        renderer.submit_hud(HudRect(rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(rect, color, width=1))
         submit_text(renderer, text, (x + 8, y + 4), "sm", color)
         self._cond_tooltip = (condition, color, rect, above)
@@ -1173,7 +1173,7 @@ class BuildingUI:
         renderer.submit_hud(HudRect((x, y, w, h), color, width=1))
         ty = y + 5
         for t in lines:
-            submit_text(renderer, t, (x + 8, ty), "sm", C_UI_TEXT)
+            submit_text(renderer, t, (x + 8, ty), "sm", widgets.C_UI_TEXT)
             ty += lh
 
     # -- /10I ---------------------------------------------------------------
@@ -1181,7 +1181,7 @@ class BuildingUI:
     def _submit_base_info(self, renderer, session, anim_ms=0):
         x, st = self.panel_x + 14, session.state
         income = scaled_base_income(st, session.core_balance)
-        submit_text(renderer, "THE HOLE", (x, 16), "lg", C_UI_TEXT)
+        submit_text(renderer, "THE HOLE", (x, 16), "lg", widgets.C_UI_TEXT)
         rows = [
             ("Lives", st.base_lives),
             ("Wave", st.round_num),
@@ -1191,8 +1191,8 @@ class BuildingUI:
         ]
         y = 72
         for label, value in rows:
-            submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (self._right, y), "md", C_UI_TEXT,
+            submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
+            submit_text(renderer, str(value), (self._right, y), "md", widgets.C_UI_TEXT,
                         align="right")
             y += 30
         # -- 10H: lightning strike section (prototype building_ui.py:1194-1243)
@@ -1201,25 +1201,25 @@ class BuildingUI:
         ls = session.core_balance["LightningStrike"]
         lvl = st.lightning_level
         y += 6
-        renderer.submit_hud(HudRect((x, y, self.panel_w - 28, 1), C_UI_BORDER))
+        renderer.submit_hud(HudRect((x, y, self.panel_w - 28, 1), widgets.C_UI_BORDER))
         y += 10
         submit_text(renderer, "⚡ LIGHTNING STRIKE", (x, y), "md",
                     _LIGHTNING_GOLD)
         y += 26
         if lvl <= 0:
             submit_text(renderer, "LOCKED — place a Storm Priest", (x, y), "sm",
-                        C_UI_TEXT_DIM)
+                        widgets.C_UI_TEXT_DIM)
         else:
             submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),
-                        "md", C_UI_TEXT)
+                        "md", widgets.C_UI_TEXT)
             y += 24
             for label, value in (
                     ("DMG", ls["damage"][lvl - 1]),
                     ("Radius", f"{ls['radius'][lvl - 1]} tiles"),
                     ("Atk Spd", f"{ls['cooldown'][lvl - 1]:.1f}s")):
-                submit_text(renderer, label, (x, y), "md", C_UI_TEXT_DIM)
+                submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
                 submit_text(renderer, str(value), (self._right, y), "md",
-                            C_UI_TEXT, align="right")
+                            widgets.C_UI_TEXT, align="right")
                 y += 24
         if self.lightning_btn is not None and is_visible(self.lightning_btn):
             self.lightning_btn.submit(renderer, anim_ms=anim_ms,
@@ -1228,7 +1228,7 @@ class BuildingUI:
             submit_text(renderer, "MAX LEVEL",
                         (self.panel_x + self.panel_w // 2,
                          _LIGHTNING_BTN_Y + 8),
-                        "md", C_GOLD, align="center")
+                        "md", widgets.C_GOLD, align="center")
         # -- /10H --
         # -- 10G boss: BOSS CHOICES button + history popup (sits BELOW the
         # 10H lightning section per the batch coordination matrix) --
@@ -1252,26 +1252,26 @@ class BuildingUI:
         submit_panel(renderer, self._boss_popup_rect, skin=panel_skin,
                     anim_ms=anim_ms)
         submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
-                    C_UI_TEXT, align="center")
+                    widgets.C_UI_TEXT, align="center")
         choices = session.state.boss_choices
         y = py + 48
         if not choices:
             submit_text(renderer, "None yet", (px + 14, y), "md",
-                        C_UI_TEXT_DIM)
+                        widgets.C_UI_TEXT_DIM)
         hover_desc = None
         for i, (boss_num, option, outcome) in enumerate(choices):
             hovered = i == self._boss_hover_row
             submit_text(
                 renderer,
                 f"Boss {boss_num}: {outcome.capitalize()} {option}",
-                (px + 14, y), "md", C_GOLD if hovered else C_UI_TEXT)
+                (px + 14, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
             if hovered:
                 hover_desc = choice_desc((boss_num - 1) % 3, option)
             y += 20
         if hover_desc is not None:
             ty = py + ph - 80
             for line in hover_desc.split("\n"):
-                submit_text(renderer, line, (px + 14, ty), "sm", C_UI_TEXT_DIM)
+                submit_text(renderer, line, (px + 14, ty), "sm", widgets.C_UI_TEXT_DIM)
                 ty += 16
         if is_visible(self._boss_close_btn):
             self._boss_close_btn.submit(renderer, anim_ms=anim_ms,

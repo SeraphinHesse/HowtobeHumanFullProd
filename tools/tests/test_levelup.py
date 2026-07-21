@@ -94,16 +94,17 @@ class TestRunStateSeeding(unittest.TestCase):
         # 9D lines start unlocked at tier 1. Every other type starts LOCKED
         # (data-driven via buildings.json starts_unlocked -- only Stone
         # Thrower/defence and Flute Player/economic start unlocked), earned
-        # via a level-up unlock card; ``starts_with_tier`` is unaffected and
-        # still governs how many tiers are pre-researched once a type IS
-        # unlocked: 1 for most, 0 for meditator/wall_builder (their own first
-        # tier must also be researched, era-gated to round 10/5).
+        # via a level-up unlock card. ``starts_with_tier`` is GONE (the
+        # Joel-Balancing regate): every type -- including meditator and
+        # wall_builder, which used to seed 0 -- now seeds tier 1, so
+        # unlocking a type makes it immediately placeable with no second
+        # "research tier 1" card.
         self.assertEqual(
             st.tiers_unlocked,
             {"defence": 1, "economic": 1, "aoe_defence": 1, "sun_scorcher": 1,
-             "storm_priest": 1, "painter": 1, "meditator": 0,
+             "storm_priest": 1, "painter": 1, "meditator": 1,
              "boost_speed": 1, "boost_damage": 1, "boost_hp": 1,
-             "blocker": 1, "wall_builder": 0})
+             "blocker": 1, "wall_builder": 1})
         self.assertEqual(
             st.unlocked_buildings,
             {"defence": True, "economic": True,
@@ -187,15 +188,13 @@ class TestOptionRoll(unittest.TestCase):
         return lv.roll_levelup_options(state, BUILD, CORE, NoShuffle)
 
     def test_early_pool_offers_unlocks_then_pads(self):
-        # Round 1, village level 1: the tier-2s are round-gated to 10, Sun
-        # Scorcher is era-gated to 14 and the Meditator to 10 — so the real
-        # candidates are every UNGATED-or-met unlock, in RESEARCH table order:
-        # Maw Mortar (min_village_level 1), Storm Priest (no gate — Storm
-        # Priest wiring), Painter (min_village_level 0), and Blocker (starts
-        # locked, no gate at all). Four real candidates now outnumber the
-        # three slots, so NoShuffle (table order, no randomness) picks the
-        # first three and Blocker is the one left out — still no fallback pad
-        # needed at round 1.
+        # Round 1, village level 1: every locked type's unlock card is now
+        # gated by its OWN tiers[0].unlock_min_round (there is no more
+        # group-level era key). Sun Scorcher (10), Meditator (10), the boost
+        # trio (10) and Blocker (5) are all still round-gated out at round 1,
+        # so the only real candidates are Maw Mortar (min_village_level 1),
+        # Storm Priest (no gate at all) and Painter (min_village_level 0) —
+        # exactly three, so the pool needs no fallback pad at round 1.
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
         self.assertEqual(len(options), 3)
@@ -256,33 +255,69 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(option["cost"], DEF_T2["build_cost"])
         self.assertEqual(option["sprite_key"], "slinger_t2_lvl1")
 
-    def test_era_gate_excludes_a_type_entirely(self):
-        """A group-level era_unlock_round keeps the type out of the pool — even
-        when its next tier's own unlock_min_round has passed."""
-        bal = copy.deepcopy(BUILD)
-        bal["DefenceBuildings"]["BasicDefence"]["era_unlock_round"] = 20
+    def test_tier_zero_round_gates_a_locked_types_unlock_card(self):
+        """A locked type's UNLOCK card is gated by its own
+        tiers[0].unlock_min_round — there is no more group-level era key.
+        (Storm Priest carries no gate_kind and its tier 0 round is 0, so
+        Meditator — locked, tiers[0].unlock_min_round == 10 — is the clean
+        example.) Every other type is maxed out first so it doesn't crowd
+        Meditator out of the three-card pool."""
         st = RunState.from_balance(CORE, BUILD)
+        for bt in lv.RESEARCH:
+            if bt == "meditator":
+                continue
+            st.unlocked_buildings[bt] = True
+            st.tiers_unlocked[bt] = 3
+        st.round_num = 9
+        self.assertFalse(any(o.get("building_type") == "meditator"
+                             for o in self.roll(st)))
+        st.round_num = 10
+        card = next(o for o in self.roll(st)
+                    if o.get("building_type") == "meditator")
+        self.assertEqual(card["kind"], "unlock_building")
+
+    def test_tier_zero_round_does_not_gate_an_already_unlocked_types_tiers(self):
+        """Once a type is unlocked, its tiers[0].unlock_min_round plays no
+        further role — only each tier's OWN unlock_min_round gates it."""
+        bal = copy.deepcopy(BUILD)
+        bal["DefenceBuildings"]["BasicDefence"]["tiers"][0]["unlock_min_round"] = 9999
+        st = RunState.from_balance(CORE, BUILD)   # defence starts unlocked, tier 1
         st.round_num = 10
         titles = {o["title"] for o in lv.roll_levelup_options(
             st, bal, CORE, NoShuffle) if o["kind"] == "tier"}
-        self.assertEqual(titles, {"Harp Player"})     # defence era-gated out
-        st.round_num = 20
-        titles = {o["title"] for o in lv.roll_levelup_options(
-            st, bal, CORE, NoShuffle) if o["kind"] == "tier"}
-        self.assertEqual(titles, {"Slinger", "Harp Player"})
+        self.assertIn("Slinger", titles)          # defence's tier-2 card unaffected
 
-    def test_shipped_era_gates_match_the_canonical_group_key(self):
-        """The 10A data lift: the wired Sun Scorcher era is 14 (was a dead 10)."""
-        self.assertEqual(
-            BUILD["DefenceBuildings"]["BeamDefence"]["era_unlock_round"], 14)
-        self.assertEqual(
-            BUILD["EconomyBuildings"]["Meditators"]["era_unlock_round"], 10)
-        self.assertEqual(
-            BUILD["StructureBuildings"]["WallBuilder"]["era_unlock_round"], 5)
+    def test_no_group_carries_era_unlock_round_and_shipped_tier_zero_rounds(self):
+        """era_unlock_round is deleted entirely (the Joel-Balancing regate) --
+        the single round gate per type is its own tiers[0].unlock_min_round."""
         for group in (BUILD["DefenceBuildings"]["BeamDefence"],
                       BUILD["EconomyBuildings"]["Meditators"],
-                      BUILD["StructureBuildings"]["WallBuilder"]):
-            self.assertNotIn("era_unlock_round", group["tiers"][0])
+                      BUILD["StructureBuildings"]["WallBuilder"],
+                      BUILD["BoostBuildings"]["globals"]):
+            self.assertNotIn("era_unlock_round", group)
+        self.assertNotIn("unlock_min_round", BUILD["BoostBuildings"]["globals"])
+        self.assertEqual(
+            BUILD["DefenceBuildings"]["BeamDefence"]["tiers"][0]["unlock_min_round"],
+            10)                                       # was era 14, now tier-0's 10
+        self.assertEqual(
+            BUILD["EconomyBuildings"]["Meditators"]["tiers"][0]["unlock_min_round"],
+            10)
+        self.assertEqual(
+            BUILD["StructureBuildings"]["WallBuilder"]["tiers"][0]["unlock_min_round"],
+            10)
+        self.assertEqual(
+            BUILD["StructureBuildings"]["Blocker"]["tiers"][0]["unlock_min_round"],
+            5)                                        # was ungated, now tier-0's 5
+        for group in (BUILD["BoostBuildings"]["Speed"],
+                      BUILD["BoostBuildings"]["Damage"],
+                      BUILD["BoostBuildings"]["HP"]):
+            self.assertEqual(group["tiers"][0]["unlock_min_round"], 10)
+        for group in (BUILD["DefenceBuildings"]["AOEDefence"],
+                      BUILD["DefenceBuildings"]["BasicDefence"],
+                      BUILD["DefenceBuildings"]["StormPriest"],
+                      BUILD["EconomyBuildings"]["Musicians"],
+                      BUILD["EconomyBuildings"]["Painters"]):
+            self.assertEqual(group["tiers"][0]["unlock_min_round"], 0)
 
 
 # ---------------------------------------------------------------------------
@@ -328,21 +363,6 @@ class TestUnlockOptions(unittest.TestCase):
             self.assertTrue(any(o.get("building_type") == "economic"
                                 for o in lv.roll_levelup_options(
                                     st, bal, CORE, NoShuffle)))
-
-    def test_round_gate_withholds_the_card(self):
-        spec = ResearchSpec(
-            gate_kind="min_round",
-            gate_path=("BoostBuildings", "globals", "unlock_min_round"))
-        st = self.locked_state()
-        with self.synthetic(spec):
-            st.round_num = 9
-            self.assertFalse(any(o.get("building_type") == "economic"
-                                 for o in lv.roll_levelup_options(
-                                     st, BUILD, CORE, NoShuffle)))
-            st.round_num = 10   # BoostBuildings.globals.unlock_min_round
-            self.assertTrue(any(o.get("building_type") == "economic"
-                                for o in lv.roll_levelup_options(
-                                    st, BUILD, CORE, NoShuffle)))
 
     def test_group_unlock_frees_every_type_in_the_group(self):
         spec = ResearchSpec(unlock_group=("economic", "defence"))
@@ -452,15 +472,17 @@ class TestUpgradeGate(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestPlacementGate(unittest.TestCase):
-    def test_unresearched_type_cannot_be_placed(self):
+    def test_unlocked_type_is_immediately_placeable(self):
+        """With ``starts_with_tier`` gone, ``tiers_unlocked_for`` is never below
+        1 for an unlocked type -- ``buildable`` collapses to the type-unlock
+        check alone, so there is no more "unlocked but tier 0" placement gate."""
         tm, scene, occ = build_board(["bb", "bb"])
         st = RunState.from_balance(CORE, BUILD)
         st.love = 1000
-        st.tiers_unlocked["defence"] = 0              # tier 1 not researched
-        with self.assertRaises(PlacementError):
-            place_building(tm, tm.get(1, 1), "defence", st.love, BUILD, scene,
-                           occ, state=st)
-        self.assertFalse(buildable(st, "defence"))
+        self.assertTrue(buildable(st, "defence"))
+        b, _ = place_building(tm, tm.get(1, 1), "defence", st.love, BUILD, scene,
+                              occ, state=st)
+        self.assertIsNotNone(b)
 
     def test_locked_type_cannot_be_placed(self):
         tm, scene, occ = build_board(["bb", "bb"])
@@ -482,8 +504,8 @@ class TestPlacementGate(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestDefence10BGates(unittest.TestCase):
     """The two 10B defence lines enter the pool by their shipped RESEARCH rows:
-    Maw Mortar by village level, Sun Scorcher by era round — both hidden until
-    the unlock card is taken."""
+    Maw Mortar by village level, Sun Scorcher by its own tiers[0].unlock_min_round
+    — both hidden until the unlock card is taken."""
 
     def roll(self, st):
         return lv.roll_levelup_options(st, BUILD, CORE, NoShuffle)
@@ -513,16 +535,18 @@ class TestDefence10BGates(unittest.TestCase):
                             for o in lv.roll_levelup_options(
                                 st, bal, CORE, NoShuffle)))
 
-    def test_sun_scorcher_is_era_gated_to_round_14(self):
+    def test_sun_scorcher_is_gated_to_its_own_tier_zero_round(self):
         st = RunState.from_balance(CORE, BUILD)
         # Drop the tier competition so both locked-type unlock cards fit the
         # three-card pool regardless of order.
         st.tiers_unlocked["defence"] = 3
         st.tiers_unlocked["economic"] = 3
-        st.round_num = 13
+        gate_round = BUILD["DefenceBuildings"]["BeamDefence"]["tiers"][0][
+            "unlock_min_round"]
+        st.round_num = gate_round - 1
         self.assertFalse(any(o.get("building_type") == "sun_scorcher"
                              for o in self.roll(st)))
-        st.round_num = 14
+        st.round_num = gate_round
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "sun_scorcher")
         self.assertEqual(card["kind"], "unlock_building")
@@ -543,6 +567,51 @@ class TestDefence10BGates(unittest.TestCase):
         b, _ = place_building(tm, tm.get(1, 1), "aoe_defence", st.love, BUILD,
                               scene, occ, state=st)
         self.assertEqual(b.building_type, "aoe_defence")
+
+
+# ---------------------------------------------------------------------------
+class TestNoDoubleUnlockCard(unittest.TestCase):
+    """Regression: Meditator/WallBuilder used to require a free unlock card AND
+    a second, identically-titled "research tier 1" card (the deleted
+    ``ResearchSpec(starts_with_tier=0)``) before either type was placeable —
+    root-caused by ``starts_with_tier=0`` seeding ``tiers_unlocked=0``. Now
+    every type seeds tier 1, so ONE unlock card is enough."""
+
+    def _isolate(self, st, btype):
+        """Unlock + max every OTHER type so ``btype``'s unlock card is the only
+        real candidate left in the pool (avoids a NoShuffle table-order fight
+        with the other locked types also eligible at round 10)."""
+        for bt in lv.RESEARCH:
+            if bt == btype:
+                continue
+            st.unlocked_buildings[bt] = True
+            st.tiers_unlocked[bt] = 3
+
+    def _check(self, btype, tier1_name, tier2_name, tier2_round):
+        st = RunState.from_balance(CORE, BUILD)
+        self._isolate(st, btype)
+        st.round_num = 10                      # every shipped tier-0 round is 10
+        card = next(o for o in lv.roll_levelup_options(st, BUILD, CORE, NoShuffle)
+                    if o.get("building_type") == btype)
+        self.assertEqual(card["kind"], "unlock_building")
+        lv.apply_levelup_option(st, card, CORE)
+        self.assertTrue(buildable(st, btype))
+        # No second card offers the same tier-1 name — the bug this guards.
+        next_titles = {o["title"] for o in lv.roll_levelup_options(
+            st, BUILD, CORE, NoShuffle)}
+        self.assertNotIn(tier1_name, next_titles)
+        # The real next card is tier 2, round-gated as shipped.
+        st.round_num = tier2_round
+        titles = {o["title"] for o in lv.roll_levelup_options(
+            st, BUILD, CORE, NoShuffle) if o.get("building_type") == btype}
+        self.assertEqual(titles, {tier2_name})
+
+    def test_meditator_unlocks_in_one_card(self):
+        self._check("meditator", "Meditator", "Shaman", 20)
+
+    def test_wall_builder_unlocks_in_one_card(self):
+        self._check(
+            "wall_builder", "Bush Wall Builder", "Wooden Wall Builder", 20)
 
 
 # ---------------------------------------------------------------------------

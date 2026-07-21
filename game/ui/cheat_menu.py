@@ -38,9 +38,9 @@ from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_PANEL_STONE, C_UI_BORDER, C_UI_TEXT, C_UI_TEXT_DIM, Button,
-    anim_ms, contains, submit_centered, submit_panel, submit_text,
+    Button, anim_ms, contains, submit_centered, submit_panel, submit_text
 )
+from . import widgets
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
 _PANEL_W, _PANEL_H = 220, 258
@@ -89,11 +89,11 @@ class CheatMenu:
         # target needs a stored, readable, override-respecting rect). --
         self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="lg",
-                                      text_color=C_GOLD)
+                                      text_color=widgets.C_GOLD)
         self._round_field = SimpleNamespace(rect=self.field_rect,
                                             font_key="sm", text_color=None)
         self._jump_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
-                                           text_color=C_UI_TEXT_DIM)
+                                           text_color=widgets.C_UI_TEXT_DIM)
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -215,7 +215,7 @@ class CheatMenu:
         renderer.submit_hud(HudRect((0, 0, view_w, view_h), _BG))
         if is_visible(self._panel):
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
-                        anim_ms=t)
+                        tint=getattr(self._panel, "tint", None), anim_ms=t)
         px, py, pw, _ph = self.panel_rect
         submit_centered(renderer, _TITLE, self._title.rect[0], self._title.rect[1],
                         self._title.font_key, self._title.text_color)
@@ -225,20 +225,20 @@ class CheatMenu:
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
-            HudRect((px + 10, self._divider_y, pw - 20, 1), C_UI_BORDER))
+            HudRect((px + 10, self._divider_y, pw - 20, 1), widgets.C_UI_BORDER))
         submit_text(renderer, "Jump to round:", self._jump_label.rect[:2],
                    self._jump_label.font_key, self._jump_label.text_color)
-        renderer.submit_hud(HudRect(self.field_rect, C_PANEL_STONE))
+        renderer.submit_hud(HudRect(self.field_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
-            self.field_rect, C_GOLD if self.field_focused else C_UI_BORDER,
+            self.field_rect, widgets.C_GOLD if self.field_focused else widgets.C_UI_BORDER,
             width=1))
         fx, fy = self.field_rect[0], self.field_rect[1]
         if self.round_text or self.field_focused:
             shown = self.round_text + ("_" if self.field_focused else "")
-            tcol = C_UI_TEXT
+            tcol = widgets.C_UI_TEXT
         else:
             shown = "round"
-            tcol = C_UI_TEXT_DIM
+            tcol = widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (fx + 6, fy + 4), self._round_field.font_key,
                    tcol)
         if is_visible(self.go_btn):

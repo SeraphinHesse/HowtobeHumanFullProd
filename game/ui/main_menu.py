@@ -21,7 +21,8 @@ from types import SimpleNamespace
 from engine.render import HudRect, HudSprite
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
-from .widgets import C_GOLD, C_UI_TEXT, Button, anim_ms, submit_centered
+from .widgets import Button, anim_ms, submit_centered
+from . import widgets
 
 _BG = (18, 30, 20)
 _BG_SLOT = "main_menu_bg"
@@ -57,10 +58,10 @@ class MainMenu:
         # game-state, so — unlike hud.py's dynamic readouts — "label" is a
         # legitimate override field here too.
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                      text_color=C_UI_TEXT, label=_TITLE,
+                                      text_color=widgets.C_UI_TEXT, label=_TITLE,
                                       visible=True)
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                         text_color=C_GOLD, label=_SUBTITLE,
+                                         text_color=widgets.C_GOLD, label=_SUBTITLE,
                                          visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen

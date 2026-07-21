@@ -67,3 +67,17 @@ def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
     if label_item is not None:
         items.append(label_item)
     return items
+
+
+def widget_display_name(widget_id, spec):
+    """The cosmetic human name for one widget (UH-4, D4): `spec`'s
+    `display_name` when present, else the code id itself. `spec` is the
+    widget's `screen_defaults.json` entry (a plain dict, possibly `None`/`{}`
+    for an id the defaults don't know about — the id is always a safe
+    fallback). ONE resolution rule so the widget list and the viewport
+    caption can never disagree."""
+    if spec:
+        name = spec.get("display_name")
+        if name:
+            return name
+    return widget_id

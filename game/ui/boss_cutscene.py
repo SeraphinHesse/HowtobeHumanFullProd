@@ -28,9 +28,9 @@ from game.core.boss_bonuses import choice_desc
 
 from .skinning import ScreenSkinning, is_visible
 from .widgets import (
-    C_GOLD, C_UI_BORDER, C_UI_BTN_HOVER, C_UI_PANEL, C_UI_TEXT, C_UI_TEXT_DIM,
-    anim_ms, contains, submit_centered, submit_panel,
+    anim_ms, contains, submit_centered, submit_panel
 )
+from . import widgets
 
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
@@ -60,7 +60,7 @@ class BossCutscene:
         # rect, not just font/colour).
         self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                         text_color=C_UI_TEXT_DIM)
+                                         text_color=widgets.C_UI_TEXT_DIM)
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
         self.box_b = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
@@ -159,20 +159,21 @@ class BossCutscene:
             # submit_panel — the same conditional Button/submit_panel already
             # use for skinned-vs-flat (fill/border become irrelevant, exactly
             # like submit_panel's own contract).
-            submit_panel(renderer, rect, skin=box.skin, anim_ms=anim_ms_)
+            submit_panel(renderer, rect, skin=box.skin,
+                        tint=getattr(box, "tint", None), anim_ms=anim_ms_)
         else:
             renderer.submit_hud(HudRect(
-                rect, C_UI_BTN_HOVER if hovered else C_UI_PANEL))
+                rect, widgets.C_UI_BTN_HOVER if hovered else widgets.C_UI_PANEL))
             renderer.submit_hud(HudRect(
-                rect, C_GOLD if hovered else C_UI_BORDER, width=1))
+                rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2
         cursor = y + 12
         label_color = (box.text_color if box.text_color is not None
-                       else (C_GOLD if hovered else C_UI_TEXT))
+                       else (widgets.C_GOLD if hovered else widgets.C_UI_TEXT))
         submit_centered(renderer, label, cx, cursor, box.font_key, label_color)
         # layout_h: this cursor position lands directly in HudText.pos
         # entries the golden parity stream captures.
         cursor += layout_h(box.font_key) + 10
         for line in desc.split("\n"):
-            submit_centered(renderer, line, cx, cursor, "sm", C_UI_TEXT_DIM)
+            submit_centered(renderer, line, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 2

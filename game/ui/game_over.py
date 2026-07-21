@@ -15,7 +15,8 @@ from types import SimpleNamespace
 from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
-from .widgets import C_RED, C_UI_TEXT, Button, anim_ms, submit_centered
+from .widgets import Button, anim_ms, submit_centered
+from . import widgets
 
 _BG = (10, 5, 15)
 _TITLE = "THE COLONY WAS DESTROYED"
@@ -30,7 +31,7 @@ class GameOverScreen:
         self.button = Button((0, 0, 240, 46), "RETURN TO MENU", font_key="lg")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                      text_color=C_RED, label=_TITLE,
+                                      text_color=widgets.C_RED, label=_TITLE,
                                       visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -76,7 +77,7 @@ class GameOverScreen:
         ]
         y = view_h // 2 - 30
         for line in lines:
-            submit_centered(renderer, line, cx, y, "md", C_UI_TEXT)
+            submit_centered(renderer, line, cx, y, "md", widgets.C_UI_TEXT)
             y += 28
         if is_visible(self.button):
             self.button.submit(renderer, anim_ms=t, **button_kwargs(self.button))
