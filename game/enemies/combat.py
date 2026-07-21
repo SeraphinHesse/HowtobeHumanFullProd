@@ -66,6 +66,12 @@ class ProjectileHoming(Component):
         self._target = None
         self._shooter = None
         self._scene = None
+        # ESV-6: transient refs for the projectile_hit trigger (E-11 — not
+        # serialized, not declared fields). Set by _fire, which already has
+        # assets/cs in scope, exactly as _fire_splash stashes arc._on_impact.
+        self._assets = None
+        self._cs = None
+        self._on_hit = None
 
     def launch(self, target, shooter, scene, origin=None):
         """``origin`` (ESV-1, D4): the point flight time is measured FROM —
@@ -112,6 +118,18 @@ class ProjectileHoming(Component):
                 rs = shooter.get_component(RoundStats)
                 if rs is not None:
                     rs.dmg_dealt_this_round += self.dmg
+        # ESV-6: the projectile_hit trigger, at the TARGET's impact anchor.
+        # Purely visual (D4) — reads nothing the damage block above wrote.
+        # Fires whether or not the target is STILL alive this frame (a hit
+        # VFX on a target that died in the same frame is correct); only a
+        # missing target (no point to anchor against) guards it.
+        on_hit = getattr(self, "_on_hit", None)
+        if target is not None and on_hit is not None:
+            assets = getattr(self, "_assets", None)
+            cs = getattr(self, "_cs", None)
+            tx, ty = target.transform.world_pos
+            dwx, dwy = world_offset(assets, cs, target, "impact")
+            on_hit(tx + dwx, ty + dwy)
         if scene is not None:
             scene.despawn(self._proj)
 
@@ -375,7 +393,8 @@ def _predict_lead(target, travel_time):
 
 def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
-                   assets=None, cs=None, on_splash_impact=None):
+                   assets=None, cs=None, on_splash_impact=None,
+                   on_defender_fire=None, on_projectile_hit=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -400,7 +419,13 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     has no other opinion about the value, it only forwards a caller-supplied
     ``(wx, wy) -> None`` callback to ``ProjectileArc._impact`` so the host can
     drain a cosmetic ledger without ``game/enemies`` importing ``game/core``):
-    ``None`` (every pre-ESV-5 caller) is a no-op — the Crater still spawns."""
+    ``None`` (every pre-ESV-5 caller) is a no-op — the Crater still spawns.
+
+    ``on_defender_fire``/``on_projectile_hit`` (ESV-6, optional, the same
+    pattern): forwarded to ``_fire``/``_fire_splash`` (both) and
+    ``ProjectileHoming`` (the homing path only — the mortar keeps its own
+    ``splash_impact`` event, §1.2 of the ESV-6 brief) so the host can drain
+    two more cosmetic ledgers. ``None`` (every pre-ESV-6 caller) is a no-op."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -415,7 +440,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     targets = [(e, _fp_offset(e)) for e in enemies]
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                         crater_life, dmg_bonus, assets, cs, on_splash_impact)
+                         crater_life, dmg_bonus, assets, cs, on_splash_impact,
+                         on_defender_fire, on_projectile_hit)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -431,14 +457,18 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
-                     on_splash_impact=None):
+                     on_splash_impact=None, on_defender_fire=None,
+                     on_projectile_hit=None):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
     resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
     path (``_update_beam``) needs neither — it is instant hitscan with no
     travel and no spawn point (§1.5). ``crater_life`` (ESV-3b) and
     ``on_splash_impact`` (ESV-5) pass straight through to ``_fire_splash`` —
-    only the splash path ever spawns a ``Crater``/fires an impact."""
+    only the splash path ever spawns a ``Crater``/fires an impact.
+    ``on_defender_fire`` (ESV-6) passes to BOTH firing paths; ``on_projectile_
+    hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
+    mortar's splash already has its own impact event."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -476,9 +506,10 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
-                        assets, cs, on_splash_impact)
+                        assets, cs, on_splash_impact, on_defender_fire)
         else:
-            _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs)
+            _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
+                 on_defender_fire, on_projectile_hit)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
@@ -546,22 +577,28 @@ def _set_defender_anim(defender, name):
 
 
 def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
-         cs=None):
+         cs=None, on_defender_fire=None, on_projectile_hit=None):
     bx, by = defender.transform.world_pos
     # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
     # time is computed by `launch(origin=...)` below from the UNMODIFIED
     # `(bx, by)` — the two are deliberately different arguments so damage
     # timing can never be a function of an authored art coordinate.
     dwx, dwy = world_offset(assets, cs, defender, "muzzle")
-    proj = Projectile(bx + dwx, by + dwy, defender.damage() + dmg_bonus,
-                      proj_speed)
-    proj.get_component(ProjectileHoming).launch(
-        target, defender, scene, origin=(bx, by))
+    mx, my = bx + dwx, by + dwy
+    # ESV-6: the defender_fire trigger ledger push, at the SAME
+    # already-computed muzzle point — never recomputed (D2).
+    if on_defender_fire is not None:
+        on_defender_fire(mx, my)
+    proj = Projectile(mx, my, defender.damage() + dmg_bonus, proj_speed)
+    hom = proj.get_component(ProjectileHoming)
+    hom._assets, hom._cs, hom._on_hit = assets, cs, on_projectile_hit
+    hom.launch(target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
 
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
-                 assets=None, cs=None, on_splash_impact=None):
+                 assets=None, cs=None, on_splash_impact=None,
+                 on_defender_fire=None):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -578,10 +615,15 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
 
     ``on_splash_impact`` (ESV-5, optional): stashed as a transient attribute
     on the shell's ``ProjectileArc`` and fired at impact, alongside (never
-    instead of) the Crater spawn."""
+    instead of) the Crater spawn.
+
+    ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
+    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed."""
     bx, by = defender.transform.world_pos
     dwx, dwy = world_offset(assets, cs, defender, "muzzle")
     bx, by = bx + dwx, by + dwy
+    if on_defender_fire is not None:
+        on_defender_fire(bx, by)
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
     shell = ProjectileAOE(bx, by, defender.damage() + dmg_bonus,
                           defender.splash_radius(), crater_life)

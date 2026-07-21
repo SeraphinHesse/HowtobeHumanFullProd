@@ -432,6 +432,24 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   impossible to violate rather than merely conventional. `resolve_combat(
   dmg_bonus=0)` threads the boss-bonus story damage in as a plain int. Enemy
   construction never leaves this package.
+- **ESV-5** — `resolve_combat(on_splash_impact=…)`: `ProjectileArc._impact`
+  (the mortar shell's landing) fires the callback with `(gx, gy)` ALONGSIDE
+  (never instead of) its unconditional cosmetic `Crater` spawn, so
+  `game/ui`'s `splash_impact` trigger row can drain a ledger without this
+  package importing `game/core`.
+- **ESV-6** — two MORE optional callbacks, same pattern, both purely
+  cosmetic (D4 — neither reads or writes anything the damage block above
+  touched): `resolve_combat(on_defender_fire=…)` fires from BOTH `_fire`
+  and `_fire_splash` with the ALREADY muzzle-anchored spawn point those
+  functions compute for the projectile itself (never recomputed);
+  `resolve_combat(on_projectile_hit=…)` fires from `ProjectileHoming._impact`
+  ONLY (the homing path — the mortar keeps its own `on_splash_impact` event
+  above) with the TARGET's `impact`-anchored point, whether or not the
+  target is still alive that frame. Both default `None` (every pre-ESV-6
+  caller, including every test in this package that doesn't pass them, is
+  byte-identical) — `ProjectileHoming` also grows two transient underscore
+  refs, `_assets`/`_cs` (E-11 — set by `_fire`, exactly like `_fire_splash`
+  already stashes `arc._on_impact`), so `_impact` can resolve the anchor.
 
 ## Perf note that lives here
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)

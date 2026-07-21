@@ -297,6 +297,10 @@
       "procedural": "splatter",
       "sprite_slot": ""
     },
+    "projectile_hit": {
+      "procedural": "",
+      "sprite_slot": ""
+    },
     "splash_impact": {
       "procedural": "crater",
       "sprite_slot": ""

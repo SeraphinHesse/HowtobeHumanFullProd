@@ -349,6 +349,62 @@ imports:
     procedural fallback (`add_splatters([(wx, wy)])` per point) extends the
     same list in the same order a single batched call would have, so the
     landing condition is unaffected.
+  - **ESV-6 (the plan's FINAL phase)** re-points a SUBSET of the ESV-5
+    dispatch sites at manifest-authored anchors — VISUAL ONLY (D4), never a
+    damage/range/splash expression. **The anchor map**: `defender_fire` and
+    both `enemy_attack_*` events move to the firing entity's `muzzle`;
+    `building_destroyed` and the new `projectile_hit` (below) move to the
+    destroyed building's / the target's `impact`. **Two exclusions,
+    deliberate**: `enemy_death` (blood splatters) and `splash_impact` (mortar
+    crater) stay UNANCHORED — both are GROUND DECALS with an `impact` anchor
+    authored at body height (negative `y`, i.e. upward), so applying it would
+    lift them off the ground; `splash_impact` additionally has no owning
+    sprite to read an anchor from at all (`ProjectileArc._impact` carries a
+    bare ground coordinate). `building_placed`/`_level_up`/`_tier_up` ALSO
+    stay unanchored — they fire from `(col+0.5, row+0.5)` before any building
+    object is reachable, and `spawn_building_vfx` receives no object, only
+    coordinates. A new private helper, `_anchored(obj, name, wx, wy)`, wraps
+    `game.anchors.world_offset` and is the ONE site every anchored call goes
+    through — it returns the input UNCHANGED when the store/cs/animator/
+    anchor is absent (ESV-1), so a fresh checkout with no `anchors` authored
+    stays byte-identical. `FloaterManager` gains a THIRD host-wired handle,
+    `self.cs` (the `self.assets`/`self.scene` precedent — wired in
+    `game/main.py build_gameplay` beside them; `None` degrades to the
+    unanchored point, never raises).
+  - **The plan's promised 10th event, `projectile_hit`** (VISUAL ONLY,
+    at the TARGET's `impact` anchor): `game/enemies/combat.py`'s
+    `ProjectileHoming._impact` pushes the anchored point onto a new
+    `RunState.projectile_hit_events` ledger through `resolve_combat`'s
+    optional `on_projectile_hit` callback (the `on_splash_impact` layering
+    pattern — homing shots only; the mortar keeps its own `splash_impact`
+    event); `spawn_projectile_hit_events` drains it into `_play`. Fires
+    whether or not the target is still alive that frame (a hit VFX on a
+    target that died the same frame is correct) — only a missing target
+    guards it. This is what finally consumes the long-orphaned
+    `vfx_hit`/`vfx_explosion` slots the plan's opening complaint named.
+    `defender_fire` gets its first real call site the same way:
+    `_fire`/`_fire_splash` already compute the muzzle-anchored spawn point
+    for the projectile itself, and `resolve_combat`'s new optional
+    `on_defender_fire` callback fires with that SAME point (never
+    recomputed) into a new `RunState.defender_fire_events` ledger, drained by
+    `spawn_defender_fire_events`. **Both new rows ship INERT** (`{sprite_
+    slot: "", procedural: ""}`), exactly like `defender_fire` shipped in
+    ESV-5 — zero visible change on landing.
+  - **The floater port (closes the plan's §6 item 1 dead-data gap)**: the
+    seven floater colour/lifetime module constants
+    (`_UPKEEP_BLUE`/`_XP_PURPLE`/`_XP_LIFE`/`_PAINTER_FINISHED`/`_PAINTER_
+    LOST`/`_PAINTER_LIFE`/`_BOOST_WHITE`) are DELETED. `data/balancing/
+    vfx.json`'s `procedural.floaters` block existed since ESV-3a but was
+    NEVER read (`_params_from_balance` never touched it) — a designer
+    editing it in the `vfx` balancing form saw no effect in game. The four
+    floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
+    `spawn_painter_events`/`spawn_boost_events`) now read
+    `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
+    `_params_from_balance` like every other family); the JSON already
+    shipped values identical to the constants, so this is a visual no-op on
+    landing and a live designer lever from here on. **`game/ui/hud.py`'s OWN
+    `_XP_PURPLE`** (a different colour, the XP-bar pulse) is HUD chrome, not
+    a floater, and was deliberately NOT touched or unified with this.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 

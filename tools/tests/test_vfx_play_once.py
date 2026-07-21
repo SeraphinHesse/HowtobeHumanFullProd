@@ -46,7 +46,9 @@ _LIVE_EVENTS = (
     "building_destroyed", "enemy_attack_melee", "enemy_attack_ranged",
     "enemy_death", "splash_impact",
 )
-_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire",)
+# ESV-6 adds the 10th event, projectile_hit (also shipped inert, like
+# defender_fire) — see docs/briefs/phase-esv-6-converge.md §1.3.
+_ALL_EVENTS = _LIVE_EVENTS + ("defender_fire", "projectile_hit")
 
 
 class _FakeAssets:

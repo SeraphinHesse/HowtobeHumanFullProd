@@ -74,16 +74,46 @@ bare-constructed ``FloaterManager`` in the test suite keeps working unchanged.
 here drains that ledger into ``_play`` next to ``spawn_death_events``. The
 Crater GameObject's own continuous fade mark keeps spawning unconditionally
 either way — this only adds an optional ADDITIONAL one-shot at the same point.
+
+**ESV-6** is the plan's final phase — it re-points a subset of the ESV-5
+dispatch sites at manifest-authored anchors (VISUAL ONLY, D4) and closes the
+plan's §6 item 1 floater dead-data gap. A new host-wired handle,
+``self.cs``, joins ``self.assets``/``self.scene`` (same ``None``-degrades-
+never-raises contract); a new private helper, ``_anchored(obj, name, wx,
+wy)``, shifts a point by ``obj``'s manifest ``name`` anchor via
+``game.anchors.world_offset`` and is a numeric no-op when the store/cs/
+animator/anchor is absent (ESV-1). ``watch_enemies`` anchors both attack
+events on the firing enemy's ``muzzle``; ``watch_buildings`` anchors
+``building_destroyed`` on the destroyed building's ``impact``.
+``enemy_death``/``splash_impact`` and the three building-celebration events
+are DELIBERATELY left unanchored (ground decals / tile celebrations with no
+single owning sprite — see the ESV-6 brief §1.2). A 10th trigger event,
+``projectile_hit``, is added: ``game/enemies/combat.py``'s
+``ProjectileHoming._impact`` pushes the TARGET's ``impact``-anchored point
+onto ``RunState.projectile_hit_events`` through ``resolve_combat``'s new
+optional ``on_projectile_hit`` callback, drained here by
+``spawn_projectile_hit_events``; the 9th event, ``defender_fire``, gets its
+first real call site the same way — ``_fire``/``_fire_splash`` already
+compute the muzzle-anchored spawn point for the projectile itself, and
+``resolve_combat``'s new optional ``on_defender_fire`` callback fires with
+that SAME point (never recomputed), drained by
+``spawn_defender_fire_events``. Both new rows ship INERT, like every prior
+convergence step. Finally, the seven floater colour/lifetime module
+constants (income/upkeep/XP/painter/boost) are DELETED — the four floater
+spawn sites now read ``self._vfx_params.floaters`` (``engine.vfx.
+FloaterParams``, built by ``_params_from_balance`` from
+``procedural.floaters`` — live since ESV-3a but never read until now), so a
+designer's edit in the ``vfx`` balancing form finally reaches the game.
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
 from engine.render import HudLines, HudRect, block_center_offset, fit_factor
-from game.anchors import screen_offset
+from game.anchors import screen_offset, world_offset
 from engine.render.fonts import layout_h
 from engine.vfx import (
-    AnnounceParams, BeamParams, BurstParams, CraterParams, GoldParams,
-    LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
+    GoldParams, LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
     SplatterParams, VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
@@ -94,15 +124,12 @@ from .widgets import (
     submit_centered, submit_text,
 )
 
-_UPKEEP_BLUE = (120, 170, 230)
-_XP_PURPLE = (202, 140, 245)
-_XP_LIFE = 0.9  # prototype XPFloater lifetime (seconds)
-# Painter message floaters (Phase 10C): gold "painting finished" on a payout,
-# red "painting lost!" when a gone-for-good painter dies. Prototype life 1.5s.
-_PAINTER_FINISHED = (255, 255, 100)
-_PAINTER_LOST = (255, 100, 100)
-_PAINTER_LIFE = 1.5
-_BOOST_WHITE = (255, 255, 255)   # prototype boost floater colour
+# Income/upkeep/XP/painter/boost floater colours + lifetimes are
+# data/balancing/vfx.json procedural.floaters now (ESV-6, closing the plan's
+# §6 item 1 dead-data gap — this file used to carry seven module constants
+# here that duplicated that JSON block without ever reading it) — see
+# _params_from_balance below; the four spawn sites read self._vfx_params.
+# floaters.
 
 # Sun Scorcher beam colour ramp, mortar crater scorch colour and the boss
 # announce colour/alpha are now in data/balancing/vfx.json (ESV-3b) — see
@@ -239,10 +266,21 @@ def _params_from_balance(vfx):
         color=_color(an["color"]), max_alpha=an["max_alpha"])
     # -- /ESV-3b -----------------------------------------------------------
 
+    # -- ESV-6: floaters (closes the plan's §6 item 1 dead-data gap) -------
+    fl = proc["floaters"]
+    floaters = FloaterParams(
+        upkeep_color=_color(fl["upkeep_color"]),
+        xp_color=_color(fl["xp_color"]), xp_life=fl["xp_life"],
+        painter_finished_color=_color(fl["painter_finished_color"]),
+        painter_lost_color=_color(fl["painter_lost_color"]),
+        painter_life=fl["painter_life"],
+        boost_color=_color(fl["boost_color"]))
+    # -- /ESV-6 --------------------------------------------------------------
+
     return spark_presets, VfxParams(
         death_burst=death_burst, muzzle=muzzle, slash=slash, gold=gold,
         splatter=splatter, beam=beam, crater=crater, lightning=lightning,
-        announce=announce)
+        announce=announce, floaters=floaters)
 
 
 def _triggers_from_balance(vfx):
@@ -332,20 +370,23 @@ class FloaterManager:
         self._vfx_params = vfx_params
         self._rng = random
         # -- /10J --
-        # -- ESV-5: sprite one-shot trigger table + its two host-wired
-        # handles. Either being None degrades `_play` to the procedural
-        # branch, never raises — every bare-constructed FloaterManager in the
-        # existing test suite keeps working unchanged.
+        # -- ESV-5/6: sprite one-shot trigger table + its three host-wired
+        # handles. Any of the three being None degrades `_play`/`_anchored`
+        # to the procedural / unanchored branch, never raises — every
+        # bare-constructed FloaterManager in the existing test suite keeps
+        # working unchanged.
         self._triggers = _triggers_from_balance(vfx_balance)
         self.assets = None   # AssetStore, wired by the host
         self.scene = None    # Scene, wired by the host
-        # -- /ESV-5 --
+        self.cs = None       # CoordinateSystem, wired by the host (ESV-6)
+        # -- /ESV-5/6 --
 
     def spawn_income_events(self, state):
         if not self._enabled:
             return
         for col, row, amount, kind in state.income_events:
-            color = C_GOLD if kind == "income" else _UPKEEP_BLUE
+            color = (C_GOLD if kind == "income"
+                     else self._vfx_params.floaters.upkeep_color)
             text = f"+{amount}{HEART}" if amount >= 0 else str(amount)
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
@@ -355,19 +396,22 @@ class FloaterManager:
         into short purple floaters. Called every frame — XP is granted mid-combat,
         not once at a phase edge like income. The prototype's ``xp_icon`` sprite
         has no slot in this repo, so the floater is text-only (10J)."""
+        fl = self._vfx_params.floaters
         for wx, wy, amount in state.xp_events:
             self._floaters.append(
-                _Floater(wx, wy, f"+{amount}", _XP_PURPLE, _XP_LIFE))
+                _Floater(wx, wy, f"+{amount}", fl.xp_color, fl.xp_life))
         state.xp_events.clear()
 
     def spawn_painter_events(self, state):
         """Drain ``state.painter_events`` (filled by the payday Painter slot +
         revive) into 1.5s message floaters — gold "painting finished", red
         "painting lost!". Called on the INCOME edge beside the income floaters."""
+        fl = self._vfx_params.floaters
         for col, row, text, kind in state.painter_events:
-            color = _PAINTER_FINISHED if kind == "finished" else _PAINTER_LOST
+            color = (fl.painter_finished_color if kind == "finished"
+                     else fl.painter_lost_color)
             self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, color, _PAINTER_LIFE))
+                _Floater(col + 0.5, row + 0.5, text, color, fl.painter_life))
             if self.log is not None and kind == "lost":  # 10J game log
                 self.log.post(text)
         state.painter_events.clear()
@@ -378,7 +422,8 @@ class FloaterManager:
         Called on the INCOME edge beside the income floaters."""
         for col, row, text in state.boost_events:
             self._floaters.append(
-                _Floater(col + 0.5, row + 0.5, text, _BOOST_WHITE, self._life))
+                _Floater(col + 0.5, row + 0.5, text,
+                         self._vfx_params.floaters.boost_color, self._life))
         state.boost_events.clear()
 
     # -- 10J FX: sparks, gold highlights, death bursts, muzzle/slash, blood --
@@ -423,6 +468,19 @@ class FloaterManager:
 
     # -- /ESV-5 ---------------------------------------------------------------
 
+    # -- ESV-6: the anchor helper --------------------------------------------
+
+    def _anchored(self, obj, name, wx, wy):
+        """``(wx, wy)`` shifted by ``obj``'s manifest ``name`` anchor.
+        Returns the input UNCHANGED when the store/cs/animator/anchor is
+        absent — so a manifest with no ``anchors`` key leaves every caller
+        numerically identical (ESV-1). VISUAL ONLY (D4) — never call this on
+        a value that feeds a damage/range/splash expression."""
+        dwx, dwy = world_offset(self.assets, self.cs, obj, name)
+        return (wx + dwx, wy + dwy)
+
+    # -- /ESV-6 ---------------------------------------------------------------
+
     def spawn_building_vfx(self, col, row, kind):
         """Placement/upgrade celebration (prototype ``spawn_building_vfx``,
         game.py:619-626): always a spark burst; ``place``/``tier`` add the
@@ -443,7 +501,9 @@ class FloaterManager:
         """Building-death watcher (called every frame): a non-base building
         whose ``alive`` flipped to False this frame bursts 14 purple shards
         (prototype ``BuildingDeathEffect``) and logs the kill when it carries
-        a custom name (prototype game.py:710-717)."""
+        a custom name (prototype game.py:710-717). ESV-6: the burst is
+        anchored on the destroyed building's ``impact`` handle (absent -> the
+        unanchored tile centre, unchanged)."""
         seen = set()
         for b in scene.by_tag("building"):
             if getattr(b, "building_type", None) == "base":
@@ -456,6 +516,7 @@ class FloaterManager:
             if alive or not was_alive:
                 continue
             wx, wy = b.transform.wx + 0.5, b.transform.wy + 0.5
+            wx, wy = self._anchored(b, "impact", wx, wy)
             self._play("building_destroyed", wx, wy)
             np = b.get_component(Nameplate)
             if log is not None and np is not None and np.custom_name:
@@ -470,7 +531,10 @@ class FloaterManager:
         ``EnemyCombat.cooldown`` that RESET (grew) while the enemy is blocked
         means an attack just landed — raider/boss show a melee slash, the
         rest a muzzle spray, strong for the siege cannon (prototype
-        enemy.py:222 / siege_cannon.py:109 / raider.py:48 / boss.py:104)."""
+        enemy.py:222 / siege_cannon.py:109 / raider.py:48 / boss.py:104).
+        ESV-6: both events are anchored on the FIRING enemy's ``muzzle``
+        handle — computed ONCE, before the melee/ranged branch, since both
+        share it (absent -> the unanchored world point, unchanged)."""
         from game.enemies.components import EnemyCombat, PathAgent
 
         seen = set()
@@ -486,7 +550,7 @@ class FloaterManager:
             if (last is None or ec.cooldown <= last
                     or pa is None or not pa.blocked):
                 continue
-            wx, wy = e.transform.world_pos
+            wx, wy = self._anchored(e, "muzzle", *e.transform.world_pos)
             etype = getattr(e, "ETYPE", "standard")
             if etype in ("raider", "boss"):
                 self._play("enemy_attack_melee", wx, wy,
@@ -532,6 +596,36 @@ class FloaterManager:
         events, state.splash_impact_events = state.splash_impact_events, []
         for wx, wy in events:
             self._play("splash_impact", wx, wy)
+
+    def spawn_defender_fire_events(self, state):
+        """Drain ``state.defender_fire_events`` (filled by ``game/enemies/
+        combat.py``'s ``_fire``/``_fire_splash`` through ``resolve_combat``'s
+        optional ``on_defender_fire`` callback, at the point THOSE FUNCTIONS
+        already compute for the projectile's muzzle-anchored spawn — no
+        anchor work needed here) into the ``defender_fire`` trigger. The
+        shipped row stays INERT (``sprite_slot``/``procedural`` both ``""``)
+        — the ledger fills every shot, ``_play`` no-ops (E-37); a designer
+        binding art is ESV-6's convergence demo. ESV-6."""
+        if not state.defender_fire_events:
+            return
+        events, state.defender_fire_events = state.defender_fire_events, []
+        for wx, wy in events:
+            self._play("defender_fire", wx, wy)
+
+    def spawn_projectile_hit_events(self, state):
+        """Drain ``state.projectile_hit_events`` (filled by ``game/enemies/
+        combat.py``'s ``ProjectileHoming._impact`` through ``resolve_combat``'s
+        optional ``on_projectile_hit`` callback, at the TARGET's ``impact``
+        anchor) into the ``projectile_hit`` trigger — the plan's promised 10th
+        event, and the first consumer of the ``impact`` anchor + the
+        ``vfx_hit``/``vfx_explosion`` slots (only the homing path; the
+        mortar keeps its own ``splash_impact`` event, §1.2). Shipped INERT,
+        like ``defender_fire``. ESV-6."""
+        if not state.projectile_hit_events:
+            return
+        events, state.projectile_hit_events = state.projectile_hit_events, []
+        for wx, wy in events:
+            self._play("projectile_hit", wx, wy)
 
     def clear_splatters(self):
         """Previous round's blood clears when the next wave starts (prototype

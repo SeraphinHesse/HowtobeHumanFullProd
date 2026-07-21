@@ -1,5 +1,6 @@
-"""Frozen param dataclasses for the procedural VFX emitters (ESV-3a) and the
-scene-object / continuous VFX (ESV-3b: beam / crater / lightning / announce).
+"""Frozen param dataclasses for the procedural VFX emitters (ESV-3a), the
+scene-object / continuous VFX (ESV-3b: beam / crater / lightning / announce)
+and the floater colours/lifetimes (ESV-6: ``FloaterParams``).
 
 No defaults on any field: a default here would be a second home for a value
 that belongs in ``data/balancing/vfx.json`` (G-7). ``game/ui/effects.py`` is
@@ -7,18 +8,16 @@ the ONLY place that reads the balancing dict and builds these — this module
 never learns a JSON key name (D5).
 
 One dataclass per ``procedural.*`` table in the vfx balancing schema, except
-``floaters`` (colour/lifetime pairs read straight off the balancing dict at
-their call sites in ``game/ui/effects.py`` — not an engine concern, see that
-module) and ``spark`` presets (game-vocabulary preset keys like
-``"place"``/``"tier"`` are resolved to a ``BurstParams`` on the game side; the
-engine only ever sees the resolved dataclass).
+``spark`` presets (game-vocabulary preset keys like ``"place"``/``"tier"`` are
+resolved to a ``BurstParams`` on the game side; the engine only ever sees the
+resolved dataclass).
 
 ESV-3b's four dataclasses (``BeamParams``/``CraterParams``/``LightningParams``/
-``AnnounceParams``) are NOT consumed by ``VfxSystem`` — those effects own no
-particle/gold/slash/splatter LIST (the scene already owns the state: a
-``Crater``/``LightningFX`` GameObject ages itself). ``game/ui/effects.py``
-reads them straight off the ``VfxParams`` bundle it holds, the same way it
-already reads ``floaters``.
+``AnnounceParams``) and ESV-6's ``FloaterParams`` are NOT consumed by
+``VfxSystem`` — those effects own no particle/gold/slash/splatter LIST (the
+scene already owns the crater/lightning state; floaters are a bare colour+
+lifetime pair with no particle behaviour at all). ``game/ui/effects.py`` reads
+them straight off the ``VfxParams`` bundle it holds.
 """
 from dataclasses import dataclass
 
@@ -194,12 +193,33 @@ class AnnounceParams:
 
 
 @dataclass(frozen=True)
+class FloaterParams:
+    """Income/XP/painter/boost floater colours + lifetimes (ESV-6, closing
+    the plan's §6 item 1 dead-data gap: ``data/balancing/vfx.json``'s
+    ``procedural.floaters`` block existed since ESV-3a but was never read —
+    the live values were a second copy, seven module constants in
+    ``game/ui/effects.py``). Text layout itself stays HUD chrome, owned by
+    that module, not this dataclass — these are colour/lifetime numbers
+    only, no engine-side behaviour (like ESV-3b's four scene-object
+    dataclasses, ``VfxSystem`` never touches this one either)."""
+
+    upkeep_color: tuple
+    xp_color: tuple
+    xp_life: float
+    painter_finished_color: tuple
+    painter_lost_color: tuple
+    painter_life: float
+    boost_color: tuple
+
+
+@dataclass(frozen=True)
 class VfxParams:
     """Everything a ``VfxSystem`` needs beyond spark (spark presets are
     game vocabulary — the caller resolves a preset key to a ``BurstParams``
     and passes it explicitly to ``emit_burst``, so the engine never learns
     the preset names), plus ESV-3b's four scene-object/continuous param
-    blocks, which ``VfxSystem`` never touches (see the module docstring)."""
+    blocks and ESV-6's ``floaters``, none of which ``VfxSystem`` touches
+    (see the module docstring)."""
 
     death_burst: ShardBurstParams
     muzzle: MuzzleParams
@@ -210,3 +230,4 @@ class VfxParams:
     crater: CraterParams
     lightning: LightningParams
     announce: AnnounceParams
+    floaters: FloaterParams

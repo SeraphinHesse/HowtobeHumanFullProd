@@ -795,6 +795,9 @@
         "enemy_death": {
           "$ref": "#/$defs/trigger_row"
         },
+        "projectile_hit": {
+          "$ref": "#/$defs/trigger_row"
+        },
         "splash_impact": {
           "$ref": "#/$defs/trigger_row"
         }
@@ -808,6 +811,7 @@
         "enemy_attack_melee",
         "enemy_attack_ranged",
         "enemy_death",
+        "projectile_hit",
         "splash_impact"
       ],
       "type": "object"

@@ -21,6 +21,7 @@ from engine.vfx import (
     BeamParams,
     BurstParams,
     CraterParams,
+    FloaterParams,
     GoldParams,
     LightningParams,
     MuzzleParams,
@@ -131,6 +132,23 @@ def announce_params(an):
         color=color(an["color"]), max_alpha=an["max_alpha"])
 
 
+def floater_params(fl):
+    """ESV-6: mirrors ``game/ui/effects.py::_params_from_balance``'s new
+    ``floaters`` read. ``floaters`` carries no preview lever of its own
+    (``_EMIT_FAMILIES`` in ``vfx_preview.py`` still degrades it to the
+    graceful-placeholder branch — it is text colours/lifetimes, not a
+    particle emitter) — this is required purely so ``VfxParams`` (a required,
+    no-default field, G-7) can still be constructed for every OTHER family's
+    preview."""
+    return FloaterParams(
+        upkeep_color=color(fl["upkeep_color"]),
+        xp_color=color(fl["xp_color"]), xp_life=fl["xp_life"],
+        painter_finished_color=color(fl["painter_finished_color"]),
+        painter_lost_color=color(fl["painter_lost_color"]),
+        painter_life=fl["painter_life"],
+        boost_color=color(fl["boost_color"]))
+
+
 def params_from_balance(proc):
     """Mirrors ``game/ui/effects.py::_params_from_balance``'s structure, but
     takes the already-unwrapped ``procedural`` dict — the vfx preview panel
@@ -149,4 +167,5 @@ def params_from_balance(proc):
         beam=beam_params(proc["beam"]),
         crater=crater_params(proc["crater"]),
         lightning=lightning_params(proc["lightning"]),
-        announce=announce_params(proc["announce"]))
+        announce=announce_params(proc["announce"]),
+        floaters=floater_params(proc["floaters"]))

@@ -247,6 +247,19 @@ the same reason. Do not resolve the duplication by importing `game.ui.effects`
 or by moving the mapping into `engine/vfx` (that would give the engine
 package JSON vocabulary, which D5 exists to prevent).
 
+**ESV-6 forced a real (not cosmetic) edit here**, despite that phase's brief
+expecting none: `engine.vfx.VfxParams` gained a new REQUIRED field
+(`floaters`, no defaults anywhere in that module, G-7), so every direct
+`VfxParams(...)` construction needed a `floaters=` argument — including this
+file's `params_from_balance`, which `vfx_preview.py:442` calls on every
+family switch. Without the matching `floater_params(fl)` helper here, the
+panel would raise `TypeError` the instant a designer opened the vfx preview
+(confirmed live, not inferred: `TypeError: VfxParams.__init__() missing 1
+required positional argument: 'floaters'`). `floaters` still carries no
+preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
+degrade placeholder for it is unchanged — this is purely what keeps the
+dataclass constructible for every OTHER family's preview.
+
 ## Testing the editor — two rules, both learned the hard way
 
 **1. Every widget you construct in a test must be destroyed.** Subclass
