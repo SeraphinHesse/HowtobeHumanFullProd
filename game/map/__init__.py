@@ -5,6 +5,7 @@ Runtime layer over an ``engine.tilemap.TileMapDoc``: zone/unlock state, the
 pathfinder, and screen→tile picking. Behaviour matches the prototype's
 ``src/map/*``; balancing comes from ``data/balancing/map.json``.
 """
+from .conditions import condition_render_items, draws_tint
 from .pathfinder import (
     find_path,
     find_path_ignoring_walls,
@@ -25,6 +26,8 @@ __all__ = [
     "TileMap",
     "BASE_CONTENT_KEY",
     "load_map_balance",
+    "condition_render_items",
+    "draws_tint",
     "find_path",
     "find_path_ignoring_walls",
     "find_path_to_nearest_building",

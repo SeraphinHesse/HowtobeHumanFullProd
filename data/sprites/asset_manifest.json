@@ -624,14 +624,38 @@
     },
     "boss_era_0": {
       "frame_h": 96,
-      "frame_w": 128,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 6,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -2847,9 +2871,84 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2865,15 +2964,90 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl2.png"
+      "sheet": "imported/pistoleer_t3_lvl1.png"
     },
     "pistoleer_t3_lvl3": {
       "frame_h": 96,
@@ -2883,15 +3057,90 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl3.png"
+      "sheet": "imported/pistoleer_t3_lvl1.png"
     },
     "radiant_beam_t2_lvl1": {
       "frame_h": 96,
@@ -3136,17 +3385,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
-          "hidden": [],
-          "loop_count": 17,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 18,
+          "frames": 15,
           "hidden": [
+            4,
+            5,
             6,
             7,
             8,
@@ -3155,11 +3397,59 @@
             11,
             12,
             13,
-            14,
-            15,
-            16,
-            17
+            14
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3175,15 +3465,96 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl2.png"
+      "sheet": "imported/slinger_t2_lvl1.png"
     },
     "slinger_t2_lvl3": {
       "frame_h": 96,
@@ -3193,15 +3564,96 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl3.png"
+      "sheet": "imported/slinger_t2_lvl1.png"
     },
     "stone_thrower_t1_lvl1": {
       "anchors": {
@@ -3221,8 +3673,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 3,
-          "frames": 11,
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -3231,7 +3683,47 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 11,
+          "frames": 15,
+          "hidden": [
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -3249,19 +3741,44 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 11,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
           "hidden": [
-            9,
-            10
+            12,
+            13,
+            14
           ],
-          "loop_count": 6,
-          "loop_end": 2,
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 11,
+          "frames": 15,
           "hidden": [
             3,
             4,
@@ -3270,14 +3787,36 @@
             7,
             8,
             9,
-            10
+            10,
+            11,
+            12,
+            13,
+            14
           ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "place",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "upgrade",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl2.png"
+      "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "stone_thrower_t1_lvl3": {
       "frame_h": 96,
@@ -3288,29 +3827,77 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 11,
-          "hidden": [
-            10
-          ],
-          "loop_count": 6,
-          "loop_end": 2,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 7,
+          "loop_end": 3,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 11,
+          "frames": 15,
+          "hidden": [
+            12,
+            13,
+            14
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "hurt",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [
+            10,
+            11,
+            12,
+            13,
+            14
+          ],
+          "loop_count": 7,
+          "loop_end": 3,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 15,
           "hidden": [
             8,
             9,
-            10
+            10,
+            11,
+            12,
+            13,
+            14
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl3.png"
+      "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "sun_scorcher_t1_lvl1": {
       "frame_h": 96,
@@ -3444,13 +4031,13 @@
             0,
             1,
             2,
+            3,
             4,
             5,
             6,
             7,
             8,
             9,
-            10,
             11,
             12,
             13,
@@ -3478,6 +4065,7 @@
             0,
             1,
             2,
+            3,
             4,
             5,
             6,
@@ -3485,7 +4073,6 @@
             8,
             9,
             10,
-            11,
             12,
             13,
             14,
@@ -3519,8 +4106,8 @@
             7,
             8,
             9,
+            10,
             11,
-            12,
             13,
             14,
             15
@@ -3554,8 +4141,8 @@
             8,
             9,
             10,
+            11,
             12,
-            13,
             14,
             15
           ],
@@ -3643,23 +4230,30 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 16,
           "hidden": [
-            1,
+            0,
             2,
             3,
             4,
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -3670,14 +4264,30 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "frames": 16,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_cliff": {
       "frame_h": 32,

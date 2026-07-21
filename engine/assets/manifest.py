@@ -91,6 +91,11 @@ class ManifestEntry:
     animations: dict  # {name: Track}, insertion order = row order
     slice: tuple = None   # (left, top, right, bottom) frame-px, or None
     anchors: tuple = None  # ((name, (x, y)), ...) declared-name order, or None
+    # Optional per-slot render hint (like `slice`, uninterpreted here): the
+    # consumer may draw its own legacy/diagnostic overlay UNDER this art
+    # instead of letting the sprite stand alone. Only the game's tile-condition
+    # art reads it today; omitted ⇒ False ⇒ byte-identical entry.
+    tint_overlay: bool = False
 
     def anchor(self, name):
         """(x, y) frame-px anchor point named `name` (ESV-1), or None when
@@ -191,6 +196,10 @@ def entry_from_dict(slot_key, raw):
             parsed.append((name, xy))
         anchors = tuple(parsed) if parsed else None
 
+    tint_overlay = raw.get("tint_overlay", False)
+    if not isinstance(tint_overlay, bool):
+        raise ValueError(f"{slot_key}: tint_overlay must be a boolean")
+
     return ManifestEntry(
         slot_key=slot_key,
         sheet=sheet,
@@ -201,6 +210,7 @@ def entry_from_dict(slot_key, raw):
         animations=animations,
         slice=margins,
         anchors=anchors,
+        tint_overlay=tint_overlay,
     )
 
 

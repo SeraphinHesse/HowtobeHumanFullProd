@@ -81,6 +81,7 @@ TIERS = {
     "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
     "test_combat_speed": "core",
     "test_components": "core",
+    "test_condition_art": "core",
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",

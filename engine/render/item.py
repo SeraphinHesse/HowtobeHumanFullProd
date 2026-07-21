@@ -7,7 +7,7 @@ host after flush, not through the item pipeline.
 """
 from dataclasses import dataclass
 
-LAYERS = ("ground", "entities", "deco", "overlay")
+LAYERS = ("ground", "terrain", "entities", "deco", "overlay")
 
 
 @dataclass(frozen=True)

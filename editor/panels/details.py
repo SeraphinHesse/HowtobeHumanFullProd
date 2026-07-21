@@ -59,6 +59,11 @@ from engine.assets import load_manifest, load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
+# The slots.json category whose art the game draws on the `terrain` layer for
+# tile conditions — the only one the tint-fallback checkbox applies to. Named
+# here rather than imported: `editor/` may never import `game/`.
+CONDITION_CATEGORY = "conditions"
+
 
 class RowEditor(QGroupBox):
     """Per-sheet-row controls: animation, fps, loop range×count, hide
@@ -337,6 +342,20 @@ class DetailsPanel(QWidget):
             spin.valueChanged.connect(lambda _v: self._emit_draft())
         slice_layout.addStretch(1)
 
+        # Condition-tint fallback (conditions category only). The game draws a
+        # flat colour diamond on every non-grass tile; that is a FALLBACK for a
+        # condition with no art, so a slot with no sheet forces it on (checkbox
+        # checked + disabled — there is no entry to write it to anyway). Once a
+        # sheet is imported the designer chooses; unchecked omits the manifest
+        # key entirely, so an untinted entry stays byte-identical.
+        self._tint_row = QWidget()
+        tint_layout = QHBoxLayout(self._tint_row)
+        tint_layout.setContentsMargins(0, 0, 0, 0)
+        self._tint_check = QCheckBox("Show condition tint under this art")
+        self._tint_check.toggled.connect(lambda _v: self._emit_draft())
+        tint_layout.addWidget(self._tint_check)
+        tint_layout.addStretch(1)
+
         # Per-slot frame size (ER-5). Frame size is a CATEGORY property; this is
         # the per-slot override, and the ONE thing about a slot the editor could
         # not express. Committed on editingFinished, not valueChanged, so typing
@@ -371,11 +390,13 @@ class DetailsPanel(QWidget):
         layout.addWidget(self._preview)
         layout.addLayout(offsets)
         layout.addWidget(self._slice_row)
+        layout.addWidget(self._tint_row)
         layout.addLayout(frames)
         layout.addWidget(self._info)
         layout.addWidget(scroll, 1)
         self._set_buttons_enabled(False, False, False)
         self._slice_row.setVisible(False)
+        self._tint_row.setVisible(False)
 
     # -- subcategory dropdown (fed by the shell from the tree selection) ----
 
@@ -384,6 +405,7 @@ class DetailsPanel(QWidget):
         subcategories with at least one assigned slot (ED-11)."""
         self._context = (category_key, tuple(group_path))
         self._slice_row.setVisible(self._slice_applies())
+        self._tint_row.setVisible(self._tint_applies())
         labels = selection.subcategories(self.registry, category_key, group_path)
         assigned = set(load_manifest(
             self._data_dir / "sprites" / "asset_manifest.json").slots())
@@ -446,6 +468,7 @@ class DetailsPanel(QWidget):
                 self._sheet_ref = None
                 self._header.setText("Select a slot in the tree.")
                 self._set_buttons_enabled(False, False, False)
+                self._refresh_tint_state()
                 self._refresh_preview()
                 return
             fw, fh = self.registry.frame_size(slot_key)
@@ -477,6 +500,7 @@ class DetailsPanel(QWidget):
                 self._info.setText("No spritesheet imported — grey-X placeholder.")
                 self._set_buttons_enabled(True, False, bool(entry))
                 self._refresh_preview()
+            self._refresh_tint_state(entry)
         finally:
             self._loading = False
 
@@ -508,6 +532,7 @@ class DetailsPanel(QWidget):
         self._loading = True
         try:
             self._load_sheet(destination, entry)
+            self._refresh_tint_state(entry)
         finally:
             self._loading = False
         even = (w % fw == 0) and (h % fh == 0)
@@ -557,6 +582,7 @@ class DetailsPanel(QWidget):
             self._load_sheet(path, seed)
             self._offset_x.setValue(int((seed or {}).get("offset_x", 0)))
             self._offset_y.setValue(int((seed or {}).get("offset_y", 0)))
+            self._refresh_tint_state(seed)
         finally:
             self._loading = False
         self._emit_draft()
@@ -584,6 +610,11 @@ class DetailsPanel(QWidget):
         existing = self._read_doc()["entries"].get(self.slot_key)
         if existing and "anchors" in existing:
             entry["anchors"] = existing["anchors"]
+        if self._tint_applies() and self._tint_check.isChecked():
+            # Optional like `slice`: False omits the key, so an entry that
+            # doesn't want the tint is byte-identical to a pre-feature one, and
+            # unticking + re-saving removes it (save() replaces the whole entry).
+            entry["tint_overlay"] = True
         return entry
 
     def _slice_margins(self):
@@ -599,6 +630,25 @@ class DetailsPanel(QWidget):
     def _slice_applies(self):
         """Nine-slice is a HUD-only feature -> the ui category only."""
         return self._context is not None and self._context[0] == "ui"
+
+    def _tint_applies(self):
+        """The tint fallback only means anything for tile-condition art."""
+        return (self._context is not None
+                and self._context[0] == CONDITION_CATEGORY)
+
+    def _refresh_tint_state(self, entry=None):
+        """Sync the tint checkbox to whether this slot HAS art.
+
+        No art (no row editors) ⇒ the game draws no sprite for the condition, so
+        the flat colour diamond is the ONLY thing that renders it: the box is
+        forced checked and disabled. The gate is the LIVE row editors, not the
+        on-disk entry, so a freshly imported sheet is editable before its first
+        Save. With art present the state comes from `entry` — and a fresh import
+        (no entry yet) defaults to OFF, i.e. the sprite replaces the tint."""
+        has_art = bool(self._row_editors)
+        self._tint_check.setChecked(
+            bool((entry or {}).get("tint_overlay", False)) if has_art else True)
+        self._tint_check.setEnabled(has_art)
 
     def _on_frame_size_changed(self):
         """Commit a per-slot frame-size override, and RE-SLICE against it.
@@ -692,6 +742,7 @@ class DetailsPanel(QWidget):
             self._offset_y.setValue(0)
             for spin in self._slice_spins:
                 spin.setValue(0)
+            self._refresh_tint_state()   # no art again ⇒ tint forced back on
         finally:
             self._loading = False
         self._info.setText("Cleared — slot reverts to the grey-X placeholder.")

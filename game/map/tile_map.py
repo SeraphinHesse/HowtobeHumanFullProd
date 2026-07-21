@@ -15,7 +15,9 @@ map-driven. Pure Python — no pygame.
 from dataclasses import dataclass
 
 from game.core.balance import load_balance
-from .tiles import Tile, TileCondition, TileState
+from .tiles import (
+    CONDITION_CATEGORY, CONDITION_GROUP, Tile, TileCondition, TileState,
+)
 
 
 @dataclass
@@ -73,8 +75,28 @@ def load_map_balance(data_dir):
     return load_balance(data_dir, "map")
 
 
+def _condition_slot(registry, condition, rng):
+    """A random art slot for ``condition`` from the ``conditions`` registry
+    category, or None when there is no registry / group / slots.
+
+    Same shape as ``game.enemies.enemy.variant_slot``: the condition's group
+    holds interchangeable variants (``cond_mountain``, ``cond_mountain_v2``, …),
+    so dropping a new variant in via the editor grows the pool with NO code
+    change. Pure — the caller owns the rng."""
+    if registry is None:
+        return None
+    path = CONDITION_GROUP.get(condition)
+    if path is None:
+        return None
+    try:
+        variants = registry.group_slots(CONDITION_CATEGORY, path)
+    except KeyError:
+        return None
+    return rng.choice(variants) if variants else None
+
+
 class TileMap:
-    def __init__(self, doc, balance, rng=None):
+    def __init__(self, doc, balance, rng=None, registry=None):
         self._doc = doc
         self._balance = balance
         self.cols = doc.cols
@@ -189,6 +211,21 @@ class TileMap:
                     continue
                 t.condition = rng.choices(conds, weights=weights)[0]
         # -- /10I --
+
+        # -- Condition ART: one variant slot per tile, rolled ONCE here -----
+        # A SEPARATE pass from the roll above on purpose: the roll's
+        # eligibility rules are prototype-exact gameplay (and every path-cost
+        # fixture depends on them), whereas art covers every playable tile
+        # including the starting pocket — so imported grass art isn't missing
+        # a hole where the base sits. BACKGROUND tiles are terrain, not
+        # conditions, and stay slotless. No registry (headless fixtures) or no
+        # rng ⇒ every slot stays None ⇒ the terrain layer emits nothing.
+        if rng is not None and registry is not None:
+            for t in self.all_tiles():
+                if t.state == TileState.BACKGROUND:
+                    continue
+                t.condition_slot = _condition_slot(registry, t.condition, rng)
+        # -- /condition art --
 
     # -- balancing accessors ----------------------------------------------
 

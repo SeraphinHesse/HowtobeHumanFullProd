@@ -101,22 +101,49 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   included, is earned via a level-up unlock card. `registry.place_building` now
   calls `building.on_placed(tilemap)` UNCONDITIONALLY (a `Building` base no-op hook —
   boost + wall-builder override it), replacing the boost-only special-case.
-- **Storm Priest** (`storm_priest.py`: `StormPriest`) is a plain 3-tier
-  `DefenceBuilding` leaf — no new building behaviour, just the standard defence
-  line (Storm Acolyte → Storm Priest → Storm High Priest). Its ONE novelty is a
-  capability tag: `EXTRA_TAGS = ("combat", "lightning_source")` (the subclass
-  MUST re-include `"combat"` — `EXTRA_TAGS` fully overrides, `building.py:54`).
-  The tag is the seam to the Lightning Strike ability: `game.ui`'s placement flow
-  calls `game.core.lightning.unlock_from_placement(state, building)` after every
-  successful place, which unlocks lightning (`lightning_level 0→1`, a `max()`
-  latch) iff the placed building carries `"lightning_source"`. The rule is
-  **tag-gated, not type-string-gated**, so `registry.place_building` stays
-  type-agnostic (no `storm_priest` branch) — the same G-3 discipline as the
-  `IS_COMBAT`→`"combat"` tag. Research row: a bare `ResearchSpec(...)` (no
-  `gate_kind`; its `tiers[0].unlock_min_round` is 0) with `starts_unlocked:
-  false` in `buildings.json` — offered in the level-up unlock pool from round 1
-  but not unlocked at the start. (Lightning itself now boots LOCKED — see
-  `game/core/CLAUDE.md`.)
+- **Storm Priest** (`storm_priest.py`: `StormPriest`) is the Lightning Strike
+  ability's vehicle, NOT a combatant (Storm Priest rework). It is a 3-tier
+  `DefenceBuilding` leaf (Storm Acolyte → Storm Priest → Storm High Priest,
+  matching Lightning Strike's `max_level` of 3) but `EXTRA_TAGS =
+  ("lightning_source",)` deliberately DROPS the inherited `"combat"` tag
+  (`EXTRA_TAGS` fully overrides, `building.py:54`) — excluded from
+  `scene.by_tag("combat")`, the combat sweep's defender loop
+  (`game/enemies/combat.py`), it never targets, fires or animates through
+  combat. Its inherited `Attacker`/`RangeSensor`/`BoostReceiver` (from
+  `DefenceBuilding._extra_components`) are harmless, inert leftovers of the
+  shared family. It overrides `_extra_components` to append a
+  `game.core.lightning.LightningCaster` component, which puppets its
+  `SpriteAnimator` into the "attack" pose whenever `lightning.strike()` fires
+  (since it no longer earns that pose through combat), reverting to "idle"
+  shortly after. **`LightningCaster` is imported LAZILY inside
+  `_extra_components`, never at module level** — a module-level import closes
+  a real cycle (`game.buildings.__init__` -> `.storm_priest` -> `game.core`
+  full package init -> `.levelup` -> `game.buildings.research` ->
+  `.storm_priest`, still mid-import) — the same lazy-import discipline
+  `building.py`'s `_condition_mod` already uses for `game.map.tiles`.
+  - **Placement unlocks, tier ADVANCE levels.** `game.ui`'s placement flow
+    still calls `game.core.lightning.unlock_from_placement(state, building)`
+    after every successful place (unlocks lightning `lightning_level 0→1`, a
+    `max()` latch, iff the placed building carries `"lightning_source"`).
+    Advancing the Storm Priest's OWN tier — the player's ordinary
+    building-upgrade panel, paying its own tier-advance cost, no separate
+    love-priced lightning upgrade any more — calls
+    `game.core.lightning.sync_level_from_tier(state, building)` from
+    `game/ui/building_ui.py`'s tier-advance branch, raising `lightning_level`
+    to match the new tier (tier 1/2/3 -> lightning level 1/2/3, latched so a
+    re-sync never lowers it). Both helpers are **tag-gated, not
+    type-string-gated**, so `registry.place_building` stays type-agnostic (no
+    `storm_priest` branch) — the same G-3 discipline as the
+    `IS_COMBAT`→`"combat"` tag.
+  - **Run-singleton**: only one Storm Priest may ever be placed in a run.
+    Enforced in the UI, not here — `game/ui/building_ui.py`'s construct panel
+    greys out (disabled, NOT hidden) its card once `state.lightning_level > 0`
+    (an exact proxy: nothing else ever raises it off 0, and it never lowers).
+  - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; its
+    `tiers[0].unlock_min_round` is 0) with `starts_unlocked: false` in
+    `buildings.json` — offered in the level-up unlock pool from round 1 but
+    not unlocked at the start. (Lightning itself boots LOCKED — see
+    `game/core/CLAUDE.md`.)
 - **10I tile conditions** — snapshot at placement, computed on read:
   - `registry.place_building` stamps two E-11 transients after
     `tile.occupant = building`: `_tile_condition` (the tile's rolled condition)

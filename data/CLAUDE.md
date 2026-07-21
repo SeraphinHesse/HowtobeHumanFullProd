@@ -199,6 +199,17 @@ validating writer; don't hand-edit the JSON.
     must AGREE on its frame size or the loader raises `ValueError`. Schemas for
     what schemas can express; loader cross-checks for what they cannot (the
     `engine/tilemap.py` precedent).
+- **`conditions` (Tile Conditions) is an asset-only category** (no
+  `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
+  art for the four runtime tile conditions: one group `Terrain` with leaf
+  children `Grass`/`Mountain`/`Pond`/`Forest`, so each is a variant family
+  ("+ Variant" → `cond_mountain_v2`, and the game rolls between them PER TILE).
+  64×96 like buildings/deco, NOT 64×32 like map tiles — a mountain rises above
+  its tile. Keys are `cond_*` on purpose: `tile_forest` already belongs to the
+  `map` category's backgrounds, and a key in two categories is a load error.
+  Tile conditions are **not** in the map file — they roll at runtime — so
+  nothing here is paintable; the editor only imports their art. Rendering +
+  the tint fallback → `game/map/CLAUDE.md`.
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,
@@ -241,6 +252,20 @@ validating writer; don't hand-edit the JSON.
     `[x, y]` frame-px handle points, all optional, same coordinate convention.
     Unlike `slice` they are pure metadata (never affect slicing/blitting); see
     `engine/assets/CLAUDE.md`. No committed entry carries one yet.
+  - **`slice` (A2) and `tint_overlay` are the OPTIONAL per-entry keys** —
+    everything else is `required`. `tint_overlay` (bool) is a render hint the
+    engine carries uninterpreted: "keep drawing the consumer's own flat colour
+    overlay under this art". Read only by the game's tile-condition art; omit
+    it for sprite-only (omitted ⇒ `False` ⇒ byte-identical entry), and note a
+    condition slot with NO entry always draws the overlay since there is no
+    sprite. Authored by the Details panel's checkbox, `conditions` category
+    only. `"slice": [left, top, right, bottom]`, ints 0..1024, nine-slice
+    margins in FRAME pixels (same convention as `offset_x`/`offset_y`). It exists
+    so a UI panel/button skin can be drawn at any size with its corners intact:
+    corners blit 1:1, edges stretch on one axis, the centre on both. **HUD sprites
+    only** — world sprites ignore it and keep uniform zoom scaling. Omit it for
+    plain scaling; no committed entry carries one yet. The geometry lives in
+    `engine/render/backend.py` (see `engine/render/CLAUDE.md`).
 - **`sprites/imported/*.png` are committed content (D-31)**, copied there at
   import time by the editor (historically also by the migration tool, now gone).
   Never gitignore them.
@@ -281,7 +306,9 @@ validating writer; don't hand-edit the JSON.
   main_menu/pause/settings/credits/add_name/game_over, unchanged) ·
   `ui_button_end_turn` → hud.json `btn_end_turn` · `ui_button_pause` →
   hud.json `btn_pause` · `ui_button_panel` → building_panel.json's id'd
-  buttons (action/boss/close/preview_*/rename_dice/lightning/boss_close) ·
+  buttons (action/boss/close/preview_*/rename_dice/boss_close — `lightning`
+  was removed by the Storm Priest rework, which deleted the base_info
+  lightning section/button entirely) ·
   `ui_button_card` → building_panel.json `defaults.button_skin` (construct/
   upgrade cards) · `ui_button_cheat` → cheat_menu.json `btn_*` · `ui_button_
   pill` → overlays.json `btn_range`/`btn_heatmap` · `ui_choice_box` → levelup.

@@ -57,7 +57,7 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `engine/render/backend.py` gives it geometry, and only for **HUD sprites**
   (world sprites keep uniform zoom scaling). Omitted ⇒ plain scale. The grey-X
   placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
-- **Optional `anchors` (ESV-1)**: the second optional per-entry key, beside
+- **Optional `anchors` (ESV-1)**: the SECOND optional per-entry key, beside
   `slice`. A manifest entry may carry `anchors: {muzzle?, impact?, hp_bar?,
   floater_origin?, status_icon?, beam_endpoint?}` — six declared names, all
   optional, each a `[x, y]` frame-px point relative to the sprite anchor (same
@@ -85,6 +85,16 @@ crashes boot.** When you change asset conventions, update THIS doc.
     compose the renderer's draw nudge (`engine/render/renderer.py`'s
     `frame.offset_x`/`offset_y`) into the anchor origin, so all three
     consumers of "where is this sprite's anchor point" agree.
+- **Optional `tint_overlay` (bool)**: the THIRD optional per-entry key (after
+  `slice` and `anchors`), added the same way as `slice` and equally
+  uninterpreted here — a render HINT for the
+  consumer, meaning "keep drawing your own flat colour overlay UNDER this art
+  instead of letting the sprite stand alone". `entry_from_dict` parses it
+  (non-bool raises → `load_manifest`'s E-37 warn+skip); omitted ⇒ `False` ⇒ the
+  entry is byte-identical to a pre-feature one. Its ONE consumer today is the
+  game's tile-condition art (`data/slots.json` `conditions` category): a
+  condition slot with **no entry at all** always draws the overlay, because
+  there is no sprite to draw instead. See `game/map/CLAUDE.md`.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO

@@ -20,7 +20,7 @@ from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
 from engine.coords import CoordinateSystem, Geometry
-from engine.core import Health, Scene
+from engine.core import Health, Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
 from game.buildings.research import LEAF_CLASSES, RESEARCH, buildable
@@ -97,8 +97,6 @@ class TestSeedAndCosts(unittest.TestCase):
         self.assertEqual(LS["damage"], [12, 18, 38])   # Storm Priest buff
         self.assertEqual(LS["radius"], [1, 2, 3])
         self.assertEqual(LS["max_level"], 3)
-        self.assertEqual(LS["unlock_cost"], 20)
-        self.assertEqual(LS["upgrade_costs"], [35, 80])
 
     def test_fresh_run_starts_at_level_0_locked(self):
         # Storm Priest wiring: lightning now boots LOCKED. A Storm Priest
@@ -108,50 +106,6 @@ class TestSeedAndCosts(unittest.TestCase):
         self.assertEqual(st.lightning_level, 0)
         self.assertEqual(st.lightning_cooldown, 0.0)
         self.assertFalse(lt.can_strike(st))
-
-    def test_cost_ladder_and_upgrades(self):
-        st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked via a Storm Priest
-        cost_l2, cost_l3 = LS["upgrade_costs"]
-        st.love = cost_l2 + cost_l3
-        self.assertEqual(lt.next_cost(st, CORE), cost_l2)   # L1 -> L2
-        self.assertTrue(lt.upgrade(st, CORE))
-        self.assertEqual(st.lightning_level, 2)
-        self.assertEqual(st.love, cost_l3)             # exactly L2's cost spent
-        self.assertEqual(lt.next_cost(st, CORE), cost_l3)   # L2 -> L3
-        self.assertTrue(lt.upgrade(st, CORE))
-        self.assertEqual(st.lightning_level, 3)
-        self.assertEqual(st.love, 0)
-
-    def test_max_level_no_op(self):
-        st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = LS["max_level"]
-        st.love = 9999
-        self.assertIsNone(lt.next_cost(st, CORE))
-        self.assertFalse(lt.upgrade(st, CORE))
-        self.assertEqual(st.lightning_level, LS["max_level"])
-        self.assertEqual(st.love, 9999)                   # no love spent
-
-    def test_insufficient_love_refused(self):
-        st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked via a Storm Priest
-        st.love = LS["upgrade_costs"][0] - 1
-        self.assertFalse(lt.upgrade(st, CORE))
-        self.assertEqual(st.lightning_level, 1)
-        self.assertEqual(st.love, LS["upgrade_costs"][0] - 1)
-
-    def test_unlock_branch_reachable_at_level_0(self):
-        # Now the NORMAL boot state (not just a reachable-but-unused branch):
-        # a fresh run starts at L0. The pure L0->L1 love-priced upgrade rule
-        # still works standalone (game/ui/building_ui.py no longer offers it
-        # as a panel button — a Storm Priest placement is the only in-game
-        # unlock path, see TestStormPriestUnlock below — but the rule itself
-        # stays exercised here).
-        st = RunState.from_balance(CORE, BUILD)
-        self.assertEqual(lt.next_cost(st, CORE), LS["unlock_cost"])  # 20
-        st.love = LS["unlock_cost"]
-        self.assertTrue(lt.upgrade(st, CORE))
-        self.assertEqual(st.lightning_level, 1)
 
 
 # ---------------------------------------------------------------------------
@@ -194,18 +148,116 @@ class TestStormPriestUnlock(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 1c. Storm Priest tier -> lightning_level sync (game.ui.building_ui's
+#     tier-advance branch: advance_tier() + sync_level_from_tier)
+# ---------------------------------------------------------------------------
+class TestStormPriestTierLeveling(unittest.TestCase):
+    def test_advancing_tiers_raises_level_to_match(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        lt.unlock_from_placement(st, building)
+        self.assertEqual(st.lightning_level, 1)
+        self.assertEqual(building.tier_number(), 1)
+
+        self.assertTrue(building.advance_tier())
+        lt.sync_level_from_tier(st, building)
+        self.assertEqual(building.tier_number(), 2)
+        self.assertEqual(st.lightning_level, 2)
+
+        self.assertTrue(building.advance_tier())
+        lt.sync_level_from_tier(st, building)
+        self.assertEqual(building.tier_number(), 3)
+        self.assertEqual(st.lightning_level, 3)
+
+    def test_sync_is_a_latch_not_a_reset(self):
+        """A re-sync (or a batch call) never lowers an already-higher level."""
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        st.lightning_level = 3
+        lt.sync_level_from_tier(st, building)   # building is still tier 1
+        self.assertEqual(st.lightning_level, 3)
+
+    def test_non_lightning_source_tier_advance_leaves_level_untouched(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "defence", 9999, BUILD, scene, occ)
+        self.assertEqual(st.lightning_level, 0)
+        building.advance_tier()
+        lt.sync_level_from_tier(st, building)
+        self.assertEqual(st.lightning_level, 0)
+
+
+# ---------------------------------------------------------------------------
+# 1d. Storm Priest is no longer a combatant (dropped the "combat" tag)
+# ---------------------------------------------------------------------------
+class TestStormPriestNotCombat(unittest.TestCase):
+    def test_storm_priest_carries_no_combat_tag(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        self.assertNotIn("combat", building.tags)
+        self.assertIn("lightning_source", building.tags)
+
+    def test_placed_storm_priest_never_fires_even_with_enemy_in_range(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        e = spawn_enemy(scene, tm, 1, 2)   # adjacent — well within any range
+        scene.update(0.0)
+        hp0 = e.get_component(Health).hp
+        for _ in range(20):
+            scene.update(0.1)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
+        self.assertEqual(e.get_component(Health).hp, hp0)   # never attacked
+        self.assertEqual(scene.by_tag("projectile"), [])    # never fired
+
+
+# ---------------------------------------------------------------------------
+# 1e. strike() flashes the placed Storm Priest's attack pose
+# ---------------------------------------------------------------------------
+class TestStormPriestCasterFlash(unittest.TestCase):
+    def test_strike_flips_to_attack_then_reverts_to_idle(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        tile = tm.get(1, 1)
+        building, _cost = place_building(
+            tm, tile, "storm_priest", 9999, BUILD, scene, occ)
+        scene.update(0.0)
+        st = RunState.from_balance(CORE, BUILD)
+        lt.unlock_from_placement(st, building)
+        anim = building.get_component(SpriteAnimator)
+        self.assertEqual(anim.animation, "idle")
+
+        cs = make_cs()
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 1.0, 1.0))  # whiff ok
+        scene.update(0.0)
+        self.assertEqual(anim.animation, "attack")
+
+        scene.update(lt.CASTER_FLASH_DURATION + 0.1)
+        self.assertEqual(anim.animation, "idle")
+
+
+# ---------------------------------------------------------------------------
 # 2. Cooldown gating
 # ---------------------------------------------------------------------------
 class TestCooldown(unittest.TestCase):
-    def test_strike_spends_cooldown_and_upgrade_never_resets_it(self):
+    def test_strike_spends_cooldown_and_leveling_never_resets_it(self):
         tm, scene, occ = build_board(FIELD)
         st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 1                     # unlocked via a Storm Priest
         cs = make_cs()
         self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 3.0, 3.0))  # whiff ok
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
-        st.love = 35
-        lt.upgrade(st, CORE)                       # upgrade mid-cooldown
+        st.lightning_level = 2                     # tier-driven level mid-cooldown
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])  # untouched
 
     def test_strike_while_cooling_is_a_silent_noop(self):

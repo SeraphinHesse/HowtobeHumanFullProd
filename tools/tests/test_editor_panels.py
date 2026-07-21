@@ -39,6 +39,7 @@ from editor import balancing_history, domains, keybinds, theme
 from editor.panels.balancing import BalancingPanel
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
+from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -88,6 +89,46 @@ class TempDataCase(QtCase):
         have sheets. Keying off the prefix means a future painter_t4 is
         covered too, instead of quietly re-reddening the test."""
         self._rewrite_manifest(lambda k: k.startswith(prefixes))
+
+    def pin_slot_rows(self, slot_key, animations, *, frames=4, fps=8,
+                      hidden=(), sheet=None):
+        """Pin a slot's manifest entry to exactly `animations` (one row each),
+        and write a matching synthetic sheet.
+
+        The counterpart to `unassign_slot` for "this slot HAS art of this
+        shape". A test that reads the ROW COUNT or the animation names of a
+        real slot is asserting what an artist last imported, not what the code
+        does: `cff77c7` ("Stonethrower all eras") grew stone_thrower_t1_lvl1
+        from 2 rows to 6 and reddened two tests that had nothing to do with
+        eras. Supply the state instead of inheriting it.
+
+        Returns the entry dict as written. `hidden` applies to the LAST row
+        (the one those tests inspect); `sheet` overrides the ref, which is how
+        you pin a shared sheet."""
+        from PIL import Image
+
+        registry = load_registry(self.data_dir)
+        frame_w, frame_h = registry.frame_size(slot_key)
+        ref = sheet or f"imported/{slot_key}.png"
+        png = self.data_dir / "sprites" / ref
+        png.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGBA", (frames * frame_w, len(animations) * frame_h),
+                  (200, 60, 60, 255)).save(png)
+
+        rows = [{"animation": name, "frames": frames, "fps": fps,
+                 "hidden": [], "loop_start": 0, "loop_end": 0, "loop_count": 1}
+                for name in animations]
+        rows[-1]["hidden"] = list(hidden)
+        entry = {"sheet": ref, "frame_w": frame_w, "frame_h": frame_h,
+                 "offset_x": 0, "offset_y": 0, "rows": rows}
+
+        path = self.data_dir / "sprites" / "asset_manifest.json"
+        doc = data_io.load_json(path)
+        doc["entries"][slot_key] = entry
+        data_io.write_validated(
+            doc, path,
+            self.data_dir / "schemas" / "asset_manifest.schema.json")
+        return entry
 
     def _rewrite_manifest(self, should_drop):
         path = self.data_dir / "sprites" / "asset_manifest.json"
