@@ -1418,6 +1418,7 @@ class TestPurity(unittest.TestCase):
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
             "editor.ui_screen_session, "
             "editor.anchor_ops, "
+            "editor.sprite_fit, "
             "editor.vfx_params, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "

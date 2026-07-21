@@ -40,6 +40,7 @@ from PySide6.QtWidgets import QWidget
 from editor import anchor_ops, tilemap_ops
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
+from editor.sprite_fit import slot_draw_fit
 from engine import tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
@@ -820,6 +821,22 @@ class ViewportPanel(QWidget):
     # A VIEW of the panel's mapping (self._anchors) plus a live drag delta;
     # never reads or writes the manifest here (that's anchor_ops + the panel).
 
+    def _preview_draw_fit(self):
+        """(fit_tiles, scale) the current `preview_slot` draws at — the ONE
+        call site both the preview `RenderItem` and `_anchor_draw_params`
+        read (fix-editor-preview-footprint §2.3): they must never compute
+        this independently, or the handle and the sprite can desync again
+        exactly like the bug this fix closes. `(0.0, 1.0)` (the render
+        defaults) when there is no preview slot, or the slot is not (yet)
+        declared in the registry — E-37, never raise."""
+        if self.preview_slot is None:
+            return (0.0, 1.0)
+        try:
+            category_key = self._registry.category_of(self.preview_slot).key
+        except KeyError:
+            return (0.0, 1.0)
+        return slot_draw_fit(self._data_dir, category_key, self.preview_slot)
+
     def _anchor_draw_params(self):
         """(origin, s, zoom) for the current preview slot's frame anchor,
         origin COMPOSED with the entry's offset_x/offset_y (§1.2 — the
@@ -827,30 +844,25 @@ class ViewportPanel(QWidget):
         with it or it stops sitting on the sprite) — None when there is
         nothing to anchor a handle to. `s` is the editor's OWN drawn scale:
         fit_factor computed from the exact fit_tiles/scale the preview's
-        RenderItem carries (its dataclass defaults today — never hardcode
-        1.0, so a handle can't silently desync the day the preview gains a
-        footprint fit).
+        RenderItem carries — `_preview_draw_fit()`, the SAME call the
+        preview submission below reads, so they cannot drift apart.
 
         fix-anchor-origin-parity: `origin` resolves through the SAME shared
         `engine.render.sprite_anchor_screen` the game's `game.anchors.
         anchor_world_point` calls (`anchor_xy=(0, 0)` -> the sprite's drawn
         CENTRE) — never hand-rolled here, so the handle and the game's
-        anchor resolution cannot drift apart again. Known residual (§2.4,
-        report don't fix): this preview always resolves at `fit_tiles=0.0`/
-        `scale=1.0` (the RenderItem's dataclass defaults, matching what is
-        actually submitted below), while a real game entity may carry a
-        different footprint fit — measured `s == 1.0` on both sides for
-        every entity in `data/` today, so it is not the live bug."""
+        anchor resolution cannot drift apart again."""
         if self.preview_slot is None:
             return None
         g = self._coords.geometry
         wx, wy = g.map_cols // 2, g.map_rows // 2
         frame_w, _frame_h = self._assets.frame_size(self.preview_slot)
         zoom = self._coords.camera.zoom
-        s = fit_factor(frame_w, g.tile_w, 0.0) * 1.0   # RenderItem's own defaults
+        fit_tiles, scale = self._preview_draw_fit()
+        s = fit_factor(frame_w, g.tile_w, fit_tiles) * scale
         ox, oy = self._assets.offset(self.preview_slot)
         origin = sprite_anchor_screen(
-            self._coords, wx, wy, frame_w, 0.0, 1.0, (ox, oy), (0.0, 0.0))
+            self._coords, wx, wy, frame_w, fit_tiles, scale, (ox, oy), (0.0, 0.0))
         return origin, s, zoom
 
     def _hit_anchor_handle(self, pos):
@@ -991,12 +1003,15 @@ class ViewportPanel(QWidget):
                 if self._anim_last_t is not None:
                     self._anim_ms += (t0 - self._anim_last_t) * 1000.0
                 self._anim_last_t = t0
+                fit_tiles, scale = self._preview_draw_fit()
                 self._renderer.submit(RenderItem(
                     self.preview_slot,
                     (g.map_cols // 2, g.map_rows // 2),
                     layer="entities",
                     animation=self.preview_animation,
                     anim_time_ms=int(self._anim_ms),
+                    fit_tiles=fit_tiles,
+                    scale=scale,
                 ))
                 self._submit_anchor_handles()
         self._renderer.flush(self._surface)
