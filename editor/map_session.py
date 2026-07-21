@@ -89,6 +89,42 @@ class _StartAreaSetCommand(QUndoCommand):
         self._doc.start_area = dict(self._old) if self._old is not None else None
 
 
+class _TutorialFluteSetCommand(QUndoCommand):
+    """Place / move / remove the single "first flute" tutorial marker. ``old``
+    and ``new`` are full dicts (``{'col','row','slot'}``) or None — mirrors
+    _CameraSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_flute = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_flute = dict(self._old) if self._old is not None else None
+
+
+class _TutorialStoneSetCommand(QUndoCommand):
+    """Place / move / remove the single "first stone" tutorial marker. ``old``
+    and ``new`` are full dicts (``{'col','row','slot'}``) or None — mirrors
+    _CameraSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_stone = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_stone = dict(self._old) if self._old is not None else None
+
+
 class _AddBackgroundCommand(QUndoCommand):
     """Add a new BACKGROUND legend entry (code -> slot) to the open map — the
     palette's '+ Level' button. Undo drops the code again (paint commands that
@@ -319,6 +355,66 @@ class MapSession(QObject):
         command as click-placement."""
         if old is not None and new is not None:
             self.push_start_area_place(new[0], new[1])
+
+    def _tutorial_flute_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_flute_slot_from_schema(schema)
+
+    def push_tutorial_flute_place(self, col, row):
+        """Place the "first flute" tutorial marker (if the map has none) or
+        move the single marker to a new cell — ONE undoable command either
+        way. Single-tile, no clamp (unlike push_start_area_place). Mirrors
+        push_camera_place."""
+        old = self.doc.tutorial_flute
+        slot = old["slot"] if old is not None else self._tutorial_flute_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move first flute marker" if old is not None
+                else "place first flute marker")
+        self.undo_stack.push(_TutorialFluteSetCommand(self.doc, old, new, text))
+
+    def push_tutorial_flute_remove(self):
+        if self.doc.tutorial_flute is not None:
+            self.undo_stack.push(_TutorialFluteSetCommand(
+                self.doc, self.doc.tutorial_flute, None,
+                "remove first flute marker"))
+
+    def push_tutorial_flute_move(self, old, new):
+        """Drag path (mirrors push_camera_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_flute_place(new[0], new[1])
+
+    def _tutorial_stone_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_stone_slot_from_schema(schema)
+
+    def push_tutorial_stone_place(self, col, row):
+        """Place the "first stone" tutorial marker (if the map has none) or
+        move the single marker to a new cell — ONE undoable command either
+        way. Single-tile, no clamp (unlike push_start_area_place). Mirrors
+        push_camera_place."""
+        old = self.doc.tutorial_stone
+        slot = old["slot"] if old is not None else self._tutorial_stone_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move first stone marker" if old is not None
+                else "place first stone marker")
+        self.undo_stack.push(_TutorialStoneSetCommand(self.doc, old, new, text))
+
+    def push_tutorial_stone_remove(self):
+        if self.doc.tutorial_stone is not None:
+            self.undo_stack.push(_TutorialStoneSetCommand(
+                self.doc, self.doc.tutorial_stone, None,
+                "remove first stone marker"))
+
+    def push_tutorial_stone_move(self, old, new):
+        """Drag path (mirrors push_camera_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_stone_place(new[0], new[1])
 
     def push_add_background(self, slot):
         """'+ Level': claim the next free legend code for a new background type

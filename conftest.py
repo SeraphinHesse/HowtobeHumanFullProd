@@ -54,6 +54,7 @@ TIERS = {
     "test_editor_panels": "editor",
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
+    "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
     "test_run_controls": "editor",

@@ -151,6 +151,8 @@ class MainWindow(QMainWindow):
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
+        self.palette.tutorial_flute_armed.connect(self.viewport.arm_tutorial_flute)
+        self.palette.tutorial_stone_armed.connect(self.viewport.arm_tutorial_stone)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
