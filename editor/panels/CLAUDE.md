@@ -714,6 +714,54 @@ import list.**
   widget; `game/ui/skinning.py`'s `button_kwargs` docstring). What the
   editor shows is what the game draws (ED-22's promise, extended to color).
 
+## Cutscenes panel (`panels/cutscenes.py`, `cutscene_import.py`; TU-3)
+- **Selection**: a single "Cutscenes" LEAF (not a branch — the registry's own
+  row list lives inside the panel, nothing to enumerate in the tree) is the
+  THIRD child of the "ui" category node, after "Screens" then "Theme" (the
+  UH-6 ordering invariant above) — `panels/selector.py`'s `_CUTSCENES_ROLE`
+  marker + `cutscenes_selected()` signal, same never-node_selected rule as
+  Maps/Screens/Theme leaves. `MainWindow._on_cutscenes_selected` →
+  `right_stack` → `CutscenesPanel`.
+- **`CutscenesPanel`** edits `data/video/cutscenes.json` (TU-1's registry, `id
+  -> {video, audio (nullable), length, trigger}`): one row per entry, built
+  via `cutscene_import.ordered_entry_ids(doc)` — a `TRIGGER_ORDER` display
+  pin (`("intro", "first_end_turn")`, the `ordered_views()`/`VIEW_ORDER`
+  precedent) so the alphabetically-first `first_end_turn` placeholder never
+  displays above the seeded `intro` row just because
+  `data_io.dumps_deterministic` sorts keys. Each row: `trigger` shown
+  read-only/disabled (fixed by TU-1's script wiring, never editable here);
+  video/audio filename labels + "Import MP4…"/"Import Audio…" buttons
+  (`QFileDialog.getOpenFileName`, filtered to `*.mp4` / `*.ogg *.mp3`); a
+  "Clear Audio" button enabled only while `audio` is not null; a length
+  `_NoWheelDoubleSpinBox` (imported from `editor.panels.balancing`, never
+  copied) ranged from the schema's `length` `minimum`/`maximum` (0..3600
+  today) via `cutscene_import.length_bounds`, committing on
+  `editingFinished`.
+- **Immediate per-action writes, NOT staged** (unlike `GameThemePanel`'s
+  dirty-dot pattern): import video/audio, Clear Audio, and a committed
+  length edit each call `cutscene_import.write_registry_doc` on the spot —
+  there is no multi-field form to batch here, and a loud
+  `write_validated` failure beats a dirty-dot UI for a 4-field row. No
+  add/remove-row affordance: TU-1 owns which ids exist.
+- **`editor/cutscene_import.py`** (Qt-free, pygame-free, in `TestPurity`):
+  `load_registry_doc`/`write_registry_doc` (load degrades to `{}` on a
+  missing/corrupt file, E-37, mirroring `asset_import.load_manifest_doc`;
+  write is the ONE `write_validated` call site for this file);
+  `video_dest`/`audio_dest` name the destination deterministically off the
+  cutscene id — `data/video/<id><suffix>` /
+  `data/video/<id>_audio<suffix>`, never the source filename (the
+  `imported/<slot_key>.png` rule); `import_video`/`import_audio` copy (skip
+  when source and destination already resolve to the same file) and return
+  the bare destination filename; `probe_length_seconds` lazily imports cv2
+  and returns `None` on every failure mode (absent cv2, unopenable capture,
+  zero/invalid fps) — never raises, mirroring `engine/video.py`'s
+  graceful-skip contract, so a missing cv2 install never blocks editing and
+  the panel's manual spin-box stays authoritative; `clear_audio` deletes the
+  entry's current audio file (no refcount needed — a cutscene's audio is
+  always 1:1-owned by its id, unlike `asset_import`'s shared-sheet model)
+  and returns the doc with `audio: None`, leaving the actual write to the
+  caller.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State

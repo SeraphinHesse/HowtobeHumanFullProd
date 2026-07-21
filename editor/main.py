@@ -57,6 +57,7 @@ from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.balancing import BalancingPanel
+from editor.panels.cutscenes import CutscenesPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
@@ -107,6 +108,7 @@ class MainWindow(QMainWindow):
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
+        self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
         # boot, same as game/main.py, so screen-mode preview text metrics
@@ -183,6 +185,11 @@ class MainWindow(QMainWindow):
         # editor/theme.py, is untouched by any of this).
         self.selector.theme_selected.connect(self._on_theme_selected)
         self.game_theme.saved.connect(self._on_theme_saved)
+
+        # Cutscenes wiring (TU-3): the "Cutscenes" leaf -> right_stack; reload on
+        # entry mirrors Theme's reload-on-entry convention (registry writes are
+        # immediate per-action inside the panel, so there is no saved signal here).
+        self.selector.cutscenes_selected.connect(self._on_cutscenes_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -311,6 +318,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
+        self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -950,6 +958,14 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         self.viewport.render_frame()
+
+    # -- Cutscenes panel (TU-3) ------------------------------------------------
+
+    def _on_cutscenes_selected(self):
+        """The selector's Cutscenes leaf: reload the registry fresh (same
+        reload-on-entry convention as Theme) and show the panel."""
+        self.cutscenes.set_registry()
+        self.right_stack.setCurrentWidget(self.cutscenes)
 
     # -- frame drive ---------------------------------------------------------
 
