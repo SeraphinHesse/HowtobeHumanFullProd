@@ -47,12 +47,13 @@ from engine.assets import load_registry
 REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
-EYES = ("terrain", "tint", "base", "deco", "camera", "start_area")
-MODES = ("gametiles", "background", "decoration")
+EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial")
+MODES = ("gametiles", "background", "decoration", "tutorial")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
     "decoration": "Decoration",
+    "tutorial": "Tutorial",
 }
 
 
@@ -69,6 +70,8 @@ class PalettePanel(QWidget):
     base_armed = Signal(str)     # the base/hole slot (now a paintable brush)
     camera_armed = Signal(str)   # the camera-startpoint slot (paintable brush)
     start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
+    tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
+    tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -181,6 +184,7 @@ class PalettePanel(QWidget):
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
+        self._rebuild_tutorial()
 
         # -- layer eyes + grid (shared) ---------------------------------------
         layout.addWidget(QLabel("Layers"))
@@ -240,6 +244,18 @@ class PalettePanel(QWidget):
     def _start_area_slots(self):
         try:
             return list(self._registry.group_slots("core", ("Start Area",)))
+        except (KeyError, ValueError):
+            return []
+
+    def _tutorial_flute_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Flute",)))
+        except (KeyError, ValueError):
+            return []
+
+    def _tutorial_stone_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Stone",)))
         except (KeyError, ValueError):
             return []
 
@@ -326,6 +342,12 @@ class PalettePanel(QWidget):
             btn.clicked.connect(lambda _=False, v=value: self.arm_camera(v))
         elif kind == "start_area":
             btn.clicked.connect(lambda _=False, v=value: self.arm_start_area(v))
+        elif kind == "tutorial_flute":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_flute(v))
+        elif kind == "tutorial_stone":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_stone(v))
         elif kind == "bgslot":
             btn.clicked.connect(
                 lambda _=False, v=value: self.arm_background_slot(v))
@@ -387,6 +409,27 @@ class PalettePanel(QWidget):
             self._add_brush_button(page_layout, key, label, i)
         self.refresh_icons()
 
+    def _rebuild_tutorial(self):
+        """Two STATIC single-tile marker brushes (not legend-derived, unlike
+        _rebuild_gametiles) — "First Flute" and "First Stone"."""
+        _title_w, _page, page_layout = self._pages["tutorial"]
+        for key in [k for k in self._brush_buttons
+                    if k[0] in ("tutorial_flute", "tutorial_stone")]:
+            btn = self._brush_buttons.pop(key)
+            self._brush_group.removeButton(btn)
+            page_layout.removeWidget(btn)
+            btn.deleteLater()
+        idx = 0
+        for slot in self._tutorial_flute_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_flute", slot), "First Flute", idx)
+            idx += 1
+        for slot in self._tutorial_stone_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_stone", slot), "First Stone", idx)
+            idx += 1
+        self.refresh_icons()
+
     def _rebuild_deco_types(self):
         """Repopulate the Type: combo from the registry, keeping the current
         type selected when it survived a reload."""
@@ -441,6 +484,7 @@ class PalettePanel(QWidget):
         self._legend = legend
         self._rebuild_gametiles()
         self._rebuild_background()
+        self._rebuild_tutorial()
 
     def reload_registry(self):
         """Re-read data/slots.json after a '+ Add Prop' / '+ Variant' / '+ Level'
@@ -448,6 +492,7 @@ class PalettePanel(QWidget):
         self._registry = load_registry(self._data_dir)
         self._rebuild_gametiles()
         self._rebuild_deco_types()
+        self._rebuild_tutorial()
 
     def set_icon_provider(self, provider):
         """provider(slot_key) -> QImage of the engine-resolved idle frame."""
@@ -500,6 +545,10 @@ class PalettePanel(QWidget):
                     self.arm_code(key[1])
                 else:
                     self.arm_background_slot(key[1])
+        elif self._mode == "tutorial":
+            flutes = self._tutorial_flute_slots()
+            if flutes:
+                self.arm_tutorial_flute(flutes[0])
         else:
             decos = self._deco_slots()
             if decos:
@@ -587,6 +636,18 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_tutorial_flute(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_flute" and btn.isChecked():
+                return value
+        return None
+
+    def armed_tutorial_stone(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_stone" and btn.isChecked():
+                return value
+        return None
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -636,6 +697,26 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.start_area_armed.emit(slot)
 
+    def arm_tutorial_flute(self, slot):
+        """Arm the First Flute brush (paint = place/move the single "first
+        flute" marker, erase = remove it — viewport._tool_press). Clears any
+        other armed brush, INCLUDING the sibling First Stone brush."""
+        btn = self._brush_buttons.get(("tutorial_flute", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_flute_armed.emit(slot)
+
+    def arm_tutorial_stone(self, slot):
+        """Arm the First Stone brush (paint = place/move the single "first
+        stone" marker, erase = remove it — viewport._tool_press). Clears any
+        other armed brush, INCLUDING the sibling First Flute brush."""
+        btn = self._brush_buttons.get(("tutorial_stone", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_stone_armed.emit(slot)
+
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot
         (MainWindow._on_background_slot_armed does the actual bind + rearms
@@ -669,6 +750,12 @@ class PalettePanel(QWidget):
         start_area = self.armed_start_area()
         if start_area is not None:
             return start_area
+        tutorial_flute = self.armed_tutorial_flute()
+        if tutorial_flute is not None:
+            return tutorial_flute
+        tutorial_stone = self.armed_tutorial_stone()
+        if tutorial_stone is not None:
+            return tutorial_stone
         code = self.armed_code()
         if code is not None and self._legend is not None:
             return self._legend[code]["slot"]
