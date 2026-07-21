@@ -5,7 +5,8 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: COMPLETE — 6/6 phases (ESV-1–ESV-6), authored 2026-07-15, completed 2026-07-21 -->
+<!-- status: COMPLETE — 6/6 phases (ESV-1–ESV-6), authored 2026-07-15, completed 2026-07-21;
+     + 4 post-plan live-testing follow-ups (see §7) and 4 open items (§8) -->
 
 # EntitySceneVfxPLAN.md — Entity Scene Editor + VFX System
 
@@ -350,3 +351,108 @@ an intermediate stage; both must be resolved before the PR.
   `setVisible(...)` instead of a separate `right_stack` page —
   `right_stack.count() == 3`, and both the importer and the preview are
   reachable for a selected vfx node.
+
+---
+
+## 7. Post-plan follow-ups (live-testing, 2026-07-21)
+
+The six phases landed green, then **live designer testing found the anchors did
+not actually work**. Four follow-up branches fixed it. All are merged into
+`VfxEditor`; none is part of the original six phases, and each has a brief in
+`docs/briefs/`.
+
+### 7.1 `fix-anchor-offset-and-bullet-sprites`
+
+Two designer reports.
+
+- **The editor's note "Handle origin ignores this slot's Offset X/Y nudge" was
+  wrong to exist.** The renderer nudges the drawn art by `offset_x`/`offset_y`
+  (`renderer.py`), but neither `game/anchors.py` nor the editor's handle origin
+  composed it, so the handle sat off the art for any nudged slot. Both now
+  compose it; the note is deleted. **Measured**: no manifest entry had both an
+  offset and an anchor, so no authored value moved — but 8 slots carry
+  `offset_y: 8`, including the Maw Mortar and Sun Scorcher.
+- **Bullet sprites were unswappable.** Added `vfx_projectile`/`vfx_shell` slots;
+  `submit_projectiles` draws a `HudSprite` when art exists, else the dot. The
+  two projectile colours moved into `procedural.projectile` — the last
+  un-ported cosmetic constants in `effects.py`.
+
+### 7.2 `fix-anchor-origin-parity` — the real bug
+
+Designer: *"all vfx regardless how i assign them are not spawning at the
+assigned spots."* Correct, and the cause was ours:
+
+**The editor drew every handle from the sprite's drawn CENTRE; every game
+consumer applied the anchor from a different base.** `world_offset` omitted both
+the `block_center_offset` shift and the `tile_h/2 * zoom` lift (**measured 16px**
+at zoom 1); HP bars applied from the sprite's TOP (a further ~32px).
+
+Fixed by one shared pure helper, `engine.render.sprite_anchor_screen`, derived
+from `Renderer.flush`'s real placement math, which the editor handle and every
+game consumer now resolve through. `screen_offset`/`world_offset` are **deleted**
+in favour of one absolute-world-point resolver, `anchor_world_point`. HP-bar rule
+(designer's decision): **anchor wins outright** — no anchor keeps `_sprite_top`
+byte-identical.
+
+**Why it shipped green**: the ESV-6 tests asserted `wx == base + world_offset(…)`
+— against the function under test. A tautology that passes for any
+implementation. Replaced with an editor↔game screen-parity test. *Do not write
+that assertion shape again.*
+
+### 7.3 `fix-editor-preview-footprint`
+
+A review pass found the last live instance: the editor previewed every sprite at
+`fit_tiles=0.0` while the game fits enemies to their footprint. **Measured**:
+`formation_stage_1` (128px frame, 1-tile footprint) drew at `s=0.5` in game vs
+`s=1.0` in the editor, so a Formation anchor landed at half distance. Fixed via a
+new **required** `registry_group` field on each `EnemyTypes` block — the
+data-side link letting `editor/sprite_fit.py` resolve a slot's real render fit
+without the editor importing `game/` (D5). `REGISTRY_GROUP` stays the runtime
+truth; `TestRegistryGroupDrift` pins the two equal.
+
+> **A perf regression rode in with it and was caught in review**: the new
+> resolver re-read two JSON files *per frame and per mouse-move during a drag* —
+> **measured 125–145 ms/frame (~7 fps)** with any enemy selected. Memoized into
+> `_draw_fit` (resolved on slot change / registry reload). Back to **~5 ms**.
+> **Any per-frame data read in the viewport must be memoized this way.**
+
+### 7.4 `feat-projectile-anchored-flight`
+
+Designer: projectiles should *start* at the muzzle point and *end* at the impact
+point. Two defects: `submit_projectiles` added a ~19px lift at DRAW time (double-
+counting an authored anchor), and `ProjectileHoming.update` homed at
+`target.transform.world_pos` — the `impact` anchor was only ever used for the hit
+VFX. Now: one `game.anchors.projectile_point` resolver, the lift moved from the
+draw into the endpoints (un-anchored play preserved), and the homing target
+re-resolved every frame. Editor half: a `projectile` family in the VFX preview
+panel, plus the projectile drawn at the muzzle handle in the entity preview.
+
+**D4 held throughout**: `launch(origin=…)`'s timer math is untouched, so flight
+timing and damage are invariant under any anchor.
+
+**Caught after the coder handed back**: removing the shared draw lift also
+dropped the **mortar shell** ~19px, because `ProjectileArc.update` never moves
+the shell (only its timer ticks) — its spawn point *is* its drawn point.
+`_fire_splash` now resolves through the same `projectile_point`.
+
+## 8. Known open items
+
+- **Editor-tier tests are flaky under the gate's parallel workers.**
+  `test_editor_viewport.py::TestMainWindowVfxMode`,
+  `::TestMainWindowScreenModeViews` and three in `test_editor_map_mode.py` have
+  each failed one run and passed the next, and pass serially. Not caused by this
+  work, but a flaky gate erodes the "GATE PASS means something" contract and
+  wants its own investigation.
+- **`tools/tests/fixtures/data/` is stale** in ways unrelated to this work
+  (missing `data/ui/`, several maps, drifted `slots.json`/`buildings.json`/
+  `enemies.json`). Every phase here mirrored only its own files rather than
+  running a blanket `--refresh`. Wants a deliberate refresh + full suite run.
+- **The editor preview still resolves at the entity's footprint only for
+  enemies.** Buildings draw at `fit_tiles=0.0` in both, so they match today —
+  but nothing pins that, and a future building footprint would silently
+  reintroduce the §7.3 class of bug.
+- **A third designer report is unresolved**: *"the current vfx which are using
+  spritesheets haven't been ported."* My reading (the `Corpse` death-animation
+  mechanism + the unplayed building `place`/`upgrade`/`death`/`hurt` animation
+  rows) was **wrong** — the designer said "not at all, ignore this for now". It
+  needs a concrete example before anyone acts on it. **Do not guess at it.**
