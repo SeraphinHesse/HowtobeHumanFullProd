@@ -620,7 +620,7 @@
       ]
     },
     "WallBuilder": {
-      "era_unlock_round": 5,
+      "era_unlock_round": 10,
       "starts_unlocked": false,
       "tiers": [
         {
