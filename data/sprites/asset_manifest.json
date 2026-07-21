@@ -3929,7 +3929,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl1.png"
+      "sheet": "imported/pistoleer_t3_lvl2.png"
     },
     "pistoleer_t3_lvl3": {
       "frame_h": 96,
@@ -4022,7 +4022,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl1.png"
+      "sheet": "imported/pistoleer_t3_lvl3.png"
     },
     "radiant_beam_t2_lvl1": {
       "frame_h": 96,
@@ -4535,7 +4535,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl1.png"
+      "sheet": "imported/slinger_t2_lvl3.png"
     },
     "stone_thrower_t1_lvl1": {
       "frame_h": 96,
