@@ -35,25 +35,36 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QListWidgetItem,
     QPushButton,
     QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
+from editor import theme_ops
+from editor.panels._screen_primitives import widget_display_name
 from editor.panels.balancing import (
     CollapsibleSection,
     _NoWheelComboBox,
     _NoWheelSpinBox,
 )
+from editor.panels._screen_rules import (
+    TOOLTIP_COLOR_CODE_OWNED,
+    TOOLTIP_LABEL_CODE_OWNED,
+    color_is_code_owned,
+    label_is_code_owned,
+    resolved_skin,
+)
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
-# Mirrors engine/render/fonts.py's _FONT_SPECS keys (private to that module —
-# duplicated here rather than reaching across the module boundary for a
-# leading-underscore name; keep in sync if fonts.py's key set changes).
-_FONT_KEYS = ("sm", "md", "lg", "xl", "xxl", "hud_phase", "hud_lvl")
+# UH-6/D6: the Color control on a widget that resolves to a skin becomes
+# Tint (D6) — it DOES reach the game (widgets.py Button.submit/submit_panel
+# thread `tint` through to the HudSprite), unlike `color` on a skinned
+# widget (still inert; see game/ui/skinning.py's button_kwargs docstring).
+TOOLTIP_TINT_SKINNED = "Multiplies the sprite sheet — white = unchanged."
 
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
@@ -83,6 +94,8 @@ class ScreenDetailsPanel(QWidget):
         self._skin_baseline = None
         self._font_baseline = None
         self._color_baseline = None
+        self._tint_baseline = None      # UH-6/D6: the Color row's OTHER key
+        self._color_is_tint = False     # UH-6: which key the row is showing
         self._text_color_baseline = None
         self._label_baseline = None
         self._label_effective = None
@@ -94,7 +107,7 @@ class ScreenDetailsPanel(QWidget):
 
         layout.addWidget(QLabel("Widgets", self))
         self.widget_list = QListWidget(self)
-        self.widget_list.currentTextChanged.connect(self._on_widget_list_selected)
+        self.widget_list.currentItemChanged.connect(self._on_widget_list_selected)
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -127,11 +140,16 @@ class ScreenDetailsPanel(QWidget):
             (self.font_combo,), "font", lambda: self._on_reset_field("font"))
         form.addRow("Font", font_row)
 
+        # UH-6/D6: this ONE control is Color on an unskinned widget, Tint on
+        # a skinned one (repurposing UH-3's disabled-on-skin state — see
+        # _refresh_honest_controls) — the row label + button text + which
+        # doc key it reads/writes/resets all follow `self._color_is_tint`.
         self.color_button = QPushButton("Color…", self)
         self.color_button.clicked.connect(self._on_color_clicked)
         color_row, self.color_reset_button = self._field_row(
-            (self.color_button,), "color", lambda: self._on_reset_field("color"))
-        form.addRow("Color", color_row)
+            (self.color_button,), "color/tint", self._on_reset_color_field)
+        self.color_row_label = QLabel("Color", self)
+        form.addRow(self.color_row_label, color_row)
 
         self.text_color_button = QPushButton("Text Color…", self)
         self.text_color_button.clicked.connect(self._on_text_color_clicked)
@@ -268,7 +286,7 @@ class ScreenDetailsPanel(QWidget):
         combo.blockSignals(True)
         combo.clear()
         combo.addItem("", None)
-        for key in _FONT_KEYS:
+        for key in theme_ops.font_keys(self._data_dir):
             combo.addItem(key, key)
         combo.blockSignals(False)
 
@@ -320,9 +338,18 @@ class ScreenDetailsPanel(QWidget):
         self._on_screen_opened()
 
     def _current_screen_defaults(self):
+        """The open screen's own {widgets, mock_note} sub-dict — resolves
+        the session's active `view` (UH-2) the same way
+        ViewportPanel._current_screen_defaults does, so `_refresh_widget_list`
+        needs no code change: it just iterates whichever dict comes back."""
         if self._session is None or self._session.doc is None:
             return {}
-        return self._all_defaults.get(self._session.screen_id, {})
+        entry = self._all_defaults.get(self._session.screen_id, {})
+        views = entry.get("views")
+        view = self._session.view
+        if views and view in views:
+            return views[view]
+        return entry
 
     def _on_screen_opened(self):
         self._current_widget = None
@@ -337,27 +364,35 @@ class ScreenDetailsPanel(QWidget):
     def _refresh_widget_list(self):
         self.widget_list.blockSignals(True)
         self.widget_list.clear()
-        for widget_id in self._current_screen_defaults().get("widgets", {}):
-            self.widget_list.addItem(widget_id)
+        widgets = self._current_screen_defaults().get("widgets", {})
+        for widget_id, spec in widgets.items():
+            item = QListWidgetItem(widget_display_name(widget_id, spec))
+            item.setToolTip(widget_id)
+            item.setData(Qt.ItemDataRole.UserRole, widget_id)
+            self.widget_list.addItem(item)
         self.widget_list.blockSignals(False)
 
-    def _on_widget_list_selected(self, widget_id):
-        if not widget_id:
+    def _on_widget_list_selected(self, current, _previous=None):
+        if current is None:
             return
+        widget_id = current.data(Qt.ItemDataRole.UserRole)
         self._populate_widget_form(widget_id)
         self.widget_selected.emit(widget_id)
 
     def select_widget(self, widget_id):
         """External sync (the viewport tells us a widget was clicked/
         dragged there) — populates the form WITHOUT re-emitting
-        widget_selected (avoids a viewport<->panel selection feedback loop)."""
-        items = self.widget_list.findItems(
-            widget_id or "", Qt.MatchFlag.MatchExactly)
+        widget_selected (avoids a viewport<->panel selection feedback loop).
+        Matches on `Qt.ItemDataRole.UserRole` (the code id), never item TEXT
+        — display names are not guaranteed unique, the id is (UH-4)."""
+        target_row = -1
+        for row in range(self.widget_list.count()):
+            if self.widget_list.item(row).data(
+                    Qt.ItemDataRole.UserRole) == widget_id:
+                target_row = row
+                break
         self.widget_list.blockSignals(True)
-        if items:
-            self.widget_list.setCurrentItem(items[0])
-        else:
-            self.widget_list.setCurrentRow(-1)
+        self.widget_list.setCurrentRow(target_row)
         self.widget_list.blockSignals(False)
         if widget_id:
             self._populate_widget_form(widget_id)
@@ -383,19 +418,98 @@ class ScreenDetailsPanel(QWidget):
                        self.text_color_reset_button, self.label_reset_button,
                        self.visible_reset_button):
                 btn.setEnabled(False)
+            # UH-6: no widget selected -> nothing to be honest about; show
+            # the row's plain, default state.
+            self._color_is_tint = False
+            self.color_row_label.setText("Color")
+            self.color_button.setText("Color…")
+            self.color_button.setToolTip("")
 
     def _refresh_reset_buttons(self, override):
         """Each per-field reset button is enabled iff THAT key currently
         has an override — resetting a field nothing overrides is a no-op
         (push_field's own None==None guard would refuse it anyway; this
-        just keeps the button from inviting the click)."""
+        just keeps the button from inviting the click). The Color/Tint row
+        (UH-6/D6) checks whichever key `self._color_is_tint` currently
+        means — set by `_refresh_honest_controls`, which runs BEFORE this
+        in `_populate_widget_form`."""
         self.rect_reset_button.setEnabled("rect" in override)
         self.skin_reset_button.setEnabled("skin" in override)
         self.font_reset_button.setEnabled("font" in override)
-        self.color_reset_button.setEnabled("color" in override)
+        self.color_reset_button.setEnabled(self._active_color_key() in override)
         self.text_color_reset_button.setEnabled("text_color" in override)
         self.label_reset_button.setEnabled("label" in override)
         self.visible_reset_button.setEnabled("visible" in override)
+
+    def _active_color_key(self):
+        """"tint" on a widget that resolves to a skin (D6 — the honest
+        control there is Tint), else "color" (today's Color behavior,
+        verbatim — UH-3's rule preserved for unskinned widgets)."""
+        return "tint" if self._color_is_tint else "color"
+
+    def _refresh_honest_controls(self, spec, override, style):
+        """D3 (plan) + D6 (UH-6, ties to UH-3): a control that cannot take
+        effect in the game is disabled with an explanatory tooltip, never
+        silently accepted. Recomputed live (never stored) from the SAME
+        `spec`/`override`/`style` accessors `_populate_widget_form` already
+        uses, so it composes with UH-2's per-view filtering regardless of
+        merge order.
+
+        UH-6 REPURPOSES UH-3's "Color disabled on a skinned widget" state:
+        `tint` DOES reach the game (widgets.py Button.submit/submit_panel
+        thread it to the HudSprite), so the honest move for a skinned
+        widget is relabel-to-Tint-and-ENABLE, not disable — the
+        disabled-never-lying rule (D3) still holds, since nothing here
+        writes a key the game ignores either way. An unskinned widget keeps
+        today's plain Color behavior verbatim.
+        """
+        screen_id = self._session.screen_id if self._session is not None else None
+        kind = spec.get("kind")
+        code_owned_fill = color_is_code_owned(kind)
+        skinned = resolved_skin(spec, override, style) is not None
+        # Tint (UH-6/D6) is the honest repurposing of a skinned widget's Color
+        # control for the kinds whose draw path threads `tint` into the sheet:
+        #   - `button`: `Button.submit` unconditionally forwards `tint`.
+        #   - `panel`: every id'd panel widget forwards `tint` at its
+        #     `submit_panel` call site (`building_ui.py:238,932`,
+        #     `cheat_menu.py:217`, `add_name.py:134`, `boss_cutscene.py:162`,
+        #     `hud.py:321,354,448`). The two `submit_panel` sites that DROP
+        #     `tint` (`building_ui.py:1252` boss popup, `levelup.py:128` option
+        #     boxes) draw dynamic, NON-id'd content that never appears in
+        #     `screen_defaults.json`, so they are never selectable here.
+        # It is NOT offered for `field`/`label` (no skin is ever drawn for
+        # them; their fill/color is code-owned) — those hit the disabled branch.
+        # The final rule:
+        #   skinned button/panel        -> Tint (enabled)
+        #   code-owned fill kind        -> Color disabled (panel/field/label,
+        #                                  when unskinned: fill is hardcoded)
+        #   otherwise                   -> Color enabled (unskinned button, or
+        #                                  backdrop/bar whose `.color` is live)
+        # KNOWN RESIDUAL (deferred viewport quirk, finding 3): `hud.love_panel`
+        # is kind `panel` but draws via `HudRect` (hardcoded fill), so a `skin`
+        # override forced onto it would show Tint that no-ops. That requires
+        # the same skin-on-a-non-skinnable-widget quirk that also affects
+        # backdrop/bar; it is out of scope here and tracked separately.
+        tintable = skinned and kind in ("button", "panel")
+        self._color_is_tint = tintable
+        if tintable:
+            self.color_row_label.setText("Tint")
+            self.color_button.setText("Tint…")
+            self.color_button.setToolTip(TOOLTIP_TINT_SKINNED)
+            self.color_button.setEnabled(True)
+        else:
+            self.color_row_label.setText("Color")
+            self.color_button.setText("Color…")
+            if code_owned_fill:
+                self.color_button.setToolTip(TOOLTIP_COLOR_CODE_OWNED)
+                self.color_button.setEnabled(False)
+            else:
+                self.color_button.setToolTip("")
+                self.color_button.setEnabled(True)
+
+        code_owned = label_is_code_owned(screen_id, self._current_widget, kind)
+        self.label_edit.setEnabled(not code_owned)
+        self.label_edit.setToolTip(TOOLTIP_LABEL_CODE_OWNED if code_owned else "")
 
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
@@ -428,6 +542,7 @@ class ScreenDetailsPanel(QWidget):
         self.font_combo.setCurrentIndex(max(0, self.font_combo.findData(font)))
 
         self._color_baseline = override.get("color")
+        self._tint_baseline = override.get("tint")   # UH-6/D6
         self._text_color_baseline = override.get("text_color")
 
         label = override.get("label", spec.get("label", ""))
@@ -442,6 +557,11 @@ class ScreenDetailsPanel(QWidget):
 
         self._populating = False
         self._set_widget_form_enabled(True)
+        # UH-6: honest-controls recompute FIRST — it sets self._color_is_tint,
+        # which _refresh_reset_buttons' Color/Tint row reads via
+        # _active_color_key(). (The one genuine UH-3/UH-6 coupling point.)
+        style = self._session.doc.get("defaults", {})
+        self._refresh_honest_controls(spec, override, style)
         self._refresh_reset_buttons(override)
 
     def _refresh_widget_form(self):
@@ -468,6 +588,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_skin_assign(self._current_widget, old_skin, new_skin)
         self._skin_baseline = new_skin
+        self._refresh_widget_form()
 
     def _on_font_changed(self, index):
         if self._current_widget is None:
@@ -487,14 +608,26 @@ class ScreenDetailsPanel(QWidget):
         return [chosen.red(), chosen.green(), chosen.blue()]
 
     def _on_color_clicked(self):
+        """UH-6/D6: writes `tint` on a skinned widget, `color` on an
+        unskinned one — whichever `_active_color_key()` (set by
+        `_refresh_honest_controls`) says the row is currently showing."""
         if self._current_widget is None:
             return
-        new_color = self._pick_color(self._color_baseline)
-        if new_color is None or new_color == self._color_baseline:
+        key = self._active_color_key()
+        baseline = self._tint_baseline if key == "tint" else self._color_baseline
+        new_color = self._pick_color(baseline)
+        if new_color is None or new_color == baseline:
             return
-        self._session.push_field(
-            self._current_widget, "color", self._color_baseline, new_color)
-        self._color_baseline = new_color
+        self._session.push_field(self._current_widget, key, baseline, new_color)
+        if key == "tint":
+            self._tint_baseline = new_color
+        else:
+            self._color_baseline = new_color
+
+    def _on_reset_color_field(self):
+        """The Color/Tint row's own reset (UH-6/D6): targets whichever key
+        is currently active, not a fixed "color"."""
+        self._on_reset_field(self._active_color_key())
 
     def _on_text_color_clicked(self):
         if self._current_widget is None:
@@ -638,6 +771,7 @@ class ScreenDetailsPanel(QWidget):
             return
         self._session.push_default_field(field_key, old_value, new_value)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_reset_default_field(self, field_key):
         if self._session is None or self._session.doc is None:
@@ -648,6 +782,7 @@ class ScreenDetailsPanel(QWidget):
         old_value = style[field_key]
         self._session.push_default_field(field_key, old_value, None)
         self._refresh_defaults_section()
+        self._refresh_widget_form()
 
     def _on_default_text_color_clicked(self):
         style = self._session.doc.get("defaults", {})

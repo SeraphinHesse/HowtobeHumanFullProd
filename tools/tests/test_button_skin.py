@@ -288,5 +288,44 @@ class TestR2HitSeam(unittest.TestCase):
         self.assertTrue(any(isinstance(c, HudSprite) for c in rec.calls))
 
 
+class TestTint(unittest.TestCase):
+    """D6/UH-6: an optional per-widget `tint` (a sheet-multiply color) rides
+    the same HudSprite a skin already emits. Omitted = ``None`` = today's
+    rendering — the two parity tests above (``test_skinned_button_emits_
+    sprite_plus_label`` / ``test_skinned_panel``) already pin that byte-for-
+    byte; these add the "present" half."""
+
+    def test_skinned_button_with_tint_emits_it_on_the_sprite(self):
+        btn = Button(RECT, "GO", skin="ui_button")
+        btn.tint = (10, 20, 30)   # the override setattrs this (ScreenSkinning.apply)
+        rec = _Rec()
+        btn.submit(rec, anim_ms=5)
+        sprite, _label = rec.calls
+        self.assertEqual(sprite.tint, (10, 20, 30))
+
+    def test_skinned_button_without_tint_attr_is_none(self):
+        # A dynamic (non-id'd) button never gains a `.tint` attribute at
+        # all — getattr(..., None) must not raise.
+        btn = Button(RECT, "GO", skin="ui_button")
+        rec = _Rec()
+        btn.submit(rec)
+        sprite, _label = rec.calls
+        self.assertIsNone(sprite.tint)
+
+    def test_submit_panel_with_tint(self):
+        rec = _Rec()
+        submit_panel(rec, RECT, skin="ui_panel", tint=(40, 50, 60), anim_ms=1)
+        self.assertEqual(rec.calls, [
+            HudSprite("ui_panel", (10, 20), (100, 30), tint=(40, 50, 60),
+                     animation="idle", anim_time_ms=1),
+        ])
+
+    def test_submit_panel_without_tint_is_none(self):
+        rec = _Rec()
+        submit_panel(rec, RECT, skin="ui_panel", anim_ms=1)
+        sprite = rec.calls[0]
+        self.assertIsNone(sprite.tint)
+
+
 if __name__ == "__main__":
     unittest.main()
