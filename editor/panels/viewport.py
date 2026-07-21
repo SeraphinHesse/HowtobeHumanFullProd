@@ -116,6 +116,7 @@ class ViewportPanel(QWidget):
         self._tool = "none"
         self._armed_code = None
         self._armed_deco = None
+        self._deco_flip_armed = False  # mirror-flip toggle for the deco brush
         self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._armed_camera = None   # the Camera Start slot when that brush is armed
         self._armed_start_area = None  # the Start Area slot when armed
@@ -593,6 +594,12 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
 
+    def set_deco_flip(self, on):
+        """Mirror-flip toggle for the armed deco brush — an orthogonal
+        placement modifier, not tied to which prop is armed, so it persists
+        across type/variant switches until the user toggles it off."""
+        self._deco_flip_armed = bool(on)
+
     def set_eye(self, name, on):
         self._eyes[name] = on
 
@@ -659,7 +666,8 @@ class ViewportPanel(QWidget):
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
-                    cell[0], cell[1], self._armed_deco)
+                    cell[0], cell[1], self._armed_deco,
+                    flip=self._deco_flip_armed)
             elif self._tool == "erase":
                 self._map_session.push_deco_remove(cell[0], cell[1])
             return
@@ -755,7 +763,7 @@ class ViewportPanel(QWidget):
             return
         if self._armed_deco is not None:
             yield RenderItem(self._armed_deco, cell, layer="overlay",
-                             tint=GHOST_TINT)
+                             tint=GHOST_TINT, flip=self._deco_flip_armed)
             return
         if self._armed_code is None and self._tool != "erase":
             return

@@ -102,11 +102,6 @@
       "slot": "deco_tree_v4"
     },
     {
-      "col": 509,
-      "row": 512,
-      "slot": "deco_prop_1_v4"
-    },
-    {
       "col": 510,
       "row": 505,
       "slot": "deco_prop_1_v5"
@@ -1082,11 +1077,6 @@
       "slot": "deco_tree_v3"
     },
     {
-      "col": 506,
-      "row": 509,
-      "slot": "deco_prop_1_v4"
-    },
-    {
       "col": 511,
       "row": 507,
       "slot": "deco_prop_1"
@@ -1094,6 +1084,18 @@
     {
       "col": 510,
       "row": 508,
+      "slot": "deco_prop_1_v4"
+    },
+    {
+      "col": 509,
+      "flip": true,
+      "row": 512,
+      "slot": "deco_prop_1_v4"
+    },
+    {
+      "col": 505,
+      "flip": true,
+      "row": 506,
       "slot": "deco_prop_1_v4"
     }
   ],
