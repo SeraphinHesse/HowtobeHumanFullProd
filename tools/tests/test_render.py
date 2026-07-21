@@ -72,7 +72,8 @@ class TestLayerAndDepthOrder(unittest.TestCase):
     """E-26 layer order ground→entities→deco→overlay; E-21/E-4 iso sort within."""
 
     def test_named_layer_order(self):
-        self.assertEqual(LAYERS, ("ground", "entities", "deco", "overlay"))
+        self.assertEqual(
+            LAYERS, ("ground", "terrain", "entities", "deco", "overlay"))
 
     def test_draw_order(self):
         backend = RecordingBackend()

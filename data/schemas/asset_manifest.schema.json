@@ -138,6 +138,10 @@
               "maxItems": 4,
               "minItems": 4,
               "type": "array"
+            },
+            "tint_overlay": {
+              "description": "Optional render hint: keep drawing the consumer's own flat colour overlay UNDER this art instead of letting the sprite stand alone. Read today only by the game's tile-condition art (data/slots.json 'conditions' category) — a condition slot with no entry at all always draws the overlay, since there is no sprite. Omit for sprite-only.",
+              "type": "boolean"
             }
           },
           "required": [

@@ -827,6 +827,46 @@
       "animations": [
         "idle"
       ],
+      "display_name": "Tile Conditions",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "label": "Grass",
+              "slots": [
+                "cond_grass"
+              ]
+            },
+            {
+              "label": "Mountain",
+              "slots": [
+                "cond_mountain"
+              ]
+            },
+            {
+              "label": "Pond",
+              "slots": [
+                "cond_pond"
+              ]
+            },
+            {
+              "label": "Forest",
+              "slots": [
+                "cond_forest"
+              ]
+            }
+          ],
+          "label": "Terrain"
+        }
+      ],
+      "key": "conditions"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
       "display_name": "Backgrounds",
       "frame_h": 270,
       "frame_w": 480,

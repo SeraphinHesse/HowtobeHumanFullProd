@@ -12,8 +12,13 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
 - `Renderer(coords, assets, backend=None)` — `renderer.py` produces `DrawCall`s;
   the pygame backend (`render/backend.py`) is lazily imported on first `flush()`
   and injectable for tests.
-- Draw layers fixed: `LAYERS = ("ground", "entities", "deco", "overlay")` (E-26);
-  HUD is drawn by the host after flush.
+- Draw layers fixed: `LAYERS = ("ground", "terrain", "entities", "deco",
+  "overlay")` (E-26); HUD is drawn by the host after flush. **`terrain` sits
+  between `ground` and `entities`** for content that overlays the ground tiles
+  but must pass UNDER everything an entity draws — the game's tile-condition
+  art is its one consumer (`game/map/conditions.py`). Engine-generic name on
+  purpose: no game vocabulary here. Adding it left `ground` at index 0, which
+  is what kept the ground-cache invariant below intact.
 - **`depth_key = (layer_index, wx+wy, wy)`** makes the draw LAYER the primary sort
   key, so the whole `ground` layer always draws before `entities`/`deco`/
   `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever

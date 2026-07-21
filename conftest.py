@@ -76,6 +76,7 @@ TIERS = {
     "test_button_skin": "core",
     "test_combat_speed": "core",
     "test_components": "core",
+    "test_condition_art": "core",
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",

@@ -35,6 +35,7 @@ ids), ``apply()`` runs once in ``__init__`` rather than from a per-frame
 """
 from engine.render import HudRect
 from game.core.phases import GamePhase
+from game.map.conditions import draws_tint
 from game.map.tiles import TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
@@ -88,6 +89,11 @@ class MapOverlays:
         # phase runs; snapshot to counts on the phase edge.
         self._current = {}
         self.path_heatmap = {}
+        # {condition slot key: tint_overlay} over the condition slots that have
+        # imported art — set by the host from the asset manifest. Empty ⇒ no
+        # condition has art ⇒ every non-grass tile keeps its colour diamond,
+        # which is exactly the pre-art behaviour.
+        self.condition_art = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         # 10L-B: fixed for this object's lifetime — apply once (no per-frame
         # layout() step, matching BuildingUI's mode-independent ids).
@@ -184,7 +190,11 @@ class MapOverlays:
                 if t is None or t.state == TileState.BACKGROUND:
                     continue
                 tint = _COND_TINT.get(t.condition)
-                if tint is not None:
+                # The diamond is a FALLBACK now: a tile whose condition art is
+                # imported draws that sprite on the `terrain` layer instead,
+                # unless its manifest entry asks for the tint underneath.
+                if tint is not None and draws_tint(t.condition_slot,
+                                                   self.condition_art):
                     # prototype tile.py:169-172: fill alpha 70 (the border is
                     # an opaque line — OverlayLines carries no alpha)
                     submit_tile_diamond_fill(

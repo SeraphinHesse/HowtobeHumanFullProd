@@ -83,6 +83,10 @@ _SCREEN_ROLE = Qt.ItemDataRole.UserRole + 3     # screen_id (Screens-branch leav
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
 
+# Registry categories shown as CHILDREN of the "map" node instead of their own
+# top-level node — a tree-shape choice only (see the branch in __init__).
+_NESTED_UNDER_MAP = ("deco", "conditions")
+
 # The one form reachable from EMPTY tree space: it creates a category, so it
 # belongs to no category node and carries no selector_context.
 _ADD_CATEGORY_FORM_ID = "add-category"
@@ -116,15 +120,15 @@ class SelectorPanel(QTreeWidget):
                 # domain_selected, which would drive the balancing panel into a
                 # missing file (Phase 4 behavior, preserved).
                 continue
-            if category.key == "deco" and map_root is not None:
-                # Deco lives under the "Map" node in the TREE only (user
-                # request: browsing/import feel like part of map editing,
-                # since deco is placed while painting a map) — the
-                # registry category itself is untouched, so its own frame
-                # size (64x96, distinct from map tiles' 64x32) still
-                # applies; category_key stays "deco" everywhere else
-                # (selection.py, DetailsPanel, palette) so nothing else
-                # changes.
+            if category.key in _NESTED_UNDER_MAP and map_root is not None:
+                # Deco and Tile Conditions live under the "Map" node in the
+                # TREE only (user request: browsing/import feel like part of
+                # map editing — deco is placed while painting a map, and
+                # conditions are terrain) — the registry categories
+                # themselves are untouched, so their own frame size (64x96,
+                # distinct from map tiles' 64x32) still applies; category_key
+                # stays "deco"/"conditions" everywhere else (selection.py,
+                # DetailsPanel, palette) so nothing else changes.
                 root = self._make_item(category.display_name, category.key, ())
                 map_root.addChild(root)
                 for group in category.groups:
