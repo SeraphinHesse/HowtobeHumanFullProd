@@ -148,15 +148,24 @@ validating writer; don't hand-edit the JSON.
     `engine/tilemap.py` precedent).
 - **`conditions` (Tile Conditions) is an asset-only category** (no
   `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
-  art for the four runtime tile conditions: one group `Terrain` with leaf
-  children `Grass`/`Mountain`/`Pond`/`Forest`, so each is a variant family
-  ("+ Variant" → `cond_mountain_v2`, and the game rolls between them PER TILE).
-  64×96 like buildings/deco, NOT 64×32 like map tiles — a mountain rises above
-  its tile. Keys are `cond_*` on purpose: `tile_forest` already belongs to the
-  `map` category's backgrounds, and a key in two categories is a load error.
-  Tile conditions are **not** in the map file — they roll at runtime — so
-  nothing here is paintable; the editor only imports their art. Rendering +
-  the tint fallback → `game/map/CLAUDE.md`.
+  art for the four runtime tile conditions, restructured so each condition
+  type is its OWN top-level group — `Grass`/`Mountain`/`Pond`/`Forest` — and
+  WITHIN each, one leaf child per zone STATE — `Buildable`/`Built`/`Combat`/
+  `Spawning` — each independently a variant family ("+ Variant" →
+  `cond_mountain_buildable_v2`). Slot key convention: `cond_<condition>_
+  <state>` (`cond_mountain_buildable`, `cond_mountain_built`,
+  `cond_mountain_combat`, `cond_mountain_spawning`, …), 16 slots total. The
+  game rolls a condition + a variant index PER TILE once at map load
+  (`game/map/CLAUDE.md`'s roll), but the ART slot it resolves to is
+  **dynamic**: it re-resolves to the tile's current zone state's family
+  (at the SAME stable variant index) every time `TileMap.set_tile_state`
+  fires, so e.g. a mountain looks different once built-over. 64×96 like
+  buildings/deco, NOT 64×32 like map tiles — a mountain rises above its tile.
+  Keys are `cond_*` on purpose: `tile_forest` already belongs to the `map`
+  category's backgrounds, and a key in two categories is a load error. Tile
+  conditions are **not** in the map file — they roll at runtime — so nothing
+  here is paintable; the editor only imports their art. Rendering + the tint
+  fallback → `game/map/CLAUDE.md`.
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,

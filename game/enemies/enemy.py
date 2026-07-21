@@ -302,11 +302,12 @@ class Boss(Enemy):
         the last thing it touches, and only once the board is clear). Arms the
         10G ``PathAgent`` flags: re-path when the target dies, and never count
         arrival at a non-base goal as a breach."""
+        fp = self.get_component(PathAgent).footprint
         path = find_path_to_nearest_non_base_building(
-            self._tilemap, self._col, self._row)
+            self._tilemap, self._col, self._row, footprint=fp)
         if not path:
             path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row)
+                self._tilemap, self._col, self._row, footprint=fp)
         mv = self.get_component(Movement)
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0

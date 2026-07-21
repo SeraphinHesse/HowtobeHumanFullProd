@@ -22,14 +22,22 @@ from engine.assets.registry import SlotRegistry
 from engine.render import LAYERS
 from game.core.balance import load_balance
 from game.map.conditions import LAYER, condition_render_items, draws_tint
-from game.map.tile_map import TileMap
-from game.map.tiles import CONDITION_CATEGORY, CONDITION_GROUP, TileCondition
+from game.map.tile_map import TileMap, _resolve_condition_slot
+from game.map.tiles import (
+    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL, TileCondition,
+    TileState,
+)
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 
-# A pinned two-variant-per-condition registry — the shape data/slots.json ships,
-# plus a second Mountain variant so the per-tile variant roll has something to
-# choose between.
+# A pinned per-condition-type / per-state registry — the shape data/slots.json
+# ships since the per-state restructuring: each condition type (Grass/
+# Mountain/Pond/Forest) is its OWN top-level group, and WITHIN each, one leaf
+# child per zone state (Buildable/Built/Combat/Spawning). Mountain carries a
+# second variant on Buildable/Combat/Spawning (but only ONE on Built) so both
+# the per-tile variant roll AND the stable-index-across-a-transition behavior
+# (including the modulo-wrap case, transitioning INTO the single-variant Built
+# family) have something to exercise.
 REGISTRY_DOC = {
     "categories": [{
         "key": CONDITION_CATEGORY,
@@ -37,16 +45,35 @@ REGISTRY_DOC = {
         "frame_w": 64,
         "frame_h": 96,
         "animations": ["idle"],
-        "groups": [{
-            "label": "Terrain",
-            "children": [
-                {"label": "Grass", "slots": ["cond_grass"]},
-                {"label": "Mountain",
-                 "slots": ["cond_mountain", "cond_mountain_v2"]},
-                {"label": "Pond", "slots": ["cond_pond"]},
-                {"label": "Forest", "slots": ["cond_forest"]},
-            ],
-        }],
+        "groups": [
+            {"label": "Grass", "children": [
+                {"label": "Buildable", "slots": ["cond_grass_buildable"]},
+                {"label": "Built", "slots": ["cond_grass_built"]},
+                {"label": "Combat", "slots": ["cond_grass_combat"]},
+                {"label": "Spawning", "slots": ["cond_grass_spawning"]},
+            ]},
+            {"label": "Mountain", "children": [
+                {"label": "Buildable", "slots": [
+                    "cond_mountain_buildable", "cond_mountain_buildable_v2"]},
+                {"label": "Built", "slots": ["cond_mountain_built"]},
+                {"label": "Combat", "slots": [
+                    "cond_mountain_combat", "cond_mountain_combat_v2"]},
+                {"label": "Spawning", "slots": [
+                    "cond_mountain_spawning", "cond_mountain_spawning_v2"]},
+            ]},
+            {"label": "Pond", "children": [
+                {"label": "Buildable", "slots": ["cond_pond_buildable"]},
+                {"label": "Built", "slots": ["cond_pond_built"]},
+                {"label": "Combat", "slots": ["cond_pond_combat"]},
+                {"label": "Spawning", "slots": ["cond_pond_spawning"]},
+            ]},
+            {"label": "Forest", "children": [
+                {"label": "Buildable", "slots": ["cond_forest_buildable"]},
+                {"label": "Built", "slots": ["cond_forest_built"]},
+                {"label": "Combat", "slots": ["cond_forest_combat"]},
+                {"label": "Spawning", "slots": ["cond_forest_spawning"]},
+            ]},
+        ],
     }],
 }
 REGISTRY = SlotRegistry(REGISTRY_DOC)
@@ -108,30 +135,101 @@ class TestConditionSlotRoll(unittest.TestCase):
             if tile.condition_slot is None:
                 continue
             expected = REGISTRY.group_slots(
-                CONDITION_CATEGORY, CONDITION_GROUP[tile.condition])
+                CONDITION_CATEGORY,
+                (CONDITION_LABEL[tile.condition],
+                 CONDITION_STATE_LABEL[tile.state]))
             self.assertIn(tile.condition_slot, expected)
 
     def test_variants_are_rolled_per_tile(self):
-        """Both Mountain variants show up across a map — a new `_v3` dropped in
-        via the editor grows the pool with no code change."""
+        """Both Mountain Combat variants show up across an all-combat map — a
+        new `_v3` dropped in via the editor grows the pool with no code
+        change."""
         tm = synth(["c" * 40] * 40, base=(0, 0), rng=random.Random(5),
                    registry=REGISTRY)
         seen = {t.condition_slot for t in tm.all_tiles()
                 if t.condition is TileCondition.MOUNTAIN}
-        self.assertEqual(seen, {"cond_mountain", "cond_mountain_v2"})
+        self.assertEqual(seen, {"cond_mountain_combat", "cond_mountain_combat_v2"})
 
     def test_an_unknown_group_degrades_to_no_slot(self):
         """A registry missing a condition's group must not crash a boot."""
         doc = {"categories": [{
             "key": CONDITION_CATEGORY, "display_name": "X",
             "frame_w": 64, "frame_h": 96, "animations": ["idle"],
-            "groups": [{"label": "Terrain",
-                        "children": [{"label": "Grass",
-                                      "slots": ["cond_grass"]}]}],
+            "groups": [{"label": "Grass",
+                        "children": [{"label": "Buildable",
+                                      "slots": ["cond_grass_buildable"]}]}],
         }]}
         tm = synth(ROWS, rng=random.Random(2), registry=SlotRegistry(doc))
         for tile in tm.all_tiles():
-            self.assertIn(tile.condition_slot, (None, "cond_grass"))
+            self.assertIn(tile.condition_slot, (None, "cond_grass_buildable"))
+
+
+# ---------------------------------------------------------------------------
+# 1b. The state-keyed resolver + the stable variant index across a live
+#     `set_tile_state` transition (the new per-state behavior).
+# ---------------------------------------------------------------------------
+class TestStateKeyedResolution(unittest.TestCase):
+
+    def test_resolver_picks_the_state_specific_family_not_another_states(self):
+        """A tile in BUILDABLE state resolves to a slot from the Buildable
+        family, never Built/Combat/Spawning — and vice versa for each state."""
+        for state, expected in (
+                (TileState.BUILDABLE, "cond_mountain_buildable"),
+                (TileState.BUILT, "cond_mountain_built"),
+                (TileState.COMBAT, "cond_mountain_combat"),
+                (TileState.SPAWNING, "cond_mountain_spawning")):
+            with self.subTest(state=state):
+                slot = _resolve_condition_slot(
+                    REGISTRY, TileCondition.MOUNTAIN, state, 0)
+                self.assertEqual(slot, expected)
+
+    def test_resolver_returns_none_for_background(self):
+        """BACKGROUND has no entry in CONDITION_STATE_LABEL — mirrors the
+        'background tiles never get condition art' rule."""
+        self.assertIsNone(_resolve_condition_slot(
+            REGISTRY, TileCondition.MOUNTAIN, TileState.BACKGROUND, 0))
+
+    def test_variant_index_is_stable_across_a_state_transition(self):
+        """A tile that rolled variant #1 of one state's family keeps index #1
+        when it transitions to ANOTHER state whose family is the same size
+        (Combat and Spawning both carry 2 Mountain variants here)."""
+        tm = synth(["c" * 4], rng=random.Random(1), registry=REGISTRY)
+        tile = tm.get(1, 0)
+        tile.condition = TileCondition.MOUNTAIN
+        tile.condition_variant_idx = 1
+        tile.condition_slot = _resolve_condition_slot(
+            REGISTRY, TileCondition.MOUNTAIN, tile.state, 1)
+        self.assertEqual(tile.condition_slot, "cond_mountain_combat_v2")
+
+        tm.set_tile_state(tile, TileState.SPAWNING)
+        self.assertEqual(tile.condition_variant_idx, 1)   # never re-rolled
+        self.assertEqual(tile.condition_slot, "cond_mountain_spawning_v2")
+
+    def test_variant_index_wraps_modulo_into_a_smaller_family(self):
+        """The SAME tile transitioning into Built (Mountain's Built family has
+        only ONE slot here) must not crash or lose its index — index 1
+        modulo 1 wraps to the family's only slot."""
+        tm = synth(["c" * 4], rng=random.Random(1), registry=REGISTRY)
+        tile = tm.get(1, 0)
+        tile.condition = TileCondition.MOUNTAIN
+        tile.condition_variant_idx = 1
+        tile.condition_slot = _resolve_condition_slot(
+            REGISTRY, TileCondition.MOUNTAIN, tile.state, 1)
+
+        tm.set_tile_state(tile, TileState.BUILT)
+        self.assertEqual(tile.condition_variant_idx, 1)   # index itself unmoved
+        self.assertEqual(tile.condition_slot, "cond_mountain_built")
+
+    def test_set_tile_state_skips_re_resolution_for_background(self):
+        """Receding a tile back to BACKGROUND leaves `condition_slot` as
+        whatever it was — background tiles never draw condition art
+        regardless, mirroring the init-pass skip."""
+        tm = synth(["c" * 4], rng=random.Random(1), registry=REGISTRY)
+        tile = tm.get(1, 0)
+        tile.condition = TileCondition.MOUNTAIN
+        before = tile.condition_slot
+        tm.set_tile_state(tile, TileState.BACKGROUND)
+        self.assertEqual(tile.condition_slot, before)
 
 
 # ---------------------------------------------------------------------------
@@ -162,7 +260,7 @@ class TestConditionRenderItems(unittest.TestCase):
 
     def test_slots_without_art_emit_nothing(self):
         """An un-imported condition draws NO sprite — never a grey X."""
-        art = {"cond_mountain": False, "cond_mountain_v2": False}
+        art = {s: False for s in ALL_SLOTS if s.startswith("cond_mountain")}
         items = condition_render_items(self.tm, 0, self.tm.cols - 1,
                                        0, self.tm.rows - 1, art)
         self.assertTrue(items)
