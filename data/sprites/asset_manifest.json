@@ -2273,8 +2273,8 @@
           -7
         ],
         "hp_bar": [
-          -103,
-          -60
+          5,
+          -19
         ],
         "impact": [
           1,
@@ -2352,8 +2352,8 @@
     "enemy_stage_1_v2": {
       "anchors": {
         "hp_bar": [
-          -82,
-          -50
+          3,
+          -19
         ],
         "impact": [
           3,
@@ -2764,6 +2764,16 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -12
+        ],
+        "hp_bar": [
+          0,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3784,6 +3794,16 @@
       "sheet": "imported/painter_t3_lvl3.png"
     },
     "pistoleer_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -23
+        ],
+        "muzzle": [
+          0,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3877,6 +3897,16 @@
       "sheet": "imported/pistoleer_t3_lvl1.png"
     },
     "pistoleer_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -23
+        ],
+        "muzzle": [
+          -1,
+          -6
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3970,6 +4000,16 @@
       "sheet": "imported/pistoleer_t3_lvl2.png"
     },
     "pistoleer_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          0
+        ],
+        "muzzle": [
+          0,
+          -22
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4297,6 +4337,16 @@
       "sheet": "imported/siege_cannon_t4.png"
     },
     "slinger_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -22
+        ],
+        "muzzle": [
+          0,
+          -5
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4378,6 +4428,16 @@
       "sheet": "imported/slinger_t2_lvl1.png"
     },
     "slinger_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -19
+        ],
+        "muzzle": [
+          1,
+          -4
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4477,6 +4537,16 @@
       "sheet": "imported/slinger_t2_lvl1.png"
     },
     "slinger_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -23
+        ],
+        "muzzle": [
+          -2,
+          -5
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4653,6 +4723,16 @@
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "stone_thrower_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -22
+        ],
+        "muzzle": [
+          6,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4739,6 +4819,16 @@
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "stone_thrower_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -24
+        ],
+        "muzzle": [
+          0,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,

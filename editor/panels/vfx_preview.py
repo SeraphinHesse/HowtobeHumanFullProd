@@ -67,7 +67,7 @@ from engine import data_io
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import Renderer, RenderItem
+from engine.render import HudRect, HudSprite, Renderer, RenderItem
 from engine.vfx import VfxSystem
 
 REPO = Path(__file__).resolve().parents[2]
@@ -108,6 +108,13 @@ _FLAT_COLOR_KEYS = {
 # beam/crater/lightning/announce) degrades gracefully instead of raising.
 _EMIT_FAMILIES = ("spark", "death_burst", "muzzle", "slash", "gold_highlight",
                    "splatter")
+# feat-projectile-anchored-flight §3.1: `projectile` is a SUPPORTED preview
+# (no "no preview yet" degrade) but is NOT a VfxSystem particle family — a
+# projectile is a continuous flying object the game draws itself (like a
+# beam), never a `VfxSystem.emit_*` burst — so it is deliberately kept OUT
+# of `_EMIT_FAMILIES` and given its own small preview path instead
+# (`_submit_projectile_preview`), driven by `render_frame`'s own frame timer.
+_PROJECTILE_FAMILY = "projectile"
 
 
 class VfxPreviewPanel(QWidget):
@@ -133,6 +140,7 @@ class VfxPreviewPanel(QWidget):
         self._preset = "place"
         self._strong = False
         self._large = False
+        self._shell = False   # feat-projectile-anchored-flight §3.1
         self._seed = seed
         self._rng = random.Random(seed)
         self._system = None
@@ -161,6 +169,12 @@ class VfxPreviewPanel(QWidget):
         self._strong_check.toggled.connect(self._on_strong_toggled)
         self._large_check = QCheckBox("large")
         self._large_check.toggled.connect(self._on_large_toggled)
+        # feat-projectile-anchored-flight §3.1: the stone/shell toggle,
+        # mirroring the _strong_check/_large_check precedent — swaps the
+        # `projectile` family's preview between the stone (every basic
+        # defender) and shell (mortar) params/slot.
+        self._shell_check = QCheckBox("shell")
+        self._shell_check.toggled.connect(self._on_shell_toggled)
 
         top_row = QHBoxLayout()
         top_row.addWidget(QLabel("Family"))
@@ -168,6 +182,7 @@ class VfxPreviewPanel(QWidget):
         top_row.addWidget(self._preset_combo)
         top_row.addWidget(self._strong_check)
         top_row.addWidget(self._large_check)
+        top_row.addWidget(self._shell_check)
         top_row.addStretch(1)
 
         self._loop_check = QCheckBox("Loop")
@@ -280,18 +295,24 @@ class VfxPreviewPanel(QWidget):
 
     def _set_family(self, name):
         self._family = name
-        supported = name in _EMIT_FAMILIES
+        supported = name in _EMIT_FAMILIES or name == _PROJECTILE_FAMILY
         self._preset_combo.setVisible(name == "spark")
         self._strong_check.setVisible(name == "muzzle")
         self._large_check.setVisible(name == "slash")
+        self._shell_check.setVisible(name == _PROJECTILE_FAMILY)
         self._degrade_label.setText(
             "" if supported else f"no preview for {name!r} yet")
         self._degrade_label.setVisible(not supported)
         self._system = None
         self._rebuild_levers()
         self._rebuild_colors()
-        if supported:
+        if name in _EMIT_FAMILIES:
             self._emit()
+        elif name == _PROJECTILE_FAMILY:
+            # Not a VfxSystem family (no self._system to rebuild/reseed) —
+            # just restart the flight clock, mirroring _emit()'s own
+            # self._loop_clock reset for every other family switch.
+            self._loop_clock = 0.0
 
     def _on_preset_changed(self, name):
         if not name:
@@ -307,6 +328,9 @@ class VfxPreviewPanel(QWidget):
     def _on_large_toggled(self, checked):
         self._large = bool(checked)
         self._emit()
+
+    def _on_shell_toggled(self, checked):
+        self._shell = bool(checked)
 
     def _on_interval_changed(self, value):
         self._loop_interval = float(value)
@@ -458,6 +482,55 @@ class VfxPreviewPanel(QWidget):
             self._system.add_splatters([(col, row)])
         self._loop_clock = 0.0
 
+    # -- the `projectile` family (§3.1): not a VfxSystem particle emitter ---
+
+    def _submit_projectile_preview(self, dt):
+        """A dot/sprite flying repeatedly between two fixed world points,
+        driven by `procedural.projectile` (feat-projectile-anchored-flight
+        §3.1) — the SAME `editor/vfx_params.py projectile_params` the panel
+        already builds for every other family's `VfxParams` construction.
+        `_shell_check` swaps stone<->shell params/slot, mirroring the
+        `_strong_check`/`_large_check` precedent. Uses `vfx_projectile`/
+        `vfx_shell` art when imported, else the dot — the SAME
+        `assets.animation_total_ms(slot, "idle") is not None` "has art"
+        signal the game reads, so the two can never disagree about
+        "imported". No RNG involved (a straight-line flight), so nothing
+        here needs reseeding — only the flight clock restarts on a family
+        switch (`_set_family`), mirroring `_emit()`'s own reset."""
+        if self._balancing is None:
+            return
+        proc = self._balancing.staged_value("procedural")
+        if _PROJECTILE_FAMILY not in proc:
+            return
+        pr = vfx_params.projectile_params(proc[_PROJECTILE_FAMILY])
+        if self._loop_check.isChecked():
+            self._loop_clock += dt
+        interval = max(self._loop_interval, 0.001)
+        progress = (self._loop_clock % interval) / interval
+
+        g = self._coords.geometry
+        col, row = g.map_cols // 2, g.map_rows // 2
+        start = (col - 1.5, row)
+        end = (col + 1.5, row)
+        zoom = self._coords.camera.zoom
+        sx0, sy0 = self._coords.world_to_screen(*start)
+        sx1, sy1 = self._coords.world_to_screen(*end)
+        sx = sx0 + (sx1 - sx0) * progress
+        sy = sy0 + (sy1 - sy0) * progress
+        lift = g.tile_h * zoom * pr.lift_frac
+
+        shell = self._shell
+        slot = "vfx_shell" if shell else "vfx_projectile"
+        color = pr.shell_color if shell else pr.stone_color
+        size = max(2, int((pr.shell_size if shell else pr.stone_size) * zoom))
+        dest = (int(sx - size / 2), int(sy - lift - size / 2))
+        has_art = self._assets.animation_total_ms(slot, "idle") is not None
+        if has_art:
+            self._renderer.submit_hud(HudSprite(slot, dest, (size, size)))
+        else:
+            self._renderer.submit_hud(HudRect(
+                (dest[0], dest[1], size, size), color, border_radius=size // 2))
+
     # -- surface lifecycle, sized to the surface sub-widget ------------------
 
     def _resize_surface(self):
@@ -490,6 +563,8 @@ class VfxPreviewPanel(QWidget):
             self._system.submit_splatters(self._renderer, self._coords)
             self._system.submit_gold_highlights(self._renderer)
             self._system.submit_hud(self._renderer, self._coords)
+        elif self._family == _PROJECTILE_FAMILY:
+            self._submit_projectile_preview(dt)
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self._surface_widget.update()

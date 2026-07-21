@@ -368,14 +368,43 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   `EnemyCombat.cooldown` reset while blocked = an attack landed) — this package
   needed NO change for 10J.
   - **ESV-1 D4 — the spawn point is cosmetic, flight time never moves with it.**
-    A defender's optional manifest `muzzle` anchor (`game/anchors.py
-    world_offset`) shifts only WHERE `_fire`/`_fire_splash` spawn the
-    projectile visually; `ProjectileHoming.launch(target, shooter, scene,
-    origin=...)` always computes flight time from the shooter's UNMODIFIED
-    `transform.world_pos`, passed in as `origin` — never from the anchored
-    spawn point. `origin=None` (every pre-ESV-1 caller) falls back to the
-    projectile's own spawn position, today's exact expression. Damage-arrival
-    timing is therefore provably invariant under any muzzle value.
+    A defender's optional manifest `muzzle` anchor shifts only WHERE
+    `_fire`/`_fire_splash` spawn the projectile visually;
+    `ProjectileHoming.launch(target, shooter, scene, origin=...)` always
+    computes flight time from the shooter's UNMODIFIED `transform.world_pos`,
+    passed in as `origin` — never from the anchored spawn point. `origin=None`
+    (every pre-ESV-1 caller) falls back to the projectile's own spawn
+    position, today's exact expression. Damage-arrival timing is therefore
+    provably invariant under any muzzle value.
+  - **feat-projectile-anchored-flight — the homing MOVEMENT target is now the
+    target's `impact` anchor too, basic defenders only (D4, still cosmetic).**
+    Before this fix `ProjectileHoming.update` always homed toward
+    `target.transform.world_pos`; the `impact` anchor existed only for the
+    `projectile_hit` hit-VFX callback in `_impact`, so a shot never actually
+    flew to where it visually landed. `update()` now resolves
+    `game.anchors.projectile_point(self._assets, self._cs, target, "impact",
+    self._lift_frac)` EVERY FRAME (the target moves) for the MOVEMENT target
+    only — `self.timer` (and therefore `_impact()`'s firing frame) is
+    unaffected, still decremented unconditionally every frame regardless of
+    this point. `_assets`/`_cs`/`_lift_frac` are transient underscore refs
+    (E-11), set by `_fire`. **Mortar shells (`ProjectileArc`, `_fire_splash`)
+    are untouched** — they fly to a `_predict_lead`-computed ground point, not
+    an entity, so no `impact` anchor applies (§2.4 of the brief).
+  - **The muzzle spawn point's UNANCHORED fallback changed shape, not
+    value.** `game.anchors.projectile_point(assets, cs, obj, name,
+    lift_frac)` wraps `anchor_world_point` ("anchor wins outright" — an
+    authored anchor is unaffected by any of this) and, only when absent,
+    raises `obj`'s world position by `lift_frac` (`procedural.projectile.
+    lift_frac`, threaded from `resolve_combat`'s existing `vfx_balance`
+    argument — no new parameter) TILE HEIGHTS in SCREEN space, via the
+    two-sample `screen_to_world` trick. That lift used to be added at DRAW
+    time in `game/ui/effects.py submit_projectiles` (which double-counted
+    against an authored anchor — the dot rendered ~19px above the muzzle
+    handle even once an anchor existed); it now lives in the endpoint, so the
+    draw is a pure projection and an authored anchor is never fought by a
+    second, unrelated lift. `_fire_splash`'s muzzle spawn is UNTOUCHED
+    (still plain `anchor_world_point`) — only `_fire` (the homing path)
+    changed, matching the "basic defenders only" scope.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`

@@ -305,7 +305,7 @@
       "sprite_slot": ""
     },
     "enemy_attack_ranged": {
-      "procedural": "muzzle",
+      "procedural": "",
       "sprite_slot": ""
     },
     "enemy_death": {

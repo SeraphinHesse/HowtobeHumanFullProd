@@ -29,7 +29,7 @@ import math
 from engine.core import (
     Component, GameObject, Health, Movement, SpriteAnimator, Transform,
 )
-from game.anchors import anchor_world_point
+from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
@@ -72,6 +72,12 @@ class ProjectileHoming(Component):
         self._assets = None
         self._cs = None
         self._on_hit = None
+        # feat-projectile-anchored-flight: the COSMETIC lift fraction (E-11,
+        # like _assets/_cs) — set by _fire from vfx_balance's
+        # procedural.projectile.lift_frac, read by update() to resolve the
+        # unanchored-target fallback point the SAME way _fire resolves its
+        # unanchored-spawn fallback. Never read by launch()'s timer math (D4).
+        self._lift_frac = 0.0
 
     def launch(self, target, shooter, scene, origin=None):
         """``origin`` (ESV-1, D4): the point flight time is measured FROM —
@@ -89,12 +95,21 @@ class ProjectileHoming(Component):
         self.timer = dist / self.speed if self.speed > 0 else 0.0
 
     def update(self, dt):
+        """feat-projectile-anchored-flight (D4 — COSMETIC only, never the
+        timer): the homing MOVEMENT target is now the target's `impact`
+        anchor (or its unanchored lifted fallback), re-resolved every frame
+        since the target moves — never `target.transform.world_pos` directly
+        any more. `self.timer` (decremented below, unconditionally) still
+        drives WHEN `_impact()` fires and is never a function of this point."""
         proj = getattr(self, "_proj", None)
         target = getattr(self, "_target", None)
         if proj is None:
             return
         if target is not None:
-            tx, ty = target.transform.world_pos
+            point = projectile_point(
+                getattr(self, "_assets", None), getattr(self, "_cs", None),
+                target, "impact", getattr(self, "_lift_frac", 0.0))
+            tx, ty = point if point is not None else target.transform.world_pos
             px, py = proj.transform.world_pos
             dx, dy = tx - px, ty - py
             d = math.hypot(dx, dy)
@@ -426,13 +441,23 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     pattern): forwarded to ``_fire``/``_fire_splash`` (both) and
     ``ProjectileHoming`` (the homing path only — the mortar keeps its own
     ``splash_impact`` event, §1.2 of the ESV-6 brief) so the host can drain
-    two more cosmetic ledgers. ``None`` (every pre-ESV-6 caller) is a no-op."""
+    two more cosmetic ledgers. ``None`` (every pre-ESV-6 caller) is a no-op.
+
+    feat-projectile-anchored-flight: ``lift_frac`` (``procedural.projectile.
+    lift_frac``, the SAME cosmetic constant ``_fire_splash`` already reads
+    for its shell's crater — no new parameter here) is threaded to ``_fire``
+    ONLY (the homing path, basic defenders) so its spawn point and its
+    ``ProjectileHoming``'s homing target both resolve the un-anchored lift
+    that used to be applied at draw time. ``_fire_splash``/``ProjectileArc``
+    (the mortar) are untouched — no ``impact`` anchor applies to a shot that
+    flies to a predicted ground point, not an entity (§2.4)."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
     # ESV-3b: a cosmetic fade lifetime, NOT simulation timing (unlike
     # AOE_TRAVEL_TIME/BEAM_MIN_TICK below, which stay module constants — D4).
     crater_life = vfx_balance["procedural"]["crater"]["life"]
+    lift_frac = vfx_balance["procedural"]["projectile"]["lift_frac"]
 
     enemies = [e for e in scene.by_tag("enemy") if e.alive]
     # ER-2: the footprint offset is a per-enemy CONSTANT. Resolve it once per
@@ -442,7 +467,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
-                         on_defender_fire, on_projectile_hit)
+                         on_defender_fire, on_projectile_hit, lift_frac)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -459,7 +484,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
                      on_splash_impact=None, on_defender_fire=None,
-                     on_projectile_hit=None):
+                     on_projectile_hit=None, lift_frac=0.0):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
     resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
@@ -469,7 +494,9 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     only the splash path ever spawns a ``Crater``/fires an impact.
     ``on_defender_fire`` (ESV-6) passes to BOTH firing paths; ``on_projectile_
     hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
-    mortar's splash already has its own impact event."""
+    mortar's splash already has its own impact event. ``lift_frac``
+    (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
+    that module-level function's docstring."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -507,10 +534,11 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
-                        assets, cs, on_splash_impact, on_defender_fire)
+                        assets, cs, on_splash_impact, on_defender_fire,
+                        lift_frac)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
-                 on_defender_fire, on_projectile_hit)
+                 on_defender_fire, on_projectile_hit, lift_frac)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
@@ -578,7 +606,8 @@ def _set_defender_anim(defender, name):
 
 
 def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
-         cs=None, on_defender_fire=None, on_projectile_hit=None):
+         cs=None, on_defender_fire=None, on_projectile_hit=None,
+         lift_frac=0.0):
     bx, by = defender.transform.world_pos
     # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
     # time is computed by `launch(origin=...)` below from the UNMODIFIED
@@ -586,7 +615,11 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     # timing can never be a function of an authored art coordinate.
     # fix-anchor-origin-parity: "anchor wins outright" — the muzzle point IS
     # the exact handle point when authored, never a delta on `(bx, by)`.
-    point = anchor_world_point(assets, cs, defender, "muzzle")
+    # feat-projectile-anchored-flight: unanchored now resolves the SAME
+    # cosmetic lift `submit_projectiles` used to add at draw time (never
+    # `(bx, by)` bare) — `projectile_point` degrades to exactly `(bx, by)`
+    # only when `cs`/`defender` are absent (E-37).
+    point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
     mx, my = point if point is not None else (bx, by)
     # ESV-6: the defender_fire trigger ledger push, at the SAME
     # already-computed muzzle point — never recomputed (D2).
@@ -595,13 +628,14 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     proj = Projectile(mx, my, defender.damage() + dmg_bonus, proj_speed)
     hom = proj.get_component(ProjectileHoming)
     hom._assets, hom._cs, hom._on_hit = assets, cs, on_projectile_hit
+    hom._lift_frac = lift_frac
     hom.launch(target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
 
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
-                 on_defender_fire=None):
+                 on_defender_fire=None, lift_frac=0.0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -621,9 +655,19 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     instead of) the Crater spawn.
 
     ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
-    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed."""
+    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed.
+
+    ``lift_frac`` (feat-projectile-anchored-flight): the shell spawns through
+    the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
+    mortar keeps the screen-space lift that used to be added at DRAW time in
+    ``submit_projectiles``. Without this the shell would render ~19px lower
+    than before this change — ``ProjectileArc.update`` never moves the shell
+    (only its timer ticks), so its spawn point IS its drawn point for the
+    whole flight, and the removed draw lift has to come back here or the
+    mortar visibly drops. Byte-identical to pre-change for an un-anchored
+    shooter; an authored ``muzzle`` anchor wins outright, as everywhere."""
     bx, by = defender.transform.world_pos
-    point = anchor_world_point(assets, cs, defender, "muzzle")
+    point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
     if point is not None:
         bx, by = point
     if on_defender_fire is not None:

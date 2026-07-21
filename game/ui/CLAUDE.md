@@ -319,7 +319,15 @@ imports:
   `assets.animation_total_ms(slot, "idle") is not None` signal
   `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
   about "imported". Deliberately NOT a `triggers` row — a projectile is
-  continuous, like a beam or a lightning bolt, not a one-shot), blood
+  continuous, like a beam or a lightning bolt, not a one-shot.
+  **feat-projectile-anchored-flight: the lift is gone from this function —
+  `submit_projectiles` is now a pure projection of `p.transform.world_pos`,
+  no `int(tile_h*zoom*lift_frac)` subtracted at draw time.** It moved into
+  the SPAWN POINT (`game/enemies/combat.py`'s `_fire`, via
+  `game.anchors.projectile_point`), which is what let it double-count
+  against an authored `muzzle` anchor before this fix. Unanchored play is
+  unaffected — see `game/enemies/CLAUDE.md`'s matching entry for the
+  homing-target half of this fix), blood
   splatters (`RunState.enemy_death_events`
   ledger; double-gated `ui.FX.gore_enabled` AND the settings toggle; cleared
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
