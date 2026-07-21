@@ -133,9 +133,16 @@ expression, byte-identical.**
 **Known residual, report don't fix:** the editor previews at `fit_tiles=0.0`
 while the game draws entities at their real footprint, so for a slot whose frame
 is wider than `footprint * tile_w` the two `s` values differ and the handle would
-still not match in game. **Measured: `s == 1.0` on both sides for every entity in
-`data/` today**, so it is not the live bug. Note it in your report; do not change
-the preview's size in this fix.
+still not match in game.
+
+> **CORRECTION (review finding, measured).** An earlier draft of this brief
+> claimed `s == 1.0` on both sides for every entity in `data/`. **That is false.**
+> `formation_stage_1` has `frame_w: 128` and a 1-tile footprint, so the game
+> draws it at `s = 0.5` while the editor previews at `s = 1.0` — an anchor
+> dragged onto a Formation still resolves at half the intended distance in game.
+> It is the only entity affected today (every other enemy/boss/building slot
+> computes `s == 1.0` on both sides), but it is a live instance of this bug
+> class, not a theoretical one. Tracked as follow-up work; do not fix it here.
 
 ---
 

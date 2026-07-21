@@ -360,12 +360,17 @@ import list.**
     since deleted). `editor/anchor_ops.py`'s `screen_point`/`frame_px` are
     untouched — they are pure algebra over a caller-supplied origin and exact
     inverses of each other, so shifting the origin fixes the draw AND the
-    drag in one move. **Known residual (report don't fix)**: the preview
+    drag in one move. **Known residual (OPEN, not fixed)**: the preview
     always resolves at `fit_tiles=0.0`/`scale=1.0` (the RenderItem's
-    dataclass defaults), while a real game entity may carry a different
-    footprint fit — measured `s == 1.0` on both sides for every entity in
-    `data/` today, so this is not the live bug (`_anchor_draw_params`'s
-    docstring).
+    dataclass defaults), while a real game entity carries its own footprint
+    fit. Where the two `s` values differ, the handle still does not match
+    the game. **Measured:** `s == 1.0` on both sides for every slot EXCEPT
+    `formation_stage_1` (`frame_w: 128`, 1-tile footprint → game `s = 0.5`,
+    editor `s = 1.0`), so a Formation anchor resolves at half its intended
+    distance in game. An earlier note here claimed every entity matched;
+    that was wrong. Closing it properly means previewing at the entity's
+    real footprint (the ED-22 WYSIWYG promise), which also makes the
+    Formation preview render at its true in-game size.
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live
