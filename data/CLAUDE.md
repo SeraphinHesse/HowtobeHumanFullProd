@@ -117,6 +117,24 @@ validating writer; don't hand-edit the JSON.
   art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
   `Boss/stats` row were deleted from content AND schema in the same change:
   nothing read them, and render size now derives from the footprint.
+- **`registry_group` (fix-editor-preview-footprint)**: each `EnemyTypes/*`
+  block also carries a required `registry_group` string — the
+  `data/slots.json` "enemies" group label that type's sprites live under
+  (`Standard`->`"Walker"`, `Raider`->`"Raider"`, `SiegeCannon`->`"Siege
+  Cannon"`, `Formation`->`"Formation"`, `Boss`->`"Boss"`). It exists so
+  `editor/sprite_fit.py`'s pure `slot_draw_fit` resolver can find a preview
+  slot's real render `(footprint, sprite_scale)` — the values a `RenderItem`
+  needs for the entity preview and its anchor handle to match the game
+  (`editor/panels/CLAUDE.md`'s Anchor handles section) — WITHOUT the editor
+  importing `game/` (D5). The link previously existed only in
+  `game/enemies/enemy.py`'s Python `REGISTRY_GROUP` class constants, and two
+  of the five labels do NOT match their `EnemyTypes` key by string
+  (`Standard`/`SiegeCannon`), so matching by convention would have violated
+  "schemas over convention" — hence a real, required data field instead.
+  `game/enemies/enemy.py`'s `REGISTRY_GROUP` constants remain a second,
+  UN-refactored home for the same value (deliberate, reported follow-up
+  work); `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` pins the
+  two together.
 - **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
   **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
   once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`

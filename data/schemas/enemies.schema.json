@@ -236,6 +236,11 @@
               "minimum": 1,
               "type": "integer"
             },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
             "round_counts": {
               "description": "Boss-round wave composition, per era.",
               "items": {
@@ -293,6 +298,7 @@
           "required": [
             "death_spawn",
             "footprint",
+            "registry_group",
             "round_counts",
             "round_interval",
             "shake",
@@ -350,6 +356,11 @@
               "minimum": 0,
               "type": "number"
             },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
             "rounds_per_formation": {
               "description": "Rounds between each additional formation added to the wave.",
               "maximum": 1000,
@@ -378,6 +389,7 @@
             "footprint",
             "hp",
             "move_speed",
+            "registry_group",
             "rounds_per_formation",
             "sprite_scale",
             "start_round"
@@ -439,6 +451,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
             "sprite_scale": {
               "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
               "maximum": 8,
@@ -462,6 +479,7 @@
             "hp",
             "move_speed",
             "per_round",
+            "registry_group",
             "sprite_scale",
             "start_round"
           ],
@@ -528,6 +546,11 @@
               "minimum": 0,
               "type": "integer"
             },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
             "rounds_per_cannon": {
               "description": "Rounds between each additional cannon added to the mix.",
               "maximum": 1000,
@@ -558,6 +581,7 @@
             "mix_ratio",
             "move_speed",
             "queue_lead_count",
+            "registry_group",
             "rounds_per_cannon",
             "sprite_scale",
             "start_round"
@@ -607,6 +631,11 @@
               "minimum": 0,
               "type": "number"
             },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
             "sprite_scale": {
               "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
               "maximum": 8,
@@ -622,6 +651,7 @@
             "footprint",
             "hp",
             "move_speed",
+            "registry_group",
             "sprite_scale"
           ],
           "type": "object"

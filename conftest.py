@@ -51,6 +51,7 @@ TIERS = {
     "test_anchor_origin_parity": "editor",  # fix-anchor-origin-parity: §4.1
     "test_details_panel": "editor",
     "test_editor_anchors": "editor",
+    "test_editor_preview_footprint": "editor",  # fix-editor-preview-footprint: §4.1
     "test_editor_asset_import": "editor",
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
