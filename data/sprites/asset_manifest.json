@@ -1645,7 +1645,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1663,7 +1663,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1681,7 +1681,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 5,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1699,10 +1699,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 15,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
         }
       ],
@@ -1716,11 +1716,11 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 1,
           "loop_start": 0
         }
       ],
