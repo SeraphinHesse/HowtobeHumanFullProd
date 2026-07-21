@@ -22,6 +22,7 @@ DEFAULT_BRUSH_KEYBINDS = {
     "brush_4": "4", "brush_5": "5",
 }
 DEFAULT_UNDO_REDO_SWAPPED = False
+DEFAULT_DECO_FLIP_KEYBIND = "X"
 
 PREFS_KEY = "keybinds"
 
@@ -44,7 +45,7 @@ def _write_prefs(prefs_path, prefs):
 def load_keybinds(prefs_path):
     """The persisted keybinds, backfilled from defaults for any missing or
     invalid entry. Returns {"tools": {...}, "brushes": {...},
-    "undo_redo_swapped": bool}."""
+    "undo_redo_swapped": bool, "deco_flip": str}."""
     stored = _read_prefs(prefs_path).get(PREFS_KEY, {})
     if not isinstance(stored, dict):
         stored = {}
@@ -57,16 +58,20 @@ def load_keybinds(prefs_path):
     swapped = stored.get("undo_redo_swapped", DEFAULT_UNDO_REDO_SWAPPED)
     if not isinstance(swapped, bool):
         swapped = DEFAULT_UNDO_REDO_SWAPPED
+    deco_flip = stored.get("deco_flip", DEFAULT_DECO_FLIP_KEYBIND)
+    if not isinstance(deco_flip, str) or not deco_flip:
+        deco_flip = DEFAULT_DECO_FLIP_KEYBIND
     return {
         "tools": {name: tools.get(name, DEFAULT_TOOL_KEYBINDS[name])
                   for name in TOOL_NAMES},
         "brushes": {slot: brushes.get(slot, DEFAULT_BRUSH_KEYBINDS[slot])
                     for slot in BRUSH_SLOTS},
         "undo_redo_swapped": swapped,
+        "deco_flip": deco_flip,
     }
 
 
-def save_keybinds(prefs_path, tools, brushes, undo_redo_swapped):
+def save_keybinds(prefs_path, tools, brushes, undo_redo_swapped, deco_flip):
     """Persist the keybinds, preserving every other key already in the file
     (including "theme")."""
     prefs = _read_prefs(prefs_path)
@@ -74,5 +79,6 @@ def save_keybinds(prefs_path, tools, brushes, undo_redo_swapped):
         "tools": dict(tools),
         "brushes": dict(brushes),
         "undo_redo_swapped": bool(undo_redo_swapped),
+        "deco_flip": str(deco_flip),
     }
     _write_prefs(prefs_path, prefs)

@@ -104,6 +104,18 @@ class TestDecoAndBase(unittest.TestCase):
         self.assertIsNone(ops.remove_top_deco(doc, 5, 5))
         self.assertIsNone(ops.place_deco(doc, -1, 0, "deco_bush"))
 
+    def test_place_deco_flip_omitted_when_false(self):
+        doc = make_doc()
+        flipped = ops.place_deco(doc, 3, 3, "deco_rock", flip=True)
+        plain = ops.place_deco(doc, 4, 3, "deco_rock", flip=False)
+        default = ops.place_deco(doc, 5, 3, "deco_rock")
+        self.assertEqual(flipped, {"col": 3, "row": 3, "slot": "deco_rock",
+                                    "flip": True})
+        self.assertEqual(plain, {"col": 4, "row": 3, "slot": "deco_rock"})
+        self.assertEqual(default, {"col": 5, "row": 3, "slot": "deco_rock"})
+        self.assertNotIn("flip", plain)
+        self.assertNotIn("flip", default)
+
     def test_move_base(self):
         doc = make_doc()
         old = (doc.base["col"], doc.base["row"])

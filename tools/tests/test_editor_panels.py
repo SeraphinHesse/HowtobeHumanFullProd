@@ -1256,17 +1256,19 @@ class TestKeybindsPersistence(TempDataCase):
         self.assertEqual(loaded["tools"], keybinds.DEFAULT_TOOL_KEYBINDS)
         self.assertEqual(loaded["brushes"], keybinds.DEFAULT_BRUSH_KEYBINDS)
         self.assertFalse(loaded["undo_redo_swapped"])
+        self.assertEqual(loaded["deco_flip"], keybinds.DEFAULT_DECO_FLIP_KEYBIND)
 
     def test_round_trip_preserves_theme_key(self):
         theme.save_theme(self.prefs, "dark")
         tools = dict(keybinds.DEFAULT_TOOL_KEYBINDS, paint="K")
         brushes = dict(keybinds.DEFAULT_BRUSH_KEYBINDS, brush_1="6")
-        keybinds.save_keybinds(self.prefs, tools, brushes, True)
+        keybinds.save_keybinds(self.prefs, tools, brushes, True, "F")
 
         loaded = keybinds.load_keybinds(self.prefs)
         self.assertEqual(loaded["tools"]["paint"], "K")
         self.assertEqual(loaded["brushes"]["brush_1"], "6")
         self.assertTrue(loaded["undo_redo_swapped"])
+        self.assertEqual(loaded["deco_flip"], "F")
         self.assertEqual(theme.load_theme(self.prefs), "dark")   # untouched
 
     def test_partial_file_backfills_missing_tools(self):
@@ -1354,6 +1356,36 @@ class TestSettingsDialog(TempDataCase):
         self.assertEqual(
             dialog._tool_edits["paint"].keySequence().toString(), "B")
         self.assertEqual(window.tool_keybinds["paint"], "B")
+
+    def test_rebinding_the_deco_flip_key_updates_action_and_persists(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        dialog._deco_flip_edit.setKeySequence(QKeySequence("F"))
+        dialog._on_deco_flip_key_edited()
+
+        self.assertEqual(window.deco_flip_keybind, "F")
+        self.assertEqual(window.deco_flip_action.shortcut().toString(), "F")
+        self.assertEqual(
+            keybinds.load_keybinds(self.prefs)["deco_flip"], "F")
+
+    def test_deco_flip_key_colliding_with_a_tool_key_is_rejected(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        # "paint" already owns "B" (default).
+        dialog._deco_flip_edit.setKeySequence(QKeySequence("B"))
+        dialog._on_deco_flip_key_edited()
+
+        self.assertEqual(
+            dialog._deco_flip_edit.keySequence().toString(),
+            keybinds.DEFAULT_DECO_FLIP_KEYBIND)
+        self.assertEqual(window.deco_flip_keybind,
+                         keybinds.DEFAULT_DECO_FLIP_KEYBIND)
+
+    def test_deco_flip_shortcut_toggles_palette_checkbox(self):
+        window = self.make_window()
+        self.assertFalse(window.palette._deco_flip_box.isChecked())
+        window.deco_flip_action.trigger()
+        self.assertTrue(window.palette._deco_flip_box.isChecked())
 
 
 if __name__ == "__main__":
