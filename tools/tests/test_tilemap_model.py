@@ -354,6 +354,69 @@ class TestStartArea(unittest.TestCase):
         self.assertNotIn("start_area", [i.slot_key for i in windowed])
 
 
+class TestTutorialMarkers(unittest.TestCase):
+    """The tutorial-flute / tutorial-stone markers (D1, planning/
+    TutorialPLAN.md): two single-tile nullable movable map objects mirroring
+    camera_start; deliberately NOT emitted by the render emitters (the editor
+    draws its own overlay, the game never draws them)."""
+
+    def test_defaults_to_none_and_round_trips(self):
+        doc = make_doc()
+        self.assertIsNone(doc.tutorial_flute)  # absent by default
+        self.assertIsNone(doc.tutorial_stone)
+        doc.tutorial_flute = {"col": 2, "row": 3, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 3, "row": 4, "slot": "tutorial_stone"}
+        again = tilemap.from_dict(tilemap.to_dict(doc))
+        self.assertEqual(again.tutorial_flute,
+                         {"col": 2, "row": 3, "slot": "tutorial_flute"})
+        self.assertEqual(again.tutorial_stone,
+                         {"col": 3, "row": 4, "slot": "tutorial_stone"})
+        self.assertEqual(again, doc)
+
+    def test_disk_round_trip_with_tutorial_markers(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": 1, "row": 1, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 4, "row": 3, "slot": "tutorial_stone"}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "testmap.json"
+        tilemap.save_map(doc, path, SCHEMA)
+        self.assertEqual(tilemap.load_map(path, SCHEMA), doc)
+
+    def test_slot_const_from_schema(self):
+        schema = data_io.load_json(SCHEMA)
+        self.assertEqual(
+            tilemap.tutorial_flute_slot_from_schema(schema), "tutorial_flute")
+        self.assertEqual(
+            tilemap.tutorial_stone_slot_from_schema(schema), "tutorial_stone")
+
+    def test_new_doc_has_no_tutorial_markers(self):
+        doc = tilemap.new_doc("newmap", "New Map", 8, 8, SCHEMA)
+        self.assertIsNone(doc.tutorial_flute)
+        self.assertIsNone(doc.tutorial_stone)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": doc.cols, "row": 0, "slot": "tutorial_flute"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc = make_doc()
+        doc.tutorial_stone = {"col": 0, "row": doc.rows, "slot": "tutorial_stone"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+    def test_never_emitted_by_render_emitters(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": 1, "row": 1, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 2, "row": 1, "slot": "tutorial_stone"}
+        full = tilemap.render_items(doc, camera=True)
+        self.assertNotIn("tutorial_flute", [i.slot_key for i in full])
+        self.assertNotIn("tutorial_stone", [i.slot_key for i in full])
+        windowed = tilemap.visible_render_items(doc, 0, 5, 0, 4, camera=True)
+        self.assertNotIn("tutorial_flute", [i.slot_key for i in windowed])
+        self.assertNotIn("tutorial_stone", [i.slot_key for i in windowed])
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only

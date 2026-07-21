@@ -51,6 +51,12 @@ class TileMapDoc:
     # the render emitters: the game never draws it and the editor draws a pure
     # 2×2 outline via overlay lines instead of a sprite.
     start_area: dict = None
+    # {"col": int, "row": int, "slot": str} OR None — designer-painted
+    # tutorial markers (D1, planning/TutorialPLAN.md): "first flute" /
+    # "first stone" placement tiles. Deliberately NOT emitted by the render
+    # emitters — never rendered in-game; the editor draws its own overlay.
+    tutorial_flute: dict = None
+    tutorial_stone: dict = None
 
 
 # -- dict <-> doc (terrain rows are strings on disk, char lists in memory) --
@@ -69,6 +75,10 @@ def from_dict(data):
                       if data["camera_start"] is not None else None),
         start_area=(dict(data["start_area"])
                     if data["start_area"] is not None else None),
+        tutorial_flute=(dict(data["tutorial_flute"])
+                        if data["tutorial_flute"] is not None else None),
+        tutorial_stone=(dict(data["tutorial_stone"])
+                        if data["tutorial_stone"] is not None else None),
     )
 
 
@@ -86,6 +96,10 @@ def to_dict(doc):
         "start_area": (dict(doc.start_area)
                        if doc.start_area is not None else None),
         "terrain": ["".join(row) for row in doc.terrain],
+        "tutorial_flute": (dict(doc.tutorial_flute)
+                           if doc.tutorial_flute is not None else None),
+        "tutorial_stone": (dict(doc.tutorial_stone)
+                           if doc.tutorial_stone is not None else None),
     }
 
 
@@ -119,6 +133,18 @@ def validate_doc(doc):
         raise ValueError(
             f"map {doc.map_id!r}: start_area {doc.start_area} (2x2 from its min "
             f"corner) outside {doc.cols}x{doc.rows}")
+    if doc.tutorial_flute is not None and not (
+            0 <= doc.tutorial_flute["col"] < doc.cols
+            and 0 <= doc.tutorial_flute["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_flute {doc.tutorial_flute} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_stone is not None and not (
+            0 <= doc.tutorial_stone["col"] < doc.cols
+            and 0 <= doc.tutorial_stone["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_stone {doc.tutorial_stone} outside "
+            f"{doc.cols}x{doc.rows}")
     for d in doc.deco:
         if not (0 <= d["col"] < doc.cols and 0 <= d["row"] < doc.rows):
             raise ValueError(
@@ -306,6 +332,18 @@ def start_area_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "start_area")
 
 
+def tutorial_flute_slot_from_schema(schema):
+    """The const-pinned tutorial "first flute" marker slot (the editor's
+    placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_flute")
+
+
+def tutorial_stone_slot_from_schema(schema):
+    """The const-pinned tutorial "first stone" marker slot (the editor's
+    placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_stone")
+
+
 def defaults_from_schema(schema):
     """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
     dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
@@ -343,6 +381,8 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         deco=[],
         camera_start=None,
         start_area=None,
+        tutorial_flute=None,
+        tutorial_stone=None,
     )
 
 

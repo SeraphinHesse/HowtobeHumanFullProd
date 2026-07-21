@@ -42,6 +42,10 @@ engine task; if an engine change forces a caller change, tell the user
   (the 2×2 starting area's min corner; bounds cross-checked in `validate_doc`);
   **the emitters deliberately never render `start_area`** — the game doesn't
   draw it and the editor draws a pure 2×2 outline via `submit_overlay_lines`.
+  `tutorial_flute`/`tutorial_stone` (D1, planning/TutorialPLAN.md) are two
+  more designer-painted single-tile markers of the same never-rendered shape
+  — the tutorial's forced first-placement tiles, read by the game-side
+  director (TU-6+), painted by the editor's fourth map paint mode (TU-2).
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never

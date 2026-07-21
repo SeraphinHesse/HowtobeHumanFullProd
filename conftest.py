@@ -118,6 +118,7 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_video_playback": "core",

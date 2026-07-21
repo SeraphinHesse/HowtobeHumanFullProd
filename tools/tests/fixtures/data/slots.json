@@ -666,6 +666,18 @@
           "slots": [
             "start_area"
           ]
+        },
+        {
+          "label": "Tutorial Flute",
+          "slots": [
+            "tutorial_flute"
+          ]
+        },
+        {
+          "label": "Tutorial Stone",
+          "slots": [
+            "tutorial_stone"
+          ]
         }
       ],
       "key": "core"

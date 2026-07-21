@@ -333,7 +333,12 @@ validating writer; don't hand-edit the JSON.
   section grid, never forces tile states, drawn by the editor as an outline
   only; existing maps were migrated to `"start_area": null`), `deco` (world
   positions; renders ABOVE entities, E-26). Spawning is a painted zone — the
-  format has NO spawn-point objects.
+  format has NO spawn-point objects. `tutorial_flute`/`tutorial_stone`
+  (nullable {col,row,slot}, same shape as `camera_start`; slots const-pinned
+  to `"tutorial_flute"`/`"tutorial_stone"`, TU-1, planning/TutorialPLAN.md D1)
+  are the tutorial's designer-painted forced-first-placement tiles — never
+  rendered by the game or the editor's normal render pipeline; existing maps
+  were migrated to `"tutorial_flute": null, "tutorial_stone": null`.
 - **SCHEMA-PAIRING EXCEPTIONS (the directory rule — there are THREE)**: the
   default is stem pairing (`data/foo.json` ↔ `schemas/foo.schema.json`, missing
   schema fails loud). `tools/smoke.py::validate_data` implements + tests exactly
@@ -353,6 +358,47 @@ validating writer; don't hand-edit the JSON.
   apply to map data).
 - `maps/first_light.json` is the committed starter map (prototype-exact
   initial layout) so the game always boots on real data.
+
+## Tutorial + cutscenes data (Phase TU-1, D3/D4)
+- **`data/tutorial/tutorial.json` ↔ `schemas/tutorial.schema.json`**: normal
+  stem pairing (the file's stem `tutorial` already equals its schema's stem,
+  so no `tools/smoke.py` directory exception was needed — the plain `else:
+  schema = schema_dir / f"{path.stem}.schema.json"` branch already resolves
+  it). Root keys: `skippable`/`first_loss_costs_life` (bools, the script's
+  behavioral toggles), `messages` (a **closed** 2-key object,
+  `economy_intro`/`lives_intro`, both required strings — the two message
+  texts verbatim from the designer brief), `steps` (array, `minItems:1`;
+  each step is `additionalProperties:false` — `id`, `message` (nullable
+  string id into `messages`), `highlight` (array of opaque string ids),
+  `advance_on` (string event id), `allow` (array of allowed input action
+  ids), `flags` (object, `additionalProperties:true` — the ONE deliberately
+  open leaf, so later phases attach per-step data with no schema bump)).
+  TU-1 seeds only the round-1 step list (flute-player placement chain);
+  TU-6/TU-7 append round-2 steps under this same schema. Read only by
+  `engine/tutorial.py`'s generic step-sequencer (TU-6+) — the engine knows
+  nothing of flutes or holes; the game-side director binds the opaque ids to
+  real things.
+- **`data/video/cutscenes.json` ↔ `schemas/cutscenes.schema.json`**: same
+  normal stem pairing (no directory exception). An open registry keyed by
+  cutscene id (`additionalProperties: {$ref: #/$defs/entry}`), each entry
+  `{video, audio (nullable), length, trigger}`. `trigger` is a closed enum
+  today (`intro`/`first_end_turn`) — a new trigger point is a schema bump.
+  TU-1 seeds `intro` (mirroring, but not yet migrating, `game/main.py`'s
+  still-hardcoded `data/video/cutscene.mp4` + `ui.json`'s
+  `Menu.cutscene_length` — that migration is TU-5's job) and
+  `first_end_turn` (new, fires in `session.end_turn()` on round 1 before
+  `spawner.begin_round()`, wired by TU-5+).
+- **`data/balancing/core.json`'s `Tutorial` group** (alphabetically between
+  `TheHole` and `XP`): one leaf, `economy_buildings_required` (integer,
+  minimum 1) — the number of economy buildings the player must place before
+  the tutorial's first End Turn / first-end-turn cutscene. Behavioral
+  toggles (`skippable`, `first_loss_costs_life`) live in the tutorial script
+  above, not here — the editor's Tutorial section owns those.
+- **`data/slots.json`'s `core` category gained two new one-slot groups**,
+  `"Tutorial Flute"` (`tutorial_flute`) and `"Tutorial Stone"`
+  (`tutorial_stone`), same shape as `"Start Area"`. Neither is a real sprite
+  — the marker is drawn as an outline — the group exists solely so the
+  editor's palette brush buttons (TU-2) have a slot key to arm.
 
 ## Rules
 - **JSON here is the ONLY value store** (D-1). Never move a value into Python;
