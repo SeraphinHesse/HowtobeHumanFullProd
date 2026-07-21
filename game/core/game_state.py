@@ -89,6 +89,11 @@ class RunState:
     log_events: list = field(default_factory=list)
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
+    # -- TU-5: registry-driven cutscene request -----------------------------
+    # {"id": <registry key>} queued by Session.end_turn() on round 1, BEFORE
+    # spawner.begin_round(); consumed (set back to None) by the host once it
+    # starts playing the matching CutscenePlayer. Never serialized.
+    pending_cutscene: object = None
     # -- 10H: lightning + cheat menu ---------------------------------------
     # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 0
     # (Storm Priest wiring): every run now boots with lightning LOCKED —
