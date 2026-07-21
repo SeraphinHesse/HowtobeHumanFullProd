@@ -323,6 +323,10 @@ _BASELINE = {
         HudText(text='tiered thing', pos=(744, 393), font_key='sm', color=(150, 140, 120), align='center'),
         HudText(text='Tier 2 of 3', pos=(744, 453), font_key='sm', color=(150, 140, 120), align='center'),
     ],
+    # NOTE: the round-cluster separator rect (80, 65, 120)-colored, height 1)
+    # moved to just BEFORE the END TURN button rects (was after) — a
+    # deliberate panel->button->text ordering fix (game/ui/CLAUDE.md), not a
+    # geometry/text change. See TestHudButtonZOrder in test_hud_panel.py.
     "hud": [
         HudRect(rect=(12, 12, 190, 34), color=(40, 32, 58), border_radius=4, width=0),
         HudRect(rect=(12, 12, 190, 34), color=(150, 135, 185), border_radius=4, width=1),
@@ -339,10 +343,10 @@ _BASELINE = {
         HudText(text='0/4 tiles', pos=(16, 84), font_key='md', color=(150, 140, 120), align='left'),
         HudText(text='BUILDING', pos=(12, 694), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(1184, 627), font_key='md', color=(150, 140, 120), align='center'),
+        HudRect(rect=(1104, 642, 160, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(1104, 644, 160, 60), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(1104, 644, 160, 60), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='END TURN', pos=(1184, 666), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(1104, 642, 160, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(1174, 12, 90, 30), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(1174, 12, 90, 30), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='PAUSE', pos=(1219, 20), font_key='md', color=(235, 225, 195), align='center'),

@@ -35,7 +35,7 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
+    HEART, Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size
 )
 from . import widgets
@@ -231,38 +231,22 @@ class ConstructPreview:
         from engine.render import HudRect
 
         x, y, w, h = self.rect
+        # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
+        # ALL panel/background submissions first, THEN all buttons, THEN all
+        # text — HUD draw order is submission order (engine/render/CLAUDE.md).
         if is_visible(self._panel):
             submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
                         border=widgets.C_UI_BORDER, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None),
                         anim_ms=anim_ms)
-        cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
-                    align="center")
-        submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
-                    "md", widgets.C_GOLD, align="center")
-        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
         nx, ny, nw, nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self.name_rect, widgets.C_HIGHLIGHT if self.editing else widgets.C_UI_BORDER,
             width=1))
-        if self.name or self.editing:
-            shown = self.name + ("_" if self.editing else "")
-            tcol = widgets.C_UI_TEXT
-        else:
-            shown = "click to name"
-            tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.dice_btn))
-        sy = y + 138
-        for label, value in self.stats:
-            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
-                        align="right")
-            sy += 20
         if is_visible(self.confirm_btn):
             self.confirm_btn.submit(renderer, anim_ms=anim_ms,
                                     **button_kwargs(self.confirm_btn))
@@ -272,6 +256,25 @@ class ConstructPreview:
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=anim_ms,
                                   **button_kwargs(self.close_btn))
+        cx = x + w // 2
+        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
+                    align="center")
+        submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
+                    "md", widgets.C_GOLD, align="center")
+        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
+        if self.name or self.editing:
+            shown = self.name + ("_" if self.editing else "")
+            tcol = widgets.C_UI_TEXT
+        else:
+            shown = "click to name"
+            tcol = widgets.C_UI_TEXT_DIM
+        submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
+        sy = y + 138
+        for label, value in self.stats:
+            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
+            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
+                        align="right")
+            sy += 20
 
 
 class BuildingUI:
@@ -1072,7 +1075,7 @@ class BuildingUI:
         tooltip — drawn last by ``submit`` so it sits on top."""
         from engine.render import HudRect  # local: keep module imports lean
 
-        label, color = COND_LABELS[condition.name]
+        label, color = widgets.cond_label(condition.name)
         text = f"Terrain: {label}"
         w = text_size(text, "sm")[0] + 16
         h = text_h("sm") + 8

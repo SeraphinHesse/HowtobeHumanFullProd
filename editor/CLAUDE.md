@@ -38,9 +38,13 @@ else.
   the list is a function of slots.json ∩ `data/balancing/*.json`, never a
   hardcoded constant.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
-  `registry_ops.py`, `asset_import.py`, `agent_forms.py`, `theme_ops.py` (UH-6:
-  fonts/palette load-validate-write, `panels/game_theme.py`'s home) — all
-  Qt-free/pygame-free, in `TestPurity`.
+  `registry_ops.py`, `asset_import.py`, `agent_forms.py`, `theme_ops.py` (UH-6/
+  UH-Font-A: fonts/palette/font_manifest/active_font load-validate-write,
+  `panels/game_theme.py`'s home) — all Qt-free/pygame-free, in `TestPurity`.
+  `font_import.py` (UH-Font-A: custom .ttf/.otf import, mirrors
+  `asset_import.py`'s shape) is Qt-free and in `TestPurity` too, but — like
+  `asset_import.py` uses Pillow — it uses pygame for a format-validation
+  probe (`pygame.font.Font(path, 12)`), not rendering; ED-22 is unaffected.
 - `ui_screen_session.py` — `UIScreenSession`, screen mode's session (B4, §
   below); Qt-only (a `QUndoStack`), no game imports, in `TestPurity`.
 

@@ -713,6 +713,105 @@ import list.**
   pre-UH-6 editor lie (the game has always ignored `color` on a skinned
   widget; `game/ui/skinning.py`'s `button_kwargs` docstring). What the
   editor shows is what the game draws (ED-22's promise, extended to color).
+- **Font Family (UH-Font-A)**: a THIRD `CollapsibleSection`, "Font Family",
+  after Fonts and Palette — a game-wide custom font, ORTHOGONAL to the
+  7-preset size/bold system above (`data/ui/fonts.json` is completely
+  unchanged by this). Edits `data/ui/active_font.json`
+  (`{"font_id": "default" | <font_manifest entry id>}`) with the SAME
+  staged/dirty-dot/one-Save-button pattern as Fonts/Palette — the dirty key
+  is the single string `"active_font"` (not per-field, since there's only
+  one field). "Import Font…" (`QFileDialog.getOpenFileName`, filter
+  `Fonts (*.ttf *.otf)`) is the ONE exception to "staged": like
+  `DetailsPanel`'s sprite import, `editor.font_import.import_font_file`
+  copies the file into `data/fonts/imported/<font_id>.<ext>` and writes the
+  `data/fonts/font_manifest.json` entry to disk IMMEDIATELY, through
+  `write_validated` — only the CHOICE of which imported font is *active* is
+  staged. The combo lists "Default (System Monospace)" (`font_id:
+  "default"`) plus every manifest entry's `display_name`
+  (`theme_ops.imported_fonts`), sourced fresh on every import so a newly
+  imported font appears without a panel rebuild.
+  - **Live preview, no restart**: below the combo, one `QLabel` per font-key
+    preset (`"The quick brown fox…"`) rendered via
+    `QFontDatabase.addApplicationFont(path)` + `QFont(family, pointSize,
+    bold=…)` — reflecting the CURRENTLY SELECTED (not-yet-saved) combo
+    choice AND the (possibly also staged) Fonts-section size/bold values, so
+    a designer previews both edits together before committing either.
+    Family lookups are cached per font id (`_loaded_font_families`) so
+    switching back and forth in the combo doesn't reload the same file
+    twice; the cache is cleared on `set_theme()` (a fresh entry into the
+    Theme leaf re-reads from disk).
+  - **`editor/font_import.py`** (Qt-free, pygame-used, in `TestPurity`):
+    `import_font_file(data_dir, ttf_path, display_name=None) -> font_id`
+    validates the file loads via a short `pygame.font.Font(path, 12)` probe
+    BEFORE anything touches disk (raises `ValueError` on a bad file — a
+    FORMAT check, not a second render path; it mirrors what
+    `engine/render/fonts.py` itself does to load a font, so it does not
+    violate ED-22) — mirrors `editor/asset_import.py`'s "copy a file in,
+    write a manifest entry" shape, slugifying the display name/filename
+    stem into the font id instead of any sprite-specific concept
+    (frame_w/h, rows, animations — none of that applies to a font file).
+  - **Save reconfigures the engine in-process** the same way the Fonts
+    section does: `MainWindow._on_theme_saved` additionally resolves the
+    active font id to an absolute path via
+    `theme_ops.resolve_active_font_path` and passes it to
+    `engine.render.fonts.configure_fonts`'s new `font_path=` kwarg — `None`
+    for `"default"`/a missing manifest entry/a missing file on disk
+    (editor-side E-37 grace; `game/main.py`'s own boot loader performs the
+    identical cross-check but fails LOUD instead, D-2).
+
+## Strings panel (`panels/strings_panel.py`, `strings_ops.py`; Phase C)
+- **Selection**: a single "Strings" LEAF (not a branch — one flat document,
+  nothing to enumerate) is the THIRD child of the "ui" category node, right
+  after "Theme" (which stays SECOND, the UH-6 invariant above) —
+  `panels/selector.py`'s `_STRINGS_ROLE` marker + `strings_selected()`
+  signal, the exact `_THEME_ROLE` pattern one leaf over (never
+  `node_selected`). `MainWindow._on_strings_selected` → `right_stack` →
+  `StringsPanel`.
+- **`StringsPanel`** edits `data/ui/strings.json` (`game/ui/CLAUDE.md`
+  "Global UI string table") — a FLAT `{string_id: template}` map, one row
+  per id, grouped into a `CollapsibleSection` (imported from `balancing.py`,
+  never copied, the `game_theme.py` precedent) per source-module prefix
+  (`hud`, `widgets`, `levelup`, `boss_cutscene`, …, derived by splitting each
+  id on its first `.`), plus a filter `QLineEdit` at the top (matches
+  against the id or the row's current text, case-insensitive) since the set
+  runs to dozens of rows — filtering hides non-matching rows and collapses
+  a section whole once none of its rows match. Each row is a `QLineEdit`
+  (commit on `editingFinished`, the `balancing.py` string-field convention)
+  plus a read-only placeholder-hint `QLabel` recomputed from the row's OWN
+  live text on every edit (`strings_ops.placeholders`, a `string.Formatter`
+  parse — no `str.format()` correctness check, just a hint so a designer
+  editing a templated row can see what it still needs to fill; a bad edit
+  fails at the GAME's next render/boot like any other data typo).
+- Edits are STAGED (the `balancing.py`/`game_theme.py` pattern, not the
+  screen-session undo pattern): every change updates an in-memory doc + a
+  dirty dot next to that row (compared against a baseline captured at
+  load/last-save time); ONE "Save Strings" button (enabled only while
+  dirty) is the sole `write_validated` call site. `data_dir=None`
+  injection; missing/invalid data degrades to a placeholder message
+  (editor-side E-37 grace, same as `game_theme.py`) — the GAME's own boot
+  load fails loud instead (D-2).
+- **`editor/strings_ops.py`** (Qt-free, pygame-free, in `TestPurity`) —
+  `load_strings`/`write_strings` (both through `write_validated`) plus
+  `placeholders(template)`. A SEPARATE module from `theme_ops.py` on
+  purpose: that module is scoped to fonts/palette/font_manifest/
+  active_font (the font+color THEME), a different document shape from
+  `strings.json`'s flat map — one file per concern, the same split
+  `asset_import.py`/`font_import.py` already keep (`data/CLAUDE.md`'s
+  precedent for this call).
+- **Save does NOT reconfigure anything in-process, and has no `saved`
+  signal consumer.** Unlike `GameThemePanel.saved` → `MainWindow.
+  _on_theme_saved` (which reconfigures `engine.render.fonts` because the
+  VIEWPORT renders through it, ED-22's one render path), `strings.json` is
+  consumed ONLY by `game/ui/strings.py` — a game-package module the editor
+  may never import (`editor/` never imports `game/**`). This is the exact
+  case `data/CLAUDE.md`'s theme-data section already documents for
+  `palette.json` ("`game/ui/widgets` is game-only... the game re-reads
+  `palette.json` at its own next boot") — `strings.json` follows the SAME
+  rule, not the fonts.json one, because there is no editor-side consumer to
+  reconfigure, not because reconfiguring would be wrong in principle. The
+  Strings panel's `saved` signal is still emitted (symmetry with
+  `GameThemePanel.saved`, kept for a future consumer) but `MainWindow`
+  connects nothing to it today.
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

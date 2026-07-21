@@ -109,7 +109,7 @@
       "subtitle": {
         "display_name": "Subtitle label",
         "kind": "label",
-        "label": "",
+        "label": "How will we react?",
         "rect": [
           640,
           290,
@@ -553,7 +553,7 @@
       "jump_label": {
         "display_name": "Jump label",
         "kind": "label",
-        "label": "",
+        "label": "Jump to round:",
         "rect": [
           540,
           421,
@@ -586,7 +586,7 @@
       "title": {
         "display_name": "Title label",
         "kind": "label",
-        "label": "",
+        "label": "CHEATS",
         "rect": [
           640,
           239,
