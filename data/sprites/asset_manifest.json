@@ -1735,10 +1735,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 15,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
         }
       ],
