@@ -76,7 +76,16 @@ validating writer; don't hand-edit the JSON.
   enum'd procedural fallback (or `""` for a silent no-op). `slots.json`'s
   `vfx` category's `Effects` group grew four new slots for this —
   `vfx_muzzle`/`vfx_death`/`vfx_slash`/`vfx_crater` — alongside the two
-  pre-existing, still-unbound `vfx_hit`/`vfx_explosion`. Since **Phase 9A** the other
+  pre-existing, still-unbound `vfx_hit`/`vfx_explosion`. **ESV-6** (the
+  plan's final phase) added the 10th trigger row, `projectile_hit`
+  (`{sprite_slot: "", procedural: ""}`, shipped INERT like `defender_fire`) —
+  the target's `impact` anchor at a homing projectile's landing, and the
+  first consumer of the `vfx_hit`/`vfx_explosion` slots the plan's opening
+  complaint named as orphaned. The `sprite_slot` enum already accepted both
+  before this phase; only the `triggers` object's `properties`/`required`
+  needed the new key. ESV-6 also re-pointed a subset of the ESV-5 dispatch
+  sites at manifest anchors (VISUAL ONLY, D4) — a `data/` change to
+  `data/balancing/vfx.json` content, not to its schema. Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

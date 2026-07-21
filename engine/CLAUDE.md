@@ -28,7 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts; the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
-| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below) |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -140,6 +140,20 @@ this — a `PlayOnceVfx` is not a particle any list owns, exactly like ESV-3b's
 game) deliberately gained no `loop_count` field for this — completion
 tracking lives entirely on the new `PlayOnceFade` component, which this ONE
 cosmetic object type carries.
+
+**ESV-6** appended `FloaterParams` to `engine/vfx/params.py` (APPEND only —
+`editor/panels/vfx_preview.py` consumes this surface and a reshape already
+caused one integration fix, `6a05689`) and one new field, `floaters`, on the
+existing `VfxParams` bundle: income/XP/painter/boost floater colours +
+lifetimes, closing the plan's §6 item 1 dead-data gap (`procedural.floaters`
+existed in `data/balancing/vfx.json` since ESV-3a but nothing ever read it —
+seven module constants in `game/ui/effects.py` were the live values instead).
+Like ESV-3b's four scene-object dataclasses, `VfxSystem` never touches it —
+`game/ui/effects.py` reads it straight off `VfxParams`. `VfxParams` gaining a
+required field (no defaults anywhere in this module, G-7) meant every OTHER
+direct `VfxParams(...)` construction needed a `floaters=` argument too —
+`editor/vfx_params.py`'s local mirror of `_params_from_balance` was the one
+real instance (see `editor/CLAUDE.md`'s VFX preview section).
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,

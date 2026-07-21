@@ -49,8 +49,8 @@ def ramp_stops(stop_0, stop_1, stop_2):
 from editor import domains
 from engine import data_io
 from engine.vfx import (
-    AnnounceParams, BeamParams, BurstParams, CraterParams, GoldParams,
-    LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
+    GoldParams, LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
     SplatterParams, VfxParams, VfxSystem,
 )
 
@@ -123,9 +123,16 @@ LIGHTNING = LightningParams(
 
 ANNOUNCE = AnnounceParams(color=(220, 40, 40), max_alpha=255)
 
+# -- ESV-6 "today" column (docs/briefs/phase-esv-6-converge.md §1.4) --------
+FLOATERS = FloaterParams(
+    upkeep_color=(120, 170, 230), xp_color=(202, 140, 245), xp_life=0.9,
+    painter_finished_color=(255, 255, 100), painter_lost_color=(255, 100, 100),
+    painter_life=1.5, boost_color=(255, 255, 255))
+
 VFX_PARAMS = VfxParams(death_burst=DEATH_BURST, muzzle=MUZZLE, slash=SLASH,
                        gold=GOLD, splatter=SPLATTER, beam=BEAM, crater=CRATER,
-                       lightning=LIGHTNING, announce=ANNOUNCE)
+                       lightning=LIGHTNING, announce=ANNOUNCE,
+                       floaters=FLOATERS)
 
 
 def make_system(seed):

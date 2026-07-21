@@ -277,12 +277,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
-        # -- ESV-5: the two handles _play needs to spawn a sprite one-shot.
-        # A fresh FloaterManager and a fresh scene are built together right
-        # here every run, so the two attributes cannot desync.
+        # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
+        # one-shot and resolve a manifest anchor. A fresh FloaterManager and
+        # a fresh scene are built together right here every run, so these
+        # attributes cannot desync; `cs` is a single run-long instance built
+        # at module scope above, so it never desyncs either.
         gp["floaters"].assets = assets
         gp["floaters"].scene = gp["world"].scene
-        # -- /ESV-5 --
+        gp["floaters"].cs = cs
+        # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -643,13 +646,25 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 def _on_splash_impact(gx, gy, _state=session.state):
                     _state.splash_impact_events.append((gx, gy))
 
+                # ESV-6: the same drained-ledger pattern for the two
+                # convergence-demo triggers — both ship INERT rows, so these
+                # ledgers filling every frame is a no-op emit until a
+                # designer binds art.
+                def _on_defender_fire(wx, wy, _state=session.state):
+                    _state.defender_fire_events.append((wx, wy))
+
+                def _on_projectile_hit(wx, wy, _state=session.state):
+                    _state.projectile_hit_events.append((wx, wy))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance, vfx_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
                                dmg_bonus=dmg_bonus,
                                assets=assets, cs=cs,
-                               on_splash_impact=_on_splash_impact)
+                               on_splash_impact=_on_splash_impact,
+                               on_defender_fire=_on_defender_fire,
+                               on_projectile_hit=_on_projectile_hit)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
@@ -702,6 +717,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].spawn_death_events(session.state,
                                               shell.settings.gore)
             gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
+            gp["floaters"].spawn_defender_fire_events(session.state)  # ESV-6
+            gp["floaters"].spawn_projectile_hit_events(session.state)  # ESV-6
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --

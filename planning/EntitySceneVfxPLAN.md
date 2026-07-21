@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — 0/6 phases (ESV-1–ESV-6), authored 2026-07-15 -->
+<!-- status: COMPLETE — 6/6 phases (ESV-1–ESV-6), authored 2026-07-15, completed 2026-07-21 -->
 
 # EntitySceneVfxPLAN.md — Entity Scene Editor + VFX System
 
@@ -133,12 +133,12 @@ they decide whether the executing agent reads both docs.
 
 | Phase | Scope | Track | Status |
 |-------|-------|-------|--------|
-| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | not started |
-| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | not started |
-| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | not started |
-| ESV-4 | Procedural preview + control levers panel | B · editor | not started |
-| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | not started |
-| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | not started |
+| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | done |
+| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | done |
+| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | done — landed as ESV-3a (particle/gold/slash/splatter emitters) + ESV-3b (beam/crater/lightning/announce) |
+| ESV-4 | Procedural preview + control levers panel | B · editor | done |
+| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | done |
+| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | done |
 
 Ordering rule: **nothing changes visible behaviour until the piece behind it is
 real.** ESV-1 and ESV-3 land as byte-identical no-ops (defaults reproduce
@@ -313,21 +313,33 @@ Concrete follow-ups **discovered during execution**, parked here so the
 convergence phase clears them rather than shipping them as debt. Neither blocks
 an intermediate stage; both must be resolved before the PR.
 
-- **ESV-3a floater dead-data gap.** The seven floater colour/lifetime constants
-  at `game/ui/effects.py:48-56` (`_UPKEEP_BLUE`, `_XP_PURPLE`, `_XP_LIFE`,
-  `_PAINTER_FINISHED`, `_PAINTER_LOST`, `_PAINTER_LIFE`, `_BOOST_WHITE`) are still
-  **live code** — read at the floater spawn sites — while the
-  `procedural.floaters` block ESV-3a added to `data/balancing/vfx.json` is **dead
-  data** (`_params_from_balance` never reads it). Two homes for the same seven
-  values. Resolve ONE way: either wire the floater spawn sites to read
-  `procedural.floaters` (the constants become the removed originals, matching the
-  rest of the port), **or** delete the dead `procedural.floaters` block + its
-  schema if floaters are deliberately staying hardcoded. Decide and land during
+- **RESOLVED by ESV-6.** ESV-3a floater dead-data gap. The seven floater
+  colour/lifetime constants at `game/ui/effects.py:48-56` (`_UPKEEP_BLUE`,
+  `_XP_PURPLE`, `_XP_LIFE`, `_PAINTER_FINISHED`, `_PAINTER_LOST`,
+  `_PAINTER_LIFE`, `_BOOST_WHITE`) are still **live code** — read at the
+  floater spawn sites — while the `procedural.floaters` block ESV-3a added
+  to `data/balancing/vfx.json` is **dead data** (`_params_from_balance`
+  never reads it). Two homes for the same seven values. Resolve ONE way:
+  either wire the floater spawn sites to read `procedural.floaters` (the
+  constants become the removed originals, matching the rest of the port),
+  **or** delete the dead `procedural.floaters` block + its schema if
+  floaters are deliberately staying hardcoded. Decide and land during
   convergence; verified by ESV-3b, not acted on there.
-- **ESV-4 stack-index reachability (surfaces in ESV-5).** ESV-4 routes the `vfx`
-  selector node to `right_stack` index 3, which makes the asset importer (index 0)
-  unreachable while the vfx preview panel is up. Harmless through Stage 2 — no
-  `vfx_*` sheets exist yet — but **ESV-5 imports `vfx_*` sheets AND wants the
-  preview visible at the same time**, so the stack routing must be reconciled when
-  ESV-5 lands (both panels reachable for a selected vfx node). Fold the fix into
-  ESV-5's brief, not deferred past it.
+  ESV-6 chose the first option: the seven constants are deleted, a new
+  `engine.vfx.FloaterParams` dataclass carries the seven values, and the
+  four floater spawn sites now read `self._vfx_params.floaters` — a visual
+  no-op on landing (the JSON already shipped values identical to the
+  constants) and a live designer lever from here on.
+- **RESOLVED by ESV-5.** ESV-4 stack-index reachability (surfaces in ESV-5).
+  ESV-4 routes the `vfx` selector node to `right_stack` index 3, which makes
+  the asset importer (index 0) unreachable while the vfx preview panel is
+  up. Harmless through Stage 2 — no `vfx_*` sheets exist yet — but **ESV-5
+  imports `vfx_*` sheets AND wants the preview visible at the same time**,
+  so the stack routing must be reconciled when ESV-5 lands (both panels
+  reachable for a selected vfx node). Fold the fix into ESV-5's brief, not
+  deferred past it.
+  ESV-5 landed the fix: the vfx preview is now a third child of
+  `details_pane`'s layout (beside `self.details`/`self.anchors`), toggled by
+  `setVisible(...)` instead of a separate `right_stack` page —
+  `right_stack.count() == 3`, and both the importer and the preview are
+  reachable for a selected vfx node.

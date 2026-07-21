@@ -87,6 +87,7 @@ TIERS = {
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
+    "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
     "test_footprint_path": "core",
     "test_game_boot": "core",
