@@ -422,6 +422,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10L: fast-forward combat-speed buttons --
+        if isinstance(hud_action, tuple) and hud_action[0] == "speed":
+            session.set_combat_speed(hud_action[1])
+            return
+        # -- /10L speed --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return

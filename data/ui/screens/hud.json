@@ -6,6 +6,15 @@
     "btn_pause": {
       "skin": "ui_button_pause"
     },
+    "btn_speed_1_5x": {
+      "skin": "ui_button_pill"
+    },
+    "btn_speed_1x": {
+      "skin": "ui_button_pill"
+    },
+    "btn_speed_2x": {
+      "skin": "ui_button_pill"
+    },
     "love_panel": {
       "skin": "ui_panel"
     }
