@@ -112,6 +112,7 @@ TIERS = {
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
+    "test_spawn_deco": "core",
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",

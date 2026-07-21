@@ -72,14 +72,14 @@ class TestRealRegistry(unittest.TestCase):
         self.assertEqual(self.reg.animations("stone_thrower_t1_lvl1"),
                          ("idle", "attack", "death", "hurt", "place", "upgrade"))
 
-    def test_meditator_shares_musician_keys(self):
-        # shared key: once in slot_keys(), reachable via both groups
-        keys = self.reg.slot_keys()
-        self.assertEqual(keys.count("flute_player_t1_lvl1"), 1)
-        musician = self.reg.group("buildings", ("Musician", "Flute Player"))
-        meditator = self.reg.group("buildings", ("Meditator", "Meditator"))
-        self.assertIn("flute_player_t1_lvl1", musician.slots)
-        self.assertIn("flute_player_t1_lvl1", meditator.slots)
+    def test_meditator_owns_its_art_separately_from_the_musician(self):
+        # The Meditator line USED to point at the musician's slot keys. That
+        # link is severed: neither line's art can reach the other's.
+        musician = self.reg.group_slots("buildings", ("Musician",))
+        meditator = self.reg.group_slots("buildings", ("Meditator",))
+        self.assertIn("flute_player_t1_lvl1", musician)
+        self.assertIn("meditator_t1_lvl1", meditator)
+        self.assertEqual(set(musician) & set(meditator), set())
 
     def test_group_path_lookup(self):
         node = self.reg.group("buildings", ("Defender", "Stone Thrower"))
