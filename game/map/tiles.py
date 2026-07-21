@@ -95,6 +95,15 @@ CONDITION_STATE_LABEL = {
     TileState.SPAWNING: "Spawning",
 }
 
+# -- spawn-band deco (10I) ---------------------------------------------------
+# Enum->registry table for the tree family scattered over SPAWNING tiles
+# (`spawn_deco.py`), same "one consumer, cannot drift" rationale as
+# CONDITION_CATEGORY above: DECO_CATEGORY is a `data/slots.json` category
+# (asset-only, like `conditions`), SPAWN_DECO_GROUP the group path within it
+# that holds the tree variant family (`Props -> Tree`).
+DECO_CATEGORY = "deco"
+SPAWN_DECO_GROUP = ("Props", "Tree")
+
 
 class Tile:
     # __slots__ (not a behaviour change): a large map builds one Tile per cell
@@ -107,7 +116,7 @@ class Tile:
     # (see game/main.py), this is what keeps very large maps performant.
     __slots__ = (
         "col", "row", "state", "content_key", "occupant", "condition",
-        "condition_slot", "condition_variant_idx",
+        "condition_slot", "condition_variant_idx", "spawn_deco_roll",
         "damage_weight_reduced", "defence_range_covered",
         "highlighted", "unlock_highlight", "range_highlight",
     )
@@ -140,6 +149,17 @@ class Tile:
         # the new state's family (modulo its size), so a tile keeps "variant
         # #2" across buildable/built/combat/spawning looks.
         self.condition_variant_idx = 0
+        # int — packed spawn-deco roll: -1 means "no tree", else `variant_idx *
+        # 2 + flip_bit`. Rolled ONCE at `TileMap.__init__` (`SpawnDeco.
+        # tree_chance`) for every non-BACKGROUND tile, same as
+        # `condition_variant_idx` — a single small int keeps the per-tile cost
+        # at 8 bytes (CPython caches small ints, so this is zero extra
+        # allocation) rather than a resolved-slot string. The emitter
+        # (`spawn_deco.py`) reads `tile.state` LIVE to decide whether to draw
+        # it, so the tree vanishes the instant a SPAWNING tile converts to
+        # COMBAT with no `set_tile_state` hook at all — and a BACKGROUND tile
+        # that later backfills into SPAWNING already has its roll waiting.
+        self.spawn_deco_roll = -1
         # Dormant weight drivers — fed neutral values until 10F / 10I wire
         # their producers (building damage, defender coverage).
         self.damage_weight_reduced = False

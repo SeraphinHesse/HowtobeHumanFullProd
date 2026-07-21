@@ -117,6 +117,22 @@
       ],
       "type": "object"
     },
+    "SpawnDeco": {
+      "additionalProperties": false,
+      "description": "Decorative tree props scattered over spawn-zone tiles.",
+      "properties": {
+        "tree_chance": {
+          "description": "Chance [0,1] that a SPAWNING tile rolls a random decorative tree at map construction; the roll is cached per-tile and the tree is hidden (not re-rolled) once the tile converts to COMBAT.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "tree_chance"
+      ],
+      "type": "object"
+    },
     "TileConditions": {
       "additionalProperties": false,
       "description": "Random per-tile terrain conditions: spawn odds, path weights, stat modifiers.",
@@ -343,6 +359,7 @@
   },
   "required": [
     "Pathfinding",
+    "SpawnDeco",
     "TileConditions",
     "TileUnlocking"
   ],
