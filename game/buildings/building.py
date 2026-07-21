@@ -131,6 +131,10 @@ class Building(GameObject):
     def at_tier_max(self):
         return self._tier.current_level_in_tier >= self.tier_data()["levels"]
 
+    def tier_number(self):
+        """1-indexed current tier (tier 0 -> 1, tier 1 -> 2, …)."""
+        return self._tier.current_tier + 1
+
     def has_next_tier(self):
         return self._tier.current_tier + 1 < len(self._tiers)
 

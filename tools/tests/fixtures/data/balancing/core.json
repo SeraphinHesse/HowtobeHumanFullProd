@@ -19,11 +19,6 @@
       1,
       2,
       3
-    ],
-    "unlock_cost": 20,
-    "upgrade_costs": [
-      35,
-      80
     ]
   },
   "PhaseLoop": {

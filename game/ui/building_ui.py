@@ -3,7 +3,8 @@ four modes (unlock / construct / upgrade / base_info) + the ConstructPreview
 modal.
 
 Pure logic. Ports the prototype's ``src/ui/building_ui.py``: panel modes +
-terrain badges (10I), lightning + boss-history sections (10H/10G), and the 10J
+terrain badges (10I), the boss-history section (10G), the Storm Priest
+run-singleton grey-out (Storm Priest rework), and the 10J
 depth — shift multi-select batches (unlock chunk-dedup / construct ×count /
 in-tier upgrade sums; tier advance stays primary-only), the name dice, the
 upgrade-panel rename row (custom names + rebirth ordinals finally render),
@@ -45,10 +46,6 @@ from . import widgets
 # colliding with BuildingUI's own).
 SCREEN_ID = "building_panel"
 
-# -- 10H: lightning + cheat menu --
-_LIGHTNING_GOLD = (255, 240, 80)   # prototype section header colour
-_LIGHTNING_BTN_Y = 370             # unlock/upgrade button row (below the stats)
-# -- /10H --
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
 # (prototype building_ui.py:1440-1455).
 _COND_TOOLTIP_BG = (20, 15, 35)
@@ -318,10 +315,7 @@ class BuildingUI:
             (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
         self.cards = []
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
-        # (10H's lightning section sits ABOVE this block in base_info.)
         self.boss_btn = Button(
-            # y=420: below the 10H lightning section (divider 228 → button
-            # row ending 406) — merge-time relocation per the batch matrix.
             (self.panel_x + 12, 420, self.panel_w - 24, 32),
             "BOSS CHOICES", "md")
         pw, ph = 340, 260
@@ -333,9 +327,6 @@ class BuildingUI:
         self._boss_popup_open = False
         self._boss_hover_row = -1
         # -- /10G --
-        # -- 10H --
-        self.lightning_btn = None  # base_info mode only; None at max level
-        # -- /10H --
         # -- 10I: terrain badge hover/tooltip state --
         self._cond_badge_rect = None    # last-submitted badge rect (hit probe)
         self._cond_hover = False
@@ -345,9 +336,7 @@ class BuildingUI:
         # ``rename_dice_btn``/``boss_close_btn`` close a Phase-3 id-coverage
         # gap: both are created once here with a fixed lifetime rect (the
         # dice/close pattern every other mode-independent id already uses),
-        # so they join the same one-time ids dict. ``lightning_btn`` cannot
-        # join it — it is (re)created fresh in ``_build_base_info`` — and
-        # gets its OWN standalone ``apply()`` call there instead.
+        # so they join the same one-time ids dict.
         self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
         self.ids = {
             "panel": ("panel", self._panel),
@@ -390,9 +379,6 @@ class BuildingUI:
         self._name_buf = ""
         # -- /10J --
         self._boss_popup_open = False  # -- 10G boss --
-        # -- 10H --
-        self.lightning_btn = None
-        # -- /10H --
         # -- 10I: terrain badge state resets with the panel --
         self._cond_badge_rect = None
         self._cond_hover = False
@@ -441,7 +427,6 @@ class BuildingUI:
             if getattr(occ, "building_type", None) == "base":
                 self.mode, self.tile = "base_info", tile
                 self.selected_tiles = [tile]  # base never batches
-                self._build_base_info(session)  # 10H: lightning button
             elif occ is not None:
                 self.mode, self.tile, self._selected = "upgrade", tile, occ
                 self._build_upgrade()
@@ -507,8 +492,14 @@ class BuildingUI:
             cost = build_cost(btype, self._buildings_balance, tier_idx)
             name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
+            # Storm Priest run-singleton: `lightning_level` only ever rises
+            # off 0 by a Storm Priest placement and never lowers (latch), so
+            # it is an exact proxy for "one has been placed this run" — grey
+            # out (not hide) the card once true.
+            placed = btype == "storm_priest" and state.lightning_level > 0
+            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {HEART}{cost}"
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
-                         f"{name}  {HEART}{cost}", "md", skin=skin)
+                         label, "md", skin=skin, enabled=not placed)
             self.cards.append((btype, btn))
             y += 50
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
@@ -557,42 +548,8 @@ class BuildingUI:
             return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
         return mode, 0, "MAX TIER", None
 
-    # -- 10H: lightning + cheat menu ---------------------------------------
-
-    def _build_base_info(self, session):
-        """(Re)build the lightning upgrade button (prototype
-        ``building_ui.py:825-836``, adapted for the Storm Priest wiring):
-        ``UPGRADE LIGHTNING`` from L1 up to below max, absent at L0 (a Storm
-        Priest placement is now the ONLY unlock — no love-buyable UNLOCK
-        button here any more) and absent at max level (a gold MAX LEVEL line
-        replaces it in the submit)."""
-        st = session.state
-        if st.lightning_level <= 0:
-            self.lightning_btn = None
-            self._action_cost = 0
-            return
-        cost = lightning.next_cost(st, session.core_balance)
-        if cost is None:
-            self.lightning_btn = None
-            self._action_cost = 0
-            return
-        self.lightning_btn = Button(
-            (self.panel_x + 12, _LIGHTNING_BTN_Y, self.panel_w - 24, 36),
-            f"UPGRADE LIGHTNING  {HEART}{cost}", "md")
-        # B3 id-coverage: this button is REBUILT every call (level changes,
-        # cost changes), so it cannot join the one-time __init__ ids dict —
-        # apply its own override the moment it exists instead (apply()
-        # validates the whole screen's override on the FIRST call regardless
-        # of which ids subset triggers it, so this is not a partial check).
-        self.skinning.apply(self.screen_id,
-                            {"lightning_btn": ("button", self.lightning_btn)})
-        self._action_cost = cost
-
     def _base_info_click(self, mx, my, session):
-        """Click handling for base_info mode — merged 10H + 10G (batch
-        coordination matrix: lightning above boss). 10H: the lightning button
-        buys the next level or flashes NOT ENOUGH LOVE (prototype
-        ``:804-816``/``:1235-38``). 10G: the boss-history popup consumes
+        """Click handling for base_info mode — 10G boss-history popup consumes
         clicks inside itself and closes on its button; the BOSS CHOICES
         button opens it. Everything else inside the panel is consumed."""
         # -- 10G boss popup (checked first; prototype-faithful fall-through:
@@ -604,24 +561,11 @@ class BuildingUI:
                 return True
             if contains(self._boss_popup_rect, mx, my):
                 return True
-        # -- 10H lightning button --
-        if (self.lightning_btn is not None and is_visible(self.lightning_btn)
-                and self.lightning_btn.hit(mx, my)):
-            st = session.state
-            cost = lightning.next_cost(st, session.core_balance)
-            if cost is not None and st.love < cost:
-                self.lightning_btn.start_flash(self._flash_dur,
-                                               "NOT ENOUGH LOVE")
-            elif lightning.upgrade(st, session.core_balance):
-                self._build_base_info(session)  # next cost / MAX LEVEL
-            return True
         # -- 10G BOSS CHOICES button --
         if is_visible(self.boss_btn) and self.boss_btn.hit(mx, my):
             self._boss_popup_open = True
             return True
         return contains(self.panel_rect, mx, my)
-
-    # -- /10H ---------------------------------------------------------------
 
     def _set_range_highlight(self, b, tilemap):
         hl = [(b.col, b.row, widgets.C_HIGHLIGHT)]
@@ -681,14 +625,6 @@ class BuildingUI:
                 self._dice_up.hovered = (self._dice_up.hovered
                                          and is_visible(self._dice_up))
         elif self.mode == "base_info":
-            # -- 10H --
-            if self.lightning_btn is not None:
-                self.lightning_btn.hover(mx, my, mouse_down)
-                self.lightning_btn.hovered = (self.lightning_btn.hovered
-                                              and is_visible(self.lightning_btn))
-                if self.lightning_btn.hovered:
-                    self._hover_cost = self._action_cost
-            # -- /10H --
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
             self.boss_btn.hover(mx, my, mouse_down)
             self.boss_btn.hovered = self.boss_btn.hovered and is_visible(self.boss_btn)
@@ -737,10 +673,8 @@ class BuildingUI:
             return self._construct_click(mx, my, session, buildings_balance)
         if self.mode == "upgrade":
             return self._upgrade_click(mx, my, session)
-        # -- 10G + 10H: base_info gains lightning + BOSS CHOICES handling --
         if self.mode == "base_info":
             return self._base_info_click(mx, my, session)
-        # -- /10G + 10H --
         return contains(self.panel_rect, mx, my)  # consume inside the panel
 
     def _unlock_click(self, mx, my, session):
@@ -826,6 +760,7 @@ class BuildingUI:
                     return True
                 st.spend_love(cost)
                 b.advance_tier()
+                lightning.sync_level_from_tier(st, b)  # Storm Priest wiring
                 if self.on_build_vfx is not None:
                     self.on_build_vfx(b.col, b.row, "tier")
             else:
@@ -847,9 +782,6 @@ class BuildingUI:
                 self._set_range_highlight(b, session.tilemap)
             return True
         return contains(self.panel_rect, mx, my)
-
-    # (10G's standalone _base_info_click was merged into the combined 10H+10G
-    # method in the lightning section above — batch coordination matrix.)
 
     def _preview_click(self, mx, my, session, buildings_balance, scene,
                        occupancy):
@@ -903,10 +835,6 @@ class BuildingUI:
         self._boss_close_btn.update(dt)   # -- 10G boss --
         for _, btn in self.cards:
             btn.update(dt)
-        # -- 10H --
-        if self.lightning_btn is not None:
-            self.lightning_btn.update(dt)
-        # -- /10H --
         if self.preview is not None:
             self.preview.update(dt)
 
@@ -1195,43 +1123,7 @@ class BuildingUI:
             submit_text(renderer, str(value), (self._right, y), "md", widgets.C_UI_TEXT,
                         align="right")
             y += 30
-        # -- 10H: lightning strike section (prototype building_ui.py:1194-1243)
-        from engine.render import HudRect  # local: keep module import list lean
-
-        ls = session.core_balance["LightningStrike"]
-        lvl = st.lightning_level
-        y += 6
-        renderer.submit_hud(HudRect((x, y, self.panel_w - 28, 1), widgets.C_UI_BORDER))
-        y += 10
-        submit_text(renderer, "⚡ LIGHTNING STRIKE", (x, y), "md",
-                    _LIGHTNING_GOLD)
-        y += 26
-        if lvl <= 0:
-            submit_text(renderer, "LOCKED — place a Storm Priest", (x, y), "sm",
-                        widgets.C_UI_TEXT_DIM)
-        else:
-            submit_text(renderer, f"Level {lvl} / {ls['max_level']}", (x, y),
-                        "md", widgets.C_UI_TEXT)
-            y += 24
-            for label, value in (
-                    ("DMG", ls["damage"][lvl - 1]),
-                    ("Radius", f"{ls['radius'][lvl - 1]} tiles"),
-                    ("Atk Spd", f"{ls['cooldown'][lvl - 1]:.1f}s")):
-                submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
-                submit_text(renderer, str(value), (self._right, y), "md",
-                            widgets.C_UI_TEXT, align="right")
-                y += 24
-        if self.lightning_btn is not None and is_visible(self.lightning_btn):
-            self.lightning_btn.submit(renderer, anim_ms=anim_ms,
-                                      **button_kwargs(self.lightning_btn))
-        elif lvl >= ls["max_level"]:
-            submit_text(renderer, "MAX LEVEL",
-                        (self.panel_x + self.panel_w // 2,
-                         _LIGHTNING_BTN_Y + 8),
-                        "md", widgets.C_GOLD, align="center")
-        # -- /10H --
-        # -- 10G boss: BOSS CHOICES button + history popup (sits BELOW the
-        # 10H lightning section per the batch coordination matrix) --
+        # -- 10G boss: BOSS CHOICES button + history popup --
         if is_visible(self.boss_btn):
             self.boss_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.boss_btn))

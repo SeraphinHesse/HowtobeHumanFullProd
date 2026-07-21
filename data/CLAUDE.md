@@ -240,7 +240,9 @@ validating writer; don't hand-edit the JSON.
   main_menu/pause/settings/credits/add_name/game_over, unchanged) ·
   `ui_button_end_turn` → hud.json `btn_end_turn` · `ui_button_pause` →
   hud.json `btn_pause` · `ui_button_panel` → building_panel.json's id'd
-  buttons (action/boss/close/preview_*/rename_dice/lightning/boss_close) ·
+  buttons (action/boss/close/preview_*/rename_dice/boss_close — `lightning`
+  was removed by the Storm Priest rework, which deleted the base_info
+  lightning section/button entirely) ·
   `ui_button_card` → building_panel.json `defaults.button_skin` (construct/
   upgrade cards) · `ui_button_cheat` → cheat_menu.json `btn_*` · `ui_button_
   pill` → overlays.json `btn_range`/`btn_heatmap` · `ui_choice_box` → levelup.

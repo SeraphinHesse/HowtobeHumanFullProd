@@ -1,11 +1,11 @@
-"""Lightning strike ability (Phase 10H) — pure rules + the strike FX object.
+"""Lightning strike ability (Phase 10H; Storm Priest rework) — pure rules +
+the strike FX object + the Storm Priest's ``LightningCaster`` puppeting.
 
 Ports the prototype's lightning fields on ``Game`` (``game.py:116-119``),
-``upgrade_lightning`` (``game.py:517-526``), ``_handle_lightning_click`` /
-``_activate_lightning`` (``game.py:492-514``) and the cooldown tick
-(``game.py:1243-1246``). Every tunable comes from ``core.json``
-``LightningStrike`` (cooldown/damage/radius per level, max_level, unlock +
-upgrade costs — already prototype-exact); the two FX lifetimes are code
+``_handle_lightning_click`` / ``_activate_lightning`` (``game.py:492-514``)
+and the cooldown tick (``game.py:1243-1246``). Every tunable comes from
+``core.json`` ``LightningStrike`` (cooldown/damage/radius per level,
+max_level); the two FX lifetimes + ``CASTER_FLASH_DURATION`` are code
 constants, not balancing (the ``CRATER_LIFE`` precedent).
 
 **Radius semantics** (prototype ``game.py:505-508``): the blast is a Euclidean
@@ -24,36 +24,22 @@ prototype-exact — self-despawns at ``MARKER_LIFE``, and the FX layer just
 draws it). Damage pays no ``RoundStats`` credit — lightning has no shooter;
 kills flow through the next ``resolve_combat`` sweep's ``on_enemy_death``, so
 they pay XP and count as kills like any other kill.
+
+**Storm Priest rework**: there is no love-priced level-up any more
+(``next_cost``/``upgrade`` are gone). Leveling is driven entirely by the
+Storm Priest's own tier, via ``sync_level_from_tier`` (called from
+``game/ui/building_ui.py``'s tier-advance branch), and ``strike()`` puppets
+the placed Storm Priest's ``SpriteAnimator`` into its "attack" pose through
+the new ``LightningCaster`` component (since the building itself no longer
+fires in combat — it dropped the ``"combat"`` tag).
 """
-from engine.core import Component, GameObject, Health, Transform
+from engine.core import Component, GameObject, Health, SpriteAnimator, Transform
 
 # Cosmetic FX lifetimes — code constants like CRATER_LIFE, not balancing
 # (prototype effects.py:232 bolt life; AOE_DEF_CRATER_DURATION default 1.0).
 BOLT_LIFE = 0.5     # seconds the jagged bolt is drawn
 MARKER_LIFE = 1.0   # seconds the ground marker fades over, then despawns
-
-
-def next_cost(state, core):
-    """Love price of the next level: ``unlock_cost`` at L0, else the per-step
-    ``upgrade_costs`` entry; None at max level (prototype game.py:517-523)."""
-    ls = core["LightningStrike"]
-    lvl = state.lightning_level
-    if lvl >= ls["max_level"]:
-        return None
-    if lvl <= 0:
-        return ls["unlock_cost"]
-    return ls["upgrade_costs"][lvl - 1]
-
-
-def upgrade(state, core):
-    """Buy the next level if affordable (prototype game.py:524-526). The
-    cooldown timer is NOT touched by an upgrade. True on success."""
-    cost = next_cost(state, core)
-    if cost is None or state.love < cost:
-        return False
-    state.spend_love(cost)
-    state.lightning_level += 1
-    return True
+CASTER_FLASH_DURATION = 0.4  # seconds the Storm Priest holds its "attack" pose
 
 
 def tick(state, dt):
@@ -83,6 +69,16 @@ def unlock_from_placement(state, building):
         state.lightning_level = max(state.lightning_level, 1)
 
 
+def sync_level_from_tier(state, building):
+    """Raise ``lightning_level`` to match a ``lightning_source`` building's
+    current tier (Storm Priest wiring): tier 1/2/3 -> lightning level 1/2/3.
+    Tag-gated like ``unlock_from_placement``; latch semantics (``max()``)
+    so a re-sync (or a batch call) never lowers an already-higher level.
+    Called from ``game.ui.building_ui``'s tier-advance branch."""
+    if "lightning_source" in building.tags:
+        state.lightning_level = max(state.lightning_level, building.tier_number())
+
+
 def strike(state, core, scene, cs, wx, wy):
     """Strike world point ``(wx, wy)`` (prototype ``_activate_lightning``,
     game.py:502-514). Silent no-op (False) while locked or cooling. Otherwise:
@@ -109,7 +105,39 @@ def strike(state, core, scene, cs, wx, wy):
     fx = LightningFX(wx, wy, radius_tiles)
     fx.get_component(LightningFXFade)._scene = scene
     scene.spawn(fx)
+    for b in scene.by_tag("lightning_source"):
+        if getattr(b, "alive", False):
+            caster = b.get_component(LightningCaster)
+            if caster is not None:
+                caster.trigger()
+            break
     return True
+
+
+class LightningCaster(Component):
+    """Puppets a ``lightning_source`` building's SpriteAnimator: flips to
+    "attack" when the player casts Lightning Strike (nothing else drives its
+    animation any more since Storm Priest dropped the "combat" tag), reverting
+    to "idle" ``CASTER_FLASH_DURATION`` seconds later."""
+
+    flash_timer: float = 0.0
+
+    def on_added(self, owner):
+        self._owner = owner
+
+    def update(self, dt):
+        if self.flash_timer > 0:
+            self.flash_timer = max(0.0, self.flash_timer - dt)
+            if self.flash_timer == 0.0:
+                anim = self._owner.get_component(SpriteAnimator)
+                if anim is not None:
+                    anim.set_animation("idle")
+
+    def trigger(self):
+        self.flash_timer = CASTER_FLASH_DURATION
+        anim = self._owner.get_component(SpriteAnimator)
+        if anim is not None:
+            anim.set_animation("attack")
 
 
 class LightningFXFade(Component):
