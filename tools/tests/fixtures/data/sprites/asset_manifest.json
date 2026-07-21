@@ -623,39 +623,15 @@
       "sheet": "imported/boost_speed_t3_lvl3.png"
     },
     "boss_era_0": {
-      "frame_h": 96,
-      "frame_w": 64,
+      "frame_h": 56,
+      "frame_w": 72,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 6,
-          "hidden": [
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "walk",
-          "fps": 6,
-          "frames": 6,
-          "hidden": [
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 6,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -753,24 +729,6 @@
         }
       ],
       "sheet": "imported/deco_bush.png"
-    },
-    "deco_bush_v10": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_bush_v10.png"
     },
     "deco_bush_v2": {
       "frame_h": 96,
@@ -898,24 +856,6 @@
       ],
       "sheet": "imported/deco_bush_v8.png"
     },
-    "deco_bush_v9": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_bush_v9.png"
-    },
     "deco_prop_1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -978,8 +918,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 7,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1005,24 +945,6 @@
         }
       ],
       "sheet": "imported/deco_prop_1_v5.png"
-    },
-    "deco_prop_1_v6": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_1_v6.png"
     },
     "deco_prop_2": {
       "frame_h": 96,
@@ -1077,60 +999,6 @@
         }
       ],
       "sheet": "imported/deco_prop_2_v11.png"
-    },
-    "deco_prop_2_v12": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_2_v12.png"
-    },
-    "deco_prop_2_v13": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_2_v13.png"
-    },
-    "deco_prop_2_v14": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_2_v14.png"
     },
     "deco_prop_2_v2": {
       "frame_h": 96,
@@ -1276,42 +1144,6 @@
       ],
       "sheet": "imported/deco_prop_2_v9.png"
     },
-    "deco_prop_3": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_2_v13.png"
-    },
-    "deco_prop_3_v2": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_prop_2_v14.png"
-    },
     "deco_rock": {
       "frame_h": 96,
       "frame_w": 64,
@@ -1383,24 +1215,6 @@
         }
       ],
       "sheet": "imported/deco_tree.png"
-    },
-    "deco_tree_v10": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_tree_v10.png"
     },
     "deco_tree_v2": {
       "frame_h": 96,
@@ -1474,78 +1288,6 @@
       ],
       "sheet": "imported/deco_tree_v5.png"
     },
-    "deco_tree_v6": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_tree_v6.png"
-    },
-    "deco_tree_v7": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_tree_v7.png"
-    },
-    "deco_tree_v8": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_tree_v8.png"
-    },
-    "deco_tree_v9": {
-      "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/deco_tree_v9.png"
-    },
     "enemy_stage_1_v1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -1554,56 +1296,9 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 8,
-          "hidden": [
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
           "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -1619,59 +1314,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 8,
-          "hidden": [
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
           "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "imported/enemy_stage_1_v2.png"
     },
     "enemy_stage_2": {
       "frame_h": 96,
@@ -1843,79 +1494,7 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
+          "fps": 8,
           "frames": 17,
           "hidden": [],
           "loop_count": 1,
@@ -1929,181 +1508,57 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": 8,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "fps": 8,
+          "frames": 10,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            7,
+            8,
+            9
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/flute_player_t1_lvl2.png"
     },
     "flute_player_t1_lvl3": {
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": 8,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "fps": 8,
+          "frames": 10,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            8,
+            9
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/flute_player_t1_lvl3.png"
     },
     "formation_stage_1": {
       "frame_h": 128,
@@ -2127,101 +1582,29 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": 8,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
+          "fps": 8,
+          "frames": 10,
           "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            9
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/harp_player_t2_lvl1.png"
     },
     "harp_player_t2_lvl2": {
       "frame_h": 96,
@@ -2231,97 +1614,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/harp_player_t2_lvl2.png"
     },
     "harp_player_t2_lvl3": {
       "frame_h": 96,
@@ -2331,97 +1632,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/harp_player_t2_lvl3.png"
     },
     "laser_beam_t3_lvl1": {
       "frame_h": 96,
@@ -2857,84 +2076,9 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2950,90 +2094,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl1.png"
+      "sheet": "imported/pistoleer_t3_lvl2.png"
     },
     "pistoleer_t3_lvl3": {
       "frame_h": 96,
@@ -3043,90 +2112,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/pistoleer_t3_lvl1.png"
+      "sheet": "imported/pistoleer_t3_lvl3.png"
     },
     "radiant_beam_t2_lvl1": {
       "frame_h": 96,
@@ -3371,10 +2365,17 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 18,
+          "hidden": [],
+          "loop_count": 17,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 18,
           "hidden": [
-            4,
-            5,
             6,
             7,
             8,
@@ -3383,59 +2384,11 @@
             11,
             12,
             13,
-            14
+            14,
+            15,
+            16,
+            17
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3451,96 +2404,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl1.png"
+      "sheet": "imported/slinger_t2_lvl2.png"
     },
     "slinger_t2_lvl3": {
       "frame_h": 96,
@@ -3550,96 +2422,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/slinger_t2_lvl1.png"
+      "sheet": "imported/slinger_t2_lvl3.png"
     },
     "stone_thrower_t1_lvl1": {
       "frame_h": 96,
@@ -3649,8 +2440,8 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 15,
+          "fps": 3,
+          "frames": 11,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -3659,47 +2450,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
-          "hidden": [
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
+          "frames": 11,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -3717,44 +2468,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
+          "frames": 11,
           "hidden": [
-            12,
-            13,
-            14
+            9,
+            10
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 6,
+          "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 11,
           "hidden": [
             3,
             4,
@@ -3763,36 +2489,14 @@
             7,
             8,
             9,
-            10,
-            11,
-            12,
-            13,
-            14
+            10
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl1.png"
+      "sheet": "imported/stone_thrower_t1_lvl2.png"
     },
     "stone_thrower_t1_lvl3": {
       "frame_h": 96,
@@ -3803,77 +2507,29 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 7,
-          "loop_end": 3,
+          "frames": 11,
+          "hidden": [
+            10
+          ],
+          "loop_count": 6,
+          "loop_end": 2,
           "loop_start": 0
         },
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
-          "hidden": [
-            12,
-            13,
-            14
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 15,
-          "hidden": [
-            10,
-            11,
-            12,
-            13,
-            14
-          ],
-          "loop_count": 7,
-          "loop_end": 3,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 15,
+          "frames": 11,
           "hidden": [
             8,
             9,
-            10,
-            11,
-            12,
-            13,
-            14
+            10
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/stone_thrower_t1_lvl1.png"
+      "sheet": "imported/stone_thrower_t1_lvl3.png"
     },
     "sun_scorcher_t1_lvl1": {
       "frame_h": 96,
@@ -4007,13 +2663,13 @@
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
             7,
             8,
             9,
+            10,
             11,
             12,
             13,
@@ -4041,7 +2697,6 @@
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
@@ -4049,6 +2704,7 @@
             8,
             9,
             10,
+            11,
             12,
             13,
             14,
@@ -4082,8 +2738,8 @@
             7,
             8,
             9,
-            10,
             11,
+            12,
             13,
             14,
             15
@@ -4117,8 +2773,8 @@
             8,
             9,
             10,
-            11,
             12,
+            13,
             14,
             15
           ],
@@ -4206,30 +2862,23 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 9,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
             5,
             6,
             7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -4240,30 +2889,14 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
-          "hidden": [
-            0,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable_b.png"
     },
     "tile_cliff": {
       "frame_h": 32,
@@ -4477,277 +3110,43 @@
     },
     "trio_t3_lvl1": {
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 68,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/trio_t3_lvl1.png"
     },
     "trio_t3_lvl2": {
       "frame_h": 96,
-      "frame_w": 64,
+      "frame_w": 68,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
         {
           "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
+          "fps": 8,
+          "frames": 1,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
+      "sheet": "imported/trio_t3_lvl2.png"
     },
     "trio_t3_lvl3": {
       "frame_h": 96,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/flute_player_t1_lvl1.png"
-    },
-    "ui_bg_main_menu": {
-      "frame_h": 270,
-      "frame_w": 480,
+      "frame_w": 68,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -4761,509 +3160,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/main_menu_bg.png"
-    },
-    "ui_button": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_card": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_card.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_cheat": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_cheat.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_end_turn": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_end_turn.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_panel": {
-      "frame_h": 23,
-      "frame_w": 70,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 6,
-          "hidden": [
-            1,
-            2,
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 6,
-          "hidden": [
-            3,
-            4,
-            5
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 6,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_panel.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_pause": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_pause.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_button_pill": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "pressed",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "disabled",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_button_pill.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_choice_box": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_choice_box.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_icon_lives": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_icon_lives.png"
-    },
-    "ui_icon_love": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_icon_love.png"
-    },
-    "ui_icon_xp": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_icon_xp.png"
-    },
-    "ui_panel": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_panel.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
-    },
-    "ui_panel_stone": {
-      "frame_h": 64,
-      "frame_w": 64,
-      "offset_x": 0,
-      "offset_y": 0,
-      "rows": [
-        {
-          "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hover",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        }
-      ],
-      "sheet": "imported/ui_panel_stone.png",
-      "slice": [
-        4,
-        4,
-        4,
-        4
-      ]
+      "sheet": "imported/trio_t3_lvl3.png"
     },
     "wall_builder": {
       "frame_h": 96,

@@ -575,55 +575,9 @@
         {
           "children": [
             {
-              "label": "Menu Button",
+              "label": "Button",
               "slots": [
                 "ui_button"
-              ]
-            },
-            {
-              "label": "End Turn",
-              "slots": [
-                "ui_button_end_turn"
-              ]
-            },
-            {
-              "label": "Pause",
-              "slots": [
-                "ui_button_pause"
-              ]
-            },
-            {
-              "label": "Panel Button",
-              "slots": [
-                {
-                  "frame_h": 23,
-                  "frame_w": 70,
-                  "key": "ui_button_panel"
-                }
-              ]
-            },
-            {
-              "label": "Construct Card",
-              "slots": [
-                "ui_button_card"
-              ]
-            },
-            {
-              "label": "Cheat Menu",
-              "slots": [
-                "ui_button_cheat"
-              ]
-            },
-            {
-              "label": "Overlay Pill",
-              "slots": [
-                "ui_button_pill"
-              ]
-            },
-            {
-              "label": "Choice Box",
-              "slots": [
-                "ui_choice_box"
               ]
             }
           ],
@@ -761,8 +715,7 @@
               "slots": [
                 "deco_rock",
                 "deco_rock_v2",
-                "deco_rock_v3",
-                "deco_rock_v4"
+                "deco_rock_v3"
               ]
             },
             {
@@ -775,10 +728,7 @@
                 "deco_bush_v5",
                 "deco_bush_v6",
                 "deco_bush_v7",
-                "deco_bush_v8",
-                "deco_bush_v9",
-                "deco_bush_v10",
-                "deco_bush_v11"
+                "deco_bush_v8"
               ]
             },
             {
@@ -788,12 +738,7 @@
                 "deco_tree_v2",
                 "deco_tree_v3",
                 "deco_tree_v4",
-                "deco_tree_v5",
-                "deco_tree_v6",
-                "deco_tree_v7",
-                "deco_tree_v8",
-                "deco_tree_v9",
-                "deco_tree_v10"
+                "deco_tree_v5"
               ]
             },
             {
@@ -803,8 +748,7 @@
                 "deco_prop_1_v2",
                 "deco_prop_1_v3",
                 "deco_prop_1_v4",
-                "deco_prop_1_v5",
-                "deco_prop_1_v6"
+                "deco_prop_1_v5"
               ]
             },
             {
@@ -820,10 +764,7 @@
                 "deco_prop_2_v8",
                 "deco_prop_2_v9",
                 "deco_prop_2_v10",
-                "deco_prop_2_v11",
-                "deco_prop_2_v12",
-                "deco_prop_2_v13",
-                "deco_prop_2_v14"
+                "deco_prop_2_v11"
               ]
             },
             {
@@ -838,46 +779,6 @@
         }
       ],
       "key": "deco"
-    },
-    {
-      "animations": [
-        "idle"
-      ],
-      "display_name": "Tile Conditions",
-      "frame_h": 96,
-      "frame_w": 64,
-      "groups": [
-        {
-          "children": [
-            {
-              "label": "Grass",
-              "slots": [
-                "cond_grass"
-              ]
-            },
-            {
-              "label": "Mountain",
-              "slots": [
-                "cond_mountain"
-              ]
-            },
-            {
-              "label": "Pond",
-              "slots": [
-                "cond_pond"
-              ]
-            },
-            {
-              "label": "Forest",
-              "slots": [
-                "cond_forest"
-              ]
-            }
-          ],
-          "label": "Terrain"
-        }
-      ],
-      "key": "conditions"
     },
     {
       "animations": [
