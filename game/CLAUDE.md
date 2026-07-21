@@ -30,6 +30,7 @@ user.
 | `enemies/` | `game/enemies/CLAUDE.md` | Enemy walker; spawner wave queue; type-agnostic combat sweep |
 | `core/` | `game/core/CLAUDE.md` | phase machine; payday ordering; XP / village level-up; balance loader |
 | `ui/` | `game/ui/CLAUDE.md` | HUD; building panel; floaters; level-up modal; shell + menus |
+| `tutorial/` | `game/CLAUDE.md` (this section) | `TutorialDirector` — binds the engine sequencer to real tiles/cards/buttons |
 
 Perf deep-dive → `game/PERF.md`.
 
@@ -87,6 +88,65 @@ Perf deep-dive → `game/PERF.md`.
     could show through. The world background is built from background tiles +
     deco props; `BACKGROUND` tiles always render. `ui.FX.bg_art` survives only as
     a balancing-parity key (nothing reads it at render time).
+
+## Tutorial director (Phase TU-6)
+`game/tutorial/director.py` (`TutorialDirector`, no doc of its own — the
+package is one file) binds `engine.tutorial.TutorialSequencer`'s opaque ids to
+real tiles/cards/buttons for the round-1 guided flute-placement chain. This is
+where "flute"/"economic"/"confirm" vocabulary lives — never in
+`engine/tutorial.py` (D2).
+- **Construction** (`build_gameplay()`, alongside `gp["panel"] =
+  BuildingUI(...)`): `TutorialDirector(data_dir, map_doc,
+  core_balance["Tutorial"])` reads `data/tutorial/tutorial.json` (TU-1) + the
+  map doc's `tutorial_flute` marker. Either missing/invalid → ONE logged
+  warning, an empty already-`skip()`ped sequencer, `self.active = False` —
+  NEVER raises, so an old/unpainted map is always fully playable from frame 1.
+  `TutorialMessageScreen` (the Continue/Skip message box, `game/ui/CLAUDE.md`)
+  is built right after, sharing `shell.skinning` like every other gameplay
+  screen.
+- **The gate sits in the UI layer, not the placement seam** (D6):
+  `place_building`/`registry.py` are untouched. Three choke points, matching
+  the plan's own file-scope note verbatim:
+  1. `handle_world_click`'s message branch — while
+     `tutorial.message_visible`, the message box consumes EVERY click
+     (highest priority bar GAME_OVER), routing Continue/Skip to
+     `tutorial.on_message_dismissed()`/`tutorial.skip()`.
+  2. `_tutorial_allows_panel_click(mx, my)` wraps both `panel.handle_click()`
+     call sites (the preview-modal branch and the normal branch): it checks
+     `tutorial.allows(("confirm",))` / `tutorial.allows(("card", btype))`
+     ONLY when the click actually lands on the Confirm button / a construct
+     card — every other click inside the panel (close, cancel, the name box,
+     the dice reroll) passes through UNGATED, a deliberate simpler reading
+     over the stricter "reject literally everything" prose (flagged, not
+     guessed at silently). The tile-pick branch gates the same way:
+     `tutorial.allows(("tile", col, row))` before `update_selection`.
+  3. `Session.tutorial_gate` (`game/core/CLAUDE.md`) — set to
+     `gp["tutorial"].allows_end_turn` in `build_gameplay()`; `end_turn()`
+     checks it right after its existing BUILDING-phase guard. No keyboard-wide
+     gate exists or is needed — `K_SPACE`'s dev-convenience `end_turn()` is
+     gated by the SAME `Session` check, so it cannot bypass the chain.
+- **Event feed**: a successful gated action calls the matching
+  `on_*` hook (`on_tile_clicked`/`on_card_selected`/`on_building_placed`/
+  `on_message_dismissed`/`on_end_turn`) to advance the sequencer.
+  `panel.last_placed_type` (one extra transient `BuildingUI` field, additive)
+  is how `main.py` detects "a placement just landed" vs. a cancelled preview,
+  since both clear `panel.preview` the same way.
+  `on_building_placed` keeps its own running counter so
+  `Tutorial.economy_buildings_required` > 1 holds off the End-Turn unlock
+  until every required placement lands, even though the shipped default (1)
+  can't live-exercise that path.
+- **Rendering**: `tutorial.tile_highlight_targets()` (0 or 1 `(col, row)`
+  pairs) draws a white `submit_tile_diamond` in the world overlay pass, before
+  `panel.submit()`; `tutorial.ui_highlight_rects(panel, hud)` resolves
+  `"card:*"`/`"button:confirm"`/`"button:end_turn"` highlight ids into screen
+  rects (via `panel.card_rect()`/`panel.confirm_rect()`/`hud.end_turn.rect`,
+  `None` skipped — never crashes mid-transition) for
+  `widgets.submit_ui_box_highlight`, drawn after the HUD; the message box
+  submits last. Detail on the widgets/screen side → `game/ui/CLAUDE.md`.
+- **D6 zero-overhead contract**: an inactive/skipped/finished tutorial costs
+  exactly one `finished` bool check per gated call site — `TutorialDirector`
+  and `TutorialSequencer` both fast-path every query to the "always allowed"
+  answer once finished.
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

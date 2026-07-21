@@ -70,9 +70,11 @@ from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
 from game.map import TileMap, condition_render_items, tile_at_screen
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
+from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
     GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
+    TutorialMessageScreen,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
@@ -284,7 +286,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
           # -- 10J: game log + shift multi-select state --
           "game_log": None, "sel": [], "sel_cat": None,
           # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
-          "cutscene": None}
+          "cutscene": None,
+          # -- TU-6: the guided-chain director + its Continue/Skip message box --
+          "tutorial": None, "tutorial_message": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
@@ -300,6 +304,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
+        # -- TU-6: the round-1 guided-chain director + its message box. Reads
+        # data/tutorial/tutorial.json + the map's tutorial_flute marker;
+        # auto-skips (never crashes) on an old/unpainted map. --
+        gp["tutorial"] = TutorialDirector(data_dir, map_doc,
+                                          core_balance["Tutorial"])
+        gp["tutorial_message"] = TutorialMessageScreen(
+            view_w, view_h, gp["tutorial"].skippable(), skinning=shell.skinning)
+        gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
+        # -- /TU-6 --
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
@@ -328,7 +341,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
-                  "boss_cutscene", "cheat", "overlays", "game_log", "cutscene"):
+                  "boss_cutscene", "cheat", "overlays", "game_log", "cutscene",
+                  "tutorial", "tutorial_message"):
             gp[k] = None
         gp["sel"], gp["sel_cat"] = [], None  # 10J
         if tune_gc:
@@ -387,6 +401,27 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["levelup"].close()  # orphan guard (pending flag survives)
     # -- /10H ---------------------------------------------------------------
 
+    def _tutorial_allows_panel_click(mx, my):
+        """True when the tutorial is inactive/finished, OR the click lands on
+        a target the current step allows (musician card / Confirm). Every
+        other click inside the panel (close, cancel, the name box, the dice
+        reroll) passes through UNGATED — only the actual whitelisted target
+        is checked (TU-6 §3.3)."""
+        tutorial = gp["tutorial"]
+        if tutorial.finished:  # fast path, D6
+            return True
+        panel = gp["panel"]
+        if panel.preview is not None:
+            if panel.preview.confirm_btn.hit(mx, my):
+                return tutorial.allows(("confirm",))
+            return True  # cancel/close/name box/dice: not gated
+        if panel.mode == "construct":
+            for btype, btn in panel.cards:
+                if btn.hit(mx, my):
+                    return tutorial.allows(("card", btype))
+            return True  # clicking the panel body/close, not a card
+        return True  # unlock/upgrade/base_info modes: untouched by TU-6
+
     def handle_world_click(mx, my):
         """The in-round click-consume priority ladder (prototype-exact order),
         entered only in GAMEPLAY/GAME_OVER."""
@@ -398,6 +433,17 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 teardown_gameplay()
                 shell.to_main_menu()
             return
+        # -- TU-6: the tutorial message box consumes EVERY click while
+        # visible (highest priority bar GAME_OVER) --
+        tutorial = gp["tutorial"]
+        if tutorial.message_visible:
+            result = gp["tutorial_message"].hit(mx, my)
+            if result == "skip":
+                tutorial.skip()
+            elif result == "continue":
+                tutorial.on_message_dismissed()
+            return
+        # -- /TU-6 --
         # -- 10H: the open cheat menu consumes EVERY click (renders topmost,
         # directly under GAME_OVER in the ladder — above every other modal) --
         if gp["cheat"].visible:
@@ -420,8 +466,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 session.resolve_levelup(option, world.scene)  # -> payday -> INCOME
             return
         if panel.preview is not None:                      # modal
-            panel.handle_click(mx, my, session, buildings_balance,
-                               world.scene, world.occupancy)
+            # -- TU-6: only the whitelisted CONFIRM click is gated --
+            if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
+                    mx, my, session, buildings_balance, world.scene,
+                    world.occupancy):
+                if panel.last_placed_type is not None:
+                    gp["tutorial"].on_building_placed(panel.last_placed_type)
+                    panel.last_placed_type = None
+            # -- /TU-6 --
             return
         hud_action = gp["hud"].hit(mx, my)
         if hud_action == "pause":
@@ -429,18 +481,31 @@ def main(max_frames=None, data_dir=None, autostart=False):
             return
         if hud_action == "end_turn":
             session.end_turn()
+            gp["tutorial"].on_end_turn()  # TU-6: no-op unless this was the gated step
             return
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
         # -- /10I --
-        if panel.handle_click(mx, my, session, buildings_balance,
-                              world.scene, world.occupancy):
+        # -- TU-6: only the whitelisted card click is gated --
+        if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
+                mx, my, session, buildings_balance, world.scene,
+                world.occupancy):
+            if panel.mode == "construct" and panel.preview is not None:
+                gp["tutorial"].on_card_selected(panel.preview.building_type)
             return
+        # -- /TU-6 --
         if panel.visible and mx >= panel.panel_x:          # spatial block
             return
         if session.state.phase == GamePhase.BUILDING:
             tile = tile_at_screen(world.tile_map, cs, mx, my)
+            # -- TU-6: reject every tile but the one the guided chain allows --
+            if tile is not None and not gp["tutorial"].allows(
+                    ("tile", tile.col, tile.row)):
+                return
+            if tile is not None:
+                gp["tutorial"].on_tile_clicked(tile.col, tile.row)
+            # -- /TU-6 --
             # -- 10J: shift multi-select (prototype game.py:440-490) --
             shift = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
             update_selection(tile, shift, session)
@@ -547,7 +612,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
                     gp["cutscene"].skip()
                 continue
-            # TU-6: input whitelist goes here
+            # TU-6: the guided-chain whitelist lives at the existing choke
+            # points instead (message-box click-swallow in
+            # handle_world_click, the tile-click/panel.handle_click() gates
+            # below, and Session.tutorial_gate for End Turn) — no separate
+            # keyboard-wide gate needed here.
             # GAMEPLAY / GAME_OVER: the live world is present
             world = gp["world"]
             session = world.session
@@ -584,6 +653,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif event.key == pygame.K_SPACE:
                     session.end_turn()  # dev convenience beside the button
+                    gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.
@@ -757,6 +827,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 gp["game_log"].update(dt)
                 # -- /10J --
                 gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
+                gp["tutorial_message"].update(dt, mx, my, mouse_down=held)  # TU-6
                 if session.frozen:
                     gp["levelup"].update(dt, mx, my, mouse_down=held)
                     gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
@@ -840,6 +911,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
+            # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
+            # overlay, before the panel's own selection highlights --
+            for col, row in gp["tutorial"].tile_highlight_targets():
+                widgets.submit_tile_diamond(renderer, col, row,
+                                            widgets.C_TUTORIAL_HIGHLIGHT)
+            # -- /TU-6 --
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
@@ -852,6 +929,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
+            # -- TU-6: UI-box highlights (card/Confirm/End Turn) + the
+            # message box, over the HUD --
+            for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
+                widgets.submit_ui_box_highlight(renderer, rect)
+            if gp["tutorial"].message_visible:
+                gp["tutorial_message"].submit(
+                    renderer, gp["tutorial"].message_text(), view_w, view_h)
+            # -- /TU-6 --
             gp["game_log"].submit(renderer, view_h)   # 10J: fading log lines
             gp["overlays"].submit_buttons(renderer)   # 10I: RANGE/HEATMAP pills
             if gp["levelup"].visible:

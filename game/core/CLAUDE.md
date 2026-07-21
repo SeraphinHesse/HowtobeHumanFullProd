@@ -67,6 +67,16 @@ Four files beside `balance.py`:
 Love → interactive placement + real HUD/End-Turn button are 9G; `Session` owns the
 love store, ready to feed `place_building`.
 
+- **`Session.tutorial_gate` (TU-6)**: an optional host-set callable
+  (`() -> bool`, the `BuildingUI.on_build_vfx` host-callback precedent), `None`
+  by default (a bare `Session` a logic test builds never gates). `end_turn()`
+  checks it right after its existing `state != GAMEPLAY or phase != BUILDING`
+  guard and returns early if it says no — this is the ONE place the round-1
+  guided tutorial (`game/tutorial/director.py`, `game/CLAUDE.md`) actually
+  gates End Turn; `game/main.py` wires it to
+  `gp["tutorial"].allows_end_turn`. TU-5's `pending_cutscene` insertion sits
+  textually below this one (both inside `end_turn()`, non-overlapping).
+
 > Cross-package note (9F): `engine/render/fonts.py` `get_font` now probes a cached
 > SysFont with `get_height()` and rebuilds it if its pygame session was torn down
 > (a prior `pygame.quit()` — surfaced by drawing HUD text across the repeated

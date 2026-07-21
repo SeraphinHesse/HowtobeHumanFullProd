@@ -58,7 +58,11 @@ class TestTutorialScript(unittest.TestCase):
         self.assertGreaterEqual(len(data["steps"]), 1)
         highlights = [h for step in data["steps"] for h in step["highlight"]]
         self.assertIn("tile:tutorial_flute", highlights)
-        self.assertIn("card:musician", highlights)
+        # TU-6: the script's building id is "economic" — the real runtime
+        # `building_type` for the Musician card (game/buildings/musician.py
+        # BUILDING_TYPE), not the illustrative "musician" TU-1 seeded before
+        # TU-6 reconciled the vocabulary against the registry.
+        self.assertIn("card:economic", highlights)
         self.assertIn("button:confirm", highlights)
         self.assertIn("button:end_turn", highlights)
 

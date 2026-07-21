@@ -30,19 +30,19 @@
       "message": null
     },
     {
-      "advance_on": "building_selected:musician",
+      "advance_on": "building_selected:economic",
       "allow": [
-        "card_select:musician"
+        "card_select:economic"
       ],
       "flags": {},
       "highlight": [
-        "card:musician"
+        "card:economic"
       ],
       "id": "highlight_musician_card",
       "message": null
     },
     {
-      "advance_on": "building_placed:musician",
+      "advance_on": "building_placed:economic",
       "allow": [
         "button:confirm"
       ],

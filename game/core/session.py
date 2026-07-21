@@ -56,6 +56,11 @@ class Session:
         # painter's tile (clear it here as well as on the tilemap). Optional so
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
+        # TU-6: optional callable, host-set (BuildingUI/on_build_vfx
+        # precedent) — allows()->bool gate consulted by end_turn(). None
+        # (default) = always allowed (a bare Session built by a logic test
+        # never gates).
+        self.tutorial_gate = None
         self._wipe_pending = False
         # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
         # 10G single-slot `_boss_swarm_pending` generalised — several units can
@@ -234,6 +239,8 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
             return
+        if self.tutorial_gate is not None and not self.tutorial_gate():
+            return  # TU-6: the guided chain still owns End Turn
         self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
         if st.round_num == 1:
             st.pending_cutscene = {"id": "first_end_turn"}

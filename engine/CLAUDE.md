@@ -89,6 +89,23 @@ engine task; if an engine change forces a caller change, tell the user
   `finish/skip/mark_source_ended` all end it; `enabled=False` starts `done`.
   `length` is a constructor param (engine stays game-agnostic; the prototype's
   44.2 s cap is a caller concern).
+- **`tutorial.py`** (pure — no pygame, no game vocabulary, TU-6) — a generic
+  step-sequencer for a scripted guided tutorial: `Step` (frozen dataclass:
+  `id`/`message`/`highlight`/`advance_on`/`allow`/`flags`, every field an
+  OPAQUE string the caller gives meaning to — the `video_playback.py` "pure
+  clock" shape applied to a linear script instead of a timer) and
+  `TutorialSequencer(steps, *, skippable=True)`: `current`/`active`/
+  `finished` (skipped OR past the last step — the single terminal state
+  every gated call site checks, D6 "one bool check" zero-overhead
+  contract), `advance(event_id)` (no-op unless it matches the CURRENT
+  step's `advance_on`), `skip()` (terminal, a no-op when `not skippable` —
+  the engine never trusts the caller), `allows(action_id)` (True once
+  finished, else membership in `current.allow`), `highlight_ids()` /
+  `message_id()` / `flags()` (all resolve to the empty/None terminal value
+  once finished). Knows nothing of tiles, buildings, cards or love —
+  `game/tutorial/director.py` (`game/CLAUDE.md`) binds every opaque id to a
+  real thing; a "flute"/"musician" check inside this module is a layering
+  violation.
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
