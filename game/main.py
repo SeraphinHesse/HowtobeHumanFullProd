@@ -171,8 +171,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     # D-21: the active map decides what the ground IS — and its dims (D-20)
     map_doc = tilemap.load_active_map(data_dir)
+    # core's Camera group is the balancing tunable overriding geometry.json's
+    # zoom fallback (hoisted ahead of the other balance loads below so it's
+    # available before cs is built).
+    core_balance = load_balance(data_dir, "core")
     cs = load_coordinate_system(
-        data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows)
+        data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows,
+        zoom_levels=core_balance["Camera"]["zoom_levels"],
+        default_zoom=core_balance["Camera"]["default_zoom"])
 
     def frame_camera():
         """Open the camera centred on the map's camera-startpoint object if it
@@ -224,7 +230,6 @@ def main(max_frames=None, data_dir=None, autostart=False):
     map_bal = load_balance(data_dir, "map")
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
-    core_balance = load_balance(data_dir, "core")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
     # debug: draw the camera-startpoint marker in-game (default off)

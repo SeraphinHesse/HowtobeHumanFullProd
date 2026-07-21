@@ -262,6 +262,11 @@ class TestAnchorWorldPointInvariance(unittest.TestCase):
         centre) baseline, since the fit only ever scales a screen-pixel
         delta, never the raw world coordinate."""
         cs = load_coordinate_system(FIXTURE_DATA)
+        # Pin the zoom: this asserts a hand-computed SCREEN delta, and
+        # `Camera.zoom`'s dataclass default is a live tunable (it moved
+        # 1.0 -> 2.0 with the camera-zoom balancing change), so inheriting
+        # it would silently scale the expected 50.0 below.
+        cs.set_zoom(1.0)
         # frame_w 128 on a 64-wide tile with fit_tiles=1 halves the draw.
         centre_store, centre_obj = _store_and_obj((0, 0), frame_w=128, fit_tiles=1.0)
         anchored_store, anchored_obj = _store_and_obj((100, 0), frame_w=128, fit_tiles=1.0)

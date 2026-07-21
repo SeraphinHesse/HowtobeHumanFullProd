@@ -23,9 +23,20 @@ conventions, update THIS doc.
   `engine.coords.load_coordinate_system(data_dir)` (E-1). Camera pan is in screen
   pixels: `screen = iso * zoom - pan`; world (0,0) is the TOP corner of tile
   (0,0)'s diamond.
-- `load_coordinate_system(data_dir, map_cols=None, map_rows=None)`: optional dim
-  overrides — each map owns its dims (D-20); geometry.json keeps pitch/zoom as
-  global truth plus fallback dims for map-less hosts.
+- `load_coordinate_system(data_dir, map_cols=None, map_rows=None,
+  zoom_levels=None, default_zoom=None)`: optional overrides — each map owns its
+  dims (D-20); geometry.json keeps pitch as global truth plus fallback dims/zoom
+  for map-less/balance-less callers. **Zoom is a balancing tunable, not a
+  geometry constant**: the real `zoom_levels`/`default_zoom` live in the
+  `core` balancing domain's `Camera` group (`data/balancing/core.json` +
+  `schemas/core.schema.json`), and real hosts (game, editor) always pass them
+  as the override, the same way each map passes its own cols/rows — mirrors the
+  map-dims paragraph above exactly. `default_zoom`, when given, is applied via
+  `CoordinateSystem.set_zoom` right after construction, which reuses that
+  method's "must be a valid level" `ValueError` as the cross-field check
+  (`default_zoom` must be a member of `zoom_levels`) — schema validates each
+  field's shape, the loader validates the relationship between them, same split
+  `engine/tilemap.py` uses for its own cross-checks.
 - Pure Python — no pygame. That is what keeps game logic headless-testable.
 
 ## Verify

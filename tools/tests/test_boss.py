@@ -693,6 +693,39 @@ class TestBossHuntsBuildingsBaseLast(unittest.TestCase):
         self.assertTrue(pa.goal_is_base)
 
 
+class TestBossFootprintTwoDoesNotFreezeBesideANeighbour(unittest.TestCase):
+    """The real boss footprint is 2 (``data/balancing/enemies.json``), but
+    every other test in this module runs against the fixture's ``footprint:
+    1`` — a materially different collision profile. At footprint 1,
+    ``PathAgent.target_col``/``target_row`` (the path's terminal ANCHOR) is
+    always the building's own tile; at footprint 2 the covering anchor can sit
+    a tile away from it, and ``_target_alive`` used to read that anchor tile
+    literally, finding no occupant and wrongly concluding the committed target
+    was already dead while it stood one tile over. That falsely tripped the
+    dead-target repath every frame, short-circuiting ``update`` before it ever
+    reached ``_blocker_ahead`` again — the boss froze beside the still-alive
+    neighbour, body overlapping its tile, never attacking it."""
+
+    def test_boss_kills_a_neighbour_instead_of_freezing_beside_it(self):
+        enem = copy.deepcopy(ENEM)
+        enem["EnemyTypes"]["Boss"]["footprint"] = 2
+        tm, scene, occ = build_board(["b" * 12] * 12)
+        b1 = place_defence(tm, scene, occ, 5, 5, hp=50)
+        b2 = place_defence(tm, scene, occ, 7, 5, hp=50)
+        scene.update(0.0)
+        boss = create_enemy("boss", 0, 5, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        pa = boss.get_component(PathAgent)
+        for _ in range(20000):
+            scene.update(0.02)
+            if pa.reached_base:
+                break
+        self.assertFalse(b1.alive)
+        self.assertFalse(b2.alive)
+        self.assertTrue(pa.reached_base)
+
+
 class TestBossCommittedTarget(unittest.TestCase):
     """BP-3: remember the victim; notice it dying; choose it by DISTANCE."""
 

@@ -453,6 +453,22 @@ import list.**
   `base_hole`) sits in the SAME exclusive brush group — arming it (`arm_base`) is
   import-target-only (`_armed_slot()` priority: deco, then base, then armed code's
   slot) since the base is never painted, only dragged.
+  **Mirror Flip** (a "Mirror Flip" `QCheckBox`, `self._deco_flip_box`, on the
+  Decoration page below `+ Add Prop`): an ORTHOGONAL placement modifier, not
+  tied to which prop/variant is armed — arming a new deco type/slot does NOT
+  reset it. State lives in `ViewportPanel._deco_flip_armed`
+  (`set_deco_flip(on)`, wired from `palette.deco_flip_toggled`); `_tool_press`'s
+  deco-place branch passes it to `MapSession.push_deco_place(..., flip=...)`,
+  which threads through `tilemap_ops.place_deco` into the map file's per-entry
+  `"flip"` bool (optional, omitted when False — `data/CLAUDE.md`'s
+  optional-key convention). The ghost preview passes the same flag into its
+  `RenderItem(..., flip=...)` so the cursor preview mirrors before placement.
+  Rendering is plumbing already in `engine/render` (`RenderItem.flip` →
+  `DrawCall.flip` → `pygame.transform.flip`); the deco layer just threads
+  `d.get("flip", False)` through in both `engine/tilemap.py` emitters. Has its
+  own editable keybind (`editor/keybinds.py`'s `"deco_flip"`, default `X`),
+  settings-dialog row, and `MainWindow.deco_flip_action` (triggers
+  `palette.toggle_deco_flip()`) — same pattern as the tool/brush keybinds.
 - **Lifecycle** (`panels/map_details.py`): New/Duplicate (schema-bounded dialog, id
   re-checked) / Save / Set Active / Delete — Set Active is the ONLY writer of
   `data/maps/active_map.json` (D-21). Create/duplicate write to disk immediately

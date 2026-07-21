@@ -481,7 +481,7 @@ class TestDefaultRoundTrip(unittest.TestCase):
 # that loop separately).
 # ===========================================================================
 from engine.core import GameObject, Scene, Transform
-from engine.coords import CoordinateSystem, Geometry
+from engine.coords import Camera, CoordinateSystem, Geometry
 from game.buildings.components import BeamAttacker, TierState
 from game.core.balance import load_balance
 from game.core.lightning import (
@@ -548,8 +548,15 @@ def make_floater_manager():
 
 
 def make_cs():
-    return CoordinateSystem(Geometry(
-        tile_w=64, tile_h=32, map_cols=8, map_rows=8, zoom_levels=(1.0,)))
+    """Zoom is pinned EXPLICITLY, never inherited from `Camera`'s dataclass
+    default: that default is a live tunable (it moved 1.0 -> 2.0 with the
+    camera-zoom balancing change) and every EXPECTED_* point list below is a
+    hand-computed screen coordinate, so a default drift would silently double
+    them all."""
+    return CoordinateSystem(
+        Geometry(tile_w=64, tile_h=32, map_cols=8, map_rows=8,
+                 zoom_levels=(1.0,)),
+        Camera(zoom=1.0))
 
 
 class TestLightningBoltSeededParity(unittest.TestCase):

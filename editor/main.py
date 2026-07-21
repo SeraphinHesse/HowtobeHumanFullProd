@@ -162,6 +162,7 @@ class MainWindow(QMainWindow):
         self.palette.tool_changed.connect(self.viewport.set_tool)
         self.palette.code_armed.connect(self.viewport.arm_code)
         self.palette.deco_armed.connect(self.viewport.arm_deco)
+        self.palette.deco_flip_toggled.connect(self.viewport.set_deco_flip)
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
@@ -265,6 +266,7 @@ class MainWindow(QMainWindow):
         self.tool_keybinds = loaded["tools"]
         self.brush_keybinds = loaded["brushes"]
         self.undo_redo_swapped = loaded["undo_redo_swapped"]
+        self.deco_flip_keybind = loaded["deco_flip"]
         self._apply_undo_redo_shortcuts()
 
         self._tool_actions = {}
@@ -287,6 +289,12 @@ class MainWindow(QMainWindow):
             self._brush_actions.append(action)
         self.palette.set_brush_keybinds(
             [self.brush_keybinds[slot] for slot in keybinds.BRUSH_SLOTS])
+
+        self.deco_flip_action = QAction("Deco Mirror Flip", self)
+        self.deco_flip_action.setShortcut(QKeySequence(self.deco_flip_keybind))
+        self.deco_flip_action.triggered.connect(
+            lambda: self.palette.toggle_deco_flip())
+        self.addAction(self.deco_flip_action)
 
         self.settings_action = QAction("Settings", self)
         self.settings_action.setToolTip(
@@ -948,7 +956,7 @@ class MainWindow(QMainWindow):
         try:
             keybinds.save_keybinds(
                 self._prefs_path, self.tool_keybinds, self.brush_keybinds,
-                self.undo_redo_swapped)
+                self.undo_redo_swapped, self.deco_flip_keybind)
         except OSError as exc:
             self.statusBar().showMessage(
                 f"Keybind applied but not saved: {exc}", 5000)
@@ -972,6 +980,11 @@ class MainWindow(QMainWindow):
         self._apply_undo_redo_shortcuts()
         self._save_keybinds()
 
+    def _on_deco_flip_keybind_changed(self, key):
+        self.deco_flip_keybind = key
+        self.deco_flip_action.setShortcut(QKeySequence(key))
+        self._save_keybinds()
+
     def _build_settings_dialog(self):
         """Built (and its signals wired) without exec()ing it, so tests can
         drive the dialog's widgets without blocking on a modal event loop."""
@@ -980,11 +993,14 @@ class MainWindow(QMainWindow):
             tool_keybinds=self.tool_keybinds,
             brush_keybinds=[self.brush_keybinds[s] for s in keybinds.BRUSH_SLOTS],
             undo_redo_swapped=self.undo_redo_swapped,
+            deco_flip_keybind=self.deco_flip_keybind,
             parent=self)
         dialog.theme_toggled.connect(self._on_theme_toggled)
         dialog.tool_keybind_changed.connect(self._on_tool_keybind_changed)
         dialog.brush_keybind_changed.connect(self._on_brush_keybind_changed)
         dialog.undo_redo_swap_changed.connect(self._on_undo_redo_swap_changed)
+        dialog.deco_flip_keybind_changed.connect(
+            self._on_deco_flip_keybind_changed)
         return dialog
 
     def _on_settings(self):

@@ -844,31 +844,130 @@
         {
           "children": [
             {
-              "label": "Grass",
+              "label": "Buildable",
               "slots": [
-                "cond_grass"
+                "cond_grass_buildable"
               ]
             },
             {
-              "label": "Mountain",
+              "label": "Built",
               "slots": [
-                "cond_mountain"
+                "cond_grass_built"
               ]
             },
             {
-              "label": "Pond",
+              "label": "Combat",
               "slots": [
-                "cond_pond"
+                "cond_grass_combat"
               ]
             },
             {
-              "label": "Forest",
+              "label": "Spawning",
               "slots": [
-                "cond_forest"
+                "cond_grass_spawning"
               ]
             }
           ],
-          "label": "Terrain"
+          "label": "Grass"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_mountain_buildable",
+                "cond_mountain_buildable_v2",
+                "cond_mountain_buildable_v3",
+                "cond_mountain_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_mountain_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_mountain_combat",
+                "cond_mountain_combat_v2",
+                "cond_mountain_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_mountain_spawning"
+              ]
+            }
+          ],
+          "label": "Mountain"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_pond_buildable",
+                "cond_pond_buildable_v2",
+                "cond_pond_buildable_v3",
+                "cond_pond_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_pond_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_pond_combat",
+                "cond_pond_combat_v2",
+                "cond_pond_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_pond_spawning"
+              ]
+            }
+          ],
+          "label": "Pond"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_forest_buildable"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_forest_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_forest_combat",
+                "cond_forest_combat_v2",
+                "cond_forest_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_forest_spawning"
+              ]
+            }
+          ],
+          "label": "Forest"
         }
       ],
       "key": "conditions"

@@ -172,7 +172,8 @@ def render_items(doc, *, terrain=True, base=True, deco=True, camera=False,
         for d in doc.deco:
             phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
             items.append(RenderItem(d["slot"], (d["col"], d["row"]),
-                                    layer="deco", anim_time_ms=anim_time_ms + phase))
+                                    layer="deco", anim_time_ms=anim_time_ms + phase,
+                                    flip=d.get("flip", False)))
     return items
 
 
@@ -218,7 +219,8 @@ def visible_render_items(doc, col_min, col_max, row_min, row_max, *,
             if tc0 <= d["col"] <= tc1 and tr0 <= d["row"] <= tr1:
                 phase = (d["col"] * 131 + d["row"] * 197) % 997   # ms, deterministic & pure
                 items.append(RenderItem(d["slot"], (d["col"], d["row"]),
-                                        layer="deco", anim_time_ms=anim_time_ms + phase))
+                                        layer="deco", anim_time_ms=anim_time_ms + phase,
+                                        flip=d.get("flip", False)))
     return items
 
 

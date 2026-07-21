@@ -65,21 +65,34 @@ CONDITION_MODIFIER_KEY = {
 # -- /10I --
 
 # -- condition ART -----------------------------------------------------------
-# Condition -> its group PATH in the `conditions` slot category
+# Condition -> its own TOP-LEVEL group label in the `conditions` slot category
 # (``data/slots.json``). GRASS IS present here (unlike the two tables above):
 # a condition's ART is a separate concern from its gameplay effect, and grass
-# tiles get a slot too so imported grass art covers the map uniformly. Each
-# leaf group holds interchangeable variants (`cond_mountain`,
-# `cond_mountain_v2`, …) — the editor's "+ Variant" shape, same as deco types
-# and enemy eras. This is the ONE enum->registry table; the roll in
-# `tile_map.py` is its only consumer, so nothing can drift from it.
+# tiles get a slot too so imported grass art covers the map uniformly. Since
+# the per-state restructuring, each condition type is its OWN top-level group
+# (Grass/Mountain/Pond/Forest), and WITHIN each, `CONDITION_STATE_LABEL` below
+# selects the tile's current zone STATE (Buildable/Built/Combat/Spawning) —
+# each state is its own leaf variant family (`cond_mountain_buildable`,
+# `cond_mountain_buildable_v2`, …) — the editor's "+ Variant" shape, same as
+# deco types and enemy eras. These are the TWO enum->registry tables; the
+# resolver in `tile_map.py` is their only consumer, so nothing can drift.
 CONDITION_CATEGORY = "conditions"
 
-CONDITION_GROUP = {
-    TileCondition.GRASS: ("Terrain", "Grass"),
-    TileCondition.MOUNTAIN: ("Terrain", "Mountain"),
-    TileCondition.POND: ("Terrain", "Pond"),
-    TileCondition.FOREST: ("Terrain", "Forest"),
+CONDITION_LABEL = {
+    TileCondition.GRASS: "Grass",
+    TileCondition.MOUNTAIN: "Mountain",
+    TileCondition.POND: "Pond",
+    TileCondition.FOREST: "Forest",
+}
+
+# Zone state -> its group label WITHIN a condition's top-level group.
+# BACKGROUND has NO entry: background tiles never get condition art
+# (unchanged rule) regardless of a tile's rolled condition.
+CONDITION_STATE_LABEL = {
+    TileState.BUILDABLE: "Buildable",
+    TileState.BUILT: "Built",
+    TileState.COMBAT: "Combat",
+    TileState.SPAWNING: "Spawning",
 }
 
 
@@ -94,7 +107,7 @@ class Tile:
     # (see game/main.py), this is what keeps very large maps performant.
     __slots__ = (
         "col", "row", "state", "content_key", "occupant", "condition",
-        "condition_slot",
+        "condition_slot", "condition_variant_idx",
         "damage_weight_reduced", "defence_range_covered",
         "highlighted", "unlock_highlight", "range_highlight",
     )
@@ -113,11 +126,20 @@ class Tile:
         self.occupant = occupant
         self.condition = condition
         # str | None — the `conditions`-category slot key whose art this tile
-        # draws on the `terrain` layer. Rolled once beside `condition` at map
-        # construction (a random variant of that condition's group); None means
-        # "no art for this tile" — the state every headless fixture stays in,
-        # and what makes the terrain layer emit nothing.
+        # draws on the `terrain` layer. Resolved from (condition, state,
+        # condition_variant_idx) at map construction AND re-resolved on every
+        # `TileMap.set_tile_state` transition, so the art follows the tile's
+        # zone state live. None means "no art for this tile" — the state
+        # every headless fixture stays in, and what makes the terrain layer
+        # emit nothing.
         self.condition_slot = None
+        # int — the stable index into whichever state-family is currently
+        # active for this tile's condition. Picked ONCE (sized against the
+        # tile's initial state's family) and never re-rolled: a state
+        # transition re-resolves `condition_slot` at this SAME index against
+        # the new state's family (modulo its size), so a tile keeps "variant
+        # #2" across buildable/built/combat/spawning looks.
+        self.condition_variant_idx = 0
         # Dormant weight drivers — fed neutral values until 10F / 10I wire
         # their producers (building damage, defender coverage).
         self.damage_weight_reduced = False

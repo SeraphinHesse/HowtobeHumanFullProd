@@ -233,12 +233,28 @@ class PathAgent(Component):
     def _target_alive(self, tm):
         """Is the building we committed to still standing? ``target_col < 0``
         (no target — we are walking at the base) reads as alive, so the
-        dead-target watch in ``update`` never fires on the final approach."""
+        dead-target watch in ``update`` never fires on the final approach.
+
+        ``target_col``/``target_row`` are the goal-covering ANCHOR
+        (``adopt_goal`` reads them off ``path[-1]``), not necessarily the
+        building's own tile — at footprint 1 they are the same tile, but a
+        footprint-N anchor's block can cover the goal from up to N-1 tiles
+        away. Scanning the whole block (like ``_blocker_ahead`` already does)
+        instead of just the anchor tile is what keeps this from misreading an
+        empty anchor tile as "target dead" while the real target stands one
+        tile over — that false read used to fire the dead-target repath every
+        frame, short-circuiting ``update`` before it ever reached
+        ``_blocker_ahead`` again, freezing the boss beside a still-alive
+        neighbour it could no longer see."""
         if self.target_col < 0:
             return True
-        tile = tm.get(self.target_col, self.target_row)
-        occ = tile.occupant if tile is not None else None
-        return occ is not None and getattr(occ, "alive", False)
+        for c, r in block_tiles(self.target_col, self.target_row,
+                                self.footprint):
+            tile = tm.get(c, r)
+            occ = tile.occupant if tile is not None else None
+            if occ is not None and getattr(occ, "alive", False):
+                return True
+        return False
 
     def _repath(self, owner, tm, mv):
         """Re-route from the current tile to the next victim, reloading

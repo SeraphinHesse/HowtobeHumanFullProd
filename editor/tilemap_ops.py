@@ -111,11 +111,16 @@ def apply_changes(doc, changes, reverse=False):
 
 # -- deco + base (the other undoable map edits, ED-20/ED-24) -----------------
 
-def place_deco(doc, col, row, slot):
-    """Cell-snapped deco placement; returns the entry appended."""
+def place_deco(doc, col, row, slot, flip=False):
+    """Cell-snapped deco placement; returns the entry appended. `flip` mirrors
+    the prop horizontally; unset (the default) produces an entry byte-identical
+    to a map with no flipped decos (the "flip" key is omitted, not written as
+    False)."""
     if not _in_bounds(doc, col, row):
         return None
     entry = {"col": col, "row": row, "slot": slot}
+    if flip:
+        entry["flip"] = True
     doc.deco.append(entry)
     return entry
 

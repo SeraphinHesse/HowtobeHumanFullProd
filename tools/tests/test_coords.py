@@ -22,6 +22,11 @@ def make_cs(zoom_levels=(0.5, 1.0, 2.0), **camera):
     geo = Geometry(
         tile_w=64, tile_h=32, map_cols=20, map_rows=20, zoom_levels=zoom_levels
     )
+    # Pin the test camera to zoom 1 explicitly rather than relying on
+    # Camera's dataclass default (now 2.0, the new game/editor default) —
+    # these tests assert projection math at a known zoom, independent of
+    # whatever the real host's opening zoom happens to be.
+    camera.setdefault("zoom", 1.0)
     return CoordinateSystem(geo, Camera(**camera))
 
 
