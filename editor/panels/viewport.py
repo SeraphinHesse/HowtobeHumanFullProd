@@ -128,6 +128,10 @@ class ViewportPanel(QWidget):
         self._build_store()
 
         self.preview_slot = None
+        # Memoized (fit_tiles, scale) for preview_slot — resolved eagerly by
+        # _resolve_draw_fit() on slot change / registry reload, never per
+        # frame (slot_draw_fit re-reads two JSON files). See _preview_draw_fit.
+        self._draw_fit = (0.0, 1.0)
         self.preview_animation = "idle"
         self._anim_ms = 0.0
         self._anim_last_t = None
@@ -221,6 +225,7 @@ class ViewportPanel(QWidget):
         resolves for preview + import; the store is rebuilt, camera untouched."""
         self._registry = load_registry(self._data_dir)
         self._build_store()
+        self._resolve_draw_fit()   # slots.json changed -> the fit may have too
 
     # -- entity preview (ED-21) ----------------------------------------------
 
@@ -230,6 +235,7 @@ class ViewportPanel(QWidget):
             self.preview_slot = slot_key
             self._draft = None
             self._build_store()
+            self._resolve_draw_fit()   # memoized; see _preview_draw_fit
             self.preview_animation = "idle"
             self._reset_anim_clock()
             # ESV-2: a stale slot's handles/drag must not survive a switch
@@ -823,19 +829,34 @@ class ViewportPanel(QWidget):
 
     def _preview_draw_fit(self):
         """(fit_tiles, scale) the current `preview_slot` draws at — the ONE
-        call site both the preview `RenderItem` and `_anchor_draw_params`
-        read (fix-editor-preview-footprint §2.3): they must never compute
-        this independently, or the handle and the sprite can desync again
-        exactly like the bug this fix closes. `(0.0, 1.0)` (the render
+        value both the preview `RenderItem` and `_anchor_draw_params` read
+        (fix-editor-preview-footprint §2.3): they must never compute this
+        independently, or the handle and the sprite can desync again exactly
+        like the bug this fix closes.
+
+        Returns the MEMOIZED pair. `slot_draw_fit` re-reads and re-validates
+        slots.json + enemies.json from disk, which is far too expensive to do
+        per call: this is read once per rendered frame, once per anchor
+        hit-test, and once per mouse-move while a handle is being dragged.
+        Resolving it eagerly instead (`_resolve_draw_fit`, on slot change and
+        on registry reload — the only two things that can change the answer)
+        keeps handle-dragging interactive."""
+        return self._draw_fit
+
+    def _resolve_draw_fit(self):
+        """Recompute the memoized `_draw_fit`. `(0.0, 1.0)` (the RenderItem
         defaults) when there is no preview slot, or the slot is not (yet)
         declared in the registry — E-37, never raise."""
         if self.preview_slot is None:
-            return (0.0, 1.0)
+            self._draw_fit = (0.0, 1.0)
+            return
         try:
             category_key = self._registry.category_of(self.preview_slot).key
         except KeyError:
-            return (0.0, 1.0)
-        return slot_draw_fit(self._data_dir, category_key, self.preview_slot)
+            self._draw_fit = (0.0, 1.0)
+            return
+        self._draw_fit = slot_draw_fit(
+            self._data_dir, category_key, self.preview_slot)
 
     def _anchor_draw_params(self):
         """(origin, s, zoom) for the current preview slot's frame anchor,
