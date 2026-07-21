@@ -197,20 +197,23 @@ in `game/ui/CLAUDE.md`.
     just the death-burst instance. It was a real bug for the 10G boss from the
     start and would have been a common one for ER-4's Formations.
 
-## Lightning strike + cheat menu (Phase 10H)
+## Lightning strike + cheat menu (Phase 10H; Storm Priest rework)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
-- **State on `RunState`**: `lightning_level` (**seeded 0** as of the Storm
-  Priest wiring — every run boots with lightning LOCKED; placing a Storm
-  Priest, the `"lightning_source"`-tagged defence building, is the ONLY way
-  to raise it to L1, via `unlock_from_placement(state, building)` — a pure,
-  tag-gated, latching helper (never re-locks) called from
-  `game/ui/building_ui.py._do_place` after every successful placement. This
-  replaced the prototype's boot-unlocked design, which is no longer followed:
-  the L0 20♥ unlock branch is now reachable from a normal boot, not dead
-  weight) and `lightning_cooldown`. Tunables ONLY from `core.json
-  LightningStrike` (cooldown [5,3,2] / damage [12,18,38] / radius [1,2,3] /
-  unlock 20 / upgrades [35,80] — damage bumped for the Storm Priest buff; the
-  rest is the LIVE prototype JSON, not the stale `.py` defaults).
+- **State on `RunState`**: `lightning_level` (**seeded 0** — every run boots
+  with lightning LOCKED; placing a Storm Priest, the `"lightning_source"`-
+  tagged building, is the ONLY way to raise it to L1, via
+  `unlock_from_placement(state, building)` — a pure, tag-gated, latching
+  helper (never re-locks) called from `game/ui/building_ui.py._do_place`
+  after every successful placement) and `lightning_cooldown`. **There is no
+  love-priced level-up any more** (`next_cost`/`upgrade` are DELETED — the
+  Storm Priest rework replaced them): leveling past L1 is driven entirely by
+  the placed Storm Priest's own tier, via `sync_level_from_tier(state,
+  building)` (same tag-gated/latching shape, called from
+  `game/ui/building_ui.py`'s tier-advance branch — tier 1/2/3 -> lightning
+  level 1/2/3). Tunables ONLY from `core.json LightningStrike` (cooldown
+  [5,3,2] / damage [12,18,38] / radius [1,2,3] — `unlock_cost`/
+  `upgrade_costs` were removed from the schema + content along with the
+  love-priced path).
 - **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
   `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
   `game.py:505-508`): both points go through `cs.world_to_screen` and the
@@ -221,9 +224,18 @@ in `game/ui/CLAUDE.md`.
   next `resolve_combat` → `on_enemy_death` (normal XP/kill path). Spawns a
   `LightningFX` (`Crater` pattern: overlay object, ages in `scene.update` on the
   ENEMY-scaled sim dt, self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code
-  constants like `CRATER_LIFE`).
+  constants like `CRATER_LIFE`). Before returning, it also triggers the placed
+  Storm Priest's `LightningCaster` component (found via `scene.by_tag
+  ("lightning_source")`, duck-typed — no `game.buildings` import, keeping the
+  one-way layering) — since Storm Priest dropped the `"combat"` tag and no
+  longer earns its "attack" pose through combat, `strike()` is now what
+  flashes it: `LightningCaster.trigger()` sets its `SpriteAnimator` to
+  "attack" for `CASTER_FLASH_DURATION` (0.4s, a code constant like
+  `BOLT_LIFE`) before it reverts to "idle" in its own `update(dt)`. Both a
+  hit and a whiff trigger the flash (same "a whiff still pays + shows VFX"
+  rule as the cooldown spend).
 - **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** on the host's sim dt
-  (speed-scaled, pause-frozen); never reset by round end or `upgrade`.
+  (speed-scaled, pause-frozen); never reset by round end or a tier sync.
 - **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
   is `game/ui/cheat_menu.py`, the host maps its action strings here):
   `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY
