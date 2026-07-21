@@ -1182,6 +1182,103 @@ class TestGameThemePanel(TempDataCase):
         self.assertTrue(panel._font_dots["lg"].isHidden())
 
 
+class TestCutscenesPanel(TempDataCase):
+    """TU-3: the single "Cutscenes" leaf's panel over
+    ``data/video/cutscenes.json`` (TU-1's registry). Unlike
+    ``GameThemePanel``, every action is an IMMEDIATE write — no staged/
+    dirty-dot model."""
+
+    def make(self):
+        from editor.panels.cutscenes import CutscenesPanel
+        return self.track(CutscenesPanel(data_dir=self.data_dir))
+
+    def _write_src(self, name, content=b"not a real video"):
+        path = self.data_dir / name
+        path.write_bytes(content)
+        return path
+
+    def test_rows_built_in_trigger_order_with_seeded_intro(self):
+        panel = self.make()
+        self.assertEqual(list(panel._rows), ["intro", "first_end_turn"])
+        self.assertEqual(
+            panel._rows["intro"]["video_label"].text(), "cutscene.mp4")
+
+    def test_import_video_copies_writes_registry_and_updates_length(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.mp4")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=12.5):
+            panel._on_import_video("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn.mp4"
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_bytes(), src.read_bytes())
+        self.assertEqual(
+            panel._rows["first_end_turn"]["video_label"].text(),
+            "first_end_turn.mp4")
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(), 12.5)
+
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+        self.assertEqual(doc["first_end_turn"]["length"], 12.5)
+        path = cutscene_import.registry_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(doc))
+
+    def test_import_video_cv2_absent_leaves_manual_length_untouched(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming2.mp4")
+        original_length = panel._rows["first_end_turn"]["length_spin"].value()
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=None):
+            panel._on_import_video("first_end_turn")
+
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(),
+            original_length)
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["length"], original_length)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+
+    def test_import_audio_then_clear_round_trips_null(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.ogg")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")):
+            panel._on_import_audio("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn_audio.ogg"
+        self.assertTrue(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["audio"], "first_end_turn_audio.ogg")
+        self.assertTrue(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+        panel._on_clear_audio("first_end_turn")
+
+        self.assertFalse(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertIsNone(doc["first_end_turn"]["audio"])
+        self.assertFalse(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+
 class TestThemeSwitch(TempDataCase):
     """The settings dialog's dark-mode checkbox repaints the app chrome and
     remembers the choice (ED settings panel — moved off the old toolbar
