@@ -32,7 +32,8 @@ from engine.core import (
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
-from .components import PathAgent
+from .components import EnemyCombat, Kidnap, PathAgent
+from .kidnap import begin_kidnap
 
 # Cosmetic / timing constants the prototype hardcodes in source (NOT balancing):
 # the mortar shell's fixed flight time + the crater's fade lifetime, and the
@@ -331,12 +332,16 @@ def _predict_lead(target, travel_time):
 # -- the sweep ------------------------------------------------------------
 
 def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
-                   on_enemy_death=None, dmg_bonus=0):
+                   on_enemy_death=None, on_kidnap=None, dmg_bonus=0):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
     ``game.core.boss_bonuses.story_damage_bonus``). Default 0 keeps every
-    pre-10G call byte-identical."""
+    pre-10G call byte-identical.
+
+    ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
+    ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
+    ``_resolve_kidnaps`` below."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -350,6 +355,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                          dmg_bonus)
 
+    _resolve_kidnaps(scene, tilemap, on_kidnap)
+
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
     for enemy in scene.by_tag("enemy"):
@@ -360,6 +367,25 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
             if on_enemy_death is not None:
                 on_enemy_death(enemy)
             scene.despawn(enemy)
+
+
+def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
+    """The kidnap transition, placed AFTER the defender loop and BEFORE
+    ``_resolve_base_arrivals`` (Art/enemies). Order is load-bearing:
+    ``begin_kidnap`` must copy the victim's sprite fields before ``on_kidnap``
+    hands off to the host, which frees the building's tile and despawns it.
+    The retag inside ``begin_kidnap`` drops the enemy out of
+    ``by_tag("enemy")`` immediately, so the death sweep below never sees it
+    and any defender's ``target not in in_range`` re-acquire test clears a
+    lock on it next tick."""
+    for enemy in list(scene.by_tag("enemy")):
+        k = enemy.get_component(Kidnap)
+        if k is None or not k.pending:
+            continue
+        building = enemy.get_component(EnemyCombat)._kidnap_victim
+        begin_kidnap(scene, tilemap, enemy, building)
+        if on_kidnap is not None:
+            on_kidnap(enemy, building)
 
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,

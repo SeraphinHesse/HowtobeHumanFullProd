@@ -323,7 +323,8 @@
         "idle",
         "walk",
         "attack",
-        "death"
+        "death",
+        "kidnap"
       ],
       "display_name": "Enemies",
       "frame_h": 96,

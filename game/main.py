@@ -63,7 +63,10 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
+from game.enemies import (
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
+    spawn_corpse,
+)
 from game.map import TileMap, condition_render_items, tile_at_screen
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
@@ -660,10 +663,26 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
+                # count + freeing the building's tile for good) runs first,
+                # then upgrade the default frozen-idle carry pose to the
+                # sheet's own `kidnap` row if it has one — `animation_total_ms`
+                # returns None (never an idle fallback) for a sheet without
+                # one, so this cleanly stays on the frozen-idle branch.
+                def _on_kidnap(enemy, building, _scene=world.scene):
+                    session.on_kidnap(enemy, building, _scene)
+                    anim = enemy.get_component(SpriteAnimator)
+                    if anim is not None:
+                        set_kidnap_pose(
+                            enemy,
+                            bool(assets.animation_total_ms(
+                                anim.slot_key, KIDNAP_ANIM)))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
+                               on_kidnap=_on_kidnap,
                                dmg_bonus=dmg_bonus)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once

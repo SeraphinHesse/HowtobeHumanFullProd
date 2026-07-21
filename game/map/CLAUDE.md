@@ -144,6 +144,18 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   pond boards.
 - Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
   nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **`find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1)`
+  is the kidnapper's route home (Art/enemies)** — goal set is every
+  `tilemap.spawning_tiles()`, `[]` when there is none / none reachable (the
+  carrier despawns on the spot in that case; see `game/enemies/CLAUDE.md`).
+  **`ignore_walls=True` is deliberate**: a carrier is inert
+  (`PathAgent.carrying` — no blocker/wall scan, no re-path), so a wall it
+  cannot break must never be able to trap it; buildings are traversable
+  weights, never `impassable_weight`, so a live occupant cannot trap it
+  either. A fresh `_dijkstra` like every other goal-set variant, **NOT**
+  flow-field backed: a kidnap fires at most once per building kill, well
+  inside the one-Dijkstra-per-topology-change invariant below — it does not
+  need its own cached field.
 - **Edge walls are LIVE (10E)**: `WallEdge` (a `@dataclass`: `col_a/row_a/col_b/
   row_b/hp/max_hp/owner`) + `_wall_key` (order-independent edge key) + a
   `TileMap.wall_edges` registry back `get_wall_between` (the pathfinder's
