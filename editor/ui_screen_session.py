@@ -28,6 +28,20 @@ from engine import data_io
 
 REPO = Path(__file__).resolve().parents[1]
 
+# Pinned display order for building_panel's views (UH-2, §2). D-3 sorted-keys
+# JSON alphabetizes the `views` object (`base_info` first) but the UI must
+# present game-mode order. Selector and MainWindow both import this — one
+# authority.
+VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
+
+
+def ordered_views(view_ids):
+    """Sort an iterable of view ids: known VIEW_ORDER names first (in that
+    order), then any unknown names sorted after."""
+    known = [v for v in VIEW_ORDER if v in view_ids]
+    unknown = sorted(v for v in view_ids if v not in VIEW_ORDER)
+    return tuple(known) + tuple(unknown)
+
 
 def screen_path(data_dir, screen_id):
     return Path(data_dir) / "ui" / "screens" / f"{screen_id}.json"
@@ -87,12 +101,14 @@ class _DocFieldCommand(QUndoCommand):
 
 class UIScreenSession(QObject):
     screen_opened = Signal(str)   # screen_id — a (different) doc is now open
+    view_changed = Signal(object)  # view_id (str) or None — active view changed
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
         self.doc = None
         self.screen_id = None
+        self.view = None
         self.undo_stack = QUndoStack(self)
 
     # -- lifecycle -------------------------------------------------------------
@@ -106,9 +122,19 @@ class UIScreenSession(QObject):
             screen_path(self._data_dir, screen_id),
             screen_schema_path(self._data_dir))
         self.screen_id = screen_id
+        self.view = None
         self.undo_stack.clear()
         self.screen_opened.emit(screen_id)
         return self.doc
+
+    def set_view(self, view_id):
+        """Set the active view (or None for the screen's single implicit
+        view). Non-doc, non-undoable — this is display filtering, not an
+        edit (UH-2, §2). The session does not validate view names against
+        defaults (it holds only the override doc); validity is the caller's
+        job."""
+        self.view = view_id
+        self.view_changed.emit(view_id)
 
     def save(self):
         data_io.write_validated(

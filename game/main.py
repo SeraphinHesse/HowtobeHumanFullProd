@@ -53,6 +53,7 @@ from engine.coords import load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
 from engine.render import HudText, Renderer
+from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
 from engine.video import VideoSource
 from game.buildings import BaseBuilding, attach_base
@@ -203,6 +204,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if manifest.entry(slot) is not None
     }
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
+    # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
+    # Shell/screens are built (so every screen's FIRST submit already sees
+    # it). A missing/invalid file fails LOUD (D-2 — this is data, not art;
+    # E-37 does not apply) via the same data_io.load_validated every other
+    # required data/ file goes through.
+    fonts_doc = data_io.load_validated(
+        data_dir / "ui" / "fonts.json", data_dir / "schemas" / "fonts.schema.json")
+    palette_doc = data_io.load_validated(
+        data_dir / "ui" / "palette.json",
+        data_dir / "schemas" / "palette.schema.json")
+    configure_fonts(fonts_doc)
+    widgets.configure_palette(palette_doc)
     renderer = Renderer(cs, assets)
     # The static ground layer is composited once into an oversized surface and
     # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning

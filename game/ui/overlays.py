@@ -40,9 +40,9 @@ from game.map.tiles import TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_RANGE_HIGHLIGHT, C_UI_BTN, Button, anim_ms, contains,
-    submit_tile_diamond_fill,
+    Button, anim_ms, contains, submit_tile_diamond_fill
 )
+from . import widgets
 
 SCREEN_ID = "overlays"
 
@@ -204,8 +204,8 @@ class MapOverlays:
             for (c, r) in self.range_coverage(tilemap):
                 # prototype hud.py:424-425: fill alpha 55
                 submit_tile_diamond_fill(
-                    renderer, c, r, C_RANGE_HIGHLIGHT + (55,),
-                    border=C_RANGE_HIGHLIGHT, border_width=1)
+                    renderer, c, r, widgets.C_RANGE_HIGHLIGHT + (55,),
+                    border=widgets.C_RANGE_HIGHLIGHT, border_width=1)
         if self.show_heatmap and self.path_heatmap:
             max_count = max(self.path_heatmap.values())
             for (c, r), count in self.path_heatmap.items():
@@ -225,9 +225,9 @@ class MapOverlays:
                 # active state is code-owned styling (like boss_cutscene's
                 # win/loss headline colour) — it always wins over an
                 # override's color/text_color, same as the pre-10L-B behavior.
-                btn.submit(renderer, color=C_UI_BTN, text_color=C_GOLD,
+                btn.submit(renderer, color=widgets.C_UI_BTN, text_color=widgets.C_GOLD,
                           anim_ms=t)
-                renderer.submit_hud(HudRect(btn.rect, C_GOLD, width=2,
+                renderer.submit_hud(HudRect(btn.rect, widgets.C_GOLD, width=2,
                                             border_radius=3))
             else:
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))

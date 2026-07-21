@@ -25,10 +25,12 @@ You are a coder: you implement ONE scoped task and verify it.
 - Never publish artifacts — report upward; the orchestrator publishes.
 
 ## Exit gate (before reporting done)
-- `py tools/smoke.py` green.
-- `py tools/testgate.py check --affected` — **0 failures, 0 errors.** Targeted
-  only: never run the full suite — the orchestrator/session that hands work
-  back owns the single full check.
+- **Umbrella workflow — run the MINIMAL gate only.** While this branch is
+  feeding an umbrella branch, do the least test needed to prove your diff:
+  `py tools/smoke.py` green + `py tools/testgate.py check --affected` — **0
+  failures, 0 errors.** Nothing wider. **Never run the full suite** — the full
+  run happens exactly once, after the work is merged into the umbrella branch,
+  and is owned by whoever does that merge. Not you.
   The suite is green; there is no baseline and no tolerated failure. If a red
   test is inside your blast radius, you broke it — fix it. If it is clearly
   outside your diff, note it in your report and stop; don't investigate.

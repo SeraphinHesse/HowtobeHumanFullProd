@@ -19,9 +19,9 @@ from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_UI_BORDER, C_UI_BTN, C_UI_TEXT, C_UI_TEXT_DIM, Button, anim_ms,
-    submit_centered, submit_text,
+    Button, anim_ms, submit_centered, submit_text
 )
+from . import widgets
 
 DISPLAY_MODES = ("windowed", "borderless", "fullscreen")
 _BG = (12, 20, 14)
@@ -72,7 +72,7 @@ class SettingsScreen:
         self.back_btn = Button((0, 0, 200, 46), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                      text_color=C_GOLD, label="SETTINGS",
+                                      text_color=widgets.C_GOLD, label="SETTINGS",
                                       visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -155,9 +155,9 @@ class SettingsScreen:
                             self._title.text_color)
 
         submit_centered(renderer, "Display Mode", cx, self._dm_y - 34, "md",
-                        C_UI_TEXT)
+                        widgets.C_UI_TEXT)
         submit_centered(renderer, self.settings.display_mode.upper(), cx,
-                        self._dm_y, "lg", C_GOLD)
+                        self._dm_y, "lg", widgets.C_GOLD)
         if is_visible(self.dm_left):
             self.dm_left.submit(renderer, anim_ms=t, **button_kwargs(self.dm_left))
         if is_visible(self.dm_right):
@@ -165,18 +165,18 @@ class SettingsScreen:
                                  **button_kwargs(self.dm_right))
 
         for (attr, label, btn), y in zip(self.toggles, self._row_y):
-            submit_text(renderer, label, (cx - 150, y), "md", C_UI_TEXT)
+            submit_text(renderer, label, (cx - 150, y), "md", widgets.C_UI_TEXT)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 
         # inert audio slider (no audio system) — drawn only
         sx, sy, sw, sh = self._slider_rect
-        submit_text(renderer, "Master Audio", (cx - 150, sy - 24), "md", C_UI_TEXT)
-        renderer.submit_hud(HudRect(self._slider_rect, C_UI_BORDER))
+        submit_text(renderer, "Master Audio", (cx - 150, sy - 24), "md", widgets.C_UI_TEXT)
+        renderer.submit_hud(HudRect(self._slider_rect, widgets.C_UI_BORDER))
         renderer.submit_hud(HudRect(
-            (sx, sy, int(sw * self.settings.volume), sh), C_UI_BTN))
+            (sx, sy, int(sw * self.settings.volume), sh), widgets.C_UI_BTN))
         submit_centered(renderer, "(no audio yet)", cx, sy + 20, "sm",
-                        C_UI_TEXT_DIM)
+                        widgets.C_UI_TEXT_DIM)
 
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

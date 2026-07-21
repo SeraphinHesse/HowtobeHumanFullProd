@@ -37,6 +37,10 @@ ALLOWED = {
     "test_qt_harness.py": "exercises the TempDataCase copy machinery itself",
     "test_smoke_pairing.py": "schema<->content pairing on the live tree",
     "test_spawnclaude.py": "dispatch rig runs against the live product surface",
+    "test_theme_data.py": "same live-data subject as test_layout_h_invariant.py "
+                          "(regenerates committed screen_defaults.json under a "
+                          "font-size change) plus validates UH-6's own "
+                          "ui_screen.schema.json tint property",
     "test_ui_layout_export.py": "diffs the committed screen_defaults.json "
                                 "against a fresh regeneration (staleness gate)",
     "test_video_source.py": "plays a shipped binary (mp4) — not in the fixture",

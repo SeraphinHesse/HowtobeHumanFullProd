@@ -57,6 +57,7 @@ TIERS = {
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
     "test_run_controls": "editor",
+    "test_screen_honest_controls": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------
     "test_10j_qol": "core",
@@ -111,6 +112,7 @@ TIERS = {
     "test_scene_query": "core",
     "test_shell": "core",
     "test_structure": "core",
+    "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",
     "test_tile_runtime": "core",
     "test_tile_unlock": "core",
