@@ -1681,8 +1681,52 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1699,8 +1743,52 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1717,8 +1805,52 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1735,15 +1867,59 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_4_v2.png"
+      "sheet": "imported/enemy_stage_4_v1.png"
     },
     "enemy_stage_5": {
       "frame_h": 26,
