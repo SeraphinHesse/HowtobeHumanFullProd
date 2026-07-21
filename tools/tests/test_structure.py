@@ -230,11 +230,9 @@ class TestPaydayWallLifecycle(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestResearchGating(unittest.TestCase):
     """Both structure lines start LOCKED as a TYPE (starts_unlocked data flag
-    -- only Stone Thrower/Flute Player start unlocked). Blocker's tier 1 is
-    ready the moment it's unlocked (starts_with_tier=1, unaffected); WallBuilder
-    additionally needs its own tier 1 researched (starts_with_tier=0,
-    unaffected) -- a genuine two-step gate for WallBuilder, one step for
-    Blocker."""
+    -- only Stone Thrower/Flute Player start unlocked). ``starts_with_tier``
+    is gone: unlocking either type makes its tier 1 immediately placeable --
+    a ONE-step gate for both Blocker and WallBuilder."""
 
     def test_blocker_needs_unlocking_first(self):
         tm, scene, occ = board(["bb"])
@@ -247,17 +245,13 @@ class TestResearchGating(unittest.TestCase):
                               scene, occ, state=st)
         self.assertEqual(b.building_type, "blocker")
 
-    def test_wall_builder_needs_unlocking_and_research(self):
+    def test_wall_builder_needs_unlocking_first(self):
         tm, scene, occ = board(["bb"])
-        st = RunState.from_balance(CORE, BUILD)                # fresh: locked, tier 0
+        st = RunState.from_balance(CORE, BUILD)                # fresh: locked
         with self.assertRaises(PlacementError):
             place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
                            scene, occ, state=st)
         st.unlocked_buildings["wall_builder"] = True      # unlocked at a level-up
-        with self.assertRaises(PlacementError):            # still no tier researched
-            place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
-                           scene, occ, state=st)
-        st.tiers_unlocked["wall_builder"] = 1              # tier 1 researched
         w, _ = place_building(tm, tm.get(1, 0), "wall_builder", 9999, BUILD,
                               scene, occ, state=st)
         self.assertEqual(w.building_type, "wall_builder")

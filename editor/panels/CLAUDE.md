@@ -82,7 +82,10 @@ import list.**
   (typed `itemData`), boolean → `QCheckBox`, string → `QLineEdit` (commit on
   `editingFinished`; text shorter than `minLength` restored, not written). Local
   `#/$defs/` refs resolved by `_deref` (the only `$ref` kind allowed);
-  schema-optional leaves absent from the doc (tier `era_unlock_round`) skipped.
+  a key present in the schema but absent from the doc is skipped (no such key
+  exists in `buildings.schema.json` today — every level's `required` list is
+  currently exhaustive — but the walk stays generic for the next domain that
+  needs one).
   Widgets register in `self._widgets` keyed by `/`-joined paths
   (`"DefenceBuildings/BasicDefence/tiers/0/base_dmg"`); numeric/enum widgets are
   `_NoWheelSpinBox`/`_NoWheelDoubleSpinBox`/`_NoWheelComboBox` (ignore
