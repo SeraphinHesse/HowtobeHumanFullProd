@@ -4889,6 +4889,150 @@
       ],
       "sheet": "imported/tile_forest.png"
     },
+    "tile_background_10": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_10.png"
+    },
+    "tile_background_11": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_11.png"
+    },
+    "tile_background_12": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_12.png"
+    },
+    "tile_background_13": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_13.png"
+    },
+    "tile_background_14": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_14.png"
+    },
+    "tile_background_15": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_15.png"
+    },
+    "tile_background_16": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_16.png"
+    },
+    "tile_background_17": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_17.png"
+    },
     "tile_background_2": {
       "frame_h": 32,
       "frame_w": 64,
@@ -5093,6 +5237,42 @@
       ],
       "sheet": "imported/tile_forest.png"
     },
+    "tile_background_8": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_8.png"
+    },
+    "tile_background_9": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/tile_background_9.png"
+    },
     "tile_buildable": {
       "frame_h": 32,
       "frame_w": 64,
@@ -5102,30 +5282,14 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
-          "hidden": [
-            0,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -5135,31 +5299,15 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 16,
-          "hidden": [
-            0,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable_b.png"
     },
     "tile_cliff": {
       "frame_h": 32,
@@ -5204,24 +5352,8 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
-          "hidden": [
-            0,
-            1,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5238,24 +5370,8 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
-          "hidden": [
-            0,
-            1,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15
-          ],
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
