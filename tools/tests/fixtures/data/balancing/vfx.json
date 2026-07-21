@@ -263,5 +263,43 @@
       "jitter": 0.6,
       "radius_px": 4.0
     }
+  },
+  "triggers": {
+    "building_destroyed": {
+      "procedural": "death_burst",
+      "sprite_slot": ""
+    },
+    "building_level_up": {
+      "procedural": "spark_level",
+      "sprite_slot": ""
+    },
+    "building_placed": {
+      "procedural": "spark_place",
+      "sprite_slot": ""
+    },
+    "building_tier_up": {
+      "procedural": "spark_tier",
+      "sprite_slot": ""
+    },
+    "defender_fire": {
+      "procedural": "",
+      "sprite_slot": ""
+    },
+    "enemy_attack_melee": {
+      "procedural": "slash",
+      "sprite_slot": ""
+    },
+    "enemy_attack_ranged": {
+      "procedural": "muzzle",
+      "sprite_slot": ""
+    },
+    "enemy_death": {
+      "procedural": "splatter",
+      "sprite_slot": ""
+    },
+    "splash_impact": {
+      "procedural": "crater",
+      "sprite_slot": ""
+    }
   }
 }

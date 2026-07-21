@@ -263,14 +263,19 @@ class TestEnginePurity(unittest.TestCase):
         that down: if a future phase adds a subpackage (a directory, which
         `*.py` cannot see), the scanned count silently dropping below the
         real module count is the tripwire — widen the glob to `**/*.py` when
-        it fires."""
+        it fires.
+
+        ESV-5 DID add a new module (play_once.py) — a flat file, so the bare
+        glob picked it up automatically with zero test change to the glob
+        itself; only this hardcoded expected-filename SET needed updating,
+        which is exactly the tripwire this test exists to force."""
         vfx_dir = REPO / "engine" / "vfx"
         scanned = sorted((vfx_dir).glob("*.py"))
         actual = sorted(p for p in vfx_dir.rglob("*.py"))
         self.assertEqual(scanned, actual)
         self.assertEqual({p.name for p in scanned},
                          {"__init__.py", "emitters.py", "params.py",
-                          "particle.py", "system.py"})
+                          "particle.py", "play_once.py", "system.py"})
 
 
 class TestDomainPromotion(unittest.TestCase):

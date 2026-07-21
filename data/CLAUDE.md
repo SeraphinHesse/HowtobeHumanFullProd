@@ -67,8 +67,16 @@ validating writer; don't hand-edit the JSON.
   (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
   REQUIRED constructor arguments from `game/enemies/combat.py`'s
   `resolve_combat` / `game/core/lightning.py`'s `strike` down to those
-  components — never a code-side default. ESV-5 adds a sibling `triggers`
-  object at the top level. Since **Phase 9A** the other
+  components — never a code-side default. **ESV-5** added the promised
+  sibling `triggers` object at the top level: one row per cosmetic EVENT
+  (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+  `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact`,
+  `defender_fire`), each `{sprite_slot, procedural}` — an enum'd `vfx_*` slot
+  key (or `""`) to play as a one-shot sprite when it has imported art, and an
+  enum'd procedural fallback (or `""` for a silent no-op). `slots.json`'s
+  `vfx` category's `Effects` group grew four new slots for this —
+  `vfx_muzzle`/`vfx_death`/`vfx_slash`/`vfx_crater` — alongside the two
+  pre-existing, still-unbound `vfx_hit`/`vfx_explosion`. Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

@@ -28,7 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts; the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
-| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below) |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -121,6 +121,25 @@ arguments all the way from `resolve_combat`'s/`lightning.strike`'s
 `vfx_balance` argument down to the `CraterFade`/`LightningFXFade` component
 fields that actually own the despawn clock — never a `None`-defaulted
 optional (G-7).
+
+**ESV-5** added `engine/vfx/play_once.py` — `PlayOnceVfx`/`PlayOnceFade`/
+`spawn_play_once`, the generic one-shot sprite VFX a designer's
+`data/balancing/vfx.json` `triggers` row can bind an imported `vfx_*` slot
+to. It copies `game/enemies/corpse.py`'s `Corpse`/`CorpseFade`/`spawn_corpse`
+shape (a scene GameObject that ages itself via a `Component.update`, the
+`Crater`/`LightningFX` pattern) rather than sharing it, because `corpse.py`
+lives under `game/` (game vocabulary the engine must not import) while this
+is the version any trigger-table event can spawn. `spawn_play_once(scene,
+assets, slot_key, wx, wy, ...)` returns `None` when
+`assets.animation_total_ms(slot_key, "idle")` is `None` (no imported art) —
+the caller's cue to run its procedural fallback instead (E-37); it is the
+entire art-tolerance mechanism, no different in shape from `spawn_corpse`'s
+own `None`-on-no-`death`-row check. `VfxSystem` gains **no** new state for
+this — a `PlayOnceVfx` is not a particle any list owns, exactly like ESV-3b's
+`Crater`/`LightningFX`. `SpriteAnimator` (used by every building/enemy in the
+game) deliberately gained no `loop_count` field for this — completion
+tracking lives entirely on the new `PlayOnceFade` component, which this ONE
+cosmetic object type carries.
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,

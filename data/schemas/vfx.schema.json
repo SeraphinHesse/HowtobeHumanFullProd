@@ -55,16 +55,55 @@
         "life"
       ],
       "type": "object"
+    },
+    "trigger_row": {
+      "additionalProperties": false,
+      "description": "ESV-5: one event's sprite/procedural binding. Resolution order at every dispatch site: a non-empty sprite_slot whose slot has imported art spawns a one-shot PlayOnceVfx sprite (engine.vfx.spawn_play_once); otherwise the named procedural kind runs; procedural \"\" (or the event's row absent from the table entirely) is a silent no-op (E-37) - never a raise.",
+      "properties": {
+        "procedural": {
+          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn.",
+          "enum": [
+            "",
+            "spark_place",
+            "spark_level",
+            "spark_tier",
+            "death_burst",
+            "slash",
+            "muzzle",
+            "splatter",
+            "crater"
+          ],
+          "type": "string"
+        },
+        "sprite_slot": {
+          "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
+          "enum": [
+            "",
+            "vfx_hit",
+            "vfx_explosion",
+            "vfx_muzzle",
+            "vfx_death",
+            "vfx_slash",
+            "vfx_crater"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "procedural",
+        "sprite_slot"
+      ],
+      "type": "object"
     }
   },
   "$id": "vfx.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Procedural VFX balancing domain (D-10): particle/gold/slash/splatter cosmetic tunables ported from game/ui/effects.py (ESV-3a), plus scene-object/continuous cosmetic tunables (beam/crater/lightning/announce, ESV-3b). ESV-3a bounds: seconds 0-60, px/s velocities and px/s^2 gravity +-1000, sizes/radii 0-256 px, alpha 0-255, fractions/chances 0-1, line counts 0-100. ESV-3b bounds (data/CLAUDE.md house policy): alphas 0-255, seconds 0-60, pixels +-4096, counts 0-10000.",
+  "description": "Procedural VFX balancing domain (D-10): particle/gold/slash/splatter cosmetic tunables ported from game/ui/effects.py (ESV-3a), plus scene-object/continuous cosmetic tunables (beam/crater/lightning/announce, ESV-3b), plus a sibling triggers object (ESV-5) binding each cosmetic EVENT to an optional sprite one-shot + a procedural fallback. ESV-3a bounds: seconds 0-60, px/s velocities and px/s^2 gravity +-1000, sizes/radii 0-256 px, alpha 0-255, fractions/chances 0-1, line counts 0-100. ESV-3b bounds (data/CLAUDE.md house policy): alphas 0-255, seconds 0-60, pixels +-4096, counts 0-10000.",
   "properties": {
     "procedural": {
       "additionalProperties": false,
-      "description": "Every procedural cosmetic VFX tunable ESV-3a/ESV-3b port out of game/ui/effects.py module constants (and, for the two scene-object fade lifetimes, game/enemies/combat.py + game/core/lightning.py). ESV-5 adds a sibling triggers object at the top level.",
+      "description": "Every procedural cosmetic VFX tunable ESV-3a/ESV-3b port out of game/ui/effects.py module constants (and, for the two scene-object fade lifetimes, game/enemies/combat.py + game/core/lightning.py). ESV-5 added a sibling triggers object at the top level (see $defs/trigger_row).",
       "properties": {
         "announce": {
           "additionalProperties": false,
@@ -727,10 +766,56 @@
         "splatter"
       ],
       "type": "object"
+    },
+    "triggers": {
+      "additionalProperties": false,
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read.",
+      "properties": {
+        "building_destroyed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_level_up": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_placed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_tier_up": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "defender_fire": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_attack_melee": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_attack_ranged": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_death": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "splash_impact": {
+          "$ref": "#/$defs/trigger_row"
+        }
+      },
+      "required": [
+        "building_destroyed",
+        "building_level_up",
+        "building_placed",
+        "building_tier_up",
+        "defender_fire",
+        "enemy_attack_melee",
+        "enemy_attack_ranged",
+        "enemy_death",
+        "splash_impact"
+      ],
+      "type": "object"
     }
   },
   "required": [
-    "procedural"
+    "procedural",
+    "triggers"
   ],
   "type": "object"
 }
