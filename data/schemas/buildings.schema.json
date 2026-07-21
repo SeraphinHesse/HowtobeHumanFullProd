@@ -1091,18 +1091,11 @@
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
-            },
-            "unlock_min_round": {
-              "description": "Earliest round any boost line can appear in research options.",
-              "maximum": 1000,
-              "minimum": 0,
-              "type": "integer"
             }
           },
           "required": [
             "flat_mode",
-            "starts_unlocked",
-            "unlock_min_round"
+            "starts_unlocked"
           ],
           "type": "object"
         }
@@ -1319,14 +1312,8 @@
         },
         "BeamDefence": {
           "additionalProperties": false,
-          "description": "The ramping beam line (era-gated).",
+          "description": "The ramping beam line.",
           "properties": {
-            "era_unlock_round": {
-              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
-              "maximum": 1000,
-              "minimum": 0,
-              "type": "integer"
-            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1348,7 +1335,6 @@
             }
           },
           "required": [
-            "era_unlock_round",
             "starts_unlocked",
             "target_death_cooldown",
             "tiers"
@@ -1418,14 +1404,8 @@
       "properties": {
         "Meditators": {
           "additionalProperties": false,
-          "description": "The Meditator line - compounding streak economy (era-gated).",
+          "description": "The Meditator line - compounding streak economy.",
           "properties": {
-            "era_unlock_round": {
-              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
-              "maximum": 1000,
-              "minimum": 0,
-              "type": "integer"
-            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1441,7 +1421,6 @@
             }
           },
           "required": [
-            "era_unlock_round",
             "starts_unlocked",
             "tiers"
           ],
@@ -1542,12 +1521,6 @@
           "additionalProperties": false,
           "description": "The Wall Builder line - raises perimeter walls around unlocked tiles.",
           "properties": {
-            "era_unlock_round": {
-              "description": "Era gate: earliest round this building TYPE becomes offerable in the level-up pool (0 = no gate). The one canonical era key - read by game/core/levelup.py.",
-              "maximum": 1000,
-              "minimum": 0,
-              "type": "integer"
-            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1563,7 +1536,6 @@
             }
           },
           "required": [
-            "era_unlock_round",
             "starts_unlocked",
             "tiers"
           ],

@@ -85,8 +85,11 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   **`upgrade_gate`**, the FIVE-mode upgrade classifier the panel renders (`in_tier`
   / `tier_upgrade` / `tier_locked` / `tier_hidden` / `max_tier`). A tier can no
   longer be advanced into for free: it must be **researched on a level-up** first,
-  and stays unnamed until its `unlock_min_round`. The gate table + stacking rules
-  live in `game/buildings/research.py` (see that doc).
+  and stays unnamed until its `unlock_min_round`. A locked TYPE's own unlock
+  card is gated the same way, by its `tiers[0].unlock_min_round` — the single
+  round gate per type (no separate era key); unlocking a type makes tier 1
+  immediately placeable. The gate table + stacking rules live in
+  `game/buildings/research.py` (see that doc).
 - **Phase machine**: at ROUND_END's expiry a pending level-up enters
   `GamePhase.LEVELUP` **instead of** running payday; `Session.resolve_levelup`
   applies the reward, advances the level, then runs payday (the prototype's
@@ -104,7 +107,9 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
 - **Grouped unlock (10D boost trio)**: `roll_levelup_options` offers an unlock card
   only for the LEAD member of a spec's `unlock_group` (`btype == unlock_group[0]`),
   skipping the other locked members — so the three boosters surface as ONE "Unlock
-  Boost Buildings" card whose `apply_levelup_option` unlocks all three. All three
+  Boost Buildings" card whose `apply_levelup_option` unlocks all three, gated by
+  the lead's own `tiers[0].unlock_min_round` (10 — each boost line carries its
+  own copy of that value, no shared `gate_kind`/globals key needed). All three
   still carry a `RESEARCH` row so each researches its own tiers after unlocking.
 - **Empty pool is expected before round 10**: only `defence` + `economic` exist,
   both start unlocked at tier 1, their tier-2s are round-gated to 10, and the hole

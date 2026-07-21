@@ -215,7 +215,8 @@ class TestFlatMode(unittest.TestCase):
 # ---------------------------------------------------------------------------
 class TestTrioUnlock(unittest.TestCase):
     """The three boosters surface as ONE level-up card that unlocks all of them,
-    gated to round 10 (BoostBuildings.globals.unlock_min_round)."""
+    gated to round 10 -- each boost line's own tiers[0].unlock_min_round (no
+    more shared BoostBuildings.globals.unlock_min_round / gate_kind="min_round")."""
 
     def _silence_non_boost(self, st):
         # Max out every non-boost type so only the boost trio is offerable.

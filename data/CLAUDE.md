@@ -90,10 +90,13 @@ validating writer; don't hand-edit the JSON.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
-  forbidden). Every object level keeps `additionalProperties:false` + full
-  `required` — except `era_unlock_round`, optional in the meditator/beam/
-  wall-builder tier defs (only tier 0 carries it, prototype-verbatim). No
-  `allOf` composition (it breaks `additionalProperties:false`).
+  forbidden). Every object level in all five balancing domains keeps
+  `additionalProperties:false` + full `required`, no exceptions (the former
+  `era_unlock_round` group-level key was the last one read as optional by
+  convention anywhere near buildings — it never actually was schema-optional,
+  and it is deleted now that the meditator/beam/wall-builder round gate is a
+  single `tiers[0].unlock_min_round`, no separate era key). No `allOf`
+  composition (it breaks `additionalProperties:false`).
   `random_names` has `minItems:1` and NO `maxItems` (the 9H add-name menu
   appends). Bounds policy, documented per-domain in the schema description:
   fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,

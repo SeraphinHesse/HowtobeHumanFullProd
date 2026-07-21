@@ -7,9 +7,11 @@ multiplies the running yield by ``streak_growth`` (capped at ``streak_max``
 steps). Any damage taken during a round "disturbs" the meditation: the streak
 resets to 0 and the next payout falls back to base.
 
-Reuses the musician art (prototype had no bespoke meditator sprites). Era-gated
-to round 10 (``Meditators.era_unlock_round``); its tier 1 is researched at a
-level-up (``research.py`` ``starts_with_tier=0``).
+Reuses the musician art (prototype had no bespoke meditator sprites). The type
+is locked until earned via a level-up unlock card, gated by
+``Meditators.tiers[0].unlock_min_round`` (10); unlocking it makes tier 1
+immediately placeable — no separate "research tier 1" step
+(``research.py``'s bare ``ResearchSpec()`` row).
 
 The streak lives on the shared ``YieldEconomy.streak`` component. The prototype
 hid the disturbance/advance side-effect inside a ``yield_amount`` property read
