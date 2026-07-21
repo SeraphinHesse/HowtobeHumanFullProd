@@ -27,7 +27,7 @@ from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
 from engine.core import GameObject, SpriteAnimator, Transform
 from engine.data_io import write_validated
-from game.anchors import screen_offset, world_offset
+from game.anchors import anchor_world_point
 
 
 def row(animation="idle", frames=3, fps=8, hidden=(), loop=(0, 0, 1)):
@@ -167,7 +167,8 @@ class TestMalformedAnchorsWarnAndSkip(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# game.anchors — the pure screen/world resolver
+# game.anchors — the pure world-point resolver (fix-anchor-origin-parity;
+# supersedes ESV-1's `screen_offset`/`world_offset` delta pair)
 # ---------------------------------------------------------------------------
 def _store_and_obj(anchor_xy=None, frame_w=64, frame_h=64, fit_tiles=1.0,
                    scale=1.0, wx=3.0, wy=2.0, offset_xy=(0, 0)):
@@ -187,35 +188,48 @@ def _store_and_obj(anchor_xy=None, frame_w=64, frame_h=64, fit_tiles=1.0,
 
 
 class TestResolverAbsence(unittest.TestCase):
-    """§2.4: every layer degrades to today's number, never a special case."""
+    """§2.4: every layer degrades to `None` (the caller's cue to fall back
+    to its own pre-anchor point), never a special case."""
 
-    def test_no_store_no_cs_no_animator_no_anchor_all_zero(self):
+    def test_no_store_no_cs_no_obj_no_anchor_all_none(self):
         store, obj = _store_and_obj(anchor_xy=None)
         cs = load_coordinate_system(FIXTURE_DATA)
-        self.assertEqual(screen_offset(None, cs, obj, "muzzle", 1.0), (0.0, 0.0))
-        self.assertEqual(screen_offset(store, None, obj, "muzzle", 1.0), (0.0, 0.0))
-        self.assertEqual(screen_offset(store, cs, None, "muzzle", 1.0), (0.0, 0.0))
-        self.assertEqual(screen_offset(store, cs, obj, "muzzle", 1.0), (0.0, 0.0))
-        self.assertEqual(world_offset(None, cs, obj, "muzzle"), (0.0, 0.0))
-        self.assertEqual(world_offset(store, None, obj, "muzzle"), (0.0, 0.0))
-        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+        self.assertIsNone(anchor_world_point(None, cs, obj, "muzzle"))
+        self.assertIsNone(anchor_world_point(store, None, obj, "muzzle"))
+        self.assertIsNone(anchor_world_point(store, cs, None, "muzzle"))
+        self.assertIsNone(anchor_world_point(store, cs, obj, "muzzle"))
 
-    def test_bare_object_with_no_sprite_animator_is_zero(self):
+    def test_bare_object_with_no_sprite_animator_is_none(self):
         cs = load_coordinate_system(FIXTURE_DATA)
         obj = GameObject(transform=Transform(wx=1.0, wy=0.0))
         store, _ = _store_and_obj((18, -40))
-        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+        self.assertIsNone(anchor_world_point(store, cs, obj, "muzzle"))
 
-    def test_explicit_zero_anchor_is_exactly_zero(self):
-        store, obj = _store_and_obj((0, 0))
+    def test_explicit_zero_anchor_resolves_to_the_drawn_centre_not_none(self):
+        """fix-anchor-origin-parity: a `[0, 0]` anchor is PRESENT data (the
+        sprite's drawn centre), not absence — it must resolve to a real
+        point, never `None` and never the object's raw `transform.world_pos`
+        (the old, buggy short-circuit this replaced). At `fit_tiles=1.0`
+        (no footprint fit) and no manifest offset, the drawn centre is
+        exactly `(wx + 0.5, wy + 0.5)` — the tile-diamond-centre shift the
+        old base point (`world_pos` itself) was missing — independently
+        derivable from `world_to_screen`'s iso identity, not from
+        `anchor_world_point` itself."""
+        store, obj = _store_and_obj((0, 0), wx=3.0, wy=2.0)
         cs = load_coordinate_system(FIXTURE_DATA)
-        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+        point = anchor_world_point(store, cs, obj, "muzzle")
+        self.assertIsNotNone(point)
+        self.assertAlmostEqual(point[0], 3.5, places=9)
+        self.assertAlmostEqual(point[1], 2.5, places=9)
 
 
-class TestWorldOffsetInvariance(unittest.TestCase):
-    """D2: `world_offset` runs the screen delta back through
-    `cs.screen_to_world` twice, so zoom and pan cancel in the difference —
-    never a hand-derived closed form."""
+class TestAnchorWorldPointInvariance(unittest.TestCase):
+    """D2, restated for the world-POINT resolver: `anchor_world_point`
+    returns an absolute WORLD point, so — unlike the old delta pair — it is
+    not merely invariant under zoom/pan, it is IDENTICAL: `world_to_screen`/
+    `screen_to_world` are exact inverses at whatever zoom/pan `cs` currently
+    carries, so the round trip lands back on the same world point regardless
+    of the camera state it was resolved under."""
 
     def test_same_at_two_very_different_zoom_levels(self):
         store, obj = _store_and_obj((18, -40))
@@ -223,31 +237,40 @@ class TestWorldOffsetInvariance(unittest.TestCase):
         results = []
         for zoom in (1.0, 2.0):
             cs.camera.zoom = zoom
-            results.append(world_offset(store, cs, obj, "muzzle"))
+            results.append(anchor_world_point(store, cs, obj, "muzzle"))
         self.assertAlmostEqual(results[0][0], results[1][0], places=6)
         self.assertAlmostEqual(results[0][1], results[1][1], places=6)
-        # and it is not the degenerate zero — the anchor really moved it
-        self.assertGreater(abs(results[0][0]) + abs(results[0][1]), 0.0)
+        # and it is not the degenerate centre point — the anchor really
+        # moved it off (wx + 0.5, wy + 0.5)
+        self.assertNotAlmostEqual(results[0][0], 3.5, places=3)
 
     def test_same_under_pan(self):
         store, obj = _store_and_obj((18, -40))
         cs = load_coordinate_system(FIXTURE_DATA)
         cs.camera.zoom = 1.0
-        before = world_offset(store, cs, obj, "muzzle")
+        before = anchor_world_point(store, cs, obj, "muzzle")
         cs.camera.pan_x, cs.camera.pan_y = 321.0, -654.0
-        after = world_offset(store, cs, obj, "muzzle")
+        after = anchor_world_point(store, cs, obj, "muzzle")
         self.assertAlmostEqual(before[0], after[0], places=6)
         self.assertAlmostEqual(before[1], after[1], places=6)
 
-    def test_screen_offset_scales_with_the_footprint_fit(self):
-        """The muzzle offset rides the SAME `fit_factor` the renderer uses
+    def test_anchor_scales_with_the_footprint_fit(self):
+        """The muzzle anchor rides the SAME `fit_factor` the renderer uses
         (§1.3) — a downscaled unit's anchor shrinks with it, never the raw
-        sheet-pixel value."""
+        sheet-pixel value. Compared in SCREEN space (`cs.world_to_screen` of
+        each resolved world point) against the `(0, 0)`-anchor (drawn
+        centre) baseline, since the fit only ever scales a screen-pixel
+        delta, never the raw world coordinate."""
+        cs = load_coordinate_system(FIXTURE_DATA)
         # frame_w 128 on a 64-wide tile with fit_tiles=1 halves the draw.
-        store, obj = _store_and_obj((100, 0), frame_w=128, fit_tiles=1.0)
-        dsx, _dsy = screen_offset(store, load_coordinate_system(FIXTURE_DATA),
-                                  obj, "muzzle", zoom=1.0)
-        self.assertAlmostEqual(dsx, 50.0)   # 100 * 0.5 fit * 1.0 scale * 1.0 zoom
+        centre_store, centre_obj = _store_and_obj((0, 0), frame_w=128, fit_tiles=1.0)
+        anchored_store, anchored_obj = _store_and_obj((100, 0), frame_w=128, fit_tiles=1.0)
+        centre_sx, centre_sy = cs.world_to_screen(
+            *anchor_world_point(centre_store, cs, centre_obj, "muzzle"))
+        anchored_sx, anchored_sy = cs.world_to_screen(
+            *anchor_world_point(anchored_store, cs, anchored_obj, "muzzle"))
+        self.assertAlmostEqual(anchored_sx - centre_sx, 50.0)   # 100 * 0.5 fit * 1.0 scale * 1.0 zoom
+        self.assertAlmostEqual(anchored_sy - centre_sy, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -273,9 +296,11 @@ class TestOffsetAnchorComposition(unittest.TestCase):
     """§1.2/§1.3: `offset_x`/`offset_y` fold into the anchor origin — the
     renderer already applies this nudge to the drawn art
     (`engine/render/renderer.py:138-139`), so the game-side anchor resolver
-    must agree with it."""
+    must agree with it. Compared in SCREEN space (via `cs.world_to_screen`
+    of the resolved world point) since the composed offset is authored in
+    frame pixels, not world-fractional-tile units."""
 
-    def test_composition_shifts_the_resolved_screen_offset_exactly(self):
+    def test_composition_shifts_the_resolved_screen_point_exactly(self):
         """A fixture entry with `offset_y: 8` and `muzzle: [0, -20]` resolves
         8 frame-px lower (scaled) than the identical entry with no offset —
         the exact composed number, not just a direction."""
@@ -286,55 +311,44 @@ class TestOffsetAnchorComposition(unittest.TestCase):
         store_nudged, obj_nudged = _store_and_obj((0, -20), frame_w=64,
                                                    fit_tiles=1.0,
                                                    offset_xy=(0, 8))
-        dsx0, dsy0 = screen_offset(store_plain, cs, obj_plain, "muzzle", 1.0)
-        dsx1, dsy1 = screen_offset(store_nudged, cs, obj_nudged, "muzzle", 1.0)
+        sx0, sy0 = cs.world_to_screen(
+            *anchor_world_point(store_plain, cs, obj_plain, "muzzle"))
+        sx1, sy1 = cs.world_to_screen(
+            *anchor_world_point(store_nudged, cs, obj_nudged, "muzzle"))
         # frame_w=64 on a 64-wide tile at fit_tiles=1.0 -> s == 1.0, so the
-        # composed y is exactly (-20 + 8) * 1.0 * 1.0 * zoom == -12.0, and
-        # the nudged result is exactly 8.0 lower (more positive y) than
-        # the un-nudged one.
-        self.assertAlmostEqual(dsy0, -20.0)
-        self.assertAlmostEqual(dsy1, -12.0)
-        self.assertAlmostEqual(dsy1 - dsy0, 8.0)
-        self.assertAlmostEqual(dsx0, dsx1)   # offset_x is 0 in both
+        # nudged result is exactly 8.0 lower (more positive screen y) than
+        # the un-nudged one, and offset_x (0 in both) leaves x untouched.
+        self.assertAlmostEqual(sy1 - sy0, 8.0)
+        self.assertAlmostEqual(sx0, sx1)
 
-    def test_nonzero_offset_with_no_anchors_is_still_exactly_zero(self):
-        """§1.2's byte-identity pin: an entry with a non-zero offset and NO
-        `anchors` still returns exactly (0.0, 0.0) from both resolvers — the
-        `anchor is None` early return fires before the offset is ever read,
-        which is what keeps every un-anchored entry (181 of them) numerically
-        untouched by this fix."""
+    def test_nonzero_offset_with_no_anchors_is_still_none(self):
+        """§1.2's byte-identity pin, restated for the `None`-degrade
+        contract: an entry with a non-zero offset and NO `anchors` still
+        resolves to `None` — the `anchor is None` early return fires before
+        the offset is ever read, which is what keeps every un-anchored entry
+        (181 of them) numerically untouched by this fix (its caller falls
+        back to its own pre-anchor point, unchanged)."""
         cs = load_coordinate_system(FIXTURE_DATA)
         store, obj = _store_and_obj(anchor_xy=None, offset_xy=(0, 8))
-        self.assertEqual(screen_offset(store, cs, obj, "muzzle", 1.0),
-                         (0.0, 0.0))
-        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+        self.assertIsNone(anchor_world_point(store, cs, obj, "muzzle"))
 
-    def test_zero_anchor_on_a_nudged_entry_flips_to_nonzero(self):
-        """The subtlest behaviour change in the diff: an anchor authored at
-        `[0, 0]` used to short-circuit `screen_offset`/`world_offset` to
-        exactly zero (§1.2's OLD rule). On a nudged entry it no longer does —
-        the `ax == 0 and ay == 0` short-circuit now tests the COMPOSED pair,
-        and a [0, 0] anchor plus a non-zero offset composes to a real,
-        non-zero delta. Pinned explicitly, not just "is non-zero"."""
+    def test_zero_anchor_on_a_nudged_entry_is_the_offset_shifted_centre(self):
+        """An anchor authored at `[0, 0]` on a NUDGED entry resolves to the
+        drawn centre shifted by the composed offset ALONE — not the plain
+        (un-nudged) drawn centre — matching the renderer's own nudge."""
         cs = load_coordinate_system(FIXTURE_DATA)
         cs.camera.zoom = 1.0
-        store, obj = _store_and_obj((0, 0), frame_w=64, fit_tiles=1.0,
-                                    offset_xy=(0, 8))
-        dsx, dsy = screen_offset(store, cs, obj, "muzzle", 1.0)
-        self.assertAlmostEqual(dsx, 0.0)
-        self.assertAlmostEqual(dsy, 8.0)
-        self.assertNotEqual((dsx, dsy), (0.0, 0.0))
-        wdx, wdy = world_offset(store, cs, obj, "muzzle")
-        self.assertNotEqual((wdx, wdy), (0.0, 0.0))
-
-    def test_zero_anchor_on_an_un_nudged_entry_still_short_circuits(self):
-        """The un-nudged case (offset (0, 0)) keeps the pre-fix behaviour:
-        a [0, 0] anchor with no offset resolves to exactly zero."""
-        cs = load_coordinate_system(FIXTURE_DATA)
-        store, obj = _store_and_obj((0, 0), offset_xy=(0, 0))
-        self.assertEqual(screen_offset(store, cs, obj, "muzzle", 1.0),
-                         (0.0, 0.0))
-        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+        plain_store, plain_obj = _store_and_obj((0, 0), frame_w=64,
+                                                 fit_tiles=1.0)
+        nudged_store, nudged_obj = _store_and_obj((0, 0), frame_w=64,
+                                                   fit_tiles=1.0,
+                                                   offset_xy=(0, 8))
+        sx0, sy0 = cs.world_to_screen(
+            *anchor_world_point(plain_store, cs, plain_obj, "muzzle"))
+        sx1, sy1 = cs.world_to_screen(
+            *anchor_world_point(nudged_store, cs, nudged_obj, "muzzle"))
+        self.assertAlmostEqual(sx1, sx0)
+        self.assertAlmostEqual(sy1 - sy0, 8.0)
 
 
 if __name__ == "__main__":

@@ -71,20 +71,29 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `ManifestEntry.anchor(name)` / `AssetStore.anchor(slot_key, name)` are the
   read accessors (never index the raw structure). Unlike `slice`, anchors are
   **metadata, not frame geometry** — they never touch `Frame`/`frame()`/the
-  blit path; only `muzzle` (`game/enemies/combat.py`, world-offset via
-  `game/anchors.py`) and `hp_bar` (`game/ui/effects.py`, screen-offset) are
-  wired to a read-site today. `impact`/`floater_origin`/`status_icon`/
-  `beam_endpoint` are declared and parse-ready but inert (no read-site) —
+  blit path; `muzzle` (`game/enemies/combat.py` firing points,
+  `game/ui/effects.py watch_enemies`), `impact` (`game/ui/effects.py
+  watch_buildings`/`spawn_projectile_hit_events`) and `hp_bar`
+  (`game/ui/effects.py` overhead bars, "anchor wins outright") are wired to
+  a read-site today, all through `game/anchors.py`'s single resolver,
+  `anchor_world_point` (below). `floater_origin`/`status_icon`/
+  `beam_endpoint` remain declared and parse-ready but inert (no read-site) —
   shipped now so their future wiring needs no schema migration.
   - **`AssetStore.offset(slot_key)`** (the anchor/offset composition fix,
     `docs/briefs/fix-anchor-offset-and-bullet-sprites.md`) mirrors `anchor()`
     exactly: `(x, y)` ints from the manifest entry's `offset_x`/`offset_y`, or
     `(0, 0)` when the slot or its entry is absent — same degrade-never-raise
-    contract. It is what lets `game/anchors.py`'s `screen_offset`/
-    `world_offset` and `editor/panels/viewport.py`'s `_anchor_draw_params`
-    compose the renderer's draw nudge (`engine/render/renderer.py`'s
-    `frame.offset_x`/`offset_y`) into the anchor origin, so all three
-    consumers of "where is this sprite's anchor point" agree.
+    contract. **fix-anchor-origin-parity** replaced the old
+    `screen_offset`/`world_offset` delta pair with ONE absolute-world-point
+    resolver, `game/anchors.py`'s `anchor_world_point` — it composes this
+    `offset()` and `anchor()` through `engine.render.sprite_anchor_screen`,
+    the exact placement math `Renderer.flush` draws with (`block_center_
+    offset` + `fit_factor` + the tile-diamond-centre convention), so the
+    resolved point IS the sprite's drawn anchor, never a delta added to a
+    base point that could disagree with it. `editor/panels/viewport.py`'s
+    `_anchor_draw_params` calls the SAME `sprite_anchor_screen` for the
+    editor's handle, so the two consumers of "where is this sprite's anchor
+    point" cannot drift apart again.
 - **Optional `tint_overlay` (bool)**: the THIRD optional per-entry key (after
   `slice` and `anchors`), added the same way as `slice` and equally
   uninterpreted here — a render HINT for the

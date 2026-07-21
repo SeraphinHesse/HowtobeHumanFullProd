@@ -1,73 +1,52 @@
-"""game.anchors — the shared manifest-anchor resolver (ESV-1, §3.3).
+"""game.anchors — the shared manifest-anchor resolver (fix-anchor-origin-
+parity, superseding ESV-1/ESV-6's delta model).
 
-Pure module (no pygame): converts a manifest-authored anchor point (D2:
+Pure module (no pygame): resolves a manifest-authored anchor point (D2:
 frame-px relative to the sprite anchor, +x right / -y up, measured on the
-sheet frame at frame resolution) into a screen offset or a world offset, for
-any caller holding an ``AssetStore`` + ``CoordinateSystem`` + an object
-carrying a ``SpriteAnimator``.
+sheet frame at frame resolution) to the ABSOLUTE WORLD POINT it sits at on
+the sprite AS DRAWN — through `engine.render.renderer.sprite_anchor_screen`,
+the SAME geometry `Renderer.flush` uses to place the sprite, so this and the
+renderer can never drift apart.
 
-Two entry points, both degrading to ``(0.0, 0.0)`` when the store, the
-animator, the slot, or the named anchor is absent — so a manifest with no
-``anchors`` key leaves every caller numerically unchanged:
+**Why this replaced the old `screen_offset`/`world_offset` delta model**:
+that pair computed a scaled delta from the anchor to the sprite's drawn
+CENTRE (correct in isolation), but every caller then added it to a base
+point that was NOT the drawn centre — `cs.world_to_screen(obj.transform.
+world_pos)` is the entity's ANCHOR TILE corner, `tile_h/2*zoom` (16px at
+zoom 1) and a whole `block_center_offset` shift short of the centre `flush`
+actually draws on. That is the measured root cause of "VFX/HP bars don't
+spawn where the handle was dragged" (docs/briefs/fix-anchor-origin-
+parity.md) — fixed here by resolving straight to the correct absolute
+point instead of a delta a caller could mis-anchor.
 
-- ``screen_offset`` — the fit-scaled screen-pixel delta (§1.3 up to the
-  screen delta). Used by ``game/ui/effects.py`` for HUD elements (HP bars)
-  that are already working in screen space.
-- ``world_offset`` — the same delta run back through ``cs.screen_to_world``
-  twice (never hand-derived: D2 promises zoom/pan cancel in that
-  difference). Used by ``game/enemies/combat.py`` to spawn a projectile at a
-  muzzle handle in world (fractional-tile) coords.
+One entry point, degrading to `None` when the store, the animator, the
+slot, or the named anchor is absent — the caller's cue to fall back to its
+own pre-anchor expression (E-37; "anchor wins outright" otherwise — no
+anchor authored means unchanged behaviour, an anchor authored means the
+exact handle point, never a nudge on top of a different base).
 
 ``game/ui`` and ``game/enemies`` both import this module rather than each
 other — see the ESV-1 brief §3.3 "still forbidden" list.
 """
 from engine.core import SpriteAnimator
-from engine.render.renderer import fit_factor
+from engine.render.renderer import sprite_anchor_screen
 
 
-def _scale_factor(assets, cs, anim):
-    """The same downscale-only footprint fit `_sprite_top` uses (ER-1)."""
-    frame_w, _frame_h = assets.frame_size(anim.slot_key)
-    return fit_factor(frame_w, cs.geometry.tile_w, anim.fit_tiles) * anim.scale
-
-
-def screen_offset(assets, cs, obj, name, zoom):
-    """(dsx, dsy) screen-pixel offset the anchor `name` draws at for `obj`'s
-    sprite at `zoom`. (0.0, 0.0) when `assets`/`cs`/the object's
-    `SpriteAnimator`/its slot/the named anchor is missing."""
+def anchor_world_point(assets, cs, obj, name):
+    """World point of `obj`'s `name` anchor ON THE DRAWN SPRITE, or `None`
+    when the store/cs/object/animator/slot/anchor is absent. `None` is the
+    caller's cue to use its own pre-anchor fallback point (E-37)."""
     if assets is None or cs is None or obj is None:
-        return (0.0, 0.0)
+        return None
     anim = obj.get_component(SpriteAnimator)
     if anim is None or not anim.slot_key:
-        return (0.0, 0.0)
+        return None
     anchor = assets.anchor(anim.slot_key, name)
     if anchor is None:
-        return (0.0, 0.0)          # KEEP: an un-anchored slot must not move
-    ax, ay = anchor
-    ox, oy = assets.offset(anim.slot_key)
-    ax, ay = ax + ox, ay + oy      # NEW: the nudge the renderer already applies
-    if ax == 0 and ay == 0:
-        return (0.0, 0.0)
-    s = _scale_factor(assets, cs, anim)
-    return (ax * s * zoom, ay * s * zoom)
-
-
-def world_offset(assets, cs, obj, name):
-    """(dwx, dwy) world-space (fractional-tile) delta the anchor `name`
-    resolves to for `obj`'s sprite — the screen offset above, taken back
-    through the coordinate authority as the difference of two
-    `cs.screen_to_world` samples (D2: zoom and pan cancel in that
-    difference, never restate the iso math). (0.0, 0.0) when `cs` is missing
-    or the screen offset itself is zero (no anchor authored; or an anchor
-    authored at [0, 0] on a slot with no offset_x/offset_y — a [0, 0] anchor
-    on a NUDGED entry now has a real, non-zero composed delta)."""
-    if cs is None or obj is None:
-        return (0.0, 0.0)
-    zoom = cs.camera.zoom
-    dsx, dsy = screen_offset(assets, cs, obj, name, zoom)
-    if dsx == 0.0 and dsy == 0.0:
-        return (0.0, 0.0)
+        return None
+    frame_w, _frame_h = assets.frame_size(anim.slot_key)
+    offset_xy = assets.offset(anim.slot_key)
     wx, wy = obj.transform.world_pos
-    sx, sy = cs.world_to_screen(wx, wy)
-    wx2, wy2 = cs.screen_to_world(sx + dsx, sy + dsy)
-    return (wx2 - wx, wy2 - wy)
+    sx, sy = sprite_anchor_screen(
+        cs, wx, wy, frame_w, anim.fit_tiles, anim.scale, offset_xy, anchor)
+    return cs.screen_to_world(sx, sy)

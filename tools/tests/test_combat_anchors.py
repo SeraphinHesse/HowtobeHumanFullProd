@@ -1,7 +1,8 @@
 """ESV-1 §1.4 — the D4 guardrail: a muzzle anchor moves where a projectile
-VISUALLY spawns (``game/anchors.py world_offset``, wired into ``_fire``/
-``_fire_splash``) and never touches when damage lands (``ProjectileHoming
-.launch(origin=...)``, always the shooter's unmodified ``transform.world_pos``).
+VISUALLY spawns (``game/anchors.py anchor_world_point``, wired into ``_fire``/
+``_fire_splash`` since fix-anchor-origin-parity) and never touches when
+damage lands (``ProjectileHoming.launch(origin=...)``, always the shooter's
+unmodified ``transform.world_pos``).
 
 Same headless ``synth`` tilemap + ``Scene`` harness as ``test_enemies.py`` /
 ``test_defence_aoe_beam.py``.
@@ -90,12 +91,20 @@ def frozen_target(scene, tm, col, row, hp=100000):
 # 4(a) — the spawn point moves to the muzzle-anchored world point
 # ---------------------------------------------------------------------------
 class TestMuzzleShiftsTheSpawnPoint(unittest.TestCase):
-    def test_projectile_spawns_at_world_pos_plus_world_offset(self):
-        from game.anchors import world_offset
-
+    def test_projectile_spawns_at_the_anchored_world_point(self):
+        """fix-anchor-origin-parity: never assert against `anchor_world_
+        point`/`sprite_anchor_screen` themselves (the functions under test,
+        §1.2 of that brief) — the expected point below is independently
+        derived by hand (`CS.world_to_screen`/`screen_to_world` +
+        `engine.render.fit_factor` algebra, verified against `CS`'s real
+        fixture geometry: tile_w=64/tile_h=32, zoom=1, no pan) for the
+        defender's real transform position `(1.0, 0.0)`, a `muzzle` anchor
+        of `(40, -10)` and the fixture `anchor_test` slot's `frame_w=64`/
+        `fit_tiles=0.0`/`scale=1.0`."""
         tm = synth(["bbs"])
         scene, occ = Scene(), TileOccupancy()
         defender = frozen_defender(tm, scene, occ, 1, 0)
+        self.assertEqual(defender.transform.world_pos, (1.0, 0.0))
         frozen_target(scene, tm, 2, 0)
         assets = make_store("anchor_test", anchor_xy=(40, -10))
 
@@ -105,12 +114,9 @@ class TestMuzzleShiftsTheSpawnPoint(unittest.TestCase):
         projectiles = scene.by_tag("projectile")
         self.assertEqual(len(projectiles), 1)
 
-        bx, by = defender.transform.world_pos
-        dwx, dwy = world_offset(assets, CS, defender, "muzzle")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)   # really did move
         px, py = projectiles[0].transform.world_pos
-        self.assertAlmostEqual(px, bx + dwx, places=9)
-        self.assertAlmostEqual(py, by + dwy, places=9)
+        self.assertAlmostEqual(px, 1.8125, places=9)
+        self.assertAlmostEqual(py, -0.4375, places=9)
 
 
 # ---------------------------------------------------------------------------

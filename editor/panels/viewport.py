@@ -52,6 +52,7 @@ from engine.render import (
     Renderer,
     RenderItem,
     fit_factor,
+    sprite_anchor_screen,
 )
 
 REPO = Path(__file__).resolve().parents[2]
@@ -828,7 +829,18 @@ class ViewportPanel(QWidget):
         fit_factor computed from the exact fit_tiles/scale the preview's
         RenderItem carries (its dataclass defaults today — never hardcode
         1.0, so a handle can't silently desync the day the preview gains a
-        footprint fit)."""
+        footprint fit).
+
+        fix-anchor-origin-parity: `origin` resolves through the SAME shared
+        `engine.render.sprite_anchor_screen` the game's `game.anchors.
+        anchor_world_point` calls (`anchor_xy=(0, 0)` -> the sprite's drawn
+        CENTRE) — never hand-rolled here, so the handle and the game's
+        anchor resolution cannot drift apart again. Known residual (§2.4,
+        report don't fix): this preview always resolves at `fit_tiles=0.0`/
+        `scale=1.0` (the RenderItem's dataclass defaults, matching what is
+        actually submitted below), while a real game entity may carry a
+        different footprint fit — measured `s == 1.0` on both sides for
+        every entity in `data/` today, so it is not the live bug."""
         if self.preview_slot is None:
             return None
         g = self._coords.geometry
@@ -836,9 +848,9 @@ class ViewportPanel(QWidget):
         frame_w, _frame_h = self._assets.frame_size(self.preview_slot)
         zoom = self._coords.camera.zoom
         s = fit_factor(frame_w, g.tile_w, 0.0) * 1.0   # RenderItem's own defaults
-        sx, sy = self._coords.world_to_screen(wx, wy)
         ox, oy = self._assets.offset(self.preview_slot)
-        origin = (sx + ox * s * zoom, sy + g.tile_h / 2 * zoom + oy * s * zoom)
+        origin = sprite_anchor_screen(
+            self._coords, wx, wy, frame_w, 0.0, 1.0, (ox, oy), (0.0, 0.0))
         return origin, s, zoom
 
     def _hit_anchor_handle(self, pos):

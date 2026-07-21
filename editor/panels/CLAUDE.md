@@ -348,14 +348,24 @@ import list.**
     `submit_hud(HudText(...))`. Never QPainter.
   - **Handle origin COMPOSES `offset_x`/`offset_y`** (reverses ESV-2 brief
     §1.4 — see `docs/briefs/fix-anchor-offset-and-bullet-sprites.md` Fix 1):
-    `_anchor_draw_params` shifts `origin` by the entry's offset (scaled by
-    `s * zoom`) before any anchor is measured from it, so the handle sits on
-    the art exactly like the renderer draws it and matches the composed
-    game-side math (`game/anchors.py`'s `screen_offset`/`world_offset`).
-    `editor/anchor_ops.py`'s `screen_point`/`frame_px` are untouched — they
-    are pure algebra over a caller-supplied origin and exact inverses of
-    each other, so shifting the origin fixes the draw AND the drag in one
-    move.
+    `_anchor_draw_params` folds the entry's offset into the anchor origin so
+    the handle sits on the art exactly like the renderer draws it.
+    **fix-anchor-origin-parity**: `_anchor_draw_params` now computes that
+    origin by calling `engine.render.sprite_anchor_screen` directly (never a
+    hand-rolled `world_to_screen` + offset expression) — the SAME shared
+    helper `game/anchors.py`'s `anchor_world_point` calls for the game side,
+    so the editor's handle and the game's resolved anchor point cannot drift
+    apart again (the bug this fix shipped for: they used to resolve from two
+    different bases, `screen_offset`/`world_offset`'s ESV-1 delta model,
+    since deleted). `editor/anchor_ops.py`'s `screen_point`/`frame_px` are
+    untouched — they are pure algebra over a caller-supplied origin and exact
+    inverses of each other, so shifting the origin fixes the draw AND the
+    drag in one move. **Known residual (report don't fix)**: the preview
+    always resolves at `fit_tiles=0.0`/`scale=1.0` (the RenderItem's
+    dataclass defaults), while a real game entity may carry a different
+    footprint fit — measured `s == 1.0` on both sides for every entity in
+    `data/` today, so this is not the live bug (`_anchor_draw_params`'s
+    docstring).
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live
