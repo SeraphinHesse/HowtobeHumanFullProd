@@ -174,19 +174,15 @@ class TestDraftSaveClear(DetailsCase):
         self.assertEqual(self.panel._row_editors, [])
 
     def test_existing_migrated_entry_loads_into_editors(self):
-        # Pin the entry's row values instead of inheriting whatever the artist
-        # last imported: commit 380ab4a re-imported this sheet, reset its
-        # hidden flags, and the old live-value asserts went red for reasons
-        # that had nothing to do with the panel. The subject here is "manifest
-        # state loads into the editors", so the test supplies that state.
-        path = self.data_dir / "sprites" / "asset_manifest.json"
-        doc = data_io.load_json(path)
-        row = doc["entries"]["stone_thrower_t1_lvl1"]["rows"][1]
-        row["fps"] = 6
-        row["hidden"] = [3]
-        data_io.write_validated(
-            doc, path,
-            self.data_dir / "schemas" / "asset_manifest.schema.json")
+        # Pin the entry AND its sheet instead of inheriting whatever the artist
+        # last imported. The subject here is "manifest state loads into the
+        # editors", so the test supplies that state — twice over now: 380ab4a
+        # re-imported this sheet and reset its hidden flags, then cff77c7
+        # ("Stonethrower all eras") grew it from 2 rows to 6. Row EDITORS are
+        # built from the sheet's height, so pinning the entry alone was not
+        # enough; pin_slot_rows writes a matching synthetic PNG.
+        self.pin_slot_rows("stone_thrower_t1_lvl1", ("idle", "attack"),
+                           fps=6, hidden=(3,))
 
         self.panel.set_slot("stone_thrower_t1_lvl1")
         self.assertEqual(len(self.panel._row_editors), 2)
@@ -508,7 +504,26 @@ class TestClearAsksFirst(DetailsCase):
 
 
 class TestSheetPicker(DetailsCase):
+    """The picker lists PNGs in data/sprites/imported/ and filters them by the
+    target slot's frame size.
+
+    Both fixture sheets are WRITTEN BY THE TEST, not borrowed from `data/`.
+    These tests used to name `tile_buildable.png` as their "64x32 sheet" and
+    `stone_thrower_t1_lvl1.png` as their "64x96 sheet"; cff77c7 re-linked
+    tile_buildable to the forest sheet, which correctly refcount-deleted its
+    PNG, and two tests went red over an art decision they were not testing.
+    Orphan PNGs (no manifest entry) are listed on purpose — see ImportedSheet —
+    so no entry is needed to pin these."""
+
     UNASSIGN = ("painter_t1_lvl1",)
+    TALL = "imported/fixture_tall.png"    # 2x2 frames at 64x96 -> fits
+    FLAT = "imported/fixture_flat.png"    # 2x2 frames at 64x32 -> does not
+
+    def setUp(self):
+        super().setUp()
+        imported = self.data_dir / "sprites" / "imported"
+        make_png(imported / "fixture_tall.png", 2 * 64, 2 * 96)
+        make_png(imported / "fixture_flat.png", 2 * 64, 2 * 32)
 
     def dialog(self, slot="painter_t1_lvl1", frame=(64, 96)):
         return self.track(SheetPickerDialog(self.data_dir, slot, *frame))
@@ -516,28 +531,26 @@ class TestSheetPicker(DetailsCase):
     def test_defaults_to_sheets_that_fit_the_slots_frame_size(self):
         dialog = self.dialog()
         refs = {sheet.ref for sheet in dialog.visible_sheets()}
-        # 64x96 building sheets are offered; 64x32 map tiles are not.
-        self.assertIn("imported/stone_thrower_t1_lvl1.png", refs)
-        self.assertNotIn("imported/tile_buildable.png", refs)
+        # 64x96 sheets are offered; a 64x32 tile sheet is not.
+        self.assertIn(self.TALL, refs)
+        self.assertNotIn(self.FLAT, refs)
 
     def test_show_all_sizes_escapes_the_filter(self):
         dialog = self.dialog()
         dialog._all_sizes.setChecked(True)
         refs = {sheet.ref for sheet in dialog.visible_sheets()}
-        self.assertIn("imported/tile_buildable.png", refs)
+        self.assertIn(self.FLAT, refs)
 
     def test_name_filter_narrows_the_list(self):
         dialog = self.dialog()
-        dialog._filter.setText("stone_thrower")
+        dialog._filter.setText("fixture_tall")
         names = [sheet.name for sheet in dialog.visible_sheets()]
-        self.assertTrue(names)
-        self.assertTrue(all("stone_thrower" in name for name in names))
+        self.assertEqual(names, ["fixture_tall"])
 
     def test_selecting_a_sheet_previews_it_and_reports_the_choice(self):
         dialog = self.dialog()
-        self.assertTrue(dialog.select_sheet("imported/stone_thrower_t1_lvl1.png"))
-        self.assertEqual(dialog.chosen().ref,
-                         "imported/stone_thrower_t1_lvl1.png")
+        self.assertTrue(dialog.select_sheet(self.TALL))
+        self.assertEqual(dialog.chosen().ref, self.TALL)
         self.assertTrue(dialog._preview.has_sheet())
 
 
