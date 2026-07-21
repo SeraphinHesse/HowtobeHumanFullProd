@@ -567,8 +567,10 @@ class MainWindow(QMainWindow):
     # qualifies: a tile_buildable_v2 would silently break the checkerboard
     # `_b` pairing of the zone kinds. For "ui" every leaf subcategory is a SKIN
     # family (Buttons/Button, Panels/Panel, …) — a variant is another skin.
+    # "conditions" is the deco case exactly: each condition's leaf group holds
+    # interchangeable art the game rolls between per tile.
     _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
-                        "ui": None}
+                        "ui": None, "conditions": None}
     _DECO_CATEGORY = "deco"
     # ui -> Buttons is the second "+ Type" target: a brand-new button FAMILY
     # (its own variant family), not another skin of an existing one.

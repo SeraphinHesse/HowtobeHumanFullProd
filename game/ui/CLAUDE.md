@@ -198,7 +198,13 @@ ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries
 no 10I diff: two persistent bottom-left toggle pills (`RANGE`/`HEATMAP`, gold
 rim + gold label when active; clicks consumed in `main.py`'s ladder between the
 End-Turn branch and the panel, `over()` feeds the pan-arming `over_ui` check),
-the world condition tint (windowed — never a full-grid scan), the RANGE overlay
+the world condition tint (windowed — never a full-grid scan; a **FALLBACK**
+since condition art landed: `MapOverlays.condition_art` is the host's
+`{slot: tint_overlay}` map over the condition slots that have imported art, and
+the diamond is drawn only where `game.map.conditions.draws_tint` says so — no
+art, or an entry that opts back in. Empty map ⇒ every non-grass tile keeps its
+diamond, i.e. the pre-art look. The sprite itself is NOT drawn here: it goes out
+on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
 (union Chebyshev squares from RAW `range_tiles()`, mortar INCLUDED — its
 exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
 occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:

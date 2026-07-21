@@ -57,6 +57,15 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `engine/render/backend.py` gives it geometry, and only for **HUD sprites**
   (world sprites keep uniform zoom scaling). Omitted ⇒ plain scale. The grey-X
   placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
+- **Optional `tint_overlay` (bool)**: the second optional per-entry key, added
+  the same way as `slice` and equally uninterpreted here — a render HINT for the
+  consumer, meaning "keep drawing your own flat colour overlay UNDER this art
+  instead of letting the sprite stand alone". `entry_from_dict` parses it
+  (non-bool raises → `load_manifest`'s E-37 warn+skip); omitted ⇒ `False` ⇒ the
+  entry is byte-identical to a pre-feature one. Its ONE consumer today is the
+  game's tile-condition art (`data/slots.json` `conditions` category): a
+  condition slot with **no entry at all** always draws the overlay, because
+  there is no sprite to draw instead. See `game/map/CLAUDE.md`.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO

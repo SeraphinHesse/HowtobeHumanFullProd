@@ -64,7 +64,8 @@ from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
-from game.map import TileMap, tile_at_screen
+from game.map import TileMap, condition_render_items, tile_at_screen
+from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
@@ -117,8 +118,9 @@ class _World:
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
                  registry):
         # -- 10I: the live run rolls tile conditions (rng=None would keep the
-        # all-GRASS fixture mode the headless tests rely on) --
-        self.tile_map = TileMap(map_doc, map_bal, rng=random)
+        # all-GRASS fixture mode the headless tests rely on). `registry` also
+        # rolls each tile's condition ART slot (the `terrain` draw layer). --
+        self.tile_map = TileMap(map_doc, map_bal, rng=random, registry=registry)
         # -- /10I --
         self.occupancy = TileOccupancy()
         self.scene = Scene()
@@ -184,11 +186,23 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     frame_camera()  # centre on the startpoint / map at boot
     registry = load_registry(data_dir)
+    manifest = load_manifest(data_dir / "sprites" / "asset_manifest.json")
     assets = AssetStore(
-        manifest=load_manifest(data_dir / "sprites" / "asset_manifest.json"),
+        manifest=manifest,
         registry=registry,
         sprites_dir=data_dir / "sprites",
     )
+    # Tile-condition art: {slot key -> tint_overlay} over the condition slots
+    # that actually have an imported sheet. THE one map both consumers read —
+    # the `terrain`-layer emitter (sprite iff the slot is in here) and the
+    # overlay tint (drawn iff the slot is absent, or its entry asks for it) —
+    # so a sprite and its tint can never disagree about what exists. Derived
+    # once per boot; art cannot change mid-run.
+    condition_art = {
+        slot: manifest.entry(slot).tint_overlay
+        for slot in registry.group_slots(CONDITION_CATEGORY)
+        if manifest.entry(slot) is not None
+    }
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -281,6 +295,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
+        # The tint is a FALLBACK for conditions with no imported art (plus any
+        # slot whose entry opts back into it) — see `condition_art` above.
+        gp["overlays"].condition_art = condition_art
         # -- /10I --
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
         gp["game_log"] = GameLog(skinning=shell.skinning)
@@ -763,6 +780,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
+            # Condition art on the `terrain` layer — above the ground tiles,
+            # below everything on `entities`/`deco`. Reuses the window above;
+            # emits nothing for conditions with no imported sheet.
+            for item in condition_render_items(
+                    world.tile_map, cmin, cmax, rmin, rmax, condition_art,
+                    anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)

@@ -143,9 +143,11 @@ import list.**
 - **Merged tree** (`panels/selector.py`): top-level nodes = registry categories in
   `data/slots.json` order (the ones with a balancing file double as balancing
   domains — DERIVED, see `domains.py` above; vfx and `backgrounds` (10K menu art)
-  are asset-only; `deco` is asset-only, nested as a CHILD of the "map" node —
-  Phase 6
-  follow-up). Children come from registry groups; the tree STOPS at the deepest
+  are asset-only; `deco` (Phase 6 follow-up) and `conditions` (tile-condition
+  art) are asset-only and nested as CHILDREN of the "map" node —
+  `_NESTED_UNDER_MAP` in `selector.py`, a TREE-SHAPE choice only:
+  `category_key` stays `"deco"`/`"conditions"` everywhere else, so each keeps
+  its own 64×96 frame size). Children come from registry groups; the tree STOPS at the deepest
   group whose children are all leaf groups (a building TYPE like "Defender") —
   tiers/levels never appear in the tree. Signals: `node_selected(category,
   group_path)` on every selection, plus `domain_selected(str)` at ANY depth of a
@@ -182,7 +184,8 @@ import list.**
 - **"+ Variant" / "+ Type" buttons** (sprite variants): the LevelBar carries a
   trailing `+ Variant` + `+ Type` button. WHICH selections offer them is a product
   call in the shell — `MainWindow._VARIANT_TARGETS` (`{"enemies": None, "deco":
-  None, "map": {"Background"}}`; `None` = any leaf subcategory) filtered through
+  None, "map": {"Background"}, "ui": None, "conditions": None}`; `None` = any
+  leaf subcategory) filtered through
   `_variant_target()`; `selection.variant_target` is the game-name-free structural
   half. The `map` entry is a real constraint: `Buildable`/`Combat`/`Spawning` are
   leaf subgroups too, and a `tile_buildable_v2` would silently break the
@@ -235,6 +238,19 @@ import list.**
     (`save()` replaces the whole entry). Nine-slice is drawn on the HUD path
     only — the entity preview (`RenderItem`) deliberately ignores it; a
     `slice`-carrying draft still parses and previews as a plain scaled sprite.
+  - **Condition tint checkbox (`conditions` category only)**: "Show condition
+    tint under this art", gated by `_tint_applies()` (the exact `_slice_applies`
+    mirror, `self._context[0] == "conditions"`), writing the optional manifest
+    `tint_overlay`. The game's flat colour diamond per non-grass tile is a
+    FALLBACK for a condition with no art, so **a slot with no art forces the box
+    checked and disabled** — there is no entry to write it to. The enable gate
+    is `bool(self._row_editors)` (the LIVE rows), NOT the on-disk entry, so a
+    freshly imported sheet is editable before its first Save; a fresh import
+    with no prior entry defaults OFF (the sprite replaces the tint).
+    `_refresh_tint_state(entry)` is the ONE place that state is computed —
+    called from `set_slot`, `import_sheet`, `use_sheet` and `clear_entry`.
+    **Unchecked omits the key**, so an untinted entry is byte-identical and
+    unticking + re-saving removes it (same convention as `slice`).
   - **`ui` variants = skins**: the `ui` category's leaves offer "+ Variant"
     (`MainWindow._VARIANT_TARGETS`, added in A3) → `ui_button_v2`, …, i.e. one
     slot per button skin; its 4-row vocab is `idle/hover/pressed/disabled` (row

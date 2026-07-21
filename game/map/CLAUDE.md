@@ -69,6 +69,37 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
     on. Conditions never change during a run.
+  - **Conditions have ART since the terrain layer landed.** `data/slots.json`'s
+    asset-only `conditions` category (`Terrain` → `Grass`/`Mountain`/`Pond`/
+    `Forest`, one leaf group each, 64×96) holds it, and `TileMap.__init__` takes
+    a `registry=` beside `rng=`: a SECOND pass after the condition roll assigns
+    every non-BACKGROUND tile a `Tile.condition_slot` — a random variant of its
+    condition's group, `CONDITION_GROUP` (`tiles.py`) being the ONE enum→group
+    table. **That second pass is deliberately separate from the roll**: the
+    roll's eligibility rules are prototype-exact gameplay every path-cost
+    fixture depends on, whereas ART covers the starting pocket too (so imported
+    grass art has no hole where the base sits). `registry=None` or `rng=None` ⇒
+    every slot stays `None` ⇒ nothing draws, which is the state every headless
+    fixture runs in. Variants roll per tile, so a `cond_mountain_v3` added in
+    the editor grows the pool with NO code change (same contract as deco types
+    and enemy eras).
+  - **`conditions.py` is the ONE emitter** (pure): `condition_render_items(
+    tile_map, col_min, col_max, row_min, row_max, art_slots, anim_time_ms)` →
+    `RenderItem`s on the **`terrain`** draw layer, which
+    `engine.render.LAYERS` places between `ground` and `entities` — condition
+    art draws OVER the map tiles and UNDER buildings/enemies/the base/deco.
+    Windowed like `engine.tilemap.visible_render_items` (never a full-grid
+    per-frame scan) with the same deterministic per-cell animation phase.
+    `art_slots` is the host's `{slot: tint_overlay}` map over the condition
+    slots that actually have a manifest entry, so an **un-imported condition
+    emits nothing rather than a grey X**; `draws_tint(slot, art)` — the shared
+    predicate `game/ui/overlays.py` calls — then keeps drawing the flat colour
+    diamond for exactly those tiles (plus any slot whose entry opts back in via
+    `tint_overlay`). Both consumers read the SAME map, so a sprite and its tint
+    can never disagree about what exists. **Perf note:** this is one RenderItem
+    per visible tile WITH art, every frame — importing grass art puts the whole
+    visible window on the layer. Measure before shipping grass art;
+    `GroundCache` cannot absorb it (scroll-fill needs an opaque `bg_color`).
   - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
     modifiers` key table every stat-modifier consumer (buildings, enemies, UI
     tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —

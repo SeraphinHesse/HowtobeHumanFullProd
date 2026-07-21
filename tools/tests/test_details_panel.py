@@ -825,5 +825,95 @@ class TestSliceMargins(DetailsCase):
                          ["idle", "hover", "pressed", "disabled"])
 
 
+class TestConditionTintCheckbox(DetailsCase):
+    """The `conditions` category's tint fallback toggle. The game draws a flat
+    colour diamond per non-grass tile; that is a FALLBACK, so a slot with no
+    art forces it on (checked + disabled — there is no entry to write it to),
+    and once art exists the designer chooses. `tint_overlay` is optional in the
+    manifest: unchecked omits it entirely."""
+
+    UNASSIGN = ("cond_mountain", "painter_t1_lvl1")
+    CONTEXT = ("conditions", ("Terrain",))
+
+    def import_condition_sheet(self):
+        src = make_png(self.png_dir / "mountain.png", 64, 96)
+        self.panel.set_context(*self.CONTEXT)
+        self.panel.set_slot("cond_mountain")
+        self.panel.import_sheet(src)
+
+    def test_conditions_context_shows_the_row_and_others_hide_it(self):
+        self.panel.set_context(*self.CONTEXT)
+        self.assertFalse(self.panel._tint_row.isHidden())
+        self.panel.set_context("ui", ("Buttons",))
+        self.assertTrue(self.panel._tint_row.isHidden())
+
+    def test_no_art_forces_the_tint_on_and_locks_it(self):
+        self.panel.set_context(*self.CONTEXT)
+        self.panel.set_slot("cond_mountain")
+        self.assertTrue(self.panel._tint_check.isChecked())
+        self.assertFalse(self.panel._tint_check.isEnabled())
+
+    def test_importing_art_unlocks_the_choice(self):
+        """The gate is the LIVE rows, not the on-disk entry — so the box is
+        editable before the first save."""
+        self.import_condition_sheet()
+        self.assertTrue(self.panel._tint_check.isEnabled())
+
+    def test_unchecked_omits_the_key(self):
+        self.import_condition_sheet()
+        self.panel._tint_check.setChecked(False)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["cond_mountain"]
+        self.assertNotIn("tint_overlay", entry)
+        self.assertNotIn("tint_overlay", self.panel.draft_entry())
+
+    def test_checked_round_trips_through_save_and_reload(self):
+        self.import_condition_sheet()
+        self.panel._tint_check.setChecked(True)
+        self.panel.save()
+        self.assertIs(
+            self.manifest_doc()["entries"]["cond_mountain"]["tint_overlay"],
+            True)
+        self.panel.set_slot(None)
+        self.panel.set_slot("cond_mountain")        # re-read from disk
+        self.assertTrue(self.panel._tint_check.isChecked())
+        self.assertTrue(self.panel._tint_check.isEnabled())
+
+    def test_unticking_removes_the_key_on_resave(self):
+        self.import_condition_sheet()
+        self.panel._tint_check.setChecked(True)
+        self.panel.save()
+        self.panel._tint_check.setChecked(False)
+        self.panel.save()
+        self.assertNotIn("tint_overlay",
+                         self.manifest_doc()["entries"]["cond_mountain"])
+
+    def test_clearing_the_entry_forces_the_tint_back_on(self):
+        self.import_condition_sheet()
+        self.panel._tint_check.setChecked(True)
+        self.panel.save()
+        self.panel.clear_entry(confirm=False)
+        self.assertTrue(self.panel._tint_check.isChecked())
+        self.assertFalse(self.panel._tint_check.isEnabled())
+
+    def test_other_categories_never_emit_the_key(self):
+        self.panel.set_context("buildings", ("Defender",))
+        src = make_png(self.png_dir / "painter.png", 64, 96)
+        self.panel.set_slot("painter_t1_lvl1")
+        self.panel.import_sheet(src)
+        self.panel._tint_check.setChecked(True)
+        self.panel.save()
+        entry = self.manifest_doc()["entries"]["painter_t1_lvl1"]
+        self.assertNotIn("tint_overlay", entry)
+        self.assertNotIn("tint_overlay", self.panel.draft_entry())
+
+    def test_toggling_emits_a_draft(self):
+        self.import_condition_sheet()
+        drafts = []
+        self.panel.draft_changed.connect(lambda slot, e: drafts.append(e))
+        self.panel._tint_check.setChecked(True)
+        self.assertIs(drafts[-1]["tint_overlay"], True)
+
+
 if __name__ == "__main__":
     unittest.main()
