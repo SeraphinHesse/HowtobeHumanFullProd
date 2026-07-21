@@ -62,14 +62,45 @@ class TestAdvance(unittest.TestCase):
         self.assertEqual(pos, (0.0, 2.0))  # snapped onto the final waypoint
 
     def test_diagonal_unit_direction(self):
-        # 3-4-5 triangle: speed 5, dt 1 covers exactly the 5-unit distance...
+        # 3-4-5 triangle: speed 5, dt 1 covers exactly the 5-unit distance,
+        # and the overshoot clamp snaps exactly onto the target since
+        # step (5.0) >= dist (5.0).
         pos, index, arrived, end = advance((0.0, 0.0), [(3.0, 4.0)], 0, 5.0, 1.0)
-        # ...but with no clamp it lands ON the target only up to float error;
-        # here dist(5) is not < threshold so it steps the full unit vector.
         self.assertAlmostEqual(math.hypot(pos[0], pos[1]), 5.0, places=6)
-        self.assertAlmostEqual(pos[0], 3.0, places=6)
-        self.assertAlmostEqual(pos[1], 4.0, places=6)
-        self.assertFalse(arrived)
+        self.assertEqual(pos, (3.0, 4.0))
+        self.assertEqual(index, 1)
+        self.assertTrue(arrived)
+        self.assertTrue(end)
+
+    def test_overshoot_clamp_snaps_onto_waypoint(self):
+        # A step longer than the remaining distance must land exactly ON the
+        # waypoint and advance the index, not overshoot past it.
+        pos, index, arrived, end = advance((0.0, 0.0), [(1.0, 0.0)], 0, 10.0, 1.0)
+        self.assertEqual(pos, (1.0, 0.0))
+        self.assertEqual(index, 1)
+        self.assertTrue(arrived)
+        self.assertTrue(end)
+
+    def test_no_permanent_oscillation_regression(self):
+        # Regression pin for the jitter bug: a raider at 2x combat speed on a
+        # 30 fps frame (speed=5.4, dt=1/30 -> step=0.18, over 2*threshold=0.12)
+        # used to lock into a permanent two-position oscillation and never
+        # advance `index`. Walking a straight 20-waypoint path, x must be
+        # monotonically non-decreasing on every call, and the unit must reach
+        # the end within a few hundred calls.
+        waypoints = [(float(i), 0.0) for i in range(20)]
+        pos, index = (0.0, 0.0), 1
+        prev_x = pos[0]
+        end = False
+        for _ in range(500):
+            pos, index, _arrived, end = advance(pos, waypoints, index, 5.4, 1 / 30)
+            self.assertGreaterEqual(
+                pos[0], prev_x, "x position must never move backward"
+            )
+            prev_x = pos[0]
+            if end:
+                break
+        self.assertTrue(end, "unit failed to reach the end of the path")
 
 
 if __name__ == "__main__":

@@ -68,6 +68,11 @@ from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
     spawn_tree_slots, tile_at_screen,
 )
+from game.enemies import (
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
+    spawn_corpse,
+)
+from game.map import TileMap, condition_render_items, tile_at_screen
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
@@ -432,6 +437,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10L: fast-forward combat-speed buttons --
+        if isinstance(hud_action, tuple) and hud_action[0] == "speed":
+            session.set_combat_speed(hud_action[1])
+            return
+        # -- /10L speed --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
@@ -675,10 +685,26 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
+                # count + freeing the building's tile for good) runs first,
+                # then upgrade the default frozen-idle carry pose to the
+                # sheet's own `kidnap` row if it has one — `animation_total_ms`
+                # returns None (never an idle fallback) for a sheet without
+                # one, so this cleanly stays on the frozen-idle branch.
+                def _on_kidnap(enemy, building, _scene=world.scene):
+                    session.on_kidnap(enemy, building, _scene)
+                    anim = enemy.get_component(SpriteAnimator)
+                    if anim is not None:
+                        set_kidnap_pose(
+                            enemy,
+                            bool(assets.animation_total_ms(
+                                anim.slot_key, KIDNAP_ANIM)))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
+                               on_kidnap=_on_kidnap,
                                dmg_bonus=dmg_bonus)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once

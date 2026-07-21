@@ -2538,7 +2538,7 @@
           "loop_start": 0
         },
         {
-          "animation": "walk",
+          "animation": "attack",
           "fps": 6,
           "frames": 8,
           "hidden": [

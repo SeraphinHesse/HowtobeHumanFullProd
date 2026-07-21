@@ -39,7 +39,7 @@ from game.map.pathfinder import (
     find_path, find_path_ignoring_walls,
     find_path_to_nearest_non_base_building,
 )
-from .components import DeathSpawn, EnemyCombat, PathAgent
+from .components import DeathSpawn, EnemyCombat, Kidnap, PathAgent
 
 
 def variant_slot(registry, group_label, tier, rng=None, fallback=None):
@@ -122,6 +122,10 @@ class Enemy(GameObject):
                        at_hp_fraction=float(ds["at_hp_fraction"]),
                        spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
                        counts=dict(spawn_row)),
+            # Kidnapping (Art/enemies): LAST — it must tick after both
+            # Movement (sees arrival the same frame) and SpriteAnimator (its
+            # per-frame clock re-pin wins).
+            Kidnap(enabled=bool(block["kidnapping"])),
         ]
         super().__init__(
             name=self.ETYPE,
