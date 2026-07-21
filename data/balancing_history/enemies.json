@@ -1,6 +1,522 @@
 [
   {
     "description": "",
+    "id": "797e4975-a4e6-4c57-b221-7eb5befe2ac9",
+    "name": "enemy scaling nerfs but spawn interval increase",
+    "snapshot": {
+      "EnemyScaling": {
+        "base_enemy_count": 1,
+        "enemies_per_round": 2,
+        "scale_every_n_levels": 10,
+        "scale_tiers": [
+          {
+            "dmg": 5,
+            "hp": 35,
+            "spawn_interval": 0.065,
+            "speed": 0.05
+          },
+          {
+            "dmg": 10,
+            "hp": 50,
+            "spawn_interval": 0.09,
+            "speed": 0.1
+          },
+          {
+            "dmg": 15,
+            "hp": 70,
+            "spawn_interval": 0.1,
+            "speed": 0.2
+          },
+          {
+            "dmg": 18,
+            "hp": 85,
+            "spawn_interval": 0.13,
+            "speed": 0.2
+          },
+          {
+            "dmg": 25,
+            "hp": 100,
+            "spawn_interval": 0.3,
+            "speed": 0.25
+          }
+        ],
+        "spawn_interval": 0.8,
+        "spawn_ramp_enabled": true,
+        "spawn_ramp_range": 0.6
+      },
+      "EnemyTypes": {
+        "Boss": {
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": true,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              },
+              {
+                "raiders": 3,
+                "regular": 5,
+                "siege": 1
+              },
+              {
+                "raiders": 10,
+                "regular": 20,
+                "siege": 3
+              },
+              {
+                "raiders": 10,
+                "regular": 15,
+                "siege": 3
+              },
+              {
+                "raiders": 16,
+                "regular": 34,
+                "siege": 5
+              }
+            ]
+          },
+          "footprint": 2,
+          "round_counts": [
+            {
+              "raiders": 12,
+              "regular": 8,
+              "siege": 0
+            },
+            {
+              "raiders": 30,
+              "regular": 30,
+              "siege": 6
+            },
+            {
+              "raiders": 125,
+              "regular": 280,
+              "siege": 31
+            },
+            {
+              "raiders": 170,
+              "regular": 400,
+              "siege": 46
+            },
+            {
+              "raiders": 215,
+              "regular": 700,
+              "siege": 61
+            }
+          ],
+          "round_interval": 10,
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0,
+          "stats": [
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.5,
+              "dmg": 160,
+              "hp": 1500,
+              "move_speed": 0.44,
+              "name": "Throbbin Hood"
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.4,
+              "dmg": 320,
+              "hp": 2000,
+              "move_speed": 0.38,
+              "name": "Cannon Fortress"
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.3,
+              "dmg": 480,
+              "hp": 6500,
+              "move_speed": 0.39,
+              "name": "Wrecking Ball"
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.15,
+              "dmg": 700,
+              "hp": 10000,
+              "move_speed": 0.41,
+              "name": "Iron Drill"
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.0,
+              "dmg": 1000,
+              "hp": 15000,
+              "move_speed": 0.5,
+              "name": "Siege Tank"
+            }
+          ]
+        },
+        "Formation": {
+          "attack_range_tiles": 1,
+          "attack_speed": 1.4,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.5,
+            "enabled": true,
+            "spawn_hp_fraction": 0.8,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 4,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 30,
+          "footprint": 1,
+          "hp": 440,
+          "move_speed": 0.9,
+          "rounds_per_formation": 3,
+          "sprite_scale": 1.0,
+          "start_round": 16
+        },
+        "Raider": {
+          "attack_range_tiles": 1,
+          "attack_speed": 0.8,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 20,
+          "footprint": 1,
+          "hp": 42,
+          "move_speed": 2.7,
+          "per_round": 1,
+          "sprite_scale": 1.0,
+          "start_round": 5
+        },
+        "SiegeCannon": {
+          "attack_range_tiles": 2,
+          "attack_speed": 1.9,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 100,
+          "footprint": 1,
+          "hp": 280,
+          "mix_ratio": 0.5,
+          "move_speed": 1.0,
+          "queue_lead_count": 5,
+          "rounds_per_cannon": 1,
+          "sprite_scale": 1.0,
+          "start_round": 14
+        },
+        "Standard": {
+          "attack_range_tiles": 1,
+          "attack_speed": 1.2,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 10,
+          "footprint": 1,
+          "hp": 55,
+          "move_speed": 1.2,
+          "sprite_scale": 1.0
+        }
+      },
+      "MortarTargeting": {
+        "predictive_targeting": true
+      }
+    },
+    "timestamp": "2026-07-21T16:04:07"
+  },
+  {
+    "description": "",
+    "id": "285445db-47cc-4ec8-9f71-f7072d463af9",
+    "name": "raider hp buff enemy scaling dmg nerf but hp buff",
+    "snapshot": {
+      "EnemyScaling": {
+        "base_enemy_count": 1,
+        "enemies_per_round": 2,
+        "scale_every_n_levels": 10,
+        "scale_tiers": [
+          {
+            "dmg": 6,
+            "hp": 35,
+            "spawn_interval": 0.065,
+            "speed": 0.05
+          },
+          {
+            "dmg": 12,
+            "hp": 55,
+            "spawn_interval": 0.09,
+            "speed": 0.1
+          },
+          {
+            "dmg": 14,
+            "hp": 70,
+            "spawn_interval": 0.099,
+            "speed": 0.2
+          },
+          {
+            "dmg": 18,
+            "hp": 90,
+            "spawn_interval": 0.13,
+            "speed": 0.2
+          },
+          {
+            "dmg": 30,
+            "hp": 155,
+            "spawn_interval": 0.19,
+            "speed": 0.25
+          }
+        ],
+        "spawn_interval": 0.8,
+        "spawn_ramp_enabled": true,
+        "spawn_ramp_range": 0.6
+      },
+      "EnemyTypes": {
+        "Boss": {
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": true,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              },
+              {
+                "raiders": 3,
+                "regular": 5,
+                "siege": 1
+              },
+              {
+                "raiders": 10,
+                "regular": 20,
+                "siege": 3
+              },
+              {
+                "raiders": 10,
+                "regular": 15,
+                "siege": 3
+              },
+              {
+                "raiders": 16,
+                "regular": 34,
+                "siege": 5
+              }
+            ]
+          },
+          "footprint": 2,
+          "round_counts": [
+            {
+              "raiders": 12,
+              "regular": 8,
+              "siege": 0
+            },
+            {
+              "raiders": 30,
+              "regular": 30,
+              "siege": 6
+            },
+            {
+              "raiders": 125,
+              "regular": 280,
+              "siege": 31
+            },
+            {
+              "raiders": 170,
+              "regular": 400,
+              "siege": 46
+            },
+            {
+              "raiders": 215,
+              "regular": 700,
+              "siege": 61
+            }
+          ],
+          "round_interval": 10,
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0,
+          "stats": [
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.5,
+              "dmg": 160,
+              "hp": 1500,
+              "move_speed": 0.44,
+              "name": "Throbbin Hood"
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.4,
+              "dmg": 320,
+              "hp": 2000,
+              "move_speed": 0.38,
+              "name": "Cannon Fortress"
+            },
+            {
+              "attack_range_tiles": 2,
+              "attack_speed": 1.3,
+              "dmg": 480,
+              "hp": 6500,
+              "move_speed": 0.39,
+              "name": "Wrecking Ball"
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.15,
+              "dmg": 700,
+              "hp": 10000,
+              "move_speed": 0.41,
+              "name": "Iron Drill"
+            },
+            {
+              "attack_range_tiles": 3,
+              "attack_speed": 1.0,
+              "dmg": 1000,
+              "hp": 15000,
+              "move_speed": 0.5,
+              "name": "Siege Tank"
+            }
+          ]
+        },
+        "Formation": {
+          "attack_range_tiles": 1,
+          "attack_speed": 1.4,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.5,
+            "enabled": true,
+            "spawn_hp_fraction": 0.8,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 4,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 30,
+          "footprint": 1,
+          "hp": 440,
+          "move_speed": 0.9,
+          "rounds_per_formation": 3,
+          "sprite_scale": 1.0,
+          "start_round": 16
+        },
+        "Raider": {
+          "attack_range_tiles": 1,
+          "attack_speed": 0.8,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 20,
+          "footprint": 1,
+          "hp": 42,
+          "move_speed": 2.7,
+          "per_round": 1,
+          "sprite_scale": 1.0,
+          "start_round": 5
+        },
+        "SiegeCannon": {
+          "attack_range_tiles": 2,
+          "attack_speed": 1.9,
+          "base_count": 1,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 100,
+          "footprint": 1,
+          "hp": 280,
+          "mix_ratio": 0.5,
+          "move_speed": 1.0,
+          "queue_lead_count": 5,
+          "rounds_per_cannon": 1,
+          "sprite_scale": 1.0,
+          "start_round": 14
+        },
+        "Standard": {
+          "attack_range_tiles": 1,
+          "attack_speed": 1.2,
+          "death_spawn": {
+            "at_hp_fraction": 0.0,
+            "enabled": false,
+            "spawn_hp_fraction": 1.0,
+            "spawns": [
+              {
+                "raiders": 0,
+                "regular": 0,
+                "siege": 0
+              }
+            ]
+          },
+          "dmg": 10,
+          "footprint": 1,
+          "hp": 55,
+          "move_speed": 1.2,
+          "sprite_scale": 1.0
+        }
+      },
+      "MortarTargeting": {
+        "predictive_targeting": true
+      }
+    },
+    "timestamp": "2026-07-21T15:26:16"
+  },
+  {
+    "description": "",
     "id": "7c2c0b52-fc41-4575-a251-a76945b98e09",
     "name": "further buffs to enemy scaling",
     "snapshot": {

@@ -191,21 +191,21 @@
       "starts_unlocked": false,
       "tiers": [
         {
-          "attack_speed": 2.5,
-          "base_dmg": 22,
+          "attack_speed": 2.9,
+          "base_dmg": 20,
           "base_hp": 150,
-          "base_radius": 1.2,
+          "base_radius": 1.0,
           "base_upkeep": 3,
-          "build_cost": 30,
+          "build_cost": 35,
           "dmg_per_level": 4,
           "explanation": "An organic mortar that deals area damage to enemy hordes.",
           "hp_per_level": 50,
           "levels": 3,
           "name": "Maw Mortar",
-          "radius_per_level": 0.15,
+          "radius_per_level": 0.125,
           "range_tiles": 4,
           "unlock_min_round": 0,
-          "upgrade_cost_base": 25,
+          "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
         },
@@ -229,7 +229,7 @@
           "upkeep_per_level": 3
         },
         {
-          "attack_speed": 2.3,
+          "attack_speed": 2.0,
           "base_dmg": 65,
           "base_hp": 600,
           "base_radius": 1.9,
