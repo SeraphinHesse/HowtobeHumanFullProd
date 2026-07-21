@@ -425,8 +425,8 @@
               "label": "Era 1",
               "slots": [
                 {
-                  "frame_h": 43,
-                  "frame_w": 43,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_1"
                 }
               ]
@@ -435,8 +435,8 @@
               "label": "Era 2",
               "slots": [
                 {
-                  "frame_h": 43,
-                  "frame_w": 43,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_2"
                 }
               ]
@@ -445,8 +445,8 @@
               "label": "Era 3",
               "slots": [
                 {
-                  "frame_h": 43,
-                  "frame_w": 43,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_3"
                 }
               ]
@@ -455,8 +455,8 @@
               "label": "Era 4",
               "slots": [
                 {
-                  "frame_h": 43,
-                  "frame_w": 43,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_4"
                 }
               ]
