@@ -2740,80 +2740,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2830,80 +2765,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2920,80 +2790,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3028,90 +2833,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
+          "frames": 7,
           "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            0,
+            1,
+            2,
+            4,
+            5,
+            6
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3128,90 +2858,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
+          "frames": 7,
           "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            0,
+            1,
+            2,
+            3,
+            5,
+            6
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3228,90 +2883,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
+          "frames": 7,
           "hidden": [
-            8,
-            9,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            0,
+            1,
+            2,
+            3,
+            4,
+            6
           ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -4771,6 +4351,156 @@
       ],
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
+    "storm_priest_i_t1_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_i_t1_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_i_t1_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "storm_priest_ii_t2_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_ii_t2_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v5.png"
+    },
+    "storm_priest_iii_t3_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_bush.png"
+    },
+    "storm_priest_iii_t3_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "storm_priest_iii_t3_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v3.png"
+    },
     "sun_scorcher_t1_lvl1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -5394,80 +5124,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5484,80 +5149,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5574,80 +5174,15 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "attack",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "hurt",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "place",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "upgrade",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "idle",
-          "fps": 6,
-          "frames": 17,
-          "hidden": [],
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -6184,17 +5719,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 10,
+          "frames": 2,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8
+            0
           ],
           "loop_count": 1,
           "loop_end": 0,
