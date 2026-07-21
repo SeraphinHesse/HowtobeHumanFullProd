@@ -1,4 +1,12 @@
 {
+  "Camera": {
+    "default_zoom": 2.0,
+    "zoom_levels": [
+      1.0,
+      2.0,
+      4.0
+    ]
+  },
   "General": {
     "game_scale_rounds": 15,
     "starting_currency": 25
@@ -47,7 +55,7 @@
     "xp_on_base_damage_kill": true,
     "xp_per_boss": 150,
     "xp_per_raider": 1,
-    "xp_per_siege_enemy": 3,
+    "xp_per_siege_enemy": 5,
     "xp_per_standard_enemy": 1
   }
 }

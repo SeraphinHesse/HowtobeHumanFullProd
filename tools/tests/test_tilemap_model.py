@@ -193,6 +193,15 @@ class TestRenderItems(unittest.TestCase):
                 if i.layer == "deco"]
         self.assertEqual(deco[0].anim_time_ms, 1000 + expected_phase)
 
+    def test_deco_flip_passes_through_to_render_item(self):
+        doc = make_doc()
+        doc.deco.append({"col": 3, "row": 1, "slot": "deco_tree", "flip": True})
+        doc.deco.append({"col": 2, "row": 1, "slot": "deco_tree"})
+        deco = {i.world_pos: i.flip
+                for i in tilemap.render_items(doc) if i.layer == "deco"}
+        self.assertTrue(deco[(3, 1)])
+        self.assertFalse(deco[(2, 1)])   # no "flip" key -> defaults false
+
 
 class TestVisibleRenderItems(unittest.TestCase):
     """Windowed culling emitter: identical to render_items for the covered
@@ -234,6 +243,13 @@ class TestVisibleRenderItems(unittest.TestCase):
             doc, 25, 35, 25, 35, anim_time_ms=500)
         deco = [i for i in items if i.layer == "deco"]
         self.assertEqual(deco[0].anim_time_ms, 500 + expected_phase)
+
+    def test_deco_flip_passes_through_to_render_item(self):
+        doc = make_doc(cols=40, rows=40)
+        doc.deco.append({"col": 30, "row": 30, "slot": "deco_tree", "flip": True})
+        items = tilemap.visible_render_items(doc, 25, 35, 25, 35)
+        deco = [i for i in items if i.layer == "deco"]
+        self.assertTrue(deco[0].flip)
 
 
 class TestCameraStart(unittest.TestCase):

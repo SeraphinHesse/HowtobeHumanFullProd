@@ -20,7 +20,7 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`) (D-10).
+  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
 - `balancing_history/` — one file per domain (`buildings.json`, …, matching
   `balancing/`'s stems), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
@@ -45,10 +45,63 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- All five domains exist: `balancing/{buildings,enemies,map,ui,core}.json`,
-  each with `schemas/<domain>.schema.json`. Since **Phase 9A** they hold the
-  prototype's live tuning verbatim, restructured into the REPLAN nested
-  feature tree (see planning/MIGRATION_PLAN.md): PascalCase group objects
+- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
+  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+  it promoted `vfx` from an asset-only `slots.json` category to a full
+  balancing domain (`editor/domains.py::domains()` derives the domain list,
+  so this needed zero editor edits — see `/add-category`). Its `procedural`
+  top-level block holds the particle/gold/slash/splatter emitter tunables
+  ported out of `game/ui/effects.py` module constants (spark bursts,
+  building-death shards, muzzle spray, melee slash, gold tile highlight,
+  blood splatter, floater colour/lifetime); `engine/vfx/` holds the pure
+  emitters, injected with these values as frozen dataclasses (D5 — the
+  engine never reads `data/` itself). **ESV-3b** added four more sibling
+  blocks inside the same `procedural` object — `beam` (Sun Scorcher line
+  colour ramp/width/origin-lift), `crater` (mortar scorch colour/alpha/fade
+  life), `lightning` (bolt/flash/marker colours, widths, jitter, segment
+  count, the two fade lifetimes), `announce` (boss-banner colour/alpha
+  ceiling) — reusing the same `$defs/color`/`$defs/ramp` schema shapes.
+  Unlike ESV-3a's five, none of these four are `VfxSystem` state: the scene
+  already owns the crater/lightning fade clocks (`CraterFade`/
+  `LightningFXFade` components), so the two cosmetic lifetimes
+  (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+  REQUIRED constructor arguments from `game/enemies/combat.py`'s
+  `resolve_combat` / `game/core/lightning.py`'s `strike` down to those
+  components — never a code-side default. **ESV-5** added the promised
+  sibling `triggers` object at the top level: one row per cosmetic EVENT
+  (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+  `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact`,
+  `defender_fire`), each `{sprite_slot, procedural}` — an enum'd `vfx_*` slot
+  key (or `""`) to play as a one-shot sprite when it has imported art, and an
+  enum'd procedural fallback (or `""` for a silent no-op). `slots.json`'s
+  `vfx` category's `Effects` group grew four new slots for this —
+  `vfx_muzzle`/`vfx_death`/`vfx_slash`/`vfx_crater` — alongside the two
+  pre-existing, still-unbound `vfx_hit`/`vfx_explosion`. **ESV-6** (the
+  plan's final phase) added the 10th trigger row, `projectile_hit`
+  (`{sprite_slot: "", procedural: ""}`, shipped INERT like `defender_fire`) —
+  the target's `impact` anchor at a homing projectile's landing, and the
+  first consumer of the `vfx_hit`/`vfx_explosion` slots the plan's opening
+  complaint named as orphaned. The `sprite_slot` enum already accepted both
+  before this phase; only the `triggers` object's `properties`/`required`
+  needed the new key. ESV-6 also re-pointed a subset of the ESV-5 dispatch
+  sites at manifest anchors (VISUAL ONLY, D4) — a `data/` change to
+  `data/balancing/vfx.json` content, not to its schema. **The
+  fix-anchor-offset-and-bullet-sprites follow-up** (post-ESV live-testing)
+  added a sibling `procedural.projectile` block — `stone_color`/
+  `shell_color`/`stone_size`/`shell_size`/`lift_frac`, the fallback dot
+  `submit_projectiles` draws for an in-flight shot with no imported sprite —
+  and two new `vfx` category slots in `slots.json`'s `Effects` group,
+  `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
+  respectively, never per-building art), both bare strings inheriting the
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
+  NOT a `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
+  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
+  touches no schema. Since **Phase 9A** the other
+  five hold the prototype's live tuning verbatim, restructured into the
+  REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
+  group objects
   (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
   tier struct-lists under a `tiers` key with the prototype's field names
   verbatim. The prototype's 4 stringified
@@ -64,6 +117,24 @@ validating writer; don't hand-edit the JSON.
   art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
   `Boss/stats` row were deleted from content AND schema in the same change:
   nothing read them, and render size now derives from the footprint.
+- **`registry_group` (fix-editor-preview-footprint)**: each `EnemyTypes/*`
+  block also carries a required `registry_group` string — the
+  `data/slots.json` "enemies" group label that type's sprites live under
+  (`Standard`->`"Walker"`, `Raider`->`"Raider"`, `SiegeCannon`->`"Siege
+  Cannon"`, `Formation`->`"Formation"`, `Boss`->`"Boss"`). It exists so
+  `editor/sprite_fit.py`'s pure `slot_draw_fit` resolver can find a preview
+  slot's real render `(footprint, sprite_scale)` — the values a `RenderItem`
+  needs for the entity preview and its anchor handle to match the game
+  (`editor/panels/CLAUDE.md`'s Anchor handles section) — WITHOUT the editor
+  importing `game/` (D5). The link previously existed only in
+  `game/enemies/enemy.py`'s Python `REGISTRY_GROUP` class constants, and two
+  of the five labels do NOT match their `EnemyTypes` key by string
+  (`Standard`/`SiegeCannon`), so matching by convention would have violated
+  "schemas over convention" — hence a real, required data field instead.
+  `game/enemies/enemy.py`'s `REGISTRY_GROUP` constants remain a second,
+  UN-refactored home for the same value (deliberate, reported follow-up
+  work); `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` pins the
+  two together.
 - **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
   **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
   once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`
@@ -123,8 +194,12 @@ validating writer; don't hand-edit the JSON.
   `key/display_name/frame_w/frame_h/animations/groups`. `animations[0]` is
   always `idle` (schema-enforced). `groups` is a recursive tree of
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
-  ONE category (meditators reuse musician art) but never across categories
-  (frame size would be ambiguous — loader rejects it).
+  ONE category (shared art) but never across categories
+  (frame size would be ambiguous — loader rejects it). **No committed group
+  shares a key today** — the Meditator line used to point at the Musician's
+  `flute_player`/`harp_player`/`trio` slots and was deliberately given its own
+  `meditator_`/`shaman_`/`sun_priest_` keys, so the two lines can never drag
+  each other's art around again.
 - **`slots[]` entries: bare key OR frame-size override (ER-1, D1)**. An entry is
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
   `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the
@@ -148,15 +223,24 @@ validating writer; don't hand-edit the JSON.
     `engine/tilemap.py` precedent).
 - **`conditions` (Tile Conditions) is an asset-only category** (no
   `balancing/conditions.json`, no `schemas/conditions.schema.json`) holding the
-  art for the four runtime tile conditions: one group `Terrain` with leaf
-  children `Grass`/`Mountain`/`Pond`/`Forest`, so each is a variant family
-  ("+ Variant" → `cond_mountain_v2`, and the game rolls between them PER TILE).
-  64×96 like buildings/deco, NOT 64×32 like map tiles — a mountain rises above
-  its tile. Keys are `cond_*` on purpose: `tile_forest` already belongs to the
-  `map` category's backgrounds, and a key in two categories is a load error.
-  Tile conditions are **not** in the map file — they roll at runtime — so
-  nothing here is paintable; the editor only imports their art. Rendering +
-  the tint fallback → `game/map/CLAUDE.md`.
+  art for the four runtime tile conditions, restructured so each condition
+  type is its OWN top-level group — `Grass`/`Mountain`/`Pond`/`Forest` — and
+  WITHIN each, one leaf child per zone STATE — `Buildable`/`Built`/`Combat`/
+  `Spawning` — each independently a variant family ("+ Variant" →
+  `cond_mountain_buildable_v2`). Slot key convention: `cond_<condition>_
+  <state>` (`cond_mountain_buildable`, `cond_mountain_built`,
+  `cond_mountain_combat`, `cond_mountain_spawning`, …), 16 slots total. The
+  game rolls a condition + a variant index PER TILE once at map load
+  (`game/map/CLAUDE.md`'s roll), but the ART slot it resolves to is
+  **dynamic**: it re-resolves to the tile's current zone state's family
+  (at the SAME stable variant index) every time `TileMap.set_tile_state`
+  fires, so e.g. a mountain looks different once built-over. 64×96 like
+  buildings/deco, NOT 64×32 like map tiles — a mountain rises above its tile.
+  Keys are `cond_*` on purpose: `tile_forest` already belongs to the `map`
+  category's backgrounds, and a key in two categories is a load error. Tile
+  conditions are **not** in the map file — they roll at runtime — so nothing
+  here is paintable; the editor only imports their art. Rendering + the tint
+  fallback → `game/map/CLAUDE.md`.
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,
@@ -186,6 +270,19 @@ validating writer; don't hand-edit the JSON.
   `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
   by the editor's import panel, through `write_validated`. (The one-shot
   migration tool that seeded it is deleted — the editor is the only door now.)
+  - **`slice` (A2) and `anchors` (ESV-1) are the two OPTIONAL per-entry keys** —
+    everything else is `required`. `"slice": [left, top, right, bottom]`, ints
+    0..1024, nine-slice margins in FRAME pixels (same convention as
+    `offset_x`/`offset_y`). It exists so a UI panel/button skin can be drawn at
+    any size with its corners intact: corners blit 1:1, edges stretch on one
+    axis, the centre on both. **HUD sprites only** — world sprites ignore it and
+    keep uniform zoom scaling. Omit it for plain scaling; no committed entry
+    carries one yet. The geometry lives in `engine/render/backend.py` (see
+    `engine/render/CLAUDE.md`). `"anchors": {muzzle?, impact?, hp_bar?,
+    floater_origin?, status_icon?, beam_endpoint?}` — six declared named
+    `[x, y]` frame-px handle points, all optional, same coordinate convention.
+    Unlike `slice` they are pure metadata (never affect slicing/blitting); see
+    `engine/assets/CLAUDE.md`. No committed entry carries one yet.
   - **`slice` (A2) and `tint_overlay` are the OPTIONAL per-entry keys** —
     everything else is `required`. `tint_overlay` (bool) is a render hint the
     engine carries uninterpreted: "keep drawing the consumer's own flat colour

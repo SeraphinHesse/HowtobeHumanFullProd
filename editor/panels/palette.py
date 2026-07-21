@@ -80,6 +80,7 @@ class PalettePanel(QWidget):
     add_prop_requested = Signal()    # + Add Prop (new deco type)
     add_deco_variant_requested = Signal(str)  # + Variant (deco type label)
     background_slot_armed = Signal(str)  # a not-yet-bound background slot clicked
+    deco_flip_toggled = Signal(bool)    # mirror-flip toggle for the deco brush
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -180,6 +181,11 @@ class PalettePanel(QWidget):
         self._add_prop_btn.setToolTip("Add a brand-new decoration type")
         self._add_prop_btn.clicked.connect(self.add_prop_requested.emit)
         self._pages["decoration"][2].addWidget(self._add_prop_btn)
+
+        self._deco_flip_box = QCheckBox("Mirror Flip", self)
+        self._deco_flip_box.setChecked(False)
+        self._deco_flip_box.toggled.connect(self.deco_flip_toggled.emit)
+        self._pages["decoration"][2].addWidget(self._deco_flip_box)
 
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
@@ -468,6 +474,11 @@ class PalettePanel(QWidget):
         index = self._deco_type_combo.findText(label) if label else -1
         if index >= 0:
             self._deco_type_combo.setCurrentIndex(index)
+
+    def toggle_deco_flip(self):
+        """Flip the Mirror Flip checkbox's checked state — the keybind's
+        entry point (MainWindow can't reach `_deco_flip_box` directly)."""
+        self._deco_flip_box.toggle()
 
     def _deco_type_of(self, slot):
         """The type label owning a deco variant slot ('' when unknown)."""

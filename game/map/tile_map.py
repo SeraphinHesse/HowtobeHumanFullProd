@@ -15,8 +15,10 @@ map-driven. Pure Python — no pygame.
 from dataclasses import dataclass
 
 from game.core.balance import load_balance
+from .spawn_deco import spawn_tree_slots
 from .tiles import (
-    CONDITION_CATEGORY, CONDITION_GROUP, Tile, TileCondition, TileState,
+    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL,
+    Tile, TileCondition, TileState,
 )
 
 
@@ -75,30 +77,48 @@ def load_map_balance(data_dir):
     return load_balance(data_dir, "map")
 
 
-def _condition_slot(registry, condition, rng):
-    """A random art slot for ``condition`` from the ``conditions`` registry
-    category, or None when there is no registry / group / slots.
+def _resolve_condition_slot(registry, condition, state, variant_idx):
+    """The art slot for ``condition`` in its CURRENT zone ``state``, at the
+    tile's stable ``variant_idx`` — or None when there is no registry /
+    condition label / state label / group / slots.
 
-    Same shape as ``game.enemies.enemy.variant_slot``: the condition's group
-    holds interchangeable variants (``cond_mountain``, ``cond_mountain_v2``, …),
-    so dropping a new variant in via the editor grows the pool with NO code
-    change. Pure — the caller owns the rng."""
+    Two-axis lookup: `CONDITION_LABEL[condition]` selects the condition's
+    top-level group, `CONDITION_STATE_LABEL[state]` selects the state's leaf
+    family WITHIN it. ``variant_idx % len(variants)`` keeps the index
+    well-defined even when a state's pool is smaller than another's (e.g.
+    Spawning starts with fewer/no imported variants) — same shape as
+    ``game.enemies.enemy.variant_slot``, so dropping a new variant in via the
+    editor grows the pool with NO code change. Pure — callers own the index."""
     if registry is None:
         return None
-    path = CONDITION_GROUP.get(condition)
-    if path is None:
+    cond_label = CONDITION_LABEL.get(condition)
+    state_label = CONDITION_STATE_LABEL.get(state)
+    if cond_label is None or state_label is None:
         return None
     try:
-        variants = registry.group_slots(CONDITION_CATEGORY, path)
+        variants = registry.group_slots(
+            CONDITION_CATEGORY, (cond_label, state_label))
     except KeyError:
         return None
-    return rng.choice(variants) if variants else None
+    return variants[variant_idx % len(variants)] if variants else None
 
 
 class TileMap:
     def __init__(self, doc, balance, rng=None, registry=None):
         self._doc = doc
         self._balance = balance
+        # Kept on the instance (not just a local) so `set_tile_state` can
+        # re-resolve condition art on every zone transition AFTER this
+        # constructor returns. Deliberately left None until the end of
+        # __init__ (assigned right after the condition-art init pass below):
+        # the base tile's own early `set_tile_state(..., BUILT)` call a few
+        # lines down must NOT re-resolve art from a not-yet-rolled
+        # `condition_variant_idx` — that pass, not this seam, owns the
+        # tile's FIRST resolve. This keeps `registry`-without-`rng` (a
+        # headless-fixture-only combination; the real game always passes
+        # both) behaving exactly as it did before set_tile_state gained an
+        # art seam: every slot stays None.
+        self._registry = None
         self.cols = doc.cols
         self.rows = doc.rows
         # A map may have NO hole (editor allows it with a warning). base_col/row
@@ -212,7 +232,7 @@ class TileMap:
                 t.condition = rng.choices(conds, weights=weights)[0]
         # -- /10I --
 
-        # -- Condition ART: one variant slot per tile, rolled ONCE here -----
+        # -- Condition ART: one variant index per tile, rolled ONCE here ----
         # A SEPARATE pass from the roll above on purpose: the roll's
         # eligibility rules are prototype-exact gameplay (and every path-cost
         # fixture depends on them), whereas art covers every playable tile
@@ -220,12 +240,57 @@ class TileMap:
         # a hole where the base sits. BACKGROUND tiles are terrain, not
         # conditions, and stay slotless. No registry (headless fixtures) or no
         # rng ⇒ every slot stays None ⇒ the terrain layer emits nothing.
+        #
+        # The variant INDEX is picked once, sized against the tile's own
+        # INITIAL state's family, and never re-rolled — `set_tile_state`
+        # re-resolves `condition_slot` at this same index against whatever
+        # state's family is active, keeping "variant #2" stable across a
+        # zone transition (buildable -> built -> combat -> …).
         if rng is not None and registry is not None:
+            # -- Spawn-band deco: one packed roll per tile, folded into THIS
+            # pass. Deliberately not a third O(map) walk (perf invariant,
+            # game/map/CLAUDE.md): every tile is already visited here for
+            # condition art, so the tree roll rides along for free. Family
+            # size is hoisted out of the loop (one registry lookup, not one
+            # per tile). Rolled for EVERY tile, BEFORE the BACKGROUND
+            # `continue` below — a BACKGROUND tile is exactly the kind that
+            # later backfills into SPAWNING (spawn recede), and it must
+            # already carry its roll when that happens, since nothing
+            # re-rolls it then. `spawn_deco.py` reads `tile.state` live at
+            # emit time, so a tile's tree only ever actually draws while
+            # SPAWNING — no `set_tile_state` hook needed for it to vanish on
+            # COMBAT conversion.
+            # Sized against the SHARED family definition (`spawn_deco.py`) —
+            # never a local `group_slots` call, or the roll's modulus could
+            # drift from the family the emitter actually indexes.
+            n_tree = len(spawn_tree_slots(registry))
+            tree_chance = balance["SpawnDeco"]["tree_chance"]
+
             for t in self.all_tiles():
+                if n_tree and rng.random() < tree_chance:
+                    t.spawn_deco_roll = rng.randrange(n_tree) * 2 + rng.randrange(2)
                 if t.state == TileState.BACKGROUND:
                     continue
-                t.condition_slot = _condition_slot(registry, t.condition, rng)
+                cond_label = CONDITION_LABEL.get(t.condition)
+                state_label = CONDITION_STATE_LABEL.get(t.state)
+                family = ()
+                if cond_label is not None and state_label is not None:
+                    try:
+                        family = registry.group_slots(
+                            CONDITION_CATEGORY, (cond_label, state_label))
+                    except KeyError:
+                        family = ()
+                t.condition_variant_idx = (
+                    rng.randrange(len(family)) if family else 0)
+                t.condition_slot = _resolve_condition_slot(
+                    registry, t.condition, t.state, t.condition_variant_idx)
         # -- /condition art --
+
+        # NOW it is safe to expose the registry to `set_tile_state`: every
+        # tile's variant index (if any) is already rolled, so a runtime zone
+        # transition re-resolving art will read a meaningful index instead of
+        # the Tile default (0).
+        self._registry = registry
 
     # -- balancing accessors ----------------------------------------------
 
@@ -288,6 +353,15 @@ class TileMap:
                 self.terrain_overrides[(tile.col, tile.row)] = code
             if self.on_zone_change is not None:
                 self.on_zone_change()
+        # Condition ART is state-driven since the per-state restructuring:
+        # re-resolve at the SAME variant index so a tile's art switches live
+        # between buildable/built/combat/spawning looks as its zone actually
+        # changes. Skipped for BACKGROUND (never gets condition art, same as
+        # the init pass) and when there is no registry (headless fixtures).
+        if self._registry is not None and new_state != TileState.BACKGROUND:
+            tile.condition_slot = _resolve_condition_slot(
+                self._registry, tile.condition, new_state,
+                tile.condition_variant_idx)
 
     def all_tiles(self):
         for r in range(self.rows):

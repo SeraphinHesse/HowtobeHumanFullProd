@@ -51,7 +51,9 @@ def is_domain_category(key, data_dir=None):
     balancing FILE is missing is still an intended domain, and the selector
     omits it whole rather than showing it as an asset-only category (a
     domain_selected on it would drive the balancing panel into a missing
-    file). vfx/deco/backgrounds carry no schema — they are asset-only."""
+    file). deco/backgrounds carry no schema — they are asset-only. vfx
+    WAS asset-only too, until ESV-3a gave it data/schemas/vfx.schema.json +
+    data/balancing/vfx.json — it is a balancing domain now."""
     return schema_path(key, data_dir).exists()
 
 

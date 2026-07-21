@@ -62,6 +62,33 @@ Both are fixed screen-pixel sizes (never zoom-scaled), anchored through
 the HUD pass — i.e. always on top, never depth-sorted (the accepted "HUD on top"
 simplification). Covered by `tools/tests/test_enemy_hp_bars.py`.
 
+**ESV-1 (SUPERSEDED by fix-anchor-origin-parity, below) originally added an
+optional manifest `hp_bar` anchor as a composed SCREEN OFFSET** on top of
+`_sprite_top`'s baseline (enemies) / the flat `cy - tile_h*zoom` baseline
+(buildings) via `game/anchors.py`'s `screen_offset`/`world_offset`, later
+taught to compose the entry's `offset_x`/`offset_y` draw nudge too
+(**fix-anchor-offset-and-bullet-sprites Fix 1**, reversing ESV-2 §1.4 — see
+`docs/briefs/fix-anchor-offset-and-bullet-sprites.md`). Both functions and
+this whole "offset on top of a baseline" model are DELETED.
+
+**fix-anchor-origin-parity (current)**: an authored `hp_bar` anchor now
+**replaces the baseline outright** rather than nudging it — "anchor wins
+outright" (the designer's decision, `docs/briefs/fix-anchor-origin-
+parity.md`). `submit_hp_bars`/`submit_enemy_hp_bars` call `game.anchors.
+anchor_world_point(assets, cs, obj, "hp_bar")`; when it returns a point, the
+bar's screen anchor is `cs.world_to_screen(point)`, full stop — `_sprite_top`
+is not consulted at all. `None` (no anchor authored, or the store/cs/
+animator is absent) falls back to exactly the pre-ESV-1 baseline expression,
+byte-identical. The measured root cause this replaced: the old baseline
+(`cs.world_to_screen(obj.transform.world_pos)` for VFX, `_sprite_top` for
+enemy bars) was NOT where `engine/render`'s `Renderer.flush` actually draws
+the sprite's centre, so an offset composed on top of it still missed by the
+same gap (`tile_h/2*zoom`, 16px at zoom 1, plus `block_center_offset` for a
+multi-tile footprint) — see `game/anchors.py`'s module docstring and
+`engine/render/CLAUDE.md`'s Anchor convention section for the one shared
+formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
+resolves through.
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -85,7 +112,11 @@ logic is `game/core` — see that doc.)
   `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
   "SOMETHING BIG / IS APPROACHING!" banner over the
   `boss_announce.{fade_in,hold,fade_out}` timings (a real text-alpha fade
-  since 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
+  since 10J; **ESV-3b**: the colour + max alpha are now
+  `data/balancing/vfx.json procedural.announce`, read off
+  `FloaterManager._vfx_params.announce` — the two copy strings and the
+  timings stay put, screen-skinning/`ui.json` territory respectively);
+  `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
   NOT drawn here — see the enemy HP bars below, which own every overhead bar in
@@ -156,7 +187,10 @@ world-space diamond for each `"crater"` GameObject a mortar shell left (the
 the sanctioned `game/ui → game/buildings.components` read (building_ui already
 imports it). 10J made the crater an alpha-filled diamond; the beam stays a
 plain line (an alpha GLOW under it remains unported — `HudLines` carries no
-alpha; accepted).
+alpha; accepted). **ESV-3b**: the beam colour ramp/width/origin-lift and the
+crater colour/alpha are now `data/balancing/vfx.json` (`procedural.beam`/
+`.crater`), read off `FloaterManager._vfx_params`; the crater's fade LIFE is
+still on its own `CraterFade` component, now fed from the same domain.
 
 ## Lightning + cheat menu UI (10H; Storm Priest rework)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
@@ -194,6 +228,14 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
   fading yellow world-space diamond sized to the real blast radius (projects
   to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
+  expanding impact-flash polygon, and the alpha marker fade. **ESV-3b**:
+  every colour/width/segment/jitter/flash/marker-alpha number here is now
+  `data/balancing/vfx.json procedural.lightning`, read off
+  `FloaterManager._vfx_params.lightning`; the bolt's per-frame jitter now
+  draws through `self._rng` (shared with `self._vfx`'s injected `random`)
+  instead of the bare module-level call. The two fade LIFEs
+  (`bolt_life`/`marker_life`) are on `LightningFXFade`, fed from the same
+  domain via `lightning.strike`'s new required `vfx` argument.
   expanding impact-flash polygon, and the alpha marker fade. The placed Storm
   Priest's own "attack"/"idle" sprite flash (`game.core.lightning
   .LightningCaster`) is a WORLD sprite, not part of this overlay FX — driven
@@ -268,11 +310,155 @@ imports:
   `watch_buildings` (death burst + kill log; alive-flip watcher),
   `watch_enemies` (muzzle/slash on an `EnemyCombat.cooldown` reset while
   blocked — no core hook needed), `submit_projectiles` (stone/shell dots —
-  9E's invisible projectiles), blood splatters (`RunState.enemy_death_events`
+  9E's invisible projectiles; **swappable sprites, fix-anchor-offset-and-
+  bullet-sprites Fix 2**: two SHARED slots, `vfx_projectile` for every
+  defender's stone and `vfx_shell` for a mortar's shell — never per-building
+  art — swap in as a `HudSprite` once imported, colour/size/lift read from
+  `data/balancing/vfx.json procedural.projectile` via
+  `FloaterManager._vfx_params.projectile`; the "has art" check is the same
+  `assets.animation_total_ms(slot, "idle") is not None` signal
+  `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
+  about "imported". Deliberately NOT a `triggers` row — a projectile is
+  continuous, like a beam or a lightning bolt, not a one-shot.
+  **feat-projectile-anchored-flight: the lift is gone from this function —
+  `submit_projectiles` is now a pure projection of `p.transform.world_pos`,
+  no `int(tile_h*zoom*lift_frac)` subtracted at draw time.** It moved into
+  the SPAWN POINT (`game/enemies/combat.py`'s `_fire`, via
+  `game.anchors.projectile_point`), which is what let it double-count
+  against an authored `muzzle` anchor before this fix. Unanchored play is
+  unaffected — see `game/enemies/CLAUDE.md`'s matching entry for the
+  homing-target half of this fix), blood
+  splatters (`RunState.enemy_death_events`
   ledger; double-gated `ui.FX.gore_enabled` AND the settings toggle; cleared
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
   marker / boss-announce / floater fades + an expanding lightning impact
   flash.
+  - **ESV-3a**: the spark/death-shard/muzzle/slash/gold-highlight/splatter
+    emitters + their tunables moved to `engine/vfx/` (pure, injected-RNG
+    emitters + a `VfxSystem`) and `data/balancing/vfx.json` (a new balancing
+    domain, D-10). `FloaterManager` now takes a required third constructor
+    arg, `vfx_balance`, and owns a `VfxSystem` (`self._vfx`) it delegates
+    every FX method's body to; every public method name is unchanged.
+    `_params_from_balance` in `effects.py` is the ONE place a JSON key name
+    meets an `engine.vfx` dataclass field.
+  - **ESV-3b**: craters/beams/lightning/boss-announce (10B/10G/10H) are now
+    also ported — colours/alphas/widths/segments/jitter/flash params live in
+    `data/balancing/vfx.json` (`procedural.beam/.crater/.lightning/
+    .announce`, `engine.vfx.BeamParams`/`CraterParams`/`LightningParams`/
+    `AnnounceParams`). Unlike ESV-3a, `submit_beams`/`submit_craters`/
+    `submit_lightning`/`submit_announce` **stay in `effects.py`** — they read
+    `scene.by_tag(...)` and building components the engine must not learn —
+    and read the four new blocks straight off `FloaterManager._vfx_params`
+    (held alongside `self._vfx`, not inside it: the scene already owns the
+    crater/lightning fade clocks, so `VfxSystem` gained no new state).
+    `submit_lightning` is the one draw that consumes random numbers — every
+    SUBMITTED frame, not once at emit — and now draws through
+    `self._rng` (the same injected `random` module `self._vfx` shares)
+    instead of a bare module-level call. The two cosmetic fade lifetimes
+    (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+    REQUIRED arguments from `resolve_combat`/`lightning.strike`'s new
+    `vfx_balance`/`vfx` parameter (5th/3rd) all the way to the `CraterFade`/
+    `LightningFXFade` component fields that own the despawn clock —
+    `game/enemies/combat.py`'s `resolve_combat`/`Crater`/`ProjectileAOE` and
+    `game/core/lightning.py`'s `strike`/`LightningFX` all gained a required
+    argument; `Session.lightning_strike` gained a required 5th
+    `vfx_balance` too (not stored on `Session` — passed per call, like
+    `scene`/`cs`). The two copy strings (`_ANNOUNCE_L1/L2`) and the
+    `ui.json FX.boss_announce` timings stay put — copy is screen-skinning
+    territory, timings were already datafied.
+  - **ESV-5**: a designer can now bind any of the 8 live cosmetic events
+    (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+    `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact` — plus the
+    still-inert `defender_fire`) to an imported `vfx_*` sprite sheet via
+    `data/balancing/vfx.json`'s top-level `triggers` object (a sibling of
+    `procedural`). `_triggers_from_balance` is the ONE place a trigger event
+    NAME is read out of the JSON; every call site that used to call
+    `self._vfx.emit_*`/`add_splatters` directly now goes through the private
+    `_play(event, wx, wy, **kw)` dispatcher instead: a bound `sprite_slot`
+    with imported art spawns a one-shot `engine.vfx.PlayOnceVfx`
+    (`spawn_play_once` — `None` back means "no art yet", the same E-37
+    signal `spawn_corpse` uses); otherwise the named `procedural` kind runs
+    through the SAME `self._vfx`; an empty row (or an event absent from the
+    table) is a silent no-op. Every shipped row's `procedural` reproduces
+    exactly what that call site did before this phase — byte-identical on a
+    fresh checkout with no art imported. `_play` needs two NEW host-wired
+    attributes, `self.assets`/`self.scene` (the `self.log` precedent,
+    wired in `game/main.py build_gameplay` beside `on_build_vfx`/`log`) —
+    either being `None` degrades to the procedural branch, never raises.
+    `splash_impact` (a mortar shell's landing) has no `FloaterManager` call
+    site of its own: `game/enemies/combat.py`'s `ProjectileArc._impact`
+    pushes `(wx, wy)` onto a new `RunState.splash_impact_events` ledger
+    through `resolve_combat`'s optional `on_splash_impact` callback (the
+    `on_enemy_death` layering pattern — `game/enemies` still imports NO
+    `game/core`); `spawn_splash_impact_events` (called beside
+    `spawn_death_events`) drains it into `_play`. The Crater GameObject's own
+    continuous fade mark keeps spawning UNCONDITIONALLY either way — this
+    only adds an optional additional one-shot at the same point.
+    `enemy_death` fires per DEATH POINT (`_play` called once per point in
+    the drained batch, not once for the whole batch) because a batch has no
+    single shared spawn point for the sprite-one-shot branch; the
+    procedural fallback (`add_splatters([(wx, wy)])` per point) extends the
+    same list in the same order a single batched call would have, so the
+    landing condition is unaffected.
+  - **ESV-6 (the plan's FINAL phase)** re-points a SUBSET of the ESV-5
+    dispatch sites at manifest-authored anchors — VISUAL ONLY (D4), never a
+    damage/range/splash expression. **The anchor map**: `defender_fire` and
+    both `enemy_attack_*` events move to the firing entity's `muzzle`;
+    `building_destroyed` and the new `projectile_hit` (below) move to the
+    destroyed building's / the target's `impact`. **Two exclusions,
+    deliberate**: `enemy_death` (blood splatters) and `splash_impact` (mortar
+    crater) stay UNANCHORED — both are GROUND DECALS with an `impact` anchor
+    authored at body height (negative `y`, i.e. upward), so applying it would
+    lift them off the ground; `splash_impact` additionally has no owning
+    sprite to read an anchor from at all (`ProjectileArc._impact` carries a
+    bare ground coordinate). `building_placed`/`_level_up`/`_tier_up` ALSO
+    stay unanchored — they fire from `(col+0.5, row+0.5)` before any building
+    object is reachable, and `spawn_building_vfx` receives no object, only
+    coordinates. A new private helper, `_anchored(obj, name, wx, wy)`, wraps
+    `game.anchors.anchor_world_point` (fix-anchor-origin-parity renamed this
+    from ESV-1's `world_offset` and changed its return contract from a
+    zoom/pan-invariant DELTA to an ABSOLUTE WORLD POINT — `_anchored` itself
+    stays the ONE site every anchored call goes through) — it returns the
+    input UNCHANGED when the store/cs/animator/anchor is absent (ESV-1), so a
+    fresh checkout with no `anchors` authored stays byte-identical.
+    `FloaterManager` gains a THIRD host-wired handle,
+    `self.cs` (the `self.assets`/`self.scene` precedent — wired in
+    `game/main.py build_gameplay` beside them; `None` degrades to the
+    unanchored point, never raises).
+  - **The plan's promised 10th event, `projectile_hit`** (VISUAL ONLY,
+    at the TARGET's `impact` anchor): `game/enemies/combat.py`'s
+    `ProjectileHoming._impact` pushes the anchored point onto a new
+    `RunState.projectile_hit_events` ledger through `resolve_combat`'s
+    optional `on_projectile_hit` callback (the `on_splash_impact` layering
+    pattern — homing shots only; the mortar keeps its own `splash_impact`
+    event); `spawn_projectile_hit_events` drains it into `_play`. Fires
+    whether or not the target is still alive that frame (a hit VFX on a
+    target that died the same frame is correct) — only a missing target
+    guards it. This is what finally consumes the long-orphaned
+    `vfx_hit`/`vfx_explosion` slots the plan's opening complaint named.
+    `defender_fire` gets its first real call site the same way:
+    `_fire`/`_fire_splash` already compute the muzzle-anchored spawn point
+    for the projectile itself, and `resolve_combat`'s new optional
+    `on_defender_fire` callback fires with that SAME point (never
+    recomputed) into a new `RunState.defender_fire_events` ledger, drained by
+    `spawn_defender_fire_events`. **Both new rows ship INERT** (`{sprite_
+    slot: "", procedural: ""}`), exactly like `defender_fire` shipped in
+    ESV-5 — zero visible change on landing.
+  - **The floater port (closes the plan's §6 item 1 dead-data gap)**: the
+    seven floater colour/lifetime module constants
+    (`_UPKEEP_BLUE`/`_XP_PURPLE`/`_XP_LIFE`/`_PAINTER_FINISHED`/`_PAINTER_
+    LOST`/`_PAINTER_LIFE`/`_BOOST_WHITE`) are DELETED. `data/balancing/
+    vfx.json`'s `procedural.floaters` block existed since ESV-3a but was
+    NEVER read (`_params_from_balance` never touched it) — a designer
+    editing it in the `vfx` balancing form saw no effect in game. The four
+    floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
+    `spawn_painter_events`/`spawn_boost_events`) now read
+    `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
+    `_params_from_balance` like every other family); the JSON already
+    shipped values identical to the constants, so this is a visual no-op on
+    landing and a live designer lever from here on. **`game/ui/hud.py`'s OWN
+    `_XP_PURPLE`** (a different colour, the XP-bar pulse) is HUD chrome, not
+    a floater, and was deliberately NOT touched or unified with this.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
@@ -579,6 +765,11 @@ sprite mutation; splatters/craters draw in the overlay pass, i.e. OVER sprites
 (the prototype drew them under buildings); particle velocities are eyeballed
 around the prototype's presets (life/count/colours are exact); overlay diamond
 BORDERS are opaque lines (`OverlayLines` carries no alpha — fills are exact).
+
+**ESV-3a note**: none of the above changed — the port from module constants +
+inline `random.uniform(...)` to `data/balancing/vfx.json` + `engine/vfx/`'s
+injected-RNG emitters is a landing-condition no-op (byte-identical output);
+these approximations are pre-existing and untouched by it.
 
 ## Cutscenes (Phase TU-5)
 `game/ui/cutscene_player.py` — `CutscenePlayer` (wraps `engine.video.VideoSource`

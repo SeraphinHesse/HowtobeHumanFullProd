@@ -1,0 +1,864 @@
+{
+  "$defs": {
+    "color": {
+      "description": "An RGB colour triple, 0-255 per channel.",
+      "items": {
+        "description": "One R/G/B channel value, 0-255.",
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
+    "ramp": {
+      "additionalProperties": false,
+      "description": "A 3-stop age-fraction colour ramp: stop_0 (age 0) -> stop_1 -> stop_2 (age ~life).",
+      "properties": {
+        "stop_0": {
+          "$ref": "#/$defs/color"
+        },
+        "stop_1": {
+          "$ref": "#/$defs/color"
+        },
+        "stop_2": {
+          "$ref": "#/$defs/color"
+        }
+      },
+      "required": [
+        "stop_0",
+        "stop_1",
+        "stop_2"
+      ],
+      "type": "object"
+    },
+    "spark_preset": {
+      "additionalProperties": false,
+      "description": "One spark-burst preset (life + particle count).",
+      "properties": {
+        "count": {
+          "description": "Particle count in this burst.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "life": {
+          "description": "Particle lifetime in seconds.",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "count",
+        "life"
+      ],
+      "type": "object"
+    },
+    "trigger_row": {
+      "additionalProperties": false,
+      "description": "ESV-5: one event's sprite/procedural binding. Resolution order at every dispatch site: a non-empty sprite_slot whose slot has imported art spawns a one-shot PlayOnceVfx sprite (engine.vfx.spawn_play_once); otherwise the named procedural kind runs; procedural \"\" (or the event's row absent from the table entirely) is a silent no-op (E-37) - never a raise.",
+      "properties": {
+        "procedural": {
+          "description": "The procedural VFX kind to run when sprite_slot is empty or has no imported art yet, or \"\" for a silent no-op. spark_place/spark_level/spark_tier all resolve through the same emit_burst call, keyed by the caller's kind argument - the three names exist so each of the three building-vfx events can be independently retuned/disabled without collapsing to one shared string. \"crater\" names the mortar shell's OWN continuous fade mark (game/enemies/combat.py's Crater/CraterFade), which always spawns unconditionally regardless of this table - naming it here is documentation, not a second spawn.",
+          "enum": [
+            "",
+            "spark_place",
+            "spark_level",
+            "spark_tier",
+            "death_burst",
+            "slash",
+            "muzzle",
+            "splatter",
+            "crater"
+          ],
+          "type": "string"
+        },
+        "sprite_slot": {
+          "description": "The vfx_* slot key to play as a one-shot sprite when it has imported art, or \"\" to always use the procedural fallback. A bound slot with no art imported yet also falls through to the procedural fallback (E-37) - this is what keeps a fresh checkout byte-identical to today.",
+          "enum": [
+            "",
+            "vfx_hit",
+            "vfx_explosion",
+            "vfx_muzzle",
+            "vfx_death",
+            "vfx_slash",
+            "vfx_crater"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "procedural",
+        "sprite_slot"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "vfx.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Procedural VFX balancing domain (D-10): particle/gold/slash/splatter cosmetic tunables ported from game/ui/effects.py (ESV-3a), plus scene-object/continuous cosmetic tunables (beam/crater/lightning/announce, ESV-3b), plus a sibling triggers object (ESV-5) binding each cosmetic EVENT to an optional sprite one-shot + a procedural fallback. ESV-3a bounds: seconds 0-60, px/s velocities and px/s^2 gravity +-1000, sizes/radii 0-256 px, alpha 0-255, fractions/chances 0-1, line counts 0-100. ESV-3b bounds (data/CLAUDE.md house policy): alphas 0-255, seconds 0-60, pixels +-4096, counts 0-10000.",
+  "properties": {
+    "procedural": {
+      "additionalProperties": false,
+      "description": "Every procedural cosmetic VFX tunable ESV-3a/ESV-3b port out of game/ui/effects.py module constants (and, for the two scene-object fade lifetimes, game/enemies/combat.py + game/core/lightning.py). ESV-5 added a sibling triggers object at the top level (see $defs/trigger_row).",
+      "properties": {
+        "announce": {
+          "additionalProperties": false,
+          "description": "The boss-round announcement banner (submit_announce): colour + alpha ceiling only. The two copy strings stay game-side (screen-skinning territory) and the fade-in/hold/fade-out timings stay in ui.json FX.boss_announce.",
+          "properties": {
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "max_alpha": {
+              "description": "Alpha at full opacity (k=1.0), scaled by the fade-in/hold/fade-out curve.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "color",
+            "max_alpha"
+          ],
+          "type": "object"
+        },
+        "beam": {
+          "additionalProperties": false,
+          "description": "The Sun Scorcher's continuous beam line (submit_beams): a 3-tier colour ramp indexed (clamped) by the defender's tier, a base width that thickens by +1 px per tier, and how many tile-heights above the origin the line starts.",
+          "properties": {
+            "colors": {
+              "$ref": "#/$defs/ramp"
+            },
+            "origin_lift_tiles": {
+              "description": "How many tile-heights above the defender's centre the beam line starts (multiplies tile_h * zoom).",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "number"
+            },
+            "width_base": {
+              "description": "Base line width in px before the +1-per-tier bonus.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "colors",
+            "origin_lift_tiles",
+            "width_base"
+          ],
+          "type": "object"
+        },
+        "crater": {
+          "additionalProperties": false,
+          "description": "A mortar shell's fading world-space scorch mark (submit_craters + CraterFade on the Crater GameObject). life is the fade lifetime in seconds; nothing but this cosmetic despawn clock reads it (D4 - not simulation timing).",
+          "properties": {
+            "alpha": {
+              "description": "Fill alpha at spawn (frac=1.0), scaling linearly to 0 as the crater fades.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "life": {
+              "description": "Fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "alpha",
+            "color",
+            "life"
+          ],
+          "type": "object"
+        },
+        "death_burst": {
+          "additionalProperties": false,
+          "description": "Building-death shard burst (watch_buildings): each shard picks ONE colour from colors, held for its whole life, and an independent w/h size drawn from a range.",
+          "properties": {
+            "colors": {
+              "$ref": "#/$defs/ramp"
+            },
+            "count": {
+              "description": "Shard count per death burst.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "gravity": {
+              "description": "Downward acceleration in px/s^2 (base-zoom screen pixels).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "life": {
+              "description": "Shard lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "size_h_max": {
+              "description": "Maximum shard rect height in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_h_min": {
+              "description": "Minimum shard rect height in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_w_max": {
+              "description": "Maximum shard rect width in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_w_min": {
+              "description": "Minimum shard rect width in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "vx_max": {
+              "description": "Maximum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vx_min": {
+              "description": "Minimum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_max": {
+              "description": "Maximum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_min": {
+              "description": "Minimum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            }
+          },
+          "required": [
+            "colors",
+            "count",
+            "gravity",
+            "life",
+            "size_h_max",
+            "size_h_min",
+            "size_w_max",
+            "size_w_min",
+            "vx_max",
+            "vx_min",
+            "vy_max",
+            "vy_min"
+          ],
+          "type": "object"
+        },
+        "floaters": {
+          "additionalProperties": false,
+          "description": "Income/XP/painter/boost floater colours + lifetimes (text layout itself stays HUD chrome, owned by game/ui/effects.py, not this schema).",
+          "properties": {
+            "boost_color": {
+              "$ref": "#/$defs/color"
+            },
+            "painter_finished_color": {
+              "$ref": "#/$defs/color"
+            },
+            "painter_life": {
+              "description": "Painter message floater lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "painter_lost_color": {
+              "$ref": "#/$defs/color"
+            },
+            "upkeep_color": {
+              "$ref": "#/$defs/color"
+            },
+            "xp_color": {
+              "$ref": "#/$defs/color"
+            },
+            "xp_life": {
+              "description": "XP floater lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "boost_color",
+            "painter_finished_color",
+            "painter_life",
+            "painter_lost_color",
+            "upkeep_color",
+            "xp_color",
+            "xp_life"
+          ],
+          "type": "object"
+        },
+        "gold_highlight": {
+          "additionalProperties": false,
+          "description": "Gold tile highlight on a just-built / tier-advanced tile: fade in, hold, fade out. The fade-out duration is DERIVED as life - fade_in - hold (not a stored key) so the three can't drift out of sum.",
+          "properties": {
+            "border_color": {
+              "$ref": "#/$defs/color"
+            },
+            "border_width": {
+              "description": "Border line width in px.",
+              "maximum": 64,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fade_in": {
+              "description": "Fade-in duration in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "fill_alpha": {
+              "description": "Fill alpha at full opacity (0-255).",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "fill_color": {
+              "$ref": "#/$defs/color"
+            },
+            "hold": {
+              "description": "Full-opacity hold duration in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "life": {
+              "description": "Total highlight lifetime in seconds (fade_in + hold + derived fade_out).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "border_color",
+            "border_width",
+            "fade_in",
+            "fill_alpha",
+            "fill_color",
+            "hold",
+            "life"
+          ],
+          "type": "object"
+        },
+        "lightning": {
+          "additionalProperties": false,
+          "description": "A lightning strike's jagged bolt + impact flash + ground marker (submit_lightning). bolt_life/marker_life are the fade lifetimes carried on LightningFXFade; nothing but the cosmetic despawn clocks read them (D4 - not simulation timing, unlike LightningStrike's damage/radius/cooldown in core.json).",
+          "properties": {
+            "bolt_color_end": {
+              "$ref": "#/$defs/color"
+            },
+            "bolt_color_start": {
+              "$ref": "#/$defs/color"
+            },
+            "bolt_jitter_px": {
+              "description": "Per-segment horizontal jitter magnitude in px, re-rolled every submitted frame (uniform(-jitter, +jitter)).",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "bolt_life": {
+              "description": "Bolt fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "bolt_segments": {
+              "description": "Polyline segment count. A 1-segment bolt has no jitter point and degenerates to a straight line, so the minimum is 2.",
+              "maximum": 10000,
+              "minimum": 2,
+              "type": "integer"
+            },
+            "bolt_width": {
+              "description": "Bolt polyline width in px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "flash_alpha": {
+              "description": "Impact flash alpha at bolt=1.0 (fresh strike), scaling with the bolt fraction.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "flash_color": {
+              "$ref": "#/$defs/color"
+            },
+            "flash_radius_px": {
+              "description": "Impact flash radius in screen px at zoom 1, converted to world units by /(tile_w/2) like splatter.radius_px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "number"
+            },
+            "marker_color": {
+              "$ref": "#/$defs/color"
+            },
+            "marker_fill_alpha": {
+              "description": "Ground marker fill alpha at frac=1.0 (fresh strike), scaling linearly to 0 as it fades.",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "marker_life": {
+              "description": "Ground marker fade lifetime in seconds (cosmetic despawn clock only).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "marker_outline_width": {
+              "description": "Ground marker outline width in px.",
+              "maximum": 4096,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "bolt_color_end",
+            "bolt_color_start",
+            "bolt_jitter_px",
+            "bolt_life",
+            "bolt_segments",
+            "bolt_width",
+            "flash_alpha",
+            "flash_color",
+            "flash_radius_px",
+            "marker_color",
+            "marker_fill_alpha",
+            "marker_life",
+            "marker_outline_width"
+          ],
+          "type": "object"
+        },
+        "muzzle": {
+          "additionalProperties": false,
+          "description": "Ranged-attack muzzle spray (watch_enemies): std/strong variants share one ramp, velocity range, gravity and size; each particle independently rolls smoke_chance for a 1-tuple smoke_color ramp instead of the 3-stop ramp.",
+          "properties": {
+            "count": {
+              "description": "Standard variant particle count.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "count_strong": {
+              "description": "Siege (strong) variant particle count.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "gravity": {
+              "description": "Downward acceleration in px/s^2 (base-zoom screen pixels).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "life": {
+              "description": "Standard variant particle lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "life_strong": {
+              "description": "Siege (strong) variant particle lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "ramp": {
+              "$ref": "#/$defs/ramp"
+            },
+            "size_h": {
+              "description": "Particle rect height in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_w": {
+              "description": "Particle rect width in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "smoke_chance": {
+              "description": "Probability [0,1] a given particle is smoke instead of the ramp colour.",
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            "smoke_color": {
+              "$ref": "#/$defs/color"
+            },
+            "vx_max": {
+              "description": "Maximum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vx_min": {
+              "description": "Minimum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_max": {
+              "description": "Maximum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_min": {
+              "description": "Minimum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            }
+          },
+          "required": [
+            "count",
+            "count_strong",
+            "gravity",
+            "life",
+            "life_strong",
+            "ramp",
+            "size_h",
+            "size_w",
+            "smoke_chance",
+            "smoke_color",
+            "vx_max",
+            "vx_min",
+            "vy_max",
+            "vy_min"
+          ],
+          "type": "object"
+        },
+        "projectile": {
+          "additionalProperties": false,
+          "description": "Fallback dot appearance for an in-flight shot with no imported sprite on vfx_projectile/vfx_shell (submit_projectiles): a coloured HudRect, lifted off the ground plane by a fraction of tile_h. Shell (mortar) and stone (every other defender) get independent colours/sizes. The max(2, size*zoom) low-zoom floor is a degeneracy guard, not a tunable, and stays inline in game/ui/effects.py.",
+          "properties": {
+            "lift_frac": {
+              "description": "Screen-space lift off the ground plane as a fraction of tile_h * zoom.",
+              "maximum": 2,
+              "minimum": 0,
+              "type": "number"
+            },
+            "shell_color": {
+              "$ref": "#/$defs/color"
+            },
+            "shell_size": {
+              "description": "Shell (mortar) dot diameter in base-zoom px, before the low-zoom floor.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "stone_color": {
+              "$ref": "#/$defs/color"
+            },
+            "stone_size": {
+              "description": "Stone (default) dot diameter in base-zoom px, before the low-zoom floor.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "lift_frac",
+            "shell_color",
+            "shell_size",
+            "stone_color",
+            "stone_size"
+          ],
+          "type": "object"
+        },
+        "slash": {
+          "additionalProperties": false,
+          "description": "Melee slash (watch_enemies): 2-3 diagonal lines over the attacker; size_large swaps in for a boss-scale attacker.",
+          "properties": {
+            "colors": {
+              "$ref": "#/$defs/ramp"
+            },
+            "life": {
+              "description": "Slash lifetime in seconds.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "lines_max": {
+              "description": "Maximum number of diagonal lines.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "lines_min": {
+              "description": "Minimum number of diagonal lines.",
+              "maximum": 100,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "ox_max": {
+              "description": "Maximum per-line horizontal centre offset in base-zoom px.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "ox_min": {
+              "description": "Minimum per-line horizontal centre offset in base-zoom px.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "oy_max": {
+              "description": "Maximum per-line vertical centre offset in base-zoom px.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "oy_min": {
+              "description": "Minimum per-line vertical centre offset in base-zoom px.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "size": {
+              "description": "Line half-length in base-zoom px (standard attacker).",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_large": {
+              "description": "Line half-length in base-zoom px (boss-scale attacker).",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "colors",
+            "life",
+            "lines_max",
+            "lines_min",
+            "ox_max",
+            "ox_min",
+            "oy_max",
+            "oy_min",
+            "size",
+            "size_large"
+          ],
+          "type": "object"
+        },
+        "spark": {
+          "additionalProperties": false,
+          "description": "Placement/upgrade spark burst (spawn_building_vfx): one preset per caller-supplied kind (place/level1/level2/tier), sharing one velocity range, gravity, ramp and particle size.",
+          "properties": {
+            "gravity": {
+              "description": "Downward acceleration in px/s^2 (base-zoom screen pixels).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "presets": {
+              "additionalProperties": false,
+              "description": "Per-kind (life, count) pairs. Keys are game vocabulary, opaque to the engine.",
+              "properties": {
+                "level1": {
+                  "$ref": "#/$defs/spark_preset"
+                },
+                "level2": {
+                  "$ref": "#/$defs/spark_preset"
+                },
+                "place": {
+                  "$ref": "#/$defs/spark_preset"
+                },
+                "tier": {
+                  "$ref": "#/$defs/spark_preset"
+                }
+              },
+              "required": [
+                "level1",
+                "level2",
+                "place",
+                "tier"
+              ],
+              "type": "object"
+            },
+            "ramp": {
+              "$ref": "#/$defs/ramp"
+            },
+            "size_h": {
+              "description": "Particle rect height in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "size_w": {
+              "description": "Particle rect width in base-zoom px.",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "vx_max": {
+              "description": "Maximum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vx_min": {
+              "description": "Minimum horizontal launch velocity in px/s.",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_max": {
+              "description": "Maximum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            },
+            "vy_min": {
+              "description": "Minimum vertical launch velocity in px/s (negative is up).",
+              "maximum": 1000,
+              "minimum": -1000,
+              "type": "number"
+            }
+          },
+          "required": [
+            "gravity",
+            "presets",
+            "ramp",
+            "size_h",
+            "size_w",
+            "vx_max",
+            "vx_min",
+            "vy_max",
+            "vy_min"
+          ],
+          "type": "object"
+        },
+        "splatter": {
+          "additionalProperties": false,
+          "description": "Ground blood mark on an enemy death: a small alpha-filled polygon approximating a circle, projected to the 2:1 iso ground plane.",
+          "properties": {
+            "alpha": {
+              "description": "Fill alpha (0-255).",
+              "maximum": 255,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "color": {
+              "$ref": "#/$defs/color"
+            },
+            "jitter": {
+              "description": "Jitter offset as a fraction of radius_px, used to blob the circle approximation.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "radius_px": {
+              "description": "Screen-pixel radius at zoom 1, converted to world units by /(tile_w/2).",
+              "maximum": 256,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "alpha",
+            "color",
+            "jitter",
+            "radius_px"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "announce",
+        "beam",
+        "crater",
+        "death_burst",
+        "floaters",
+        "gold_highlight",
+        "lightning",
+        "muzzle",
+        "projectile",
+        "slash",
+        "spark",
+        "splatter"
+      ],
+      "type": "object"
+    },
+    "triggers": {
+      "additionalProperties": false,
+      "description": "ESV-5: per-event sprite-slot / procedural-fallback binding, a sibling of procedural. Every key names a cosmetic EVENT (never a JSON-key vocabulary the engine sees); game/ui/effects.py's _triggers_from_balance is the ONE place these key names are read.",
+      "properties": {
+        "building_destroyed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_level_up": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_placed": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "building_tier_up": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "defender_fire": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_attack_melee": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_attack_ranged": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "enemy_death": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "projectile_hit": {
+          "$ref": "#/$defs/trigger_row"
+        },
+        "splash_impact": {
+          "$ref": "#/$defs/trigger_row"
+        }
+      },
+      "required": [
+        "building_destroyed",
+        "building_level_up",
+        "building_placed",
+        "building_tier_up",
+        "defender_fire",
+        "enemy_attack_melee",
+        "enemy_attack_ranged",
+        "enemy_death",
+        "projectile_hit",
+        "splash_impact"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "procedural",
+    "triggers"
+  ],
+  "type": "object"
+}

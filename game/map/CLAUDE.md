@@ -69,20 +69,44 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
     on. Conditions never change during a run.
-  - **Conditions have ART since the terrain layer landed.** `data/slots.json`'s
-    asset-only `conditions` category (`Terrain` → `Grass`/`Mountain`/`Pond`/
-    `Forest`, one leaf group each, 64×96) holds it, and `TileMap.__init__` takes
-    a `registry=` beside `rng=`: a SECOND pass after the condition roll assigns
-    every non-BACKGROUND tile a `Tile.condition_slot` — a random variant of its
-    condition's group, `CONDITION_GROUP` (`tiles.py`) being the ONE enum→group
-    table. **That second pass is deliberately separate from the roll**: the
-    roll's eligibility rules are prototype-exact gameplay every path-cost
-    fixture depends on, whereas ART covers the starting pocket too (so imported
-    grass art has no hole where the base sits). `registry=None` or `rng=None` ⇒
-    every slot stays `None` ⇒ nothing draws, which is the state every headless
-    fixture runs in. Variants roll per tile, so a `cond_mountain_v3` added in
-    the editor grows the pool with NO code change (same contract as deco types
-    and enemy eras).
+  - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
+    since the per-state restructuring.** `data/slots.json`'s asset-only
+    `conditions` category holds it, restructured so each condition type
+    (`Grass`/`Mountain`/`Pond`/`Forest`) is its OWN top-level group, and WITHIN
+    each, one leaf child per zone state (`Buildable`/`Built`/`Combat`/
+    `Spawning`, 64×96) — `cond_mountain_buildable`, `cond_mountain_built`, …,
+    16 slots total. `tiles.py` holds the TWO enum→registry tables this depends
+    on: `CONDITION_LABEL` (condition → its top-level group label) and
+    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT/SPAWNING` →
+    their group labels; `BACKGROUND` stays absent — background tiles never get
+    condition art, unchanged rule). `Tile.condition_variant_idx` is the stable
+    index into whichever state-family is currently active.
+    `TileMap.__init__` takes a `registry=` beside `rng=` and stores it
+    (`self._registry`) for later: a SECOND pass after the condition roll picks
+    each non-BACKGROUND tile's `condition_variant_idx` (sized against its OWN
+    INITIAL state's family) and resolves `Tile.condition_slot` from
+    `(condition, state, variant_idx)` via the pure `_resolve_condition_slot`
+    (`tile_map.py`) — `variant_idx % len(variants)` keeps the index
+    well-defined even when a state's pool is smaller (e.g. Spawning starts with
+    fewer/no imported variants). **`set_tile_state` re-resolves `condition_slot`
+    on EVERY transition** (after its existing zone/terrain-override bookkeeping,
+    gated on `self._registry is not None and new_state != BACKGROUND`) at that
+    SAME variant index against the new state's family — so a tile's art
+    switches LIVE between buildable/built/combat/spawning looks as its zone
+    actually changes (a building placed → BUILT, a wave arriving → COMBAT, …),
+    never re-rolling which variant, only which state's slot. One accepted side
+    effect: a tile that starts `BACKGROUND` (skipped by the initial art roll)
+    and later recedes into play via the spawn-band backfill now picks up
+    condition art for the first time when `set_tile_state` fires — previously
+    such tiles stayed slotless forever. **That second init pass is deliberately
+    separate from the roll**: the roll's eligibility rules are prototype-exact
+    gameplay every path-cost fixture depends on, whereas ART covers the
+    starting pocket too (so imported grass art has no hole where the base
+    sits). `registry=None` or `rng=None` ⇒ every slot stays `None` ⇒ nothing
+    draws, which is the state every headless
+    fixture runs in. Variants roll per tile within a state's own family, so a
+    `cond_mountain_buildable_v3` added in the editor grows that pool with NO
+    code change (same contract as deco types and enemy eras).
   - **`conditions.py` is the ONE emitter** (pure): `condition_render_items(
     tile_map, col_min, col_max, row_min, row_max, art_slots, anim_time_ms)` →
     `RenderItem`s on the **`terrain`** draw layer, which
@@ -100,6 +124,35 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     per visible tile WITH art, every frame — importing grass art puts the whole
     visible window on the layer. Measure before shipping grass art;
     `GroundCache` cannot absorb it (scroll-fill needs an opaque `bg_color`).
+  - **Spawn-band tree deco rides the SAME condition-art init pass** (folded in
+    on purpose — a third O(map) walk is the explicit perf invariant this
+    avoids). `SpawnDeco.tree_chance` (balancing `map` domain) is rolled once
+    per tile — including BACKGROUND tiles, since those are exactly what later
+    backfills into SPAWNING via spawn recede and nothing re-rolls them at that
+    point — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
+    `variant_idx * 2 + flip_bit`; no resolved-slot string field, same
+    8-bytes-per-tile rationale as `condition_variant_idx`).
+    **`spawn_deco.spawn_tree_slots(registry)` is the ONE family definition**,
+    and BOTH consumers must go through it: `TileMap` sizes each roll against
+    its `len()`, `game/main.py` manifest-filters it for the emitter. Deriving
+    it twice is a live trap, not a style nit — the emitter re-bases an
+    out-of-range index with `% len`, so a disagreement would silently SKEW the
+    variant distribution instead of failing. It reads `data/slots.json`'s
+    asset-only `deco` category at group path `("Props", "Tree")`
+    (`DECO_CATEGORY`/`SPAWN_DECO_GROUP`, `tiles.py`), minus
+    `SPAWN_TREE_EXCLUDED` — an ART call (those variants read wrong at
+    spawn-band density) that scopes to the RUNTIME roll only: the excluded
+    slots stay first-class `deco` slots the editor offers and hand-placed map
+    deco still renders.
+    **`spawn_deco.py` is the ONE emitter**, on the **`deco`** layer (above
+    `entities` — enemies walk partly behind the treeline) — and unlike
+    condition art, it reads `tile.state` **live at emit time** rather than
+    caching a resolved slot: a tile only ever draws its tree while
+    CURRENTLY `SPAWNING`, so a SPAWNING→COMBAT conversion (spawn recede)
+    makes it stop being emitted the very next frame with **no
+    `set_tile_state` hook at all** — the roll itself is never touched by a
+    zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
+    the same headless-fixture escape hatch condition art uses.
   - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
     modifiers` key table every stat-modifier consumer (buildings, enemies, UI
     tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —
@@ -144,6 +197,18 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   pond boards.
 - Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
   nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **`find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1)`
+  is the kidnapper's route home (Art/enemies)** — goal set is every
+  `tilemap.spawning_tiles()`, `[]` when there is none / none reachable (the
+  carrier despawns on the spot in that case; see `game/enemies/CLAUDE.md`).
+  **`ignore_walls=True` is deliberate**: a carrier is inert
+  (`PathAgent.carrying` — no blocker/wall scan, no re-path), so a wall it
+  cannot break must never be able to trap it; buildings are traversable
+  weights, never `impassable_weight`, so a live occupant cannot trap it
+  either. A fresh `_dijkstra` like every other goal-set variant, **NOT**
+  flow-field backed: a kidnap fires at most once per building kill, well
+  inside the one-Dijkstra-per-topology-change invariant below — it does not
+  need its own cached field.
 - **Edge walls are LIVE (10E)**: `WallEdge` (a `@dataclass`: `col_a/row_a/col_b/
   row_b/hp/max_hp/owner`) + `_wall_key` (order-independent edge key) + a
   `TileMap.wall_edges` registry back `get_wall_between` (the pathfinder's

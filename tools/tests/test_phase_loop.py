@@ -33,6 +33,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
@@ -66,7 +67,7 @@ def host_frame(session, scene, tilemap_, dt):
     session.pre_sim(sim_dt, scene)
     if session.state.state == GameState.GAMEPLAY:
         scene.update(sim_dt)
-        resolve_combat(scene, tilemap_, sim_dt, BUILD,
+        resolve_combat(scene, tilemap_, sim_dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit)
         session.post_sim(scene)
 
@@ -76,7 +77,7 @@ def frame(session, scene, tilemap_, dt):
     gate is a no-op (state is always GAMEPLAY there)."""
     session.pre_sim(dt, scene)
     scene.update(dt)
-    resolve_combat(scene, tilemap_, dt, BUILD, on_base_hit=session.on_base_hit)
+    resolve_combat(scene, tilemap_, dt, BUILD, VFX, on_base_hit=session.on_base_hit)
     session.post_sim(scene)
 
 

@@ -59,10 +59,11 @@ Four files beside `balance.py`:
 - **`session.py`** — `Session` orchestrates per frame: `end_turn()` (BUILDING→ENEMY,
   `spawner.begin_round(round_num, …)`); `pre_sim(dt, scene)` (spawner during ENEMY;
   ROUND_END/INCOME timers from `core.PhaseLoop`; payday at ROUND_END end);
-  `post_sim(scene)` (wave-clear = `spawner.done` + no live enemy → ROUND_END; or a
-  `_wipe_pending` lives-breach wipe); `on_base_hit(enemy)` (`base_lives--` + round
-  wipe, game over at 0 lives). Everything freezes on GAME_OVER (no phase advances)
-  — prototype `_update` has no GAME_OVER branch.
+  `post_sim(scene)` (wave-clear = `spawner.done` + no live enemy + no kidnapper
+  walking home (Art/enemies, below) → ROUND_END; or a `_wipe_pending`
+  lives-breach wipe); `on_base_hit(enemy)` (`base_lives--` + round wipe, game
+  over at 0 lives). Everything freezes on GAME_OVER (no phase advances) —
+  prototype `_update` has no GAME_OVER branch.
 
 Love → interactive placement + real HUD/End-Turn button are 9G; `Session` owns the
 love store, ready to feed `place_building`.
@@ -121,7 +122,9 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   is the host's single "skip the whole sim" flag: no `scene.update`, no combat, no
   animation behind the modal. Payday's base income is now village-scaled.
 - **XP award sites**: field kills via `resolve_combat(on_enemy_death=…)` (same
-  layering trick as `on_base_hit`); base-damage kills gated by
+  layering trick as `on_base_hit`); a kidnap transition via
+  `resolve_combat(on_kidnap=…)` → `Session.on_kidnap` (Art/enemies, below —
+  same layering trick, one more callback); base-damage kills gated by
   `XP.xp_on_base_damage_kill`; queued-but-never-spawned enemies paid on a lives
   wipe (`Spawner.pending()`), while live enemies cleared from the field pay nothing
   (prototype-exact); building deaths gated by `XP.xp_from_buildings`, **once per
@@ -274,6 +277,32 @@ in `game/ui/CLAUDE.md`.
   both paths). The natural ROUND_END call site keeps the defaults — zero
   behavior change there. Mid-ENEMY the cheat only arms `levelup_pending`; the
   window then fires at ROUND_END on the normal payday path.
+
+## Kidnapping (Art/enemies)
+`resolve_combat(on_kidnap=…)` — the fourth layering-trick callback beside
+`on_base_hit`/`on_enemy_death`/the ER-3 death-spawn handshake, fired from
+`game/enemies`'s kidnap pass the frame a kidnap-capable enemy's killing blow
+transitions it into a carrier (see `game/enemies/CLAUDE.md`).
+- **`Session.on_kidnap(enemy, building, scene)`** mirrors `on_enemy_death`:
+  `enemies_killed += 1` + `_award_enemy_xp(enemy)`, but deliberately **skips**
+  the `enemy_death_events` splatter append (no VFX) and the ER-3
+  `death_spawn_plan` stash (a kidnapped unit never bursts). It then frees the
+  building's tile for good through the SAME helper payday's own free-tile step
+  uses (`payday._free_tile(tilemap, tile, occupancy, scene)`) — no revive sweep
+  will ever see it again. A kidnapped `wall_builder` has its perimeter torn
+  down explicitly first (`tilemap.remove_walls_for_builder`), because payday's
+  slot-8 teardown sweeps dead buildings still ON THE BOARD and would never see
+  one carried off.
+- **Wave-clear now also waits on kidnappers** (confirmed user decision — "a
+  kidnapper walking home HOLDS the round open"): `post_sim`'s condition gained
+  `and not scene.by_tag("kidnapper") and not scene.queued_by_tag("kidnapper")`
+  (the ER-5 queued-tag reasoning applies here too — a fresh kidnapper is a
+  retag, not a spawn, but the check must not race a same-frame despawn either).
+- **Every "clear the field" path must also clear kidnappers**, or the round
+  can never end once one exists: `quick_skip_combat`, `_wipe_round`,
+  `cheat_skip_round` and `cheat_goto_round` each now despawn `by_tag("enemy")
+  + by_tag("kidnapper")`. Kidnappers pay nothing extra on those paths — they
+  already paid their XP on the kidnap itself.
 
 ## 10J ledgers
 `RunState` grew two more drained-by-UI ledgers (the `income_events` contract):

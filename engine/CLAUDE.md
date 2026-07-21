@@ -28,6 +28,7 @@ engine task; if an engine change forces a caller change, tell the user
 | `render/` | `engine/render/CLAUDE.md` | RenderItem→depth-sort→blit; backend throughput; HUD pass + fonts; the ground cache |
 | `physics/` | `engine/physics/CLAUDE.md` | SpatialGrid, TileOccupancy, waypoint `advance` (E-30..E-32) |
 | `assets/` | `engine/assets/CLAUDE.md` | slot registry, manifest v2, `playback_order`, grey-X placeholder |
+| `vfx/` | none yet (this table is its doc) | procedural particle/gold/slash/splatter emitters + `VfxSystem` (ESV-3a); beam/crater/lightning/announce param dataclasses (ESV-3b, no engine-side state — see below); `play_once` — the one-shot sprite VFX (ESV-5, no engine-side state either — see below); `FloaterParams` (ESV-6, floater colours/lifetimes — also no engine-side state) |
 
 ## Top-level modules (`engine/*.py`) — this router IS their doc
 - **`tilemap.py`** (pure — no pygame, no Qt) is the ONE authority for the D-20 map
@@ -106,6 +107,86 @@ engine task; if an engine change forces a caller change, tell the user
   `game/tutorial/director.py` (`game/CLAUDE.md`) binds every opaque id to a
   real thing; a "flute"/"musician" check inside this module is a layering
   violation.
+
+## `engine/vfx/` (ESV-3a) — procedural VFX emitters
+Pure Python, no doc of its own yet (this row is it). `params.py` holds frozen
+dataclasses with NO defaults (one per `data/balancing/vfx.json` `procedural.*`
+table — a default here would be a second home for a value that belongs in
+`data/`, G-7); `particle.py` holds the stateful `Particle`/`GoldHighlight`/
+`Slash` objects; `emitters.py` holds pure `emit_*(rng, ...)` functions —
+**every emitter takes an injected `rng`** (`random.Random`-compatible), never
+the stdlib `random` module directly, so seeded-RNG parity tests are possible;
+`system.py`'s `VfxSystem` owns the particle/gold/slash/splatter lists,
+`update(dt)`, and two submit surfaces (world-overlay vs HUD — the host
+interleaves them at different points in the frame, so one submit method would
+reorder the draw). `game/ui/effects.py`'s `_params_from_balance` is the ONE
+place a `data/balancing/vfx.json` key name and an `engine.vfx` dataclass field
+meet — this package never imports a balancing loader, never calls `open()`,
+never learns a JSON key name (D5's top risk here: don't add a convenience
+`load_defaults()` helper, it would smuggle the loader back in).
+
+**ESV-3b** added four more frozen dataclasses to `params.py` — `BeamParams` /
+`CraterParams` / `LightningParams` / `AnnounceParams` (Sun Scorcher beam,
+mortar crater, lightning bolt/flash/marker, boss announce). Unlike the
+ESV-3a five, `VfxSystem` owns **none** of their state: the scene already owns
+the crater/lightning fade clocks (`CraterFade`/`LightningFXFade` components in
+`game/enemies/combat.py`/`game/core/lightning.py`), so a parallel engine-side
+list would be a second source of truth for the same fade. `game/ui/effects.py`
+holds these four straight off its `VfxParams` bundle (`self._vfx_params`) and
+draws them itself (`submit_beams`/`submit_craters`/`submit_lightning`/
+`submit_announce` stay in `game/ui/` — they read `scene.by_tag(...)` and
+building components, game vocabulary the engine must not learn). The two
+cosmetic fade lifetimes NOT captured in these dataclasses (`crater.life`,
+`lightning.bolt_life`/`marker_life`) are threaded as required constructor
+arguments all the way from `resolve_combat`'s/`lightning.strike`'s
+`vfx_balance` argument down to the `CraterFade`/`LightningFXFade` component
+fields that actually own the despawn clock — never a `None`-defaulted
+optional (G-7).
+
+**ESV-5** added `engine/vfx/play_once.py` — `PlayOnceVfx`/`PlayOnceFade`/
+`spawn_play_once`, the generic one-shot sprite VFX a designer's
+`data/balancing/vfx.json` `triggers` row can bind an imported `vfx_*` slot
+to. It copies `game/enemies/corpse.py`'s `Corpse`/`CorpseFade`/`spawn_corpse`
+shape (a scene GameObject that ages itself via a `Component.update`, the
+`Crater`/`LightningFX` pattern) rather than sharing it, because `corpse.py`
+lives under `game/` (game vocabulary the engine must not import) while this
+is the version any trigger-table event can spawn. `spawn_play_once(scene,
+assets, slot_key, wx, wy, ...)` returns `None` when
+`assets.animation_total_ms(slot_key, "idle")` is `None` (no imported art) —
+the caller's cue to run its procedural fallback instead (E-37); it is the
+entire art-tolerance mechanism, no different in shape from `spawn_corpse`'s
+own `None`-on-no-`death`-row check. `VfxSystem` gains **no** new state for
+this — a `PlayOnceVfx` is not a particle any list owns, exactly like ESV-3b's
+`Crater`/`LightningFX`. `SpriteAnimator` (used by every building/enemy in the
+game) deliberately gained no `loop_count` field for this — completion
+tracking lives entirely on the new `PlayOnceFade` component, which this ONE
+cosmetic object type carries.
+
+**ESV-6** appended `FloaterParams` to `engine/vfx/params.py` (APPEND only —
+`editor/panels/vfx_preview.py` consumes this surface and a reshape already
+caused one integration fix, `6a05689`) and one new field, `floaters`, on the
+existing `VfxParams` bundle: income/XP/painter/boost floater colours +
+lifetimes, closing the plan's §6 item 1 dead-data gap (`procedural.floaters`
+existed in `data/balancing/vfx.json` since ESV-3a but nothing ever read it —
+seven module constants in `game/ui/effects.py` were the live values instead).
+Like ESV-3b's four scene-object dataclasses, `VfxSystem` never touches it —
+`game/ui/effects.py` reads it straight off `VfxParams`. `VfxParams` gaining a
+required field (no defaults anywhere in this module, G-7) meant every OTHER
+direct `VfxParams(...)` construction needed a `floaters=` argument too —
+`editor/vfx_params.py`'s local mirror of `_params_from_balance` was the one
+real instance (see `editor/CLAUDE.md`'s VFX preview section).
+
+**fix-anchor-offset-and-bullet-sprites (post-ESV live-testing follow-up)**
+appended `ProjectileParams` the same way — one new required `projectile`
+field on `VfxParams` for `procedural.projectile`'s fallback-dot colour/size/
+lift (`data/balancing/vfx.json`). Like `FloaterParams` and ESV-3b's four
+scene-object dataclasses, `VfxSystem` never touches it — `game/ui/effects.py`
+reads it straight off `VfxParams` in `submit_projectiles`. Every direct
+`VfxParams(...)` construction needed a `projectile=` argument again
+(`editor/vfx_params.py`, `tools/tests/test_vfx.py`'s module-level
+`VFX_PARAMS` fixture) — verified live by constructing `VfxPreviewPanel` and
+switching every family in its combo, not just by reasoning about the
+dataclass.
 
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,

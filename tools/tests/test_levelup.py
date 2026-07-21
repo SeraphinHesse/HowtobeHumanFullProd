@@ -30,6 +30,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 XP = CORE["XP"]
 
@@ -73,7 +74,7 @@ def frame(session, scene, tilemap_, dt):
     session.pre_sim(dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(dt)
-        resolve_combat(scene, tilemap_, dt, BUILD,
+        resolve_combat(scene, tilemap_, dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death)
         session.post_sim(scene)

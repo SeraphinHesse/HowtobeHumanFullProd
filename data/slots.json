@@ -76,25 +76,25 @@
             {
               "label": "Meditator",
               "slots": [
-                "flute_player_t1_lvl1",
-                "flute_player_t1_lvl2",
-                "flute_player_t1_lvl3"
+                "meditator_t1_lvl1",
+                "meditator_t1_lvl2",
+                "meditator_t1_lvl3"
               ]
             },
             {
               "label": "Shaman",
               "slots": [
-                "harp_player_t2_lvl1",
-                "harp_player_t2_lvl2",
-                "harp_player_t2_lvl3"
+                "shaman_t2_lvl1",
+                "shaman_t2_lvl2",
+                "shaman_t2_lvl3"
               ]
             },
             {
               "label": "Sun Priest",
               "slots": [
-                "trio_t3_lvl1",
-                "trio_t3_lvl2",
-                "trio_t3_lvl3"
+                "sun_priest_t3_lvl1",
+                "sun_priest_t3_lvl2",
+                "sun_priest_t3_lvl3"
               ]
             }
           ],
@@ -323,7 +323,8 @@
         "idle",
         "walk",
         "attack",
-        "death"
+        "death",
+        "kidnap"
       ],
       "display_name": "Enemies",
       "frame_h": 96,
@@ -424,8 +425,8 @@
               "label": "Era 1",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_1"
                 }
               ]
@@ -434,8 +435,8 @@
               "label": "Era 2",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_2"
                 }
               ]
@@ -444,8 +445,8 @@
               "label": "Era 3",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_3"
                 }
               ]
@@ -454,8 +455,8 @@
               "label": "Era 4",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_4"
                 }
               ]
@@ -740,7 +741,13 @@
           "label": "Effects",
           "slots": [
             "vfx_hit",
-            "vfx_explosion"
+            "vfx_explosion",
+            "vfx_muzzle",
+            "vfx_death",
+            "vfx_slash",
+            "vfx_crater",
+            "vfx_projectile",
+            "vfx_shell"
           ]
         }
       ],
@@ -832,6 +839,16 @@
                 "deco_prop_3",
                 "deco_prop_3_v2"
               ]
+            },
+            {
+              "label": "Prop 4",
+              "slots": [
+                "deco_prop_4",
+                "deco_prop_4_v2",
+                "deco_prop_4_v3",
+                "deco_prop_4_v4",
+                "deco_prop_4_v5"
+              ]
             }
           ],
           "label": "Props"
@@ -850,31 +867,130 @@
         {
           "children": [
             {
-              "label": "Grass",
+              "label": "Buildable",
               "slots": [
-                "cond_grass"
+                "cond_grass_buildable"
               ]
             },
             {
-              "label": "Mountain",
+              "label": "Built",
               "slots": [
-                "cond_mountain"
+                "cond_grass_built"
               ]
             },
             {
-              "label": "Pond",
+              "label": "Combat",
               "slots": [
-                "cond_pond"
+                "cond_grass_combat"
               ]
             },
             {
-              "label": "Forest",
+              "label": "Spawning",
               "slots": [
-                "cond_forest"
+                "cond_grass_spawning"
               ]
             }
           ],
-          "label": "Terrain"
+          "label": "Grass"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_mountain_buildable",
+                "cond_mountain_buildable_v2",
+                "cond_mountain_buildable_v3",
+                "cond_mountain_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_mountain_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_mountain_combat",
+                "cond_mountain_combat_v2",
+                "cond_mountain_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_mountain_spawning"
+              ]
+            }
+          ],
+          "label": "Mountain"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_pond_buildable",
+                "cond_pond_buildable_v2",
+                "cond_pond_buildable_v3",
+                "cond_pond_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_pond_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_pond_combat",
+                "cond_pond_combat_v2",
+                "cond_pond_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_pond_spawning"
+              ]
+            }
+          ],
+          "label": "Pond"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_forest_buildable"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_forest_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_forest_combat",
+                "cond_forest_combat_v2",
+                "cond_forest_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_forest_spawning"
+              ]
+            }
+          ],
+          "label": "Forest"
         }
       ],
       "key": "conditions"
