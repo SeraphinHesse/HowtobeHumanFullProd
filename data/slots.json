@@ -869,7 +869,10 @@
             {
               "label": "Buildable",
               "slots": [
-                "cond_mountain_buildable"
+                "cond_mountain_buildable",
+                "cond_mountain_buildable_v2",
+                "cond_mountain_buildable_v3",
+                "cond_mountain_buildable_v4"
               ]
             },
             {
@@ -881,7 +884,9 @@
             {
               "label": "Combat",
               "slots": [
-                "cond_mountain_combat"
+                "cond_mountain_combat",
+                "cond_mountain_combat_v2",
+                "cond_mountain_combat_v3"
               ]
             },
             {
@@ -898,7 +903,10 @@
             {
               "label": "Buildable",
               "slots": [
-                "cond_pond_buildable"
+                "cond_pond_buildable",
+                "cond_pond_buildable_v2",
+                "cond_pond_buildable_v3",
+                "cond_pond_buildable_v4"
               ]
             },
             {
@@ -910,7 +918,9 @@
             {
               "label": "Combat",
               "slots": [
-                "cond_pond_combat"
+                "cond_pond_combat",
+                "cond_pond_combat_v2",
+                "cond_pond_combat_v3"
               ]
             },
             {
@@ -939,7 +949,9 @@
             {
               "label": "Combat",
               "slots": [
-                "cond_forest_combat"
+                "cond_forest_combat",
+                "cond_forest_combat_v2",
+                "cond_forest_combat_v3"
               ]
             },
             {
