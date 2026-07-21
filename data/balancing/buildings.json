@@ -259,7 +259,7 @@
           "base_hp": 120,
           "base_upkeep": 0,
           "build_cost": 10,
-          "dmg_per_level": 5,
+          "dmg_per_level": 7,
           "explanation": "Hurls rocks at anything that moves.",
           "hp_per_level": 40,
           "levels": 3,
