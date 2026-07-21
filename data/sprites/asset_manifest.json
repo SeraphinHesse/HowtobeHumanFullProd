@@ -3040,6 +3040,60 @@
       ],
       "sheet": "imported/formation_stage_1.png"
     },
+    "formation_stage_2": {
+      "frame_h": 128,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
+    "formation_stage_3": {
+      "frame_h": 128,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
+    "formation_stage_4": {
+      "frame_h": 128,
+      "frame_w": 128,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
     "harp_player_t2_lvl1": {
       "frame_h": 96,
       "frame_w": 64,
