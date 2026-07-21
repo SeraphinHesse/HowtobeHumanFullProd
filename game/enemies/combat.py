@@ -534,7 +534,8 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
-                        assets, cs, on_splash_impact, on_defender_fire)
+                        assets, cs, on_splash_impact, on_defender_fire,
+                        lift_frac)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
                  on_defender_fire, on_projectile_hit, lift_frac)
@@ -634,7 +635,7 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
 
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
-                 on_defender_fire=None):
+                 on_defender_fire=None, lift_frac=0.0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -654,9 +655,19 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     instead of) the Crater spawn.
 
     ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
-    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed."""
+    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed.
+
+    ``lift_frac`` (feat-projectile-anchored-flight): the shell spawns through
+    the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
+    mortar keeps the screen-space lift that used to be added at DRAW time in
+    ``submit_projectiles``. Without this the shell would render ~19px lower
+    than before this change — ``ProjectileArc.update`` never moves the shell
+    (only its timer ticks), so its spawn point IS its drawn point for the
+    whole flight, and the removed draw lift has to come back here or the
+    mortar visibly drops. Byte-identical to pre-change for an un-anchored
+    shooter; an authored ``muzzle`` anchor wins outright, as everywhere."""
     bx, by = defender.transform.world_pos
-    point = anchor_world_point(assets, cs, defender, "muzzle")
+    point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
     if point is not None:
         bx, by = point
     if on_defender_fire is not None:
