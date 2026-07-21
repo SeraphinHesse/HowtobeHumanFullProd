@@ -1523,6 +1523,20 @@
       "sheet": "imported/deco_tree_v9.png"
     },
     "enemy_stage_1_v1": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -7
+        ],
+        "hp_bar": [
+          2,
+          -23
+        ],
+        "impact": [
+          1,
+          2
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3190,6 +3204,16 @@
       "sheet": "imported/slinger_t2_lvl3.png"
     },
     "stone_thrower_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -25
+        ],
+        "muzzle": [
+          1,
+          -20
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
