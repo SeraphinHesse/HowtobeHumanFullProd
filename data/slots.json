@@ -820,6 +820,16 @@
                 "deco_prop_3",
                 "deco_prop_3_v2"
               ]
+            },
+            {
+              "label": "Prop 4",
+              "slots": [
+                "deco_prop_4",
+                "deco_prop_4_v2",
+                "deco_prop_4_v3",
+                "deco_prop_4_v4",
+                "deco_prop_4_v5"
+              ]
             }
           ],
           "label": "Props"
