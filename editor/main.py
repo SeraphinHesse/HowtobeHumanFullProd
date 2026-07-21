@@ -65,6 +65,7 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
+from editor.panels.tutorial_panel import TutorialPanel
 from editor.panels.viewport import ViewportPanel
 from engine import data_io
 from engine.render.fonts import configure_fonts
@@ -109,6 +110,7 @@ class MainWindow(QMainWindow):
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
         self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
+        self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
         # boot, same as game/main.py, so screen-mode preview text metrics
@@ -192,6 +194,10 @@ class MainWindow(QMainWindow):
         # entry mirrors Theme's reload-on-entry convention (registry writes are
         # immediate per-action inside the panel, so there is no saved signal here).
         self.selector.cutscenes_selected.connect(self._on_cutscenes_selected)
+
+        # Tutorial wiring (TU-4): the "Tutorial" leaf -> right_stack; reload on
+        # entry, the same convention as every other selection-driven panel.
+        self.selector.tutorial_selected.connect(self._on_tutorial_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -321,6 +327,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
         self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
+        self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -968,6 +975,16 @@ class MainWindow(QMainWindow):
         reload-on-entry convention as Theme) and show the panel."""
         self.cutscenes.set_registry()
         self.right_stack.setCurrentWidget(self.cutscenes)
+
+    # -- Tutorial panel (TU-4) -------------------------------------------------
+
+    def _on_tutorial_selected(self):
+        """The selector's Tutorial leaf: reload fresh from disk (a designer
+        may have hand-edited nothing, but this mirrors every other
+        selection-driven panel's reload-on-entry convention) and show the
+        panel."""
+        self.tutorial_panel.set_tutorial()
+        self.right_stack.setCurrentWidget(self.tutorial_panel)
 
     # -- frame drive ---------------------------------------------------------
 

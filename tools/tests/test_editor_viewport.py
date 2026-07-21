@@ -1390,6 +1390,7 @@ class TestPurity(unittest.TestCase):
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
             "editor.panels.game_theme, editor.theme_ops, "
             "editor.panels.cutscenes, "
+            "editor.panels.tutorial_panel, editor.tutorial_ops, "
             "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
