@@ -10,20 +10,24 @@ kept fixed), Esc opens the pause menu (was: quit). Frame order is fixed per
 E-14: input -> Scene.update(dt) -> render submit.
 
 All tunables come from data/ (G-7): geometry.json (tile pitch, zoom
-levels), display.json (window size, fps, caption), the ACTIVE MAP (D-21),
-and ui.json (Menu.cutscene_length). No iso math here — clicks and zoom
-anchoring go through engine.coords only.
+levels), display.json (window size, fps, caption), and the ACTIVE MAP
+(D-21). No iso math here — clicks and zoom anchoring go through
+engine.coords only.
 
 Phase 9G wired the in-round UI (game/ui): HUD (love/income/lives/phase +
 End Turn + Pause), the building panel, floaters + HP bars, the game over
 screen. Phase 9H wraps a run in the top-level shell (game.ui.Shell): the
-intro CUTSCENE (full video via engine.video), MAIN_MENU, SETTINGS,
-CREDITS, ADD_NAME, PAUSED. The host owns the pygame-only concerns the pure
-shell cannot: window (re)creation for display mode, the cutscene frame
-blit, background music, the _World lifecycle, and executing the shell's
-intent strings (new_game / quit_to_menu / quit_app / set_display_mode /
-add_name_commit). GAMEPLAY/GAME_OVER carry the live world; every other
-state is a full-screen shell screen with no world.
+intro CUTSCENE, MAIN_MENU, SETTINGS, CREDITS, ADD_NAME, PAUSED. The host
+owns the pygame-only concerns the pure shell cannot: window (re)creation
+for display mode, the cutscene frame blit, background music, the _World
+lifecycle, and executing the shell's intent strings (new_game /
+quit_to_menu / quit_app / set_display_mode / add_name_commit).
+GAMEPLAY/GAME_OVER carry the live world; every other state is a
+full-screen shell screen with no world. Phase TU-5 generalized the intro
+cutscene into a registry-driven ``game.ui.cutscene_player.CutscenePlayer``
+(``data/video/cutscenes.json``) and added a second, in-gameplay trigger:
+``Session.end_turn()``'s ``pending_cutscene`` request freezes the sim and
+overlays the matching cutscene the first time a round ends.
 
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
@@ -55,7 +59,6 @@ from engine.physics import TileOccupancy
 from engine.render import HudText, Renderer
 from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
-from engine.video import VideoSource
 from game.buildings import BaseBuilding, attach_base
 # -- 10I: defence-range coverage producer (injected into the tilemap) --
 from game.buildings.coverage import wire_defence_coverage
@@ -72,6 +75,7 @@ from game.ui import (
     GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
+from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 
 BACKGROUND = (24, 20, 32)
@@ -229,11 +233,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
-    # intro cutscene (full video; graceful skip if cv2/file absent -> MAIN_MENU)
-    video = VideoSource(data_dir / "video" / "cutscene.mp4",
-                        ui_balance["Menu"]["cutscene_length"],
-                        target_size=(view_w, view_h))
-    start = GameState.CUTSCENE if video.enabled else GameState.MAIN_MENU
+    # Cutscenes (TU-5): one CutscenePlayer per data/video/cutscenes.json entry
+    # (TU-1). "intro" is the pre-gameplay shell state (graceful skip if
+    # cv2/file absent -> MAIN_MENU); "first_end_turn" is an in-gameplay
+    # overlay Session.end_turn() requests via state.pending_cutscene.
+    cutscene_registry = load_cutscene_registry(data_dir)
+    cutscenes = {
+        cid: CutscenePlayer(data_dir, entry, target_size=(view_w, view_h))
+        for cid, entry in cutscene_registry.items()
+    }
+    intro_player = cutscenes.get("intro")
+    start = (GameState.CUTSCENE if intro_player and intro_player.enabled
+             else GameState.MAIN_MENU)
     # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
     # shell shares it with its five menu screens; build_gameplay threads the
     # SAME instance into the seven gameplay screens it constructs itself).
@@ -271,7 +282,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
           "game_over": None, "levelup": None, "boss_cutscene": None,
           "cheat": None, "overlays": None, "prev_phase": None,
           # -- 10J: game log + shift multi-select state --
-          "game_log": None, "sel": [], "sel_cat": None}
+          "game_log": None, "sel": [], "sel_cat": None,
+          # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
+          "cutscene": None}
 
     def build_gameplay():
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
@@ -315,7 +328,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
-                  "boss_cutscene", "cheat", "overlays", "game_log"):
+                  "boss_cutscene", "cheat", "overlays", "game_log", "cutscene"):
             gp[k] = None
         gp["sel"], gp["sel_cat"] = [], None  # 10J
         if tune_gc:
@@ -520,7 +533,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             st = shell.state
             if st == GameState.CUTSCENE:
                 if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    video.skip()
+                    intro_player.skip()
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
@@ -528,6 +541,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                     execute(shell.handle_click(*event.pos))
                 continue
+            # -- TU-5: an in-gameplay cutscene overlay consumes ALL input
+            # while active (mirrors the CUTSCENE branch above) --
+            if gp["cutscene"] is not None:
+                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+                    gp["cutscene"].skip()
+                continue
+            # TU-6: input whitelist goes here
             # GAMEPLAY / GAME_OVER: the live world is present
             world = gp["world"]
             session = world.session
@@ -626,105 +646,122 @@ def main(max_frames=None, data_dir=None, autostart=False):
         _t_sim0 = time.perf_counter()
         st = shell.state
         if st == GameState.CUTSCENE:
-            video.update(dt)
-            if video.done:
-                video.release()
+            intro_player.update(dt)
+            if intro_player.done:
+                intro_player.release()
                 shell.to_main_menu()
         elif st in _WORLD_STATES:
             world = gp["world"]
             session = world.session
-            # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
-            # movement and the combat sweep together (prototype game.py:1211-13).
-            # ROUND_END/INCOME timers always run on real time, and the pause is
-            # just a 0.0 multiplier, so the round machine is never touched.
-            sim_dt = (dt * session.combat_speed
-                      if session.state.phase == GamePhase.ENEMY else dt)
-            session.pre_sim(sim_dt, world.scene)
-            # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
-            if session.state.state == GameState.GAMEPLAY and not session.frozen:
-                world.scene.update(sim_dt)
-                # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
-                # once per frame and threaded as a plain int.
-                dmg_bonus = story_damage_bonus(session.state, world.tile_map)
+            # -- TU-5: consume a pending in-gameplay cutscene request, then
+            # freeze the whole sim body below for as long as one is playing
+            # (the wave IS queued by Session.end_turn() before this fires —
+            # the freeze just withholds it visually until skip/done). --
+            if gp["cutscene"] is None and session.state.pending_cutscene:
+                requested = cutscenes.get(
+                    session.state.pending_cutscene.get("id"))
+                session.state.pending_cutscene = None
+                if requested is not None and requested.enabled:
+                    requested.start()
+                    gp["cutscene"] = requested
+            if gp["cutscene"] is not None:
+                gp["cutscene"].update(dt)
+                if gp["cutscene"].done:
+                    gp["cutscene"].release()
+                    gp["cutscene"] = None
+            if gp["cutscene"] is None:
+                # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
+                # movement and the combat sweep together (prototype game.py:1211-13).
+                # ROUND_END/INCOME timers always run on real time, and the pause is
+                # just a 0.0 multiplier, so the round machine is never touched.
+                sim_dt = (dt * session.combat_speed
+                          if session.state.phase == GamePhase.ENEMY else dt)
+                session.pre_sim(sim_dt, world.scene)
+                # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
+                if session.state.state == GameState.GAMEPLAY and not session.frozen:
+                    world.scene.update(sim_dt)
+                    # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
+                    # once per frame and threaded as a plain int.
+                    dmg_bonus = story_damage_bonus(session.state, world.tile_map)
 
-                # Play the death animation if the dead enemy's sheet has a
-                # `death` row (Art/enemies): the session bookkeeping runs first
-                # and the enemy still despawns this frame, but a cosmetic Corpse
-                # lingers at its spot to play the row once. Dormant when the
-                # sheet has no `death` track (no duration -> no corpse).
-                def _on_enemy_death(enemy, _scene=world.scene):
-                    session.on_enemy_death(enemy)
-                    anim = enemy.get_component(SpriteAnimator)
-                    if anim is not None:
-                        ms = assets.animation_total_ms(anim.slot_key, DEATH_ANIM)
-                        if ms:
-                            spawn_corpse(_scene, enemy, ms)
+                    # Play the death animation if the dead enemy's sheet has a
+                    # `death` row (Art/enemies): the session bookkeeping runs first
+                    # and the enemy still despawns this frame, but a cosmetic Corpse
+                    # lingers at its spot to play the row once. Dormant when the
+                    # sheet has no `death` track (no duration -> no corpse).
+                    def _on_enemy_death(enemy, _scene=world.scene):
+                        session.on_enemy_death(enemy)
+                        anim = enemy.get_component(SpriteAnimator)
+                        if anim is not None:
+                            ms = assets.animation_total_ms(anim.slot_key, DEATH_ANIM)
+                            if ms:
+                                spawn_corpse(_scene, enemy, ms)
 
-                resolve_combat(world.scene, world.tile_map, sim_dt,
-                               buildings_balance,
-                               on_base_hit=session.on_base_hit,
-                               on_enemy_death=_on_enemy_death,
-                               dmg_bonus=dmg_bonus)
-                session.post_sim(world.scene)
-            # payday fills state.income_events + flips to INCOME; spawn once
-            if (session.state.phase == GamePhase.INCOME
-                    and gp["prev_phase"] != GamePhase.INCOME):
-                gp["floaters"].spawn_income_events(session.state)
-                gp["floaters"].spawn_painter_events(session.state)
-                gp["floaters"].spawn_boost_events(session.state)
-            # -- 10J: the previous round's blood clears when the next wave
-            # starts (prototype clear_splatters on End Turn, game.py:815) --
-            if (session.state.phase == GamePhase.ENEMY
-                    and gp["prev_phase"] != GamePhase.ENEMY):
-                gp["floaters"].clear_splatters()
-            # -- /10J --
-            # pre_sim rolled the cards when it entered LEVELUP; open on the edge
-            if (session.state.phase == GamePhase.LEVELUP
-                    and gp["prev_phase"] != GamePhase.LEVELUP):
-                gp["panel"].close()  # the modal owns the screen
-                gp["levelup"].open(session.state.levelup_options)
-            # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
-            if (session.state.phase == GamePhase.BOSS_CUTSCENE
-                    and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
-                pending = session.state.pending_boss_cutscene or {}
-                gp["panel"].close()  # the modal owns the screen
-                gp["boss_cutscene"].open(pending.get("boss_num", 1),
-                                         pending.get("outcome", "win"))
-            # -- /10G --
-            # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
-            # snapshots the round's counts on the ENEMY->anything edge) --
-            gp["overlays"].track(session.state.phase, gp["prev_phase"],
-                                 world.scene)
-            # -- /10I --
-            gp["prev_phase"] = session.state.phase
-            gp["floaters"].spawn_xp_events(session.state)
-            gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
-            # mirror a fresh game over up to the shell (never while PAUSED)
-            if (st == GameState.GAMEPLAY
-                    and session.state.state == GameState.GAME_OVER):
-                gp["cheat"].close()  # 10H: never hide the game-over screen
-                shell.enter_game_over()
-            gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
-            gp["panel"].hover(mx, my, mouse_down=held)
-            gp["panel"].update(dt)
-            gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
-            gp["floaters"].update(dt)
-            # -- 10J: game log + FX watchers (building deaths -> purple burst
-            # + kill message; enemy attack cadence -> muzzle/slash; enemy
-            # deaths -> blood splatters, double-gated on gore) --
-            gp["floaters"].watch_buildings(world.scene, gp["game_log"])
-            gp["floaters"].watch_enemies(world.scene)
-            gp["floaters"].spawn_death_events(session.state,
-                                              shell.settings.gore)
-            gp["game_log"].drain(session.state)
-            gp["game_log"].update(dt)
-            # -- /10J --
-            gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
-            if session.frozen:
-                gp["levelup"].update(dt, mx, my, mouse_down=held)
-                gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
-            if session.state.state == GameState.GAME_OVER:
-                gp["game_over"].update(dt, mx, my, mouse_down=held)
+                    resolve_combat(world.scene, world.tile_map, sim_dt,
+                                   buildings_balance,
+                                   on_base_hit=session.on_base_hit,
+                                   on_enemy_death=_on_enemy_death,
+                                   dmg_bonus=dmg_bonus)
+                    session.post_sim(world.scene)
+                # payday fills state.income_events + flips to INCOME; spawn once
+                if (session.state.phase == GamePhase.INCOME
+                        and gp["prev_phase"] != GamePhase.INCOME):
+                    gp["floaters"].spawn_income_events(session.state)
+                    gp["floaters"].spawn_painter_events(session.state)
+                    gp["floaters"].spawn_boost_events(session.state)
+                # -- 10J: the previous round's blood clears when the next wave
+                # starts (prototype clear_splatters on End Turn, game.py:815) --
+                if (session.state.phase == GamePhase.ENEMY
+                        and gp["prev_phase"] != GamePhase.ENEMY):
+                    gp["floaters"].clear_splatters()
+                # -- /10J --
+                # pre_sim rolled the cards when it entered LEVELUP; open on the edge
+                if (session.state.phase == GamePhase.LEVELUP
+                        and gp["prev_phase"] != GamePhase.LEVELUP):
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["levelup"].open(session.state.levelup_options)
+                # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
+                if (session.state.phase == GamePhase.BOSS_CUTSCENE
+                        and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
+                    pending = session.state.pending_boss_cutscene or {}
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["boss_cutscene"].open(pending.get("boss_num", 1),
+                                             pending.get("outcome", "win"))
+                # -- /10G --
+                # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
+                # snapshots the round's counts on the ENEMY->anything edge) --
+                gp["overlays"].track(session.state.phase, gp["prev_phase"],
+                                     world.scene)
+                # -- /10I --
+                gp["prev_phase"] = session.state.phase
+                gp["floaters"].spawn_xp_events(session.state)
+                gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
+                # mirror a fresh game over up to the shell (never while PAUSED)
+                if (st == GameState.GAMEPLAY
+                        and session.state.state == GameState.GAME_OVER):
+                    gp["cheat"].close()  # 10H: never hide the game-over screen
+                    shell.enter_game_over()
+                gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
+                gp["panel"].hover(mx, my, mouse_down=held)
+                gp["panel"].update(dt)
+                gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
+                gp["floaters"].update(dt)
+                # -- 10J: game log + FX watchers (building deaths -> purple burst
+                # + kill message; enemy attack cadence -> muzzle/slash; enemy
+                # deaths -> blood splatters, double-gated on gore) --
+                gp["floaters"].watch_buildings(world.scene, gp["game_log"])
+                gp["floaters"].watch_enemies(world.scene)
+                gp["floaters"].spawn_death_events(session.state,
+                                                  shell.settings.gore)
+                gp["game_log"].drain(session.state)
+                gp["game_log"].update(dt)
+                # -- /10J --
+                gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
+                if session.frozen:
+                    gp["levelup"].update(dt, mx, my, mouse_down=held)
+                    gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
+                if session.state.state == GameState.GAME_OVER:
+                    gp["game_over"].update(dt, mx, my, mouse_down=held)
         else:  # menu states + PAUSED
             shell.update(dt, mx, my, mouse_down=held)
 
@@ -733,7 +770,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         window.fill(BACKGROUND)
         st = shell.state
         if st == GameState.CUTSCENE:
-            surf = video.frame_surface()
+            surf = intro_player.frame_surface()
             if surf is not None:
                 window.blit(surf, (0, 0))
             renderer.submit_hud(HudText(
@@ -833,6 +870,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # -- /10H --
             _t_flush_start = time.perf_counter()
             renderer.flush(window)
+            # -- TU-5: an in-gameplay cutscene overlay paints AFTER the
+            # (frozen, but still-submitted) world frame, full-screen --
+            if gp["cutscene"] is not None:
+                surf = gp["cutscene"].frame_surface()
+                if surf is not None:
+                    window.blit(surf, (0, 0))
+                renderer.submit_hud(HudText(
+                    "press any key to skip", (view_w // 2, view_h - 40),
+                    "md", (210, 210, 210), align="center"))
+                renderer.flush(window)
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:
                 cs.pan(-shake_ox, -shake_oy)

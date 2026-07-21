@@ -82,6 +82,8 @@ TIERS = {
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
+    "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
