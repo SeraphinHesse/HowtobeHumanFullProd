@@ -266,6 +266,11 @@ class TestEntityPreview(TempDataCase):
         self.assertEqual(paint_bytes(panel), baseline)
 
     def test_preview_animations_and_dropdown_follow_the_slot(self):
+        # PIN the animation rows: the subject is "the dropdown follows the
+        # slot", not "stone_thrower ships two rows". cff77c7 ("Stonethrower all
+        # eras") grew that sheet to six rows and reddened this test for a
+        # reason unconnected to the viewport.
+        self.pin_slot_rows("stone_thrower_t1_lvl1", ("idle", "attack"))
         panel = self.make()
         panel.set_preview_slot("stone_thrower_t1_lvl1")
         self.assertEqual(panel.preview_animations(), ("idle", "attack"))
