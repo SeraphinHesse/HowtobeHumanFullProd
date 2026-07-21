@@ -315,7 +315,15 @@ class TestCarriedSpriteGeometry(unittest.TestCase):
             zoom_levels=(1.0,)))
         sx0, _sy0 = cs.world_to_screen(wx, wy)
         sx1, sy1 = cs.world_to_screen(ix, iy)
-        self.assertAlmostEqual(sx0 - sx1, 2 * CARRY_OFFSET_TILES * (64 / 2))
+        # `world_to_screen` is `iso * zoom - pan`, so the screen delta scales
+        # with the camera's zoom. Derive the expectation from the camera this
+        # test actually uses instead of assuming 1.0: the `Camera.zoom` default
+        # moved 1.0 -> 2.0 (engine/coords/camera.py) and silently doubled this
+        # number, which is exactly what a hardcoded 16 could not survive. The
+        # invariant under test is the OFFSET, not the zoom it is viewed at.
+        half_w = 64 / 2
+        self.assertAlmostEqual(
+            sx0 - sx1, 2 * CARRY_OFFSET_TILES * half_w * cs.camera.zoom)
         self.assertAlmostEqual(_sy0, sy1)  # zero vertical screen change
 
 
