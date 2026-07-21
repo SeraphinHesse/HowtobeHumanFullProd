@@ -41,7 +41,7 @@ Undo via the global QUndoStack (ED-24) remains deferred.
 import copy
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -216,6 +216,12 @@ class BalancingPanel(QWidget):
     # reaching into the layout tree.
     ROW_ADD = "rowadd:"
     ROW_REMOVE = "rowremove:"
+    # ESV-4: fires (path, value) whenever ANY value is staged into self._doc —
+    # from a generic-form widget edit OR from the vfx preview panel's
+    # stage_value() call (§2.3). The preview panel is the one subscriber
+    # today; a listener must filter by its own domain/path interest itself
+    # (this panel has none — "one staging store" stays domain-agnostic).
+    value_staged = Signal(str, object)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -488,6 +494,43 @@ class BalancingPanel(QWidget):
         last = segments[-1]
         node[int(last) if last.isdigit() else last] = value
         self._refresh_dirty(key)
+        self.value_staged.emit(key, value)
+
+    # -- ESV-4: the vfx preview panel's read/write seam into staging --------
+    # No second doc, no second dirty set, no second writer: the preview panel
+    # holds a reference to THIS panel and goes through these two methods plus
+    # value_staged above, so a lever in the preview and its twin row in the
+    # generic form can never disagree (phase-esv-4-vfx-preview.md §2.3).
+
+    def staged_value(self, path):
+        """Public read of the current staged value at a `/`-joined path —
+        the same lookup `_value_at` already does internally, exposed for a
+        caller outside this class."""
+        return self._value_at(path)
+
+    def stage_value(self, path, value):
+        """Stage `value` at `path` exactly like a generic-form widget edit
+        (dirty dot + `value_staged`), and additionally push it into that
+        path's OWN generic-form widget (if the form currently has one) so
+        the two views of the same staged doc can never show different
+        numbers.
+
+        A `path` may address a whole ARRAY (e.g. a named-stop colour —
+        `procedural/<family>/ramp/stop_0`, a 3-int RGB list) that the
+        generic form has no single widget for: `_build_array`'s
+        array-of-scalars branch registers one widget PER INDEX instead
+        (`.../stop_0/0`, `.../stop_0/1`, `.../stop_0/2`). Fall back to those
+        per-index widgets when the whole-path widget does not exist, so a
+        colour picked here still lights up the three spinboxes below."""
+        self._commit(path, value)
+        widget = self._widgets.get(path)
+        if widget is not None:
+            self._set_widget_value(path, widget, value)
+        elif isinstance(value, (list, tuple)):
+            for i, item in enumerate(value):
+                child = self._widgets.get(f"{path}/{i}")
+                if child is not None:
+                    self._set_widget_value(f"{path}/{i}", child, item)
 
     def _refresh_dirty(self, key):
         try:

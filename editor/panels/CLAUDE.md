@@ -327,6 +327,85 @@ import list.**
   clock is wall-clock and resets on slot/animation/draft change. No asset → grey X
   (E-37). New modules go in `test_editor_viewport.TestPurity`'s import list
   (`details`, `level_bar`, `selection` are in). Measured ~57 fps.
+- **Anchor handles (ESV-2)**: hangs off the entity preview, not a new mode —
+  handles are visible exactly when `preview_slot` is set and absent by
+  construction in map/screen mode (those branches never call the submitter).
+  Three pieces: **`editor/anchor_ops.py`** (pure — `screen_point`/`frame_px`
+  frame-px↔screen-delta conversions plus `set_anchor`/`clear_anchor`,
+  `write_validated` through `asset_import.load_manifest_doc`/
+  `write_manifest_doc`, modelled on `registry_ops.py`, `TestPurity`);
+  **`editor/panels/anchors_panel.py`** (`AnchorsPanel`, Qt — one row per
+  `engine.assets.manifest.ANCHOR_NAMES` name, NEVER a literal name list, so a
+  seventh declared name needs zero editor edits; owns the SOLE authoritative
+  `{name: (x, y)}` mapping, seeded fresh from disk on every `set_slot`/
+  `reload()`); **`viewport.py`** (submit + hit-test + drag — a VIEW of the
+  panel's mapping via `set_anchors`/`set_selected_anchor`, never reading or
+  writing the manifest itself).
+  - **Handle geometry is ED-22 clean**: a fixed-SCREEN-size closed outline +
+    crosshair through `Renderer.submit_overlay_lines` (WORLD points, so the
+    two-sample `screen_to_world` trick cancels zoom/pan — `game/anchors.py`'s
+    proven pattern, ESV-2 brief §2.3c), plus an optional name label via
+    `submit_hud(HudText(...))`. Never QPainter.
+  - **Handle origin COMPOSES `offset_x`/`offset_y`** (reverses ESV-2 brief
+    §1.4 — see `docs/briefs/fix-anchor-offset-and-bullet-sprites.md` Fix 1):
+    `_anchor_draw_params` folds the entry's offset into the anchor origin so
+    the handle sits on the art exactly like the renderer draws it.
+    **fix-anchor-origin-parity**: `_anchor_draw_params` now computes that
+    origin by calling `engine.render.sprite_anchor_screen` directly (never a
+    hand-rolled `world_to_screen` + offset expression) — the SAME shared
+    helper `game/anchors.py`'s `anchor_world_point` calls for the game side,
+    so the editor's handle and the game's resolved anchor point cannot drift
+    apart again (the bug this fix shipped for: they used to resolve from two
+    different bases, `screen_offset`/`world_offset`'s ESV-1 delta model,
+    since deleted). `editor/anchor_ops.py`'s `screen_point`/`frame_px` are
+    untouched — they are pure algebra over a caller-supplied origin and exact
+    inverses of each other, so shifting the origin fixes the draw AND the
+    drag in one move. **RESOLVED (fix-editor-preview-footprint)**: the
+    preview used to always resolve at `fit_tiles=0.0`/`scale=1.0` (the
+    RenderItem's dataclass defaults) regardless of what the entity actually
+    was, while a real game entity draws at its own footprint fit
+    (`fit_tiles=EnemyTypes.<Type>.footprint`,
+    `scale=EnemyTypes.<Type>.sprite_scale`, `game/enemies/enemy.py`) — the
+    one slot in `data/` where those disagreed, `formation_stage_1`
+    (`frame_w: 128`, 1-tile footprint -> game `s = 0.5` vs editor `s = 1.0`),
+    resolved its anchor at HALF its intended distance in game, and drew at
+    twice its real in-game size (an ED-22 WYSIWYG violation independent of
+    anchors). Fixed by a new pure resolver, `editor/sprite_fit.py`'s
+    `slot_draw_fit(data_dir, category_key, slot_key)`: it degrades to
+    `(0.0, 1.0)` for every non-enemy category and for anything unresolvable
+    (E-37), and for `enemies` resolves the slot -> its top-level
+    `data/slots.json` "enemies" group label -> the `EnemyTypes` entry whose
+    NEW required `registry_group` string (`data/balancing/enemies.json` +
+    `enemies.schema.json`) matches that label -> `(footprint, sprite_scale)`.
+    `registry_group` exists because the editor may never import `game/`
+    (D5) and the link was otherwise expressible only in
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` Python class constants, two
+    of which do NOT match their `EnemyTypes` key by string
+    (`Standard`->`"Walker"`, `SiegeCannon`->`"Siege Cannon"`) — matching by
+    convention instead of this field would have violated "schemas over
+    convention". A NEW `ViewportPanel._preview_draw_fit()` is the ONE call
+    both the entity-preview `RenderItem` submission and
+    `_anchor_draw_params` read their `fit_tiles`/`scale` from, so the
+    preview's drawn size and the handle's resolved scale cannot drift
+    apart again — the same one-shared-formula argument
+    fix-anchor-origin-parity made for the handle's ORIGIN, now made for its
+    SCALE. `game/enemies/enemy.py`'s `REGISTRY_GROUP` constants remain a
+    SECOND home for the same link (deliberately not refactored to read
+    `data/` in this fix) — `tools/tests/test_enemies.py`'s
+    `TestRegistryGroupDrift` pins the two together so a future drift turns
+    red instead of silently breaking the editor preview.
+  - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
+    reverse submission order, the `_hit_widget` rule) and suppresses the pan
+    on a hit; RIGHT never grabs a handle. Move recomputes frame-px live
+    (`anchor_dragged`, spinboxes follow with signals blocked — nothing
+    written); release commits ONE write (`anchor_drag_finished`) only when
+    the value actually moved — a click alone only selects. No undo: the
+    panel writes immediately, like `details.py`'s Save/Clear.
+  - **`DetailsPanel.draft_entry()` preserves an existing entry's `anchors`
+    value verbatim** — that panel never authors anchors, so a Save/Clear
+    there must not erase what `AnchorsPanel` wrote; `MainWindow.
+    _on_manifest_changed` re-seeds `AnchorsPanel` via `reload()` so panel and
+    handle stay in step with any manifest write, not only its own.
 
 ## Phase 6 — tilemap mode (`panels/palette.py`, `panels/map_details.py`; ED-10/20/23/24)
 - **Selection**: the Maps branch is the FIRST child of the "map" category node; one
@@ -578,6 +657,108 @@ import list.**
   `push_skin_assign` on an in-memory session, never a populated screen
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
+
+## Phase ESV-4 — vfx preview (`panels/vfx_preview.py`, `editor/vfx_params.py`)
+- **A DEDICATED panel, not a fourth `ViewportPanel` mode.** ESV-2 owns
+  `viewport.py` concurrently (anchor handles + drag); a `set_vfx_mode`
+  branch there would collide with that diff for no architectural gain, so
+  `VfxPreviewPanel` builds its own `Renderer`/`AssetStore`/coordinate system
+  (structurally copying `ViewportPanel.__init__`/`_build_store`/
+  `render_frame`) — the router's ED-22 section explains why a second
+  `Renderer` instance is still one render path. **ESV-5 changed how it's
+  hosted**: it is no longer its own `right_stack` page — it is a THIRD child
+  (beside `self.details`/`self.anchors`) of a `QSplitter` inside
+  `self.details_pane` (`right_stack` index 0), because it turned out
+  `MainWindow._leave_vfx_mode` had targeted `self.details` since ESV-2 — a
+  widget that was never a stack page at all (only `self.details_pane` was
+  ever `addWidget`-ed) — so selecting a vfx node once permanently stranded
+  the asset importer for the rest of the session. `_enter_vfx_mode`/
+  `_leave_vfx_mode` now just toggle `self.vfx_preview.setVisible(...)`;
+  frames advance on the SAME 16 ms `QTimer` as the viewport, gated on
+  `self.vfx_preview.isVisible()` (true only when BOTH its own explicit flag
+  is set AND `details_pane` is the current stack page — Qt's ancestor-chain
+  visibility rule does the second half for free) so an inactive preview
+  costs nothing. `right_stack.count() == 3` now (asset import / map / screen
+  — the vfx preview no longer has its own page).
+- **Composes with the generic balancing form, never duplicates it.** `vfx`
+  is a real balancing domain (ESV-3a) and already gets the recursive form
+  for free (`domains.py`'s derivation). The preview adds only what the
+  generic form structurally cannot: a picture, colour-picker swatches for
+  the named-stop ramps, and a curated 2-3-number lever strip for the family
+  currently playing — every other tunable stays in the generic tree,
+  reachable exactly as before.
+- **One staging store, no second writer (§2.3).** The panel holds no copy of
+  `vfx.json` and never calls `write_validated`: `BalancingPanel.staged_value(path)`
+  / `.stage_value(path, value)` are the ONLY read/write seam, and
+  `BalancingPanel.value_staged(path, value)` (emitted from `_commit`, so it
+  fires for a generic-form edit OR a preview-driven `stage_value` alike) is
+  what lets a lever here and its twin row in the generic form never
+  disagree. Save stays the balancing panel's one existing button; there is
+  exactly one dirty state in the app. A `stage_value(path, value)` whose
+  `path` addresses a whole ARRAY (a named-stop colour: `.../ramp/stop_0`,
+  a 3-int RGB list) falls back to the PER-INDEX widgets `_build_array`'s
+  array-of-scalars branch actually registers (`.../stop_0/0`, `/1`, `/2`) —
+  there is no single widget at the array's own path to push into.
+- **Family list is data-driven** (the keys under `procedural` in the loaded
+  doc, sorted — never a hardcoded literal list), so ESV-3b's
+  `beam`/`crater`/`lightning`/`announce` show up with zero panel edits. A
+  family with no emitter binding (`floaters` today) degrades to a
+  placeholder message (E-37) — never an exception, never a crash from a
+  combo-box selection change.
+- **Determinism (§2.6): `self._rng` is reseeded to the SAME fixed seed on
+  every `_emit()` call**, and `_emit()` builds a brand-new `VfxSystem` from
+  scratch every time (never mutated in place) — which is also how "any
+  lever edit clears the currently-live particles first" (§1.4) falls out
+  for free, with no separate clear-then-rebuild step. Tests assert the
+  PARAMS `_emit()` handed to `VfxSystem`'s constructor (a spy swapped in
+  for `vfx_preview.VfxSystem`), never a rendered pixel.
+- **`editor/vfx_params.py`** is the editor's own local mirror of
+  `game/ui/effects.py`'s `_color`/`_ramp`/`_params_from_balance` — pure
+  (stdlib + `engine.vfx` only), because `editor/` may never import `game/`
+  (D5's layering argument lives in the router). This is a KNOWN, reported
+  duplication, not an oversight — do not "fix" it by importing `game.ui`.
+
+### feat-projectile-anchored-flight — the `projectile` family + the entity-preview muzzle draw
+Two editor additions, both driven by `procedural.projectile`
+(`engine.vfx.ProjectileParams`, via the SAME `editor/vfx_params.py
+projectile_params` every other family's `VfxParams` construction already
+calls):
+- **`vfx_preview.py`'s `projectile` family is NOT a `VfxSystem` emitter** —
+  a projectile is a continuous flying object the game draws itself (like a
+  beam), never an `emit_*` burst — so it is deliberately kept OUT of
+  `_EMIT_FAMILIES` (a separate `_PROJECTILE_FAMILY` constant marks it
+  "supported" for the degrade-label check) and given its own small preview
+  path, `_submit_projectile_preview`: a dot/sprite interpolated between two
+  fixed world points over `self._loop_clock % self._loop_interval`, using
+  `vfx_projectile`/`vfx_shell` art when imported (the same `assets.
+  animation_total_ms(slot, "idle") is not None` "has art" signal the game
+  reads) else the coloured dot. A `_shell_check` box (the `_strong_check`/
+  `_large_check` precedent) toggles stone<->shell. No RNG involved (a
+  straight interpolation), so nothing here needs reseeding — only the
+  flight clock resets on a family switch (`_set_family`), mirroring
+  `_emit()`'s own `self._loop_clock = 0.0`.
+- **`viewport.py`'s entity preview draws the projectile at the `muzzle`
+  handle** (`_submit_muzzle_projectile`, called from `render_frame` right
+  before `_submit_anchor_handles()` so the crosshair stays on top): gated on
+  `"muzzle" in self._anchors`, it resolves the handle's screen point through
+  `_anchor_draw_params()`/`anchor_ops.screen_point` — the SAME call the
+  handle marker itself uses, never a second computation — and submits a
+  `HudSprite`/`HudRect` at the handle's exact point and real (`stone_size`)
+  size.
+  - **PERF (the `slot_draw_fit` lesson, re-learned once already this
+    plan): `data/balancing/vfx.json` is memoized, never read inside
+    `render_frame`/`_anchor_draw_params`/`_hit_anchor_handle`/
+    `_anchor_move`.** `ViewportPanel._load_projectile_params()` (a
+    `data_io.load_validated` + `vfx_params.projectile_params` call) runs
+    ONCE in `__init__` and again in `reload_registry()` (mirroring
+    `_resolve_draw_fit`'s two call sites) — unlike `_draw_fit` it does NOT
+    depend on `preview_slot` at all, so `set_preview_slot` does not
+    re-resolve it. Measured (`stone_thrower_t1_lvl1` previewed, a `muzzle`
+    handle set, 1280×720): `render_frame` ~6.4ms/frame avg (vs ~5.5ms/frame
+    with no muzzle anchor at all, i.e. the projectile draw itself costs
+    under 1ms); 2000 `_hit_anchor_handle`+`_anchor_move` calls (a synthetic
+    drag) totalled ~12.8ms, ~6.4 MICROseconds each — proof there is no
+    per-call JSON re-read.
 
 ## Phase UH-2 — per-mode screen views + auto Refresh Layouts on entry
 - **`building_panel` gets five views, exported by UH-1's per-mode snapshot

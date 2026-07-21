@@ -148,15 +148,21 @@ class Session:
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
-    def lightning_strike(self, scene, cs, wx, wy):
+    def lightning_strike(self, scene, cs, wx, wy, vfx_balance):
         """The ENEMY-phase left-click strike (prototype dispatch game.py:426-31
         + ``_handle_lightning_click``): only fires during a live ENEMY phase;
         locked/cooling strikes are silent no-ops inside ``lightning.strike``.
-        Returns whether the bolt actually fired."""
+        Returns whether the bolt actually fired.
+
+        ``vfx_balance`` (ESV-3b, required — no default, G-7): the loaded
+        ``vfx.json`` dict, passed straight through to ``lightning.strike``
+        for the FX marker's cosmetic fade lifetimes. Not stored on
+        ``Session`` — the host already holds it and passes it per call, the
+        same way it passes ``scene``/``cs``."""
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return False
-        return lt.strike(st, self.core_balance, scene, cs, wx, wy)
+        return lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy)
 
     def cheat_add_love(self, amount):
         """``+10 Love`` / ``Infinite Money`` (prototype game.py:305, 313).

@@ -37,14 +37,24 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import tilemap_ops
+from editor import anchor_ops, tilemap_ops, vfx_params
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
+from editor.sprite_fit import slot_draw_fit
 from engine import data_io, tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import HudLines, HudRect, HudSprite, HudText, Renderer, RenderItem
+from engine.render import (
+    HudLines,
+    HudRect,
+    HudSprite,
+    HudText,
+    Renderer,
+    RenderItem,
+    fit_factor,
+    sprite_anchor_screen,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
@@ -61,6 +71,15 @@ GHOST_TINT = (255, 255, 140, 255)   # armed brush preview under the cursor
 GRID_COLOR = (110, 110, 140)
 START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
+
+# ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
+# regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
+# colour constant per state.
+ANCHOR_COLOR = (120, 200, 255)          # authored, unselected
+ANCHOR_SELECTED_COLOR = (255, 220, 80)  # the anchor whose row is focused in the panel
+ANCHOR_DRAG_COLOR = (255, 90, 90)       # actively being dragged
+HANDLE_RADIUS_PX = 6   # half-extent, fixed SCREEN pixels — never scales with zoom
+HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
@@ -90,6 +109,9 @@ class ViewportPanel(QWidget):
     cursor_world = Signal(float, float)   # ED-23 readout (both modes)
     code_picked = Signal(str)             # picker tool → palette re-arm
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
+    anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
+    anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
+    anchor_drag_finished = Signal(str, int, int)  # ESV-2: ONE write per gesture
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -106,9 +128,20 @@ class ViewportPanel(QWidget):
         self._build_store()
 
         self.preview_slot = None
+        # Memoized (fit_tiles, scale) for preview_slot — resolved eagerly by
+        # _resolve_draw_fit() on slot change / registry reload, never per
+        # frame (slot_draw_fit re-reads two JSON files). See _preview_draw_fit.
+        self._draw_fit = (0.0, 1.0)
         self.preview_animation = "idle"
         self._anim_ms = 0.0
         self._anim_last_t = None
+
+        # ESV-2: anchor handles — a VIEW of the panel's authoritative
+        # mapping plus a live drag delta; the viewport never reads/writes
+        # the manifest for anchors itself (§2.2).
+        self._anchors = {}            # {name: (x, y)}
+        self._anchor_selected = None  # name | None
+        self._anchor_drag = None      # (name, orig_x, orig_y) while dragging
 
         # -- tilemap-editor state (ED-20); all mutations go through the
         # session's undo stack, all cell picking through engine.coords
@@ -165,6 +198,17 @@ class ViewportPanel(QWidget):
         self._drag_pos = None
         self.last_frame_ms = 0.0
         self._logo_pixmap = QPixmap(str(LOGO_PATH))
+        # feat-projectile-anchored-flight §3.2 PERF: data/balancing/vfx.json
+        # is a THIRD JSON file the entity-preview muzzle-projectile draw
+        # needs (on top of the two slot_draw_fit already reads) — resolved
+        # ONCE here, never inside render_frame/_anchor_draw_params/
+        # _hit_anchor_handle/_anchor_move (the slot_draw_fit PERF lesson:
+        # re-reading JSON per frame/per drag-move measured 125-145ms/frame).
+        # Unlike _draw_fit this does not depend on preview_slot at all, so
+        # there is nothing to re-resolve on a slot switch — only
+        # reload_registry() re-reads it, mirroring _resolve_draw_fit's call
+        # site for "a designer edited data/ and reloaded".
+        self._projectile_params = self._load_projectile_params()
         self._resize_surface()
 
     # -- coords lifecycle: zoom is a balancing tunable (core:Camera) --------
@@ -210,6 +254,18 @@ class ViewportPanel(QWidget):
         resolves for preview + import; the store is rebuilt, camera untouched."""
         self._registry = load_registry(self._data_dir)
         self._build_store()
+        self._resolve_draw_fit()   # slots.json changed -> the fit may have too
+        self._projectile_params = self._load_projectile_params()
+
+    def _load_projectile_params(self):
+        """The memoized `procedural.projectile` read (feat-projectile-
+        anchored-flight §3.2 PERF) — `data_io.load_validated` against the
+        vfx schema, then the SAME `editor/vfx_params.py projectile_params`
+        the VFX preview panel already builds."""
+        doc = data_io.load_validated(
+            self._data_dir / "balancing" / "vfx.json",
+            self._data_dir / "schemas" / "vfx.schema.json")
+        return vfx_params.projectile_params(doc["procedural"]["projectile"])
 
     # -- entity preview (ED-21) ----------------------------------------------
 
@@ -219,8 +275,14 @@ class ViewportPanel(QWidget):
             self.preview_slot = slot_key
             self._draft = None
             self._build_store()
+            self._resolve_draw_fit()   # memoized; see _preview_draw_fit
             self.preview_animation = "idle"
             self._reset_anim_clock()
+            # ESV-2: a stale slot's handles/drag must not survive a switch
+            # (the same rule that clears self._draft just above).
+            self._anchors = {}
+            self._anchor_selected = None
+            self._anchor_drag = None
         self._refresh_anim_combo()
 
     def set_preview_animation(self, name):
@@ -228,6 +290,17 @@ class ViewportPanel(QWidget):
             return
         self.preview_animation = name
         self._reset_anim_clock()
+
+    def set_anchors(self, mapping):
+        """The panel's authoritative {name: (x, y)} mapping for the
+        currently previewed slot — the viewport never reads the manifest
+        for anchors itself (§2.2)."""
+        self._anchors = dict(mapping or {})
+
+    def set_selected_anchor(self, name):
+        """External sync (the panel's own row focus) — mirrors
+        set_selected_widget (§2.2)."""
+        self._anchor_selected = name
 
     def assigned_slots(self):
         """Slot keys with an entry in the effective (draft-aware) manifest —
@@ -796,6 +869,188 @@ class ViewportPanel(QWidget):
         combo.blockSignals(False)
         combo.setVisible(bool(animations))
 
+    # -- anchor handles (ESV-2): entity-preview fallback only, ED-22 clean --
+    # A VIEW of the panel's mapping (self._anchors) plus a live drag delta;
+    # never reads or writes the manifest here (that's anchor_ops + the panel).
+
+    def _preview_draw_fit(self):
+        """(fit_tiles, scale) the current `preview_slot` draws at — the ONE
+        value both the preview `RenderItem` and `_anchor_draw_params` read
+        (fix-editor-preview-footprint §2.3): they must never compute this
+        independently, or the handle and the sprite can desync again exactly
+        like the bug this fix closes.
+
+        Returns the MEMOIZED pair. `slot_draw_fit` re-reads and re-validates
+        slots.json + enemies.json from disk, which is far too expensive to do
+        per call: this is read once per rendered frame, once per anchor
+        hit-test, and once per mouse-move while a handle is being dragged.
+        Resolving it eagerly instead (`_resolve_draw_fit`, on slot change and
+        on registry reload — the only two things that can change the answer)
+        keeps handle-dragging interactive."""
+        return self._draw_fit
+
+    def _resolve_draw_fit(self):
+        """Recompute the memoized `_draw_fit`. `(0.0, 1.0)` (the RenderItem
+        defaults) when there is no preview slot, or the slot is not (yet)
+        declared in the registry — E-37, never raise."""
+        if self.preview_slot is None:
+            self._draw_fit = (0.0, 1.0)
+            return
+        try:
+            category_key = self._registry.category_of(self.preview_slot).key
+        except KeyError:
+            self._draw_fit = (0.0, 1.0)
+            return
+        self._draw_fit = slot_draw_fit(
+            self._data_dir, category_key, self.preview_slot)
+
+    def _anchor_draw_params(self):
+        """(origin, s, zoom) for the current preview slot's frame anchor,
+        origin COMPOSED with the entry's offset_x/offset_y (§1.2 — the
+        renderer already nudges the art by this, so the handle must move
+        with it or it stops sitting on the sprite) — None when there is
+        nothing to anchor a handle to. `s` is the editor's OWN drawn scale:
+        fit_factor computed from the exact fit_tiles/scale the preview's
+        RenderItem carries — `_preview_draw_fit()`, the SAME call the
+        preview submission below reads, so they cannot drift apart.
+
+        fix-anchor-origin-parity: `origin` resolves through the SAME shared
+        `engine.render.sprite_anchor_screen` the game's `game.anchors.
+        anchor_world_point` calls (`anchor_xy=(0, 0)` -> the sprite's drawn
+        CENTRE) — never hand-rolled here, so the handle and the game's
+        anchor resolution cannot drift apart again."""
+        if self.preview_slot is None:
+            return None
+        g = self._coords.geometry
+        wx, wy = g.map_cols // 2, g.map_rows // 2
+        frame_w, _frame_h = self._assets.frame_size(self.preview_slot)
+        zoom = self._coords.camera.zoom
+        fit_tiles, scale = self._preview_draw_fit()
+        s = fit_factor(frame_w, g.tile_w, fit_tiles) * scale
+        ox, oy = self._assets.offset(self.preview_slot)
+        origin = sprite_anchor_screen(
+            self._coords, wx, wy, frame_w, fit_tiles, scale, (ox, oy), (0.0, 0.0))
+        return origin, s, zoom
+
+    def _hit_anchor_handle(self, pos):
+        """Topmost handle within HANDLE_HIT_PX SCREEN pixels of `pos`
+        (Euclidean), reverse submission order — the same rule _hit_widget
+        uses in screen mode (§1.5)."""
+        params = self._anchor_draw_params()
+        if params is None:
+            return None
+        origin, s, zoom = params
+        for name in reversed(list(self._anchors)):
+            ax, ay = self._anchors[name]
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if math.hypot(pos.x() - sx, pos.y() - sy) <= HANDLE_HIT_PX:
+                return name
+        return None
+
+    def _anchor_press(self, pos):
+        """LEFT-press hit test: on a handle, starts a drag AND selects it
+        (emits to the panel), so the caller can suppress the pan it would
+        otherwise start (§1.5). Returns True when a handle was grabbed."""
+        name = self._hit_anchor_handle(pos)
+        if name is None:
+            return False
+        self._anchor_selected = name
+        self.anchor_selected.emit(name)
+        self._anchor_drag = (name, *self._anchors[name])
+        return True
+
+    def _anchor_move(self, pos):
+        if self._anchor_drag is None:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        name = self._anchor_drag[0]
+        origin, s, zoom = params
+        ax, ay = anchor_ops.frame_px(origin, pos.x(), pos.y(), s, zoom)
+        ax = max(-4096, min(4096, ax))
+        ay = max(-4096, min(4096, ay))
+        self._anchors[name] = (ax, ay)
+        self.anchor_dragged.emit(name, ax, ay)
+
+    def _anchor_release(self):
+        """Commit ONE write per gesture (§1.5) — only when the value
+        actually moved; a click that produced no change only selected."""
+        if self._anchor_drag is None:
+            return
+        name, orig_x, orig_y = self._anchor_drag
+        self._anchor_drag = None
+        x, y = self._anchors.get(name, (orig_x, orig_y))
+        if (x, y) != (orig_x, orig_y):
+            self.anchor_drag_finished.emit(name, x, y)
+
+    def _submit_muzzle_projectile(self):
+        """feat-projectile-anchored-flight §3.2: when the previewed slot's
+        `muzzle` anchor is authored, draw the projectile AT that handle's
+        real screen point/size — dragging the handle then shows exactly
+        where the shot leaves the barrel. Resolves the handle point through
+        `_anchor_draw_params()`/`anchor_ops.screen_point`, the SAME call
+        `_submit_anchor_handles` itself uses — never a second computation.
+        Uses `vfx_projectile` art when imported, else the stone dot — the
+        SAME `assets.animation_total_ms(slot, "idle") is not None` "has
+        art" signal the game reads, so the two can never disagree about
+        "imported". Called BEFORE `_submit_anchor_handles()` (§ caller
+        order) so the crosshair stays on top of the dot."""
+        if "muzzle" not in self._anchors:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        ax, ay = self._anchors["muzzle"]
+        sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+        pr = self._projectile_params
+        size = max(2, int(pr.stone_size * zoom))
+        dest = (int(sx - size / 2), int(sy - size / 2))
+        has_art = (self._assets.animation_total_ms("vfx_projectile", "idle")
+                  is not None)
+        if has_art:
+            self._renderer.submit_hud(
+                HudSprite("vfx_projectile", dest, (size, size)))
+        else:
+            self._renderer.submit_hud(HudRect(
+                (dest[0], dest[1], size, size), pr.stone_color,
+                border_radius=size // 2))
+
+    def _submit_anchor_handles(self):
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        for name, (ax, ay) in self._anchors.items():
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if self._anchor_drag is not None and self._anchor_drag[0] == name:
+                color = ANCHOR_DRAG_COLOR
+            elif self._anchor_selected == name:
+                color = ANCHOR_SELECTED_COLOR
+            else:
+                color = ANCHOR_COLOR
+            self._submit_anchor_marker(sx, sy, color)
+            self._renderer.submit_hud(HudText(
+                name, (sx + HANDLE_RADIUS_PX + 4, sy - 6), "sm", color))
+
+    def _submit_anchor_marker(self, sx, sy, color):
+        """A fixed-SCREEN-size closed outline + crosshair, submitted in
+        WORLD points (§2.3c — the two-sample screen_to_world trick, ESV-1's
+        proven pattern; never hand-derive the per-axis deltas)."""
+        cs = self._coords
+        wx0, wy0 = cs.screen_to_world(sx, sy)
+        wx1, wy1 = cs.screen_to_world(sx + HANDLE_RADIUS_PX, sy + HANDLE_RADIUS_PX)
+        dwx, dwy = wx1 - wx0, wy1 - wy0
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0 - dwy), (wx0 + dwx, wy0 - dwy),
+             (wx0 + dwx, wy0 + dwy), (wx0 - dwx, wy0 + dwy)),
+            color, width=2, closed=True)
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0), (wx0 + dwx, wy0)), color, width=2)
+        self._renderer.submit_overlay_lines(
+            ((wx0, wy0 - dwy), (wx0, wy0 + dwy)), color, width=2)
+
     # -- surface lifecycle, sized to the widget -----------------------------
 
     def resizeEvent(self, event):
@@ -848,13 +1103,18 @@ class ViewportPanel(QWidget):
                 if self._anim_last_t is not None:
                     self._anim_ms += (t0 - self._anim_last_t) * 1000.0
                 self._anim_last_t = t0
+                fit_tiles, scale = self._preview_draw_fit()
                 self._renderer.submit(RenderItem(
                     self.preview_slot,
                     (g.map_cols // 2, g.map_rows // 2),
                     layer="entities",
                     animation=self.preview_animation,
                     anim_time_ms=int(self._anim_ms),
+                    fit_tiles=fit_tiles,
+                    scale=scale,
                 ))
+                self._submit_muzzle_projectile()
+                self._submit_anchor_handles()
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self.update()
@@ -1073,6 +1333,11 @@ class ViewportPanel(QWidget):
         if self.in_screen_mode():
             self._screen_press(event)
             return
+        # ESV-2: a LEFT-press on a handle grabs it (drag + select) and
+        # suppresses the pan below; RIGHT never grabs a handle (§1.5).
+        if event.button() == Qt.MouseButton.LeftButton \
+                and self._anchor_press(event.position()):
+            return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = event.position()
 
@@ -1096,6 +1361,9 @@ class ViewportPanel(QWidget):
         if self.in_screen_mode():
             self._screen_move(event)
             return
+        if self._anchor_drag is not None:
+            self._anchor_move(pos)
+            return
         if self._drag_pos is not None and (event.buttons() & self._PAN_BUTTONS):
             dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
             self._drag_pos = pos
@@ -1112,6 +1380,9 @@ class ViewportPanel(QWidget):
             return
         if self.in_screen_mode():
             self._screen_release(event)
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self._anchor_drag is not None:
+            self._anchor_release()
             return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = None

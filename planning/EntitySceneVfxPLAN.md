@@ -1,4 +1,5 @@
-<!-- status: NOT STARTED — 0/6 phases (ESV-1–ESV-6), authored 2026-07-15 -->
+<!-- status: COMPLETE — 6/6 phases (ESV-1–ESV-6), authored 2026-07-15, completed 2026-07-21;
+     + 4 post-plan live-testing follow-ups (see §7) and 4 open items (§8) -->
 
 # EntitySceneVfxPLAN.md — Entity Scene Editor + VFX System
 
@@ -133,12 +134,12 @@ they decide whether the executing agent reads both docs.
 
 | Phase | Scope | Track | Status |
 |-------|-------|-------|--------|
-| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | not started |
-| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | not started |
-| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | not started |
-| ESV-4 | Procedural preview + control levers panel | B · editor | not started |
-| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | not started |
-| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | not started |
+| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | done |
+| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | done |
+| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | done — landed as ESV-3a (particle/gold/slash/splatter emitters) + ESV-3b (beam/crater/lightning/announce) |
+| ESV-4 | Procedural preview + control levers panel | B · editor | done |
+| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | done |
+| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | done |
 
 Ordering rule: **nothing changes visible behaviour until the piece behind it is
 real.** ESV-1 and ESV-3 land as byte-identical no-ops (defaults reproduce
@@ -241,7 +242,10 @@ imported `vfx_*` sheet once at a world point; a `data/` trigger table binds
 events → effect; unimported slots fall back to the procedural emitter, so day-one
 is identical.
 
-**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6).
+**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6 —
+note `SpriteAnimator` has **no `loop_count` field today**
+(`engine/core/sprite_animator.py`); ESV-5 adds the one-shot mechanism, either
+as a new animator field or completion-tracking inside `PlayOnceVfx`).
 Modified: `data/slots.json` (add `vfx_muzzle`, `vfx_hit`, `vfx_explosion`,
 `vfx_death`, `vfx_slash`, `vfx_crater` to the vfx category — note `vfx_hit`/
 `vfx_explosion` already exist); `data/balancing/vfx.json` + schema (the trigger
@@ -303,3 +307,145 @@ ledger is identical to before (nothing touched the sim).
   concrete in ESV-1. Floater-origin / status-icon / beam-endpoint anchors are the
   same schema shape but need their own game read-sites; land them incrementally
   under ESV-1's schema rather than blocking the phase.
+
+## 6. Deferred cleanup — do at convergence (ESV-6 / before the PR)
+
+Concrete follow-ups **discovered during execution**, parked here so the
+convergence phase clears them rather than shipping them as debt. Neither blocks
+an intermediate stage; both must be resolved before the PR.
+
+- **RESOLVED by ESV-6.** ESV-3a floater dead-data gap. The seven floater
+  colour/lifetime constants at `game/ui/effects.py:48-56` (`_UPKEEP_BLUE`,
+  `_XP_PURPLE`, `_XP_LIFE`, `_PAINTER_FINISHED`, `_PAINTER_LOST`,
+  `_PAINTER_LIFE`, `_BOOST_WHITE`) are still **live code** — read at the
+  floater spawn sites — while the `procedural.floaters` block ESV-3a added
+  to `data/balancing/vfx.json` is **dead data** (`_params_from_balance`
+  never reads it). Two homes for the same seven values. Resolve ONE way:
+  either wire the floater spawn sites to read `procedural.floaters` (the
+  constants become the removed originals, matching the rest of the port),
+  **or** delete the dead `procedural.floaters` block + its schema if
+  floaters are deliberately staying hardcoded. Decide and land during
+  convergence; verified by ESV-3b, not acted on there.
+  ESV-6 chose the first option: the seven constants are deleted, a new
+  `engine.vfx.FloaterParams` dataclass carries the seven values, and the
+  four floater spawn sites now read `self._vfx_params.floaters` — a visual
+  no-op on landing (the JSON already shipped values identical to the
+  constants) and a live designer lever from here on.
+- **RESOLVED by ESV-5.** ESV-4 stack-index reachability (surfaces in ESV-5).
+  ESV-4 routes the `vfx` selector node to `right_stack` index 3, which makes
+  the asset importer (index 0) unreachable while the vfx preview panel is
+  up. Harmless through Stage 2 — no `vfx_*` sheets exist yet — but **ESV-5
+  imports `vfx_*` sheets AND wants the preview visible at the same time**,
+  so the stack routing must be reconciled when ESV-5 lands (both panels
+  reachable for a selected vfx node). Fold the fix into ESV-5's brief, not
+  deferred past it.
+  ESV-5 landed the fix: the vfx preview is now a third child of
+  `details_pane`'s layout (beside `self.details`/`self.anchors`), toggled by
+  `setVisible(...)` instead of a separate `right_stack` page —
+  `right_stack.count() == 3`, and both the importer and the preview are
+  reachable for a selected vfx node.
+
+---
+
+## 7. Post-plan follow-ups (live-testing, 2026-07-21)
+
+The six phases landed green, then **live designer testing found the anchors did
+not actually work**. Four follow-up branches fixed it. All are merged into
+`VfxEditor`; none is part of the original six phases, and each has a brief in
+`docs/briefs/`.
+
+### 7.1 `fix-anchor-offset-and-bullet-sprites`
+
+Two designer reports.
+
+- **The editor's note "Handle origin ignores this slot's Offset X/Y nudge" was
+  wrong to exist.** The renderer nudges the drawn art by `offset_x`/`offset_y`
+  (`renderer.py`), but neither `game/anchors.py` nor the editor's handle origin
+  composed it, so the handle sat off the art for any nudged slot. Both now
+  compose it; the note is deleted. **Measured**: no manifest entry had both an
+  offset and an anchor, so no authored value moved — but 8 slots carry
+  `offset_y: 8`, including the Maw Mortar and Sun Scorcher.
+- **Bullet sprites were unswappable.** Added `vfx_projectile`/`vfx_shell` slots;
+  `submit_projectiles` draws a `HudSprite` when art exists, else the dot. The
+  two projectile colours moved into `procedural.projectile` — the last
+  un-ported cosmetic constants in `effects.py`.
+
+### 7.2 `fix-anchor-origin-parity` — the real bug
+
+Designer: *"all vfx regardless how i assign them are not spawning at the
+assigned spots."* Correct, and the cause was ours:
+
+**The editor drew every handle from the sprite's drawn CENTRE; every game
+consumer applied the anchor from a different base.** `world_offset` omitted both
+the `block_center_offset` shift and the `tile_h/2 * zoom` lift (**measured 16px**
+at zoom 1); HP bars applied from the sprite's TOP (a further ~32px).
+
+Fixed by one shared pure helper, `engine.render.sprite_anchor_screen`, derived
+from `Renderer.flush`'s real placement math, which the editor handle and every
+game consumer now resolve through. `screen_offset`/`world_offset` are **deleted**
+in favour of one absolute-world-point resolver, `anchor_world_point`. HP-bar rule
+(designer's decision): **anchor wins outright** — no anchor keeps `_sprite_top`
+byte-identical.
+
+**Why it shipped green**: the ESV-6 tests asserted `wx == base + world_offset(…)`
+— against the function under test. A tautology that passes for any
+implementation. Replaced with an editor↔game screen-parity test. *Do not write
+that assertion shape again.*
+
+### 7.3 `fix-editor-preview-footprint`
+
+A review pass found the last live instance: the editor previewed every sprite at
+`fit_tiles=0.0` while the game fits enemies to their footprint. **Measured**:
+`formation_stage_1` (128px frame, 1-tile footprint) drew at `s=0.5` in game vs
+`s=1.0` in the editor, so a Formation anchor landed at half distance. Fixed via a
+new **required** `registry_group` field on each `EnemyTypes` block — the
+data-side link letting `editor/sprite_fit.py` resolve a slot's real render fit
+without the editor importing `game/` (D5). `REGISTRY_GROUP` stays the runtime
+truth; `TestRegistryGroupDrift` pins the two equal.
+
+> **A perf regression rode in with it and was caught in review**: the new
+> resolver re-read two JSON files *per frame and per mouse-move during a drag* —
+> **measured 125–145 ms/frame (~7 fps)** with any enemy selected. Memoized into
+> `_draw_fit` (resolved on slot change / registry reload). Back to **~5 ms**.
+> **Any per-frame data read in the viewport must be memoized this way.**
+
+### 7.4 `feat-projectile-anchored-flight`
+
+Designer: projectiles should *start* at the muzzle point and *end* at the impact
+point. Two defects: `submit_projectiles` added a ~19px lift at DRAW time (double-
+counting an authored anchor), and `ProjectileHoming.update` homed at
+`target.transform.world_pos` — the `impact` anchor was only ever used for the hit
+VFX. Now: one `game.anchors.projectile_point` resolver, the lift moved from the
+draw into the endpoints (un-anchored play preserved), and the homing target
+re-resolved every frame. Editor half: a `projectile` family in the VFX preview
+panel, plus the projectile drawn at the muzzle handle in the entity preview.
+
+**D4 held throughout**: `launch(origin=…)`'s timer math is untouched, so flight
+timing and damage are invariant under any anchor.
+
+**Caught after the coder handed back**: removing the shared draw lift also
+dropped the **mortar shell** ~19px, because `ProjectileArc.update` never moves
+the shell (only its timer ticks) — its spawn point *is* its drawn point.
+`_fire_splash` now resolves through the same `projectile_point`.
+
+## 8. Known open items
+
+- **Editor-tier tests are flaky under the gate's parallel workers.**
+  `test_editor_viewport.py::TestMainWindowVfxMode`,
+  `::TestMainWindowScreenModeViews` and three in `test_editor_map_mode.py` have
+  each failed one run and passed the next, and pass serially. Not caused by this
+  work, but a flaky gate erodes the "GATE PASS means something" contract and
+  wants its own investigation.
+- **`tools/tests/fixtures/data/` is stale** in ways unrelated to this work
+  (missing `data/ui/`, several maps, drifted `slots.json`/`buildings.json`/
+  `enemies.json`). Every phase here mirrored only its own files rather than
+  running a blanket `--refresh`. Wants a deliberate refresh + full suite run.
+- **The editor preview still resolves at the entity's footprint only for
+  enemies.** Buildings draw at `fit_tiles=0.0` in both, so they match today —
+  but nothing pins that, and a future building footprint would silently
+  reintroduce the §7.3 class of bug.
+- **A third designer report is unresolved**: *"the current vfx which are using
+  spritesheets haven't been ported."* My reading (the `Corpse` death-animation
+  mechanism + the unplayed building `place`/`upgrade`/`death`/`hurt` animation
+  rows) was **wrong** — the designer said "not at all, ignore this for now". It
+  needs a concrete example before anyone acts on it. **Do not guess at it.**

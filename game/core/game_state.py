@@ -89,6 +89,31 @@ class RunState:
     log_events: list = field(default_factory=list)
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
+    # -- ESV-5: splash-impact trigger ledger ---------------------------------
+    # A mortar shell's landing point, same drained-by-UI contract as
+    # enemy_death_events: `(wx, wy)` world points. Appended by
+    # game/enemies/combat.py's ProjectileArc._impact via resolve_combat's
+    # optional on_splash_impact callback (game/enemies imports NO game/core —
+    # the callback crosses the boundary opaquely, the on_enemy_death
+    # pattern); drained by game/ui/effects.py's spawn_splash_impact_events
+    # (called beside spawn_death_events) into the splash_impact trigger row.
+    # The Crater GameObject's own continuous fade mark spawns unconditionally
+    # regardless of this ledger — this only decides whether an ADDITIONAL
+    # one-shot cosmetic plays at the same point.
+    splash_impact_events: list = field(default_factory=list)
+    # -- /ESV-5 --
+    # -- ESV-6: defender_fire / projectile_hit trigger ledgers ---------------
+    # Same drained-by-UI contract as splash_impact_events: `(wx, wy)` world
+    # points, already muzzle/impact-anchored by the producer (game/enemies/
+    # combat.py's _fire/_fire_splash for defender_fire, ProjectileHoming.
+    # _impact for projectile_hit) via resolve_combat's two new optional
+    # callbacks. Both trigger rows ship INERT (empty sprite_slot/procedural),
+    # so filling these ledgers is a no-op emit on a fresh checkout — see
+    # game/ui/effects.py's spawn_defender_fire_events/spawn_projectile_hit_
+    # events.
+    defender_fire_events: list = field(default_factory=list)
+    projectile_hit_events: list = field(default_factory=list)
+    # -- /ESV-6 --
     # -- 10H: lightning + cheat menu ---------------------------------------
     # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 0
     # (Storm Priest wiring): every run now boots with lightning LOCKED —

@@ -683,7 +683,13 @@
           "label": "Effects",
           "slots": [
             "vfx_hit",
-            "vfx_explosion"
+            "vfx_explosion",
+            "vfx_muzzle",
+            "vfx_death",
+            "vfx_slash",
+            "vfx_crater",
+            "vfx_projectile",
+            "vfx_shell"
           ]
         }
       ],

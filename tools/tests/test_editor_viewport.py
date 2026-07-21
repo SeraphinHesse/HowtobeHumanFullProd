@@ -1241,6 +1241,42 @@ class TestMainWindowScreenMode(TempDataCase):
         self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW TITLE")
 
 
+class TestMainWindowVfxMode(TempDataCase):
+    """ESV-5 §2.4: the vfx-mode routing fix. Regression pin for the pre-ESV-5
+    bug — `_leave_vfx_mode` targeted `self.details`, never a stack page (only
+    `self.details_pane` was ever `addWidget`-ed), so selecting a vfx node
+    once permanently stranded the asset importer for the rest of the
+    session. This test FAILS on the pre-fix code (`_enter_vfx_mode` swapped
+    to a now-nonexistent index-3 page and `_leave_vfx_mode`'s stack call was
+    a no-op)."""
+
+    def test_selecting_vfx_then_a_building_then_vfx_again(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        window.resize(1280, 720)
+        window.show()
+
+        # details_pane (0) + map_details (1) + screen_details (2) +
+        # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
+        # preview moved INTO details_pane). The point of the pin is that the
+        # vfx preview is NOT a stack page of its own.
+        self.assertEqual(window.right_stack.count(), 4)
+        self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())   # importer still reachable
+
+        window.selector.select_domain("buildings")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertFalse(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+
+
 class TestMainWindowScreenModeViews(TempDataCase):
     """UH-2: selecting the Screens-branch parent leaf opens the first view
     (game-mode order); a view leaf opens that specific view; overrides still
@@ -1381,13 +1417,18 @@ class TestPurity(unittest.TestCase):
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
             "editor.ui_screen_session, "
+            "editor.anchor_ops, "
+            "editor.sprite_fit, "
+            "editor.vfx_params, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.screen_details, "
+            "editor.panels.anchors_panel, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
             "editor.panels.game_theme, editor.theme_ops, "
+            "editor.panels.vfx_preview, "
             "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"

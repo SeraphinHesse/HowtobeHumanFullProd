@@ -21,6 +21,9 @@ TESTS_DIR = Path(__file__).resolve().parent
 #: filename -> why it is allowed to read live data/.
 ALLOWED = {
     "test_agent_forms.py": "the live form roster IS the dispatch surface",
+    "test_asset_anchors.py": "validates the live asset_manifest schema this "
+                             "same phase (ESV-1) adds the `anchors` block to "
+                             "— same rationale as test_balancing_data.py",
     "test_audio.py": "plays a shipped binary (wav) — not in the JSON fixture",
     "test_bake_ui_sheets.py": "TempDataCase-style copy of the real tree — needs "
                               "the real imported/main_menu_bg.png binary the "

@@ -31,6 +31,7 @@ BUILDINGS_BAL = load_balance(FIXTURE_DATA, "buildings")
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
+VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
 VIEW_W, VIEW_H = 1280, 720
 
 
@@ -269,23 +270,28 @@ class TestIncomeSources(unittest.TestCase):
 
 
 class TestFxHooks(unittest.TestCase):
+    """ESV-3a moved the particle/gold/splatter LISTS onto the FloaterManager's
+    VfxSystem (``fm._vfx``) — these tests peek one level deeper
+    (``fm._vfx._particles`` etc.) than before ESV-3a, but assert the exact
+    same counts (the port is a byte-identical no-op)."""
+
     def test_building_vfx_presets_and_gold(self):
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         fm.spawn_building_vfx(3, 3, "place")
-        self.assertEqual(len(fm._particles), 10)
-        self.assertEqual(len(fm._gold), 1)
+        self.assertEqual(len(fm._vfx._particles), 10)
+        self.assertEqual(len(fm._vfx._gold), 1)
         fm.spawn_building_vfx(3, 3, "level1")
-        self.assertEqual(len(fm._particles), 17)  # +7, no new highlight
-        self.assertEqual(len(fm._gold), 1)
+        self.assertEqual(len(fm._vfx._particles), 17)  # +7, no new highlight
+        self.assertEqual(len(fm._vfx._gold), 1)
         fm.update(2.0)  # everything ages out
-        self.assertEqual(len(fm._particles), 0)
-        self.assertEqual(len(fm._gold), 0)
+        self.assertEqual(len(fm._vfx._particles), 0)
+        self.assertEqual(len(fm._vfx._gold), 0)
 
     def test_death_watcher_bursts_and_logs_named_only(self):
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
         log = GameLog()
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         session.state.love = 999
         tile = tm.get(2, 1)
         panel.open_for_tile(tile, session, BUILDINGS_BAL)
@@ -301,26 +307,26 @@ class TestFxHooks(unittest.TestCase):
         from engine.core import Health
         b.get_component(Health).damage(10 ** 6)
         fm.watch_buildings(scene, log)      # sees the death once
-        self.assertGreater(len(fm._particles), 0)
+        self.assertGreater(len(fm._vfx._particles), 0)
         self.assertEqual(log._messages[-1][0], "Rex has been killed")
-        n = len(fm._particles)
+        n = len(fm._vfx._particles)
         fm.watch_buildings(scene, log)      # no double burst
-        self.assertEqual(len(fm._particles), n)
+        self.assertEqual(len(fm._vfx._particles), n)
 
     def test_splatters_gated_and_cleared(self):
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
 
         class _S:
             enemy_death_events = [(3.0, 4.0)]
 
         fm.spawn_death_events(_S, gore_on=False)   # settings toggle off
-        self.assertEqual(fm._splatters, [])
+        self.assertEqual(fm._vfx._splatters, [])
         self.assertEqual(_S.enemy_death_events, [])  # ledger drains anyway
         _S.enemy_death_events = [(3.0, 4.0), (5.0, 6.0)]
         fm.spawn_death_events(_S, gore_on=True)
-        self.assertEqual(len(fm._splatters), 2)
+        self.assertEqual(len(fm._vfx._splatters), 2)
         fm.clear_splatters()
-        self.assertEqual(fm._splatters, [])
+        self.assertEqual(fm._vfx._splatters, [])
 
 
 class TestStormPriestLightningSeam(unittest.TestCase):

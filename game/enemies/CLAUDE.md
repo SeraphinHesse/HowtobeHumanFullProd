@@ -295,6 +295,19 @@ condition below.
   `Health`/`Movement`/`SpriteAnimator`/`RangeSensor` carry the rest. The
   duck-typed values the combat sweep reads (`alive`/`dmg`) are guard-safe
   `@property`s.
+- **`REGISTRY_GROUP` now has a data-side twin, `data/balancing/enemies.json`'s
+  `EnemyTypes/<Type>.registry_group` (fix-editor-preview-footprint)** —
+  added so `editor/sprite_fit.py` can resolve a preview slot's real
+  `(footprint, sprite_scale)` render fit without the editor importing this
+  package (D5: `editor/` may never import `game/`). **This class constant
+  was deliberately NOT refactored to read `data/` in that fix** — it stays
+  the runtime source of truth here, and the two are pinned equal by
+  `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` (walks every
+  `Enemy` subclass, compares `REGISTRY_GROUP` against the `EnemyTypes` block
+  its `STAT_SUBTREE` names). A future enemy type that lets the two drift
+  turns that test red instead of silently breaking the editor's Formation-
+  style preview for it — keep both in sync by hand until/unless a later
+  phase collapses them into one source.
 - **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
   (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
   the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Its
@@ -449,6 +462,54 @@ condition below.
   muzzle/slash/blood FX are watcher-driven in `game/ui/effects.py` (an
   `EnemyCombat.cooldown` reset while blocked = an attack landed) — this package
   needed NO change for 10J.
+  - **ESV-1 D4 — the spawn point is cosmetic, flight time never moves with it.**
+    A defender's optional manifest `muzzle` anchor shifts only WHERE
+    `_fire`/`_fire_splash` spawn the projectile visually;
+    `ProjectileHoming.launch(target, shooter, scene, origin=...)` always
+    computes flight time from the shooter's UNMODIFIED `transform.world_pos`,
+    passed in as `origin` — never from the anchored spawn point. `origin=None`
+    (every pre-ESV-1 caller) falls back to the projectile's own spawn
+    position, today's exact expression. Damage-arrival timing is therefore
+    provably invariant under any muzzle value.
+  - **feat-projectile-anchored-flight — the homing MOVEMENT target is now the
+    target's `impact` anchor too, basic defenders only (D4, still cosmetic).**
+    Before this fix `ProjectileHoming.update` always homed toward
+    `target.transform.world_pos`; the `impact` anchor existed only for the
+    `projectile_hit` hit-VFX callback in `_impact`, so a shot never actually
+    flew to where it visually landed. `update()` now resolves
+    `game.anchors.projectile_point(self._assets, self._cs, target, "impact",
+    self._lift_frac)` EVERY FRAME (the target moves) for the MOVEMENT target
+    only — `self.timer` (and therefore `_impact()`'s firing frame) is
+    unaffected, still decremented unconditionally every frame regardless of
+    this point. `_assets`/`_cs`/`_lift_frac` are transient underscore refs
+    (E-11), set by `_fire`. **Mortar shells (`ProjectileArc`, `_fire_splash`)
+    are untouched** — they fly to a `_predict_lead`-computed ground point, not
+    an entity, so no `impact` anchor applies (§2.4 of the brief).
+  - **The muzzle spawn point's UNANCHORED fallback changed shape, not
+    value.** `game.anchors.projectile_point(assets, cs, obj, name,
+    lift_frac)` wraps `anchor_world_point` ("anchor wins outright" — an
+    authored anchor is unaffected by any of this) and, only when absent,
+    raises `obj`'s world position by `lift_frac` (`procedural.projectile.
+    lift_frac`, threaded from `resolve_combat`'s existing `vfx_balance`
+    argument — no new parameter) TILE HEIGHTS in SCREEN space, via the
+    two-sample `screen_to_world` trick. That lift used to be added at DRAW
+    time in `game/ui/effects.py submit_projectiles` (which double-counted
+    against an authored anchor — the dot rendered ~19px above the muzzle
+    handle even once an anchor existed); it now lives in the endpoint, so the
+    draw is a pure projection and an authored anchor is never fought by a
+    second, unrelated lift. **`_fire_splash` resolves its muzzle spawn
+    through the SAME `projectile_point` — and it HAS to.** The "basic
+    defenders only" scope covers the homing TARGET (the mortar keeps flying
+    to `_predict_lead`'s ground point, no `impact` anchor), but the lift
+    removal from `submit_projectiles` is shared by both draw paths, and
+    `ProjectileArc.update` never moves the shell — only its timer ticks, so
+    its spawn point IS its drawn point for the whole flight. Leaving
+    `_fire_splash` on plain `anchor_world_point` therefore dropped the mortar
+    shell ~19px the moment the draw lift went away. Routing it through
+    `projectile_point` puts the lift back in the endpoint and restores the
+    pre-change position (to within the float-vs-`int()` rounding step the
+    move introduces everywhere). `lift_frac` reaches it through the same
+    `resolve_combat` thread `_fire` uses.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`
@@ -518,6 +579,24 @@ condition below.
   impossible to violate rather than merely conventional. `resolve_combat(
   dmg_bonus=0)` threads the boss-bonus story damage in as a plain int. Enemy
   construction never leaves this package.
+- **ESV-5** — `resolve_combat(on_splash_impact=…)`: `ProjectileArc._impact`
+  (the mortar shell's landing) fires the callback with `(gx, gy)` ALONGSIDE
+  (never instead of) its unconditional cosmetic `Crater` spawn, so
+  `game/ui`'s `splash_impact` trigger row can drain a ledger without this
+  package importing `game/core`.
+- **ESV-6** — two MORE optional callbacks, same pattern, both purely
+  cosmetic (D4 — neither reads or writes anything the damage block above
+  touched): `resolve_combat(on_defender_fire=…)` fires from BOTH `_fire`
+  and `_fire_splash` with the ALREADY muzzle-anchored spawn point those
+  functions compute for the projectile itself (never recomputed);
+  `resolve_combat(on_projectile_hit=…)` fires from `ProjectileHoming._impact`
+  ONLY (the homing path — the mortar keeps its own `on_splash_impact` event
+  above) with the TARGET's `impact`-anchored point, whether or not the
+  target is still alive that frame. Both default `None` (every pre-ESV-6
+  caller, including every test in this package that doesn't pass them, is
+  byte-identical) — `ProjectileHoming` also grows two transient underscore
+  refs, `_assets`/`_cs` (E-11 — set by `_fire`, exactly like `_fire_splash`
+  already stashes `arc._on_impact`), so `_impact` can resolve the anchor.
 
 ## Perf note that lives here
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)

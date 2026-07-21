@@ -29,19 +29,28 @@ import math
 from engine.core import (
     Component, GameObject, Health, Movement, SpriteAnimator, Transform,
 )
+from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
 from .components import EnemyCombat, Kidnap, PathAgent
 from .kidnap import begin_kidnap
 
-# Cosmetic / timing constants the prototype hardcodes in source (NOT balancing):
-# the mortar shell's fixed flight time + the crater's fade lifetime, and the
-# beam's own fast tick floor (the Sun Scorcher must tick far below the shared
+# AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
+# cosmetics — D4, ESV-3b §1.3): the mortar shell's fixed flight time (feeds
+# _predict_lead's aim, and decides when splash damage lands) and the beam's
+# own fast tick floor (the Sun Scorcher must tick far below the shared
 # ``min_attack_speed`` = 0.2, so its cadence is clamped to this instead).
+# Never move either into data/balancing/vfx.json.
 AOE_TRAVEL_TIME = 0.55   # seconds a shell arcs to its fixed ground point
-CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading out
 BEAM_MIN_TICK = 0.02     # beam tick-rate floor (prototype ``_MIN_TICK``)
+# CRATER_LIFE is a declared-field FALLBACK only (the Component base requires
+# a default per field); the runtime source of truth is data/balancing/
+# vfx.json procedural.crater.life (ESV-3b), threaded through resolve_combat's
+# required vfx_balance argument. Kept here so a bare CraterFade() built with
+# no override still has a sane value (Crater/ProjectileAOE themselves require
+# crater_life explicitly — no silent fallback on the production path, G-7).
+CRATER_LIFE = 1.0        # seconds a spent-shell crater lingers before fading out
 
 
 class ProjectileHoming(Component):
@@ -58,23 +67,50 @@ class ProjectileHoming(Component):
         self._target = None
         self._shooter = None
         self._scene = None
+        # ESV-6: transient refs for the projectile_hit trigger (E-11 — not
+        # serialized, not declared fields). Set by _fire, which already has
+        # assets/cs in scope, exactly as _fire_splash stashes arc._on_impact.
+        self._assets = None
+        self._cs = None
+        self._on_hit = None
+        # feat-projectile-anchored-flight: the COSMETIC lift fraction (E-11,
+        # like _assets/_cs) — set by _fire from vfx_balance's
+        # procedural.projectile.lift_frac, read by update() to resolve the
+        # unanchored-target fallback point the SAME way _fire resolves its
+        # unanchored-spawn fallback. Never read by launch()'s timer math (D4).
+        self._lift_frac = 0.0
 
-    def launch(self, target, shooter, scene):
+    def launch(self, target, shooter, scene, origin=None):
+        """``origin`` (ESV-1, D4): the point flight time is measured FROM —
+        never the projectile's (possibly muzzle-anchored) visual spawn point.
+        ``None`` falls back to ``self._proj.transform.world_pos``, today's
+        exact expression, so every existing caller is byte-identical. Used
+        SOLELY for this distance/timer computation and then discarded — it
+        is a parameter, not component state (E-11)."""
         self._target = target
         self._shooter = shooter
         self._scene = scene
-        px, py = self._proj.transform.world_pos
+        px, py = origin if origin is not None else self._proj.transform.world_pos
         tx, ty = target.transform.world_pos
         dist = math.hypot(tx - px, ty - py)
         self.timer = dist / self.speed if self.speed > 0 else 0.0
 
     def update(self, dt):
+        """feat-projectile-anchored-flight (D4 — COSMETIC only, never the
+        timer): the homing MOVEMENT target is now the target's `impact`
+        anchor (or its unanchored lifted fallback), re-resolved every frame
+        since the target moves — never `target.transform.world_pos` directly
+        any more. `self.timer` (decremented below, unconditionally) still
+        drives WHEN `_impact()` fires and is never a function of this point."""
         proj = getattr(self, "_proj", None)
         target = getattr(self, "_target", None)
         if proj is None:
             return
         if target is not None:
-            tx, ty = target.transform.world_pos
+            point = projectile_point(
+                getattr(self, "_assets", None), getattr(self, "_cs", None),
+                target, "impact", getattr(self, "_lift_frac", 0.0))
+            tx, ty = point if point is not None else target.transform.world_pos
             px, py = proj.transform.world_pos
             dx, dy = tx - px, ty - py
             d = math.hypot(dx, dy)
@@ -98,6 +134,19 @@ class ProjectileHoming(Component):
                 rs = shooter.get_component(RoundStats)
                 if rs is not None:
                     rs.dmg_dealt_this_round += self.dmg
+        # ESV-6: the projectile_hit trigger, at the TARGET's impact anchor.
+        # Purely visual (D4) — reads nothing the damage block above wrote.
+        # Fires whether or not the target is STILL alive this frame (a hit
+        # VFX on a target that died in the same frame is correct); only a
+        # missing target (no point to anchor against) guards it.
+        on_hit = getattr(self, "_on_hit", None)
+        if target is not None and on_hit is not None:
+            assets = getattr(self, "_assets", None)
+            cs = getattr(self, "_cs", None)
+            point = anchor_world_point(assets, cs, target, "impact")
+            if point is None:
+                point = target.transform.world_pos
+            on_hit(*point)
         if scene is not None:
             scene.despawn(self._proj)
 
@@ -122,11 +171,19 @@ class ProjectileArc(Component):
     the shooter dying or the original target vanishing mid-flight is a non-event.
     When the flight timer expires it deals ``dmg`` to EVERY alive enemy within
     ``radius`` of the landing point (Euclidean, full damage, no falloff, no
-    target cap), spawns a cosmetic ``Crater``, then despawns itself."""
+    target cap), spawns a cosmetic ``Crater``, then despawns itself.
+
+    ``crater_life`` (ESV-3b): the fade lifetime the spawned ``Crater`` is
+    built with, carried from ``data/balancing/vfx.json`` (``procedural.
+    crater.life``) all the way down from ``resolve_combat``'s required
+    ``vfx_balance`` argument. The class default (``CRATER_LIFE``) is only the
+    declared-field fallback the ``Component`` base requires — every
+    production path sets it explicitly at construction (``_fire_splash``)."""
 
     dmg: int = 0
     radius: float = 0.0
     timer: float = 0.0
+    crater_life: float = CRATER_LIFE
 
     def on_added(self, owner):
         self._proj = owner
@@ -134,6 +191,11 @@ class ProjectileArc(Component):
         self._scene = None
         self._gx = 0.0
         self._gy = 0.0
+        # ESV-5: an optional (wx, wy) -> None callback fired at impact,
+        # ALONGSIDE the unconditional Crater spawn below — never a replacement
+        # for it (the crater's continuous fade mark is not this phase's
+        # concern). Set (or left None) by _fire_splash, transient (E-11).
+        self._on_impact = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -164,21 +226,33 @@ class ProjectileArc(Component):
                 enemy.get_component(Health).damage(self.dmg)
                 if rs is not None:
                     rs.dmg_dealt_this_round += self.dmg
-        crater = Crater(self._gx, self._gy, self.radius)
+        crater = Crater(self._gx, self._gy, self.radius, self.crater_life)
         crater.get_component(CraterFade)._scene = scene
         scene.spawn(crater)
+        # ESV-5: the splash_impact trigger ledger push — cosmetic, additive,
+        # never gating the (unconditional) Crater spawn above.
+        on_impact = getattr(self, "_on_impact", None)
+        if on_impact is not None:
+            on_impact(self._gx, self._gy)
         scene.despawn(self._proj)
 
 
 class ProjectileAOE(GameObject):
-    """A mortar's in-flight shell (logical only in 10B; no sprite)."""
+    """A mortar's in-flight shell (logical only in 10B; no sprite).
 
-    def __init__(self, wx, wy, dmg, radius):
+    ``crater_life`` (ESV-3b, required — no default: the caller always has a
+    live ``vfx_balance`` to read it from, and a silent code-side fallback
+    here would be a second home for the value, G-7): carried straight onto
+    the shell's ``ProjectileArc`` so its eventual ``Crater`` fades on the
+    balancing-authored lifetime."""
+
+    def __init__(self, wx, wy, dmg, radius, crater_life):
         super().__init__(
             name="shell",
             tags=("projectile",),
             transform=Transform(wx=wx, wy=wy, layer="entities"),
-            components=[ProjectileArc(dmg=dmg, radius=radius)],
+            components=[ProjectileArc(dmg=dmg, radius=radius,
+                                      crater_life=crater_life)],
         )
 
 
@@ -206,14 +280,17 @@ class CraterFade(Component):
 class Crater(GameObject):
     """A cosmetic impact crater at a mortar landing point (Phase 10B). Logical
     only; the FX layer draws a fading marker from its ``radius`` + ``fade_frac``.
-    """
 
-    def __init__(self, wx, wy, radius):
+    ``life`` (ESV-3b, required — no default, G-7): the fade lifetime, always
+    supplied by the one caller (``ProjectileArc._impact``) from its
+    balancing-authored ``crater_life``."""
+
+    def __init__(self, wx, wy, radius, life):
         super().__init__(
             name="crater",
             tags=("crater",),
             transform=Transform(wx=wx, wy=wy, layer="overlay"),
-            components=[CraterFade(radius=radius)],
+            components=[CraterFade(radius=radius, life=life)],
         )
 
     @property
@@ -347,13 +424,54 @@ def _predict_lead(target, travel_time):
 
 # -- the sweep ------------------------------------------------------------
 
-def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
-                   on_enemy_death=None, on_kidnap=None, dmg_bonus=0):
+def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
+                   on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
+                   assets=None, cs=None, on_splash_impact=None,
+                   on_defender_fire=None, on_projectile_hit=None,
+                   on_kidnap=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
     ``game.core.boss_bonuses.story_damage_bonus``). Default 0 keeps every
     pre-10G call byte-identical.
+
+    ``assets``/``cs`` (ESV-1, §3.3): the host's ``AssetStore``/
+    ``CoordinateSystem``, threaded down to ``_fire``/``_fire_splash`` to
+    resolve a defender's ``muzzle`` anchor into a cosmetic spawn-point offset.
+    Both default ``None`` (this package has neither on its own — see
+    ``game/anchors.py``), so every existing headless caller and test is
+    byte-identical.
+
+    ``vfx_balance`` (ESV-3b, required — no default: a ``None``-defaulted
+    optional here would be a second home for the crater fade lifetime, G-7):
+    the loaded ``vfx.json`` dict, threaded down to ``_fire_splash`` so a
+    freshly-fired mortar shell's eventual ``Crater`` fades on
+    ``procedural.crater.life`` instead of the module constant.
+
+    ``on_splash_impact`` (ESV-5, optional — the ``on_enemy_death`` pattern,
+    NOT a required-argument G-7 case like ``vfx_balance`` above: this package
+    has no other opinion about the value, it only forwards a caller-supplied
+    ``(wx, wy) -> None`` callback to ``ProjectileArc._impact`` so the host can
+    drain a cosmetic ledger without ``game/enemies`` importing ``game/core``):
+    ``None`` (every pre-ESV-5 caller) is a no-op — the Crater still spawns.
+
+    ``on_defender_fire``/``on_projectile_hit`` (ESV-6, optional, the same
+    pattern): forwarded to ``_fire``/``_fire_splash`` (both) and
+    ``ProjectileHoming`` (the homing path only — the mortar keeps its own
+    ``splash_impact`` event, §1.2 of the ESV-6 brief) so the host can drain
+    two more cosmetic ledgers. ``None`` (every pre-ESV-6 caller) is a no-op.
+
+    feat-projectile-anchored-flight: ``lift_frac`` (``procedural.projectile.
+    lift_frac``, the SAME cosmetic constant ``_fire_splash`` already reads
+    for its shell's crater — no new parameter here) is threaded to BOTH
+    ``_fire`` and ``_fire_splash``, which resolve their spawn point through
+    ``game.anchors.projectile_point``. The HOMING TARGET change is
+    ``_fire``-only (basic defenders): no ``impact`` anchor applies to a
+    mortar shell, which flies to a predicted ground point, not an entity
+    (§2.4). But the un-anchored LIFT had to reach the mortar too — the draw
+    lift it used to get in ``submit_projectiles`` is gone, and
+    ``ProjectileArc.update`` never moves the shell, so its spawn point is
+    its drawn point for the whole flight.
 
     ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
     ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
@@ -361,6 +479,10 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
+    # ESV-3b: a cosmetic fade lifetime, NOT simulation timing (unlike
+    # AOE_TRAVEL_TIME/BEAM_MIN_TICK below, which stay module constants — D4).
+    crater_life = vfx_balance["procedural"]["crater"]["life"]
+    lift_frac = vfx_balance["procedural"]["projectile"]["lift_frac"]
 
     enemies = [e for e in scene.by_tag("enemy") if e.alive]
     # ER-2: the footprint offset is a per-enemy CONSTANT. Resolve it once per
@@ -369,7 +491,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, on_base_hit=None,
     targets = [(e, _fp_offset(e)) for e in enemies]
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                         dmg_bonus)
+                         crater_life, dmg_bonus, assets, cs, on_splash_impact,
+                         on_defender_fire, on_projectile_hit, lift_frac)
 
     _resolve_kidnaps(scene, tilemap, on_kidnap)
 
@@ -405,9 +528,21 @@ def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
 
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                     dmg_bonus=0):
+                     crater_life, dmg_bonus=0, assets=None, cs=None,
+                     on_splash_impact=None, on_defender_fire=None,
+                     on_projectile_hit=None, lift_frac=0.0):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
-    resolved once per frame by ``resolve_combat`` (ER-2)."""
+    resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
+    (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
+    path (``_update_beam``) needs neither — it is instant hitscan with no
+    travel and no spawn point (§1.5). ``crater_life`` (ESV-3b) and
+    ``on_splash_impact`` (ESV-5) pass straight through to ``_fire_splash`` —
+    only the splash path ever spawns a ``Crater``/fires an impact.
+    ``on_defender_fire`` (ESV-6) passes to BOTH firing paths; ``on_projectile_
+    hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
+    mortar's splash already has its own impact event. ``lift_frac``
+    (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
+    that module-level function's docstring."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -444,9 +579,12 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # point; the plain defender fires a homing shot. The capability marker
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
-            _fire_splash(defender, target, scene, dmg_bonus)
+            _fire_splash(defender, target, scene, crater_life, dmg_bonus,
+                        assets, cs, on_splash_impact, on_defender_fire,
+                        lift_frac)
         else:
-            _fire(defender, target, scene, proj_speed, dmg_bonus)
+            _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
+                 on_defender_fire, on_projectile_hit, lift_frac)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
@@ -513,23 +651,79 @@ def _set_defender_anim(defender, name):
         anim.set_animation(name)
 
 
-def _fire(defender, target, scene, proj_speed, dmg_bonus=0):
+def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
+         cs=None, on_defender_fire=None, on_projectile_hit=None,
+         lift_frac=0.0):
     bx, by = defender.transform.world_pos
-    proj = Projectile(bx, by, defender.damage() + dmg_bonus, proj_speed)
-    proj.get_component(ProjectileHoming).launch(target, defender, scene)
+    # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
+    # time is computed by `launch(origin=...)` below from the UNMODIFIED
+    # `(bx, by)` — the two are deliberately different arguments so damage
+    # timing can never be a function of an authored art coordinate.
+    # fix-anchor-origin-parity: "anchor wins outright" — the muzzle point IS
+    # the exact handle point when authored, never a delta on `(bx, by)`.
+    # feat-projectile-anchored-flight: unanchored now resolves the SAME
+    # cosmetic lift `submit_projectiles` used to add at draw time (never
+    # `(bx, by)` bare) — `projectile_point` degrades to exactly `(bx, by)`
+    # only when `cs`/`defender` are absent (E-37).
+    point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
+    mx, my = point if point is not None else (bx, by)
+    # ESV-6: the defender_fire trigger ledger push, at the SAME
+    # already-computed muzzle point — never recomputed (D2).
+    if on_defender_fire is not None:
+        on_defender_fire(mx, my)
+    proj = Projectile(mx, my, defender.damage() + dmg_bonus, proj_speed)
+    hom = proj.get_component(ProjectileHoming)
+    hom._assets, hom._cs, hom._on_hit = assets, cs, on_projectile_hit
+    hom._lift_frac = lift_frac
+    hom.launch(target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
 
-def _fire_splash(defender, target, scene, dmg_bonus=0):
+def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
+                 assets=None, cs=None, on_splash_impact=None,
+                 on_defender_fire=None, lift_frac=0.0):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
-    splash radius, and let ``ProjectileArc`` resolve the splash on impact."""
+    splash radius, and let ``ProjectileArc`` resolve the splash on impact.
+
+    ESV-1: only the shell's SPAWN point (``bx, by``) is muzzle-anchored — its
+    flight time is the fixed ``AOE_TRAVEL_TIME`` (not distance-derived) and
+    its landing point comes from `_predict_lead`, which reads nothing about
+    the shooter, so both stay untouched by the anchor (§1.4).
+
+    ``crater_life`` (ESV-3b, required — no default, G-7): the cosmetic fade
+    lifetime the eventual impact ``Crater`` is built with — carried onto the
+    shell at construction, never touching ``AOE_TRAVEL_TIME`` (simulation
+    timing, D4).
+
+    ``on_splash_impact`` (ESV-5, optional): stashed as a transient attribute
+    on the shell's ``ProjectileArc`` and fired at impact, alongside (never
+    instead of) the Crater spawn.
+
+    ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
+    muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed.
+
+    ``lift_frac`` (feat-projectile-anchored-flight): the shell spawns through
+    the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
+    mortar keeps the screen-space lift that used to be added at DRAW time in
+    ``submit_projectiles``. Without this the shell would render ~19px lower
+    than before this change — ``ProjectileArc.update`` never moves the shell
+    (only its timer ticks), so its spawn point IS its drawn point for the
+    whole flight, and the removed draw lift has to come back here or the
+    mortar visibly drops. Byte-identical to pre-change for an un-anchored
+    shooter; an authored ``muzzle`` anchor wins outright, as everywhere."""
     bx, by = defender.transform.world_pos
+    point = projectile_point(assets, cs, defender, "muzzle", lift_frac)
+    if point is not None:
+        bx, by = point
+    if on_defender_fire is not None:
+        on_defender_fire(bx, by)
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
     shell = ProjectileAOE(bx, by, defender.damage() + dmg_bonus,
-                          defender.splash_radius())
-    shell.get_component(ProjectileArc).launch(gx, gy, defender, scene,
-                                              AOE_TRAVEL_TIME)
+                          defender.splash_radius(), crater_life)
+    arc = shell.get_component(ProjectileArc)
+    arc._on_impact = on_splash_impact
+    arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 
 

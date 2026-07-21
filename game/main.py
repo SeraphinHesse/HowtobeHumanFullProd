@@ -244,6 +244,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
+    vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -305,7 +306,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
-        gp["floaters"] = FloaterManager(ui_balance, core_balance)
+        gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
@@ -324,6 +325,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
+        # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
+        # one-shot and resolve a manifest anchor. A fresh FloaterManager and
+        # a fresh scene are built together right here every run, so these
+        # attributes cannot desync; `cs` is a single run-long instance built
+        # at module scope above, so it never desyncs either.
+        gp["floaters"].assets = assets
+        gp["floaters"].scene = gp["world"].scene
+        gp["floaters"].cs = cs
+        # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -459,7 +469,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # game.py:426-431 — a non-drag left-up no UI element consumed) --
         elif session.state.phase == GamePhase.ENEMY:
             wx, wy = cs.screen_to_world(mx, my)
-            session.lightning_strike(world.scene, cs, wx, wy)
+            session.lightning_strike(world.scene, cs, wx, wy, vfx_balance)
         # -- /10H --
 
     def handle_world_right_click(mx, my):
@@ -683,6 +693,22 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # ESV-5: drains into RunState.splash_impact_events; the UI
+                # side (spawn_splash_impact_events) reads it beside
+                # spawn_death_events below.
+                def _on_splash_impact(gx, gy, _state=session.state):
+                    _state.splash_impact_events.append((gx, gy))
+
+                # ESV-6: the same drained-ledger pattern for the two
+                # convergence-demo triggers — both ship INERT rows, so these
+                # ledgers filling every frame is a no-op emit until a
+                # designer binds art.
+                def _on_defender_fire(wx, wy, _state=session.state):
+                    _state.defender_fire_events.append((wx, wy))
+
+                def _on_projectile_hit(wx, wy, _state=session.state):
+                    _state.projectile_hit_events.append((wx, wy))
+
                 # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
                 # count + freeing the building's tile for good) runs first,
                 # then upgrade the default frozen-idle carry pose to the
@@ -699,11 +725,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                 anim.slot_key, KIDNAP_ANIM)))
 
                 resolve_combat(world.scene, world.tile_map, sim_dt,
-                               buildings_balance,
+                               buildings_balance, vfx_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
-                               on_kidnap=_on_kidnap,
-                               dmg_bonus=dmg_bonus)
+                               dmg_bonus=dmg_bonus,
+                               assets=assets, cs=cs,
+                               on_splash_impact=_on_splash_impact,
+                               on_defender_fire=_on_defender_fire,
+                               on_projectile_hit=_on_projectile_hit,
+                               on_kidnap=_on_kidnap)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
@@ -755,6 +785,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].watch_enemies(world.scene)
             gp["floaters"].spawn_death_events(session.state,
                                               shell.settings.gore)
+            gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
+            gp["floaters"].spawn_defender_fire_events(session.state)  # ESV-6
+            gp["floaters"].spawn_projectile_hit_events(session.state)  # ESV-6
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --
