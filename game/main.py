@@ -63,16 +63,14 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
-from game.map import (
-    TileMap, condition_render_items, spawn_deco_render_items,
-    spawn_tree_slots, tile_at_screen,
-)
 from game.enemies import (
     DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
     spawn_corpse,
 )
-from game.map import TileMap, condition_render_items, tile_at_screen
+from game.map import (
+    TileMap, condition_render_items, spawn_deco_render_items,
+    spawn_tree_slots, tile_at_screen,
+)
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
