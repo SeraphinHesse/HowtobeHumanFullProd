@@ -510,9 +510,10 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 
 def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
     """The kidnap transition, placed AFTER the defender loop and BEFORE
-    ``_resolve_base_arrivals`` (Art/enemies). Order is load-bearing:
-    ``begin_kidnap`` must copy the victim's sprite fields before ``on_kidnap``
-    hands off to the host, which frees the building's tile and despawns it.
+    ``_resolve_base_arrivals`` (Art/enemies). ``begin_kidnap`` copies the
+    victim's sprite fields onto the carrier, then ``on_kidnap`` lets the host
+    do the session bookkeeping (XP + kill count); the victim itself is left on
+    its tile as a plain dead building, to be revived at payday.
     The retag inside ``begin_kidnap`` drops the enemy out of
     ``by_tag("enemy")`` immediately, so the death sweep below never sees it
     and any defender's ``target not in in_range`` re-acquire test clears a
