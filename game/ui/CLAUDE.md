@@ -580,6 +580,27 @@ sprite mutation; splatters/craters draw in the overlay pass, i.e. OVER sprites
 around the prototype's presets (life/count/colours are exact); overlay diamond
 BORDERS are opaque lines (`OverlayLines` carries no alpha — fills are exact).
 
+## Cutscenes (Phase TU-5)
+`game/ui/cutscene_player.py` — `CutscenePlayer` (wraps `engine.video.VideoSource`
++ an optional companion audio track via `engine.audio.play_music`/`stop_music`)
+and `load_cutscene_registry(data_dir)`, which reads `data/video/cutscenes.json`
+(TU-1's registry, `id -> {video, audio, length, trigger}`). Two independent
+trigger call sites in `main.py`, never unified into one state machine:
+- **`intro`** — the pre-menu `GameState.CUTSCENE` shell state, migrated off its
+  old hardcoded `data/video/cutscene.mp4` + `ui_balance["Menu"]["cutscene_length"]`
+  path onto the registry's `intro` entry.
+- **`first_end_turn`** — `Session.end_turn()` sets `state.pending_cutscene` on
+  round 1 (before `spawner.begin_round()`); the host consumes it at the top of
+  the `_WORLD_STATES` sim branch, freezes the round behind a host-local
+  `gp["cutscene"]` flag (not a new `GamePhase`), and paints the video as a
+  full-screen overlay after the frozen world's own `renderer.flush(window)`.
+  Missing video/cv2 → `CutscenePlayer.enabled` is `False`, `gp["cutscene"]`
+  is never set, and the round starts normally the same frame (graceful skip,
+  never a new branch).
+- **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
+  companion track replaces whatever background music was already playing;
+  nothing restores it afterward (no drift/resume correction in scope).
+
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
 over screen; cold `py game/main.py`: cutscene → menu → rounds → pause/settings →
