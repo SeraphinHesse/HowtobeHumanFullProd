@@ -69,20 +69,44 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
     on. Conditions never change during a run.
-  - **Conditions have ART since the terrain layer landed.** `data/slots.json`'s
-    asset-only `conditions` category (`Terrain` → `Grass`/`Mountain`/`Pond`/
-    `Forest`, one leaf group each, 64×96) holds it, and `TileMap.__init__` takes
-    a `registry=` beside `rng=`: a SECOND pass after the condition roll assigns
-    every non-BACKGROUND tile a `Tile.condition_slot` — a random variant of its
-    condition's group, `CONDITION_GROUP` (`tiles.py`) being the ONE enum→group
-    table. **That second pass is deliberately separate from the roll**: the
-    roll's eligibility rules are prototype-exact gameplay every path-cost
-    fixture depends on, whereas ART covers the starting pocket too (so imported
-    grass art has no hole where the base sits). `registry=None` or `rng=None` ⇒
-    every slot stays `None` ⇒ nothing draws, which is the state every headless
-    fixture runs in. Variants roll per tile, so a `cond_mountain_v3` added in
-    the editor grows the pool with NO code change (same contract as deco types
-    and enemy eras).
+  - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
+    since the per-state restructuring.** `data/slots.json`'s asset-only
+    `conditions` category holds it, restructured so each condition type
+    (`Grass`/`Mountain`/`Pond`/`Forest`) is its OWN top-level group, and WITHIN
+    each, one leaf child per zone state (`Buildable`/`Built`/`Combat`/
+    `Spawning`, 64×96) — `cond_mountain_buildable`, `cond_mountain_built`, …,
+    16 slots total. `tiles.py` holds the TWO enum→registry tables this depends
+    on: `CONDITION_LABEL` (condition → its top-level group label) and
+    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT/SPAWNING` →
+    their group labels; `BACKGROUND` stays absent — background tiles never get
+    condition art, unchanged rule). `Tile.condition_variant_idx` is the stable
+    index into whichever state-family is currently active.
+    `TileMap.__init__` takes a `registry=` beside `rng=` and stores it
+    (`self._registry`) for later: a SECOND pass after the condition roll picks
+    each non-BACKGROUND tile's `condition_variant_idx` (sized against its OWN
+    INITIAL state's family) and resolves `Tile.condition_slot` from
+    `(condition, state, variant_idx)` via the pure `_resolve_condition_slot`
+    (`tile_map.py`) — `variant_idx % len(variants)` keeps the index
+    well-defined even when a state's pool is smaller (e.g. Spawning starts with
+    fewer/no imported variants). **`set_tile_state` re-resolves `condition_slot`
+    on EVERY transition** (after its existing zone/terrain-override bookkeeping,
+    gated on `self._registry is not None and new_state != BACKGROUND`) at that
+    SAME variant index against the new state's family — so a tile's art
+    switches LIVE between buildable/built/combat/spawning looks as its zone
+    actually changes (a building placed → BUILT, a wave arriving → COMBAT, …),
+    never re-rolling which variant, only which state's slot. One accepted side
+    effect: a tile that starts `BACKGROUND` (skipped by the initial art roll)
+    and later recedes into play via the spawn-band backfill now picks up
+    condition art for the first time when `set_tile_state` fires — previously
+    such tiles stayed slotless forever. **That second init pass is deliberately
+    separate from the roll**: the roll's eligibility rules are prototype-exact
+    gameplay every path-cost fixture depends on, whereas ART covers the
+    starting pocket too (so imported grass art has no hole where the base
+    sits). `registry=None` or `rng=None` ⇒ every slot stays `None` ⇒ nothing
+    draws, which is the state every headless
+    fixture runs in. Variants roll per tile within a state's own family, so a
+    `cond_mountain_buildable_v3` added in the editor grows that pool with NO
+    code change (same contract as deco types and enemy eras).
   - **`conditions.py` is the ONE emitter** (pure): `condition_render_items(
     tile_map, col_min, col_max, row_min, row_max, art_slots, anim_time_ms)` →
     `RenderItem`s on the **`terrain`** draw layer, which

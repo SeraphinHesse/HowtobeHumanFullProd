@@ -107,14 +107,15 @@ class _AddBackgroundCommand(QUndoCommand):
 
 
 class _DecoPlaceCommand(QUndoCommand):
-    def __init__(self, doc, col, row, slot):
+    def __init__(self, doc, col, row, slot, flip=False):
         super().__init__(f"place {slot}")
         self._doc, self._cell, self._slot = doc, (col, row), slot
+        self._flip = flip
         self._entry = None
 
     def redo(self):
         self._entry = tilemap_ops.place_deco(
-            self._doc, self._cell[0], self._cell[1], self._slot)
+            self._doc, self._cell[0], self._cell[1], self._slot, self._flip)
 
     def undo(self):
         for i in range(len(self._doc.deco) - 1, -1, -1):
@@ -327,8 +328,9 @@ class MapSession(QObject):
         self.undo_stack.push(_AddBackgroundCommand(self.doc, code, slot))
         return code
 
-    def push_deco_place(self, col, row, slot):
-        self.undo_stack.push(_DecoPlaceCommand(self.doc, col, row, slot))
+    def push_deco_place(self, col, row, slot, flip=False):
+        self.undo_stack.push(
+            _DecoPlaceCommand(self.doc, col, row, slot, flip))
 
     def push_deco_remove(self, col, row):
         index = tilemap_ops.top_deco_index(self.doc, col, row)

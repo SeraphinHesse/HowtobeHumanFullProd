@@ -20,10 +20,20 @@ game vocabulary** (no "raider", no "tower").
 - `TileOccupancy` (`occupancy.py`, E-32) — `(col,row) -> obj`, one occupant per
   tile: `set/clear/get/is_occupied` (tile keys normalized to tuples).
 - `advance(pos, waypoints, index, speed, dt, threshold=0.06)` (`movement.py`,
-  E-30) — pure waypoint step, prototype-exact (`enemy.py _do_move`): snap onto the
-  waypoint and advance the index when within `threshold`, else step `speed*dt`
-  along the unit direction (no overshoot clamp). Returns `(new_pos, new_index,
-  arrived_this_step, reached_end)`.
+  E-30) — pure waypoint step, ported from `enemy.py _do_move` with one
+  DELIBERATE divergence: the step is clamped to the remaining distance. Snap
+  onto the waypoint and advance the index when within `threshold` OR when
+  `speed*dt >= dist` to the waypoint; otherwise step `speed*dt` along the unit
+  direction. Without the clamp, a step over `threshold` overshoots and the next
+  call walks back onto the waypoint (a visible per-tile reversal), and once the
+  step reaches `2*threshold` the unit locks into a permanent two-position
+  oscillation with `index` never advancing. The clamp never carries leftover
+  distance across multiple waypoints in one call — at most one waypoint is
+  consumed per `advance()`, since `PathAgent` (game/enemies/components.py)
+  checks the next tile for a blocker/wall once per frame before `Movement`
+  runs; skipping several waypoints in one call would let a unit tunnel past a
+  check that never happened. Returns `(new_pos, new_index, arrived_this_step,
+  reached_end)`.
 
 The `Movement`/`RangeSensor` *components* that wrap these live in `engine/core/`
 (they need the GameObject/Component machinery); Scene's `query_area` /

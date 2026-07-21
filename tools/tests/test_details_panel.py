@@ -845,13 +845,13 @@ class TestConditionTintCheckbox(DetailsCase):
     and once art exists the designer chooses. `tint_overlay` is optional in the
     manifest: unchecked omits it entirely."""
 
-    UNASSIGN = ("cond_mountain", "painter_t1_lvl1")
-    CONTEXT = ("conditions", ("Terrain",))
+    UNASSIGN = ("cond_mountain_buildable", "painter_t1_lvl1")
+    CONTEXT = ("conditions", ("Mountain", "Buildable"))
 
     def import_condition_sheet(self):
         src = make_png(self.png_dir / "mountain.png", 64, 96)
         self.panel.set_context(*self.CONTEXT)
-        self.panel.set_slot("cond_mountain")
+        self.panel.set_slot("cond_mountain_buildable")
         self.panel.import_sheet(src)
 
     def test_conditions_context_shows_the_row_and_others_hide_it(self):
@@ -862,7 +862,7 @@ class TestConditionTintCheckbox(DetailsCase):
 
     def test_no_art_forces_the_tint_on_and_locks_it(self):
         self.panel.set_context(*self.CONTEXT)
-        self.panel.set_slot("cond_mountain")
+        self.panel.set_slot("cond_mountain_buildable")
         self.assertTrue(self.panel._tint_check.isChecked())
         self.assertFalse(self.panel._tint_check.isEnabled())
 
@@ -876,7 +876,7 @@ class TestConditionTintCheckbox(DetailsCase):
         self.import_condition_sheet()
         self.panel._tint_check.setChecked(False)
         self.panel.save()
-        entry = self.manifest_doc()["entries"]["cond_mountain"]
+        entry = self.manifest_doc()["entries"]["cond_mountain_buildable"]
         self.assertNotIn("tint_overlay", entry)
         self.assertNotIn("tint_overlay", self.panel.draft_entry())
 
@@ -885,10 +885,10 @@ class TestConditionTintCheckbox(DetailsCase):
         self.panel._tint_check.setChecked(True)
         self.panel.save()
         self.assertIs(
-            self.manifest_doc()["entries"]["cond_mountain"]["tint_overlay"],
+            self.manifest_doc()["entries"]["cond_mountain_buildable"]["tint_overlay"],
             True)
         self.panel.set_slot(None)
-        self.panel.set_slot("cond_mountain")        # re-read from disk
+        self.panel.set_slot("cond_mountain_buildable")        # re-read from disk
         self.assertTrue(self.panel._tint_check.isChecked())
         self.assertTrue(self.panel._tint_check.isEnabled())
 
@@ -899,7 +899,7 @@ class TestConditionTintCheckbox(DetailsCase):
         self.panel._tint_check.setChecked(False)
         self.panel.save()
         self.assertNotIn("tint_overlay",
-                         self.manifest_doc()["entries"]["cond_mountain"])
+                         self.manifest_doc()["entries"]["cond_mountain_buildable"])
 
     def test_clearing_the_entry_forces_the_tint_back_on(self):
         self.import_condition_sheet()
