@@ -61,6 +61,12 @@ class Session:
         # (default) = always allowed (a bare Session built by a logic test
         # never gates).
         self.tutorial_gate = None
+        # TU-7: optional TutorialDirector reference, host-set alongside
+        # tutorial_gate in build_gameplay() — consulted by on_base_hit() (the
+        # scripted first-loss waiver) and notified by _begin_round_end(). None
+        # (default) = normal rules, no notification (a bare Session built by a
+        # logic test never gates/notifies).
+        self.tutorial_director = None
         self._wipe_pending = False
         # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
         # 10G single-slot `_boss_swarm_pending` generalised — several units can
@@ -425,7 +431,14 @@ class Session:
         if transform is not None:
             st.enemy_death_events.append(transform.world_pos)
         st.enemies_killed += 1
-        st.base_lives -= 1
+        # TU-7: the scripted round-1 loss may be waived (script-toggleable,
+        # `first_loss_costs_life`) — a pure read, never mutates the director.
+        charge = True
+        if self.tutorial_director is not None:
+            charge = self.tutorial_director.charges_life_on_base_hit(
+                st.round_num)
+        if charge:
+            st.base_lives -= 1
         if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
         else:
@@ -479,6 +492,11 @@ class Session:
             }
         # -- /10G --
         st.phase = GamePhase.ROUND_END
+        # TU-7: every road to ROUND_END notifies the tutorial director — a
+        # no-op unless its sequencer is actually waiting on this event (the
+        # scripted round-1 "wait for the loss" step).
+        if self.tutorial_director is not None:
+            self.tutorial_director.on_round_end(st.round_num)
         st.phase_timer = self.core_balance["PhaseLoop"]["round_end_delay"]
 
     def _wipe_round(self, scene):

@@ -64,6 +64,62 @@
       ],
       "id": "highlight_end_turn_button",
       "message": null
+    },
+    {
+      "advance_on": "round_end",
+      "allow": [],
+      "flags": {
+        "is_scripted_loss": true
+      },
+      "highlight": [],
+      "id": "await_scripted_loss",
+      "message": null
+    },
+    {
+      "advance_on": "message_dismissed:lives_intro",
+      "allow": [
+        "dismiss_message"
+      ],
+      "flags": {},
+      "highlight": [],
+      "id": "lives_message",
+      "message": "lives_intro"
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_stone",
+      "allow": [
+        "tile_click:tutorial_stone"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_stone"
+      ],
+      "id": "highlight_tutorial_stone_tile",
+      "message": null
+    },
+    {
+      "advance_on": "building_selected:defence",
+      "allow": [
+        "card_select:defence"
+      ],
+      "flags": {},
+      "highlight": [
+        "card:defence"
+      ],
+      "id": "highlight_defender_card",
+      "message": null
+    },
+    {
+      "advance_on": "building_placed:defence",
+      "allow": [
+        "button:confirm"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:confirm"
+      ],
+      "id": "highlight_confirm_button_defence",
+      "message": null
     }
   ]
 }
