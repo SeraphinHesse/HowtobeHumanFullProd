@@ -25,10 +25,10 @@ from game.core.xp import scaled_base_income
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    C_GOLD, C_HP_GREEN, C_HP_RED, C_PANEL_INSET, C_PANEL_STONE, C_RED,
-    C_UI_BORDER, C_UI_TEXT_DIM, HEART, Button, anim_ms, contains, submit_bar,
-    submit_centered, submit_panel, submit_text, text_h, text_size,
+    HEART, Button, anim_ms, contains, submit_bar, submit_centered,
+    submit_panel, submit_text, text_h, text_size
 )
+from . import widgets
 
 # -- 10H: lightning + cheat menu --
 _LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
@@ -43,12 +43,20 @@ _PHASE_LABEL = {
     GamePhase.INCOME: "PAYDAY",
     GamePhase.BOSS_CUTSCENE: "CUTSCENE",  # -- 10G boss --
 }
-_PHASE_COLOR = {
-    GamePhase.ENEMY: C_RED,
-    GamePhase.LEVELUP: C_GOLD,
-    GamePhase.INCOME: C_GOLD,
-    GamePhase.BOSS_CUTSCENE: C_GOLD,      # -- 10G boss --
-}
+def _phase_color(phase, default):
+    """The phase banner's color, keyed by GamePhase (UH-6: a FUNCTION, not a
+    module dict — a dict literal built from `widgets.C_RED`/`C_GOLD` at
+    import time would freeze today's values and never see a later
+    configure_palette() rebind; this looks the attribute up fresh on every
+    call, same as every other palette read in this module)."""
+    return {
+        GamePhase.ENEMY: widgets.C_RED,
+        GamePhase.LEVELUP: widgets.C_GOLD,
+        GamePhase.INCOME: widgets.C_GOLD,
+        GamePhase.BOSS_CUTSCENE: widgets.C_GOLD,      # -- 10G boss --
+    }.get(phase, default)
+
+
 _INCOME_PINK = (214, 96, 136)
 _XP_PURPLE = (168, 105, 222)
 _XP_TRACK = (48, 34, 66)
@@ -165,19 +173,19 @@ class Hud:
         self._love_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
                                           text_color=None, visible=True)
         self._lvl_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="hud_lvl",
-                                          text_color=C_GOLD, visible=True)
+                                          text_color=widgets.C_GOLD, visible=True)
         self._xp_bar = SimpleNamespace(rect=(0, 0, 110, 9), color=_XP_TRACK,
                                        visible=True)
         self._xp_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
-                                        text_color=C_UI_TEXT_DIM, visible=True)
+                                        text_color=widgets.C_UI_TEXT_DIM, visible=True)
         self._income_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
                                             text_color=_INCOME_PINK, visible=True)
         self._lives_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                           text_color=C_HP_RED, visible=True)
+                                           text_color=widgets.C_HP_RED, visible=True)
         self._tiles_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                           text_color=C_UI_TEXT_DIM, visible=True)
+                                           text_color=widgets.C_UI_TEXT_DIM, visible=True)
         self._round_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                            text_color=C_UI_TEXT_DIM, visible=True)
+                                            text_color=widgets.C_UI_TEXT_DIM, visible=True)
         # -- 10L wave-3 phase 4: three baked icon slots beside their readouts.
         # Panel-kind holders (rect/skin/visible) routed through the skinned
         # submit_panel() path (10L-A) — a code-default skin means every
@@ -305,20 +313,21 @@ class Hud:
         # -- love pill (top-left) -----------------------------------------
         pill = self._love_panel.rect
         if self._love_panel.visible:
-            renderer.submit_hud(HudRect(pill, C_PANEL_STONE, border_radius=4))
+            renderer.submit_hud(HudRect(pill, widgets.C_PANEL_STONE, border_radius=4))
             renderer.submit_hud(
-                HudRect(pill, C_PANEL_INSET, border_radius=4, width=1))
+                HudRect(pill, widgets.C_PANEL_INSET, border_radius=4, width=1))
         # -- 10L wave-3: love icon, left of the count inside the pill ------
         if is_visible(self._icon_love):
             submit_panel(renderer, self._icon_love.rect,
-                        skin=self._icon_love.skin, anim_ms=t)
+                        skin=self._icon_love.skin,
+                        tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
             remaining = st.love - hover_cost
             love_txt = f"{HEART} {remaining}" if remaining >= 0 else f"{HEART} -"
-            love_col = C_RED
+            love_col = widgets.C_RED
         else:
             love_txt = f"{HEART} {st.love}"
-            love_col = C_GOLD
+            love_col = widgets.C_GOLD
         if self._love_text.visible:
             lt_color = (self._love_text.text_color
                        if self._love_text.text_color is not None else love_col)
@@ -343,7 +352,8 @@ class Hud:
         # -- lives + tile counter -----------------------------------------
         if is_visible(self._icon_lives):
             submit_panel(renderer, self._icon_lives.rect,
-                        skin=self._icon_lives.skin, anim_ms=t)
+                        skin=self._icon_lives.skin,
+                        tint=getattr(self._icon_lives, "tint", None), anim_ms=t)
         if self._lives_text.visible:
             submit_text(renderer, f"LIVES {st.base_lives}",
                        self._lives_text.rect[:2], self._lives_text.font_key,
@@ -359,7 +369,7 @@ class Hud:
             label = _PHASE_LABEL.get(st.phase, st.phase.name)
             color = (self._phase_label.text_color
                     if self._phase_label.text_color is not None
-                    else _PHASE_COLOR.get(st.phase, C_UI_TEXT_DIM))
+                    else _phase_color(st.phase, widgets.C_UI_TEXT_DIM))
             submit_text(renderer, label, self._phase_label.rect[:2],
                        self._phase_label.font_key, color)
 
@@ -379,7 +389,7 @@ class Hud:
                 self.end_turn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.end_turn))
             # a faint separator under the round text keeps the corner legible
-            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), C_UI_BORDER))
+            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER))
             if is_visible(self.pause):
                 self.pause.submit(renderer, anim_ms=t,
                                   **button_kwargs(self.pause))
@@ -401,14 +411,14 @@ class Hud:
             elif label == "Story":
                 rows.append((f"Story upgrades: +{amount}", _TOOLTIP_GOLD))
             else:
-                rows.append((f"{label}: +{amount}", C_HP_GREEN))
+                rows.append((f"{label}: +{amount}", widgets.C_HP_GREEN))
         lh = text_h("sm") + 3
         w = max(text_size(t, "sm")[0] for t, _ in rows) + 8
         h = lh * len(rows) + 8
         x = max(2, anchor[0])
         y = anchor[1] + anchor[3] + 2
         renderer.submit_hud(HudRect((x, y, w, h), _TOOLTIP_BG))
-        renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=1))
+        renderer.submit_hud(HudRect((x, y, w, h), widgets.C_UI_BORDER, width=1))
         ty = y + 4
         for text, color in rows:
             submit_text(renderer, text, (x + 4, ty), "sm", color)
@@ -425,7 +435,7 @@ class Hud:
             # 0.5 Hz sine between the purple and gold ends of the ramp
             t = 0.5 + 0.5 * math.sin(self._clock * math.pi)
             fill = tuple(int(a + (b - a) * t)
-                        for a, b in zip(_XP_PURPLE, C_GOLD))
+                        for a, b in zip(_XP_PURPLE, widgets.C_GOLD))
         else:
             ratio = st.player_xp / st.xp_threshold if st.xp_threshold else 0.0
             fill = _XP_PURPLE
@@ -436,11 +446,13 @@ class Hud:
         # -- 10L wave-3: xp icon, left of the bar --------------------------
         if is_visible(self._icon_xp):
             submit_panel(renderer, self._icon_xp.rect,
-                        skin=self._icon_xp.skin, anim_ms=anim_ms(self._clock))
+                        skin=self._icon_xp.skin,
+                        tint=getattr(self._icon_xp, "tint", None),
+                        anim_ms=anim_ms(self._clock))
         if self._xp_bar.visible:
             bx, by, bw, bh = self._xp_bar.rect
             submit_bar(renderer, bx, by, bw, bh, ratio,
-                      bg=self._xp_bar.color, fill=fill, border=C_UI_BORDER)
+                      bg=self._xp_bar.color, fill=fill, border=widgets.C_UI_BORDER)
         if self._xp_text.visible:
             submit_text(renderer, f"{st.player_xp}/{st.xp_threshold}",
                        self._xp_text.rect[:2], self._xp_text.font_key,

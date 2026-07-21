@@ -1,10 +1,3 @@
-<!-- active-plan: UiEditorHonestyPLAN.md | set: 2026-07-20 -->
-> **Active plan:** UiEditorHonestyPLAN.md (mirror). Source of truth:
-> `planning/UiEditorHonestyPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 # UiEditorHonestyPLAN.md — Make the UI editor honest
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /

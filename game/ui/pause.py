@@ -15,7 +15,8 @@ from types import SimpleNamespace
 from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
-from .widgets import C_GOLD, Button, anim_ms, submit_centered
+from .widgets import Button, anim_ms, submit_centered
+from . import widgets
 
 # (label, action) top-to-bottom
 _ITEMS = [
@@ -44,7 +45,7 @@ class PauseScreen:
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h),
                                          color=(0, 0, 0, 150))
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
-                                      text_color=C_GOLD, label=_TITLE,
+                                      text_color=widgets.C_GOLD, label=_TITLE,
                                       visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen

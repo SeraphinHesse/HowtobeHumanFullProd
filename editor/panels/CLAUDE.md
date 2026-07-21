@@ -193,15 +193,28 @@ import list.**
     `tile_background_<n>` type. `_bind_background_code` claims that code in the open
     map (undoable). No map open → registry-only (paintable once some map's `+ Level`
     claims a code).
-  - **`+ Type` (deco only)** → `registry_ops.add_deco_prop` appends a whole leaf
-    CHILD group (`Prop <n>` holding `deco_prop_<n>`) under `Props`. Same handler as
-    the palette's `+ Add Prop`.
+  - **`+ Type` (deco, and ui → Buttons)** → for deco, `registry_ops.add_deco_prop`
+    appends a whole leaf CHILD group (`Prop <n>` holding `deco_prop_<n>`) under
+    `Props` — same handler as the palette's `+ Add Prop`. For ui → Buttons,
+    `MainWindow._on_add_type` dispatches instead to `_on_add_button_type` →
+    `registry_ops.add_button_family`, which appends a new leaf child group
+    (`{label, slots: [ui_button_<slug>]}`, a naming-dialog-derived slug via
+    `registry_ops.button_family_slot`) under Buttons — a brand-new button FAMILY,
+    the ui-category analogue of a deco prop type. `_BUTTON_TYPE_NODE = ("ui",
+    ("Buttons",))` gates both `can_add_type` and the dispatch. Only leaf-group
+    families ("+ Type") get the new-KIND affordance; making a widget of a new
+    *behavior* kind stays a dispatched game-code task.
   - All are pure `write_validated` calls in `editor/registry_ops.py` (`TestPurity`).
     After the write MainWindow reloads every cached registry
-    (`selector`/`details`/`viewport`/`palette` `.reload_registry()`) and
-    `select_last()`s the new slot. No game change needed: `enemy.py:variant_slot`
-    already rolls a random variant per spawn across an era's slots, and a deco
-    placement stores its CONCRETE slot in the map file.
+    (`selector`/`details`/`viewport`/`palette`/`screen_details` `.reload_registry()`)
+    and `select_last()`s the new slot. `screen_details.reload_registry()` is what
+    makes a fresh ui slot (a new button family, or any existing "+ Variant")
+    appear in every skin dropdown (`skin_combo`/`button_skin_combo`/
+    `panel_skin_combo`) **without restarting the editor** — before this wire it
+    was the one reload `MainWindow._reload_registries` skipped. No game change
+    needed otherwise: `enemy.py:variant_slot` already rolls a random variant per
+    spawn across an era's slots, and a deco placement stores its CONCRETE slot in
+    the map file.
 - **DetailsPanel** (`panels/details.py`, right pane): prototype-importer parity
   (ED-40/41). A *file* import copies the PNG to `data/sprites/imported/<slot>.png`
   AT IMPORT TIME; Save writes the manifest entry through `write_validated`; Clear
@@ -475,6 +488,26 @@ import list.**
   leading-underscore cross-module name). `session.undo_stack.indexChanged`
   refreshes the visible form/background/defaults section after Ctrl+Z/Y so
   nothing goes stale.
+  - **Widget list is display-named, selection is UserRole-keyed (UH-4, D4)**:
+    each `QListWidgetItem`'s TEXT is `widget_display_name(widget_id, spec)` —
+    `spec.get("display_name") or widget_id` (`editor.panels._screen_primitives.
+    widget_display_name`, the ONE resolution rule shared with the viewport
+    caption below) — and its TOOLTIP is always the raw code id (the id's
+    secondary surface). The selection contract itself never reads item text:
+    `item.setData(Qt.ItemDataRole.UserRole, widget_id)` at construction, the
+    list's `currentItemChanged` connect (not `currentTextChanged` — display
+    names aren't guaranteed unique, the id is) reads `item.data(UserRole)` in
+    `_on_widget_list_selected` and still emits the CODE id on
+    `widget_selected`; `select_widget(widget_id)` scans rows for
+    `item.data(UserRole) == widget_id` instead of `findItems(text, …)`.
+    `display_name` is a cosmetic, editor-only field (`screen_defaults.json`,
+    OPTIONAL per widget, authored by `tools/export_ui_layouts.py`'s
+    `_DISPLAY_NAMES` mapping) — it never appears in an override doc, and
+    `_populate_widget_form`/every `push_*` call is unchanged, still keyed by
+    the code id via `self._current_widget`. The viewport's selection outline
+    (`viewport._submit_screen_selection`) gains a matching `HudText` caption
+    above the outline using the SAME `widget_display_name` helper, so the
+    list and the canvas can never show two different names for one widget.
 - **`MainWindow`**: `_on_screen_selected` → `_resolve_dirty(session=None)`
   (generalized to take ANY session — every pre-B4 call site passes none and
   gets `map_session`; screen mode passes `self.screen_session`) →
@@ -510,6 +543,157 @@ import list.**
   `push_skin_assign` on an in-memory session, never a populated screen
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
+
+## Phase UH-2 — per-mode screen views + auto Refresh Layouts on entry
+- **`building_panel` gets five views, exported by UH-1's per-mode snapshot
+  exporter** (`unlock`/`construct`/`upgrade`/`base_info`/`preview`) instead of
+  one superimposed pile of every mode's widgets. `data/ui/screen_defaults.json`
+  per-screen shape is unchanged for every OTHER screen; `building_panel` gains
+  an optional `views` key: `{view_id: {widgets, mock_note}}` — the SAME shape
+  as a per-screen entry, so the resolver below returns either interchangeably.
+  Top-level `widgets` stays the required first-wins union (back-compat: the
+  game's known-id check and any pre-UH-2 reader still work); the editor
+  ignores it whenever `views` is present.
+- **`VIEW_ORDER`/`ordered_views()`** (`editor/ui_screen_session.py`, module
+  level, one authority) pin the game-mode display order
+  (`unlock, construct, upgrade, base_info, preview`) — needed because D-3's
+  sorted-keys JSON alphabetizes the `views` object (`base_info` first).
+  Selector and `MainWindow` both import it from here.
+- **`UIScreenSession.view`** (non-doc, non-undoable) is the active view, or
+  `None` for a screen's single implicit view (every screen but
+  building_panel). `open()` resets it to `None`; `set_view(view_id)` sets it
+  and emits `view_changed` — the session does NOT validate view names (it
+  holds only the override doc, not defaults); validity is the caller's job.
+- **One resolution point per consumer, no per-call-site changes.**
+  `ViewportPanel._current_screen_defaults()` and
+  `ScreenDetailsPanel._current_screen_defaults()` both: get the screen's
+  entry, and if it carries `views` and the session's `view` names one, return
+  `entry["views"][view]` instead of `entry`. Because every render/hit-test/
+  nudge path and the widget list already funnel through these two functions,
+  this single change IS the per-view filtering — `_refresh_widget_list` needs
+  no code change, it just iterates whichever dict comes back.
+  `ViewportPanel._effective_rect` layers the session doc's override on top of
+  whichever `defaults` came back, so an id present in several views (`panel`,
+  `close_btn`) carries ONE override applying in every view (D2) with zero
+  extra plumbing.
+- **Selector**: the "Screens" branch (B4) gains a child leaf per view under
+  any screen whose `screen_defaults.json` entry carries `views` — a NEW
+  `_screen_views_from_disk()` helper (a fresh degrade-to-`{}` read mirroring
+  `MainWindow._load_screen_defaults`, approved over adding a MainWindow
+  injection path) reads the file itself. View leaves carry `_VIEW_ROLE`
+  (`(screen_id, view_id)`) and emit `screen_view_selected(screen_id,
+  view_id)` + `domain_selected("ui")` — never `screen_selected`/
+  `node_selected` (the exact `_SCREEN_ROLE` pattern, one level deeper).
+  `select_screen_view()` mirrors `select_screen()`; `refresh_screens()`'s
+  selection-preserving rebuild also preserves a selected VIEW leaf, falling
+  back to the screen leaf if the view vanished.
+- **`MainWindow` wiring**: `_on_screen_selected` (a bare screen-leaf pick)
+  sets the DEFAULT view — `ordered_views(views)[0]` if the screen has views
+  (`"unlock"` for building_panel), else `None` — then calls
+  `_enter_screen_mode()`. New `_on_screen_view_selected(screen_id, view_id)`
+  is the identical flow (same-doc fast path; `_resolve_dirty` only when
+  opening a DIFFERENT screen) but sets the CHOSEN view. **View switching
+  re-runs `_enter_screen_mode()` in full** — `viewport.set_screen_mode`
+  already resets widget selection/drag state and `screen_details.set_defaults`
+  → `_on_screen_opened` rebuilds the list/form, so no stale-selection handling
+  is needed; the repeated `reload_assets()` is cheap by design (above).
+  Switching views on the SAME open doc never triggers the dirty prompt and
+  never clears the undo stack (only `_resolve_dirty` does that, and it's
+  skipped on the same-doc path).
+- **Auto Refresh Layouts on screen-mode entry**: `MainWindow(...,
+  auto_refresh_layouts=True)` (injectable, the `prefs_path=` precedent) plus
+  `self._screen_mode_entered` gate `_enter_screen_mode()`: immediately after
+  `reload_assets()`, if `auto_refresh_layouts` and not yet entered this
+  session, call `self.run_controls.export_layouts()` (the SAME tracked-
+  QProcess path "Refresh Layouts" the toolbar button uses — its own
+  completion handler already refreshes defaults/status bar; a run already in
+  flight silently refuses the auto-call, run_controls' one-tracked-process
+  rule). Set the flag true; `_leave_screen_mode()` resets it, so re-entering
+  screen mode later fires again exactly once. Switching views or screens
+  WHILE already in screen mode does NOT re-fire it. Every test-suite
+  `MainWindow(...)` construction passes `auto_refresh_layouts=False` except
+  the dedicated auto-refresh tests (which stub `run_controls.export_layouts`
+  with a recorder — never a real subprocess in tests).
+## Theme panel (`panels/game_theme.py`, `theme_ops.py`; UH-6, D5/D6)
+- **Selection**: a single "Theme" LEAF (not a branch — one document pair,
+  nothing to enumerate) is the SECOND child of the "ui" category node,
+  right after "Screens" (which stays FIRST, the B4 invariant above) —
+  `panels/selector.py`'s `_THEME_ROLE` marker + `theme_selected()` signal,
+  never `node_selected` (the same never-node_selected rule as Maps/Screens
+  leaves). `MainWindow._on_theme_selected` → `right_stack` →
+  `GameThemePanel`.
+- **`GameThemePanel`** edits `data/ui/fonts.json` (per-key size spinbox,
+  schema-bounded 4-72, + bold checkbox) and `data/ui/palette.json` (per-key
+  color swatch → `QColorDialog`) in ONE form, two `CollapsibleSection`s.
+  Edits are STAGED (the `balancing.py` pattern, not the screen-session undo
+  pattern): every change updates an in-memory doc + a dirty dot; ONE "Save
+  Theme Changes" button (enabled only while dirty) is the sole
+  `write_validated` call site for both files, saving only whichever doc
+  actually changed. `data_dir=None` injection, `_NoWheelSpinBox` imported
+  from `editor.panels.balancing` (never copied). Missing/invalid data
+  degrades to a placeholder message (editor-side E-37 grace — the panel
+  must not crash `MainWindow` construction; the GAME's own boot load fails
+  loud instead, D-2).
+- **`editor/theme_ops.py`** (Qt-free, pygame-free, in `TestPurity`) — load/
+  write helpers for both files plus `font_keys(data_dir)`, which
+  `screen_details.py`'s font combos now source from (replacing the old
+  hardcoded `_FONT_KEYS` tuple) with a literal 7-tuple fallback if the file
+  is unreadable.
+- **Save reconfigures the engine in-process**: `GameThemePanel.saved` →
+  `MainWindow._on_theme_saved` → reloads `data/ui/fonts.json` and calls
+  `engine.render.fonts.configure_fonts` + repaints the viewport
+  (`render_frame()`), so screen-mode preview TEXT tracks the new sizes
+  without an editor restart. `editor/theme.py` (Qt chrome light/dark) is
+  untouched by any of this — a completely different "theme". Palette edits
+  have no separate editor-side consumer to reconfigure (`game/ui/widgets`
+  is game-only, off limits to the editor); the game re-reads
+  `palette.json` at its own next boot.
+- **Honest Tint control (ties to UH-3, D6)**: UH-3 disables the
+  `screen_details.py` Color picker on a skinned widget with a "colors come
+  from the sprite sheet" tooltip (D3 — the control cannot take effect, so
+  it must not silently accept input). UH-6 REPURPOSES that exact state
+  instead of leaving it disabled: `tint` DOES reach the game
+  (`widgets.Button.submit`/`submit_panel` thread it into the `HudSprite`),
+  so on a widget that resolves to a skin (`_screen_rules.resolved_skin` —
+  imported, never duplicated) the SAME control is ENABLED, relabelled
+  "Tint" (both the `QFormLayout` row label and the button text), writes/
+  resets the `tint` key (`push_field`/`_on_reset_field("tint")`), tooltip
+  "multiplies the sprite sheet — white = unchanged". An UNSKINNED widget
+  keeps the plain Color behavior verbatim (writes `color`). `self.
+  _color_is_tint` (set by `_refresh_honest_controls`, which now runs
+  BEFORE `_refresh_reset_buttons` in `_populate_widget_form` — the one
+  genuine UH-3/UH-6 coupling point) is the single source of truth
+  `_active_color_key()` reads, so the button handler and the reset button
+  can never disagree about which doc key is live. **Reconciled rule
+  (UH-3 ∩ UH-6, integration).** UH-3 landed a refinement after UH-6 branched
+  (code-owned fills), so `_refresh_honest_controls` composes both. Tint is
+  offered for the kinds whose draw path actually threads `tint` to the sheet —
+  **`button` and `panel`**:
+  - **skinned `button` or `panel`** → Tint (enabled, relabelled,
+    `TOOLTIP_TINT_SKINNED`). `Button.submit` always forwards `tint`; every
+    *id'd* panel widget forwards it at its `submit_panel` site
+    (`building_ui.py:238,932`, `cheat_menu.py:217`, `add_name.py:134`,
+    `boss_cutscene.py:162`, `hud.py:321,354,448`). The two `submit_panel`
+    sites that DROP `tint` (`building_ui.py:1252` boss popup, `levelup.py:128`
+    boxes) draw dynamic, NON-id'd content never present in
+    `screen_defaults.json`, so they are never selectable here.
+  - **code-owned-fill kind** (`panel`/`field`/`label`,
+    `_screen_rules.color_is_code_owned`) when UNskinned → Color DISABLED with
+    `TOOLTIP_COLOR_CODE_OWNED` (the game hardcodes the fill). `field`/`label`
+    never resolve to a skin, so they always land here.
+  - **otherwise** → plain Color enabled — an unskinned button, or a
+    `backdrop`/`bar` whose `.color` the game genuinely reads.
+  **Known residual (deferred, viewport finding 3):** `hud.love_panel` is kind
+  `panel` but draws via `HudRect` (hardcoded fill, no sheet), so a `skin`
+  forced onto it would show a Tint that no-ops — the same
+  skin-on-a-non-skinnable-widget quirk that affects `backdrop`/`bar`; tracked
+  separately, not solved here. `TOOLTIP_COLOR_SKINNED` stays exported from
+  `_screen_rules.py` (stable name) but `screen_details.py` no longer uses it.
+- **Viewport honesty fix (`panels/viewport.py:933`)**: screen mode now
+  tints a skinned widget's preview from its `tint` key, never `color` — the
+  pre-UH-6 editor lie (the game has always ignored `color` on a skinned
+  widget; `game/ui/skinning.py`'s `button_kwargs` docstring). What the
+  editor shows is what the game draws (ED-22's promise, extended to color).
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

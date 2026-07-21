@@ -16,13 +16,14 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest import mock
 
 # Sets the headless env vars and owns the one QApplication — import it before
 # PySide6, which reads those vars at import time.
 from tools.tests.qt_harness import APP as _APP, QtCase
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence, QPalette
+from PySide6.QtGui import QColor, QKeySequence, QPalette
 from PySide6.QtWidgets import (
     QApplication,
     QCheckBox,
@@ -397,6 +398,23 @@ class TestSelectorTree(TempDataCase):
         panel.refresh_markers()
         painter = panel._find_item("buildings", ("Painter",))
         self.assertTrue(painter.text(0).startswith("● "))
+
+    def test_theme_leaf_is_second_child_and_emits_theme_selected(self):
+        """UH-6: "Theme" is a leaf under "ui", right after "Screens" (which
+        stays FIRST — the panels-doc invariant), never node_selected."""
+        panel = self.make()
+        ui_root = panel._find_item("ui", ())
+        self.assertEqual(ui_root.child(0).text(0), "Screens")
+        self.assertEqual(ui_root.child(1).text(0), "Theme")
+
+        themes, nodes, domains_seen = [], [], []
+        panel.theme_selected.connect(lambda: themes.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_theme()
+        self.assertEqual(themes, [True])
+        self.assertEqual(nodes, [])            # never node_selected
+        self.assertIn("ui", domains_seen)      # same "ui" domain as Screens
 
 
 class TestBalancingPanel(TempDataCase):
@@ -823,7 +841,8 @@ class TestMainWindowWiring(TempDataCase):
     def make_window(self):
         from editor.main import MainWindow
 
-        window = self.track(MainWindow(data_dir=self.data_dir))
+        window = self.track(
+            MainWindow(data_dir=self.data_dir, auto_refresh_layouts=False))
         window._timer.stop()  # no frame drive needed here
         return window
 
@@ -935,6 +954,54 @@ class TestMainWindowWiring(TempDataCase):
         self.assertTrue(new_slot.startswith("deco_prop_"))
         self.assertEqual(window.details.slot_key, new_slot)
 
+    def test_add_type_button_shown_on_ui_buttons_node(self):
+        """+ Type on ui -> Buttons is a SECOND "+ Type" target (the button
+        FAMILY affordance) alongside deco; every other ui node stays without
+        it, same as any non-deco/non-Buttons category."""
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+        self.assertFalse(window.levelbar._add_type_btn.isHidden())
+
+        window.selector.select_node("ui", ("Backgrounds",))
+        self.assertTrue(window.levelbar._add_type_btn.isHidden())
+
+        window.selector.select_node("enemies", ("Walker",))
+        self.assertTrue(window.levelbar._add_type_btn.isHidden())
+
+    def test_add_button_type_creates_family_and_refreshes_skin_combos(self):
+        """The no-restart pin (§1a): a fresh button family must show up in
+        every skin combo without an editor restart — fails red if the
+        `screen_details.reload_registry()` wiring line is dropped."""
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+
+        window._on_add_button_type(name="Tab")   # injected: no modal
+
+        self.assertEqual(
+            window.details._subcat_combo.currentText().removeprefix("● "),
+            "Tab")
+        skin_values = [window.screen_details.skin_combo.itemData(i)
+                      for i in range(window.screen_details.skin_combo.count())]
+        button_skin_values = [
+            window.screen_details.button_skin_combo.itemData(i)
+            for i in range(window.screen_details.button_skin_combo.count())]
+        self.assertIn("ui_button_tab", skin_values)
+        self.assertIn("ui_button_tab", button_skin_values)
+
+    def test_add_button_type_rejection_reports_not_crashes(self):
+        window = self.make_window()
+        window.selector.select_node("ui", ("Buttons",))
+        window._on_add_button_type(name="Tab")
+
+        slots_path = self.data_dir / "slots.json"
+        before = slots_path.read_bytes()
+
+        window._on_add_button_type(name="Tab")   # duplicate: no crash
+        self.assertIn(
+            "Could not add button type",
+            window.statusBar().currentMessage())
+        self.assertEqual(slots_path.read_bytes(), before)
+
     def test_add_background_variant_from_the_tree(self):
         from engine.assets import load_registry
 
@@ -1011,6 +1078,69 @@ class TestMainWindowWiring(TempDataCase):
         self.assertFalse(painter_item.text(0).startswith("● "))
 
 
+class TestGameThemePanel(TempDataCase):
+    """UH-6 (D5): the Theme leaf's panel — GameThemePanel. Named to avoid
+    colliding with TestThemeSwitch below (editor/theme.py, the Qt chrome
+    light/dark switch — a completely different "theme"). Staged edits (the
+    balancing.py pattern): every change updates an in-memory doc + a dirty
+    dot; ONE Save button is the sole write_validated call site."""
+
+    def make(self):
+        from editor.panels.game_theme import GameThemePanel
+        return self.track(GameThemePanel(data_dir=self.data_dir))
+
+    def test_font_combo_lists_the_temp_trees_fonts_json_keys(self):
+        from editor import theme_ops
+        panel = self.make()
+        self.assertEqual(
+            set(panel._font_widgets), set(theme_ops.font_keys(self.data_dir)))
+
+    def test_edit_gold_save_round_trips_through_write_validated(self):
+        from editor import theme_ops
+        panel = self.make()
+        # isHidden() (not isVisible(), the balancing.py dot test's own
+        # convention) — these widgets are never shown in a top-level
+        # window, so isVisible() is always False regardless of setVisible.
+        self.assertTrue(panel._palette_dots["gold"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+
+        with mock.patch(
+                "editor.panels.game_theme.QColorDialog.getColor",
+                return_value=QColor(1, 2, 3)):
+            panel._on_palette_clicked("gold")
+
+        self.assertFalse(panel._palette_dots["gold"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        self.assertEqual(panel._palette_doc["gold"], [1, 2, 3])
+        # staged only — nothing written yet
+        self.assertEqual(theme_ops.load_palette(self.data_dir)["gold"], [255, 200, 50])
+
+        saved = []
+        panel.saved.connect(lambda: saved.append(True))
+        panel._on_save()
+
+        self.assertEqual(saved, [True])
+        self.assertTrue(panel._palette_dots["gold"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        on_disk = theme_ops.load_palette(self.data_dir)
+        self.assertEqual(on_disk["gold"], [1, 2, 3])
+        path = theme_ops.palette_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(on_disk))
+
+    def test_font_size_edit_stages_and_saves(self):
+        from editor import theme_ops
+        panel = self.make()
+        size_spin, _bold_check = panel._font_widgets["lg"]
+        size_spin.setValue(size_spin.value() + 1)
+        self.assertFalse(panel._font_dots["lg"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        panel._on_save()
+        self.assertEqual(
+            theme_ops.load_fonts(self.data_dir)["lg"]["size"], size_spin.value())
+        self.assertTrue(panel._font_dots["lg"].isHidden())
+
+
 class TestThemeSwitch(TempDataCase):
     """The settings dialog's dark-mode checkbox repaints the app chrome and
     remembers the choice (ED settings panel — moved off the old toolbar
@@ -1020,7 +1150,8 @@ class TestThemeSwitch(TempDataCase):
         from editor.main import MainWindow
 
         window = self.track(MainWindow(data_dir=self.data_dir,
-                                       prefs_path=prefs_path))
+                                       prefs_path=prefs_path,
+                                       auto_refresh_layouts=False))
         window._timer.stop()
         return window
 
@@ -1121,7 +1252,8 @@ class TestSettingsDialog(TempDataCase):
 
         self.prefs = Path(self.data_dir).parent / ".editor_prefs.json"
         window = self.track(MainWindow(data_dir=self.data_dir,
-                                       prefs_path=self.prefs))
+                                       prefs_path=self.prefs,
+                                       auto_refresh_layouts=False))
         window._timer.stop()
         return window
 
