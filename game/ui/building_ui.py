@@ -289,6 +289,11 @@ class BuildingUI:
         self.mode = None
         self.tile = None
         self.preview = None
+        # -- TU-6: transient "a placement just landed" signal — the host
+        # reads it once right after a successful handle_click() and clears
+        # it; NEVER reset in close() (open_for_tile()'s internal close() call
+        # inside _do_place() would wipe it before the host gets to read it). --
+        self.last_placed_type = None
         self._selected = None
         self._session = None
         self._upgrade_hint = None
@@ -402,6 +407,25 @@ class BuildingUI:
             self.close()
             return True
         return False
+
+    # -- TU-6: tutorial highlight rect queries (read-only, additive) --------
+
+    def card_rect(self, building_type):
+        """Screen rect of the construct-mode card for ``building_type``, or
+        None if not currently shown. Read-only — never mutates panel state."""
+        if self.mode != "construct":
+            return None
+        for btype, btn in self.cards:
+            if btype == building_type:
+                return btn.rect
+        return None
+
+    def confirm_rect(self):
+        """Screen rect of the open ``ConstructPreview``'s CONFIRM button, or
+        None when no preview is open."""
+        return self.preview.confirm_btn.rect if self.preview is not None else None
+
+    # -- /TU-6 ---------------------------------------------------------------
 
     def open_for_tile(self, tile, session, buildings_balance,
                       selected_tiles=None):
@@ -819,6 +843,7 @@ class BuildingUI:
         if not placed_any:
             p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
             return
+        self.last_placed_type = p.building_type  # TU-6: signal a real placement
         self.preview = None
         selection = list(self.selected_tiles)  # keep the batch selected
         self.open_for_tile(self.tile, session, buildings_balance,

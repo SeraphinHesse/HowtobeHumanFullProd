@@ -122,6 +122,8 @@ TIERS = {
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
     "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
+    "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
+    "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_video_playback": "core",

@@ -601,6 +601,42 @@ trigger call sites in `main.py`, never unified into one state machine:
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
 
+## Tutorial message box + guided-chain highlights (Phase TU-6)
+- **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
+  `game_over.py` construct→layout→update→hit→submit template: a centred
+  dim-backdrop panel showing the director's (script-driven, NOT
+  id-overridable — the text is runtime state, same convention as every other
+  dynamic HUD readout) message text, a CONTINUE button, and a SKIP TUTORIAL
+  button whose visibility is set from `TutorialDirector.skippable()` each
+  `layout()` (a screen-JSON override still wins, applied after). `hit()`
+  returns `"continue"`/`"skip"`/`None`; `game/main.py`'s
+  `handle_world_click` treats the whole modal as consuming every click while
+  `TutorialDirector.message_visible` is true — the highest-priority branch
+  bar GAME_OVER. Built once per `build_gameplay()` alongside `gp["panel"]`,
+  sharing `shell.skinning` like the other seven gameplay screens;
+  `data/ui/screens/tutorial_message.json` is the 14th screen override file,
+  started `{}` like every other.
+- **`widgets.C_TUTORIAL_HIGHLIGHT`** (white, a plain code constant — NOT
+  palette-data-backed, unlike every other `C_*`) + **`submit_ui_box_highlight
+  (renderer, rect, color=None, width=3)`** (a highlight ring around a card /
+  Confirm / End Turn button, plain HUD-space `HudRect`) are the two new D8
+  primitives the guided chain draws with; no new render-backend work.
+- **`building_ui.py` gained three small, additive, read-only members** (no
+  change to `_construct_click`/`open_for_tile`/any existing control flow):
+  `card_rect(building_type)` (the construct-mode card's rect, or `None`),
+  `confirm_rect()` (the open `ConstructPreview`'s CONFIRM rect, or `None`) —
+  both right after `dismiss()` — and `self.last_placed_type` (a transient set
+  to `p.building_type` in `_do_place` only on a REAL placement, `None`
+  otherwise; never reset by `close()`, since `_do_place`'s own
+  `open_for_tile()` call closes the panel internally before `main.py` gets to
+  read it). `game/main.py` reads `last_placed_type` once right after a
+  successful `panel.handle_click()` to distinguish "a building was placed"
+  from "the preview was merely cancelled" (both clear `panel.preview` the
+  same way) and clears it back to `None` itself.
+- **Detail on the director/host wiring** (the three choke points, the event
+  feed, the D6 zero-overhead contract) → `game/CLAUDE.md`'s Tutorial
+  director section.
+
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game
 over screen; cold `py game/main.py`: cutscene → menu → rounds → pause/settings →
