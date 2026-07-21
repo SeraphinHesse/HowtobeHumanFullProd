@@ -39,6 +39,41 @@ stream. The two scene-object fade lifetimes (``crater.life``,
 ``resolve_combat``/``lightning.strike`` to the ``CraterFade``/``LightningFXFade``
 components that actually own the despawn clocks — see ``game/enemies/combat.py``
 and ``game/core/lightning.py``.
+
+**ESV-5**: a 9-row sprite-one-shot **trigger table**
+(``data/balancing/vfx.json``'s top-level ``triggers`` sibling of
+``procedural``) lets a designer bind an imported ``vfx_*`` sheet to any of the
+8 LIVE cosmetic EVENTS (``building_placed``/``_level_up``/``_tier_up``,
+``building_destroyed``, ``enemy_attack_melee``/``_ranged``, ``enemy_death``,
+``splash_impact``) plus the still-inert 9th, ``defender_fire`` (no defender
+fires ANY vfx today — deliberately unbound, a future phase's convergence
+demo). ``_triggers_from_balance`` is the ONE place a trigger-table event NAME
+is read out of the JSON
+(mirroring ``_params_from_balance`` for the procedural side); every call site
+below now goes through the private ``_play(event, wx, wy, **kw)`` dispatcher
+instead of calling ``self._vfx.emit_*``/``add_splatters`` directly. Resolution
+order (per event, every dispatch): a non-empty ``sprite_slot`` whose slot has
+imported art spawns a one-shot ``engine.vfx.PlayOnceVfx`` sprite
+(``spawn_play_once`` — ``None`` back means "no art yet", E-37); otherwise the
+named ``procedural`` kind runs through the SAME ``self._vfx``/``self._spark_
+presets`` this file already built; an empty ``procedural`` (or an event absent
+from the table) is a silent no-op — never a raise. Every shipped row's
+``procedural`` reproduces exactly what that call site did before this phase,
+so a fresh checkout with no art imported is byte-identical.
+``_play`` needs two handles this class did not have before: ``self.assets``
+(an ``AssetStore``) and ``self.scene`` (the live ``Scene``), both host-wired
+attributes (the ``self.log`` precedent) defaulting to ``None`` — either being
+``None`` degrades to the procedural branch, never raises, so every existing
+bare-constructed ``FloaterManager`` in the test suite keeps working unchanged.
+``splash_impact`` (a mortar shell's landing) is the one event with no
+``FloaterManager`` call site of its own: ``game/enemies/combat.py``'s
+``ProjectileArc._impact`` pushes ``(wx, wy)`` onto
+``RunState.splash_impact_events`` through ``resolve_combat``'s optional
+``on_splash_impact`` callback (the ``on_enemy_death`` layering pattern —
+``game/enemies`` still imports NO ``game/core``); ``spawn_splash_impact_events``
+here drains that ledger into ``_play`` next to ``spawn_death_events``. The
+Crater GameObject's own continuous fade mark keeps spawning unconditionally
+either way — this only adds an optional ADDITIONAL one-shot at the same point.
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
@@ -49,7 +84,7 @@ from engine.render.fonts import layout_h
 from engine.vfx import (
     AnnounceParams, BeamParams, BurstParams, CraterParams, GoldParams,
     LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
-    SplatterParams, VfxParams, VfxSystem,
+    SplatterParams, VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
@@ -210,6 +245,16 @@ def _params_from_balance(vfx):
         announce=announce)
 
 
+def _triggers_from_balance(vfx):
+    """Turn ``vfx.json``'s top-level ``triggers`` object into a plain
+    ``{event: (sprite_slot, procedural)}`` dict — the ONE place a trigger-
+    table EVENT NAME is read (ESV-5), mirroring ``_params_from_balance`` for
+    the procedural side; nothing downstream (``_play``'s callers) learns a
+    key name, they just pass the event string they already know."""
+    return {event: (row["sprite_slot"], row["procedural"])
+            for event, row in vfx["triggers"].items()}
+
+
 def _sprite_top(renderer, cs, enemy, cy, zoom):
     """Screen y of the TOP edge of `enemy`'s sprite as the renderer will draw it
     this frame.
@@ -287,6 +332,14 @@ class FloaterManager:
         self._vfx_params = vfx_params
         self._rng = random
         # -- /10J --
+        # -- ESV-5: sprite one-shot trigger table + its two host-wired
+        # handles. Either being None degrades `_play` to the procedural
+        # branch, never raises — every bare-constructed FloaterManager in the
+        # existing test suite keeps working unchanged.
+        self._triggers = _triggers_from_balance(vfx_balance)
+        self.assets = None   # AssetStore, wired by the host
+        self.scene = None    # Scene, wired by the host
+        # -- /ESV-5 --
 
     def spawn_income_events(self, state):
         if not self._enabled:
@@ -330,13 +383,59 @@ class FloaterManager:
 
     # -- 10J FX: sparks, gold highlights, death bursts, muzzle/slash, blood --
 
+    # -- ESV-5: the trigger-table dispatch seam ------------------------------
+
+    _SPARK_KINDS = ("spark_place", "spark_level", "spark_tier")
+
+    def _play(self, event, wx, wy, **kw):
+        """Consult the trigger table: a bound sprite slot with art spawns a
+        PlayOnceVfx; otherwise the named procedural kind runs; an empty row
+        (or an event absent from the table) is a silent no-op (E-37). ``**kw``
+        carries the per-kind extras the procedural branch needs (``preset``
+        for the spark burst, ``large=`` for the slash, ``strong=`` for the
+        muzzle)."""
+        sprite_slot, procedural = self._triggers.get(event, ("", ""))
+        if sprite_slot and self.assets is not None and self.scene is not None:
+            vfx = spawn_play_once(self.scene, self.assets, sprite_slot, wx, wy)
+            if vfx is not None:
+                return
+        self._run_procedural(procedural, wx, wy, **kw)
+
+    def _run_procedural(self, kind, wx, wy, **kw):
+        """The procedural fallback a trigger row names. ``kind`` absent from
+        every branch below (``""``, an unrecognised string, or ``"crater"`` —
+        whose visual is the Crater GameObject's own UNCONDITIONAL continuous
+        fade mark, spawned independently in ``game/enemies/combat.py`` no
+        matter what this table says) degrades to a silent no-op, never a
+        raise (E-37)."""
+        if kind in self._SPARK_KINDS:
+            preset = kw.get("preset")
+            if preset is not None:
+                self._vfx.emit_burst(preset, wx, wy)
+        elif kind == "death_burst":
+            self._vfx.emit_shards(wx, wy)
+        elif kind == "slash":
+            self._vfx.emit_slash(wx, wy, large=kw.get("large", False))
+        elif kind == "muzzle":
+            self._vfx.emit_muzzle(wx, wy, strong=kw.get("strong", False))
+        elif kind == "splatter":
+            self._vfx.add_splatters([(wx, wy)])
+
+    # -- /ESV-5 ---------------------------------------------------------------
+
     def spawn_building_vfx(self, col, row, kind):
         """Placement/upgrade celebration (prototype ``spawn_building_vfx``,
         game.py:619-626): always a spark burst; ``place``/``tier`` add the
-        gold tile highlight. ``kind`` in place / level1 / level2 / tier."""
+        gold tile highlight. ``kind`` in place / level1 / level2 / tier.
+        ESV-5: routed through the trigger table — ``place``/``tier`` map 1:1
+        to their own event, ``level1``/``level2`` collapse to the single
+        ``building_level_up`` event (they differ only by PRESET, not by
+        effect identity; the preset lookup below is unchanged either way)."""
         preset = self._spark_presets.get(kind, self._spark_presets["place"])
         wx, wy = col + 0.5, row + 0.5
-        self._vfx.emit_burst(preset, wx, wy)
+        event = {"place": "building_placed",
+                 "tier": "building_tier_up"}.get(kind, "building_level_up")
+        self._play(event, wx, wy, preset=preset)
         if kind in ("place", "tier"):
             self._vfx.emit_gold(col, row)
 
@@ -357,7 +456,7 @@ class FloaterManager:
             if alive or not was_alive:
                 continue
             wx, wy = b.transform.wx + 0.5, b.transform.wy + 0.5
-            self._vfx.emit_shards(wx, wy)
+            self._play("building_destroyed", wx, wy)
             np = b.get_component(Nameplate)
             if log is not None and np is not None and np.custom_name:
                 log.post(f"{np.custom_name} has been killed")
@@ -390,9 +489,11 @@ class FloaterManager:
             wx, wy = e.transform.world_pos
             etype = getattr(e, "ETYPE", "standard")
             if etype in ("raider", "boss"):
-                self._vfx.emit_slash(wx, wy, large=(etype == "boss"))
+                self._play("enemy_attack_melee", wx, wy,
+                          large=(etype == "boss"))
             else:
-                self._vfx.emit_muzzle(wx, wy, strong=(etype == "siege"))
+                self._play("enemy_attack_ranged", wx, wy,
+                          strong=(etype == "siege"))
         if len(self._enemy_cooldowns) > 2 * len(seen) + 16:
             self._enemy_cooldowns = {
                 k: v for k, v in self._enemy_cooldowns.items() if k in seen}
@@ -401,13 +502,36 @@ class FloaterManager:
         """Drain ``state.enemy_death_events`` (filled by the Session death /
         base-hit callbacks) into ground blood splatters. Gated by
         ``ui.FX.gore_enabled`` AND the settings toggle — both must be on
-        (prototype game.py:1898-99); the ledger drains either way."""
+        (prototype game.py:1898-99); the ledger drains either way. ESV-5:
+        dispatched ONE POINT AT A TIME through the trigger table — a batch of
+        simultaneous deaths has no single shared spawn point for the
+        sprite-one-shot branch, so each point gets its own ``_play`` call;
+        the procedural fallback (``self._vfx.add_splatters([(wx, wy)])`` per
+        point) extends the SAME list in the SAME order a single batched
+        ``add_splatters(events)`` call would have, so the no-art landing
+        condition stays byte-identical."""
         if not state.enemy_death_events:
             return
         events, state.enemy_death_events = state.enemy_death_events, []
         if not (self._gore_enabled and gore_on):
             return
-        self._vfx.add_splatters(events)
+        for wx, wy in events:
+            self._play("enemy_death", wx, wy)
+
+    def spawn_splash_impact_events(self, state):
+        """Drain ``state.splash_impact_events`` (filled by ``game/enemies/
+        combat.py``'s ``ProjectileArc._impact`` through ``resolve_combat``'s
+        optional ``on_splash_impact`` callback) into the ``splash_impact``
+        trigger — an OPTIONAL additional one-shot at a mortar shell's landing
+        point. The Crater GameObject's own continuous fade mark keeps
+        spawning unconditionally regardless of this ledger; this call adds
+        nothing when the row has no art AND no procedural kind wired for it
+        beyond the crater itself (E-37 no-op). ESV-5."""
+        if not state.splash_impact_events:
+            return
+        events, state.splash_impact_events = state.splash_impact_events, []
+        for wx, wy in events:
+            self._play("splash_impact", wx, wy)
 
     def clear_splatters(self):
         """Previous round's blood clears when the next wave starts (prototype

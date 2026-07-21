@@ -298,15 +298,30 @@ class MainWindow(QMainWindow):
         self.right_stack = QStackedWidget()
         # ESV-2: the asset importer and the anchors panel share index 0 in a
         # small container — indices 1/2 keep their meaning unchanged.
+        # ESV-5: the vfx preview joins them as a THIRD child of that same
+        # container instead of its own stack page (fixing a pre-existing bug:
+        # `_leave_vfx_mode` used to target `self.details`, which was never a
+        # stack page at all — a no-op that permanently stranded the importer
+        # once a vfx node had ever been selected). A plain QVBoxLayout
+        # squeezed the preview's fixed-minimum surface unusably once all
+        # three panels could be visible together, so a QSplitter lets the
+        # user trade space between them; `right_stack` keeps exactly ONE page
+        # for this whole container either way.
         self.details_pane = QWidget()
         details_pane_layout = QVBoxLayout(self.details_pane)
         details_pane_layout.setContentsMargins(0, 0, 0, 0)
-        details_pane_layout.addWidget(self.details)
-        details_pane_layout.addWidget(self.anchors)
-        self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2)
+        details_pane_splitter = QSplitter(Qt.Orientation.Vertical)
+        details_pane_splitter.addWidget(self.details)
+        details_pane_splitter.addWidget(self.anchors)
+        details_pane_splitter.addWidget(self.vfx_preview)
+        details_pane_splitter.setStretchFactor(0, 1)
+        details_pane_splitter.setStretchFactor(1, 0)
+        details_pane_splitter.setStretchFactor(2, 1)
+        details_pane_layout.addWidget(details_pane_splitter)
+        self.vfx_preview.setVisible(False)   # ESV-5: hidden outside vfx mode
+        self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2; + vfx preview, ESV-5)
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
-        self.right_stack.addWidget(self.vfx_preview)  # index 3: vfx preview (ESV-4)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -439,10 +454,14 @@ class MainWindow(QMainWindow):
     # -- vfx preview mode (ESV-4): a "vfx" tree node selected ----------------
 
     def _enter_vfx_mode(self):
-        self.right_stack.setCurrentWidget(self.vfx_preview)
+        self.right_stack.setCurrentWidget(self.details_pane)
+        self.vfx_preview.setVisible(True)
 
     def _leave_vfx_mode(self):
-        self.right_stack.setCurrentWidget(self.details)
+        # the other `_leave_*` handlers already own the stack page (and
+        # `_on_node_selected` calls them before this branch runs), so no
+        # `right_stack` call is needed here at all — just hide the preview.
+        self.vfx_preview.setVisible(False)
 
     def _on_refresh_layouts(self):
         self.run_controls.export_layouts()
@@ -840,7 +859,7 @@ class MainWindow(QMainWindow):
         self._last_tick = now
 
         self.viewport.render_frame()
-        if self.right_stack.currentWidget() is self.vfx_preview:
+        if self.vfx_preview.isVisible():
             self.vfx_preview.render_frame()
         self.frames += 1
         self._fps_window += 1

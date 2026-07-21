@@ -315,6 +315,40 @@ imports:
     `scene`/`cs`). The two copy strings (`_ANNOUNCE_L1/L2`) and the
     `ui.json FX.boss_announce` timings stay put — copy is screen-skinning
     territory, timings were already datafied.
+  - **ESV-5**: a designer can now bind any of the 8 live cosmetic events
+    (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+    `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact` — plus the
+    still-inert `defender_fire`) to an imported `vfx_*` sprite sheet via
+    `data/balancing/vfx.json`'s top-level `triggers` object (a sibling of
+    `procedural`). `_triggers_from_balance` is the ONE place a trigger event
+    NAME is read out of the JSON; every call site that used to call
+    `self._vfx.emit_*`/`add_splatters` directly now goes through the private
+    `_play(event, wx, wy, **kw)` dispatcher instead: a bound `sprite_slot`
+    with imported art spawns a one-shot `engine.vfx.PlayOnceVfx`
+    (`spawn_play_once` — `None` back means "no art yet", the same E-37
+    signal `spawn_corpse` uses); otherwise the named `procedural` kind runs
+    through the SAME `self._vfx`; an empty row (or an event absent from the
+    table) is a silent no-op. Every shipped row's `procedural` reproduces
+    exactly what that call site did before this phase — byte-identical on a
+    fresh checkout with no art imported. `_play` needs two NEW host-wired
+    attributes, `self.assets`/`self.scene` (the `self.log` precedent,
+    wired in `game/main.py build_gameplay` beside `on_build_vfx`/`log`) —
+    either being `None` degrades to the procedural branch, never raises.
+    `splash_impact` (a mortar shell's landing) has no `FloaterManager` call
+    site of its own: `game/enemies/combat.py`'s `ProjectileArc._impact`
+    pushes `(wx, wy)` onto a new `RunState.splash_impact_events` ledger
+    through `resolve_combat`'s optional `on_splash_impact` callback (the
+    `on_enemy_death` layering pattern — `game/enemies` still imports NO
+    `game/core`); `spawn_splash_impact_events` (called beside
+    `spawn_death_events`) drains it into `_play`. The Crater GameObject's own
+    continuous fade mark keeps spawning UNCONDITIONALLY either way — this
+    only adds an optional additional one-shot at the same point.
+    `enemy_death` fires per DEATH POINT (`_play` called once per point in
+    the drained batch, not once for the whole batch) because a batch has no
+    single shared spawn point for the sprite-one-shot branch; the
+    procedural fallback (`add_splatters([(wx, wy)])` per point) extends the
+    same list in the same order a single batched call would have, so the
+    landing condition is unaffected.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 

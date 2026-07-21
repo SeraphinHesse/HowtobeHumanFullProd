@@ -277,6 +277,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
+        # -- ESV-5: the two handles _play needs to spawn a sprite one-shot.
+        # A fresh FloaterManager and a fresh scene are built together right
+        # here every run, so the two attributes cannot desync.
+        gp["floaters"].assets = assets
+        gp["floaters"].scene = gp["world"].scene
+        # -- /ESV-5 --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -631,12 +637,19 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # ESV-5: drains into RunState.splash_impact_events; the UI
+                # side (spawn_splash_impact_events) reads it beside
+                # spawn_death_events below.
+                def _on_splash_impact(gx, gy, _state=session.state):
+                    _state.splash_impact_events.append((gx, gy))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance, vfx_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
                                dmg_bonus=dmg_bonus,
-                               assets=assets, cs=cs)
+                               assets=assets, cs=cs,
+                               on_splash_impact=_on_splash_impact)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
@@ -688,6 +701,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].watch_enemies(world.scene)
             gp["floaters"].spawn_death_events(session.state,
                                               shell.settings.gore)
+            gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --

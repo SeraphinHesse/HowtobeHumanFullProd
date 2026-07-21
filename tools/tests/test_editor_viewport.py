@@ -725,6 +725,37 @@ class TestMainWindowScreenMode(TempDataCase):
         self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW TITLE")
 
 
+class TestMainWindowVfxMode(TempDataCase):
+    """ESV-5 §2.4: the vfx-mode routing fix. Regression pin for the pre-ESV-5
+    bug — `_leave_vfx_mode` targeted `self.details`, never a stack page (only
+    `self.details_pane` was ever `addWidget`-ed), so selecting a vfx node
+    once permanently stranded the asset importer for the rest of the
+    session. This test FAILS on the pre-fix code (`_enter_vfx_mode` swapped
+    to a now-nonexistent index-3 page and `_leave_vfx_mode`'s stack call was
+    a no-op)."""
+
+    def test_selecting_vfx_then_a_building_then_vfx_again(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        window.resize(1280, 720)
+        window.show()
+
+        self.assertEqual(window.right_stack.count(), 3)
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())   # importer still reachable
+
+        window.selector.select_domain("buildings")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertFalse(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: editor/ never imports game/ (root CLAUDE.md layering rule)."""
 

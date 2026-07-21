@@ -156,6 +156,11 @@ class ProjectileArc(Component):
         self._scene = None
         self._gx = 0.0
         self._gy = 0.0
+        # ESV-5: an optional (wx, wy) -> None callback fired at impact,
+        # ALONGSIDE the unconditional Crater spawn below — never a replacement
+        # for it (the crater's continuous fade mark is not this phase's
+        # concern). Set (or left None) by _fire_splash, transient (E-11).
+        self._on_impact = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -189,6 +194,11 @@ class ProjectileArc(Component):
         crater = Crater(self._gx, self._gy, self.radius, self.crater_life)
         crater.get_component(CraterFade)._scene = scene
         scene.spawn(crater)
+        # ESV-5: the splash_impact trigger ledger push — cosmetic, additive,
+        # never gating the (unconditional) Crater spawn above.
+        on_impact = getattr(self, "_on_impact", None)
+        if on_impact is not None:
+            on_impact(self._gx, self._gy)
         scene.despawn(self._proj)
 
 
@@ -365,7 +375,7 @@ def _predict_lead(target, travel_time):
 
 def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
-                   assets=None, cs=None):
+                   assets=None, cs=None, on_splash_impact=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -383,7 +393,14 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     optional here would be a second home for the crater fade lifetime, G-7):
     the loaded ``vfx.json`` dict, threaded down to ``_fire_splash`` so a
     freshly-fired mortar shell's eventual ``Crater`` fades on
-    ``procedural.crater.life`` instead of the module constant."""
+    ``procedural.crater.life`` instead of the module constant.
+
+    ``on_splash_impact`` (ESV-5, optional — the ``on_enemy_death`` pattern,
+    NOT a required-argument G-7 case like ``vfx_balance`` above: this package
+    has no other opinion about the value, it only forwards a caller-supplied
+    ``(wx, wy) -> None`` callback to ``ProjectileArc._impact`` so the host can
+    drain a cosmetic ledger without ``game/enemies`` importing ``game/core``):
+    ``None`` (every pre-ESV-5 caller) is a no-op — the Crater still spawns."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -398,7 +415,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     targets = [(e, _fp_offset(e)) for e in enemies]
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                         crater_life, dmg_bonus, assets, cs)
+                         crater_life, dmg_bonus, assets, cs, on_splash_impact)
 
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
@@ -413,14 +430,15 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
-                     crater_life, dmg_bonus=0, assets=None, cs=None):
+                     crater_life, dmg_bonus=0, assets=None, cs=None,
+                     on_splash_impact=None):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
     resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
     path (``_update_beam``) needs neither — it is instant hitscan with no
-    travel and no spawn point (§1.5). ``crater_life`` (ESV-3b) passes straight
-    through to ``_fire_splash`` — only the splash path ever spawns a
-    ``Crater``."""
+    travel and no spawn point (§1.5). ``crater_life`` (ESV-3b) and
+    ``on_splash_impact`` (ESV-5) pass straight through to ``_fire_splash`` —
+    only the splash path ever spawns a ``Crater``/fires an impact."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
@@ -458,7 +476,7 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         # (SplashAttacker), not the class, selects the path (SPEC G-3).
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
-                        assets, cs)
+                        assets, cs, on_splash_impact)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs)
         attacker.cooldown = attack_interval(defender, min_atk)
@@ -543,7 +561,7 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
 
 
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
-                 assets=None, cs=None):
+                 assets=None, cs=None, on_splash_impact=None):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -556,15 +574,20 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     ``crater_life`` (ESV-3b, required — no default, G-7): the cosmetic fade
     lifetime the eventual impact ``Crater`` is built with — carried onto the
     shell at construction, never touching ``AOE_TRAVEL_TIME`` (simulation
-    timing, D4)."""
+    timing, D4).
+
+    ``on_splash_impact`` (ESV-5, optional): stashed as a transient attribute
+    on the shell's ``ProjectileArc`` and fired at impact, alongside (never
+    instead of) the Crater spawn."""
     bx, by = defender.transform.world_pos
     dwx, dwy = world_offset(assets, cs, defender, "muzzle")
     bx, by = bx + dwx, by + dwy
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)
     shell = ProjectileAOE(bx, by, defender.damage() + dmg_bonus,
                           defender.splash_radius(), crater_life)
-    shell.get_component(ProjectileArc).launch(gx, gy, defender, scene,
-                                              AOE_TRAVEL_TIME)
+    arc = shell.get_component(ProjectileArc)
+    arc._on_impact = on_splash_impact
+    arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 
 

@@ -546,12 +546,21 @@ import list.**
   `VfxPreviewPanel` builds its own `Renderer`/`AssetStore`/coordinate system
   (structurally copying `ViewportPanel.__init__`/`_build_store`/
   `render_frame`) — the router's ED-22 section explains why a second
-  `Renderer` instance is still one render path. Selected by routing the
-  selector's `vfx` node to `right_stack` index 3 (`MainWindow._enter_vfx_mode`/
-  `_leave_vfx_mode`, mirroring `_enter_screen_mode`/`_leave_screen_mode`);
+  `Renderer` instance is still one render path. **ESV-5 changed how it's
+  hosted**: it is no longer its own `right_stack` page — it is a THIRD child
+  (beside `self.details`/`self.anchors`) of a `QSplitter` inside
+  `self.details_pane` (`right_stack` index 0), because it turned out
+  `MainWindow._leave_vfx_mode` had targeted `self.details` since ESV-2 — a
+  widget that was never a stack page at all (only `self.details_pane` was
+  ever `addWidget`-ed) — so selecting a vfx node once permanently stranded
+  the asset importer for the rest of the session. `_enter_vfx_mode`/
+  `_leave_vfx_mode` now just toggle `self.vfx_preview.setVisible(...)`;
   frames advance on the SAME 16 ms `QTimer` as the viewport, gated on
-  `right_stack.currentWidget() is self.vfx_preview` so an inactive preview
-  costs nothing.
+  `self.vfx_preview.isVisible()` (true only when BOTH its own explicit flag
+  is set AND `details_pane` is the current stack page — Qt's ancestor-chain
+  visibility rule does the second half for free) so an inactive preview
+  costs nothing. `right_stack.count() == 3` now (asset import / map / screen
+  — the vfx preview no longer has its own page).
 - **Composes with the generic balancing form, never duplicates it.** `vfx`
   is a real balancing domain (ESV-3a) and already gets the recursive form
   for free (`domains.py`'s derivation). The preview adds only what the
