@@ -1645,7 +1645,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1663,7 +1663,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 4,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1681,7 +1681,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 5,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -1699,10 +1699,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
+          "frames": 15,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
         }
       ],
@@ -1716,11 +1716,11 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
+          "fps": 6,
+          "frames": 8,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 1,
           "loop_start": 0
         }
       ],
@@ -1735,10 +1735,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 15,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
         }
       ],
@@ -2031,6 +2031,96 @@
         }
       ],
       "sheet": "imported/deco_prop_2_v14.png"
+    },
+    "deco_prop_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4.png"
+    },
+    "deco_prop_4_v2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v2.png"
+    },
+    "deco_prop_4_v3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v3.png"
+    },
+    "deco_prop_4_v4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v4.png"
+    },
+    "deco_prop_4_v5": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v5.png"
     },
     "deco_rock": {
       "frame_h": 96,
@@ -2783,7 +2873,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2873,7 +2970,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2963,7 +3067,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3044,8 +3155,8 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "formation_stage_1": {
-      "frame_h": 128,
-      "frame_w": 128,
+      "frame_h": 32,
+      "frame_w": 64,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -3053,7 +3164,149 @@
           "animation": "idle",
           "fps": 8,
           "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 1,
           "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
+    "formation_stage_2": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
+    "formation_stage_3": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/formation_stage_1.png"
+    },
+    "formation_stage_4": {
+      "frame_h": 32,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "walk",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [
+            0
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3071,7 +3324,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3117,7 +3377,17 @@
           "animation": "place",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3126,7 +3396,17 @@
           "animation": "upgrade",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3171,7 +3451,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3271,7 +3558,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -3332,7 +3626,7 @@
           "loop_start": 0
         },
         {
-          "animation": "upgrade",
+          "animation": "death",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3341,7 +3635,7 @@
           "loop_start": 0
         },
         {
-          "animation": "upgrade",
+          "animation": "hurt",
           "fps": 6,
           "frames": 17,
           "hidden": [],
@@ -3630,6 +3924,81 @@
         }
       ],
       "sheet": "imported/maw_mortar_t3_lvl3.png"
+    },
+    "meditator_t1_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "meditator_t1_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "meditator_t1_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            3,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
     },
     "painter_t1_lvl1": {
       "frame_h": 96,
@@ -4263,6 +4632,81 @@
         }
       ],
       "sheet": "imported/raider_stage_5.png"
+    },
+    "shaman_t2_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            4,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "shaman_t2_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            5,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "shaman_t2_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            6
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
     },
     "siege_cannon": {
       "frame_h": 28,
@@ -4909,6 +5353,231 @@
       ],
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
+    "storm_priest_i_t1_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_i_t1_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_i_t1_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "storm_priest_ii_t2_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_ii_t2_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v5.png"
+    },
+    "storm_priest_iii_t3_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_bush.png"
+    },
+    "storm_priest_iii_t3_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "storm_priest_iii_t3_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v3.png"
+    },
+    "sun_priest_t3_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "sun_priest_t3_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
+    "sun_priest_t3_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 7,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/meditator_t1_lvl1.png"
+    },
     "sun_scorcher_t1_lvl1": {
       "frame_h": 96,
       "frame_w": 64,
@@ -5533,7 +6202,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5623,7 +6299,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5713,7 +6396,14 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [],
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -6322,17 +7012,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 10,
+          "frames": 2,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7,
-            8
+            0
           ],
           "loop_count": 1,
           "loop_end": 0,

@@ -7,7 +7,10 @@ multiplies the running yield by ``streak_growth`` (capped at ``streak_max``
 steps). Any damage taken during a round "disturbs" the meditation: the streak
 resets to 0 and the next payout falls back to base.
 
-Reuses the musician art (prototype had no bespoke meditator sprites). The type
+Carries its OWN art slots (``meditator_``/``shaman_``/``sun_priest_``) — the
+line used to point at the musician's `flute_player`/`harp_player`/`trio` keys,
+and that link is deliberately severed: nothing visual is shared between the two
+economy lines any more. The type
 is locked until earned via a level-up unlock card, gated by
 ``Meditators.tiers[0].unlock_min_round`` (10); unlocking it makes tier 1
 immediately placeable — no separate "research tier 1" step
@@ -27,7 +30,7 @@ from .economy import EconomyBuilding
 class Meditator(EconomyBuilding):
     BUILDING_TYPE = "meditator"
     SUBTREE = ("EconomyBuildings", "Meditators")
-    TIER_SPRITES = ("flute_player", "harp_player", "trio")
+    TIER_SPRITES = ("meditator", "shaman", "sun_priest")
 
     @property
     def streak(self):

@@ -67,7 +67,10 @@ from game.enemies import (
     DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
     spawn_corpse,
 )
-from game.map import TileMap, condition_render_items, tile_at_screen
+from game.map import (
+    TileMap, condition_render_items, spawn_deco_render_items,
+    spawn_tree_slots, tile_at_screen,
+)
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
@@ -212,6 +215,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
         for slot in registry.group_slots(CONDITION_CATEGORY)
         if manifest.entry(slot) is not None
     }
+    # Spawn-band tree family, manifest-filtered the same way `condition_art`
+    # is: art cannot change mid-run, so it is derived once here rather than
+    # per frame. An empty tuple (no tree slots imported yet) makes
+    # `spawn_deco_render_items` a no-op, same escape hatch as `condition_art`.
+    tree_slots = tuple(
+        s for s in spawn_tree_slots(registry)
+        if manifest.entry(s) is not None)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -842,6 +852,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
+            # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
+            # (`entities`), so units emerging from the treeline are partly
+            # occluded by it; submission order within a layer doesn't matter,
+            # the renderer depth-sorts. Reuses the window above; vanishes on
+            # its own the frame a SPAWNING tile converts to COMBAT (the
+            # emitter reads `tile.state` live).
+            for item in spawn_deco_render_items(
+                    world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
+                    anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;

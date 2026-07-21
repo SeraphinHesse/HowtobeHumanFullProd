@@ -194,8 +194,12 @@ validating writer; don't hand-edit the JSON.
   `key/display_name/frame_w/frame_h/animations/groups`. `animations[0]` is
   always `idle` (schema-enforced). `groups` is a recursive tree of
   `{label, slots[] XOR children[]}`; a slot key may repeat across groups of
-  ONE category (meditators reuse musician art) but never across categories
-  (frame size would be ambiguous — loader rejects it).
+  ONE category (shared art) but never across categories
+  (frame size would be ambiguous — loader rejects it). **No committed group
+  shares a key today** — the Meditator line used to point at the Musician's
+  `flute_player`/`harp_player`/`trio` slots and was deliberately given its own
+  `meditator_`/`shaman_`/`sun_priest_` keys, so the two lines can never drag
+  each other's art around again.
 - **`slots[]` entries: bare key OR frame-size override (ER-1, D1)**. An entry is
   either a bare key string (inherits the category's `frame_w`/`frame_h`) or
   `{key, frame_w, frame_h}` overriding it for that ONE slot. Bare is the norm; the

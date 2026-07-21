@@ -342,23 +342,39 @@ def _enemy_center_world(enemy):
 
 
 def _chebyshev(center_tile, enemy, off=0.0):
-    """Defender tile -> the enemy's FOOTPRINT CENTRE (ER-2), so a 2×2 is not
-    engaged from an unfair corner. The ``round()`` of the anchor is KEPT —
+    """Defender tile -> the NEAREST TILE of the enemy's N×N footprint block
+    (ER-2 fix). The range GATE must reach the block from any tile touching
+    it, not just from near its mathematical CENTRE: a range-1 defender
+    standing adjacent to a 2×2 boss at anchor (10,10) (block (10,10)..(11,11))
+    used to measure 1.5 to the centre and could never fire on it, while the
+    boss's own block-and-attack scan (``components.py`` ``_blocker_ahead``, a
+    block-wide occupancy check) hit that same defender fine. The block spans
+    ``[anchor, anchor + 2*off]`` on each axis (``off = (N-1)/2`` ⇒
+    ``2*off = N-1``), so distance-to-block is a per-axis clamp to that span,
+    then Chebyshev across axes. The ``round()`` of the anchor is KEPT —
     dropping it would change the in-range set for existing 1×1 enemies
-    mid-tile. N=1: the anchor IS the centre and the value is numerically
-    identical to today's int Chebyshev.
+    mid-tile.
+
+    Acquisition tiebreak (``_euclid_sq_to_enemy``), mortar predictive lead
+    (``_predict_lead``) and the splash-radius measurement (``ProjectileArc.
+    _impact``) are UNCHANGED and still measure to the block CENTRE — only
+    this range GATE moved to nearest-tile.
 
     THE hot path — one call per (defender x enemy) PAIR per frame. ``off`` is
     passed IN (resolved once per enemy per frame by ``resolve_combat``), never
-    looked up here, and a zero offset is skipped rather than added so the N=1
-    expression stays INTEGER arithmetic. At 50 defenders x 300 enemies, a
+    looked up here, and a zero offset SKIPS the clamp entirely rather than
+    running it with span 0, so the N=1 expression stays byte-identical INTEGER
+    arithmetic — the anchor IS the block. At 50 defenders x 300 enemies, a
     component lookup — or floats where ints used to be — in this function is
     milliseconds of a 16.7 ms frame (``game/PERF.md``)."""
     wx, wy = enemy.transform.world_pos
     ec, er = round(wx), round(wy)
     if off:
-        ec += off
-        er += off
+        span = off * 2
+        cc, cr = center_tile
+        dc = max(cc - (ec + span), ec - cc, 0)
+        dr = max(cr - (er + span), er - cr, 0)
+        return max(dc, dr)
     return max(abs(ec - center_tile[0]), abs(er - center_tile[1]))
 
 
