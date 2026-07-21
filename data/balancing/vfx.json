@@ -298,7 +298,7 @@
     },
     "defender_fire": {
       "procedural": "",
-      "sprite_slot": ""
+      "sprite_slot": "vfx_muzzle"
     },
     "enemy_attack_melee": {
       "procedural": "slash",
