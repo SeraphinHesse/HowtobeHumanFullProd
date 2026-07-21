@@ -104,17 +104,37 @@ spawn sites now read ``self._vfx_params.floaters`` (``engine.vfx.
 FloaterParams``, built by ``_params_from_balance`` from
 ``procedural.floaters`` — live since ESV-3a but never read until now), so a
 designer's edit in the ``vfx`` balancing form finally reaches the game.
+
+**fix-anchor-offset-and-bullet-sprites (post-ESV live-testing follow-up),
+Fix 2**: the projectile dot's colour/size/lift move from two module
+constants (``_PROJECTILE_STONE``/``_PROJECTILE_SHELL``, the last un-ported
+cosmetic constants in this file) into ``data/balancing/vfx.json``'s
+``procedural.projectile`` block (``engine.vfx.ProjectileParams``, read off
+``self._vfx_params.projectile`` — not ``VfxSystem`` state, like ESV-3b's four
+scene-object dataclasses and ESV-6's ``floaters``: a projectile is a
+continuous in-flight object the game owns, not a particle any list owns).
+``submit_projectiles`` also gains a sprite branch: two SHARED slots
+(``vfx_projectile``/``vfx_shell``, every defender/every mortar respectively —
+NOT per-building art) swap in as a ``HudSprite`` once imported, using the
+same "has art" signal ``engine.vfx.spawn_play_once`` uses
+(``assets.animation_total_ms(slot, "idle")`` returning ``None`` means no art
+yet, E-37) so the two paths can never disagree about what "imported" means.
+This is NOT a trigger-table event — no ``triggers`` row, no ``PlayOnceVfx`` —
+projectiles stay continuous, like beams and lightning.
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
-from engine.render import HudLines, HudRect, block_center_offset, fit_factor
+from engine.render import (
+    HudLines, HudRect, HudSprite, block_center_offset, fit_factor,
+)
 from game.anchors import screen_offset, world_offset
 from engine.render.fonts import layout_h
 from engine.vfx import (
     AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
-    GoldParams, LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
-    SplatterParams, VfxParams, VfxSystem, spawn_play_once,
+    GoldParams, LightningParams, MuzzleParams, ProjectileParams,
+    ShardBurstParams, SlashParams, SplatterParams, VfxParams, VfxSystem,
+    spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
@@ -156,9 +176,8 @@ _ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
 # data/balancing/vfx.json now (ESV-3a) — see _params_from_balance below. The
-# projectile dot colours stay here (HUD chrome, out of ESV-3a's scope).
-_PROJECTILE_STONE = (185, 180, 170)  # defender stone (prototype gray circle)
-_PROJECTILE_SHELL = (70, 60, 55)     # mortar shell (darker, larger)
+# projectile dot fallback (colour/size/lift, procedural.projectile) is now
+# there too — see the fix-anchor-offset-and-bullet-sprites brief's Fix 2.
 # -- /10J --
 
 
@@ -277,10 +296,19 @@ def _params_from_balance(vfx):
         boost_color=_color(fl["boost_color"]))
     # -- /ESV-6 --------------------------------------------------------------
 
+    # -- fix-anchor-offset-and-bullet-sprites Fix 2: projectile fallback dot -
+    pr = proc["projectile"]
+    projectile = ProjectileParams(
+        stone_color=_color(pr["stone_color"]),
+        shell_color=_color(pr["shell_color"]),
+        stone_size=pr["stone_size"], shell_size=pr["shell_size"],
+        lift_frac=pr["lift_frac"])
+    # -- /Fix 2 ----------------------------------------------------------
+
     return spark_presets, VfxParams(
         death_burst=death_burst, muzzle=muzzle, slash=slash, gold=gold,
         splatter=splatter, beam=beam, crater=crater, lightning=lightning,
-        announce=announce, floaters=floaters)
+        announce=announce, floaters=floaters, projectile=projectile)
 
 
 def _triggers_from_balance(vfx):
@@ -686,19 +714,42 @@ class FloaterManager:
         """In-flight shots (10J): the plain defender stone as a small light
         dot, the mortar shell darker and larger (prototype's procedural
         projectile art; 9E left them logical-only). Read live off the scene
-        like the HP bars — homing shots track their target every frame."""
+        like the HP bars — homing shots track their target every frame.
+
+        fix-anchor-offset-and-bullet-sprites Fix 2: two SHARED slots
+        (``vfx_projectile`` for every defender's stone, ``vfx_shell`` for a
+        mortar's shell — never per-building art) swap in as a ``HudSprite``
+        once imported; each slot's own art-vs-no-art state is independent.
+        The "has art" signal is the SAME one ``engine.vfx.spawn_play_once``
+        uses — ``assets.animation_total_ms(slot, "idle")`` returning
+        ``None`` means no imported art (E-37) — so the two paths can never
+        disagree about what "imported" means. Not a trigger-table event:
+        projectiles are continuous in-flight objects, like beams and
+        lightning, so this never spawns a ``PlayOnceVfx``. ``self.assets``
+        is ``None`` in every bare-constructed test and degrades to the dot,
+        never raises."""
+        pr = self._vfx_params.projectile
         zoom = cs.camera.zoom
         for p in scene.by_tag("projectile"):
             wx, wy = p.transform.world_pos
             cx, cy = cs.world_to_screen(wx, wy)
             shell = p.name == "shell"
-            size = max(2, int((5 if shell else 3) * zoom))
-            color = _PROJECTILE_SHELL if shell else _PROJECTILE_STONE
+            slot = "vfx_shell" if shell else "vfx_projectile"
+            color = pr.shell_color if shell else pr.stone_color
+            size = max(2, int((pr.shell_size if shell else pr.stone_size)
+                              * zoom))
             # lift the dot off the ground plane so it reads as flying
-            lift = int(cs.geometry.tile_h * zoom * 0.6)
-            renderer.submit_hud(HudRect(
-                (int(cx - size / 2), int(cy - lift - size / 2), size, size),
-                color, border_radius=size // 2))
+            lift = int(cs.geometry.tile_h * zoom * pr.lift_frac)
+            dest = (int(cx - size / 2), int(cy - lift - size / 2))
+            has_art = (self.assets is not None
+                      and self.assets.animation_total_ms(slot, "idle")
+                      is not None)
+            if has_art:
+                renderer.submit_hud(HudSprite(slot, dest, (size, size)))
+            else:
+                renderer.submit_hud(HudRect(
+                    (dest[0], dest[1], size, size),
+                    color, border_radius=size // 2))
 
     def submit_fx(self, renderer, cs):
         """Screen-space particle FX: sparks / death shards / muzzle motes as

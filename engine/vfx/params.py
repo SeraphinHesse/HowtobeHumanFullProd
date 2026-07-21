@@ -213,13 +213,34 @@ class FloaterParams:
 
 
 @dataclass(frozen=True)
+class ProjectileParams:
+    """Fallback dot appearance for an in-flight shot with no imported sprite
+    on ``vfx_projectile``/``vfx_shell`` (``game/ui/effects.py``'s
+    ``submit_projectiles``): independent colour/size for the shell (mortar)
+    and stone (every other defender) variants, plus how far off the ground
+    plane the dot is lifted, as a fraction of ``tile_h``. Like ESV-3b's four
+    scene-object dataclasses and ESV-6's ``FloaterParams``, ``VfxSystem``
+    never touches this one either — projectiles are continuous in-flight
+    objects the game draws itself, not a particle any list owns. The
+    ``max(2, size * zoom)`` low-zoom floor is a degeneracy guard, not a
+    tunable, and stays inline in ``game/ui/effects.py``."""
+
+    stone_color: tuple
+    shell_color: tuple
+    stone_size: int
+    shell_size: int
+    lift_frac: float
+
+
+@dataclass(frozen=True)
 class VfxParams:
     """Everything a ``VfxSystem`` needs beyond spark (spark presets are
     game vocabulary — the caller resolves a preset key to a ``BurstParams``
     and passes it explicitly to ``emit_burst``, so the engine never learns
     the preset names), plus ESV-3b's four scene-object/continuous param
-    blocks and ESV-6's ``floaters``, none of which ``VfxSystem`` touches
-    (see the module docstring)."""
+    blocks, ESV-6's ``floaters`` and the fix-anchor-offset-and-bullet-sprites
+    brief's ``projectile``, none of which ``VfxSystem`` touches (see the
+    module docstring). APPEND ONLY — do not rename or reorder fields."""
 
     death_burst: ShardBurstParams
     muzzle: MuzzleParams
@@ -231,3 +252,4 @@ class VfxParams:
     lightning: LightningParams
     announce: AnnounceParams
     floaters: FloaterParams
+    projectile: ProjectileParams

@@ -74,15 +74,19 @@ def make_store_named(slot_key, anchor_name, anchor_xy, frame_w=64, frame_h=64):
                       frame_sizes={slot_key: (frame_w, frame_h)})
 
 
-def make_store_two(slot_a, anchor_a, slot_b, anchor_b, frame_w=64, frame_h=64):
+def make_store_two(slot_a, anchor_a, slot_b, anchor_b, frame_w=64, frame_h=64,
+                   offset_a=(0, 0), offset_b=(0, 0)):
     """Two-entry AssetStore — a defender slot carrying `muzzle` and a target
     slot carrying `impact` (both anchor names on each entry so either read
     site works regardless of which slot it's asked about; the reader only
-    ever asks for the ONE name it cares about)."""
-    def raw(anchor_xy):
+    ever asks for the ONE name it cares about). `offset_a`/`offset_b`
+    (fix-anchor-offset-and-bullet-sprites Fix 1) let a caller pin the D4
+    guardrail under a composed, non-zero `offset_x`/`offset_y` too — cosmetic
+    only, never read by simulation."""
+    def raw(anchor_xy, offset_xy):
         r = {
             "sheet": "imported/x.png", "frame_w": frame_w, "frame_h": frame_h,
-            "offset_x": 0, "offset_y": 0,
+            "offset_x": offset_xy[0], "offset_y": offset_xy[1],
             "rows": [{"animation": "idle", "frames": 1, "fps": 8, "hidden": [],
                       "loop_start": 0, "loop_end": 0, "loop_count": 1}],
         }
@@ -91,8 +95,8 @@ def make_store_two(slot_a, anchor_a, slot_b, anchor_b, frame_w=64, frame_h=64):
         return r
 
     entries = {
-        slot_a: entry_from_dict(slot_a, raw(anchor_a)),
-        slot_b: entry_from_dict(slot_b, raw(anchor_b)),
+        slot_a: entry_from_dict(slot_a, raw(anchor_a, offset_a)),
+        slot_b: entry_from_dict(slot_b, raw(anchor_b, offset_b)),
     }
     frame_sizes = {slot_a: (frame_w, frame_h), slot_b: (frame_w, frame_h)}
     return AssetStore(manifest=Manifest(entries), sprites_dir=None,
@@ -313,13 +317,15 @@ class TestProjectileHitEvent(unittest.TestCase):
 # 4 — GUARDRAIL D4: bit-identical HP ledger / kill / flight timing
 # ===========================================================================
 class TestGuardrailD4BitIdenticalUnderLargeAnchors(unittest.TestCase):
-    def _run(self, def_anchor, tgt_anchor, n_frames=200, dt=0.05):
+    def _run(self, def_anchor, tgt_anchor, n_frames=200, dt=0.05,
+             def_offset=(0, 0), tgt_offset=(0, 0)):
         tm = synth(["bbs"])
         scene, occ = Scene(), TileOccupancy()
         defender = frozen_defender(tm, scene, occ, 1, 0, slot_key="def_slot")
         target = frozen_target(scene, tm, 2, 0, hp=40)
         target.get_component(SpriteAnimator).slot_key = "tgt_slot"
-        assets = make_store_two("def_slot", def_anchor, "tgt_slot", tgt_anchor)
+        assets = make_store_two("def_slot", def_anchor, "tgt_slot", tgt_anchor,
+                                offset_a=def_offset, offset_b=tgt_offset)
         health = target.get_component(Health)
 
         frame = [0]
@@ -345,10 +351,16 @@ class TestGuardrailD4BitIdenticalUnderLargeAnchors(unittest.TestCase):
         baseline = self._run(None, None)
         large = self._run((40, -10), (35, -25))
         absurd = self._run((2000, -1800), (1900, 1700))
+        # fix-anchor-offset-and-bullet-sprites Fix 1 re-pin: the shooter and
+        # target ALSO carry a non-zero offset_x/offset_y, composed into the
+        # anchor origin now — still cosmetic only (D4), never simulation.
+        offset_and_anchor = self._run((40, -10), (35, -25),
+                                      def_offset=(0, 8), tgt_offset=(3, -5))
 
         base_hp, base_hits, base_fires = baseline
         large_hp, large_hits, large_fires = large
         absurd_hp, absurd_hits, absurd_fires = absurd
+        off_hp, off_hits, off_fires = offset_and_anchor
 
         self.assertTrue(any(h < base_hp[0] for h in base_hp))   # it did fight
         self.assertLessEqual(base_hp[-1], 0)                    # and it died
@@ -356,11 +368,13 @@ class TestGuardrailD4BitIdenticalUnderLargeAnchors(unittest.TestCase):
         # HP ledger, frame-for-frame, is byte-identical
         self.assertEqual(base_hp, large_hp)
         self.assertEqual(base_hp, absurd_hp)
+        self.assertEqual(base_hp, off_hp)
 
         # flight timing: the FRAME each projectile_hit landed is identical
         base_frames = [f for f, _, _ in base_hits]
         self.assertEqual(base_frames, [f for f, _, _ in large_hits])
         self.assertEqual(base_frames, [f for f, _, _ in absurd_hits])
+        self.assertEqual(base_frames, [f for f, _, _ in off_hits])
         self.assertTrue(base_frames)   # the loop really did land a hit
 
         # ...but the anchors DID move the cosmetic points (not a vacuous
@@ -368,6 +382,11 @@ class TestGuardrailD4BitIdenticalUnderLargeAnchors(unittest.TestCase):
         # differs between the unanchored and large-anchor runs.
         self.assertNotEqual(base_fires[0][1:], large_fires[0][1:])
         self.assertNotEqual(base_hits[0][1:], large_hits[0][1:])
+        # ...and the offset-composed run differs from the anchor-only run
+        # too (the offset really composed into the cosmetic point), while
+        # still landing on the exact same frames/HP above.
+        self.assertNotEqual(large_fires[0][1:], off_fires[0][1:])
+        self.assertNotEqual(large_hits[0][1:], off_hits[0][1:])
 
 
 # ===========================================================================

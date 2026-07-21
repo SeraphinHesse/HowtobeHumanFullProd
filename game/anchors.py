@@ -42,8 +42,10 @@ def screen_offset(assets, cs, obj, name, zoom):
         return (0.0, 0.0)
     anchor = assets.anchor(anim.slot_key, name)
     if anchor is None:
-        return (0.0, 0.0)
+        return (0.0, 0.0)          # KEEP: an un-anchored slot must not move
     ax, ay = anchor
+    ox, oy = assets.offset(anim.slot_key)
+    ax, ay = ax + ox, ay + oy      # NEW: the nudge the renderer already applies
     if ax == 0 and ay == 0:
         return (0.0, 0.0)
     s = _scale_factor(assets, cs, anim)
@@ -56,8 +58,9 @@ def world_offset(assets, cs, obj, name):
     through the coordinate authority as the difference of two
     `cs.screen_to_world` samples (D2: zoom and pan cancel in that
     difference, never restate the iso math). (0.0, 0.0) when `cs` is missing
-    or the screen offset itself is zero (no anchor authored, or an anchor
-    authored at [0, 0])."""
+    or the screen offset itself is zero (no anchor authored; or an anchor
+    authored at [0, 0] on a slot with no offset_x/offset_y — a [0, 0] anchor
+    on a NUDGED entry now has a real, non-zero composed delta)."""
     if cs is None or obj is None:
         return (0.0, 0.0)
     zoom = cs.camera.zoom

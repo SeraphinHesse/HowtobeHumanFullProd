@@ -25,6 +25,7 @@ from engine.vfx import (
     GoldParams,
     LightningParams,
     MuzzleParams,
+    ProjectileParams,
     ShardBurstParams,
     SlashParams,
     SplatterParams,
@@ -149,6 +150,22 @@ def floater_params(fl):
         boost_color=color(fl["boost_color"]))
 
 
+def projectile_params(pr):
+    """fix-anchor-offset-and-bullet-sprites Fix 2: mirrors ``game/ui/
+    effects.py::_params_from_balance``'s new ``projectile`` read. Like
+    ``floaters``, it carries no preview lever of its own (``_EMIT_FAMILIES``
+    degrades it to the graceful-placeholder branch — a projectile is a
+    continuous in-flight object the game draws itself, not a particle
+    emitter this preview drives) — required purely so ``VfxParams`` (a
+    required, no-default field, G-7) stays constructible for every OTHER
+    family's preview."""
+    return ProjectileParams(
+        stone_color=color(pr["stone_color"]),
+        shell_color=color(pr["shell_color"]),
+        stone_size=pr["stone_size"], shell_size=pr["shell_size"],
+        lift_frac=pr["lift_frac"])
+
+
 def params_from_balance(proc):
     """Mirrors ``game/ui/effects.py::_params_from_balance``'s structure, but
     takes the already-unwrapped ``procedural`` dict — the vfx preview panel
@@ -168,4 +185,5 @@ def params_from_balance(proc):
         crater=crater_params(proc["crater"]),
         lightning=lightning_params(proc["lightning"]),
         announce=announce_params(proc["announce"]),
-        floaters=floater_params(proc["floaters"]))
+        floaters=floater_params(proc["floaters"]),
+        projectile=projectile_params(proc["projectile"]))

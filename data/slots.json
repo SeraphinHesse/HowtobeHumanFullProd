@@ -736,7 +736,9 @@
             "vfx_muzzle",
             "vfx_death",
             "vfx_slash",
-            "vfx_crater"
+            "vfx_crater",
+            "vfx_projectile",
+            "vfx_shell"
           ]
         }
       ],

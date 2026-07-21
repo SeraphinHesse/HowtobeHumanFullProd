@@ -19,13 +19,6 @@ would otherwise write three times, the same reasoning as
 viewport instead emits per-move deltas this panel only mirrors into the
 spinboxes. No undo: this panel writes immediately, like details.py's
 Save/Clear (accepted for this phase, ESV-2 brief §1.5).
-
-NOTE on offset_x/offset_y: the handle origin deliberately excludes the
-entry's Offset X/Y nudge (ESV-2 brief §1.4) — for an entry with a non-zero
-offset, the drawn art will appear shifted relative to where the handle
-sits. That is correct: it matches the game's muzzle math (game/anchors.py),
-which never sees offset_x/offset_y either. If that reads as wrong to a
-designer, the fix belongs on the game side, not here.
 """
 from pathlib import Path
 
@@ -67,11 +60,6 @@ class AnchorsPanel(QWidget):
             "Import a spritesheet for this slot first — anchors attach to "
             "an imported entry.")
         self._guidance.setWordWrap(True)
-        self._note = QLabel(
-            "Handle origin ignores this slot's Offset X/Y nudge — anchors "
-            "are measured from the un-nudged frame anchor, matching the "
-            "game's muzzle math.")
-        self._note.setWordWrap(True)
 
         self._checks = {}
         self._spin_x = {}
@@ -109,7 +97,6 @@ class AnchorsPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self._guidance)
-        layout.addWidget(self._note)
         layout.addLayout(rows_layout)
         layout.addStretch(1)
 

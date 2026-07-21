@@ -155,6 +155,18 @@ direct `VfxParams(...)` construction needed a `floaters=` argument too —
 `editor/vfx_params.py`'s local mirror of `_params_from_balance` was the one
 real instance (see `editor/CLAUDE.md`'s VFX preview section).
 
+**fix-anchor-offset-and-bullet-sprites (post-ESV live-testing follow-up)**
+appended `ProjectileParams` the same way — one new required `projectile`
+field on `VfxParams` for `procedural.projectile`'s fallback-dot colour/size/
+lift (`data/balancing/vfx.json`). Like `FloaterParams` and ESV-3b's four
+scene-object dataclasses, `VfxSystem` never touches it — `game/ui/effects.py`
+reads it straight off `VfxParams` in `submit_projectiles`. Every direct
+`VfxParams(...)` construction needed a `projectile=` argument again
+(`editor/vfx_params.py`, `tools/tests/test_vfx.py`'s module-level
+`VFX_PARAMS` fixture) — verified live by constructing `VfxPreviewPanel` and
+switching every family in its combo, not just by reasoning about the
+dataclass.
+
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
   `render/ground_cache.py`, the asset surface cache (`assets/store.py`,

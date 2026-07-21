@@ -27,7 +27,8 @@ from engine.assets.manifest import ANCHOR_NAMES
 from tools.tests.test_editor_panels import TempDataCase
 
 
-def write_entry(data_dir, slot_key, frame_w=64, frame_h=64, anchors=None):
+def write_entry(data_dir, slot_key, frame_w=64, frame_h=64, anchors=None,
+                offset_x=0, offset_y=0):
     """A minimal manifest v2 entry for `slot_key` — no PNG required, since
     frame_size/anchor lookups resolve from the entry's own metadata before
     pygame ever touches a sheet (AssetStore.frame_size/anchor)."""
@@ -36,8 +37,8 @@ def write_entry(data_dir, slot_key, frame_w=64, frame_h=64, anchors=None):
         "sheet": f"imported/{slot_key}.png",
         "frame_w": frame_w,
         "frame_h": frame_h,
-        "offset_x": 0,
-        "offset_y": 0,
+        "offset_x": offset_x,
+        "offset_y": offset_y,
         "rows": [{
             "animation": "idle", "frames": 1, "fps": 8, "hidden": [],
             "loop_start": 0, "loop_end": 0, "loop_count": 1,
@@ -330,6 +331,77 @@ class TestNoEntryNoWrite(AnchorsTestCase):
         panel._checks["muzzle"].setChecked(True)
         doc = asset_import.load_manifest_doc(self.data_dir)
         self.assertNotIn(slot, doc["entries"])
+
+
+# ---------------------------------------------------------------------------
+# 8. fix-anchor-offset-and-bullet-sprites Fix 1: origin composes offset_x/y,
+#    and the drag round-trips through the SHIFTED origin unchanged (proof
+#    screen_point/frame_px stayed exact inverses after the origin moved).
+# ---------------------------------------------------------------------------
+class TestOffsetComposedOrigin(AnchorsTestCase):
+    def test_origin_shifts_by_the_entrys_offset(self):
+        """`_anchor_draw_params`'s origin moves by exactly the entry's
+        offset (scaled by s * zoom) relative to the same slot with no
+        offset — the renderer already draws the art there."""
+        plain_slot = "esv_offset_plain_slot"
+        nudged_slot = "esv_offset_nudged_slot"
+        write_entry(self.data_dir, plain_slot, anchors={"muzzle": (0, 0)})
+        write_entry(self.data_dir, nudged_slot, anchors={"muzzle": (0, 0)},
+                   offset_x=0, offset_y=8)
+
+        viewport = self.make_viewport()
+        viewport.set_preview_slot(plain_slot)
+        _APP.processEvents()
+        plain_origin, s, zoom = viewport._anchor_draw_params()
+
+        viewport.set_preview_slot(nudged_slot)
+        _APP.processEvents()
+        nudged_origin, s2, zoom2 = viewport._anchor_draw_params()
+
+        self.assertEqual((s, zoom), (s2, zoom2))
+        self.assertAlmostEqual(nudged_origin[0], plain_origin[0])
+        self.assertAlmostEqual(nudged_origin[1],
+                               plain_origin[1] + 8 * s * zoom)
+
+    def test_drag_on_a_nudged_slot_writes_expected_frame_px_and_redraws_there(self):
+        """A synthetic drag on a NUDGED slot writes the frame-px the
+        designer sees, and re-seeding the panel (a fresh `_anchor_draw_
+        params()` call, as happens on reload/re-select) redraws the handle
+        at the exact same screen point — the pin that `screen_point`/
+        `frame_px` stayed exact inverses over the shifted origin."""
+        slot = "esv_offset_drag_slot"
+        write_entry(self.data_dir, slot, anchors={"muzzle": (0, 0)},
+                   offset_x=0, offset_y=8)
+        viewport = self.make_viewport()
+        panel = self.make_panel()
+        self.wire(viewport, panel)
+        viewport.set_preview_slot(slot)
+        panel.set_slot(slot)
+        _APP.processEvents()
+
+        origin, s, zoom = viewport._anchor_draw_params()
+        target_ax, target_ay = 18, -40
+        target_sx, target_sy = anchor_ops.screen_point(
+            origin, target_ax, target_ay, s, zoom)
+
+        QTest.mousePress(viewport, Qt.MouseButton.LeftButton,
+                         pos=QPoint(round(origin[0]), round(origin[1])))
+        QTest.mouseMove(viewport, QPoint(round(target_sx), round(target_sy)))
+        QTest.mouseRelease(viewport, Qt.MouseButton.LeftButton,
+                           pos=QPoint(round(target_sx), round(target_sy)))
+
+        doc = asset_import.load_manifest_doc(self.data_dir)
+        self.assertEqual(doc["entries"][slot]["anchors"]["muzzle"],
+                         [target_ax, target_ay])
+
+        # Re-seed (fresh origin computation) and confirm the handle redraws
+        # at the SAME screen point the drag ended on.
+        origin2, s2, zoom2 = viewport._anchor_draw_params()
+        self.assertEqual((origin2, s2, zoom2), (origin, s, zoom))
+        redraw_sx, redraw_sy = anchor_ops.screen_point(
+            origin2, target_ax, target_ay, s2, zoom2)
+        self.assertAlmostEqual(redraw_sx, target_sx)
+        self.assertAlmostEqual(redraw_sy, target_sy)
 
 
 # ---------------------------------------------------------------------------

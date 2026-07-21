@@ -76,6 +76,15 @@ crashes boot.** When you change asset conventions, update THIS doc.
   wired to a read-site today. `impact`/`floater_origin`/`status_icon`/
   `beam_endpoint` are declared and parse-ready but inert (no read-site) —
   shipped now so their future wiring needs no schema migration.
+  - **`AssetStore.offset(slot_key)`** (the anchor/offset composition fix,
+    `docs/briefs/fix-anchor-offset-and-bullet-sprites.md`) mirrors `anchor()`
+    exactly: `(x, y)` ints from the manifest entry's `offset_x`/`offset_y`, or
+    `(0, 0)` when the slot or its entry is absent — same degrade-never-raise
+    contract. It is what lets `game/anchors.py`'s `screen_offset`/
+    `world_offset` and `editor/panels/viewport.py`'s `_anchor_draw_params`
+    compose the renderer's draw nudge (`engine/render/renderer.py`'s
+    `frame.offset_x`/`offset_y`) into the anchor origin, so all three
+    consumers of "where is this sprite's anchor point" agree.
 - **Store**: `AssetStore(manifest, registry, frame_sizes, default_frame_size,
   sprites_dir)`; frame-size precedence manifest entry > registry (**per-slot
   override, then category**) > frame_sizes > default. Sheets load via `pygame.image.load` with NO
