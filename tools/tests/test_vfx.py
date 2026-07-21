@@ -50,8 +50,8 @@ from editor import domains
 from engine import data_io
 from engine.vfx import (
     AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
-    GoldParams, LightningParams, MuzzleParams, ShardBurstParams, SlashParams,
-    SplatterParams, VfxParams, VfxSystem,
+    GoldParams, LightningParams, MuzzleParams, ProjectileParams,
+    ShardBurstParams, SlashParams, SplatterParams, VfxParams, VfxSystem,
 )
 
 VFX_DATA_PATH = FIXTURE_DATA / "balancing" / "vfx.json"
@@ -129,10 +129,15 @@ FLOATERS = FloaterParams(
     painter_finished_color=(255, 255, 100), painter_lost_color=(255, 100, 100),
     painter_life=1.5, boost_color=(255, 255, 255))
 
+# -- fix-anchor-offset-and-bullet-sprites "today" column (Fix 2 §2.2) -------
+PROJECTILE = ProjectileParams(
+    stone_color=(185, 180, 170), shell_color=(70, 60, 55),
+    stone_size=3, shell_size=5, lift_frac=0.6)
+
 VFX_PARAMS = VfxParams(death_burst=DEATH_BURST, muzzle=MUZZLE, slash=SLASH,
                        gold=GOLD, splatter=SPLATTER, beam=BEAM, crater=CRATER,
                        lightning=LIGHTNING, announce=ANNOUNCE,
-                       floaters=FLOATERS)
+                       floaters=FLOATERS, projectile=PROJECTILE)
 
 
 def make_system(seed):
@@ -452,6 +457,16 @@ class TestDefaultRoundTrip(unittest.TestCase):
         a = self.data["procedural"]["announce"]
         self.assertEqual(a["color"], [220, 40, 40])
         self.assertEqual(a["max_alpha"], 255)
+
+    # -- fix-anchor-offset-and-bullet-sprites Fix 2 (brief §4 test 10) -----
+
+    def test_projectile(self):
+        p = self.data["procedural"]["projectile"]
+        self.assertEqual(p["stone_color"], [185, 180, 170])
+        self.assertEqual(p["shell_color"], [70, 60, 55])
+        self.assertEqual(p["stone_size"], 3)
+        self.assertEqual(p["shell_size"], 5)
+        self.assertEqual(p["lift_frac"], 0.6)
 
 
 # ===========================================================================

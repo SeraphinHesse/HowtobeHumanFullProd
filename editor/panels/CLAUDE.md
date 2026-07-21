@@ -330,11 +330,16 @@ import list.**
     two-sample `screen_to_world` trick cancels zoom/pan — `game/anchors.py`'s
     proven pattern, ESV-2 brief §2.3c), plus an optional name label via
     `submit_hud(HudText(...))`. Never QPainter.
-  - **Handle origin excludes `offset_x`/`offset_y`** (ESV-2 brief §1.4,
-    orchestrator-ratified) — it always sits at the un-nudged frame anchor,
-    matching the game's muzzle math (`game/anchors.py`) exactly. For an entry
-    with a non-zero offset the art will look shifted relative to the handle;
-    that is correct, and the fix (if ever wanted) is game-side, not here.
+  - **Handle origin COMPOSES `offset_x`/`offset_y`** (reverses ESV-2 brief
+    §1.4 — see `docs/briefs/fix-anchor-offset-and-bullet-sprites.md` Fix 1):
+    `_anchor_draw_params` shifts `origin` by the entry's offset (scaled by
+    `s * zoom`) before any anchor is measured from it, so the handle sits on
+    the art exactly like the renderer draws it and matches the composed
+    game-side math (`game/anchors.py`'s `screen_offset`/`world_offset`).
+    `editor/anchor_ops.py`'s `screen_point`/`frame_px` are untouched — they
+    are pure algebra over a caller-supplied origin and exact inverses of
+    each other, so shifting the origin fixes the draw AND the drag in one
+    move.
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live

@@ -553,6 +553,44 @@
           ],
           "type": "object"
         },
+        "projectile": {
+          "additionalProperties": false,
+          "description": "Fallback dot appearance for an in-flight shot with no imported sprite on vfx_projectile/vfx_shell (submit_projectiles): a coloured HudRect, lifted off the ground plane by a fraction of tile_h. Shell (mortar) and stone (every other defender) get independent colours/sizes. The max(2, size*zoom) low-zoom floor is a degeneracy guard, not a tunable, and stays inline in game/ui/effects.py.",
+          "properties": {
+            "lift_frac": {
+              "description": "Screen-space lift off the ground plane as a fraction of tile_h * zoom.",
+              "maximum": 2,
+              "minimum": 0,
+              "type": "number"
+            },
+            "shell_color": {
+              "$ref": "#/$defs/color"
+            },
+            "shell_size": {
+              "description": "Shell (mortar) dot diameter in base-zoom px, before the low-zoom floor.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "stone_color": {
+              "$ref": "#/$defs/color"
+            },
+            "stone_size": {
+              "description": "Stone (default) dot diameter in base-zoom px, before the low-zoom floor.",
+              "maximum": 32,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "lift_frac",
+            "shell_color",
+            "shell_size",
+            "stone_color",
+            "stone_size"
+          ],
+          "type": "object"
+        },
         "slash": {
           "additionalProperties": false,
           "description": "Melee slash (watch_enemies): 2-3 diagonal lines over the attacker; size_large swaps in for a boss-scale attacker.",
@@ -761,6 +799,7 @@
         "gold_highlight",
         "lightning",
         "muzzle",
+        "projectile",
         "slash",
         "spark",
         "splatter"

@@ -71,6 +71,16 @@ class AssetStore:
             return None
         return entry.anchor(name)
 
+    def offset(self, slot_key):
+        """(x, y) int frame-px draw nudge (`offset_x`/`offset_y`) for a
+        slot's manifest entry, or `(0, 0)` when the slot or its entry is
+        absent. Metadata, not frame geometry — never touches pygame or a
+        sheet surface, same shape as `anchor()`."""
+        entry = self._manifest.entry(slot_key)
+        if entry is None:
+            return (0, 0)
+        return (entry.offset_x, entry.offset_y)
+
     def frame(self, slot_key, animation="idle", anim_time_ms=0):
         """Never raises on missing/corrupt art: falls back to the grey X."""
         ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))

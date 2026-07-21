@@ -85,7 +85,20 @@ validating writer; don't hand-edit the JSON.
   before this phase; only the `triggers` object's `properties`/`required`
   needed the new key. ESV-6 also re-pointed a subset of the ESV-5 dispatch
   sites at manifest anchors (VISUAL ONLY, D4) — a `data/` change to
-  `data/balancing/vfx.json` content, not to its schema. Since **Phase 9A** the other
+  `data/balancing/vfx.json` content, not to its schema. **The
+  fix-anchor-offset-and-bullet-sprites follow-up** (post-ESV live-testing)
+  added a sibling `procedural.projectile` block — `stone_color`/
+  `shell_color`/`stone_size`/`shell_size`/`lift_frac`, the fallback dot
+  `submit_projectiles` draws for an in-flight shot with no imported sprite —
+  and two new `vfx` category slots in `slots.json`'s `Effects` group,
+  `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
+  respectively, never per-building art), both bare strings inheriting the
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
+  NOT a `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
+  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
+  touches no schema. Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

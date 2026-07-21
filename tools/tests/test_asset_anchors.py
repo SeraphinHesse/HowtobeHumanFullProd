@@ -170,8 +170,9 @@ class TestMalformedAnchorsWarnAndSkip(unittest.TestCase):
 # game.anchors — the pure screen/world resolver
 # ---------------------------------------------------------------------------
 def _store_and_obj(anchor_xy=None, frame_w=64, frame_h=64, fit_tiles=1.0,
-                   scale=1.0, wx=3.0, wy=2.0):
-    raw = entry_dict([row()], frame_w=frame_w, frame_h=frame_h)
+                   scale=1.0, wx=3.0, wy=2.0, offset_xy=(0, 0)):
+    raw = entry_dict([row()], frame_w=frame_w, frame_h=frame_h,
+                     offset_x=offset_xy[0], offset_y=offset_xy[1])
     if anchor_xy is not None:
         raw["anchors"] = {"muzzle": list(anchor_xy)}
     entry = entry_from_dict("thing", raw)
@@ -247,6 +248,93 @@ class TestWorldOffsetInvariance(unittest.TestCase):
         dsx, _dsy = screen_offset(store, load_coordinate_system(FIXTURE_DATA),
                                   obj, "muzzle", zoom=1.0)
         self.assertAlmostEqual(dsx, 50.0)   # 100 * 0.5 fit * 1.0 scale * 1.0 zoom
+
+
+# ---------------------------------------------------------------------------
+# fix-anchor-offset-and-bullet-sprites Fix 1: offset/anchor composition
+# ---------------------------------------------------------------------------
+class TestAssetStoreOffsetAccessor(unittest.TestCase):
+    """`AssetStore.offset` mirrors `anchor()`'s degrade-never-raise shape."""
+
+    def test_absent_slot_is_zero(self):
+        store = AssetStore(manifest=Manifest({}), sprites_dir=None)
+        self.assertEqual(store.offset("nope"), (0, 0))
+
+    def test_present_entry_returns_ints(self):
+        store, _obj = _store_and_obj(offset_xy=(3, -7))
+        self.assertEqual(store.offset("thing"), (3, -7))
+
+    def test_no_offset_authored_is_zero(self):
+        store, _obj = _store_and_obj()
+        self.assertEqual(store.offset("thing"), (0, 0))
+
+
+class TestOffsetAnchorComposition(unittest.TestCase):
+    """§1.2/§1.3: `offset_x`/`offset_y` fold into the anchor origin — the
+    renderer already applies this nudge to the drawn art
+    (`engine/render/renderer.py:138-139`), so the game-side anchor resolver
+    must agree with it."""
+
+    def test_composition_shifts_the_resolved_screen_offset_exactly(self):
+        """A fixture entry with `offset_y: 8` and `muzzle: [0, -20]` resolves
+        8 frame-px lower (scaled) than the identical entry with no offset —
+        the exact composed number, not just a direction."""
+        cs = load_coordinate_system(FIXTURE_DATA)
+        cs.camera.zoom = 1.0
+        store_plain, obj_plain = _store_and_obj((0, -20), frame_w=64,
+                                                 fit_tiles=1.0)
+        store_nudged, obj_nudged = _store_and_obj((0, -20), frame_w=64,
+                                                   fit_tiles=1.0,
+                                                   offset_xy=(0, 8))
+        dsx0, dsy0 = screen_offset(store_plain, cs, obj_plain, "muzzle", 1.0)
+        dsx1, dsy1 = screen_offset(store_nudged, cs, obj_nudged, "muzzle", 1.0)
+        # frame_w=64 on a 64-wide tile at fit_tiles=1.0 -> s == 1.0, so the
+        # composed y is exactly (-20 + 8) * 1.0 * 1.0 * zoom == -12.0, and
+        # the nudged result is exactly 8.0 lower (more positive y) than
+        # the un-nudged one.
+        self.assertAlmostEqual(dsy0, -20.0)
+        self.assertAlmostEqual(dsy1, -12.0)
+        self.assertAlmostEqual(dsy1 - dsy0, 8.0)
+        self.assertAlmostEqual(dsx0, dsx1)   # offset_x is 0 in both
+
+    def test_nonzero_offset_with_no_anchors_is_still_exactly_zero(self):
+        """§1.2's byte-identity pin: an entry with a non-zero offset and NO
+        `anchors` still returns exactly (0.0, 0.0) from both resolvers — the
+        `anchor is None` early return fires before the offset is ever read,
+        which is what keeps every un-anchored entry (181 of them) numerically
+        untouched by this fix."""
+        cs = load_coordinate_system(FIXTURE_DATA)
+        store, obj = _store_and_obj(anchor_xy=None, offset_xy=(0, 8))
+        self.assertEqual(screen_offset(store, cs, obj, "muzzle", 1.0),
+                         (0.0, 0.0))
+        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
+
+    def test_zero_anchor_on_a_nudged_entry_flips_to_nonzero(self):
+        """The subtlest behaviour change in the diff: an anchor authored at
+        `[0, 0]` used to short-circuit `screen_offset`/`world_offset` to
+        exactly zero (§1.2's OLD rule). On a nudged entry it no longer does —
+        the `ax == 0 and ay == 0` short-circuit now tests the COMPOSED pair,
+        and a [0, 0] anchor plus a non-zero offset composes to a real,
+        non-zero delta. Pinned explicitly, not just "is non-zero"."""
+        cs = load_coordinate_system(FIXTURE_DATA)
+        cs.camera.zoom = 1.0
+        store, obj = _store_and_obj((0, 0), frame_w=64, fit_tiles=1.0,
+                                    offset_xy=(0, 8))
+        dsx, dsy = screen_offset(store, cs, obj, "muzzle", 1.0)
+        self.assertAlmostEqual(dsx, 0.0)
+        self.assertAlmostEqual(dsy, 8.0)
+        self.assertNotEqual((dsx, dsy), (0.0, 0.0))
+        wdx, wdy = world_offset(store, cs, obj, "muzzle")
+        self.assertNotEqual((wdx, wdy), (0.0, 0.0))
+
+    def test_zero_anchor_on_an_un_nudged_entry_still_short_circuits(self):
+        """The un-nudged case (offset (0, 0)) keeps the pre-fix behaviour:
+        a [0, 0] anchor with no offset resolves to exactly zero."""
+        cs = load_coordinate_system(FIXTURE_DATA)
+        store, obj = _store_and_obj((0, 0), offset_xy=(0, 0))
+        self.assertEqual(screen_offset(store, cs, obj, "muzzle", 1.0),
+                         (0.0, 0.0))
+        self.assertEqual(world_offset(store, cs, obj, "muzzle"), (0.0, 0.0))
 
 
 if __name__ == "__main__":

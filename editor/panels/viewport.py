@@ -820,12 +820,15 @@ class ViewportPanel(QWidget):
     # never reads or writes the manifest here (that's anchor_ops + the panel).
 
     def _anchor_draw_params(self):
-        """(origin, s, zoom) for the current preview slot's un-offset frame
-        anchor (§1.4) — None when there is nothing to anchor a handle to.
-        `s` is the editor's OWN drawn scale: fit_factor computed from the
-        exact fit_tiles/scale the preview's RenderItem carries (its
-        dataclass defaults today — never hardcode 1.0, so a handle can't
-        silently desync the day the preview gains a footprint fit)."""
+        """(origin, s, zoom) for the current preview slot's frame anchor,
+        origin COMPOSED with the entry's offset_x/offset_y (§1.2 — the
+        renderer already nudges the art by this, so the handle must move
+        with it or it stops sitting on the sprite) — None when there is
+        nothing to anchor a handle to. `s` is the editor's OWN drawn scale:
+        fit_factor computed from the exact fit_tiles/scale the preview's
+        RenderItem carries (its dataclass defaults today — never hardcode
+        1.0, so a handle can't silently desync the day the preview gains a
+        footprint fit)."""
         if self.preview_slot is None:
             return None
         g = self._coords.geometry
@@ -834,7 +837,8 @@ class ViewportPanel(QWidget):
         zoom = self._coords.camera.zoom
         s = fit_factor(frame_w, g.tile_w, 0.0) * 1.0   # RenderItem's own defaults
         sx, sy = self._coords.world_to_screen(wx, wy)
-        origin = (sx, sy + g.tile_h / 2 * zoom)
+        ox, oy = self._assets.offset(self.preview_slot)
+        origin = (sx + ox * s * zoom, sy + g.tile_h / 2 * zoom + oy * s * zoom)
         return origin, s, zoom
 
     def _hit_anchor_handle(self, pos):

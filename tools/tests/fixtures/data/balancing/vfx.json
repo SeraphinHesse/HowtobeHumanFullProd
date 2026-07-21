@@ -181,6 +181,21 @@
       "vy_max": 35.0,
       "vy_min": -35.0
     },
+    "projectile": {
+      "lift_frac": 0.6,
+      "shell_color": [
+        70,
+        60,
+        55
+      ],
+      "shell_size": 5,
+      "stone_color": [
+        185,
+        180,
+        170
+      ],
+      "stone_size": 3
+    },
     "slash": {
       "colors": {
         "stop_0": [

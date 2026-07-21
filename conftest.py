@@ -110,6 +110,7 @@ TIERS = {
     "test_physics_occupancy": "core",
     "test_picking": "core",
     "test_placeholder": "core",
+    "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
     "test_render": "core",
     "test_right_click_dismiss": "core",

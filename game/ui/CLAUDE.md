@@ -70,6 +70,18 @@ buildings it adds on top of the flat `cy - tile_h*zoom` baseline (no
 `_sprite_top` fit exists on that path, so none is introduced). Absent anchor ⇒
 `(0, 0)` ⇒ both expressions are the pre-ESV-1 ones, unchanged.
 
+**fix-anchor-offset-and-bullet-sprites Fix 1 (reverses ESV-2 §1.4):**
+`screen_offset`/`world_offset` now COMPOSE the entry's `offset_x`/`offset_y`
+draw nudge into the anchor before scaling — `ax, ay = ax + ox, ay + oy` right
+after the `anchor is None` early return, still before the `ax == 0 and ay ==
+0` short-circuit (which now tests the COMPOSED pair). This matches
+`engine/render/renderer.py`'s draw math, which always applied the nudge —
+the editor's anchor handle disagreed with the renderer until this fix (see
+`docs/briefs/fix-anchor-offset-and-bullet-sprites.md`). An entry with a
+non-zero offset and NO anchors is unaffected (the early return fires first);
+only the 2 entries carrying both an anchor AND a non-zero offset — none as
+of this fix — would ever see a different composed number.
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -277,7 +289,17 @@ imports:
   `watch_buildings` (death burst + kill log; alive-flip watcher),
   `watch_enemies` (muzzle/slash on an `EnemyCombat.cooldown` reset while
   blocked — no core hook needed), `submit_projectiles` (stone/shell dots —
-  9E's invisible projectiles), blood splatters (`RunState.enemy_death_events`
+  9E's invisible projectiles; **swappable sprites, fix-anchor-offset-and-
+  bullet-sprites Fix 2**: two SHARED slots, `vfx_projectile` for every
+  defender's stone and `vfx_shell` for a mortar's shell — never per-building
+  art — swap in as a `HudSprite` once imported, colour/size/lift read from
+  `data/balancing/vfx.json procedural.projectile` via
+  `FloaterManager._vfx_params.projectile`; the "has art" check is the same
+  `assets.animation_total_ms(slot, "idle") is not None` signal
+  `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
+  about "imported". Deliberately NOT a `triggers` row — a projectile is
+  continuous, like a beam or a lightning bolt, not a one-shot), blood
+  splatters (`RunState.enemy_death_events`
   ledger; double-gated `ui.FX.gore_enabled` AND the settings toggle; cleared
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
   marker / boss-announce / floater fades + an expanding lightning impact
