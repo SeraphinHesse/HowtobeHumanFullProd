@@ -40,6 +40,11 @@ theme_selected() + domain_selected("ui") — same never-node_selected rule,
 via its own marker role (_THEME_ROLE) rather than a from-disk id list like
 Maps/Screens, since there is nothing to enumerate.
 
+TU-4 adds a single "Tutorial" LEAF, the FOURTH child of the "ui" category
+(after Screens, Theme, then TU-3's Cutscenes leaf) — same shape again: one
+document (`data/tutorial/tutorial.json`), nothing to enumerate, its own
+marker role (_TUTORIAL_ROLE), never node_selected.
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -90,11 +95,13 @@ _SCREEN_ROLE = Qt.ItemDataRole.UserRole + 3     # screen_id (Screens-branch leav
 _VIEW_ROLE = Qt.ItemDataRole.UserRole + 4       # (screen_id, view_id) (UH-2 view leaves)
 _THEME_ROLE = Qt.ItemDataRole.UserRole + 5      # True on the single Theme leaf (UH-6)
 _CUTSCENES_ROLE = Qt.ItemDataRole.UserRole + 6   # True on the single Cutscenes leaf (TU-3)
+_TUTORIAL_ROLE = Qt.ItemDataRole.UserRole + 7    # True on the single Tutorial leaf (TU-4)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
 _THEME_LABEL = "Theme"
 _CUTSCENES_LABEL = "Cutscenes"
+_TUTORIAL_LABEL = "Tutorial"
 
 # Registry categories shown as CHILDREN of the "map" node instead of their own
 # top-level node — a tree-shape choice only (see the branch in __init__).
@@ -113,6 +120,7 @@ class SelectorPanel(QTreeWidget):
     screen_view_selected = Signal(str, str)  # UH-2: a view leaf was selected
     theme_selected = Signal()        # UH-6: the single Theme leaf was selected
     cutscenes_selected = Signal()        # TU-3: the single Cutscenes leaf
+    tutorial_selected = Signal()     # TU-4: the single Tutorial leaf
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -128,6 +136,7 @@ class SelectorPanel(QTreeWidget):
         self._screens_branch = None
         self._theme_item = None
         self._cutscenes_item = None
+        self._tutorial_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -186,6 +195,15 @@ class SelectorPanel(QTreeWidget):
                 cutscenes_item.setData(0, _CUTSCENES_ROLE, True)
                 root.insertChild(2, cutscenes_item)
                 self._cutscenes_item = cutscenes_item
+                # TU-4: a single "Tutorial" leaf, fourth child (after Screens,
+                # Theme, then Cutscenes), same shape as Theme/Cutscenes: one
+                # document, nothing to enumerate, so a marker role rather
+                # than a from-disk id list.
+                tutorial_item = self._make_item(
+                    _TUTORIAL_LABEL, "ui", (_TUTORIAL_LABEL,))
+                tutorial_item.setData(0, _TUTORIAL_ROLE, True)
+                root.insertChild(3, tutorial_item)
+                self._tutorial_item = tutorial_item
         self.refresh_maps()
         self.refresh_screens()
         self.refresh_markers()
@@ -433,6 +451,16 @@ class SelectorPanel(QTreeWidget):
         self._theme_item.parent().setExpanded(True)
         self.setCurrentItem(self._theme_item)
 
+    # -- Tutorial leaf (TU-4) -----------------------------------------------
+
+    def select_tutorial(self):
+        """Programmatic selection of the Tutorial leaf (tests, initial
+        selection) — mirrors select_theme."""
+        if self._tutorial_item is None:
+            raise KeyError("no Tutorial leaf (no ui category in the registry)")
+        self._tutorial_item.parent().setExpanded(True)
+        self.setCurrentItem(self._tutorial_item)
+
     # -- ● markers (ED-11) -----------------------------------------------------
 
     def refresh_markers(self):
@@ -489,6 +517,13 @@ class SelectorPanel(QTreeWidget):
             # Cutscenes leaf (TU-3): same never-node_selected rule as
             # Theme/Screens/Maps.
             self.cutscenes_selected.emit()
+            if "ui" in self._domains:
+                self.domain_selected.emit("ui")
+            return
+        if items[0].data(0, _TUTORIAL_ROLE):
+            # Tutorial leaf (TU-4): same never-node_selected rule as
+            # Theme/Cutscenes/Screens/Maps.
+            self.tutorial_selected.emit()
             if "ui" in self._domains:
                 self.domain_selected.emit("ui")
             return

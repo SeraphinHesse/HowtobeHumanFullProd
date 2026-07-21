@@ -781,6 +781,44 @@ import list.**
   and returns the doc with `audio: None`, leaving the actual write to the
   caller.
 
+## Tutorial panel (`panels/tutorial_panel.py`; TU-4)
+- **Selection**: a single "Tutorial" LEAF (not a branch — one document,
+  nothing to enumerate) is the FOURTH child of the "ui" category node, after
+  "Screens", "Theme", then "Cutscenes" (the ordering invariant above) —
+  `panels/selector.py`'s `_TUTORIAL_ROLE` marker + `tutorial_selected()`
+  signal, same never-node_selected rule as Maps/Screens/Theme/Cutscenes
+  leaves. `MainWindow._on_tutorial_selected` → `right_stack` →
+  `TutorialPanel`.
+- **`TutorialPanel`** edits `data/tutorial/tutorial.json` (TU-1): the two
+  message texts (`messages.economy_intro`/`messages.lives_intro`, each a
+  `QPlainTextEdit` — the first multi-line text field in the editor, a
+  deliberate departure from `balancing.py`'s `QLineEdit` convention,
+  justified by message length) and the two behavioral flags (`skippable`,
+  `first_loss_costs_life`, `QCheckBox`). Edits are STAGED (the
+  `game_theme.py` pattern): every change updates an in-memory doc + a dirty
+  dot; ONE "Save Tutorial Changes" button (enabled only while dirty) is the
+  sole `write_validated` call site. `data_dir=None` injection. Missing/
+  invalid data degrades to a placeholder message (editor-side E-37 grace).
+- **Empty-text guard (ED-30)**: since `QPlainTextEdit` has no
+  `editingFinished`, this panel commits on focus-out instead (`_MessageEdit`,
+  a thin subclass overriding `focusOutEvent`, calling back into the panel).
+  On that commit path, an all-whitespace message is never staged — the
+  field is restored to its last staged value instead, regardless of what
+  TU-1's schema `minLength` would also catch; this makes invalid text
+  unrepresentable in the UI rather than relying solely on the schema
+  backstop.
+- **`steps` (and any other TU-1-owned key) round-trips untouched**: the
+  whole loaded doc is kept in `self._doc` and written back whole on Save, so
+  an edit to texts/flags never perturbs the step list, and a doc that was
+  never touched saves byte-identical.
+- **`editor/tutorial_ops.py`** (Qt-free, pygame-free, in `TestPurity`) —
+  load/write/path helpers for the one file, mirroring `editor/theme_ops.py`.
+- **`saved = Signal()`** exists for test observability and symmetry with
+  every other staged-edit panel, but has no in-process `MainWindow`
+  consumer (unlike Theme) — no engine reconfiguration follows a text/flag
+  edit. Documented in the panel's own docstring so a future phase does not
+  go looking for a missing connection.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State

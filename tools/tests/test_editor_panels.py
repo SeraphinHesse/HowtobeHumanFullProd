@@ -457,6 +457,24 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(nodes, [])            # never node_selected
         self.assertIn("ui", domains_seen)      # same "ui" domain as Screens
 
+    def test_tutorial_leaf_exists_under_ui_and_emits_tutorial_selected(self):
+        """TU-4: "Tutorial" is a leaf under "ui" (order not hardcoded — a
+        different phase's own leaf placement is not this test's business),
+        never node_selected."""
+        panel = self.make()
+        ui_root = panel._find_item("ui", ())
+        self.assertIsNotNone(panel._tutorial_item)
+        self.assertIs(panel._tutorial_item.parent(), ui_root)
+
+        tutorials, nodes, domains_seen = [], [], []
+        panel.tutorial_selected.connect(lambda: tutorials.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_tutorial()
+        self.assertEqual(tutorials, [True])
+        self.assertEqual(nodes, [])            # never node_selected
+        self.assertIn("ui", domains_seen)      # same "ui" domain as Screens/Theme
+
 
 class TestBalancingPanel(TempDataCase):
     def make_panel(self, domain):
@@ -1277,6 +1295,113 @@ class TestCutscenesPanel(TempDataCase):
         self.assertIsNone(doc["first_end_turn"]["audio"])
         self.assertFalse(
             panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+
+class TestTutorialPanel(TempDataCase):
+    """TU-4: the single "Tutorial" leaf's panel over
+    ``data/tutorial/tutorial.json`` (TU-1's file). Staged edits (the
+    game_theme.py pattern): every change updates an in-memory doc + a dirty
+    dot; ONE Save button is the sole write_validated call site. ``steps``
+    (and any other TU-1-owned key) must round-trip byte-identical."""
+
+    def make(self):
+        from editor.panels.tutorial_panel import TutorialPanel
+        return self.track(TutorialPanel(data_dir=self.data_dir))
+
+    def test_loading_populates_both_texts_and_both_flags(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(
+            panel._message_edits["economy_intro"].toPlainText(),
+            doc["messages"]["economy_intro"])
+        self.assertEqual(
+            panel._message_edits["lives_intro"].toPlainText(),
+            doc["messages"]["lives_intro"])
+        self.assertEqual(
+            panel._flag_checks["skippable"].isChecked(), doc["skippable"])
+        self.assertEqual(
+            panel._flag_checks["first_loss_costs_life"].isChecked(),
+            doc["first_loss_costs_life"])
+        self.assertFalse(panel.save_button.isEnabled())
+
+    def test_flag_toggle_stages_dirty_dot_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        before = panel._flag_checks["first_loss_costs_life"].isChecked()
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+
+        panel._flag_checks["first_loss_costs_life"].setChecked(not before)
+
+        self.assertFalse(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        # staged only — nothing written yet
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["first_loss_costs_life"],
+            before)
+
+        saved = []
+        panel.saved.connect(lambda: saved.append(True))
+        panel._on_save()
+
+        self.assertEqual(saved, [True])
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        on_disk = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(on_disk["first_loss_costs_life"], not before)
+        path = tutorial_ops.tutorial_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(on_disk))
+
+    def test_message_edit_commits_on_focus_out_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a brand new economy message")
+        # commit path is manual focus-out (no editingFinished on
+        # QPlainTextEdit) — call it directly, the same convention as the
+        # balancing.py tests emitting editingFinished directly rather than
+        # simulating real OS-level focus loss.
+        panel._commit_message("economy_intro")
+
+        self.assertFalse(panel._dots["messages.economy_intro"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+
+        panel._on_save()
+
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(doc["messages"]["economy_intro"],
+                          "a brand new economy message")
+        self.assertTrue(panel._dots["messages.economy_intro"].isHidden())
+
+    def test_whitespace_only_commit_is_rejected(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        original = tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"]
+        edit = panel._message_edits["lives_intro"]
+
+        edit.setPlainText("   \n  ")
+        panel._commit_message("lives_intro")
+
+        # rejected: field reverts, no dirty dot, Save stays disabled
+        self.assertEqual(edit.toPlainText(), original)
+        self.assertTrue(panel._dots["messages.lives_intro"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"],
+            original)
+
+    def test_steps_round_trip_byte_identical_after_text_only_edit(self):
+        from editor import tutorial_ops
+        before = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a different economy message")
+        panel._commit_message("economy_intro")
+        panel._on_save()
+
+        after = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        self.assertEqual(after, before)
 
 
 class TestThemeSwitch(TempDataCase):
