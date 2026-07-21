@@ -1,0 +1,69 @@
+{
+  "first_loss_costs_life": true,
+  "messages": {
+    "economy_intro": "You need love to create. In order for you to gain Love, you need economy buildings",
+    "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings"
+  },
+  "skippable": true,
+  "steps": [
+    {
+      "advance_on": "message_dismissed:economy_intro",
+      "allow": [
+        "dismiss_message",
+        "skip_tutorial"
+      ],
+      "flags": {},
+      "highlight": [],
+      "id": "economy_message",
+      "message": "economy_intro"
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_flute",
+      "allow": [
+        "tile_click:tutorial_flute"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_flute"
+      ],
+      "id": "highlight_tutorial_flute_tile",
+      "message": null
+    },
+    {
+      "advance_on": "building_selected:musician",
+      "allow": [
+        "card_select:musician"
+      ],
+      "flags": {},
+      "highlight": [
+        "card:musician"
+      ],
+      "id": "highlight_musician_card",
+      "message": null
+    },
+    {
+      "advance_on": "building_placed:musician",
+      "allow": [
+        "button:confirm"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:confirm"
+      ],
+      "id": "highlight_confirm_button",
+      "message": null
+    },
+    {
+      "advance_on": "end_turn",
+      "allow": [
+        "button:end_turn"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:end_turn"
+      ],
+      "id": "highlight_end_turn_button",
+      "message": null
+    }
+  ]
+}

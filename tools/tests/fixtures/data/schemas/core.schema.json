@@ -159,6 +159,22 @@
       ],
       "type": "object"
     },
+    "Tutorial": {
+      "additionalProperties": false,
+      "description": "The guided new-player tutorial (D5, planning/TutorialPLAN.md).",
+      "properties": {
+        "economy_buildings_required": {
+          "description": "Number of economy buildings the player must place before the tutorial's first End Turn is allowed / the first-end-turn cutscene fires.",
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "economy_buildings_required"
+      ],
+      "type": "object"
+    },
     "XP": {
       "additionalProperties": false,
       "description": "Village XP and levelling.",
@@ -247,6 +263,7 @@
     "LightningStrike",
     "PhaseLoop",
     "TheHole",
+    "Tutorial",
     "XP"
   ],
   "title": "core",

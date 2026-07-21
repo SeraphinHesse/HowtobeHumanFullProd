@@ -1,0 +1,49 @@
+{
+  "widgets": {
+    "backdrop": {
+      "rect": [
+        0,
+        0,
+        1280,
+        720
+      ]
+    },
+    "btn_add_name": {
+      "skin": "ui_button_panel"
+    },
+    "btn_credits": {
+      "skin": "ui_button_panel"
+    },
+    "btn_new_game": {
+      "rect": [
+        480,
+        300,
+        320,
+        52
+      ],
+      "skin": "ui_button_panel"
+    },
+    "btn_quit": {
+      "skin": "ui_button_panel"
+    },
+    "btn_settings": {
+      "skin": "ui_button_panel"
+    },
+    "subtitle": {
+      "rect": [
+        640,
+        250,
+        0,
+        0
+      ],
+      "text_color": [
+        255,
+        255,
+        255
+      ]
+    },
+    "title": {
+      "font": "xxl"
+    }
+  }
+}

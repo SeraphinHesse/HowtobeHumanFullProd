@@ -1,0 +1,10 @@
+{
+  "widgets": {
+    "btn_add": {
+      "skin": "ui_button"
+    },
+    "btn_back": {
+      "skin": "ui_button"
+    }
+  }
+}
