@@ -40,7 +40,7 @@ from PySide6.QtWidgets import QWidget
 from editor import tilemap_ops
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
-from engine import tilemap
+from engine import data_io, tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
@@ -97,7 +97,7 @@ class ViewportPanel(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)  # B4: arrow-key nudge
         pygame.init()
         self._data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
-        self._coords = load_coordinate_system(self._data_dir)
+        self._coords = self._load_coords()
         self._registry = load_registry(self._data_dir)
         self._disk_manifest = load_manifest(
             self._data_dir / "sprites" / "asset_manifest.json")
@@ -116,6 +116,7 @@ class ViewportPanel(QWidget):
         self._tool = "none"
         self._armed_code = None
         self._armed_deco = None
+        self._deco_flip_armed = False  # mirror-flip toggle for the deco brush
         self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._armed_camera = None   # the Camera Start slot when that brush is armed
         self._armed_start_area = None  # the Start Area slot when armed
@@ -165,6 +166,23 @@ class ViewportPanel(QWidget):
         self.last_frame_ms = 0.0
         self._logo_pixmap = QPixmap(str(LOGO_PATH))
         self._resize_surface()
+
+    # -- coords lifecycle: zoom is a balancing tunable (core:Camera) --------
+
+    def _load_coords(self, map_cols=None, map_rows=None):
+        """load_coordinate_system with the balancing-core `Camera` group's
+        zoom_levels/default_zoom applied as the override (the editor may not
+        import `game/`, so it reads data/balancing/core.json directly through
+        data_io.load_validated — the same pattern balancing.py's set_domain
+        uses — rather than game.core.balance.load_balance), plus any map-dims
+        override (D-20, unchanged)."""
+        core_balance = data_io.load_validated(
+            self._data_dir / "balancing" / "core.json",
+            self._data_dir / "schemas" / "core.schema.json")
+        return load_coordinate_system(
+            self._data_dir, map_cols=map_cols, map_rows=map_rows,
+            zoom_levels=core_balance["Camera"]["zoom_levels"],
+            default_zoom=core_balance["Camera"]["default_zoom"])
 
     # -- asset store lifecycle (rebuild = the only cache invalidation) ------
 
@@ -257,11 +275,10 @@ class ViewportPanel(QWidget):
         self._start_area_drag = False
         if self.in_map_mode():
             doc = self._map_session.doc
-            self._coords = load_coordinate_system(
-                self._data_dir, map_cols=doc.cols, map_rows=doc.rows)
+            self._coords = self._load_coords(map_cols=doc.cols, map_rows=doc.rows)
             self._anim_combo.hide()
         else:
-            self._coords = load_coordinate_system(self._data_dir)
+            self._coords = self._load_coords()
             self._refresh_anim_combo()
         w, h = max(1, self.width()), max(1, self.height())
         if self.in_map_mode():
@@ -577,6 +594,12 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
 
+    def set_deco_flip(self, on):
+        """Mirror-flip toggle for the armed deco brush — an orthogonal
+        placement modifier, not tied to which prop is armed, so it persists
+        across type/variant switches until the user toggles it off."""
+        self._deco_flip_armed = bool(on)
+
     def set_eye(self, name, on):
         self._eyes[name] = on
 
@@ -643,7 +666,8 @@ class ViewportPanel(QWidget):
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
-                    cell[0], cell[1], self._armed_deco)
+                    cell[0], cell[1], self._armed_deco,
+                    flip=self._deco_flip_armed)
             elif self._tool == "erase":
                 self._map_session.push_deco_remove(cell[0], cell[1])
             return
@@ -739,7 +763,7 @@ class ViewportPanel(QWidget):
             return
         if self._armed_deco is not None:
             yield RenderItem(self._armed_deco, cell, layer="overlay",
-                             tint=GHOST_TINT)
+                             tint=GHOST_TINT, flip=self._deco_flip_armed)
             return
         if self._armed_code is None and self._tool != "erase":
             return

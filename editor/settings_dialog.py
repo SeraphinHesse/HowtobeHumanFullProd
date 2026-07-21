@@ -32,9 +32,10 @@ class SettingsDialog(QDialog):
     undo_redo_swap_changed = Signal(bool)
     tool_keybind_changed = Signal(str, str)     # tool name, new key
     brush_keybind_changed = Signal(int, str)    # 0-based brush index, new key
+    deco_flip_keybind_changed = Signal(str)     # new key
 
     def __init__(self, theme, tool_keybinds, brush_keybinds,
-                 undo_redo_swapped, parent=None):
+                 undo_redo_swapped, deco_flip_keybind, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
 
@@ -43,6 +44,7 @@ class SettingsDialog(QDialog):
         self._tool_keys = dict(tool_keybinds)
         self._brush_keys = list(brush_keybinds)
         self._swapped = undo_redo_swapped
+        self._deco_flip_key = deco_flip_keybind
 
         layout = QVBoxLayout(self)
 
@@ -85,6 +87,16 @@ class SettingsDialog(QDialog):
             brush_form.addRow(f"Brush {i + 1}", edit)
         layout.addLayout(brush_form)
 
+        layout.addWidget(QLabel("Deco tool keybinds"))
+        deco_form = QFormLayout()
+        self._deco_flip_edit = QKeySequenceEdit(
+            QKeySequence(self._deco_flip_key), self)
+        self._deco_flip_edit.setMaximumSequenceLength(1)
+        self._deco_flip_edit.editingFinished.connect(
+            self._on_deco_flip_key_edited)
+        deco_form.addRow("Mirror Flip", self._deco_flip_edit)
+        layout.addLayout(deco_form)
+
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, self)
         buttons.rejected.connect(self.accept)
         layout.addWidget(buttons)
@@ -105,10 +117,11 @@ class SettingsDialog(QDialog):
     # -- keybind capture + validation -------------------------------------
 
     def _all_bound_keys(self):
-        """Every bare key currently bound to a tool or brush, for collision
-        checks — undo/redo always carries Ctrl, so it never collides with a
-        bare tool/brush key."""
-        return set(self._tool_keys.values()) | set(self._brush_keys)
+        """Every bare key currently bound to a tool, brush or the deco flip
+        toggle, for collision checks — undo/redo always carries Ctrl, so it
+        never collides with a bare tool/brush/deco-flip key."""
+        return (set(self._tool_keys.values()) | set(self._brush_keys)
+                | {self._deco_flip_key})
 
     def _captured_key(self, edit):
         """The bare key text an edit captured, or None if empty/modified.
@@ -165,3 +178,21 @@ class SettingsDialog(QDialog):
         self._error_label.setText("")
         self._brush_keys[index] = key
         self.brush_keybind_changed.emit(index, key)
+
+    def _on_deco_flip_key_edited(self):
+        edit = self._deco_flip_edit
+        previous = self._deco_flip_key
+        key = self._captured_key(edit)
+        if key is None:
+            self._reject_edit(
+                edit, previous,
+                "Deco keybinds must be a single key with no modifier.")
+            return
+        if key != previous and key in self._all_bound_keys():
+            self._reject_edit(
+                edit, previous,
+                f"'{key}' is already bound to another tool/brush.")
+            return
+        self._error_label.setText("")
+        self._deco_flip_key = key
+        self.deco_flip_keybind_changed.emit(key)

@@ -6,32 +6,32 @@
     "scale_tiers": [
       {
         "dmg": 5,
-        "hp": 30,
+        "hp": 35,
         "spawn_interval": 0.065,
         "speed": 0.05
       },
       {
-        "dmg": 5,
-        "hp": 40,
-        "spawn_interval": 0.08,
+        "dmg": 10,
+        "hp": 50,
+        "spawn_interval": 0.09,
         "speed": 0.1
       },
       {
-        "dmg": 10,
-        "hp": 60,
-        "spawn_interval": 0.09,
-        "speed": 0.2
-      },
-      {
         "dmg": 15,
-        "hp": 90,
+        "hp": 70,
         "spawn_interval": 0.1,
         "speed": 0.2
       },
       {
-        "dmg": 30,
-        "hp": 155,
-        "spawn_interval": 0.15,
+        "dmg": 18,
+        "hp": 85,
+        "spawn_interval": 0.13,
+        "speed": 0.2
+      },
+      {
+        "dmg": 25,
+        "hp": 100,
+        "spawn_interval": 0.3,
         "speed": 0.25
       }
     ],
@@ -192,7 +192,7 @@
       },
       "dmg": 20,
       "footprint": 1,
-      "hp": 32,
+      "hp": 42,
       "move_speed": 2.7,
       "per_round": 1,
       "sprite_scale": 1.0,

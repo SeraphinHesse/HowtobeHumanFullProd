@@ -11,4 +11,4 @@ from dataclasses import dataclass
 class Camera:
     pan_x: float = 0.0
     pan_y: float = 0.0
-    zoom: float = 1.0
+    zoom: float = 2.0
