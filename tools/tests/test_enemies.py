@@ -32,7 +32,7 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
+    Boss, Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
     attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
@@ -827,6 +827,28 @@ class TestFormationBreak(unittest.TestCase):
             self.assertGreater(
                 frac,
                 ENEM["EnemyTypes"][child]["death_spawn"]["at_hp_fraction"])
+
+
+class TestRegistryGroupDrift(unittest.TestCase):
+    """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
+    required `registry_group` leaf (added so the editor can resolve a slot's
+    footprint fit without importing `game/`) is a SECOND home for what
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` class constants already say —
+    nothing wires the two together, and the brief deliberately does NOT ask
+    for that refactor here (follow-up work). This pins the two so a drift
+    between them turns red instead of silently breaking the editor preview
+    for whichever type moved."""
+
+    def test_registry_group_matches_data_for_every_enemy_subclass(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            self.assertEqual(
+                cls.REGISTRY_GROUP, block["registry_group"],
+                msg=f"{cls.__name__}.REGISTRY_GROUP ({cls.REGISTRY_GROUP!r}) "
+                    f"drifted from EnemyTypes.{'.'.join(cls.STAT_SUBTREE)}."
+                    f"registry_group ({block['registry_group']!r})")
 
 
 class TestPurity(unittest.TestCase):

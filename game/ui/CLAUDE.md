@@ -62,25 +62,32 @@ Both are fixed screen-pixel sizes (never zoom-scaled), anchored through
 the HUD pass — i.e. always on top, never depth-sorted (the accepted "HUD on top"
 simplification). Covered by `tools/tests/test_enemy_hp_bars.py`.
 
-**ESV-1: an optional manifest `hp_bar` anchor adds a composed screen offset**
-(`game/anchors.py screen_offset`, reused from `game/enemies/combat.py`'s muzzle
-read) — for enemies it is added to `_sprite_top`'s already-fitted result (D3:
-the offset rides the footprint fit, never a raw sheet-pixel lift), and for
-buildings it adds on top of the flat `cy - tile_h*zoom` baseline (no
-`_sprite_top` fit exists on that path, so none is introduced). Absent anchor ⇒
-`(0, 0)` ⇒ both expressions are the pre-ESV-1 ones, unchanged.
+**ESV-1 (SUPERSEDED by fix-anchor-origin-parity, below) originally added an
+optional manifest `hp_bar` anchor as a composed SCREEN OFFSET** on top of
+`_sprite_top`'s baseline (enemies) / the flat `cy - tile_h*zoom` baseline
+(buildings) via `game/anchors.py`'s `screen_offset`/`world_offset`, later
+taught to compose the entry's `offset_x`/`offset_y` draw nudge too
+(**fix-anchor-offset-and-bullet-sprites Fix 1**, reversing ESV-2 §1.4 — see
+`docs/briefs/fix-anchor-offset-and-bullet-sprites.md`). Both functions and
+this whole "offset on top of a baseline" model are DELETED.
 
-**fix-anchor-offset-and-bullet-sprites Fix 1 (reverses ESV-2 §1.4):**
-`screen_offset`/`world_offset` now COMPOSE the entry's `offset_x`/`offset_y`
-draw nudge into the anchor before scaling — `ax, ay = ax + ox, ay + oy` right
-after the `anchor is None` early return, still before the `ax == 0 and ay ==
-0` short-circuit (which now tests the COMPOSED pair). This matches
-`engine/render/renderer.py`'s draw math, which always applied the nudge —
-the editor's anchor handle disagreed with the renderer until this fix (see
-`docs/briefs/fix-anchor-offset-and-bullet-sprites.md`). An entry with a
-non-zero offset and NO anchors is unaffected (the early return fires first);
-only the 2 entries carrying both an anchor AND a non-zero offset — none as
-of this fix — would ever see a different composed number.
+**fix-anchor-origin-parity (current)**: an authored `hp_bar` anchor now
+**replaces the baseline outright** rather than nudging it — "anchor wins
+outright" (the designer's decision, `docs/briefs/fix-anchor-origin-
+parity.md`). `submit_hp_bars`/`submit_enemy_hp_bars` call `game.anchors.
+anchor_world_point(assets, cs, obj, "hp_bar")`; when it returns a point, the
+bar's screen anchor is `cs.world_to_screen(point)`, full stop — `_sprite_top`
+is not consulted at all. `None` (no anchor authored, or the store/cs/
+animator is absent) falls back to exactly the pre-ESV-1 baseline expression,
+byte-identical. The measured root cause this replaced: the old baseline
+(`cs.world_to_screen(obj.transform.world_pos)` for VFX, `_sprite_top` for
+enemy bars) was NOT where `engine/render`'s `Renderer.flush` actually draws
+the sprite's centre, so an offset composed on top of it still missed by the
+same gap (`tile_h/2*zoom`, 16px at zoom 1, plus `block_center_offset` for a
+multi-tile footprint) — see `game/anchors.py`'s module docstring and
+`engine/render/CLAUDE.md`'s Anchor convention section for the one shared
+formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
+resolves through.
 
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
@@ -400,10 +407,13 @@ imports:
     stay unanchored — they fire from `(col+0.5, row+0.5)` before any building
     object is reachable, and `spawn_building_vfx` receives no object, only
     coordinates. A new private helper, `_anchored(obj, name, wx, wy)`, wraps
-    `game.anchors.world_offset` and is the ONE site every anchored call goes
-    through — it returns the input UNCHANGED when the store/cs/animator/
-    anchor is absent (ESV-1), so a fresh checkout with no `anchors` authored
-    stays byte-identical. `FloaterManager` gains a THIRD host-wired handle,
+    `game.anchors.anchor_world_point` (fix-anchor-origin-parity renamed this
+    from ESV-1's `world_offset` and changed its return contract from a
+    zoom/pan-invariant DELTA to an ABSOLUTE WORLD POINT — `_anchored` itself
+    stays the ONE site every anchored call goes through) — it returns the
+    input UNCHANGED when the store/cs/animator/anchor is absent (ESV-1), so a
+    fresh checkout with no `anchors` authored stays byte-identical.
+    `FloaterManager` gains a THIRD host-wired handle,
     `self.cs` (the `self.assets`/`self.scene` precedent — wired in
     `game/main.py build_gameplay` beside them; `None` degrades to the
     unanchored point, never raises).

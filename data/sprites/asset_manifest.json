@@ -1553,12 +1553,16 @@
           -7
         ],
         "hp_bar": [
-          2,
-          -23
+          -103,
+          -60
         ],
         "impact": [
           1,
           2
+        ],
+        "muzzle": [
+          -19,
+          -8
         ]
       },
       "frame_h": 96,
@@ -1626,6 +1630,20 @@
       "sheet": "imported/enemy_stage_1_v1.png"
     },
     "enemy_stage_1_v2": {
+      "anchors": {
+        "hp_bar": [
+          -82,
+          -50
+        ],
+        "impact": [
+          3,
+          0
+        ],
+        "muzzle": [
+          -20,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2510,6 +2528,12 @@
       "sheet": "imported/main_menu_bg.png"
     },
     "maw_mortar_t1_lvl1": {
+      "anchors": {
+        "muzzle": [
+          1,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,

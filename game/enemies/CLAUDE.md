@@ -211,6 +211,19 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   `Health`/`Movement`/`SpriteAnimator`/`RangeSensor` carry the rest. The
   duck-typed values the combat sweep reads (`alive`/`dmg`) are guard-safe
   `@property`s.
+- **`REGISTRY_GROUP` now has a data-side twin, `data/balancing/enemies.json`'s
+  `EnemyTypes/<Type>.registry_group` (fix-editor-preview-footprint)** —
+  added so `editor/sprite_fit.py` can resolve a preview slot's real
+  `(footprint, sprite_scale)` render fit without the editor importing this
+  package (D5: `editor/` may never import `game/`). **This class constant
+  was deliberately NOT refactored to read `data/` in that fix** — it stays
+  the runtime source of truth here, and the two are pinned equal by
+  `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` (walks every
+  `Enemy` subclass, compares `REGISTRY_GROUP` against the `EnemyTypes` block
+  its `STAT_SUBTREE` names). A future enemy type that lets the two drift
+  turns that test red instead of silently breaking the editor's Formation-
+  style preview for it — keep both in sync by hand until/unless a later
+  phase collapses them into one source.
 - **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
   (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
   the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Its

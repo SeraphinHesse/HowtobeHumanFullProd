@@ -348,14 +348,52 @@ import list.**
     `submit_hud(HudText(...))`. Never QPainter.
   - **Handle origin COMPOSES `offset_x`/`offset_y`** (reverses ESV-2 brief
     §1.4 — see `docs/briefs/fix-anchor-offset-and-bullet-sprites.md` Fix 1):
-    `_anchor_draw_params` shifts `origin` by the entry's offset (scaled by
-    `s * zoom`) before any anchor is measured from it, so the handle sits on
-    the art exactly like the renderer draws it and matches the composed
-    game-side math (`game/anchors.py`'s `screen_offset`/`world_offset`).
-    `editor/anchor_ops.py`'s `screen_point`/`frame_px` are untouched — they
-    are pure algebra over a caller-supplied origin and exact inverses of
-    each other, so shifting the origin fixes the draw AND the drag in one
-    move.
+    `_anchor_draw_params` folds the entry's offset into the anchor origin so
+    the handle sits on the art exactly like the renderer draws it.
+    **fix-anchor-origin-parity**: `_anchor_draw_params` now computes that
+    origin by calling `engine.render.sprite_anchor_screen` directly (never a
+    hand-rolled `world_to_screen` + offset expression) — the SAME shared
+    helper `game/anchors.py`'s `anchor_world_point` calls for the game side,
+    so the editor's handle and the game's resolved anchor point cannot drift
+    apart again (the bug this fix shipped for: they used to resolve from two
+    different bases, `screen_offset`/`world_offset`'s ESV-1 delta model,
+    since deleted). `editor/anchor_ops.py`'s `screen_point`/`frame_px` are
+    untouched — they are pure algebra over a caller-supplied origin and exact
+    inverses of each other, so shifting the origin fixes the draw AND the
+    drag in one move. **RESOLVED (fix-editor-preview-footprint)**: the
+    preview used to always resolve at `fit_tiles=0.0`/`scale=1.0` (the
+    RenderItem's dataclass defaults) regardless of what the entity actually
+    was, while a real game entity draws at its own footprint fit
+    (`fit_tiles=EnemyTypes.<Type>.footprint`,
+    `scale=EnemyTypes.<Type>.sprite_scale`, `game/enemies/enemy.py`) — the
+    one slot in `data/` where those disagreed, `formation_stage_1`
+    (`frame_w: 128`, 1-tile footprint -> game `s = 0.5` vs editor `s = 1.0`),
+    resolved its anchor at HALF its intended distance in game, and drew at
+    twice its real in-game size (an ED-22 WYSIWYG violation independent of
+    anchors). Fixed by a new pure resolver, `editor/sprite_fit.py`'s
+    `slot_draw_fit(data_dir, category_key, slot_key)`: it degrades to
+    `(0.0, 1.0)` for every non-enemy category and for anything unresolvable
+    (E-37), and for `enemies` resolves the slot -> its top-level
+    `data/slots.json` "enemies" group label -> the `EnemyTypes` entry whose
+    NEW required `registry_group` string (`data/balancing/enemies.json` +
+    `enemies.schema.json`) matches that label -> `(footprint, sprite_scale)`.
+    `registry_group` exists because the editor may never import `game/`
+    (D5) and the link was otherwise expressible only in
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` Python class constants, two
+    of which do NOT match their `EnemyTypes` key by string
+    (`Standard`->`"Walker"`, `SiegeCannon`->`"Siege Cannon"`) — matching by
+    convention instead of this field would have violated "schemas over
+    convention". A NEW `ViewportPanel._preview_draw_fit()` is the ONE call
+    both the entity-preview `RenderItem` submission and
+    `_anchor_draw_params` read their `fit_tiles`/`scale` from, so the
+    preview's drawn size and the handle's resolved scale cannot drift
+    apart again — the same one-shared-formula argument
+    fix-anchor-origin-parity made for the handle's ORIGIN, now made for its
+    SCALE. `game/enemies/enemy.py`'s `REGISTRY_GROUP` constants remain a
+    SECOND home for the same link (deliberately not refactored to read
+    `data/` in this fix) — `tools/tests/test_enemies.py`'s
+    `TestRegistryGroupDrift` pins the two together so a future drift turns
+    red instead of silently breaking the editor preview.
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live

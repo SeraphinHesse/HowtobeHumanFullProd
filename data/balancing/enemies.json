@@ -74,6 +74,7 @@
         ]
       },
       "footprint": 2,
+      "registry_group": "Boss",
       "round_counts": [
         {
           "raiders": 12,
@@ -170,6 +171,7 @@
       "footprint": 1,
       "hp": 440,
       "move_speed": 0.9,
+      "registry_group": "Formation",
       "rounds_per_formation": 3,
       "sprite_scale": 1.0,
       "start_round": 16
@@ -195,6 +197,7 @@
       "hp": 32,
       "move_speed": 2.7,
       "per_round": 1,
+      "registry_group": "Raider",
       "sprite_scale": 1.0,
       "start_round": 5
     },
@@ -220,6 +223,7 @@
       "mix_ratio": 0.5,
       "move_speed": 1.0,
       "queue_lead_count": 5,
+      "registry_group": "Siege Cannon",
       "rounds_per_cannon": 1,
       "sprite_scale": 1.0,
       "start_round": 14
@@ -243,6 +247,7 @@
       "footprint": 1,
       "hp": 55,
       "move_speed": 1.2,
+      "registry_group": "Walker",
       "sprite_scale": 1.0
     }
   },

@@ -43,7 +43,7 @@ from engine.assets import Manifest, entry_from_dict
 from engine.assets.store import AssetStore
 from engine.core import GameObject, Health, Scene, SpriteAnimator, Transform
 from engine.physics import TileOccupancy
-from game.anchors import world_offset
+from game.anchors import anchor_world_point
 from game.core import load_balance, RunState
 from game.enemies import Projectile, resolve_combat
 from game.enemies.combat import ProjectileHoming
@@ -155,16 +155,22 @@ class TestWatchEnemiesMuzzleAnchor(unittest.TestCase):
         return calls
 
     def test_ranged_anchored_at_muzzle(self):
+        """fix-anchor-origin-parity §1.2: never assert against
+        `anchor_world_point` itself — the expected point is the literal
+        `game.anchors.anchor_world_point(assets, CS, e, "muzzle")` result,
+        computed independently (not via `fm._play`/`watch_enemies`) and
+        pinned as a number, for `e.transform.world_pos == (2.0, 3.0)`, a
+        `muzzle` anchor of `(40, -10)` and the fixture `anchor_test` slot's
+        `frame_w=64`/`fit_tiles=0.0`/`scale=1.0` on `CS`'s real fixture
+        geometry (tile_w=64/tile_h=32, zoom=1, no pan)."""
         assets = make_store("anchor_test", anchor_xy=(40, -10))
         e = _enemy_stub(GameObject, 2.0, 3.0, "anchor_test", 1.0)
         calls = self._fire_twice(e, assets)
         self.assertEqual(len(calls), 1)
         event, wx, wy = calls[0]
         self.assertEqual(event, "enemy_attack_ranged")
-        dwx, dwy = world_offset(assets, CS, e, "muzzle")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)
-        self.assertAlmostEqual(wx, 2.0 + dwx, places=9)
-        self.assertAlmostEqual(wy, 3.0 + dwy, places=9)
+        self.assertAlmostEqual(wx, 2.8125, places=9)
+        self.assertAlmostEqual(wy, 2.5625, places=9)
 
     def test_ranged_no_anchor_is_exact_world_pos(self):
         assets = make_store("anchor_test", anchor_xy=None)
@@ -174,15 +180,16 @@ class TestWatchEnemiesMuzzleAnchor(unittest.TestCase):
         self.assertEqual((wx, wy), (2.0, 3.0))   # exact, not approximate
 
     def test_melee_anchored_at_muzzle(self):
+        """Same independent-literal shape as the ranged test above — a
+        different `muzzle` anchor, `(15, 5)`, resolves to a different
+        literal point."""
         assets = make_store("anchor_test", anchor_xy=(15, 5))
         e = _enemy_stub(_RaiderStub, 2.0, 3.0, "anchor_test", 1.0)
         calls = self._fire_twice(e, assets)
         event, wx, wy = calls[0]
         self.assertEqual(event, "enemy_attack_melee")
-        dwx, dwy = world_offset(assets, CS, e, "muzzle")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)
-        self.assertAlmostEqual(wx, 2.0 + dwx, places=9)
-        self.assertAlmostEqual(wy, 3.0 + dwy, places=9)
+        self.assertAlmostEqual(wx, 2.890625, places=9)
+        self.assertAlmostEqual(wy, 3.421875, places=9)
 
     def test_melee_no_anchor_is_exact_world_pos(self):
         assets = make_store("anchor_test", anchor_xy=None)
@@ -210,15 +217,19 @@ class TestWatchBuildingsImpactAnchor(unittest.TestCase):
         return calls, b
 
     def test_anchored_at_impact(self):
+        """Literal, independently-computed expected point (§1.2 — never
+        against `anchor_world_point` itself): `b.transform.world_pos ==
+        (2.0, 3.0)` (note NOT the `(2.5, 3.5)` tile-centre fallback point —
+        "anchor wins outright" means an authored anchor resolves from the
+        object's OWN transform, ignoring the pre-anchor fallback entirely),
+        `impact` anchor `(6, -14)`."""
         assets = make_store_named("anchor_test", "impact", (6, -14))
         calls, b = self._fire(assets)
         self.assertEqual(len(calls), 1)
         event, wx, wy = calls[0]
         self.assertEqual(event, "building_destroyed")
-        dwx, dwy = world_offset(assets, CS, b, "impact")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)
-        self.assertAlmostEqual(wx, 2.5 + dwx, places=9)
-        self.assertAlmostEqual(wy, 3.5 + dwy, places=9)
+        self.assertAlmostEqual(wx, 2.15625, places=9)
+        self.assertAlmostEqual(wy, 2.96875, places=9)
 
     def test_no_anchor_is_exact_tile_center(self):
         assets = make_store("anchor_test", anchor_xy=None)
@@ -247,11 +258,11 @@ class TestDefenderFireEvent(unittest.TestCase):
                        on_defender_fire=on_fire)
         self.assertEqual(len(state.defender_fire_events), 1)
         wx, wy = state.defender_fire_events[0]
-        bx, by = defender.transform.world_pos
-        dwx, dwy = world_offset(assets, CS, defender, "muzzle")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)
-        self.assertAlmostEqual(wx, bx + dwx, places=9)
-        self.assertAlmostEqual(wy, by + dwy, places=9)
+        # Literal, independently-computed expected point (§1.2): matches
+        # test_combat_anchors.TestMuzzleShiftsTheSpawnPoint's own literal —
+        # same defender position (1.0, 0.0), same muzzle anchor (40, -10).
+        self.assertAlmostEqual(wx, 1.8125, places=9)
+        self.assertAlmostEqual(wy, -0.4375, places=9)
 
     def test_shipped_row_is_inert_no_visible_effect(self):
         """The ledger fills every shot (proven above); draining it through
@@ -284,17 +295,16 @@ class TestProjectileHitEvent(unittest.TestCase):
         return hom, target, hits
 
     def test_anchored_at_impact_and_fires_when_target_dies_same_frame(self):
+        """Literal, independently-computed expected point (§1.2): target
+        `transform.world_pos == (2.0, 0.0)`, `impact` anchor `(12, -30)`."""
         assets = make_store_named("anchor_test", "impact", (12, -30))
         hom, target, hits = self._homing(assets)
         hom.timer = 0.0
         hom.update(0.0)   # forces _impact()
         self.assertEqual(len(hits), 1)
         wx, wy = hits[0]
-        tx, ty = target.transform.world_pos
-        dwx, dwy = world_offset(assets, CS, target, "impact")
-        self.assertGreater(abs(dwx) + abs(dwy), 0.0)
-        self.assertAlmostEqual(wx, tx + dwx, places=9)
-        self.assertAlmostEqual(wy, ty + dwy, places=9)
+        self.assertAlmostEqual(wx, 1.75, places=9)
+        self.assertAlmostEqual(wy, -0.625, places=9)
         self.assertFalse(target.alive)   # died this same frame — hit still fires
 
     def test_no_anchor_is_exact_world_pos(self):

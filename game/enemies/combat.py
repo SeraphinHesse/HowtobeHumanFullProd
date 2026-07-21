@@ -29,7 +29,7 @@ import math
 from engine.core import (
     Component, GameObject, Health, Movement, SpriteAnimator, Transform,
 )
-from game.anchors import world_offset
+from game.anchors import anchor_world_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
@@ -127,9 +127,10 @@ class ProjectileHoming(Component):
         if target is not None and on_hit is not None:
             assets = getattr(self, "_assets", None)
             cs = getattr(self, "_cs", None)
-            tx, ty = target.transform.world_pos
-            dwx, dwy = world_offset(assets, cs, target, "impact")
-            on_hit(tx + dwx, ty + dwy)
+            point = anchor_world_point(assets, cs, target, "impact")
+            if point is None:
+                point = target.transform.world_pos
+            on_hit(*point)
         if scene is not None:
             scene.despawn(self._proj)
 
@@ -583,8 +584,10 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     # time is computed by `launch(origin=...)` below from the UNMODIFIED
     # `(bx, by)` — the two are deliberately different arguments so damage
     # timing can never be a function of an authored art coordinate.
-    dwx, dwy = world_offset(assets, cs, defender, "muzzle")
-    mx, my = bx + dwx, by + dwy
+    # fix-anchor-origin-parity: "anchor wins outright" — the muzzle point IS
+    # the exact handle point when authored, never a delta on `(bx, by)`.
+    point = anchor_world_point(assets, cs, defender, "muzzle")
+    mx, my = point if point is not None else (bx, by)
     # ESV-6: the defender_fire trigger ledger push, at the SAME
     # already-computed muzzle point — never recomputed (D2).
     if on_defender_fire is not None:
@@ -620,8 +623,9 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
     muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed."""
     bx, by = defender.transform.world_pos
-    dwx, dwy = world_offset(assets, cs, defender, "muzzle")
-    bx, by = bx + dwx, by + dwy
+    point = anchor_world_point(assets, cs, defender, "muzzle")
+    if point is not None:
+        bx, by = point
     if on_defender_fire is not None:
         on_defender_fire(bx, by)
     gx, gy = _predict_lead(target, AOE_TRAVEL_TIME)

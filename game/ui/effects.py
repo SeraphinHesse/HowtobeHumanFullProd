@@ -80,9 +80,17 @@ dispatch sites at manifest-authored anchors (VISUAL ONLY, D4) and closes the
 plan's §6 item 1 floater dead-data gap. A new host-wired handle,
 ``self.cs``, joins ``self.assets``/``self.scene`` (same ``None``-degrades-
 never-raises contract); a new private helper, ``_anchored(obj, name, wx,
-wy)``, shifts a point by ``obj``'s manifest ``name`` anchor via
-``game.anchors.world_offset`` and is a numeric no-op when the store/cs/
-animator/anchor is absent (ESV-1). ``watch_enemies`` anchors both attack
+wy)``, resolves ``obj``'s manifest ``name`` anchor via
+``game.anchors.anchor_world_point`` and falls back to the input point
+UNCHANGED when the store/cs/animator/anchor is absent (ESV-1). **fix-anchor-
+origin-parity** replaced the point's resolution: `anchor_world_point` returns
+the exact absolute world point on the sprite AS DRAWN (through
+`engine.render.sprite_anchor_screen`, the same geometry the renderer uses to
+place the sprite) rather than a delta added to a base point that used to
+disagree with where the sprite is actually centred (see `game/anchors.py`'s
+module docstring for the measured root cause) — "anchor wins outright": an
+authored anchor resolves to the exact handle point, never a nudge on top of
+a different base. ``watch_enemies`` anchors both attack
 events on the firing enemy's ``muzzle``; ``watch_buildings`` anchors
 ``building_destroyed`` on the destroyed building's ``impact``.
 ``enemy_death``/``splash_impact`` and the three building-celebration events
@@ -128,7 +136,7 @@ from engine.core import Health, SpriteAnimator
 from engine.render import (
     HudLines, HudRect, HudSprite, block_center_offset, fit_factor,
 )
-from game.anchors import screen_offset, world_offset
+from game.anchors import anchor_world_point
 from engine.render.fonts import layout_h
 from engine.vfx import (
     AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
@@ -499,13 +507,15 @@ class FloaterManager:
     # -- ESV-6: the anchor helper --------------------------------------------
 
     def _anchored(self, obj, name, wx, wy):
-        """``(wx, wy)`` shifted by ``obj``'s manifest ``name`` anchor.
-        Returns the input UNCHANGED when the store/cs/animator/anchor is
-        absent — so a manifest with no ``anchors`` key leaves every caller
-        numerically identical (ESV-1). VISUAL ONLY (D4) — never call this on
-        a value that feeds a damage/range/splash expression."""
-        dwx, dwy = world_offset(self.assets, self.cs, obj, name)
-        return (wx + dwx, wy + dwy)
+        """``obj``'s manifest ``name`` anchor point, or ``(wx, wy)``
+        UNCHANGED when the store/cs/animator/anchor is absent — so a
+        manifest with no ``anchors`` key leaves every caller numerically
+        identical (ESV-1). "Anchor wins outright" (fix-anchor-origin-
+        parity): an authored anchor resolves to the exact handle point,
+        never a delta nudging `(wx, wy)`. VISUAL ONLY (D4) — never call this
+        on a value that feeds a damage/range/splash expression."""
+        point = anchor_world_point(self.assets, self.cs, obj, name)
+        return (wx, wy) if point is None else point
 
     # -- /ESV-6 ---------------------------------------------------------------
 
@@ -870,7 +880,14 @@ class FloaterManager:
 
     def submit_hp_bars(self, renderer, cs, scene):
         """A red/green bar over every non-base building below full HP (prototype
-        hides the bar at full HP)."""
+        hides the bar at full HP).
+
+        fix-anchor-origin-parity, "anchor wins outright" (designer's
+        decision): an authored ``hp_bar`` anchor REPLACES the flat
+        ``cy - tile_h*zoom`` baseline outright (the bar's reference point
+        becomes the exact handle point, `cs.world_to_screen(anchor_world_
+        point(...))`) rather than nudging it (ESV-1's old D3 compose rule).
+        No anchor -> the flat baseline exactly as before (D3 unchanged)."""
         zoom = cs.camera.zoom
         tile_h = cs.geometry.tile_h
         assets = getattr(renderer, "assets", None)
@@ -880,15 +897,16 @@ class FloaterManager:
             health = b.get_component(Health)
             if health is None or health.hp >= health.max_hp:
                 continue
-            cx, cy = cs.world_to_screen(b.transform.wx + 0.5,
-                                        b.transform.wy + 0.5)
             w, h = 28, 4
-            # ESV-1 D3: this path has no `_sprite_top` fit to compose with —
-            # the flat `cy - tile_h*zoom` baseline stays exactly as it was;
-            # the `hp_bar` anchor offset (0,0 absent) just adds on top of it.
-            dsx, dsy = screen_offset(assets, cs, b, "hp_bar", zoom)
-            x = int(cx - w / 2 + dsx)
-            y = int(cy - tile_h * zoom + dsy)  # a little above the tile centre
+            point = anchor_world_point(assets, cs, b, "hp_bar")
+            if point is not None:
+                x_c, y_c = cs.world_to_screen(*point)
+            else:
+                cx, cy = cs.world_to_screen(b.transform.wx + 0.5,
+                                            b.transform.wy + 0.5)
+                x_c, y_c = cx, cy - tile_h * zoom  # a little above the tile centre
+            x = int(x_c - w / 2)
+            y = int(y_c)
             submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                        bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN, border=(0, 0, 0))
 
@@ -927,19 +945,27 @@ class FloaterManager:
                 w = getattr(e, "HP_BAR_W", _ENEMY_BAR_FALLBACK[0])
                 h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
                 pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
-                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
-                                            e.transform.wy + 0.5)
-                # Hang the bar off the sprite's head: its BOTTOM edge sits `pad`
-                # above the drawn top edge. The sprite grows with the camera, so
-                # both terms ride the zoom — but the bar itself stays a fixed
-                # screen size (every other bar in this file does).
-                top = _sprite_top(renderer, cs, e, cy, zoom)
-                # ESV-1 D3: the `hp_bar` anchor offset (0,0 absent) COMPOSES
-                # with the footprint fit already baked into `top` — it is
-                # added to the fitted result, never a raw sheet-pixel lift.
-                dsx, dsy = screen_offset(assets, cs, e, "hp_bar", zoom)
-                x = int(cx - w / 2 + dsx)
-                y = int(top - pad * zoom + dsy) - h - slot * _ENEMY_BAR_STACK
+                # fix-anchor-origin-parity, "anchor wins outright": an
+                # authored `hp_bar` anchor REPLACES `_sprite_top`'s baseline
+                # outright (the bar's reference point becomes the exact
+                # handle point) rather than composing on top of it (ESV-1's
+                # old D3 compose rule). No anchor -> `_sprite_top` exactly as
+                # before (D3 unchanged, footprint fit still load-bearing).
+                point = anchor_world_point(assets, cs, e, "hp_bar")
+                if point is not None:
+                    x_c, y_c = cs.world_to_screen(*point)
+                else:
+                    cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                                e.transform.wy + 0.5)
+                    # Hang the bar off the sprite's head: its BOTTOM edge
+                    # sits `pad` above the drawn top edge. The sprite grows
+                    # with the camera, so both terms ride the zoom — but the
+                    # bar itself stays a fixed screen size (every other bar
+                    # in this file does).
+                    top = _sprite_top(renderer, cs, e, cy, zoom)
+                    x_c, y_c = cx, top - pad * zoom
+                x = int(x_c - w / 2)
+                y = int(y_c) - h - slot * _ENEMY_BAR_STACK
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
