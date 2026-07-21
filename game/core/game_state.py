@@ -53,7 +53,9 @@ class RunState:
     xp_threshold_inc: int = 0   # seeded from core.XP.village_xp_threshold_inc
     levelup_pending: bool = False
     # Research progress, GLOBAL per building type (every building of a type
-    # shares its researched-tier count). Seeded from the RESEARCH table.
+    # shares its researched-tier count). Every type starts at its first tier
+    # (1) — unlocking a type is the only gate; there is no longer a
+    # "starts at tier 0" case.
     tiers_unlocked: dict = field(default_factory=dict)
     unlocked_buildings: dict = field(default_factory=dict)
     # Two more runtime-only ledgers, same contract as ``income_events``: filled
@@ -134,7 +136,7 @@ class RunState:
     @classmethod
     def from_balance(cls, core_balance, buildings_balance):
         """Seed a fresh run from the ``core`` + ``buildings`` balancing
-        domains + the RESEARCH table (which decides what starts researched;
+        domains + the RESEARCH table (every type starts researched to tier 1;
         what starts UNLOCKED is data, read live per type)."""
         # Local import: game.buildings.research is pure, but importing it at
         # module scope would run during game/core/__init__ (see research.py's
@@ -147,8 +149,7 @@ class RunState:
             base_lives=hole["base_lives"],
             xp_threshold=xp["village_xp_base_threshold"],
             xp_threshold_inc=xp["village_xp_threshold_inc"],
-            tiers_unlocked={bt: s.starts_with_tier
-                            for bt, s in RESEARCH.items()},
+            tiers_unlocked={bt: 1 for bt in RESEARCH},
             unlocked_buildings={bt: starts_unlocked_for(bt, buildings_balance)
                                 for bt in RESEARCH},
         )

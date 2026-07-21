@@ -4,8 +4,9 @@
 reconstruct a subclass after ``GameObject.from_dict`` (which returns a base
 GameObject, losing subclass identity). ``place_building`` ports the prototype's
 placement gate: buildable tile + affordability (9D) + the per-type research gate
-(10A — the type must be unlocked and its first tier researched), and wires the
-new building through the 9C seams: ``tile.occupant``/``content_key``/``state``,
+(10A — the type must be unlocked; its tier 1 is immediately placeable the
+moment it is, ``starts_with_tier`` no longer exists), and wires the new
+building through the 9C seams: ``tile.occupant``/``content_key``/``state``,
 ``Scene.spawn``, ``TileMap.sync_occupancy``. Love + the run state are passed in;
 this module never reaches into ``game.core``.
 
@@ -45,7 +46,7 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     """Place ``building_type`` on ``tile``. Returns ``(building, cost)``.
 
     Raises ``PlacementError`` if the tile is not BUILDABLE, the type is not yet
-    researched (given a ``state``), or ``love`` is below the build cost
+    unlocked (given a ``state``), or ``love`` is below the build cost
     (prototype ``Game.place_building`` gate). On success sets the tile's
     occupant/content_key/state, spawns the building into ``scene``, and re-syncs
     ``occupancy`` — the single 9C occupancy seam.

@@ -7,15 +7,16 @@ building family (10B-10E) adds a leaf class + a ``RESEARCH`` row and never
 reopens the roll.
 
 A spec never stores a gate VALUE — only where in ``buildings.json`` to read it
-(``gate_path``). Era gates need no field at all: they resolve from the leaf's
-``SUBTREE`` group (``<group>.era_unlock_round``, the one canonical era key).
-Whether a type starts unlocked is the same story: ``starts_unlocked_for``
+(``gate_path``). There is exactly ONE round gate per type: the type's UNLOCK
+card is gated by its own ``tiers[0].unlock_min_round`` (read live via
+``game.core.levelup.tier_offerable``) — unlocking a type makes its tier 1
+immediately placeable, so no separate "starts at tier 0" gate exists.
+Whether a type starts unlocked is a similar story: ``starts_unlocked_for``
 reads it live off the leaf's ``SUBTREE`` group (``<group>.starts_unlocked``) —
 a balanceable flag, not a Python default — so a designer can flip which types
 are available from round 1 by editing ``buildings.json``, not this file. The
 boost trio shares ONE flag at ``BoostBuildings.globals.starts_unlocked``
-(``starts_unlocked_path`` overrides the per-leaf default the same way
-``gate_path`` already does for their round gate).
+(``starts_unlocked_path`` overrides the per-leaf default).
 
 Import boundary: this module deliberately imports ONLY the leaf classes (which
 reach `engine` and nothing else), so ``game/core`` can read the table without
@@ -63,8 +64,7 @@ _BOOST_TRIO = ("boost_speed", "boost_damage", "boost_hp")
 class ResearchSpec:
     """How a building type enters the run, and what gates its unlock reward."""
 
-    starts_with_tier: int = 1       # 0 -> even tier 1 must be researched
-    gate_kind: str = None           # None | "min_village_level" | "min_round"
+    gate_kind: str = None           # None | "min_village_level"
     gate_path: tuple = ()           # path into buildings.json holding the gate value
     starts_unlocked_path: tuple = ()  # override for starts_unlocked_for's default
     unlock_group: tuple = ()        # types unlocked together (the boost trio)
@@ -79,10 +79,10 @@ RESEARCH = {
     "economic": ResearchSpec(),
     # 10B — the two special defence lines. Both are LOCKED types earned via a
     # level-up unlock card. Maw Mortar is gated by village level (available from
-    # level 1, i.e. the first level-up); Sun Scorcher is era-gated only — the
-    # roll resolves its gate from BeamDefence.era_unlock_round (14), so no
-    # gate_kind is needed here. (``starts_unlocked`` for both is data, read live
-    # from their own SUBTREE group — see ``starts_unlocked_for``.)
+    # level 1, i.e. the first level-up); Sun Scorcher needs no gate_kind — its
+    # unlock card is gated by its own BeamDefence.tiers[0].unlock_min_round (10),
+    # read live via tier_offerable. (``starts_unlocked`` for both is data, read
+    # live from their own SUBTREE group — see ``starts_unlocked_for``.)
     "aoe_defence": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("DefenceBuildings", "AOEDefence", "unlock_min_village_level"),
@@ -93,64 +93,58 @@ RESEARCH = {
         unlock_explanation="A burning beam that ramps up — slow to anger, "
                            "deadly to tanks."),
     # Storm Priest — a LOCKED defence type earned via a level-up unlock card,
-    # offered from the first level-up (no gate_kind/era_unlock_round, same
-    # shape as sun_scorcher above). Placing one is the ONLY way to unlock
-    # lightning strikes (game/core/lightning.py.unlock_from_placement, wired
-    # by game/ui/building_ui.py._do_place off its "lightning_source" tag).
+    # offered from the first level-up (no gate_kind, unlock_min_round is 0 on
+    # its tier 0, same shape as sun_scorcher above). Placing one is the ONLY way
+    # to unlock lightning strikes (game/core/lightning.py.unlock_from_placement,
+    # wired by game/ui/building_ui.py._do_place off its "lightning_source" tag).
     "storm_priest": ResearchSpec(
         unlock_title="Unlock Storm Priest",
         unlock_explanation="A priest whose presence summons lightning strikes."),
     # 10C — the two economy lines. Painter is a LOCKED type earned via a
     # level-up unlock card gated by village level (available from the first
     # level-up: Painters.unlock_min_village_level = 0). Meditator's type starts
-    # locked too (data-driven, see the module docstring) and starts at ZERO
-    # researched tiers regardless, so its tier 1 must be researched at a
-    # level-up after its free unlock card; the roll is era-gated from
-    # Meditators.era_unlock_round (10), so no gate_kind is needed here.
+    # locked too (data-driven, see the module docstring); unlocking it makes
+    # tier 1 immediately placeable — its unlock card is gated by
+    # Meditators.tiers[0].unlock_min_round (10), so no gate_kind is needed here.
     "painter": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("EconomyBuildings", "Painters", "unlock_min_village_level"),
         unlock_title="Unlock Painter",
         unlock_explanation="A risky artist who pays a large lump sum after "
                            "surviving a few rounds — then is gone for good."),
-    "meditator": ResearchSpec(starts_with_tier=0),
+    "meditator": ResearchSpec(),
     # 10D — the boost trio. All three are LOCKED types that unlock TOGETHER from
-    # one round-gated card (round 10, BoostBuildings.globals.unlock_min_round). The
-    # lead (boost_speed) carries the card copy + is the only one the roll offers an
-    # unlock card for; the other two ride its unlock_group (the roll skips non-lead
-    # members — see game/core/levelup.py). All three need a row so each offers its
-    # own Supporting Fan->Cheerleader->Drill Sergeant tier cards AFTER unlocking.
-    # They share ONE starts_unlocked flag at BoostBuildings.globals (their own
-    # SUBTREE groups are Speed/Damage/HP, so the default derivation would miss
-    # it — hence the explicit starts_unlocked_path on all three).
+    # one card, each gated by its own tiers[0].unlock_min_round (10 on all
+    # three). The lead (boost_speed) carries the card copy + is the only one the
+    # roll offers an unlock card for; the other two ride its unlock_group (the
+    # roll skips non-lead members — see game/core/levelup.py). All three need a
+    # row so each offers its own Supporting Fan->Cheerleader->Drill Sergeant
+    # tier cards AFTER unlocking. They share ONE starts_unlocked flag at
+    # BoostBuildings.globals (their own SUBTREE groups are Speed/Damage/HP, so
+    # the default derivation would miss it — hence the explicit
+    # starts_unlocked_path on all three).
     "boost_speed": ResearchSpec(
-        gate_kind="min_round",
-        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
         unlock_group=_BOOST_TRIO,
         unlock_title="Unlock Boost Buildings",
         unlock_explanation="Cheerleaders that buff adjacent defenders — but curse "
                            "their neighbours when they fall."),
     "boost_damage": ResearchSpec(
-        gate_kind="min_round",
-        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
         unlock_group=_BOOST_TRIO),
     "boost_hp": ResearchSpec(
-        gate_kind="min_round",
-        gate_path=("BoostBuildings", "globals", "unlock_min_round"),
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
         unlock_group=_BOOST_TRIO),
     # 10E — the two passive structure lines. Blocker's Bulwark/Bastion tiers are
     # researched at level-ups, round-gated by their own ``unlock_min_round``
-    # (8 / 15); the type itself now starts LOCKED (data-driven balance change —
-    # the prototype's ``blocker_tiers_unlocked = 1`` is no longer followed).
-    # WallBuilder's type also starts locked and starts at ZERO researched tiers
-    # regardless, so its tier 1 must be researched at a level-up after its free
-    # unlock card; the roll is era-gated from ``WallBuilder.era_unlock_round``
-    # (5), so no gate_kind is needed here — identical shape to the Meditator row.
+    # (20 / 30); the type itself starts LOCKED (data-driven balance change — the
+    # prototype's ``blocker_tiers_unlocked = 1`` is no longer followed) and its
+    # unlock card is gated by Blocker.tiers[0].unlock_min_round (5). WallBuilder's
+    # type also starts locked; unlocking it makes tier 1 immediately placeable —
+    # its unlock card is gated by WallBuilder.tiers[0].unlock_min_round (10), so
+    # no gate_kind is needed here — identical shape to the Meditator row.
     "blocker": ResearchSpec(),
-    "wall_builder": ResearchSpec(starts_with_tier=0),
+    "wall_builder": ResearchSpec(),
 }
 
 
@@ -175,7 +169,8 @@ def type_unlocked(state, btype):
 
 
 def buildable(state, btype):
-    """Can this type be placed at all? Needs the type earned AND its first tier
-    researched — the prototype's meditator / wall-builder gate (``game.py:648``),
-    where the type is "unlocked" but starts at zero researched tiers."""
-    return type_unlocked(state, btype) and tiers_unlocked_for(state, btype) >= 1
+    """Can this type be placed at all? Needs the type earned — with
+    ``starts_with_tier`` gone, every unlocked type's ``tiers_unlocked_for`` is
+    never below 1, so unlocking a type makes its tier 1 immediately placeable
+    (no second "research tier 1" card required)."""
+    return type_unlocked(state, btype)

@@ -32,8 +32,12 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction, QFont, QKeySequence, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
+    QDialogButtonBox,
     QDockWidget,
+    QFormLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QMessageBox,
     QPlainTextEdit,
@@ -44,17 +48,18 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from editor import agent_forms, keybinds, registry_ops, selection, theme
+from editor import agent_forms, keybinds, registry_ops, selection, theme, theme_ops
 from editor.thats_my_producer import show_thats_my_producer
 from editor.agent_form_dialog import AgentFormDialog
 from editor.map_session import MapSession
 from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
-from editor.ui_screen_session import UIScreenSession
+from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
+from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
 from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
@@ -63,6 +68,7 @@ from editor.panels.selector import SelectorPanel
 from editor.panels.viewport import ViewportPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
+from engine.render.fonts import configure_fonts
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
@@ -71,7 +77,8 @@ PREFS_PATH = REPO / ".editor_prefs.json"
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, max_frames=None, data_dir=None, prefs_path=None):
+    def __init__(self, max_frames=None, data_dir=None, prefs_path=None,
+                 auto_refresh_layouts=True):
         super().__init__()
         self._prefs_path = Path(prefs_path) if prefs_path is not None else PREFS_PATH
         self.setWindowTitle("How To Be Human — editor")
@@ -103,21 +110,36 @@ class MainWindow(QMainWindow):
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
         self.vfx_preview = VfxPreviewPanel(data_dir=data_dir)
+        self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
+        # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
+        # boot, same as game/main.py, so screen-mode preview text metrics
+        # match the game. Graceful {} degrade (E-37) — the editor must open
+        # on a broken tree; the game's own boot load fails loud instead.
+        try:
+            configure_fonts(theme_ops.load_fonts(self._data_dir))
+        except Exception:
+            pass
         self._node = None   # (category_key, group_path) of the tree selection
         # dirty policy when opening a DIFFERENT map/screen over unsaved edits:
         # "ask" (QMessageBox Save/Discard/Cancel) | "save" | "discard"
         self.dirty_policy = "ask"
+        # UH-2: auto-run Refresh Layouts once per screen-mode entry (never on
+        # a view/screen switch while already in screen mode). Injectable so
+        # tests never spawn a real subprocess.
+        self._auto_refresh_layouts = auto_refresh_layouts
+        self._screen_mode_entered = False
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
         self.selector.node_selected.connect(self._on_node_selected)
         self.selector.map_selected.connect(self._on_map_selected)
         self.selector.screen_selected.connect(self._on_screen_selected)
+        self.selector.screen_view_selected.connect(self._on_screen_view_selected)
         self.selector.add_requested.connect(self._on_add_requested)
         self.details.subcategory_changed.connect(self._on_subcategory_changed)
         self.levelbar.level_changed.connect(self._on_level_changed)
         self.levelbar.add_variant_requested.connect(self._on_add_variant)
-        self.levelbar.add_type_requested.connect(self._on_add_prop)
+        self.levelbar.add_type_requested.connect(self._on_add_type)
         self.details.draft_changed.connect(self.viewport.set_preview_draft)
         self.details.entry_saved.connect(self._on_manifest_changed)
         self.details.entry_cleared.connect(self._on_manifest_changed)
@@ -172,6 +194,13 @@ class MainWindow(QMainWindow):
         # ESV-4: vfx preview <-> balancing staging wiring
         self.vfx_preview.set_balancing_panel(self.balancing)
         self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
+
+        # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
+        # reconfigure engine.render.fonts in-process + repaint the viewport
+        # so previews track the new theme without a restart (chrome theme,
+        # editor/theme.py, is untouched by any of this).
+        self.selector.theme_selected.connect(self._on_theme_selected)
+        self.game_theme.saved.connect(self._on_theme_saved)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -322,6 +351,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2; + vfx preview, ESV-5)
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
+        self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -407,6 +437,7 @@ class MainWindow(QMainWindow):
         self._leave_map_mode()
         session = self.screen_session
         if session.doc is not None and session.screen_id == screen_id:
+            session.set_view(self._default_view(screen_id))
             self._enter_screen_mode()   # same doc (possibly dirty): keep edits
             return
         if not self._resolve_dirty(session):
@@ -414,7 +445,34 @@ class MainWindow(QMainWindow):
             self.selector.select_screen(session.screen_id)
             return
         session.open(screen_id)
+        session.set_view(self._default_view(screen_id))
         self._enter_screen_mode()
+
+    def _on_screen_view_selected(self, screen_id, view_id):
+        # UH-2: a Screens-branch VIEW leaf (a child of a screen leaf) was
+        # selected — identical flow to _on_screen_selected, but the view is
+        # the one the user picked, not the screen's default.
+        self._leave_map_mode()
+        session = self.screen_session
+        if session.doc is not None and session.screen_id == screen_id:
+            session.set_view(view_id)
+            self._enter_screen_mode()   # same doc (possibly dirty): keep edits
+            return
+        if not self._resolve_dirty(session):
+            # cancelled: put the selection back on the still-open screen
+            self.selector.select_screen(session.screen_id)
+            return
+        session.open(screen_id)
+        session.set_view(view_id)
+        self._enter_screen_mode()
+
+    def _default_view(self, screen_id):
+        """The view a bare screen-leaf selection opens: the first view in
+        game-mode order if the screen has views (D-3's sorted-keys JSON
+        would otherwise alphabetize them), else None (the screen's single
+        implicit view — every non-building screen)."""
+        views = self._load_screen_defaults().get(screen_id, {}).get("views")
+        return ordered_views(views)[0] if views else None
 
     def _enter_screen_mode(self):
         # ED-42: re-read the manifest on every entry, not just after an
@@ -425,6 +483,15 @@ class MainWindow(QMainWindow):
         # loads sheets lazily, so this is just a fresh manifest read + a
         # fresh AssetStore (engine/assets/CLAUDE.md "no cache invalidation").
         self.viewport.reload_assets()
+        # UH-2: auto Refresh Layouts ONCE per screen-mode entry (switching
+        # screens/views while already in screen mode does not re-run it).
+        # Reuses the tracked export_layouts subprocess — its own
+        # completion handler (_on_export_layouts_finished) already refreshes
+        # the defaults/status bar; a run already in flight silently refuses
+        # the auto-call (run_controls' one-tracked-process rule).
+        if self._auto_refresh_layouts and not self._screen_mode_entered:
+            self.run_controls.export_layouts()
+        self._screen_mode_entered = True
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
@@ -437,6 +504,7 @@ class MainWindow(QMainWindow):
         if self.viewport.in_screen_mode():
             self.viewport.set_screen_mode(None)
         self.right_stack.setCurrentWidget(self.details_pane)
+        self._screen_mode_entered = False
 
     def _load_screen_defaults(self):
         """data/ui/screen_defaults.json (B3's exporter output). Missing or
@@ -547,7 +615,8 @@ class MainWindow(QMainWindow):
         self.levelbar.set_levels(
             slots, assigned,
             can_add=self._variant_target() is not None,
-            can_add_type=category_key == self._DECO_CATEGORY)
+            can_add_type=category_key == self._DECO_CATEGORY
+            or self._node == self._BUTTON_TYPE_NODE)
         self._apply_slot()
 
     # Which categories offer "+ Variant", and (when not None) WHICH of their
@@ -560,6 +629,9 @@ class MainWindow(QMainWindow):
     _VARIANT_TARGETS = {"enemies": None, "deco": None, "map": {"Background"},
                         "ui": None}
     _DECO_CATEGORY = "deco"
+    # ui -> Buttons is the second "+ Type" target: a brand-new button FAMILY
+    # (its own variant family), not another skin of an existing one.
+    _BUTTON_TYPE_NODE = ("ui", ("Buttons",))
 
     def _variant_target(self):
         """The leaf child-label a new variant would extend for the current
@@ -637,6 +709,7 @@ class MainWindow(QMainWindow):
         self.selector.reload_registry()
         self.details.reload_registry()
         self.viewport.reload_registry()
+        self.screen_details.reload_registry()
 
     def _bind_background_code(self, slot):
         """Claim a legend code for a new background slot in the OPEN map (an
@@ -697,6 +770,70 @@ class MainWindow(QMainWindow):
             self.details.select_subcategory_label(label)
             self._refresh_levels()
         self.statusBar().showMessage(f"Added prop type {label}", 5000)
+
+    def _on_add_type(self):
+        """Dispatch the LevelBar's '+ Type' button by current selection:
+        ui -> Buttons gets a brand-new button FAMILY (its own variant
+        family, `_on_add_button_type`); every other '+ Type' target (deco)
+        keeps the existing prop-type behavior (`_on_add_prop`)."""
+        if self._node == self._BUTTON_TYPE_NODE:
+            self._on_add_button_type()
+        else:
+            self._on_add_prop()
+
+    def _on_add_button_type(self, name=None):
+        """+ Type on ui -> Buttons: add a brand-new button FAMILY (a leaf
+        child group under Buttons, ready for its own variants) rather than
+        another skin of an existing one. ``name=None`` opens the naming
+        dialog; passing ``name=`` is the test seam (same philosophy as
+        ``dirty_policy`` / injectable ``detach`` elsewhere — tests never
+        exec a modal)."""
+        if name is None:
+            name = self._prompt_button_type_name()
+            if name is None:
+                return
+        try:
+            label, new_slot = registry_ops.add_button_family(
+                self._data_dir, name)
+        except (KeyError, OSError, ValueError) as exc:
+            self.statusBar().showMessage(
+                f"Could not add button type: {exc}", 5000)
+            return
+        self._reload_registries()
+        self.details.set_context("ui", ("Buttons",))
+        self.details.select_subcategory_label(label)
+        self._refresh_levels()
+        self.statusBar().showMessage(
+            f"Added button type {label} ({new_slot})", 5000)
+
+    def _prompt_button_type_name(self):
+        """Modal naming dialog for a new button family: a name field that
+        live-previews the derived slot key (`registry_ops.button_family_slot`).
+        Returns the typed name, or None if cancelled."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Add button type")
+        form = QFormLayout(dialog)
+        name_edit = QLineEdit(dialog)
+        form.addRow("Type name", name_edit)
+        preview = QLabel("", dialog)
+        form.addRow("Slot key", preview)
+
+        def update_preview(text):
+            try:
+                preview.setText(registry_ops.button_family_slot(text))
+            except ValueError:
+                preview.setText("—")
+
+        name_edit.textChanged.connect(update_preview)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok
+            | QDialogButtonBox.StandardButton.Cancel, parent=dialog)
+        buttons.accepted.connect(dialog.accept)
+        buttons.rejected.connect(dialog.reject)
+        form.addRow(buttons)
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+        return name_edit.text()
 
     def _apply_slot(self):
         category_key, group_path = self._node
@@ -850,6 +987,29 @@ class MainWindow(QMainWindow):
 
     def _on_settings(self):
         self._build_settings_dialog().exec()
+
+    # -- Theme panel (UH-6, D5) -----------------------------------------------
+
+    def _on_theme_selected(self):
+        """The selector's Theme leaf: reload both docs fresh (a designer may
+        have hand-edited nothing, but this mirrors every other selection-
+        driven panel's "reload on entry" convention) and show the panel."""
+        self.game_theme.set_theme()
+        self.right_stack.setCurrentWidget(self.game_theme)
+
+    def _on_theme_saved(self):
+        """Theme panel Save: reconfigure engine.render.fonts in-process so
+        screen-mode preview TEXT tracks the new sizes immediately, then
+        repaint — chrome theme (editor/theme.py) is untouched by any of
+        this. Palette edits have no separate editor-side consumer to
+        reconfigure (game/ui.widgets is game-only — off limits to the
+        editor, ED layering rule); the game re-reads palette.json at its
+        own next boot. Graceful degrade mirrors the boot-time load above."""
+        try:
+            configure_fonts(theme_ops.load_fonts(self._data_dir))
+        except Exception:
+            pass
+        self.viewport.render_frame()
 
     # -- frame drive ---------------------------------------------------------
 

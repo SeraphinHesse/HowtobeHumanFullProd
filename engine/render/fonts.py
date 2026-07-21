@@ -67,6 +67,38 @@ def layout_h(font_key):
     return _LAYOUT_H[key]
 
 
+def configure_fonts(doc):
+    """Replace ``_FONT_SPECS``'s entries IN PLACE from a loaded
+    ``data/ui/fonts.json`` doc (D5/UH-6): ``{key: {"size": int, "bold":
+    bool}}``. The HOST (``game/main.py``) loads + schema-validates the file
+    and passes the plain dict — this module stays data-dir-free so bare
+    construction (tests/tools) never needs a ``data/`` tree, exactly like
+    ``game.ui.skinning.ScreenSkinning.empty()``'s no-disk-I/O precedent.
+
+    Same 7 keys as today's presets — fails loud on a key-set mismatch (a
+    renamed/dropped preset would otherwise leave some ``font_key`` silently
+    unconfigured, the "no silent break" argument every D5 data file shares).
+    Clears ``_cache`` so already-built ``SysFont`` objects (sized from the
+    OLD spec) are rebuilt on the next ``get_font`` — a stale cached font
+    would otherwise keep drawing at the old size until process restart.
+
+    Does NOT touch ``_LAYOUT_H``/``layout_h`` (the pinned cross-platform
+    layout invariant, W3-4/UH-6 plan §5): a designer who enlarges a preset
+    changes drawn glyphs only; STORED layout rects (screen_defaults.json,
+    every id'd widget rect) are unaffected — text can overflow its widget,
+    which is the pinned-layout contract, not a bug (the Theme panel says so
+    in a tooltip)."""
+    unknown = set(doc) - set(_FONT_SPECS)
+    missing = set(_FONT_SPECS) - set(doc)
+    if unknown or missing:
+        raise ValueError(
+            f"fonts.json key set mismatch: missing {sorted(missing)}, "
+            f"unknown {sorted(unknown)}")
+    for key, spec in doc.items():
+        _FONT_SPECS[key] = (spec["size"], spec["bold"])
+    _cache.clear()
+
+
 _cache = {}
 
 

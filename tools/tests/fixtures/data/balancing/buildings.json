@@ -149,8 +149,7 @@
     },
     "globals": {
       "flat_mode": false,
-      "starts_unlocked": false,
-      "unlock_min_round": 10
+      "starts_unlocked": false
     }
   },
   "BuildingsGlobal": {
@@ -308,7 +307,6 @@
       ]
     },
     "BeamDefence": {
-      "era_unlock_round": 14,
       "starts_unlocked": false,
       "target_death_cooldown": 1.4,
       "tiers": [
@@ -434,7 +432,6 @@
   },
   "EconomyBuildings": {
     "Meditators": {
-      "era_unlock_round": 10,
       "starts_unlocked": false,
       "tiers": [
         {
@@ -620,7 +617,6 @@
       ]
     },
     "WallBuilder": {
-      "era_unlock_round": 5,
       "starts_unlocked": false,
       "tiers": [
         {

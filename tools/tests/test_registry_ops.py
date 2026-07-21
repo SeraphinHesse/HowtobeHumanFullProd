@@ -206,5 +206,81 @@ class TestAddVariant(TempDataCase):
                          reg.frame_size(new_key))
 
 
+class TestButtonFamilySlot(unittest.TestCase):
+    def test_simple_name_gets_the_prefix(self):
+        self.assertEqual(registry_ops.button_family_slot("Tab"), "ui_button_tab")
+
+    def test_spaces_and_repeats_collapse_to_one_underscore(self):
+        self.assertEqual(
+            registry_ops.button_family_slot("Big Red  Button"),
+            "ui_button_big_red_button")
+
+    def test_typing_the_key_form_does_not_double_prefix(self):
+        self.assertEqual(
+            registry_ops.button_family_slot("ui_button_tab"), "ui_button_tab")
+
+    def test_empty_name_raises(self):
+        with self.assertRaises(ValueError):
+            registry_ops.button_family_slot("")
+
+    def test_unsluggable_name_raises(self):
+        with self.assertRaises(ValueError):
+            registry_ops.button_family_slot("###")
+
+
+class TestAddButtonFamily(TempDataCase):
+    def test_add_button_family_appends_validates_and_inherits_frame_size(self):
+        label, slot = registry_ops.add_button_family(self.data_dir, "Tab")
+        self.assertEqual((label, slot), ("Tab", "ui_button_tab"))
+
+        # write validated + reload cross-checks (schema-valid result)
+        reg = load_registry(self.data_dir)
+        self.assertIn(
+            "ui_button_tab", reg.group_slots("ui", ("Buttons", "Tab")))
+
+        # the appended slots[] entry is a BARE string (the frame-size
+        # default), not a {key, frame_w, frame_h} override
+        doc = data_io.load_json(self.data_dir / "slots.json")
+        ui_category = next(
+            c for c in doc["categories"] if c["key"] == "ui")
+        buttons_group = next(
+            g for g in ui_category["groups"] if g["label"] == "Buttons")
+        tab_child = next(
+            c for c in buttons_group["children"] if c["label"] == "Tab")
+        self.assertIsInstance(tab_child["slots"][0], str)
+
+        # and it INHERITS the ui category's frame size rather than a
+        # written-in-stone 64x64
+        category = reg.category("ui")
+        self.assertEqual(
+            reg.frame_size("ui_button_tab"),
+            (category.frame_w, category.frame_h))
+
+    def test_name_collision_raises_and_writes_nothing(self):
+        registry_ops.add_button_family(self.data_dir, "Tab")
+        slots_path = self.data_dir / "slots.json"
+        before = slots_path.read_bytes()
+
+        with self.assertRaises(ValueError):
+            registry_ops.add_button_family(self.data_dir, "Tab")
+        self.assertEqual(slots_path.read_bytes(), before)
+
+        # the key form ("ui_button_tab") collides on the derived slot too
+        with self.assertRaises(ValueError):
+            registry_ops.add_button_family(self.data_dir, "ui_button_tab")
+        self.assertEqual(slots_path.read_bytes(), before)
+
+    def test_new_family_is_variantable(self):
+        registry_ops.add_button_family(self.data_dir, "Tab")
+        new_key = registry_ops.add_variant(
+            self.data_dir, "ui", ("Buttons",), "Tab")
+        self.assertEqual(new_key, "ui_button_tab_v2")
+
+        reg = load_registry(self.data_dir)
+        self.assertEqual(
+            reg.group_slots("ui", ("Buttons", "Tab")),
+            ("ui_button_tab", "ui_button_tab_v2"))
+
+
 if __name__ == "__main__":
     unittest.main()

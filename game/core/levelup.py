@@ -2,22 +2,24 @@
 
 Pure logic (no pygame). Ports the prototype's ``_roll_levelup_options`` /
 ``_apply_levelup_option`` / ``_tier_option`` / ``tiers_unlocked_for`` /
-``_tier_offerable`` / ``_era_unlock_round`` (``src/core/game.py:1444-1790``) and
-the five-mode upgrade classifier from ``src/ui/building_ui.py:1327-1355``.
+``_tier_offerable`` (``src/core/game.py:1444-1790``) and the five-mode upgrade
+classifier from ``src/ui/building_ui.py:1327-1355``.
 
-Three gates stack, all read live from ``data/balancing/buildings.json``:
+TWO gates stack, both read live from ``data/balancing/buildings.json``:
 
 1. **type unlock** — is the building type earned at all
-   (``RunState.unlocked_buildings``, seeded from ``RESEARCH``)?
-2. **era gate** — ``<group>.era_unlock_round``: a type is out of the pool
-   entirely until the run reaches that round. Absent -> 0 -> never gated.
-   This is the ONE canonical era key (10A lifted it off the tier dicts).
-3. **per-tier round gate** — ``tiers[idx].unlock_min_round``: a tier can't be
+   (``RunState.unlocked_buildings``, seeded from ``RESEARCH``)? A locked
+   type's UNLOCK card is itself gated by its own ``tiers[0].unlock_min_round``
+   (via ``tier_offerable(state, btype, 0, ...)``) — tier 0's round gate
+   doubles as the type's era gate, so there is no separate group-level key.
+2. **per-tier round gate** — ``tiers[idx].unlock_min_round``: a tier can't be
    researched, previewed or named before that round.
 
 Only the SINGLE next locked tier of a type is ever offerable
 (``idx == tiers_unlocked``), so Pistoleer stays hidden until Slinger is bought.
 Tier research is GLOBAL per type: every building of that type shares the count.
+Unlocking a type makes its tier 1 immediately placeable (no more "starts at
+tier 0" case — see ``game/buildings/research.py``).
 """
 from functools import reduce
 
@@ -43,11 +45,6 @@ def tiers_for(btype, buildings_balance):
     return _group(btype, buildings_balance)["tiers"]
 
 
-def era_unlock_round(btype, buildings_balance):
-    """Earliest round this TYPE may appear in the level-up pool (0 = no gate)."""
-    return _group(btype, buildings_balance).get("era_unlock_round", 0)
-
-
 def tier_unlock_min_round(btype, idx, buildings_balance):
     tiers = tiers_for(btype, buildings_balance)
     if 0 <= idx < len(tiers):
@@ -66,14 +63,15 @@ def tier_offerable(state, btype, idx, buildings_balance):
 
 
 def _gate_met(state, spec, buildings_balance):
-    """The per-type unlock-reward gate (village level / round / none)."""
+    """The per-type unlock-reward gate (village level / none). The round axis
+    is no longer a spec-level gate_kind — it is the type's own
+    ``tiers[0].unlock_min_round``, checked separately via ``tier_offerable``
+    in ``roll_levelup_options``."""
     if spec.gate_kind is None:
         return True
     value = reduce(lambda d, k: d[k], spec.gate_path, buildings_balance)
     if spec.gate_kind == "min_village_level":
         return state.village_level >= value
-    if spec.gate_kind == "min_round":
-        return state.round_num >= value
     raise ValueError(f"unknown gate_kind {spec.gate_kind!r}")
 
 
@@ -157,9 +155,6 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng):
     for btype, spec in RESEARCH.items():
         if btype not in LEAF_CLASSES:
             continue
-        era = era_unlock_round(btype, buildings_balance)
-        if state.round_num < era:
-            continue  # era gate hides the type entirely
         if type_unlocked(state, btype):
             # Only the single next locked tier can be offered.
             idx = tiers_unlocked_for(state, btype)
@@ -167,7 +162,8 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng):
             if idx < len(tiers) and tier_offerable(state, btype, idx,
                                                    buildings_balance):
                 pool.append(_tier_option(btype, idx, buildings_balance))
-        elif _gate_met(state, spec, buildings_balance):
+        elif (_gate_met(state, spec, buildings_balance)
+              and tier_offerable(state, btype, 0, buildings_balance)):
             # Grouped unlock (the boost trio): all members are seeded locked so
             # each offers its own tier cards after unlocking, but only the LEAD
             # type offers the shared "unlock all three" card — skip the rest so
