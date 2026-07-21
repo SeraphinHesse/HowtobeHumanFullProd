@@ -354,7 +354,18 @@ class GameThemePanel(QWidget):
     def _family_for_font_id(self, font_id):
         """Qt family name for the CURRENTLY SELECTED combo choice — 'None'
         (Qt's own default) for 'default', loading the .ttf/.otf into
-        QFontDatabase (cached per font_id) otherwise."""
+        QFontDatabase (cached per font_id) otherwise.
+
+        **Registered from BYTES, never a path** (the exact argument
+        ``engine.render.fonts.configure_fonts`` makes for its own side):
+        ``QFontDatabase.addApplicationFont(<path>)`` itself is harmless, but
+        the first time Qt's font engine actually loads a glyph from that
+        family it opens the file and holds it for as long as the family
+        stays registered — on Windows that is a hard lock, so a preview
+        render would leave the editor sitting on the designer's font file
+        and would break every ``TempDataCase`` teardown that rmtree's a
+        copied ``data/``. ``addApplicationFontFromData`` copies into memory
+        up front and never touches the path again."""
         if font_id == "default":
             return None
         if font_id in self._loaded_font_families:
@@ -362,8 +373,13 @@ class GameThemePanel(QWidget):
         entry = self._font_manifest_doc["entries"].get(font_id)
         if entry is None:
             return None
-        path = str(self._data_dir / "fonts" / entry["file"])
-        font_db_id = QFontDatabase.addApplicationFont(path)
+        path = self._data_dir / "fonts" / entry["file"]
+        try:
+            data = Path(path).read_bytes()
+        except OSError:
+            self._loaded_font_families[font_id] = None
+            return None
+        font_db_id = QFontDatabase.addApplicationFontFromData(data)
         families = QFontDatabase.applicationFontFamilies(font_db_id)
         family = families[0] if families else None
         self._loaded_font_families[font_id] = family

@@ -10,6 +10,9 @@ nothing, and font.init() is called defensively so construction never crashes.
 font_key set: sm/md/lg/xl/xxl mirror the prototype 1:1 (lg/xl/xxl bold), plus
 hud_phase/hud_lvl for the phase (bottom-left) and village-level readouts.
 """
+import io
+from pathlib import Path
+
 import pygame
 
 # font_key -> (point size, bold). Prototype fonts.init() parity for the shared
@@ -84,14 +87,25 @@ def configure_fonts(doc, font_path=None):
 
     ``font_path`` (UH-Font-A, optional) is an absolute path to a custom
     ``.ttf``/``.otf`` file — a game-wide font family, ORTHOGONAL to the
-    per-key size/bold presets above. When set, every ``font_key`` builds via
-    ``pygame.font.Font(font_path, size)`` instead of the default
+    per-key size/bold presets above. When set, every ``font_key`` builds
+    from that file instead of the default
     ``pygame.font.SysFont("monospace", ...)``. ``None`` (the default)
     preserves today's SysFont behavior exactly — this module still never
     touches ``data/`` itself; the HOST resolves ``data/ui/active_font.json``
     + ``data/fonts/font_manifest.json`` to an absolute path or ``None``
     before calling (``game/main.py`` fails loud on a bad reference per D-2;
     the editor's Theme panel degrades per E-37).
+
+    **The file is READ ONCE, here, into ``_FONT_BYTES``** — ``get_font``
+    then builds each size from an ``io.BytesIO`` over those bytes rather
+    than from the path. ``pygame.font.Font(<path>, size)`` makes SDL_ttf
+    hold that file OPEN for the font object's whole lifetime, and these
+    objects live in ``_cache`` until the process exits: on Windows that is
+    a hard lock, so the editor would hold the designer's font file hostage
+    while it runs and every ``TempDataCase`` teardown would die on
+    ``shutil.rmtree`` -> ``PermissionError``. Reading eagerly also moves a
+    bad/unreadable file's failure to config time (loud, where the host is
+    already validating) instead of the first draw.
 
     Does NOT touch ``_LAYOUT_H``/``layout_h`` (the pinned cross-platform
     layout invariant, W3-4/UH-6 plan §5): a designer who enlarges a preset
@@ -107,8 +121,9 @@ def configure_fonts(doc, font_path=None):
             f"unknown {sorted(unknown)}")
     for key, spec in doc.items():
         _FONT_SPECS[key] = (spec["size"], spec["bold"])
-    global _FONT_PATH
+    global _FONT_PATH, _FONT_BYTES
     _FONT_PATH = str(font_path) if font_path is not None else None
+    _FONT_BYTES = Path(_FONT_PATH).read_bytes() if _FONT_PATH is not None else None
     _cache.clear()
 
 
@@ -116,6 +131,9 @@ _cache = {}
 # UH-Font-A: the active custom font FILE (absolute path) or None for the
 # SysFont fallback — set only via configure_fonts, never touched elsewhere.
 _FONT_PATH = None
+# ...and its CONTENT, slurped once by configure_fonts. get_font builds from
+# these bytes so no font object ever holds the file open (see the docstring).
+_FONT_BYTES = None
 
 
 def _ensure_init():
@@ -139,10 +157,11 @@ def _is_usable(font):
 def get_font(font_key):
     """Cached font for font_key (created on first use, rebuilt if its pygame
     session died). Unknown keys fall back to 'md', mirroring the prototype's
-    fonts.get(). Builds via ``pygame.font.Font(_FONT_PATH, size)`` when a
-    custom font family is configured (UH-Font-A), else the original
-    ``SysFont("monospace", ...)`` fallback — unchanged when ``_FONT_PATH`` is
-    ``None`` (the default / unconfigured state)."""
+    fonts.get(). Builds from ``_FONT_BYTES`` (via ``io.BytesIO``, never the
+    path — see ``configure_fonts``) when a custom font family is configured
+    (UH-Font-A), else the original ``SysFont("monospace", ...)`` fallback —
+    unchanged when ``_FONT_BYTES`` is ``None`` (the default / unconfigured
+    state)."""
     _ensure_init()
     key = font_key if font_key in _FONT_SPECS else _FALLBACK_KEY
     font = _cache.get(key)
@@ -150,8 +169,8 @@ def get_font(font_key):
         font = None
     if font is None:
         size, bold = _FONT_SPECS[key]
-        if _FONT_PATH is not None:
-            font = pygame.font.Font(_FONT_PATH, size)
+        if _FONT_BYTES is not None:
+            font = pygame.font.Font(io.BytesIO(_FONT_BYTES), size)
             font.set_bold(bold)
         else:
             font = pygame.font.SysFont("monospace", size, bold=bold)

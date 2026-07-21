@@ -937,6 +937,20 @@ calls):
     switching back and forth in the combo doesn't reload the same file
     twice; the cache is cleared on `set_theme()` (a fresh entry into the
     Theme leaf re-reads from disk).
+    - **Register from BYTES — `addApplicationFontFromData`, never
+      `addApplicationFont(<path>)`.** The path form looks harmless (it does
+      not lock on its own), but the first time Qt's font engine actually
+      loads a GLYPH from that family it opens the file and holds it for as
+      long as the family stays registered — on Windows a hard lock, and
+      `MainWindow` construction alone is enough to trigger it. That left the
+      editor sitting on the designer's font file for its whole run and broke
+      every `TempDataCase` teardown (`shutil.rmtree` -> `PermissionError`)
+      the moment a non-`"default"` font was active. This is the SAME trap
+      and the SAME fix as `engine/render/fonts.py`'s `_FONT_BYTES` on the
+      pygame side (`engine/render/CLAUDE.md`) — two font stacks, one rule:
+      **the font file is read once into memory and never held open.** An
+      unreadable file caches `None` and degrades to the default family
+      (E-37), never raises into a Qt handler.
   - **`editor/font_import.py`** (Qt-free, pygame-used, in `TestPurity`):
     `import_font_file(data_dir, ttf_path, display_name=None) -> font_id`
     validates the file loads via a short `pygame.font.Font(path, 12)` probe

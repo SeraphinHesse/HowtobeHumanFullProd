@@ -1,4 +1,9 @@
 {
-  "entries": {},
+  "entries": {
+    "pixel_emulator": {
+      "display_name": "Pixel Emulator",
+      "file": "imported/pixel_emulator.otf"
+    }
+  },
   "version": 1
 }

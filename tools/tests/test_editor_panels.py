@@ -1201,6 +1201,44 @@ class TestGameThemePanel(TempDataCase):
             theme_ops.load_fonts(self.data_dir)["lg"]["size"], size_spin.value())
         self.assertTrue(panel._font_dots["lg"].isHidden())
 
+    def test_preview_never_holds_the_font_file_open(self):
+        """UH-Font-A: the Font Family preview must register the font from
+        BYTES (``addApplicationFontFromData``), never from its path.
+
+        ``addApplicationFont(<path>)`` looks harmless — it does not lock on
+        its own — but the first time Qt's font engine loads a GLYPH from
+        that family it opens the file and holds it while the family stays
+        registered. On Windows that is a hard lock, so merely building the
+        preview left the editor sitting on the designer's font file and
+        broke every TempDataCase teardown (``shutil.rmtree`` cannot unlink
+        it). The pygame side has the identical trap; see
+        ``test_theme_data.TestCustomFontFileIsNeverHeldOpen``.
+
+        The fixture is PINNED, not inherited: this imports its own font and
+        makes it active in the temp tree rather than trusting whatever
+        ``data/ui/active_font.json`` happens to point at today — the whole
+        bug is invisible while that pointer reads ``"default"``."""
+        import pygame
+        from PySide6.QtGui import QFont, QFontMetrics
+
+        from editor import font_import, theme_ops
+
+        source = Path(pygame.__file__).parent / pygame.font.get_default_font()
+        font_id = font_import.import_font_file(
+            self.data_dir, source, display_name="Pin Fixture")
+        theme_ops.write_active_font({"font_id": font_id}, self.data_dir)
+        imported = theme_ops.resolve_active_font_path(self.data_dir)
+        self.assertIsNotNone(imported)
+
+        panel = self.make()
+        family = panel._family_for_font_id(font_id)
+        self.assertIsNotNone(family)
+        # Force a real glyph load — registering alone never locked anything.
+        QFontMetrics(QFont(family)).horizontalAdvance("Ag")
+
+        os.unlink(imported)   # Windows: raises here if a handle is open.
+        self.assertFalse(Path(imported).exists())
+
 
 class TestThemeSwitch(TempDataCase):
     """The settings dialog's dark-mode checkbox repaints the app chrome and

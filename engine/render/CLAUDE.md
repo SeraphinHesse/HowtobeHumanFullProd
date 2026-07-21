@@ -226,12 +226,24 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
     - **`font_path` (UH-Font-A, optional)** is the game-wide custom font
       family — ORTHOGONAL to the per-key size/bold presets: an absolute path
       to a `.ttf`/`.otf`, or `None` (the default) to keep the plain
-      `SysFont("monospace", ...)` fallback exactly as before. `get_font`
-      builds via `pygame.font.Font(_FONT_PATH, size)` + `set_bold(bold)` when
-      set. The HOST resolves `data/ui/active_font.json` +
-      `data/fonts/font_manifest.json` to this value — `game/main.py` fails
-      loud on a bad reference (D-2), the editor's Theme panel degrades to
-      `None` (E-37). See `data/CLAUDE.md` "Theme data".
+      `SysFont("monospace", ...)` fallback exactly as before. The HOST
+      resolves `data/ui/active_font.json` + `data/fonts/font_manifest.json`
+      to this value — `game/main.py` fails loud on a bad reference (D-2),
+      the editor's Theme panel degrades to `None` (E-37). See
+      `data/CLAUDE.md` "Theme data".
+    - **The file is READ ONCE into `_FONT_BYTES`, and `get_font` builds each
+      size from an `io.BytesIO` over those bytes — NEVER from the path.**
+      `pygame.font.Font(<path>, size)` makes SDL_ttf hold that file OPEN for
+      the font object's whole lifetime, and those objects live in `_cache`
+      until the process exits; on Windows that is a hard lock. Via the path
+      form, the editor sat on the designer's font file for its whole run and
+      every `TempDataCase` teardown died on `shutil.rmtree` ->
+      `PermissionError` the moment a non-`"default"` font was active — which
+      is why nothing caught it until the first real font was selected. The
+      editor's Qt-side PREVIEW has the identical trap and the identical fix
+      (`addApplicationFontFromData`, see `editor/panels/CLAUDE.md`). Reading
+      eagerly also moves a bad file's failure to config time, where the host
+      is already validating, instead of the first draw.
   - **`_LAYOUT_H`/`layout_h` are NEVER touched by `configure_fonts`** — the
     pinned cross-platform layout invariant (below) stays authoritative
     regardless of a designer's font-size edits; only DRAWN glyphs move, never
