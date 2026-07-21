@@ -123,7 +123,7 @@
     "mock_note": "love=123, round=7; first-wins union of the five per-mode views ('unlock', 'construct', 'upgrade', 'base_info', 'preview') for ids shared across modes (panel/close_btn) — see views.<name>.mock_note for that mode's own mock state",
     "views": {
       "base_info": {
-        "mock_note": "love=123, round=7; mock lightning_level=1",
+        "mock_note": "love=123, round=7",
         "widgets": {
           "boss_btn": {
             "display_name": "Boss history button",
@@ -156,17 +156,6 @@
               8,
               20,
               18
-            ]
-          },
-          "lightning_btn": {
-            "display_name": "Lightning upgrade button",
-            "kind": "button",
-            "label": "UPGRADE LIGHTNING  ♥35",
-            "rect": [
-              1032,
-              370,
-              236,
-              36
             ]
           },
           "panel": {
@@ -400,17 +389,6 @@
           8,
           20,
           18
-        ]
-      },
-      "lightning_btn": {
-        "display_name": "Lightning upgrade button",
-        "kind": "button",
-        "label": "UPGRADE LIGHTNING  ♥35",
-        "rect": [
-          1032,
-          370,
-          236,
-          36
         ]
       },
       "panel": {

@@ -72,33 +72,13 @@
           "maxItems": 3,
           "minItems": 3,
           "type": "array"
-        },
-        "unlock_cost": {
-          "description": "Love cost to unlock lightning at level 1.",
-          "maximum": 10000,
-          "minimum": 0,
-          "type": "integer"
-        },
-        "upgrade_costs": {
-          "description": "Love cost per upgrade (level 1->2, 2->3).",
-          "items": {
-            "description": "Love cost of this upgrade step.",
-            "maximum": 10000,
-            "minimum": 0,
-            "type": "integer"
-          },
-          "maxItems": 2,
-          "minItems": 2,
-          "type": "array"
         }
       },
       "required": [
         "cooldown",
         "damage",
         "max_level",
-        "radius",
-        "unlock_cost",
-        "upgrade_costs"
+        "radius"
       ],
       "type": "object"
     },

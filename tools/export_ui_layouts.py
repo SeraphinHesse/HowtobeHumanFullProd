@@ -78,7 +78,6 @@ _DISPLAY_NAMES = {
         "boss_btn": "Boss history button",
         "boss_close_btn": "Boss history close button",
         "rename_dice_btn": "Rename dice button",
-        "lightning_btn": "Lightning upgrade button",
         "preview_panel": "Construct preview window",
         "preview_confirm_btn": "Construct confirm button",
         "preview_cancel_btn": "Construct cancel button",
@@ -393,27 +392,15 @@ def _build_bp_upgrade(view_w, view_h, ui_balance, buildings_balance,
     return {"widgets": widgets, "mock_note": note}
 
 
-def _build_bp_base_info(view_w, view_h, ui_balance, core_balance):
-    from types import SimpleNamespace
-
+def _build_bp_base_info(view_w, view_h, ui_balance):
     from game.ui.building_ui import BuildingUI
 
+    # base_info's ids (panel/close_btn/boss_btn/boss_close_btn) are all
+    # mode-independent (built once in __init__, Storm Priest rework removed
+    # the one id that used to need a forced builder call: lightning_btn).
     panel = BuildingUI(view_w, view_h, ui_balance)
-    # lightning_btn is the one id that is NOT mode-independent — it is
-    # (re)created inside _build_base_info, so a bare construction never
-    # populates it. A minimal stand-in "session" (only the two attributes
-    # _build_base_info reads) exercises the real builder so its default rect
-    # is recorded too — skipping this would leave "lightning_btn" out of
-    # screen_defaults.json's known-id set, and a real building_panel.json
-    # override naming it would raise ValueError at load (Phase 3).
-    panel._build_base_info(SimpleNamespace(
-        state=SimpleNamespace(lightning_level=1), core_balance=core_balance))
     widgets = _bp_view_widgets(panel, _BP_BASE_INFO_IDS)
-    if panel.lightning_btn is not None:
-        widgets.update(_widgets_from_ids(
-            {"lightning_btn": ("button", panel.lightning_btn)}))
-    note = f"{_COMMON_NOTE}; mock lightning_level=1"
-    return {"widgets": widgets, "mock_note": note}
+    return {"widgets": widgets, "mock_note": _COMMON_NOTE}
 
 
 def _build_bp_preview(view_w, view_h, ui_balance, buildings_balance):
@@ -451,8 +438,7 @@ def _build_building_panel(view_w, view_h, data_root):
         "construct": _build_bp_construct(view_w, view_h, ui_balance),
         "upgrade": _build_bp_upgrade(
             view_w, view_h, ui_balance, buildings_balance, core_balance),
-        "base_info": _build_bp_base_info(view_w, view_h, ui_balance,
-                                         core_balance),
+        "base_info": _build_bp_base_info(view_w, view_h, ui_balance),
         "preview": _build_bp_preview(view_w, view_h, ui_balance,
                                      buildings_balance),
     }

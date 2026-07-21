@@ -133,11 +133,12 @@ class TestStormPriest(TierWalkMixin, unittest.TestCase):
         return {"damage": b.damage(), "upkeep": b.upkeep(),
                 "range": b.range_tiles()}
 
-    def test_tags_carry_combat_and_lightning_source(self):
-        """EXTRA_TAGS fully overrides the base — must re-include ``"combat"``
-        or this stops counting as a combatant (building.py:54)."""
+    def test_tags_carry_lightning_source_not_combat(self):
+        """Storm Priest rework: it deliberately DROPS ``"combat"`` (excluded
+        from the combat sweep's ``scene.by_tag("combat")`` selection) while
+        keeping ``"lightning_source"``, the seam to Lightning Strike."""
         b = self.make()
-        self.assertIn("combat", b.tags)
+        self.assertNotIn("combat", b.tags)
         self.assertIn("lightning_source", b.tags)
         self.assertIn("building", b.tags)
 

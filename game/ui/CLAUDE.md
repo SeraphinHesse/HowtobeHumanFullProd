@@ -158,7 +158,7 @@ imports it). 10J made the crater an alpha-filled diamond; the beam stays a
 plain line (an alpha GLOW under it remains unported — `HudLines` carries no
 alpha; accepted).
 
-## Lightning + cheat menu UI (10H)
+## Lightning + cheat menu UI (10H; Storm Priest rework)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
 `game/ui` renders + routes:
 - **`cheat_menu.py`** (`CheatMenu`, the `game_over.py` modal template) —
@@ -172,16 +172,20 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   while open it consumes ALL input (top of the click ladder, directly under
   GAME_OVER) and renders topmost. Click-to-focus round field: digits only,
   max 4, Enter commits (n ≥ 1).
-- **`building_ui.py` base_info** grew the ⚡ LIGHTNING STRIKE section: level +
-  DMG/Radius/Atk-Spd rows from `core_balance["LightningStrike"]`, an UPGRADE
-  button (not-enough-love flash) shown from L1 up to below max, behind a gold
-  MAX LEVEL line at max. **No love-buyable UNLOCK button any more** (Storm
-  Priest wiring): while `lightning_level <= 0` the panel shows NO button at
-  all (`_build_base_info` returns early, mirroring the max-level branch) plus
-  a "LOCKED — place a Storm Priest" line — placing a `"lightning_source"`-
-  tagged building (`game.core.lightning.unlock_from_placement`, called from
-  `_do_place`) is the ONLY way to reach L1. Reads via `game.core.lightning`
-  (the sanctioned ui→core direction).
+- **`building_ui.py` base_info no longer shows a lightning section or button
+  at all** (Storm Priest rework — the whole "⚡ LIGHTNING STRIKE" block plus
+  `lightning_btn`/`_build_base_info` were removed). Selecting the Storm
+  Priest's OWN building panel is the leveling UI now: its existing generic
+  tier-upgrade button pays the tier's own advance cost and
+  `game.core.lightning.sync_level_from_tier` raises `lightning_level` to
+  match. `building_ui.py`'s construct panel greys out (disabled, NOT hidden)
+  the Storm Priest's card once `state.lightning_level > 0` — an exact
+  run-singleton proxy, since nothing else raises it off 0 and it never
+  lowers (latch semantics), so it survives the Storm Priest later dying/
+  reviving too. Placing a `"lightning_source"`-tagged building
+  (`game.core.lightning.unlock_from_placement`, called from `_do_place`) is
+  still the ONLY way to reach L1. Reads via `game.core.lightning` (the
+  sanctioned ui→core direction).
 - **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
   (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
   (`Hud.update` now stores `_mx/_my`).
@@ -190,7 +194,10 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
   fading yellow world-space diamond sized to the real blast radius (projects
   to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
-  expanding impact-flash polygon, and the alpha marker fade.
+  expanding impact-flash polygon, and the alpha marker fade. The placed Storm
+  Priest's own "attack"/"idle" sprite flash (`game.core.lightning
+  .LightningCaster`) is a WORLD sprite, not part of this overlay FX — driven
+  by its own `SpriteAnimator`, submitted the normal `scene.render_items()` way.
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
@@ -442,25 +449,17 @@ sets one).
   toggled visibility off cannot linger) and every click handler gates with
   `is_visible(btn) and btn.hit(mx, my)`. **Scope**: this applies to every
   Button that has an id — every button in every screen, INCLUDING (Phase 3
-  closed this gap) `building_ui.py`'s three previously-un-id'd STABLE
-  buttons: `rename_dice_btn` (the upgrade panel's `⚄` rename row, `self.
-  _dice_up`), `lightning_btn` (the ⚡ UPGRADE LIGHTNING button) and
-  `boss_close_btn` (the boss-history popup's CLOSE). `rename_dice_btn`/
-  `boss_close_btn` are created once in `__init__` and join the same
-  mode-independent `self.ids` dict as `panel`/`close_btn`/`action_btn`/
-  `boss_btn`. `lightning_btn` is the one exception: it is REBUILT (a fresh
-  `Button`) every time `_build_base_info` runs (level change, cost change),
-  so it cannot live in a static ids dict — `_build_base_info` calls
-  `self.skinning.apply(self.screen_id, {"lightning_btn": (...)})` standalone
-  the moment the new instance exists (id validation runs once per screen on
-  whichever `apply()` call happens first, using the override's OWN declared
-  widget names — never the local `ids` argument — so a partial standalone
-  call still catches every bad id in the file, not just this one).
-  `tools/export_ui_layouts.py`'s `_build_building_panel` forces
-  `_build_base_info` once with a minimal stand-in "session" so
-  `screen_defaults.json` records `lightning_btn`'s default rect too (skip
-  this and a real override naming it raises `ValueError` at load). The
-  construct cards remain the one un-id'd case (genuinely dynamic-count —
+  closed this gap) `building_ui.py`'s previously-un-id'd STABLE buttons:
+  `rename_dice_btn` (the upgrade panel's `⚄` rename row, `self._dice_up`) and
+  `boss_close_btn` (the boss-history popup's CLOSE), both created once in
+  `__init__` and joining the same mode-independent `self.ids` dict as
+  `panel`/`close_btn`/`action_btn`/`boss_btn`. (A third, `lightning_btn` — the
+  ⚡ UPGRADE LIGHTNING button, REBUILT every time a now-deleted
+  `_build_base_info` ran — was the one exception to the static-ids-dict
+  pattern; it and its whole base_info lightning section were removed
+  entirely by the Storm Priest rework, so `tools/export_ui_layouts.py` no
+  longer needs a forced builder call for base_info either.) The construct
+  cards remain the one un-id'd case (genuinely dynamic-count —
   see `defaults.button_skin` above).
 - **Carry-over fix: panel-kind holders now read their own `visible`
   override** (Phase 3) — `is_visible` gating was button-scoped through B2;

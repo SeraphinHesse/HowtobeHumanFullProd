@@ -91,14 +91,6 @@ class TestBuildingPanelViews(unittest.TestCase):
             else:
                 self.assertNotIn("rename_dice_btn", view["widgets"])
 
-    def test_lightning_btn_only_in_base_info(self):
-        views = self.defaults["building_panel"]["views"]
-        for name, view in views.items():
-            if name == "base_info":
-                self.assertIn("lightning_btn", view["widgets"])
-            else:
-                self.assertNotIn("lightning_btn", view["widgets"])
-
     def test_preview_ids_only_in_preview(self):
         views = self.defaults["building_panel"]["views"]
         for name, view in views.items():
@@ -142,7 +134,6 @@ class TestWidgetDisplayNames(unittest.TestCase):
         "boss_btn": "Boss history button",
         "boss_close_btn": "Boss history close button",
         "rename_dice_btn": "Rename dice button",
-        "lightning_btn": "Lightning upgrade button",
         "preview_panel": "Construct preview window",
         "preview_confirm_btn": "Construct confirm button",
         "preview_cancel_btn": "Construct cancel button",

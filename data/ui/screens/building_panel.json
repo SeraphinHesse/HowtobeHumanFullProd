@@ -16,9 +16,6 @@
     "close_btn": {
       "skin": "ui_button_panel"
     },
-    "lightning_btn": {
-      "skin": "ui_button_panel"
-    },
     "panel": {
       "skin": "ui_panel"
     },
