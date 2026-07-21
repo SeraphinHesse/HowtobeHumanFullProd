@@ -35,6 +35,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 LS = CORE["LightningStrike"]
 HOLE = CORE["TheHole"]
@@ -80,7 +81,8 @@ def spawn_enemy(scene, tm, col, row):
 def frame(session, scene, tilemap_, dt):
     session.pre_sim(dt, scene)
     scene.update(dt)
-    resolve_combat(scene, tilemap_, dt, BUILD, on_base_hit=session.on_base_hit,
+    resolve_combat(scene, tilemap_, dt, BUILD, VFX,
+                   on_base_hit=session.on_base_hit,
                    on_enemy_death=session.on_enemy_death)
     session.post_sim(scene)
 
@@ -215,7 +217,7 @@ class TestStormPriestNotCombat(unittest.TestCase):
         hp0 = e.get_component(Health).hp
         for _ in range(20):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
         self.assertEqual(e.get_component(Health).hp, hp0)   # never attacked
         self.assertEqual(scene.by_tag("projectile"), [])    # never fired
 
@@ -236,7 +238,7 @@ class TestStormPriestCasterFlash(unittest.TestCase):
         self.assertEqual(anim.animation, "idle")
 
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 1.0, 1.0))  # whiff ok
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 1.0, 1.0))  # whiff ok
         scene.update(0.0)
         self.assertEqual(anim.animation, "attack")
 
@@ -253,7 +255,7 @@ class TestCooldown(unittest.TestCase):
         st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 1                     # unlocked via a Storm Priest
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 3.0, 3.0))  # whiff ok
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 3.0, 3.0))  # whiff ok
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
         st.lightning_level = 2                     # tier-driven level mid-cooldown
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])  # untouched
@@ -268,7 +270,7 @@ class TestCooldown(unittest.TestCase):
         hp0 = e.get_component(Health).hp
         st.lightning_cooldown = 2.0
         self.assertFalse(lt.can_strike(st))
-        self.assertFalse(lt.strike(st, CORE, scene, cs,
+        self.assertFalse(lt.strike(st, CORE, VFX, scene, cs,
                                    *e.transform.world_pos))
         scene.update(0.0)
         self.assertEqual(e.get_component(Health).hp, hp0)   # no damage
@@ -280,7 +282,7 @@ class TestCooldown(unittest.TestCase):
         st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 1                     # unlocked via a Storm Priest
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 4.0, 4.0))
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 4.0, 4.0))
         scene.update(0.0)
         self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
         self.assertEqual(len(scene.by_tag("lightning_fx")), 1)
@@ -315,7 +317,7 @@ class TestCooldown(unittest.TestCase):
         tm, scene, occ = build_board(FIELD)
         st = RunState.from_balance(CORE, BUILD)
         st.lightning_level = 1                     # unlocked via a Storm Priest
-        lt.strike(st, CORE, scene, make_cs(), 4.0, 4.0)
+        lt.strike(st, CORE, VFX, scene, make_cs(), 4.0, 4.0)
         scene.update(0.0)
         fx = scene.by_tag("lightning_fx")[0]
         scene.update(0.3)
@@ -355,7 +357,7 @@ class TestRadiusGeometry(unittest.TestCase):
     def _strike(self, st, scene, cs, wx, wy):
         hp0 = {id(e): e.get_component(Health).hp
                for e in scene.by_tag("enemy")}
-        self.assertTrue(lt.strike(st, CORE, scene, cs, wx, wy))
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, wx, wy))
         return {id(e): hp0[id(e)] - e.get_component(Health).hp
                 for e in scene.by_tag("enemy")}
 
@@ -406,7 +408,7 @@ class TestRadiusGeometry(unittest.TestCase):
         e = spawn_enemy(scene, tm, 4, 4)
         scene.update(0.0)
         e.get_component(Health).hp = LS["damage"][0]  # exactly lethal
-        lt.strike(st, CORE, scene, make_cs(), *e.transform.world_pos)
+        lt.strike(st, CORE, VFX, scene, make_cs(), *e.transform.world_pos)
         self.assertFalse(e.alive)
         frame(session, scene, tm, 0.0)                # the next combat sweep
         scene.update(0.0)                             # flush despawns

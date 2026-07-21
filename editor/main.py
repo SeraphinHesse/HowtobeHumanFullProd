@@ -56,6 +56,7 @@ from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
+from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
@@ -66,6 +67,7 @@ from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
+from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
 from engine.render.fonts import configure_fonts
 from tools.smoke import validate_data
@@ -101,12 +103,14 @@ class MainWindow(QMainWindow):
         self.selector = SelectorPanel(data_dir=data_dir)
         self.balancing = BalancingPanel(data_dir=data_dir)
         self.details = DetailsPanel(data_dir=data_dir)
+        self.anchors = AnchorsPanel(data_dir=data_dir)   # ESV-2
         self.levelbar = LevelBar()
         self.palette = PalettePanel(data_dir=data_dir)
         self.map_details = MapDetailsPanel(data_dir=data_dir)
         self.map_session = MapSession(data_dir=data_dir, parent=self)
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
+        self.vfx_preview = VfxPreviewPanel(data_dir=data_dir)
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
@@ -148,11 +152,22 @@ class MainWindow(QMainWindow):
         # registry has to re-read it, exactly like the + Variant writes do.
         self.details.registry_changed.connect(lambda _slot: self._reload_registries())
 
+        # ESV-2: anchor handles hang off the entity-preview selection, not a
+        # new mode — bidirectional sync between the panel's authoritative
+        # mapping and the viewport's live drag, mirroring the B4
+        # widget_selected pattern below (:154-156).
+        self.anchors.mapping_changed.connect(self.viewport.set_anchors)
+        self.anchors.anchor_selected.connect(self.viewport.set_selected_anchor)
+        self.viewport.anchor_selected.connect(self.anchors.select_anchor)
+        self.viewport.anchor_dragged.connect(self.anchors.on_anchor_dragged)
+        self.viewport.anchor_drag_finished.connect(self.anchors.on_anchor_drag_finished)
+
         # tilemap-mode wiring (ED-20): palette state → viewport; picker →
         # palette re-arm; session lifecycle → selector Maps branch
         self.palette.tool_changed.connect(self.viewport.set_tool)
         self.palette.code_armed.connect(self.viewport.arm_code)
         self.palette.deco_armed.connect(self.viewport.arm_deco)
+        self.palette.deco_flip_toggled.connect(self.viewport.set_deco_flip)
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
@@ -181,6 +196,10 @@ class MainWindow(QMainWindow):
         self.screen_details.set_session(self.screen_session)
         self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
         self.viewport.widget_selected.connect(self.screen_details.select_widget)
+
+        # ESV-4: vfx preview <-> balancing staging wiring
+        self.vfx_preview.set_balancing_panel(self.balancing)
+        self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
 
         # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
         # reconfigure engine.render.fonts in-process + repaint the viewport
@@ -259,6 +278,7 @@ class MainWindow(QMainWindow):
         self.tool_keybinds = loaded["tools"]
         self.brush_keybinds = loaded["brushes"]
         self.undo_redo_swapped = loaded["undo_redo_swapped"]
+        self.deco_flip_keybind = loaded["deco_flip"]
         self._apply_undo_redo_shortcuts()
 
         self._tool_actions = {}
@@ -281,6 +301,12 @@ class MainWindow(QMainWindow):
             self._brush_actions.append(action)
         self.palette.set_brush_keybinds(
             [self.brush_keybinds[slot] for slot in keybinds.BRUSH_SLOTS])
+
+        self.deco_flip_action = QAction("Deco Mirror Flip", self)
+        self.deco_flip_action.setShortcut(QKeySequence(self.deco_flip_keybind))
+        self.deco_flip_action.triggered.connect(
+            lambda: self.palette.toggle_deco_flip())
+        self.addAction(self.deco_flip_action)
 
         self.settings_action = QAction("Settings", self)
         self.settings_action.setToolTip(
@@ -319,7 +345,30 @@ class MainWindow(QMainWindow):
         center.setSizes([520, 200])       # sane initial split (not stretch-only)
 
         self.right_stack = QStackedWidget()
-        self.right_stack.addWidget(self.details)         # index 0: asset import
+        # ESV-2: the asset importer and the anchors panel share index 0 in a
+        # small container — indices 1/2 keep their meaning unchanged.
+        # ESV-5: the vfx preview joins them as a THIRD child of that same
+        # container instead of its own stack page (fixing a pre-existing bug:
+        # `_leave_vfx_mode` used to target `self.details`, which was never a
+        # stack page at all — a no-op that permanently stranded the importer
+        # once a vfx node had ever been selected). A plain QVBoxLayout
+        # squeezed the preview's fixed-minimum surface unusably once all
+        # three panels could be visible together, so a QSplitter lets the
+        # user trade space between them; `right_stack` keeps exactly ONE page
+        # for this whole container either way.
+        self.details_pane = QWidget()
+        details_pane_layout = QVBoxLayout(self.details_pane)
+        details_pane_layout.setContentsMargins(0, 0, 0, 0)
+        details_pane_splitter = QSplitter(Qt.Orientation.Vertical)
+        details_pane_splitter.addWidget(self.details)
+        details_pane_splitter.addWidget(self.anchors)
+        details_pane_splitter.addWidget(self.vfx_preview)
+        details_pane_splitter.setStretchFactor(0, 1)
+        details_pane_splitter.setStretchFactor(1, 0)
+        details_pane_splitter.setStretchFactor(2, 1)
+        details_pane_layout.addWidget(details_pane_splitter)
+        self.vfx_preview.setVisible(False)   # ESV-5: hidden outside vfx mode
+        self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2; + vfx preview, ESV-5)
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
@@ -358,6 +407,10 @@ class MainWindow(QMainWindow):
         self._node = (category_key, tuple(group_path))
         self.details.set_context(category_key, group_path)
         self._refresh_levels()
+        if category_key == "vfx":
+            self._enter_vfx_mode()
+        else:
+            self._leave_vfx_mode()
 
     # -- tilemap mode (ED-20): map node selected -----------------------------
 
@@ -380,6 +433,7 @@ class MainWindow(QMainWindow):
         # Default to Game-tiles mode; set_mode arms the first zone brush.
         self.palette.set_mode("gametiles")
         self.palette.setVisible(True)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.map_details)
         self.map_details.refresh()
 
@@ -393,7 +447,7 @@ class MainWindow(QMainWindow):
         if self.viewport.in_map_mode():
             self.viewport.set_map_mode(None)
         self.palette.setVisible(False)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
 
     # -- screen mode (B4, R3): a UI-screen leaf selected ---------------------
 
@@ -462,6 +516,7 @@ class MainWindow(QMainWindow):
         self._screen_defaults = self._load_screen_defaults()
         self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
         self.screen_details.set_defaults(self._screen_defaults)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.screen_details)
 
     def _leave_screen_mode(self):
@@ -469,7 +524,7 @@ class MainWindow(QMainWindow):
         # screen returns to it; the prompt only guards opening a DIFFERENT one
         if self.viewport.in_screen_mode():
             self.viewport.set_screen_mode(None)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
         self._screen_mode_entered = False
 
     def _load_screen_defaults(self):
@@ -484,6 +539,18 @@ class MainWindow(QMainWindow):
             return data_io.load_validated(path, schema)
         except Exception:   # noqa: BLE001 - a bad file degrades, never raises
             return {}
+
+    # -- vfx preview mode (ESV-4): a "vfx" tree node selected ----------------
+
+    def _enter_vfx_mode(self):
+        self.right_stack.setCurrentWidget(self.details_pane)
+        self.vfx_preview.setVisible(True)
+
+    def _leave_vfx_mode(self):
+        # the other `_leave_*` handlers already own the stack page (and
+        # `_on_node_selected` calls them before this branch runs), so no
+        # `right_stack` call is needed here at all — just hide the preview.
+        self.vfx_preview.setVisible(False)
 
     def _on_refresh_layouts(self):
         self.run_controls.export_layouts()
@@ -798,6 +865,7 @@ class MainWindow(QMainWindow):
             self.details.subcategory_index(), self.levelbar.level())
         self.viewport.set_preview_slot(slot)
         self.details.set_slot(slot)
+        self.anchors.set_slot(slot)
 
     def _on_manifest_changed(self, _slot_key):
         """Import-panel save/clear: assets reload without a restart (ED-42)
@@ -808,6 +876,8 @@ class MainWindow(QMainWindow):
         self.viewport.reload_assets()
         self.selector.refresh_markers()
         self.palette.refresh_icons()
+        self.anchors.reload()   # ESV-2: a DetailsPanel save/clear must not
+        # leave the anchors panel (or its handle) stale relative to disk.
 
     # -- run controls (ED-50/51/52) ------------------------------------------
 
@@ -899,7 +969,7 @@ class MainWindow(QMainWindow):
         try:
             keybinds.save_keybinds(
                 self._prefs_path, self.tool_keybinds, self.brush_keybinds,
-                self.undo_redo_swapped)
+                self.undo_redo_swapped, self.deco_flip_keybind)
         except OSError as exc:
             self.statusBar().showMessage(
                 f"Keybind applied but not saved: {exc}", 5000)
@@ -923,6 +993,11 @@ class MainWindow(QMainWindow):
         self._apply_undo_redo_shortcuts()
         self._save_keybinds()
 
+    def _on_deco_flip_keybind_changed(self, key):
+        self.deco_flip_keybind = key
+        self.deco_flip_action.setShortcut(QKeySequence(key))
+        self._save_keybinds()
+
     def _build_settings_dialog(self):
         """Built (and its signals wired) without exec()ing it, so tests can
         drive the dialog's widgets without blocking on a modal event loop."""
@@ -931,11 +1006,14 @@ class MainWindow(QMainWindow):
             tool_keybinds=self.tool_keybinds,
             brush_keybinds=[self.brush_keybinds[s] for s in keybinds.BRUSH_SLOTS],
             undo_redo_swapped=self.undo_redo_swapped,
+            deco_flip_keybind=self.deco_flip_keybind,
             parent=self)
         dialog.theme_toggled.connect(self._on_theme_toggled)
         dialog.tool_keybind_changed.connect(self._on_tool_keybind_changed)
         dialog.brush_keybind_changed.connect(self._on_brush_keybind_changed)
         dialog.undo_redo_swap_changed.connect(self._on_undo_redo_swap_changed)
+        dialog.deco_flip_keybind_changed.connect(
+            self._on_deco_flip_keybind_changed)
         return dialog
 
     def _on_settings(self):
@@ -987,6 +1065,8 @@ class MainWindow(QMainWindow):
         self._last_tick = now
 
         self.viewport.render_frame()
+        if self.vfx_preview.isVisible():
+            self.vfx_preview.render_frame()
         self.frames += 1
         self._fps_window += 1
         self._fps_elapsed += dt

@@ -110,8 +110,9 @@ class TestMapsBranch(MapModeCase):
         self.window.selector.select_node("buildings", ("Defender",))
         self.assertFalse(self.viewport.in_map_mode())
         self.assertFalse(self.window.palette.isVisibleTo(self.window))
+        # ESV-2: index 0 is now a small container holding details + anchors
         self.assertIs(self.window.right_stack.currentWidget(),
-                      self.window.details)
+                      self.window.details_pane)
         self.assertIsNotNone(self.viewport.preview_slot)
 
     def test_map_selection_drives_map_balancing_domain(self):
@@ -518,6 +519,21 @@ class TestNoneTool(MapModeCase):
         self.click_cell(15, 15)
         self.assertEqual(doc.terrain[15][15], before)
         self.assertEqual(self.session.undo_stack.count(), 0)
+
+    def test_deco_place_with_mirror_flip_armed(self):
+        doc = self.open_map()
+        self.window.palette.arm_deco("deco_tree")
+        self.window.palette.set_tool("paint")
+        self.window.palette._deco_flip_box.setChecked(True)
+        self.click_cell(15, 15)
+        self.assertEqual(doc.deco[-1],
+                         {"col": 15, "row": 15, "slot": "deco_tree",
+                          "flip": True})
+
+        self.window.palette._deco_flip_box.setChecked(False)
+        self.click_cell(16, 15)
+        self.assertEqual(doc.deco[-1],
+                         {"col": 16, "row": 15, "slot": "deco_tree"})
 
     def test_deco_armed_with_none_tool_does_not_place(self):
         doc = self.open_map()

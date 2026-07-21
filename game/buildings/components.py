@@ -10,7 +10,33 @@ Only the components Musician / Defender / BaseBuilding need in 9D are defined;
 the rest of the family (BoostReceiver, PainterProgress, WallBuilderState, …)
 arrive with their buildings (10x).
 """
-from engine.core import Component
+from engine.core import Component, SpriteAnimator
+
+
+class BuildingSprite(SpriteAnimator):
+    """A building's sprite, hidden while the building is DEAD.
+
+    A building killed but not kidnapped stays in the scene until the round-end
+    revive (``Building.rebuild``) — the payday slots, the explosion debuffs and
+    the XP award all read it as ``alive == False``. Only its *visual* should go
+    away, so this yields no RenderItem while the owner is dead and comes back by
+    itself the moment ``rebuild`` restores HP: nothing to save, nothing to
+    restore, no ``slot_key`` to stash (an empty key would draw the grey-X
+    placeholder, not nothing). Same "component renders conditionally, no engine
+    change" precedent as ``Kidnap.render_items``.
+
+    Kidnapped buildings never reach this: ``begin_kidnap`` hands off to the host,
+    which despawns the victim outright and redraws it on the carrier.
+    """
+
+    def on_added(self, owner):
+        self._owner = owner  # transient back-ref (never serialized)
+
+    def render_items(self, transform):
+        owner = getattr(self, "_owner", None)
+        if owner is not None and not getattr(owner, "alive", True):
+            return
+        yield from super().render_items(transform)
 
 
 class TierState(Component):

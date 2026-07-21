@@ -26,6 +26,10 @@ def make_cs(**camera):
     geo = Geometry(
         tile_w=64, tile_h=32, map_cols=20, map_rows=20, zoom_levels=(0.5, 1.0, 2.0)
     )
+    # Pin the test camera to zoom 1 explicitly rather than relying on
+    # Camera's dataclass default (now 2.0, the new game/editor default) —
+    # these tests assert render math at a known zoom.
+    camera.setdefault("zoom", 1.0)
     return CoordinateSystem(geo, Camera(**camera))
 
 

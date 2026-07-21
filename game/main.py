@@ -63,8 +63,14 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
-from game.map import TileMap, condition_render_items, tile_at_screen
+from game.enemies import (
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
+    spawn_corpse,
+)
+from game.map import (
+    TileMap, condition_render_items, spawn_deco_render_items,
+    spawn_tree_slots, tile_at_screen,
+)
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
@@ -172,8 +178,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
 
     # D-21: the active map decides what the ground IS — and its dims (D-20)
     map_doc = tilemap.load_active_map(data_dir)
+    # core's Camera group is the balancing tunable overriding geometry.json's
+    # zoom fallback (hoisted ahead of the other balance loads below so it's
+    # available before cs is built).
+    core_balance = load_balance(data_dir, "core")
     cs = load_coordinate_system(
-        data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows)
+        data_dir, map_cols=map_doc.cols, map_rows=map_doc.rows,
+        zoom_levels=core_balance["Camera"]["zoom_levels"],
+        default_zoom=core_balance["Camera"]["default_zoom"])
 
     def frame_camera():
         """Open the camera centred on the map's camera-startpoint object if it
@@ -204,6 +216,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
         for slot in registry.group_slots(CONDITION_CATEGORY)
         if manifest.entry(slot) is not None
     }
+    # Spawn-band tree family, manifest-filtered the same way `condition_art`
+    # is: art cannot change mid-run, so it is derived once here rather than
+    # per frame. An empty tuple (no tree slots imported yet) makes
+    # `spawn_deco_render_items` a no-op, same escape hatch as `condition_art`.
+    tree_slots = tuple(
+        s for s in spawn_tree_slots(registry)
+        if manifest.entry(s) is not None)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -256,8 +275,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
     map_bal = load_balance(data_dir, "map")
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
-    core_balance = load_balance(data_dir, "core")
     ui_balance = load_balance(data_dir, "ui")
+    vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -319,7 +338,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
-        gp["floaters"] = FloaterManager(ui_balance, core_balance)
+        gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
@@ -338,6 +357,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
+        # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
+        # one-shot and resolve a manifest anchor. A fresh FloaterManager and
+        # a fresh scene are built together right here every run, so these
+        # attributes cannot desync; `cs` is a single run-long instance built
+        # at module scope above, so it never desyncs either.
+        gp["floaters"].assets = assets
+        gp["floaters"].scene = gp["world"].scene
+        gp["floaters"].cs = cs
+        # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
@@ -449,6 +477,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10L: fast-forward combat-speed buttons --
+        if isinstance(hud_action, tuple) and hud_action[0] == "speed":
+            session.set_combat_speed(hud_action[1])
+            return
+        # -- /10L speed --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
@@ -468,7 +501,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # game.py:426-431 — a non-drag left-up no UI element consumed) --
         elif session.state.phase == GamePhase.ENEMY:
             wx, wy = cs.screen_to_world(mx, my)
-            session.lightning_strike(world.scene, cs, wx, wy)
+            session.lightning_strike(world.scene, cs, wx, wy, vfx_balance)
         # -- /10H --
 
     def handle_world_right_click(mx, my):
@@ -692,11 +725,47 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # ESV-5: drains into RunState.splash_impact_events; the UI
+                # side (spawn_splash_impact_events) reads it beside
+                # spawn_death_events below.
+                def _on_splash_impact(gx, gy, _state=session.state):
+                    _state.splash_impact_events.append((gx, gy))
+
+                # ESV-6: the same drained-ledger pattern for the two
+                # convergence-demo triggers — both ship INERT rows, so these
+                # ledgers filling every frame is a no-op emit until a
+                # designer binds art.
+                def _on_defender_fire(wx, wy, _state=session.state):
+                    _state.defender_fire_events.append((wx, wy))
+
+                def _on_projectile_hit(wx, wy, _state=session.state):
+                    _state.projectile_hit_events.append((wx, wy))
+
+                # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
+                # count + freeing the building's tile for good) runs first,
+                # then upgrade the default frozen-idle carry pose to the
+                # sheet's own `kidnap` row if it has one — `animation_total_ms`
+                # returns None (never an idle fallback) for a sheet without
+                # one, so this cleanly stays on the frozen-idle branch.
+                def _on_kidnap(enemy, building, _scene=world.scene):
+                    session.on_kidnap(enemy, building, _scene)
+                    anim = enemy.get_component(SpriteAnimator)
+                    if anim is not None:
+                        set_kidnap_pose(
+                            enemy,
+                            bool(assets.animation_total_ms(
+                                anim.slot_key, KIDNAP_ANIM)))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
-                               buildings_balance,
+                               buildings_balance, vfx_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
-                               dmg_bonus=dmg_bonus)
+                               dmg_bonus=dmg_bonus,
+                               assets=assets, cs=cs,
+                               on_splash_impact=_on_splash_impact,
+                               on_defender_fire=_on_defender_fire,
+                               on_projectile_hit=_on_projectile_hit,
+                               on_kidnap=_on_kidnap)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
             if (session.state.phase == GamePhase.INCOME
@@ -748,6 +817,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].watch_enemies(world.scene)
             gp["floaters"].spawn_death_events(session.state,
                                               shell.settings.gore)
+            gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
+            gp["floaters"].spawn_defender_fire_events(session.state)  # ESV-6
+            gp["floaters"].spawn_projectile_hit_events(session.state)  # ESV-6
             gp["game_log"].drain(session.state)
             gp["game_log"].update(dt)
             # -- /10J --
@@ -812,6 +884,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
+            # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
+            # (`entities`), so units emerging from the treeline are partly
+            # occluded by it; submission order within a layer doesn't matter,
+            # the renderer depth-sorts. Reuses the window above; vanishes on
+            # its own the frame a SPAWNING tile converts to COMBAT (the
+            # emitter reads `tile.state` live).
+            for item in spawn_deco_render_items(
+                    world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
+                    anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;

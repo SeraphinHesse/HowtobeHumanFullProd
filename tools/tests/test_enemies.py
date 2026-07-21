@@ -32,7 +32,7 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
+    Boss, Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
     attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
@@ -44,6 +44,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
@@ -477,7 +478,7 @@ class TestCombatLedger(unittest.TestCase):
         alive_frames = 0
         for _ in range(1000):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
             alive_frames += 1
@@ -527,7 +528,7 @@ class TestBaseArrival(unittest.TestCase):
         scene.spawn(e)
         for _ in range(200):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
         else:
@@ -740,7 +741,7 @@ class TestFormationBreak(unittest.TestCase):
         session.pre_sim(dt, scene)
         if session.state.state == GameState.GAMEPLAY and not session.frozen:
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD,
+            resolve_combat(scene, tm, dt, BUILD, VFX,
                            on_base_hit=session.on_base_hit,
                            on_enemy_death=session.on_enemy_death)
             session.post_sim(scene)
@@ -826,6 +827,28 @@ class TestFormationBreak(unittest.TestCase):
             self.assertGreater(
                 frac,
                 ENEM["EnemyTypes"][child]["death_spawn"]["at_hp_fraction"])
+
+
+class TestRegistryGroupDrift(unittest.TestCase):
+    """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
+    required `registry_group` leaf (added so the editor can resolve a slot's
+    footprint fit without importing `game/`) is a SECOND home for what
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` class constants already say —
+    nothing wires the two together, and the brief deliberately does NOT ask
+    for that refactor here (follow-up work). This pins the two so a drift
+    between them turns red instead of silently breaking the editor preview
+    for whichever type moved."""
+
+    def test_registry_group_matches_data_for_every_enemy_subclass(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            self.assertEqual(
+                cls.REGISTRY_GROUP, block["registry_group"],
+                msg=f"{cls.__name__}.REGISTRY_GROUP ({cls.REGISTRY_GROUP!r}) "
+                    f"drifted from EnemyTypes.{'.'.join(cls.STAT_SUBTREE)}."
+                    f"registry_group ({block['registry_group']!r})")
 
 
 class TestPurity(unittest.TestCase):

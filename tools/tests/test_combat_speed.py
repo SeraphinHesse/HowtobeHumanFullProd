@@ -30,6 +30,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 PHASE = CORE["PhaseLoop"]
 
@@ -59,7 +60,7 @@ def host_frame(session, scene, tm, dt):
     session.pre_sim(sim_dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(sim_dt)
-        resolve_combat(scene, tm, sim_dt, BUILD,
+        resolve_combat(scene, tm, sim_dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death)
         session.post_sim(scene)

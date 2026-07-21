@@ -189,7 +189,13 @@ class TestDomainsDerivation(TempDataCase):
     categories with a data/balancing/<key>.json), never hardcoded — a new
     balancing domain reaches the editor with zero editor edits."""
 
-    CANONICAL = ("buildings", "enemies", "map", "ui", "core")
+    # ESV-3a promoted "vfx" from an asset-only slots.json category to a real
+    # balancing domain (data/balancing/vfx.json + data/schemas/vfx.schema.json)
+    # — it now belongs in the CANONICAL tuple, positioned exactly where
+    # slots.json's category order puts it: right after "core" (confirmed
+    # directly against data/slots.json's categories[] order, never inferred
+    # from this file's own prior expectation).
+    CANONICAL = ("buildings", "enemies", "map", "ui", "core", "vfx")
 
     def add_domain_files(self, key):
         """A new balancing domain in the temp tree: schema + content, content
@@ -226,20 +232,28 @@ class TestDomainsDerivation(TempDataCase):
     def test_removing_a_balancing_file_drops_the_domain(self):
         (self.data_dir / "balancing" / "map.json").unlink()
         self.assertEqual(
-            domains.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+            domains.domains(self.data_dir),
+            ("buildings", "enemies", "ui", "core", "vfx"))
 
     def test_new_balancing_file_adds_a_domain_in_slots_order(self):
-        """vfx is an asset-only category TODAY; give it balancing files and it
-        becomes a domain — positioned where slots.json puts it (after core),
-        with no editor edit anywhere."""
-        self.add_domain_files("vfx")
+        """deco is an asset-only category TODAY (vfx was this class's
+        example until ESV-3a promoted it to a real domain — see CANONICAL);
+        give deco balancing files and it becomes a domain — positioned where
+        slots.json puts it (after vfx), with no editor edit anywhere."""
+        self.add_domain_files("deco")
         self.assertEqual(
-            domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
+            domains.domains(self.data_dir), self.CANONICAL + ("deco",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
-        self.assertNotIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
-        self.add_domain_files("vfx")
-        self.assertIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        # "backgrounds", not "deco": SelectorPanel.domains() only walks TOP-
+        # LEVEL tree items, and deco's root is nested under "map" (a
+        # tree-construction-only choice, see selector.py) — invisible to
+        # this check regardless of domain-ness. backgrounds stays top-level.
+        self.assertNotIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        self.add_domain_files("backgrounds")
+        self.assertIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
 
 
 class TestSelectorContextMenu(TempDataCase):
@@ -299,9 +313,11 @@ class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
         # the LITERAL canonical tuple, not domains.domains(...) — both sides
-        # derive now, so comparing them would be a tautology
+        # derive now, so comparing them would be a tautology. "vfx" joined
+        # (ESV-3a promoted it from asset-only to a real balancing domain).
         self.assertEqual(
-            panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
+            panel.domains(),
+            ("buildings", "enemies", "map", "ui", "core", "vfx"))
 
     def test_domain_without_file_is_omitted(self):
         """A category INTENDED as a domain (it has a schema) whose balancing
@@ -310,7 +326,8 @@ class TestSelector(TempDataCase):
         balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
-        self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
+        self.assertEqual(
+            panel.domains(), ("buildings", "enemies", "ui", "core", "vfx"))
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
 
@@ -383,12 +400,15 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(domains[-1], "enemies")
 
     def test_asset_only_categories_exist_but_are_not_domains(self):
+        """`vfx` was this class's asset-only example until ESV-3a gave it
+        data/balancing/vfx.json + data/schemas/vfx.schema.json, promoting it
+        to a real domain (D8 fallout) — `deco` is still asset-only and keeps
+        the assertion's meaning intact."""
         panel = self.make()
-        self.assertNotIn("vfx", panel.domains())
         self.assertNotIn("deco", panel.domains())
         domains = []
         panel.domain_selected.connect(domains.append)
-        panel.select_node("vfx", ("Effects",))   # node exists and is selectable
+        panel.select_node("deco", ("Props",))    # node exists and is selectable
         self.assertEqual(domains, [])            # but drives no balancing form
 
     def test_unknown_node_raises(self):
@@ -1256,17 +1276,19 @@ class TestKeybindsPersistence(TempDataCase):
         self.assertEqual(loaded["tools"], keybinds.DEFAULT_TOOL_KEYBINDS)
         self.assertEqual(loaded["brushes"], keybinds.DEFAULT_BRUSH_KEYBINDS)
         self.assertFalse(loaded["undo_redo_swapped"])
+        self.assertEqual(loaded["deco_flip"], keybinds.DEFAULT_DECO_FLIP_KEYBIND)
 
     def test_round_trip_preserves_theme_key(self):
         theme.save_theme(self.prefs, "dark")
         tools = dict(keybinds.DEFAULT_TOOL_KEYBINDS, paint="K")
         brushes = dict(keybinds.DEFAULT_BRUSH_KEYBINDS, brush_1="6")
-        keybinds.save_keybinds(self.prefs, tools, brushes, True)
+        keybinds.save_keybinds(self.prefs, tools, brushes, True, "F")
 
         loaded = keybinds.load_keybinds(self.prefs)
         self.assertEqual(loaded["tools"]["paint"], "K")
         self.assertEqual(loaded["brushes"]["brush_1"], "6")
         self.assertTrue(loaded["undo_redo_swapped"])
+        self.assertEqual(loaded["deco_flip"], "F")
         self.assertEqual(theme.load_theme(self.prefs), "dark")   # untouched
 
     def test_partial_file_backfills_missing_tools(self):
@@ -1354,6 +1376,36 @@ class TestSettingsDialog(TempDataCase):
         self.assertEqual(
             dialog._tool_edits["paint"].keySequence().toString(), "B")
         self.assertEqual(window.tool_keybinds["paint"], "B")
+
+    def test_rebinding_the_deco_flip_key_updates_action_and_persists(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        dialog._deco_flip_edit.setKeySequence(QKeySequence("F"))
+        dialog._on_deco_flip_key_edited()
+
+        self.assertEqual(window.deco_flip_keybind, "F")
+        self.assertEqual(window.deco_flip_action.shortcut().toString(), "F")
+        self.assertEqual(
+            keybinds.load_keybinds(self.prefs)["deco_flip"], "F")
+
+    def test_deco_flip_key_colliding_with_a_tool_key_is_rejected(self):
+        window = self.make_window()
+        dialog = self.track(window._build_settings_dialog())
+        # "paint" already owns "B" (default).
+        dialog._deco_flip_edit.setKeySequence(QKeySequence("B"))
+        dialog._on_deco_flip_key_edited()
+
+        self.assertEqual(
+            dialog._deco_flip_edit.keySequence().toString(),
+            keybinds.DEFAULT_DECO_FLIP_KEYBIND)
+        self.assertEqual(window.deco_flip_keybind,
+                         keybinds.DEFAULT_DECO_FLIP_KEYBIND)
+
+    def test_deco_flip_shortcut_toggles_palette_checkbox(self):
+        window = self.make_window()
+        self.assertFalse(window.palette._deco_flip_box.isChecked())
+        window.deco_flip_action.trigger()
+        self.assertTrue(window.palette._deco_flip_box.isChecked())
 
 
 if __name__ == "__main__":

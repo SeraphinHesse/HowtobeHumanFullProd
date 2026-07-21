@@ -153,6 +153,90 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   with its own `death` row, playing the enemy's OWN slot yields the right variant
   with no random pick. Pinned by `test_corpse`.
 
+## Kidnapping (`kidnap.py`, Art/enemies)
+A kidnap-capable enemy's killing blow on a building is a **terminal, permanent**
+event for both sides: the carrier stops being a combatant (no death VFX, no
+death animation, no drained health bar) and hoists the building's sprite home;
+the building's tile is freed back to empty BUILDABLE ground for good — **no
+payday revive**. Per-type toggle: `EnemyTypes.<type>.kidnapping` (bool,
+required, `/add-balancing-value` shape) — **Standard `true`, Raider `true`,
+SiegeCannon `false`, Formation `false`, Boss `false`** (Boss keeps its 10G
+building-grinding rampage; Formation keeps marching). **A kidnapper walking
+home HOLDS THE ROUND OPEN** — confirmed user decision; see the wave-clear
+condition below.
+
+- **The retag trick, reused wholesale from `Corpse`'s precedent.** On the
+  transition (`begin_kidnap`) the owner's tags flip `("enemy", …) ->
+  ("kidnapper",)`. `GameObject.tags` sits in `_ENGINE_ATTRS`
+  (`engine/core/gameobject.py`), so the write is legal past the E-11 seal. One
+  move makes the carrier invisible to **every** gameplay query that reads
+  `by_tag("enemy")` at once — the combat sweep's target list, the beam's
+  sticky target, `_resolve_base_arrivals`, `game/core/lightning.py`, the
+  overhead HP bars (`game/ui/effects.py submit_enemy_hp_bars`) and the heatmap
+  traffic tracker — with **no per-site "if kidnapping" filter anywhere**.
+  Consequence to accept: a *damaged* kidnapper shows no HP bar at all (moot in
+  practice — its `Health` is never touched, since combat can no longer see it);
+  it is also never counted by the heatmap tracker.
+- **`Kidnap` (`components.py`) is a component like any other** — `enabled`
+  (resolved at construction from balancing), `pending` (armed by
+  `EnemyCombat.update()`'s building branch the instant its killing blow leaves
+  the target not-alive — guard-safe, **never touches the scene**), `active`
+  (carrying), `frozen` (pin the sprite clock at 0 when the sheet has no
+  `kidnap` row — `SpriteAnimator.update` always advances its own clock
+  regardless, so `Kidnap.update`'s per-frame re-pin is what actually locks the
+  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`. It
+  goes **LAST** in `Enemy.__init__`'s component list — after `Movement` (sees
+  arrival the same frame) and `SpriteAnimator` (its clock re-pin wins).
+  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite;
+  `Scene.render_items` picks it up generically alongside the carrier's own
+  `SpriteAnimator` item — no new GameObject, no engine change.
+- **`begin_kidnap(scene, tilemap, enemy, building)` (`kidnap.py`) is the ONE
+  transition site**, called from the combat sweep's kidnap pass
+  (`combat.py::_resolve_kidnaps`, placed AFTER the defender loop and BEFORE
+  `_resolve_base_arrivals`). Order is load-bearing: it copies the victim's
+  `SpriteAnimator` fields onto `Kidnap` and blanks the building's own
+  `slot_key` **before** the host's `on_kidnap` callback frees the tile and
+  despawns the building — read the sprite first, then let the host tear it
+  down. `pa.goal_is_base = False` here is **load-bearing**: a stale `True`
+  would fire a phantom base breach the moment the carrier reaches the spawn
+  tile. It also clears `pa._target`/`pa._wall_target`/`pa.target_col`/
+  `pa.target_row` and `pa.repath_on_kill`, loads
+  `find_path_to_nearest_spawn(tilemap, col, row, footprint)` into `Movement`
+  at `mv.speed = pa._real_speed` (the BP-4 no-rewind `index = 1 if len >= 2
+  else 0` rule, same as `PathAgent._repath`), and retags LAST. No path (no
+  spawn tile / unreachable) ⇒ despawn on the spot.
+- **`PathAgent.carrying`** — a carrier is inert: `update()` returns
+  immediately at the top when it is set. No blocker scan, no wall scan, no
+  re-path, no condition-speed write; `Movement` (a separate component) keeps
+  driving the waypoints `begin_kidnap` loaded, on the speed it set.
+- **The carried-sprite offset is pure iso arithmetic, no engine change.**
+  `world_to_screen` is `ix = (wx-wy)*half_w`, `iy = (wx+wy)*half_h`, and
+  `depth_key = (layer, wx+wy, wy)` (`engine/coords/system.py`), so a world
+  offset of `(-d, +d)` (`CARRY_OFFSET_TILES = 0.25`, a cosmetic module
+  constant — the `AOE_TRAVEL_TIME`/`CRATER_LIFE` precedent, not balancing):
+  moves the sprite exactly `2·d·half_w` px LEFT on screen with zero vertical
+  change; leaves the depth (`wx+wy`) identical and raises `wy`, so the carried
+  building sorts AFTER the carrier and draws IN FRONT of it. `d = 0.25` → 16px
+  left at zoom 1.
+- **The host seam (`game/main.py`) is the `spawn_corpse` pattern again**:
+  `resolve_combat(..., on_kidnap=…)` fires `session.on_kidnap` (XP + kill count
+  + freeing the building's tile — no gore, no death-spawn stash) then, since
+  `game/enemies` must not import `engine.assets`, asks
+  `assets.animation_total_ms(slot, KIDNAP_ANIM)` and hands the answer to
+  `set_kidnap_pose` — a sheet with a `kidnap` row plays it; one without freezes
+  on idle frame 0.
+- **Wave-clear**: `Session.post_sim` now also requires `not
+  scene.by_tag("kidnapper")` and `not scene.queued_by_tag("kidnapper")` — see
+  `game/core/CLAUDE.md`. Every "clear the field" cheat/quick-skip path
+  (`quick_skip_combat`, `cheat_skip_round`, `cheat_goto_round`, `_wipe_round`)
+  despawns `by_tag("kidnapper")` alongside `by_tag("enemy")`, or the round
+  could never end under an abandoned carrier.
+- **Known consequences, not bugs**: a kidnapped booster never runs payday's
+  slot-7 explosion-on-death step (its neighbours keep their buff); a kidnapped
+  building still pays its one-time `xp_from_buildings` XP (the despawn queue
+  drains at the end of the *next* `scene.update`, so `_award_building_deaths`
+  in `post_sim` still sees it dead-but-present this frame).
+
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
   `EnemyTypes/<type>` block carries a **required** `death_spawn`
@@ -211,6 +295,19 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   `Health`/`Movement`/`SpriteAnimator`/`RangeSensor` carry the rest. The
   duck-typed values the combat sweep reads (`alive`/`dmg`) are guard-safe
   `@property`s.
+- **`REGISTRY_GROUP` now has a data-side twin, `data/balancing/enemies.json`'s
+  `EnemyTypes/<Type>.registry_group` (fix-editor-preview-footprint)** —
+  added so `editor/sprite_fit.py` can resolve a preview slot's real
+  `(footprint, sprite_scale)` render fit without the editor importing this
+  package (D5: `editor/` may never import `game/`). **This class constant
+  was deliberately NOT refactored to read `data/` in that fix** — it stays
+  the runtime source of truth here, and the two are pinned equal by
+  `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` (walks every
+  `Enemy` subclass, compares `REGISTRY_GROUP` against the `EnemyTypes` block
+  its `STAT_SUBTREE` names). A future enemy type that lets the two drift
+  turns that test red instead of silently breaking the editor's Formation-
+  style preview for it — keep both in sync by hand until/unless a later
+  phase collapses them into one source.
 - **Overhead HP-bar size is a per-type class attr**: `HP_BAR_W`/`HP_BAR_H`
   (walker/raider 14×2, siege 24×2, boss 48×4 — prototype-exact), sitting with
   the other presentation class attrs (`DEFAULT_SLOT`, `REGISTRY_GROUP`). Its
@@ -255,19 +352,30 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
     filter consumes **zero rng**, and `footprint == 1` takes the byte-identical
     single `rng.choice(spawn_tiles)` draw — which is what keeps the deterministic
     composition fixtures green.
-  - The **combat sweep measures from the footprint CENTRE**
-    (`anchor + (N−1)/2`): Chebyshev range, Euclidean acquisition, mortar splash
-    and predictive lead all use `_enemy_center_world` / `_fp_offset`, so a 2×2 is
-    not engaged from an unfair corner and shells are not biased half a tile off
-    it. N=1 → offset 0 → numerically identical to before.
+  - **The combat sweep's range GATE measures to the footprint's NEAREST TILE,
+    not its centre** (`_chebyshev`) — everything else (Euclidean acquisition
+    tiebreak, mortar splash measurement, predictive lead) still measures from
+    the block CENTRE (`anchor + (N−1)/2`, `_enemy_center_world` / `_fp_offset`).
+    These are deliberately different: a centre-only range gate meant every tile
+    OUTSIDE a 2×2 block sat at Chebyshev ≥ 1.5 from the centre, so a range-1
+    defender standing adjacent to a boss could never target it — while the
+    boss's own block-and-attack scan (`components.py` `_blocker_ahead`, a
+    block-wide occupancy check) hit that same defender fine. `_chebyshev` now
+    clamps the defender's tile to the block's span (`[anchor, anchor + 2·off]`
+    per axis) before taking Chebyshev, so any tile touching the block is in
+    range. Acquisition/splash/lead keep the centre — a defender should still
+    prefer the nearest BODY when choosing between two candidates, and a shell
+    should still land mid-block — so only the range gate changed. N=1 → offset
+    0 → numerically identical to before for all four call sites.
     **PERF (load-bearing):** the offset is a per-enemy constant and is resolved
     ONCE PER ENEMY PER FRAME — `resolve_combat` builds `targets =
     [(enemy, off), …]` and passes `off` into `_chebyshev`. Never resolve it
     inside the (defender × enemy) pairwise loop: `get_component` is a linear
     isinstance scan, and doing it per pair cost ~9 ms of a 16.7 ms frame at 50
     defenders × 300 enemies. `_chebyshev` also SKIPS a zero offset rather than
-    adding it, keeping the N=1 expression in integer arithmetic (float ops there
-    allocate per pair). Both are pinned by `game/PERF.md`.
+    running the block-clamp with a zero span, keeping the N=1 expression in
+    integer arithmetic (float ops there allocate per pair). Both are pinned by
+    `game/PERF.md`.
   - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
     property only — enemies do not block each other, and two footprint-2 units
     may overlap. That is intended.
@@ -354,6 +462,54 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   muzzle/slash/blood FX are watcher-driven in `game/ui/effects.py` (an
   `EnemyCombat.cooldown` reset while blocked = an attack landed) — this package
   needed NO change for 10J.
+  - **ESV-1 D4 — the spawn point is cosmetic, flight time never moves with it.**
+    A defender's optional manifest `muzzle` anchor shifts only WHERE
+    `_fire`/`_fire_splash` spawn the projectile visually;
+    `ProjectileHoming.launch(target, shooter, scene, origin=...)` always
+    computes flight time from the shooter's UNMODIFIED `transform.world_pos`,
+    passed in as `origin` — never from the anchored spawn point. `origin=None`
+    (every pre-ESV-1 caller) falls back to the projectile's own spawn
+    position, today's exact expression. Damage-arrival timing is therefore
+    provably invariant under any muzzle value.
+  - **feat-projectile-anchored-flight — the homing MOVEMENT target is now the
+    target's `impact` anchor too, basic defenders only (D4, still cosmetic).**
+    Before this fix `ProjectileHoming.update` always homed toward
+    `target.transform.world_pos`; the `impact` anchor existed only for the
+    `projectile_hit` hit-VFX callback in `_impact`, so a shot never actually
+    flew to where it visually landed. `update()` now resolves
+    `game.anchors.projectile_point(self._assets, self._cs, target, "impact",
+    self._lift_frac)` EVERY FRAME (the target moves) for the MOVEMENT target
+    only — `self.timer` (and therefore `_impact()`'s firing frame) is
+    unaffected, still decremented unconditionally every frame regardless of
+    this point. `_assets`/`_cs`/`_lift_frac` are transient underscore refs
+    (E-11), set by `_fire`. **Mortar shells (`ProjectileArc`, `_fire_splash`)
+    are untouched** — they fly to a `_predict_lead`-computed ground point, not
+    an entity, so no `impact` anchor applies (§2.4 of the brief).
+  - **The muzzle spawn point's UNANCHORED fallback changed shape, not
+    value.** `game.anchors.projectile_point(assets, cs, obj, name,
+    lift_frac)` wraps `anchor_world_point` ("anchor wins outright" — an
+    authored anchor is unaffected by any of this) and, only when absent,
+    raises `obj`'s world position by `lift_frac` (`procedural.projectile.
+    lift_frac`, threaded from `resolve_combat`'s existing `vfx_balance`
+    argument — no new parameter) TILE HEIGHTS in SCREEN space, via the
+    two-sample `screen_to_world` trick. That lift used to be added at DRAW
+    time in `game/ui/effects.py submit_projectiles` (which double-counted
+    against an authored anchor — the dot rendered ~19px above the muzzle
+    handle even once an anchor existed); it now lives in the endpoint, so the
+    draw is a pure projection and an authored anchor is never fought by a
+    second, unrelated lift. **`_fire_splash` resolves its muzzle spawn
+    through the SAME `projectile_point` — and it HAS to.** The "basic
+    defenders only" scope covers the homing TARGET (the mortar keeps flying
+    to `_predict_lead`'s ground point, no `impact` anchor), but the lift
+    removal from `submit_projectiles` is shared by both draw paths, and
+    `ProjectileArc.update` never moves the shell — only its timer ticks, so
+    its spawn point IS its drawn point for the whole flight. Leaving
+    `_fire_splash` on plain `anchor_world_point` therefore dropped the mortar
+    shell ~19px the moment the draw lift went away. Routing it through
+    `projectile_point` puts the lift back in the endpoint and restores the
+    pre-change position (to within the float-vs-`int()` rounding step the
+    move introduces everywhere). `lift_frac` reaches it through the same
+    `resolve_combat` thread `_fire` uses.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`
@@ -423,6 +579,24 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   impossible to violate rather than merely conventional. `resolve_combat(
   dmg_bonus=0)` threads the boss-bonus story damage in as a plain int. Enemy
   construction never leaves this package.
+- **ESV-5** — `resolve_combat(on_splash_impact=…)`: `ProjectileArc._impact`
+  (the mortar shell's landing) fires the callback with `(gx, gy)` ALONGSIDE
+  (never instead of) its unconditional cosmetic `Crater` spawn, so
+  `game/ui`'s `splash_impact` trigger row can drain a ledger without this
+  package importing `game/core`.
+- **ESV-6** — two MORE optional callbacks, same pattern, both purely
+  cosmetic (D4 — neither reads or writes anything the damage block above
+  touched): `resolve_combat(on_defender_fire=…)` fires from BOTH `_fire`
+  and `_fire_splash` with the ALREADY muzzle-anchored spawn point those
+  functions compute for the projectile itself (never recomputed);
+  `resolve_combat(on_projectile_hit=…)` fires from `ProjectileHoming._impact`
+  ONLY (the homing path — the mortar keeps its own `on_splash_impact` event
+  above) with the TARGET's `impact`-anchored point, whether or not the
+  target is still alive that frame. Both default `None` (every pre-ESV-6
+  caller, including every test in this package that doesn't pass them, is
+  byte-identical) — `ProjectileHoming` also grows two transient underscore
+  refs, `_assets`/`_cs` (E-11 — set by `_fire`, exactly like `_fire_splash`
+  already stashes `arc._on_impact`), so `_impact` can resolve the anchor.
 
 ## Perf note that lives here
 `Enemy.on_spawn`'s `find_path` (and its `find_path_ignoring_walls` fallback)

@@ -41,6 +41,28 @@ frame that ships is 96 or 32 tall, so the new rule is **byte-identical** for
 buildings / tiles / deco / core; the enemy sheets (18/26/28/56/84/88 tall) are
 the intended moves — they used to hang above their tile.
 
+**`sprite_anchor_screen(cs, wx, wy, frame_w, fit_tiles, scale, offset_xy,
+anchor_xy)` (fix-anchor-origin-parity)** — exported from this module (and
+`engine.render`) alongside `fit_factor`/`block_center_offset`: the SCREEN
+point a manifest `anchor_xy` (frame-px, `(0, 0)` = the sprite's drawn
+CENTRE) resolves to for the sprite `flush` draws at world position
+`(wx, wy)`. It composes `block_center_offset` + `fit_factor` + this
+module's centre convention — never restates them — evaluated for one point
+instead of a whole blit. THE one shared origin every anchor consumer, game
+and editor alike, must resolve through: `game/anchors.py`'s
+`anchor_world_point` (game side) and `editor/panels/viewport.py`'s
+`_anchor_draw_params` (editor side) both call it, closing the gap that
+shipped as a live bug — the editor drew every anchor handle from the
+sprite's drawn centre while the game resolved the SAME anchor from a
+different base (`cs.world_to_screen(obj.transform.world_pos)`, missing both
+the `tile_h/2*zoom` tile-diamond-centre shift and, for a multi-tile
+footprint, the `block_center_offset` shift), so a handle dragged onto a
+sprite landed somewhere else in game — always, for every anchor. Measured
+gap on the fixture geometry (tile_h=32, zoom=1): exactly 16px. `frame_h`
+never enters this function — the centre sits on the tile diamond's centre
+regardless of frame height, per the Anchor convention above. Pure: no
+pygame, no game vocabulary. See `docs/briefs/fix-anchor-origin-parity.md`.
+
 ## Sizing: `fit_tiles` / `scale` (ER-1, downscale-only)
 `RenderItem`/`SpriteAnimator` carry two engine-generic sizing fields (**no game
 vocabulary here** — never `footprint`/`sprite_scale`, those are the `game/` names

@@ -167,6 +167,12 @@ class Hud:
         self.skinning = skinning or ScreenSkinning.empty()
         self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
         self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
+        # -- 10L: fast-forward combat-speed buttons (top-left, below the
+        # love/xp/income/lives/tiles readout column) --
+        self.speed_1x = Button((0, 0, 56, 28), "1×", font_key="sm")
+        self.speed_1_5x = Button((0, 0, 56, 28), "1.5×", font_key="sm")
+        self.speed_2x = Button((0, 0, 56, 28), "2×", font_key="sm")
+        # -- /10L speed --
         self._clock = 0.0  # drives the levelup-pending pulse
         # The building panel is a full-height right sidebar and the HUD submits
         # AFTER it, so both right-edge buttons would paint on top of it. While
@@ -232,11 +238,21 @@ class Hud:
         # W/H nominal 0 (a position-only text label, the same convention
         # every other label id in this file already uses).
         self._phase_label.rect = (12, view_h - 26, 0, 0)
+        # -- 10L: speed buttons — a fixed row below the readout column --
+        sy = 110
+        sw, sh, gap = 56, 28, 6
+        self.speed_1x.rect = (12, sy, sw, sh)
+        self.speed_1_5x.rect = (12 + sw + gap, sy, sw, sh)
+        self.speed_2x.rect = (12 + 2 * (sw + gap), sy, sw, sh)
+        # -- /10L speed --
         self.ids = {
             "btn_end_turn": ("button", self.end_turn),
             "btn_pause": ("button", self.pause),
             "love_panel": ("panel", self._love_panel),
             "phase_label": ("label", self._phase_label),
+            "btn_speed_1x": ("button", self.speed_1x),
+            "btn_speed_1_5x": ("button", self.speed_1_5x),
+            "btn_speed_2x": ("button", self.speed_2x),
         }
         self.skinning.apply(self.screen_id, self.ids)
 
@@ -309,12 +325,30 @@ class Hud:
         self.pause.hover(mx, my, mouse_down)
         self.pause.hovered = self.pause.hovered and is_visible(self.pause)
         self.pause.update(dt)
+        # -- 10L: fast-forward speed buttons (round-gated per Session) --
+        for idx, btn in ((0, self.speed_1x), (1, self.speed_1_5x),
+                         (2, self.speed_2x)):
+            btn.enabled = (st.state == GameState.GAMEPLAY
+                          and not self._panel_open
+                          and session.speed_unlocked(idx))
+            btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
+            btn.update(dt)
+        # -- /10L speed --
 
     def hit(self, mx, my):
         if self._panel_open:
             return None
         if is_visible(self.pause) and self.pause.hit(mx, my):
             return "pause"
+        # -- 10L: speed buttons --
+        if is_visible(self.speed_1x) and self.speed_1x.hit(mx, my):
+            return ("speed", 0)
+        if is_visible(self.speed_1_5x) and self.speed_1_5x.hit(mx, my):
+            return ("speed", 1)
+        if is_visible(self.speed_2x) and self.speed_2x.hit(mx, my):
+            return ("speed", 2)
+        # -- /10L speed --
         return ("end_turn" if is_visible(self.end_turn)
                and self.end_turn.hit(mx, my) else None)
 
@@ -414,6 +448,20 @@ class Hud:
             if is_visible(self.pause):
                 self.pause.submit(renderer, anim_ms=t,
                                   **button_kwargs(self.pause))
+            # -- 10L: fast-forward speed buttons — active one gets the
+            # overlays.py gold-rim treatment (overrides any skin color) --
+            for idx, btn in ((0, self.speed_1x), (1, self.speed_1_5x),
+                             (2, self.speed_2x)):
+                if not is_visible(btn):
+                    continue
+                if idx == session.combat_speed_idx:
+                    btn.submit(renderer, color=widgets.C_UI_BTN,
+                              text_color=widgets.C_GOLD, anim_ms=t)
+                    renderer.submit_hud(HudRect(btn.rect, widgets.C_GOLD,
+                                                width=2, border_radius=3))
+                else:
+                    btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
+            # -- /10L speed --
 
         # -- lightning readout (10H) ---------------------------------------
         self._submit_lightning(renderer, session, view_h)

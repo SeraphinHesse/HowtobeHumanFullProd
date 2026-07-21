@@ -39,7 +39,7 @@ from game.map.pathfinder import (
     find_path, find_path_ignoring_walls,
     find_path_to_nearest_non_base_building,
 )
-from .components import DeathSpawn, EnemyCombat, PathAgent
+from .components import DeathSpawn, EnemyCombat, Kidnap, PathAgent
 
 
 def variant_slot(registry, group_label, tier, rng=None, fallback=None):
@@ -122,6 +122,10 @@ class Enemy(GameObject):
                        at_hp_fraction=float(ds["at_hp_fraction"]),
                        spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
                        counts=dict(spawn_row)),
+            # Kidnapping (Art/enemies): LAST — it must tick after both
+            # Movement (sees arrival the same frame) and SpriteAnimator (its
+            # per-frame clock re-pin wins).
+            Kidnap(enabled=bool(block["kidnapping"])),
         ]
         super().__init__(
             name=self.ETYPE,
@@ -302,11 +306,12 @@ class Boss(Enemy):
         the last thing it touches, and only once the board is clear). Arms the
         10G ``PathAgent`` flags: re-path when the target dies, and never count
         arrival at a non-base goal as a breach."""
+        fp = self.get_component(PathAgent).footprint
         path = find_path_to_nearest_non_base_building(
-            self._tilemap, self._col, self._row)
+            self._tilemap, self._col, self._row, footprint=fp)
         if not path:
             path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row)
+                self._tilemap, self._col, self._row, footprint=fp)
         mv = self.get_component(Movement)
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0
