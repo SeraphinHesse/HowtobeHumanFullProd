@@ -153,6 +153,90 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
   with its own `death` row, playing the enemy's OWN slot yields the right variant
   with no random pick. Pinned by `test_corpse`.
 
+## Kidnapping (`kidnap.py`, Art/enemies)
+A kidnap-capable enemy's killing blow on a building is a **terminal, permanent**
+event for both sides: the carrier stops being a combatant (no death VFX, no
+death animation, no drained health bar) and hoists the building's sprite home;
+the building's tile is freed back to empty BUILDABLE ground for good — **no
+payday revive**. Per-type toggle: `EnemyTypes.<type>.kidnapping` (bool,
+required, `/add-balancing-value` shape) — **Standard `true`, Raider `true`,
+SiegeCannon `false`, Formation `false`, Boss `false`** (Boss keeps its 10G
+building-grinding rampage; Formation keeps marching). **A kidnapper walking
+home HOLDS THE ROUND OPEN** — confirmed user decision; see the wave-clear
+condition below.
+
+- **The retag trick, reused wholesale from `Corpse`'s precedent.** On the
+  transition (`begin_kidnap`) the owner's tags flip `("enemy", …) ->
+  ("kidnapper",)`. `GameObject.tags` sits in `_ENGINE_ATTRS`
+  (`engine/core/gameobject.py`), so the write is legal past the E-11 seal. One
+  move makes the carrier invisible to **every** gameplay query that reads
+  `by_tag("enemy")` at once — the combat sweep's target list, the beam's
+  sticky target, `_resolve_base_arrivals`, `game/core/lightning.py`, the
+  overhead HP bars (`game/ui/effects.py submit_enemy_hp_bars`) and the heatmap
+  traffic tracker — with **no per-site "if kidnapping" filter anywhere**.
+  Consequence to accept: a *damaged* kidnapper shows no HP bar at all (moot in
+  practice — its `Health` is never touched, since combat can no longer see it);
+  it is also never counted by the heatmap tracker.
+- **`Kidnap` (`components.py`) is a component like any other** — `enabled`
+  (resolved at construction from balancing), `pending` (armed by
+  `EnemyCombat.update()`'s building branch the instant its killing blow leaves
+  the target not-alive — guard-safe, **never touches the scene**), `active`
+  (carrying), `frozen` (pin the sprite clock at 0 when the sheet has no
+  `kidnap` row — `SpriteAnimator.update` always advances its own clock
+  regardless, so `Kidnap.update`'s per-frame re-pin is what actually locks the
+  frame), plus the carried building's own `slot_key`/`fit_tiles`/`scale`. It
+  goes **LAST** in `Enemy.__init__`'s component list — after `Movement` (sees
+  arrival the same frame) and `SpriteAnimator` (its clock re-pin wins).
+  `Kidnap.render_items` yields ONE extra `RenderItem` for the carried sprite;
+  `Scene.render_items` picks it up generically alongside the carrier's own
+  `SpriteAnimator` item — no new GameObject, no engine change.
+- **`begin_kidnap(scene, tilemap, enemy, building)` (`kidnap.py`) is the ONE
+  transition site**, called from the combat sweep's kidnap pass
+  (`combat.py::_resolve_kidnaps`, placed AFTER the defender loop and BEFORE
+  `_resolve_base_arrivals`). Order is load-bearing: it copies the victim's
+  `SpriteAnimator` fields onto `Kidnap` and blanks the building's own
+  `slot_key` **before** the host's `on_kidnap` callback frees the tile and
+  despawns the building — read the sprite first, then let the host tear it
+  down. `pa.goal_is_base = False` here is **load-bearing**: a stale `True`
+  would fire a phantom base breach the moment the carrier reaches the spawn
+  tile. It also clears `pa._target`/`pa._wall_target`/`pa.target_col`/
+  `pa.target_row` and `pa.repath_on_kill`, loads
+  `find_path_to_nearest_spawn(tilemap, col, row, footprint)` into `Movement`
+  at `mv.speed = pa._real_speed` (the BP-4 no-rewind `index = 1 if len >= 2
+  else 0` rule, same as `PathAgent._repath`), and retags LAST. No path (no
+  spawn tile / unreachable) ⇒ despawn on the spot.
+- **`PathAgent.carrying`** — a carrier is inert: `update()` returns
+  immediately at the top when it is set. No blocker scan, no wall scan, no
+  re-path, no condition-speed write; `Movement` (a separate component) keeps
+  driving the waypoints `begin_kidnap` loaded, on the speed it set.
+- **The carried-sprite offset is pure iso arithmetic, no engine change.**
+  `world_to_screen` is `ix = (wx-wy)*half_w`, `iy = (wx+wy)*half_h`, and
+  `depth_key = (layer, wx+wy, wy)` (`engine/coords/system.py`), so a world
+  offset of `(-d, +d)` (`CARRY_OFFSET_TILES = 0.25`, a cosmetic module
+  constant — the `AOE_TRAVEL_TIME`/`CRATER_LIFE` precedent, not balancing):
+  moves the sprite exactly `2·d·half_w` px LEFT on screen with zero vertical
+  change; leaves the depth (`wx+wy`) identical and raises `wy`, so the carried
+  building sorts AFTER the carrier and draws IN FRONT of it. `d = 0.25` → 16px
+  left at zoom 1.
+- **The host seam (`game/main.py`) is the `spawn_corpse` pattern again**:
+  `resolve_combat(..., on_kidnap=…)` fires `session.on_kidnap` (XP + kill count
+  + freeing the building's tile — no gore, no death-spawn stash) then, since
+  `game/enemies` must not import `engine.assets`, asks
+  `assets.animation_total_ms(slot, KIDNAP_ANIM)` and hands the answer to
+  `set_kidnap_pose` — a sheet with a `kidnap` row plays it; one without freezes
+  on idle frame 0.
+- **Wave-clear**: `Session.post_sim` now also requires `not
+  scene.by_tag("kidnapper")` and `not scene.queued_by_tag("kidnapper")` — see
+  `game/core/CLAUDE.md`. Every "clear the field" cheat/quick-skip path
+  (`quick_skip_combat`, `cheat_skip_round`, `cheat_goto_round`, `_wipe_round`)
+  despawns `by_tag("kidnapper")` alongside `by_tag("enemy")`, or the round
+  could never end under an abandoned carrier.
+- **Known consequences, not bugs**: a kidnapped booster never runs payday's
+  slot-7 explosion-on-death step (its neighbours keep their buff); a kidnapped
+  building still pays its one-time `xp_from_buildings` XP (the despawn queue
+  drains at the end of the *next* `scene.update`, so `_award_building_deaths`
+  in `post_sim` still sees it dead-but-present this frame).
+
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
   `EnemyTypes/<type>` block carries a **required** `death_spawn`

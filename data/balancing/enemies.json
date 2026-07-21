@@ -74,6 +74,7 @@
         ]
       },
       "footprint": 2,
+      "kidnapping": false,
       "registry_group": "Boss",
       "round_counts": [
         {
@@ -170,6 +171,7 @@
       "dmg": 30,
       "footprint": 1,
       "hp": 440,
+      "kidnapping": false,
       "move_speed": 0.9,
       "registry_group": "Formation",
       "rounds_per_formation": 3,
@@ -195,6 +197,7 @@
       "dmg": 20,
       "footprint": 1,
       "hp": 42,
+      "kidnapping": true,
       "move_speed": 2.7,
       "per_round": 1,
       "registry_group": "Raider",
@@ -220,6 +223,7 @@
       "dmg": 100,
       "footprint": 1,
       "hp": 280,
+      "kidnapping": false,
       "mix_ratio": 0.5,
       "move_speed": 1.0,
       "queue_lead_count": 5,
@@ -246,6 +250,7 @@
       "dmg": 10,
       "footprint": 1,
       "hp": 55,
+      "kidnapping": true,
       "move_speed": 1.2,
       "registry_group": "Walker",
       "sprite_scale": 1.0

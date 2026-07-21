@@ -29,6 +29,7 @@ import random
 from . import boss_bonuses as bb
 from . import levelup as lv
 from . import lightning as lt  # 10H
+from . import payday
 from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
@@ -136,7 +137,10 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return
-        for e in list(scene.by_tag("enemy")):
+        # Kidnappers (Art/enemies) hold the round open exactly like a live
+        # enemy — a wave-abandon must clear them too, or the round can never
+        # end after this. They already paid their XP on the kidnap.
+        for e in list(scene.by_tag("enemy")) + list(scene.by_tag("kidnapper")):
             scene.despawn(e)
         self.spawner.clear()
         self._wipe_pending = False
@@ -176,7 +180,9 @@ class Session:
         cheat corner the prototype allows (kept)."""
         if self.state.state != GameState.GAMEPLAY:
             return
-        for e in list(scene.by_tag("enemy")):
+        # Kidnappers hold the round open exactly like a live enemy (see
+        # quick_skip_combat) — clear them too.
+        for e in list(scene.by_tag("enemy")) + list(scene.by_tag("kidnapper")):
             scene.despawn(e)
         self.spawner.clear()
         self._wipe_pending = False
@@ -191,7 +197,9 @@ class Session:
         simply not invoked (prototype-exact)."""
         if self.state.state != GameState.GAMEPLAY:
             return
-        for e in list(scene.by_tag("enemy")):
+        # Kidnappers hold the round open exactly like a live enemy (see
+        # quick_skip_combat) — clear them too.
+        for e in list(scene.by_tag("enemy")) + list(scene.by_tag("kidnapper")):
             scene.despawn(e)
         self.spawner.clear()
         self._wipe_pending = False
@@ -317,7 +325,12 @@ class Session:
                 # `by_tag` cannot see them. Without this the last enemy of a wave
                 # breaking into a swarm ends the round and orphans its children
                 # into it.
-                and not scene.queued_by_tag("enemy")):
+                and not scene.queued_by_tag("enemy")
+                # Art/enemies: a kidnapper walking home HOLDS the round open —
+                # the wave cannot end until every carrier has reached a spawn
+                # tile and despawned (user decision).
+                and not scene.by_tag("kidnapper")
+                and not scene.queued_by_tag("kidnapper")):
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
@@ -452,6 +465,27 @@ class Session:
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
 
+    # -- kidnapping (fed from resolve_combat's on_kidnap) -----------------
+
+    def on_kidnap(self, enemy, building, scene):
+        """The mirror of ``on_enemy_death`` for a kidnap transition
+        (Art/enemies): the carrier counts as dead for scoring (XP + kill
+        count) but leaves NO gore/splatter (``enemy_death_events``) and no
+        death-spawn burst — "no VFX" per the design. The building is gone for
+        good: its tile is freed back to empty BUILDABLE ground through the
+        same helper payday's own free-tile step uses, so there is no payday
+        revive."""
+        self.state.enemies_killed += 1
+        self._award_enemy_xp(enemy)
+        # A kidnapped wall builder's perimeter must be torn down explicitly:
+        # payday's slot-8 teardown sweeps dead buildings still ON THE BOARD
+        # and will never see one that was carried off, so its walls would
+        # otherwise be orphaned.
+        if getattr(building, "building_type", None) == "wall_builder":
+            self.tilemap.remove_walls_for_builder(building)
+        tile = self.tilemap.get(building.col, building.row)
+        payday._free_tile(self.tilemap, tile, self.occupancy, scene)
+
     def _award_enemy_xp(self, enemy):
         amount = xpmod.xp_for_etype(getattr(enemy, "ETYPE", "standard"),
                                     self.core_balance)
@@ -484,7 +518,9 @@ class Session:
         pay their XP, so a life-loss round-clear doesn't rob the player
         (prototype game.py:1300-1303). Enemies already on the field are cleared
         silently — they grant nothing (prototype ``enemies.clear()``)."""
-        for e in list(scene.by_tag("enemy")):
+        # Kidnappers hold the round open exactly like a live enemy (see
+        # quick_skip_combat) — clear them too; they already paid their XP.
+        for e in list(scene.by_tag("enemy")) + list(scene.by_tag("kidnapper")):
             scene.despawn(e)
         for tile, etype in self.spawner.pending():
             xpmod.award_xp(self.state,

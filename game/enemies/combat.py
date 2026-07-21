@@ -33,7 +33,8 @@ from game.anchors import anchor_world_point, projectile_point
 from game.buildings.components import (
     Attacker, BeamAttacker, RoundStats, SplashAttacker,
 )
-from .components import PathAgent
+from .components import EnemyCombat, Kidnap, PathAgent
+from .kidnap import begin_kidnap
 
 # AOE_TRAVEL_TIME / BEAM_MIN_TICK are SIMULATION TIMING, not balancing (NOT
 # cosmetics — D4, ESV-3b §1.3): the mortar shell's fixed flight time (feeds
@@ -410,7 +411,8 @@ def _predict_lead(target, travel_time):
 def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
                    assets=None, cs=None, on_splash_impact=None,
-                   on_defender_fire=None, on_projectile_hit=None):
+                   on_defender_fire=None, on_projectile_hit=None,
+                   on_kidnap=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -445,12 +447,19 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 
     feat-projectile-anchored-flight: ``lift_frac`` (``procedural.projectile.
     lift_frac``, the SAME cosmetic constant ``_fire_splash`` already reads
-    for its shell's crater — no new parameter here) is threaded to ``_fire``
-    ONLY (the homing path, basic defenders) so its spawn point and its
-    ``ProjectileHoming``'s homing target both resolve the un-anchored lift
-    that used to be applied at draw time. ``_fire_splash``/``ProjectileArc``
-    (the mortar) are untouched — no ``impact`` anchor applies to a shot that
-    flies to a predicted ground point, not an entity (§2.4)."""
+    for its shell's crater — no new parameter here) is threaded to BOTH
+    ``_fire`` and ``_fire_splash``, which resolve their spawn point through
+    ``game.anchors.projectile_point``. The HOMING TARGET change is
+    ``_fire``-only (basic defenders): no ``impact`` anchor applies to a
+    mortar shell, which flies to a predicted ground point, not an entity
+    (§2.4). But the un-anchored LIFT had to reach the mortar too — the draw
+    lift it used to get in ``submit_projectiles`` is gone, and
+    ``ProjectileArc.update`` never moves the shell, so its spawn point is
+    its drawn point for the whole flight.
+
+    ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
+    ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
+    ``_resolve_kidnaps`` below."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -469,6 +478,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
                          on_defender_fire, on_projectile_hit, lift_frac)
 
+    _resolve_kidnaps(scene, tilemap, on_kidnap)
+
     _resolve_base_arrivals(scene, tilemap, on_base_hit)
 
     for enemy in scene.by_tag("enemy"):
@@ -479,6 +490,25 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
             if on_enemy_death is not None:
                 on_enemy_death(enemy)
             scene.despawn(enemy)
+
+
+def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
+    """The kidnap transition, placed AFTER the defender loop and BEFORE
+    ``_resolve_base_arrivals`` (Art/enemies). Order is load-bearing:
+    ``begin_kidnap`` must copy the victim's sprite fields before ``on_kidnap``
+    hands off to the host, which frees the building's tile and despawns it.
+    The retag inside ``begin_kidnap`` drops the enemy out of
+    ``by_tag("enemy")`` immediately, so the death sweep below never sees it
+    and any defender's ``target not in in_range`` re-acquire test clears a
+    lock on it next tick."""
+    for enemy in list(scene.by_tag("enemy")):
+        k = enemy.get_component(Kidnap)
+        if k is None or not k.pending:
+            continue
+        building = enemy.get_component(EnemyCombat)._kidnap_victim
+        begin_kidnap(scene, tilemap, enemy, building)
+        if on_kidnap is not None:
+            on_kidnap(enemy, building)
 
 
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,

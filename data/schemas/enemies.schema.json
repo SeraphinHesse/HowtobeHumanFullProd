@@ -236,6 +236,10 @@
               "minimum": 1,
               "type": "integer"
             },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
             "registry_group": {
               "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
               "minLength": 1,
@@ -298,6 +302,7 @@
           "required": [
             "death_spawn",
             "footprint",
+            "kidnapping",
             "registry_group",
             "round_counts",
             "round_interval",
@@ -350,6 +355,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
             "move_speed": {
               "description": "Movement speed in tiles per second.",
               "maximum": 60,
@@ -388,6 +397,7 @@
             "dmg",
             "footprint",
             "hp",
+            "kidnapping",
             "move_speed",
             "registry_group",
             "rounds_per_formation",
@@ -439,6 +449,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
             "move_speed": {
               "description": "Movement speed in tiles per second.",
               "maximum": 60,
@@ -477,6 +491,7 @@
             "dmg",
             "footprint",
             "hp",
+            "kidnapping",
             "move_speed",
             "per_round",
             "registry_group",
@@ -528,6 +543,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
             "mix_ratio": {
               "description": "Fraction of the siege allotment interleaved into the queue (rest trails).",
               "maximum": 1,
@@ -578,6 +597,7 @@
             "dmg",
             "footprint",
             "hp",
+            "kidnapping",
             "mix_ratio",
             "move_speed",
             "queue_lead_count",
@@ -625,6 +645,10 @@
               "minimum": 0,
               "type": "integer"
             },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
             "move_speed": {
               "description": "Movement speed in tiles per second.",
               "maximum": 60,
@@ -650,6 +674,7 @@
             "dmg",
             "footprint",
             "hp",
+            "kidnapping",
             "move_speed",
             "registry_group",
             "sprite_scale"
