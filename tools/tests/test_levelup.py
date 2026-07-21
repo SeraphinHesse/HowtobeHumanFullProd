@@ -761,6 +761,24 @@ class TestXpAwardSites(unittest.TestCase):
         session.pre_sim(0.1, scene)
         self.assertEqual(st.player_xp, 0)
 
+    def test_a_building_dying_as_the_wave_clears_still_pays(self):
+        """``pre_sim`` only sweeps building deaths while the phase is ENEMY, so
+        a building that dies on the very frame the round ends would never pay —
+        and payday's revive then makes it ``alive`` again, losing the XP for
+        good. ``post_sim`` awards on the round-ending frame for exactly this."""
+        session, tm, scene, occ = make_session(rows=("bb", "bb"))
+        st = session.state
+        st.phase = GamePhase.ENEMY
+        b, _ = place_building(tm, tm.get(1, 1), "defence", 1000, BUILD, scene,
+                              occ, state=st)
+        scene.update(0.0)
+        session.spawner.clear()                        # drained -> wave clear
+        b.get_component(Health).damage(10 ** 6)        # dies THIS frame
+        session.post_sim(scene)
+        self.assertEqual(st.phase, GamePhase.ROUND_END)
+        self.assertEqual(st.player_xp,
+                         BUILD["BuildingsGlobal"]["xp_on_death"]["defence"])
+
     def test_the_base_never_pays_death_xp(self):
         session, tm, scene, _ = make_session()
         st = session.state

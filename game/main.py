@@ -710,13 +710,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     _state.projectile_hit_events.append((wx, wy))
 
                 # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
-                # count + freeing the building's tile for good) runs first,
-                # then upgrade the default frozen-idle carry pose to the
-                # sheet's own `kidnap` row if it has one — `animation_total_ms`
-                # returns None (never an idle fallback) for a sheet without
-                # one, so this cleanly stays on the frozen-idle branch.
-                def _on_kidnap(enemy, building, _scene=world.scene):
-                    session.on_kidnap(enemy, building, _scene)
+                # count) runs first, then upgrade the default frozen-idle carry
+                # pose to the sheet's own `kidnap` row if it has one —
+                # `animation_total_ms` returns None (never an idle fallback)
+                # for a sheet without one, so this cleanly stays on the
+                # frozen-idle branch.
+                def _on_kidnap(enemy, building):
+                    session.on_kidnap(enemy, building)
                     anim = enemy.get_component(SpriteAnimator)
                     if anim is not None:
                         set_kidnap_pose(

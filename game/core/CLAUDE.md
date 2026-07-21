@@ -107,6 +107,15 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   building `id()` for the whole run** — a faithful prototype quirk: revive, die
   again, no second payout. `on_enemy_death` also fixes a real bug — `enemies_killed`
   used to count only base breaches, so the game-over screen under-reported kills.
+  - **`_award_building_deaths` runs from `pre_sim`'s ENEMY arm AND from both of
+    `post_sim`'s round-ending branches.** The second site is not redundant: a
+    building that dies on the very frame the round ends — a base breach
+    (`_wipe_pending`) or the last enemy of the wave — never sees another
+    ENEMY-phase `pre_sim`, and payday's slot-9 revive then makes it `alive`
+    again, so its XP was silently lost forever. The id-keyed
+    `_xp_awarded_buildings` guard makes the extra sweep a provable no-op
+    otherwise. This bites hardest on a kidnap, which is *always* a building
+    death, but it was never kidnap-specific.
 - **Grouped unlock (10D boost trio)**: `roll_levelup_options` offers an unlock card
   only for the LEAD member of a spec's `unlock_group` (`btype == unlock_group[0]`),
   skipping the other locked members — so the three boosters surface as ONE "Unlock
@@ -259,16 +268,19 @@ in `game/ui/CLAUDE.md`.
 `on_base_hit`/`on_enemy_death`/the ER-3 death-spawn handshake, fired from
 `game/enemies`'s kidnap pass the frame a kidnap-capable enemy's killing blow
 transitions it into a carrier (see `game/enemies/CLAUDE.md`).
-- **`Session.on_kidnap(enemy, building, scene)`** mirrors `on_enemy_death`:
+- **`Session.on_kidnap(enemy, building)`** mirrors `on_enemy_death`:
   `enemies_killed += 1` + `_award_enemy_xp(enemy)`, but deliberately **skips**
   the `enemy_death_events` splatter append (no VFX) and the ER-3
-  `death_spawn_plan` stash (a kidnapped unit never bursts). It then frees the
-  building's tile for good through the SAME helper payday's own free-tile step
-  uses (`payday._free_tile(tilemap, tile, occupancy, scene)`) — no revive sweep
-  will ever see it again. A kidnapped `wall_builder` has its perimeter torn
-  down explicitly first (`tilemap.remove_walls_for_builder`), because payday's
-  slot-8 teardown sweeps dead buildings still ON THE BOARD and would never see
-  one carried off.
+  `death_spawn_plan` stash (a kidnapped unit never bursts). **It does nothing
+  at all to the building** (user decision): the victim is left standing on its
+  tile as a plain dead building, so every payday slot treats it exactly like
+  one killed by a non-kidnapping enemy — slot 7 explodes a kidnapped booster,
+  slot 8 tears down a kidnapped `wall_builder`'s perimeter and slot 10 restores
+  it, and the **slot-9 revive rebuilds it, so a kidnapped building reappears
+  next phase**. `BuildingSprite` hides it meanwhile. It used to call
+  `payday._free_tile(...)` here and be gone for good; that, the explicit
+  `remove_walls_for_builder` call it needed, and the `scene` parameter are all
+  deleted.
 - **Wave-clear now also waits on kidnappers** (confirmed user decision — "a
   kidnapper walking home HOLDS the round open"): `post_sim`'s condition gained
   `and not scene.by_tag("kidnapper") and not scene.queued_by_tag("kidnapper")`

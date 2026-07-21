@@ -16,17 +16,19 @@ from engine.core import Component, SpriteAnimator
 class BuildingSprite(SpriteAnimator):
     """A building's sprite, hidden while the building is DEAD.
 
-    A building killed but not kidnapped stays in the scene until the round-end
-    revive (``Building.rebuild``) — the payday slots, the explosion debuffs and
-    the XP award all read it as ``alive == False``. Only its *visual* should go
-    away, so this yields no RenderItem while the owner is dead and comes back by
+    A killed building stays in the scene until the round-end revive
+    (``Building.rebuild``) — the payday slots, the explosion debuffs and the XP
+    award all read it as ``alive == False``. Only its *visual* should go away,
+    so this yields no RenderItem while the owner is dead and comes back by
     itself the moment ``rebuild`` restores HP: nothing to save, nothing to
     restore, no ``slot_key`` to stash (an empty key would draw the grey-X
     placeholder, not nothing). Same "component renders conditionally, no engine
     change" precedent as ``Kidnap.render_items``.
 
-    Kidnapped buildings never reach this: ``begin_kidnap`` hands off to the host,
-    which despawns the victim outright and redraws it on the carrier.
+    Kidnapped buildings are exactly this case too: ``begin_kidnap`` only COPIES
+    the sprite fields onto the carrier (which redraws them in its arms) and
+    leaves the dead victim standing on its tile, so this is what hides it until
+    payday revives it.
     """
 
     def on_added(self, owner):
