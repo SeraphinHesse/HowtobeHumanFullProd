@@ -76,6 +76,20 @@ love store, ready to feed `place_building`.
   gates End Turn; `game/main.py` wires it to
   `gp["tutorial"].allows_end_turn`. TU-5's `pending_cutscene` insertion sits
   textually below this one (both inside `end_turn()`, non-overlapping).
+- **`Session.tutorial_director` (TU-7)**: an optional `TutorialDirector`
+  reference (not just a bare callable like `tutorial_gate` — `on_base_hit`
+  and `_begin_round_end` need to call more than one method on it), `None` by
+  default, set alongside `tutorial_gate` in `build_gameplay()`
+  (`gp["world"].session.tutorial_director = gp["tutorial"]`). Two call sites,
+  both no-ops when `None` or when the director is finished/inactive:
+  `on_base_hit` consults `director.charges_life_on_base_hit(round_num)`
+  immediately before decrementing `base_lives` (the scripted round-1 free-loss
+  waiver — a pure read, never mutates the director); `_begin_round_end`
+  unconditionally calls `director.on_round_end(round_num)` right after
+  setting `phase = ROUND_END`, on every road there (wipe / wave-clear /
+  quick-skip / cheat-skip alike) — harmless outside the one scripted step
+  that's actually waiting on that event id. Detail (script shape, the
+  stone-thrower chain) → `game/CLAUDE.md`'s TU-7 subsection.
 
 > Cross-package note (9F): `engine/render/fonts.py` `get_font` now probes a cached
 > SysFont with `get_height()` and rebuilds it if its pygame session was torn down

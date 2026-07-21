@@ -120,7 +120,7 @@ The two message texts from the brief (initial content of the script):
 | TU-4  | Editor: Tutorial section — message texts + toggles | not started |
 | TU-5  | Game: cutscene playback via registry — intro migrated + first-end-turn trigger | not started |
 | TU-6  | Engine + game: step-sequencer + director + guided flute chain (message box, highlights, gating, skip) | not started |
-| TU-7  | Game: scripted loss + lives intro + stone-thrower chain + tutorial end | not started |
+| TU-7  | Game: scripted loss + lives intro + stone-thrower chain + tutorial end | *(LANDED — branch `phase-tu-7-scripted-loss-stone-chain`, off `Tutorial` at `b46b0e0`; full `py tools/testgate.py check` → GATE PASS 1588 ran, 0 failures; pending merge into `Tutorial`)* |
 
 Dependencies: TU-2/TU-3/TU-4 depend only on TU-1 and are mutually independent
 (parallelizable). TU-5 depends on TU-1; TU-6 on TU-1 (+TU-2 for a painted test

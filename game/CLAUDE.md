@@ -148,6 +148,63 @@ where "flute"/"economic"/"confirm" vocabulary lives — never in
   and `TutorialSequencer` both fast-path every query to the "always allowed"
   answer once finished.
 
+## Scripted loss + stone-thrower chain + tutorial end (Phase TU-7)
+TU-7 appends the round-2 half of the script to the SAME
+`data/tutorial/tutorial.json` step list TU-6 built — round 1's chain flows
+straight into it with no seam: after `highlight_end_turn_button` advances on
+`end_turn`, the very next step is round-2's "wait for the scripted loss".
+`TutorialDirector` binds `map_doc.tutorial_stone` exactly like TU-6 bound
+`tutorial_flute` (same nullable-marker shape, same `"tile_click:tutorial_
+stone"` / `"tile_clicked:tutorial_stone"` / `"tile:tutorial_stone"` naming
+per the `_action_id`/event-feed/highlight-id conventions TU-6 established).
+- **The scripted loss needs no new "force a loss" mechanic.** Round 1 of a
+  real run has no defence building yet (only the flute chain fired), so the
+  first enemy that reaches the hole IS the scripted loss — `Session.
+  on_base_hit` already runs unconditionally. TU-7's only addition there is a
+  **free-loss waiver**, gated on a NEW `TutorialDirector.
+  charges_life_on_base_hit(round_num)` query (pure read, never mutates the
+  sequencer): `True` (normal rules) unless the tutorial is active, `round_num
+  == 1`, the sequencer's CURRENT step carries `flags: {"is_scripted_loss":
+  true}`, and the script's `first_loss_costs_life` is `False`. `on_base_hit`
+  consults it immediately before `st.base_lives -= 1`; a waived loss leaves
+  lives untouched and can never trigger `GAME_OVER`.
+- **`Session.tutorial_director`** (new attribute, `None` by default, set
+  alongside `tutorial_gate` in `build_gameplay()`) is how `on_base_hit` and
+  `_begin_round_end` reach the director — `tutorial_gate` stayed a bare
+  callable (End-Turn only), so the free-loss query and the round-end
+  notification needed the real object.
+- **`_begin_round_end` notifies the director unconditionally**
+  (`director.on_round_end(round_num)`, a new event-feed method mirroring
+  `on_end_turn`'s shape) on EVERY road to ROUND_END — wipe, normal
+  wave-clear, quick-skip, cheat-skip alike. Harmless outside the exact step
+  that's waiting on the `"round_end"` id (D6): `TutorialSequencer.advance`
+  only ever moves past the CURRENT step, so a repeat or an off-step call is a
+  no-op.
+- **Message box #2** (`lives_intro`, already present in TU-1's schema/content
+  — TU-7 added no new message key) has no Skip button, matching D7 ("only
+  box #1 carries Skip"); its step's `allow` list omits `skip_tutorial`.
+- **The stone-thrower (Defender, `BUILDING_TYPE = "defence"`) chain reuses
+  every TU-6 primitive unchanged**: `allows(("card", "defence"))` /
+  `_tutorial_allows_panel_click` / `ui_highlight_rects` needed zero new code,
+  since TU-6 already read `building_type` generically off the clicked card
+  rather than hardcoding `"economic"`. `on_building_placed` gained ONE
+  generalization: economy placements still count toward `Tutorial.
+  economy_buildings_required` before advancing; any OTHER building type
+  (i.e. `"defence"`) advances the sequencer on a single placement — additive,
+  the economy-counting path is untouched.
+- **No separate "terminal step" object exists.** The round-2 chain's last
+  step (`highlight_confirm_button_defence`, advancing on
+  `building_placed:defence`) is simply the LAST entry in the step list — once
+  `advance()` moves past it, `TutorialSequencer.finished` becomes `True` via
+  its existing "past the last step" semantics, with no new engine code. (A
+  literal step object with `advance_on: null` would instead get the sequencer
+  PERMANENTLY stuck there, since `advance()` no-ops whenever the current
+  step's `advance_on` is `None` — deliberately avoided.)
+- **`engine/tutorial.py` needed no changes.** `charges_life_on_base_hit`
+  reads the current step's flags via the sequencer's existing public
+  `current` property (`Step.flags` is a plain dict field) — no new accessor
+  was needed.
+
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:
 - **Every tile-state write goes through `TileMap.set_tile_state`** (keeps the

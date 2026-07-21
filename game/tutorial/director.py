@@ -1,11 +1,14 @@
 """``TutorialDirector`` — binds the engine's game-agnostic step-sequencer
 (``engine.tutorial``) to real tiles/cards/buttons (Phase TU-6).
 
-This is where "flute"/"musician"/"economy" vocabulary lives — never in
-``engine/tutorial.py`` (D2). Reads ``data/tutorial/tutorial.json`` (TU-1's
-schema) and the map doc's ``tutorial_flute`` marker; auto-skips (empty
-sequencer, one logged warning, never raises) when either is missing/invalid
-so an old/unpainted map is always fully playable.
+This is where "flute"/"musician"/"economy"/"stone"/"defence" vocabulary
+lives — never in ``engine/tutorial.py`` (D2). Reads
+``data/tutorial/tutorial.json`` (TU-1's schema) and the map doc's
+``tutorial_flute``/``tutorial_stone`` markers; auto-skips (empty sequencer,
+one logged warning, never raises) when the script or the flute marker is
+missing/invalid so an old/unpainted map is always fully playable. TU-7 adds
+the round-2 stone-thrower chain, the scripted first-round loss (optionally
+free) and the tutorial-end state riding the SAME sequencer/script.
 """
 import json
 import logging
@@ -26,8 +29,9 @@ ECONOMY_BUILDING_TYPE = "economic"
 
 
 def _load_script(data_dir):
-    """Load + validate data/tutorial/tutorial.json into (skippable, messages,
-    steps), or None on any load/validation failure (never raises)."""
+    """Load + validate data/tutorial/tutorial.json into (skippable,
+    first_loss_costs_life, messages, steps), or None on any load/validation
+    failure (never raises)."""
     try:
         doc = data_io.load_validated(
             data_dir / "tutorial" / "tutorial.json",
@@ -42,15 +46,18 @@ def _load_script(data_dir):
              advance_on=s["advance_on"], allow=tuple(s["allow"]),
              flags=dict(s["flags"]))
         for s in doc["steps"])
-    return doc["skippable"], doc["messages"], steps
+    return (doc["skippable"], doc["first_loss_costs_life"], doc["messages"],
+            steps)
 
 
 class TutorialDirector:
     def __init__(self, data_dir, map_doc, tutorial_balance):
         self._flute = map_doc.tutorial_flute  # nullable {"col", "row"}
+        self._stone = map_doc.tutorial_stone  # nullable {"col", "row"} (TU-7)
         self._messages = {}
         self._required = 0
         self._economy_placed = 0
+        self._first_loss_costs_life = True
 
         loaded = None
         if self._flute is None:
@@ -65,8 +72,9 @@ class TutorialDirector:
             self.active = False
             return
 
-        skippable, messages, steps = loaded
+        skippable, first_loss_costs_life, messages, steps = loaded
         self._messages = messages
+        self._first_loss_costs_life = first_loss_costs_life
         self._required = tutorial_balance["economy_buildings_required"]
         self.sequencer = TutorialSequencer(steps, skippable=skippable)
         self.active = True
@@ -86,6 +94,9 @@ class TutorialDirector:
             if self._flute is not None and (
                     col, row) == (self._flute["col"], self._flute["row"]):
                 return "tile_click:tutorial_flute"
+            if self._stone is not None and (
+                    col, row) == (self._stone["col"], self._stone["row"]):
+                return "tile_click:tutorial_stone"
             return "tile_click:other"
         if kind == "card":
             return f"card_select:{action[1]}"
@@ -107,25 +118,47 @@ class TutorialDirector:
         """The exact callable ``Session.end_turn`` holds as its gate."""
         return self.allows(("end_turn",))
 
+    def charges_life_on_base_hit(self, round_num):
+        """True (charge the life, normal rules) unless the tutorial is
+        actively holding on round 1's scripted first-loss step AND the
+        script says that loss is free (``first_loss_costs_life: false``,
+        TU-7). A pure read — never mutates the sequencer; the actual advance
+        past this step happens via ``on_round_end``'s event feed."""
+        if self.sequencer.finished or round_num != 1:
+            return True
+        step = self.sequencer.current
+        if step is None or not step.flags.get("is_scripted_loss", False):
+            return True
+        return self._first_loss_costs_life
+
     # -- event feed -----------------------------------------------------------
 
     def on_tile_clicked(self, col, row):
         if self._flute is not None and (
                 col, row) == (self._flute["col"], self._flute["row"]):
             self.sequencer.advance("tile_clicked:tutorial_flute")
+            return
+        if self._stone is not None and (
+                col, row) == (self._stone["col"], self._stone["row"]):
+            self.sequencer.advance("tile_clicked:tutorial_stone")
 
     def on_card_selected(self, building_type):
         self.sequencer.advance(f"building_selected:{building_type}")
 
     def on_building_placed(self, building_type):
-        """Only the guided chain's economy building counts; the running
-        counter lets ``Tutorial.economy_buildings_required`` > 1 hold off the
-        End-Turn unlock until every required placement has landed."""
-        if building_type != ECONOMY_BUILDING_TYPE:
+        """The round-1 economy building counts toward
+        ``Tutorial.economy_buildings_required`` before advancing — the
+        running counter lets a required count > 1 hold off the End-Turn
+        unlock until every required placement has landed. Any OTHER building
+        type (round-2's defence placement, TU-7) advances the sequencer on a
+        single placement — additive, the economy-counting path is
+        untouched."""
+        if building_type == ECONOMY_BUILDING_TYPE:
+            self._economy_placed += 1
+            if self._economy_placed >= self._required:
+                self.sequencer.advance(f"building_placed:{building_type}")
             return
-        self._economy_placed += 1
-        if self._economy_placed >= self._required:
-            self.sequencer.advance(f"building_placed:{building_type}")
+        self.sequencer.advance(f"building_placed:{building_type}")
 
     def on_message_dismissed(self):
         mid = self.sequencer.message_id()
@@ -134,6 +167,15 @@ class TutorialDirector:
 
     def on_end_turn(self):
         self.sequencer.advance("end_turn")
+
+    def on_round_end(self, round_num):
+        """Notified from ``Session._begin_round_end`` on EVERY road to
+        ROUND_END (TU-7); ``round_num`` isn't needed in the event id itself —
+        only one step in the whole script ever has ``advance_on ==
+        "round_end"``, so this is harmless outside the scripted round-1 "wait
+        for the loss" step (``advance`` no-ops unless it matches the CURRENT
+        step, D6's zero-overhead principle)."""
+        self.sequencer.advance("round_end")
 
     def skip(self):
         self.sequencer.skip()
@@ -157,12 +199,14 @@ class TutorialDirector:
 
     def tile_highlight_targets(self):
         """``(col, row)`` pairs for the current step's tile highlights (0 or
-        1 entries) — resolves ``"tile:tutorial_flute"`` against the bound
-        marker."""
+        1 entries) — resolves ``"tile:tutorial_flute"``/``"tile:
+        tutorial_stone"`` (TU-7) against their bound markers."""
         out = []
         for hid in self.highlight_targets():
             if hid == "tile:tutorial_flute" and self._flute is not None:
                 out.append((self._flute["col"], self._flute["row"]))
+            elif hid == "tile:tutorial_stone" and self._stone is not None:
+                out.append((self._stone["col"], self._stone["row"]))
         return out
 
     def ui_highlight_rects(self, panel, hud):

@@ -53,7 +53,7 @@ class TestTutorialScript(unittest.TestCase):
         self.assertIs(data["skippable"], True)
         self.assertIs(data["first_loss_costs_life"], True)
 
-    def test_step_list_is_round_1_only(self):
+    def test_step_list_covers_round_1_and_round_2_highlights(self):
         data = data_io.load_json(TUTORIAL_DATA)
         self.assertGreaterEqual(len(data["steps"]), 1)
         highlights = [h for step in data["steps"] for h in step["highlight"]]
@@ -65,6 +65,12 @@ class TestTutorialScript(unittest.TestCase):
         self.assertIn("card:economic", highlights)
         self.assertIn("button:confirm", highlights)
         self.assertIn("button:end_turn", highlights)
+        # TU-7: round-2's stone-thrower chain (Defender BUILDING_TYPE
+        # "defence") appended after the round-1 steps above, no schema change.
+        self.assertIn("tile:tutorial_stone", highlights)
+        self.assertIn("card:defence", highlights)
+        flags = [step["flags"] for step in data["steps"]]
+        self.assertTrue(any(f.get("is_scripted_loss") for f in flags))
 
     def test_unknown_step_key_rejected(self):
         schema = data_io.load_json(TUTORIAL_SCHEMA)

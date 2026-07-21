@@ -312,6 +312,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["tutorial_message"] = TutorialMessageScreen(
             view_w, view_h, gp["tutorial"].skippable(), skinning=shell.skinning)
         gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
+        gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
         # -- /TU-6 --
         gp["floaters"] = FloaterManager(ui_balance, core_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
