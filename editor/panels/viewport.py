@@ -37,7 +37,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import anchor_ops, tilemap_ops
+from editor import anchor_ops, tilemap_ops, vfx_params
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
@@ -198,6 +198,17 @@ class ViewportPanel(QWidget):
         self._drag_pos = None
         self.last_frame_ms = 0.0
         self._logo_pixmap = QPixmap(str(LOGO_PATH))
+        # feat-projectile-anchored-flight §3.2 PERF: data/balancing/vfx.json
+        # is a THIRD JSON file the entity-preview muzzle-projectile draw
+        # needs (on top of the two slot_draw_fit already reads) — resolved
+        # ONCE here, never inside render_frame/_anchor_draw_params/
+        # _hit_anchor_handle/_anchor_move (the slot_draw_fit PERF lesson:
+        # re-reading JSON per frame/per drag-move measured 125-145ms/frame).
+        # Unlike _draw_fit this does not depend on preview_slot at all, so
+        # there is nothing to re-resolve on a slot switch — only
+        # reload_registry() re-reads it, mirroring _resolve_draw_fit's call
+        # site for "a designer edited data/ and reloaded".
+        self._projectile_params = self._load_projectile_params()
         self._resize_surface()
 
     # -- coords lifecycle: zoom is a balancing tunable (core:Camera) --------
@@ -244,6 +255,17 @@ class ViewportPanel(QWidget):
         self._registry = load_registry(self._data_dir)
         self._build_store()
         self._resolve_draw_fit()   # slots.json changed -> the fit may have too
+        self._projectile_params = self._load_projectile_params()
+
+    def _load_projectile_params(self):
+        """The memoized `procedural.projectile` read (feat-projectile-
+        anchored-flight §3.2 PERF) — `data_io.load_validated` against the
+        vfx schema, then the SAME `editor/vfx_params.py projectile_params`
+        the VFX preview panel already builds."""
+        doc = data_io.load_validated(
+            self._data_dir / "balancing" / "vfx.json",
+            self._data_dir / "schemas" / "vfx.schema.json")
+        return vfx_params.projectile_params(doc["procedural"]["projectile"])
 
     # -- entity preview (ED-21) ----------------------------------------------
 
@@ -962,6 +984,39 @@ class ViewportPanel(QWidget):
         if (x, y) != (orig_x, orig_y):
             self.anchor_drag_finished.emit(name, x, y)
 
+    def _submit_muzzle_projectile(self):
+        """feat-projectile-anchored-flight §3.2: when the previewed slot's
+        `muzzle` anchor is authored, draw the projectile AT that handle's
+        real screen point/size — dragging the handle then shows exactly
+        where the shot leaves the barrel. Resolves the handle point through
+        `_anchor_draw_params()`/`anchor_ops.screen_point`, the SAME call
+        `_submit_anchor_handles` itself uses — never a second computation.
+        Uses `vfx_projectile` art when imported, else the stone dot — the
+        SAME `assets.animation_total_ms(slot, "idle") is not None` "has
+        art" signal the game reads, so the two can never disagree about
+        "imported". Called BEFORE `_submit_anchor_handles()` (§ caller
+        order) so the crosshair stays on top of the dot."""
+        if "muzzle" not in self._anchors:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        ax, ay = self._anchors["muzzle"]
+        sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+        pr = self._projectile_params
+        size = max(2, int(pr.stone_size * zoom))
+        dest = (int(sx - size / 2), int(sy - size / 2))
+        has_art = (self._assets.animation_total_ms("vfx_projectile", "idle")
+                  is not None)
+        if has_art:
+            self._renderer.submit_hud(
+                HudSprite("vfx_projectile", dest, (size, size)))
+        else:
+            self._renderer.submit_hud(HudRect(
+                (dest[0], dest[1], size, size), pr.stone_color,
+                border_radius=size // 2))
+
     def _submit_anchor_handles(self):
         params = self._anchor_draw_params()
         if params is None:
@@ -1058,6 +1113,7 @@ class ViewportPanel(QWidget):
                     fit_tiles=fit_tiles,
                     scale=scale,
                 ))
+                self._submit_muzzle_projectile()
                 self._submit_anchor_handles()
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)

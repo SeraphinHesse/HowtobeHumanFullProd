@@ -129,6 +129,16 @@ same "has art" signal ``engine.vfx.spawn_play_once`` uses
 yet, E-37) so the two paths can never disagree about what "imported" means.
 This is NOT a trigger-table event — no ``triggers`` row, no ``PlayOnceVfx`` —
 projectiles stay continuous, like beams and lightning.
+
+**feat-projectile-anchored-flight**: ``submit_projectiles`` DROPS the
+draw-time lift — it is now a pure projection of ``p.transform.world_pos``.
+The lift moved into the SPAWN POINT (`game/enemies/combat.py`'s `_fire`,
+via `game.anchors.projectile_point`), which is what let it double-count
+against an authored `muzzle` anchor before this fix (the dot rendered ~19px
+above the handle even when the anchor already encoded the height). Unanchored
+play is unaffected — the same lift lands at the same screen pixel, just
+computed once at spawn instead of every draw. The mortar's `ProjectileArc`
+path (`_fire_splash`) is untouched.
 """
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
@@ -737,7 +747,16 @@ class FloaterManager:
         projectiles are continuous in-flight objects, like beams and
         lightning, so this never spawns a ``PlayOnceVfx``. ``self.assets``
         is ``None`` in every bare-constructed test and degrades to the dot,
-        never raises."""
+        never raises.
+
+        feat-projectile-anchored-flight: the draw-time lift is GONE — this
+        is now a pure projection of ``p.transform.world_pos``. The cosmetic
+        lift moved into the ENDPOINT: `game/enemies/combat.py`'s `_fire`
+        (via `game.anchors.projectile_point`) now spawns an unanchored
+        defender shot already raised by ``lift_frac``, exactly where this
+        function used to raise it at draw time — a no-op for unanchored
+        play, an anchor now genuinely reachable. The mortar shell keeps
+        whatever height `_fire_splash` gives it (untouched — §2.4)."""
         pr = self._vfx_params.projectile
         zoom = cs.camera.zoom
         for p in scene.by_tag("projectile"):
@@ -748,9 +767,7 @@ class FloaterManager:
             color = pr.shell_color if shell else pr.stone_color
             size = max(2, int((pr.shell_size if shell else pr.stone_size)
                               * zoom))
-            # lift the dot off the ground plane so it reads as flying
-            lift = int(cs.geometry.tile_h * zoom * pr.lift_frac)
-            dest = (int(cx - size / 2), int(cy - lift - size / 2))
+            dest = (int(cx - size / 2), int(cy - size / 2))
             has_art = (self.assets is not None
                       and self.assets.animation_total_ms(slot, "idle")
                       is not None)

@@ -3,9 +3,17 @@
 ``FloaterManager.submit_projectiles`` draws every in-flight shot as a coloured
 ``HudRect`` dot UNLESS its slot (``vfx_projectile`` for every defender's
 stone, ``vfx_shell`` for a mortar's shell) has imported art, in which case it
-draws a ``HudSprite`` instead — colour/size/lift come from
+draws a ``HudSprite`` instead — colour/size come from
 ``data/balancing/vfx.json procedural.projectile`` (``engine.vfx.
 ProjectileParams``), never a module constant any more.
+
+feat-projectile-anchored-flight: the draw-time LIFT is gone — ``submit_
+projectiles`` is now a pure projection of the projectile's own
+``transform.world_pos`` (the lift moved into where `game/enemies/combat.py`
+`_fire` spawns an unanchored shot, `game/anchors.py`'s `projectile_point`).
+The three tests below that used to assert a lifted `y` now assert the plain
+`cy - size/2` — this file's shots are built directly at a bare world
+position (never through `_fire`), so there is no lift left to expect here.
 
 Headless/pure: a fake scene + a recording renderer, the ``test_enemy_hp_bars.
 py`` pattern. Never touches live ``data/`` — the pinned ``FIXTURE_DATA``
@@ -87,7 +95,7 @@ def make_store_with_art(*slot_keys, frame_w=64, frame_h=64):
 
 class TestProjectileFallbackDot(unittest.TestCase):
     """Test 6 (brief §4): with no art, `submit_projectiles` emits exactly
-    today's `HudRect` stream (colour, size, lift, border_radius) built from
+    today's `HudRect` stream (colour, size, border_radius) built from
     the shipped JSON defaults, and the `max(2, ...)` floor still applies at
     low zoom."""
 
@@ -118,9 +126,8 @@ class TestProjectileFallbackDot(unittest.TestCase):
         self.assertEqual(item.border_radius, size // 2)
 
         cx, cy = cs.world_to_screen(3.0, 2.0)
-        lift = int(cs.geometry.tile_h * 1.0 * 0.6)
         self.assertEqual(item.rect[0], int(cx - size / 2))
-        self.assertEqual(item.rect[1], int(cy - lift - size / 2))
+        self.assertEqual(item.rect[1], int(cy - size / 2))
 
     def test_shell_dot_matches_shipped_defaults(self):
         fm = self._fm()

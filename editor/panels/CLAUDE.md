@@ -718,6 +718,48 @@ import list.**
   (D5's layering argument lives in the router). This is a KNOWN, reported
   duplication, not an oversight — do not "fix" it by importing `game.ui`.
 
+### feat-projectile-anchored-flight — the `projectile` family + the entity-preview muzzle draw
+Two editor additions, both driven by `procedural.projectile`
+(`engine.vfx.ProjectileParams`, via the SAME `editor/vfx_params.py
+projectile_params` every other family's `VfxParams` construction already
+calls):
+- **`vfx_preview.py`'s `projectile` family is NOT a `VfxSystem` emitter** —
+  a projectile is a continuous flying object the game draws itself (like a
+  beam), never an `emit_*` burst — so it is deliberately kept OUT of
+  `_EMIT_FAMILIES` (a separate `_PROJECTILE_FAMILY` constant marks it
+  "supported" for the degrade-label check) and given its own small preview
+  path, `_submit_projectile_preview`: a dot/sprite interpolated between two
+  fixed world points over `self._loop_clock % self._loop_interval`, using
+  `vfx_projectile`/`vfx_shell` art when imported (the same `assets.
+  animation_total_ms(slot, "idle") is not None` "has art" signal the game
+  reads) else the coloured dot. A `_shell_check` box (the `_strong_check`/
+  `_large_check` precedent) toggles stone<->shell. No RNG involved (a
+  straight interpolation), so nothing here needs reseeding — only the
+  flight clock resets on a family switch (`_set_family`), mirroring
+  `_emit()`'s own `self._loop_clock = 0.0`.
+- **`viewport.py`'s entity preview draws the projectile at the `muzzle`
+  handle** (`_submit_muzzle_projectile`, called from `render_frame` right
+  before `_submit_anchor_handles()` so the crosshair stays on top): gated on
+  `"muzzle" in self._anchors`, it resolves the handle's screen point through
+  `_anchor_draw_params()`/`anchor_ops.screen_point` — the SAME call the
+  handle marker itself uses, never a second computation — and submits a
+  `HudSprite`/`HudRect` at the handle's exact point and real (`stone_size`)
+  size.
+  - **PERF (the `slot_draw_fit` lesson, re-learned once already this
+    plan): `data/balancing/vfx.json` is memoized, never read inside
+    `render_frame`/`_anchor_draw_params`/`_hit_anchor_handle`/
+    `_anchor_move`.** `ViewportPanel._load_projectile_params()` (a
+    `data_io.load_validated` + `vfx_params.projectile_params` call) runs
+    ONCE in `__init__` and again in `reload_registry()` (mirroring
+    `_resolve_draw_fit`'s two call sites) — unlike `_draw_fit` it does NOT
+    depend on `preview_slot` at all, so `set_preview_slot` does not
+    re-resolve it. Measured (`stone_thrower_t1_lvl1` previewed, a `muzzle`
+    handle set, 1280×720): `render_frame` ~6.4ms/frame avg (vs ~5.5ms/frame
+    with no muzzle anchor at all, i.e. the projectile draw itself costs
+    under 1ms); 2000 `_hit_anchor_handle`+`_anchor_move` calls (a synthetic
+    drag) totalled ~12.8ms, ~6.4 MICROseconds each — proof there is no
+    per-call JSON re-read.
+
 ## Phase UH-2 — per-mode screen views + auto Refresh Layouts on entry
 - **`building_panel` gets five views, exported by UH-1's per-mode snapshot
   exporter** (`unlock`/`construct`/`upgrade`/`base_info`/`preview`) instead of
