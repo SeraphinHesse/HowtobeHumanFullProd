@@ -339,19 +339,30 @@ condition below.
     filter consumes **zero rng**, and `footprint == 1` takes the byte-identical
     single `rng.choice(spawn_tiles)` draw — which is what keeps the deterministic
     composition fixtures green.
-  - The **combat sweep measures from the footprint CENTRE**
-    (`anchor + (N−1)/2`): Chebyshev range, Euclidean acquisition, mortar splash
-    and predictive lead all use `_enemy_center_world` / `_fp_offset`, so a 2×2 is
-    not engaged from an unfair corner and shells are not biased half a tile off
-    it. N=1 → offset 0 → numerically identical to before.
+  - **The combat sweep's range GATE measures to the footprint's NEAREST TILE,
+    not its centre** (`_chebyshev`) — everything else (Euclidean acquisition
+    tiebreak, mortar splash measurement, predictive lead) still measures from
+    the block CENTRE (`anchor + (N−1)/2`, `_enemy_center_world` / `_fp_offset`).
+    These are deliberately different: a centre-only range gate meant every tile
+    OUTSIDE a 2×2 block sat at Chebyshev ≥ 1.5 from the centre, so a range-1
+    defender standing adjacent to a boss could never target it — while the
+    boss's own block-and-attack scan (`components.py` `_blocker_ahead`, a
+    block-wide occupancy check) hit that same defender fine. `_chebyshev` now
+    clamps the defender's tile to the block's span (`[anchor, anchor + 2·off]`
+    per axis) before taking Chebyshev, so any tile touching the block is in
+    range. Acquisition/splash/lead keep the centre — a defender should still
+    prefer the nearest BODY when choosing between two candidates, and a shell
+    should still land mid-block — so only the range gate changed. N=1 → offset
+    0 → numerically identical to before for all four call sites.
     **PERF (load-bearing):** the offset is a per-enemy constant and is resolved
     ONCE PER ENEMY PER FRAME — `resolve_combat` builds `targets =
     [(enemy, off), …]` and passes `off` into `_chebyshev`. Never resolve it
     inside the (defender × enemy) pairwise loop: `get_component` is a linear
     isinstance scan, and doing it per pair cost ~9 ms of a 16.7 ms frame at 50
     defenders × 300 enemies. `_chebyshev` also SKIPS a zero offset rather than
-    adding it, keeping the N=1 expression in integer arithmetic (float ops there
-    allocate per pair). Both are pinned by `game/PERF.md`.
+    running the block-clamp with a zero span, keeping the N=1 expression in
+    integer arithmetic (float ops there allocate per pair). Both are pinned by
+    `game/PERF.md`.
   - **D5: footprints never enter `TileOccupancy`.** They are a pathfinding
     property only — enemies do not block each other, and two footprint-2 units
     may overlap. That is intended.

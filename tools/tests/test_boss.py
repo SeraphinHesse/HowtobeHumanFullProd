@@ -25,6 +25,7 @@ from game.core import RunState, Session, load_balance, run_payday
 from game.core import boss_bonuses as bb
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
+from game.enemies.combat import _chebyshev, _fp_offset
 from game.enemies.components import EnemyCombat, PathAgent
 from game.enemies.enemy import tier_scaled_stats
 from game.map.tile_map import TileMap
@@ -835,6 +836,48 @@ class TestBossDoesNotRewind(unittest.TestCase):
             if pa.blocked:
                 break
         self.assertTrue(pa.blocked)              # arrived, punching the far one
+
+
+# ---------------------------------------------------------------------------
+# 10. The range GATE reaches a footprint-2 block from any adjacent tile
+# ---------------------------------------------------------------------------
+class TestChebyshevRangeGateNearestBlockTile(unittest.TestCase):
+    """``_chebyshev`` (game/enemies/combat.py) gates a defender's range on the
+    NEAREST TILE of the enemy's block, not its centre. A footprint-2 boss
+    anchored at (10,10) spans (10,10)..(11,11); a centre-only gate measured
+    every tile OUTSIDE that block at Chebyshev >= 1.5, so a range-1 defender
+    standing right next to it could never target it — while the boss's own
+    block-and-attack scan (``_blocker_ahead``, a block-wide occupancy check)
+    hit that same defender fine."""
+
+    def _footprint_2_boss(self, tm):
+        enem = copy.deepcopy(ENEM)
+        enem["EnemyTypes"]["Boss"]["footprint"] = 2
+        return create_enemy("boss", 10, 10, enem, tm, 0)
+
+    def test_range_1_defenders_touching_the_block_are_all_in_range(self):
+        tm = synth(["b" * 15] * 15)
+        boss = self._footprint_2_boss(tm)
+        off = _fp_offset(boss)
+        for center in ((9, 10), (10, 9), (12, 10), (10, 12)):
+            with self.subTest(center=center):
+                self.assertLessEqual(_chebyshev(center, boss, off), 1)
+
+    def test_a_defender_one_tile_further_out_stays_out_of_range(self):
+        tm = synth(["b" * 15] * 15)
+        boss = self._footprint_2_boss(tm)
+        off = _fp_offset(boss)
+        self.assertGreater(_chebyshev((8, 10), boss, off), 1)
+
+    def test_footprint_1_range_gate_is_byte_identical(self):
+        """The ``off == 0`` branch must be untouched: today's behaviour for
+        every non-footprint-2 enemy in the game stays exactly as it was."""
+        tm = synth(["bs"])
+        walker = create_enemy("standard", 10, 10, ENEM, tm)
+        off = _fp_offset(walker)
+        self.assertEqual(off, 0.0)
+        self.assertLessEqual(_chebyshev((9, 10), walker, off), 1)
+        self.assertGreater(_chebyshev((12, 10), walker, off), 1)
 
 
 if __name__ == "__main__":
