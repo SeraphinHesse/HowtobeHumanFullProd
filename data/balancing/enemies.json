@@ -5,8 +5,8 @@
     "scale_every_n_levels": 10,
     "scale_tiers": [
       {
-        "dmg": 10,
-        "hp": 40,
+        "dmg": 8,
+        "hp": 35,
         "spawn_interval": 0.07,
         "speed": 0.07
       },
