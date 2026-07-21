@@ -402,9 +402,19 @@ a `death` animation actually play, the HOST additionally spawns a cosmetic
     against an authored anchor — the dot rendered ~19px above the muzzle
     handle even once an anchor existed); it now lives in the endpoint, so the
     draw is a pure projection and an authored anchor is never fought by a
-    second, unrelated lift. `_fire_splash`'s muzzle spawn is UNTOUCHED
-    (still plain `anchor_world_point`) — only `_fire` (the homing path)
-    changed, matching the "basic defenders only" scope.
+    second, unrelated lift. **`_fire_splash` resolves its muzzle spawn
+    through the SAME `projectile_point` — and it HAS to.** The "basic
+    defenders only" scope covers the homing TARGET (the mortar keeps flying
+    to `_predict_lead`'s ground point, no `impact` anchor), but the lift
+    removal from `submit_projectiles` is shared by both draw paths, and
+    `ProjectileArc.update` never moves the shell — only its timer ticks, so
+    its spawn point IS its drawn point for the whole flight. Leaving
+    `_fire_splash` on plain `anchor_world_point` therefore dropped the mortar
+    shell ~19px the moment the draw lift went away. Routing it through
+    `projectile_point` puts the lift back in the endpoint and restores the
+    pre-change position (to within the float-vs-`int()` rounding step the
+    move introduces everywhere). `lift_frac` reaches it through the same
+    `resolve_combat` thread `_fire` uses.
 - **Three firing paths, dispatched by capability component (10B), never by
   class** — the sweep still selects combatants by the `"combat"` tag, then
   `_update_defender` branches: a building with `BeamAttacker` runs `_update_beam`
