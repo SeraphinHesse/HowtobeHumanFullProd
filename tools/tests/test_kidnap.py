@@ -40,6 +40,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 
 def synth(rows, base=(0, 0)):
@@ -81,7 +82,7 @@ def frame(session, scene, tm, dt):
     session.pre_sim(dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(dt)
-        resolve_combat(scene, tm, dt, BUILD,
+        resolve_combat(scene, tm, dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death,
                        on_kidnap=_on_kidnap)
@@ -247,7 +248,7 @@ class TestKidnapperIsInvisibleToCombatAndLightning(unittest.TestCase):
         state.lightning_level = 1
         state.lightning_cooldown = 0.0
         wx, wy = kidnapper.transform.world_pos
-        struck = lt.strike(state, CORE, scene, cs, wx, wy)
+        struck = lt.strike(state, CORE, VFX, scene, cs, wx, wy)
         self.assertTrue(struck)  # it fired (unlocked, off cooldown)...
         self.assertEqual(kidnapper.get_component(Health).hp, hp_before)  # ...but hit nothing
 
