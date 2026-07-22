@@ -88,12 +88,17 @@ class CheatMenu:
         # the same convention hud.py's label ids use (review fix: every ids
         # target needs a stored, readable, override-respecting rect). --
         self._panel = SimpleNamespace(rect=self.panel_rect, skin=None)
+        # 10L-B phase B (label wiring): title/jump_label are static copy, not
+        # game-state — same "label is a legitimate override field" rule
+        # every other screen's static title already follows (game/ui/
+        # CLAUDE.md "Every static title/header is an id too").
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="lg",
-                                      text_color=widgets.C_GOLD)
+                                      text_color=widgets.C_GOLD, label=_TITLE)
         self._round_field = SimpleNamespace(rect=self.field_rect,
                                             font_key="sm", text_color=None)
         self._jump_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
-                                           text_color=widgets.C_UI_TEXT_DIM)
+                                           text_color=widgets.C_UI_TEXT_DIM,
+                                           label="Jump to round:")
         self.ids = {}
         # -- /10L-B --
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()
@@ -217,8 +222,9 @@ class CheatMenu:
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
         px, py, pw, _ph = self.panel_rect
-        submit_centered(renderer, _TITLE, self._title.rect[0], self._title.rect[1],
-                        self._title.font_key, self._title.text_color)
+        submit_centered(renderer, self._title.label, self._title.rect[0],
+                        self._title.rect[1], self._title.font_key,
+                        self._title.text_color)
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
         for _action, btn in self.buttons:
@@ -226,7 +232,7 @@ class CheatMenu:
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
             HudRect((px + 10, self._divider_y, pw - 20, 1), widgets.C_UI_BORDER))
-        submit_text(renderer, "Jump to round:", self._jump_label.rect[:2],
+        submit_text(renderer, self._jump_label.label, self._jump_label.rect[:2],
                    self._jump_label.font_key, self._jump_label.text_color)
         renderer.submit_hud(HudRect(self.field_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(

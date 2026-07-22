@@ -29,7 +29,6 @@ import random
 from . import boss_bonuses as bb
 from . import levelup as lv
 from . import lightning as lt  # 10H
-from . import payday
 from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
@@ -336,7 +335,13 @@ class Session:
             for col, row, plan in pending:
                 self.spawner.spawn_death_swarm(scene, col, row, plan)
         # -- /ER-3 --
+        # Both branches below leave the ENEMY phase, and `_award_building_deaths`
+        # only ever runs from `pre_sim`'s ENEMY arm — so a building that died on
+        # THIS frame would never pay its death XP, and the payday revive would
+        # then make it alive again. This is the last chance; the id-keyed
+        # `_xp_awarded_buildings` guard makes the double sweep a no-op.
         if self._wipe_pending:
+            self._award_building_deaths(scene)
             self._wipe_round(scene)
             self._begin_round_end()
         elif (self.spawner.done
@@ -352,6 +357,7 @@ class Session:
                 # tile and despawned (user decision).
                 and not scene.by_tag("kidnapper")
                 and not scene.queued_by_tag("kidnapper")):
+            self._award_building_deaths(scene)
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
@@ -495,24 +501,21 @@ class Session:
 
     # -- kidnapping (fed from resolve_combat's on_kidnap) -----------------
 
-    def on_kidnap(self, enemy, building, scene):
+    def on_kidnap(self, enemy, building):
         """The mirror of ``on_enemy_death`` for a kidnap transition
         (Art/enemies): the carrier counts as dead for scoring (XP + kill
         count) but leaves NO gore/splatter (``enemy_death_events``) and no
-        death-spawn burst — "no VFX" per the design. The building is gone for
-        good: its tile is freed back to empty BUILDABLE ground through the
-        same helper payday's own free-tile step uses, so there is no payday
-        revive."""
+        death-spawn burst — "no VFX" per the design.
+
+        The BUILDING is deliberately left alone — it is simply a dead building
+        still standing on its tile, exactly like one killed by a non-kidnapping
+        enemy (user decision): payday's slots see it as ``alive == False`` (a
+        kidnapped wall-builder's walls come down at slot 8 and back at slot 10,
+        a kidnapped booster explodes at slot 7) and the slot-9 revive rebuilds
+        it, so it reappears next phase. Its sprite is hidden meanwhile by
+        ``BuildingSprite`` — nothing here has to hide or free anything."""
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
-        # A kidnapped wall builder's perimeter must be torn down explicitly:
-        # payday's slot-8 teardown sweeps dead buildings still ON THE BOARD
-        # and will never see one that was carried off, so its walls would
-        # otherwise be orphaned.
-        if getattr(building, "building_type", None) == "wall_builder":
-            self.tilemap.remove_walls_for_builder(building)
-        tile = self.tilemap.get(building.col, building.row)
-        payday._free_tile(self.tilemap, tile, self.occupancy, scene)
 
     def _award_enemy_xp(self, enemy):
         amount = xpmod.xp_for_etype(getattr(enemy, "ETYPE", "standard"),

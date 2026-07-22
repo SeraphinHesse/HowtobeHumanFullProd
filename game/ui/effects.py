@@ -896,8 +896,11 @@ class FloaterManager:
     # -- /10H ---------------------------------------------------------------
 
     def submit_hp_bars(self, renderer, cs, scene):
-        """A red/green bar over every non-base building below full HP (prototype
-        hides the bar at full HP).
+        """A red/green bar over every LIVE non-base building below full HP
+        (prototype hides the bar at full HP). A building killed but not kidnapped
+        sticks around until the round-end revive with its sprite hidden
+        (``BuildingSprite``) — an empty bar floating over a bare tile is exactly
+        what that hide is for, so dead buildings are skipped too.
 
         fix-anchor-origin-parity, "anchor wins outright" (designer's
         decision): an authored ``hp_bar`` anchor REPLACES the flat
@@ -910,6 +913,8 @@ class FloaterManager:
         assets = getattr(renderer, "assets", None)
         for b in scene.by_tag("building"):
             if getattr(b, "building_type", None) == "base":
+                continue
+            if not getattr(b, "alive", True):
                 continue
             health = b.get_component(Health)
             if health is None or health.hp >= health.max_hp:

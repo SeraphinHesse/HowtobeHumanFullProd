@@ -85,6 +85,7 @@ from game.ui import (
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
+from game.ui.strings import configure_strings  # Phase C: global string table
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
@@ -239,8 +240,39 @@ def main(max_frames=None, data_dir=None, autostart=False):
     palette_doc = data_io.load_validated(
         data_dir / "ui" / "palette.json",
         data_dir / "schemas" / "palette.schema.json")
-    configure_fonts(fonts_doc)
+    # Phase C: the global UI string table — same fail-loud D-2 load as
+    # fonts/palette above (boot config data, not art; E-37 does not apply).
+    strings_doc = data_io.load_validated(
+        data_dir / "ui" / "strings.json",
+        data_dir / "schemas" / "strings.schema.json")
+    # UH-Font-A: the game-wide custom font family, ORTHOGONAL to the 7-preset
+    # size/bold system above. "default" means today's SysFont behavior; any
+    # other id must resolve to a data/fonts/font_manifest.json entry whose
+    # file exists on disk — a cross-file check a schema can't express, so it
+    # is cross-checked here and fails LOUD (D-2, the engine.tilemap.load_map
+    # precedent) rather than degrading like the editor's Theme panel does.
+    font_manifest_doc = data_io.load_validated(
+        data_dir / "fonts" / "font_manifest.json",
+        data_dir / "schemas" / "font_manifest.schema.json")
+    active_font_doc = data_io.load_validated(
+        data_dir / "ui" / "active_font.json",
+        data_dir / "schemas" / "active_font.schema.json")
+    active_font_id = active_font_doc["font_id"]
+    font_path = None
+    if active_font_id != "default":
+        entry = font_manifest_doc["entries"].get(active_font_id)
+        if entry is None:
+            raise ValueError(
+                f"active_font.json references unknown font id {active_font_id!r} "
+                f"(no such entry in data/fonts/font_manifest.json)")
+        font_path = (data_dir / "fonts" / entry["file"]).resolve()
+        if not font_path.is_file():
+            raise ValueError(
+                f"active_font.json's font {active_font_id!r} points at "
+                f"{font_path} which does not exist on disk")
+    configure_fonts(fonts_doc, font_path=font_path)
     widgets.configure_palette(palette_doc)
+    configure_strings(strings_doc)
     renderer = Renderer(cs, assets)
     # The static ground layer is composited once into an oversized surface and
     # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning
@@ -851,13 +883,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         _state.projectile_hit_events.append((wx, wy))
 
                     # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
-                    # count + freeing the building's tile for good) runs first,
-                    # then upgrade the default frozen-idle carry pose to the
-                    # sheet's own `kidnap` row if it has one — `animation_total_ms`
-                    # returns None (never an idle fallback) for a sheet without
-                    # one, so this cleanly stays on the frozen-idle branch.
-                    def _on_kidnap(enemy, building, _scene=world.scene):
-                        session.on_kidnap(enemy, building, _scene)
+                    # count) runs first, then upgrade the default frozen-idle carry
+                    # pose to the sheet's own `kidnap` row if it has one —
+                    # `animation_total_ms` returns None (never an idle fallback)
+                    # for a sheet without one, so this cleanly stays on the
+                    # frozen-idle branch.
+                    def _on_kidnap(enemy, building):
+                        session.on_kidnap(enemy, building)
                         anim = enemy.get_component(SpriteAnimator)
                         if anim is not None:
                             set_kidnap_pose(

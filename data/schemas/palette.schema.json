@@ -2,7 +2,7 @@
   "$id": "palette.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "data/ui/palette.json (UH-6, D5): the ~18 C_* module constants game/ui/widgets.py ships, as schema-checked committed data. Loaded once at boot (game/main.py) and passed to game.ui.widgets.configure_palette, which rebinds each widgets.C_* attribute (mechanical \"C_\" + key.upper() mapping); the unconfigured module defaults equal this file's stock content (tools/tests/test_theme_data.py pins it). This IS the C_* block, nothing more — widgets.COND_LABELS colors and every other inline color literal in game/ui stay code, deliberately out of scope. All keys are required: a missing one would leave some widgets.C_* constant silently un-rebound.",
+  "description": "data/ui/palette.json (UH-6, D5): the ~18 C_* module constants game/ui/widgets.py ships, as schema-checked committed data. Loaded once at boot (game/main.py) and passed to game.ui.widgets.configure_palette, which rebinds each widgets.C_* attribute (mechanical \"C_\" + key.upper() mapping); the unconfigured module defaults equal this file's stock content (tools/tests/test_theme_data.py pins it). This IS the C_* block, nothing more — widgets.cond_label's colors and every other inline color literal in game/ui stay code, deliberately out of scope (its label TEXT half is data/ui/strings.json content instead, Phase C). All keys are required: a missing one would leave some widgets.C_* constant silently un-rebound.",
   "properties": {
     "gold": {
       "description": "Love/currency accent — gold text, highlights, the love-pill count.",

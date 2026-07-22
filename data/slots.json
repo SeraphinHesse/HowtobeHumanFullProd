@@ -493,7 +493,11 @@
             {
               "label": "Era 4",
               "slots": [
-                "boss_era_4"
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "boss_era_4"
+                }
               ]
             }
           ],

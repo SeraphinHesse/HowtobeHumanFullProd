@@ -18,6 +18,8 @@ later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
 
+from . import strings
+
 _METRICS = TextMetrics()
 
 # R2 hit seam: host-injected per-pixel alpha test for skinned buttons
@@ -101,13 +103,31 @@ HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
 # -- 10I: tile-condition labels + colours (prototype building_ui.py:23-27) --
 # Shared by the panel badges/tooltips (building_ui) and the map overlays so
 # the two surfaces cannot drift. Keyed by the TileCondition NAME (a plain
-# string) so this module needs no game.map import.
-COND_LABELS = {
-    "GRASS": ("Grass", (100, 180, 80)),
-    "MOUNTAIN": ("Mountain", (160, 130, 90)),
-    "POND": ("Pond", (80, 160, 220)),
-    "FOREST": ("Forest", (70, 160, 70)),
+# string) so this module needs no game.map import. Colors stay code-owned
+# (data/ui/palette.json's scope is the C_* block only, D5); the LABEL TEXT
+# is Phase C's string-table content instead (data/ui/strings.json's
+# widgets.condition.* ids).
+_COND_COLORS = {
+    "GRASS": (100, 180, 80),
+    "MOUNTAIN": (160, 130, 90),
+    "POND": (80, 160, 220),
+    "FOREST": (70, 160, 70),
 }
+_COND_LABEL_IDS = {
+    "GRASS": "widgets.condition.grass",
+    "MOUNTAIN": "widgets.condition.mountain",
+    "POND": "widgets.condition.pond",
+    "FOREST": "widgets.condition.forest",
+}
+
+
+def cond_label(name):
+    """(label, color) for a TileCondition NAME (10I). A FUNCTION, not a
+    dict literal (Phase C: same reasoning as hud.py's ``_phase_color`` —
+    a dict built at IMPORT time would freeze the pre-``configure_strings``
+    fallback text and never see a later rebind; this resolves fresh via
+    ``strings.T()`` on every call)."""
+    return strings.T(_COND_LABEL_IDS[name]), _COND_COLORS[name]
 # -- /10I --
 
 

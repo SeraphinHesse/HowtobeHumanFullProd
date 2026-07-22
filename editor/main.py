@@ -67,6 +67,7 @@ from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
 from editor.panels.tutorial_panel import TutorialPanel
+from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
@@ -115,13 +116,17 @@ class MainWindow(QMainWindow):
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
         self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
         self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
+        self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
-        # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
-        # boot, same as game/main.py, so screen-mode preview text metrics
-        # match the game. Graceful {} degrade (E-37) — the editor must open
-        # on a broken tree; the game's own boot load fails loud instead.
+        # UH-6/D5 (+ UH-Font-A): configure the engine font cache from
+        # data/ui/fonts.json + the active custom font family at boot, same
+        # as game/main.py, so screen-mode preview text metrics match the
+        # game. Graceful degrade (E-37) — the editor must open on a broken
+        # tree; the game's own boot load fails loud instead.
         try:
-            configure_fonts(theme_ops.load_fonts(self._data_dir))
+            configure_fonts(
+                theme_ops.load_fonts(self._data_dir),
+                font_path=theme_ops.resolve_active_font_path(self._data_dir))
         except Exception:
             pass
         self._node = None   # (category_key, group_path) of the tree selection
@@ -217,6 +222,12 @@ class MainWindow(QMainWindow):
         # Tutorial wiring (TU-4): the "Tutorial" leaf -> right_stack; reload on
         # entry, the same convention as every other selection-driven panel.
         self.selector.tutorial_selected.connect(self._on_tutorial_selected)
+        # Strings wiring (Phase C): the "Strings" leaf -> right_stack. No
+        # saved-signal consumer — strings.json is game/ui-owned data with no
+        # editor-side reconfigure (the palette.json precedent, see
+        # panels/strings_panel.py's module docstring); the game re-reads it
+        # at its own next boot.
+        self.selector.strings_selected.connect(self._on_strings_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -377,6 +388,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
         self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
         self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
+        self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1034,14 +1046,17 @@ class MainWindow(QMainWindow):
 
     def _on_theme_saved(self):
         """Theme panel Save: reconfigure engine.render.fonts in-process so
-        screen-mode preview TEXT tracks the new sizes immediately, then
-        repaint — chrome theme (editor/theme.py) is untouched by any of
-        this. Palette edits have no separate editor-side consumer to
-        reconfigure (game/ui.widgets is game-only — off limits to the
-        editor, ED layering rule); the game re-reads palette.json at its
-        own next boot. Graceful degrade mirrors the boot-time load above."""
+        screen-mode preview TEXT tracks the new sizes/font family
+        immediately, then repaint — chrome theme (editor/theme.py) is
+        untouched by any of this. Palette edits have no separate editor-side
+        consumer to reconfigure (game/ui.widgets is game-only — off limits
+        to the editor, ED layering rule); the game re-reads palette.json at
+        its own next boot. Graceful degrade mirrors the boot-time load
+        above (UH-Font-A: `resolve_active_font_path` degrades to None)."""
         try:
-            configure_fonts(theme_ops.load_fonts(self._data_dir))
+            configure_fonts(
+                theme_ops.load_fonts(self._data_dir),
+                font_path=theme_ops.resolve_active_font_path(self._data_dir))
         except Exception:
             pass
         self.viewport.render_frame()
@@ -1063,6 +1078,17 @@ class MainWindow(QMainWindow):
         panel."""
         self.tutorial_panel.set_tutorial()
         self.right_stack.setCurrentWidget(self.tutorial_panel)
+    # -- Strings panel (Phase C) -----------------------------------------------
+
+    def _on_strings_selected(self):
+        """The selector's Strings leaf: reload the doc fresh (mirrors every
+        other selection-driven panel's "reload on entry" convention) and
+        show the panel. No saved-signal handler: strings.json has no
+        editor-side render consumer to reconfigure (game/ui/strings is
+        game-only, off limits to the editor) — see
+        panels/strings_panel.py's module docstring."""
+        self.strings_panel.set_strings()
+        self.right_stack.setCurrentWidget(self.strings_panel)
 
     # -- frame drive ---------------------------------------------------------
 

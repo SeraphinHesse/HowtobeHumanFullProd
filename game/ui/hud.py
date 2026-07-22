@@ -29,20 +29,37 @@ from .widgets import (
     submit_panel, submit_text, text_h, text_size
 )
 from . import widgets
+from .strings import T
 
 # -- 10H: lightning + cheat menu --
 _LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
 _LIGHTNING_COOLING = (120, 120, 140)
 # -- /10H --
 
-_PHASE_LABEL = {
-    GamePhase.BUILDING: "BUILDING",
-    GamePhase.ENEMY: "COMBAT!",
-    GamePhase.ROUND_END: "REBUILDING",
-    GamePhase.LEVELUP: "LEVEL UP",
-    GamePhase.INCOME: "PAYDAY",
-    GamePhase.BOSS_CUTSCENE: "CUTSCENE",  # -- 10G boss --
+# Phase C: the string ids per GamePhase, keyed the same shape _PHASE_LABEL
+# used to be. A FUNCTION, not a dict of resolved text (same reasoning as
+# _phase_color below) — the ids themselves never change, but a dict of
+# T()-resolved TEXT built at import time would freeze the pre-configure
+# fallback and never see a later configure_strings rebind.
+_PHASE_LABEL_ID = {
+    GamePhase.BUILDING: "hud.phase.building",
+    GamePhase.ENEMY: "hud.phase.enemy",
+    GamePhase.ROUND_END: "hud.phase.round_end",
+    GamePhase.LEVELUP: "hud.phase.levelup",
+    GamePhase.INCOME: "hud.phase.income",
+    GamePhase.BOSS_CUTSCENE: "hud.phase.boss_cutscene",  # -- 10G boss --
 }
+
+
+def _phase_label_text(phase):
+    """The phase banner's TEXT, keyed by GamePhase (Phase C — mirrors
+    _phase_color's "function, not a frozen dict" reasoning, one call site
+    down). Falls back to the raw enum name for a phase with no string-table
+    entry, same as the old dict's ``.get(phase, st.phase.name)`` default."""
+    string_id = _PHASE_LABEL_ID.get(phase)
+    return T(string_id) if string_id is not None else phase.name
+
+
 def _phase_color(phase, default):
     """The phase banner's color, keyed by GamePhase (UH-6: a FUNCTION, not a
     module dict — a dict literal built from `widgets.C_RED`/`C_GOLD` at
@@ -111,15 +128,15 @@ def income_sources(session):
             and getattr(t.occupant, "alive", False))
         story += aoe_count(session.tilemap) * stacks["boss2b"] * n_meditators
     # -- /10G --
-    sources = [("Base", scaled_base_income(st, session.core_balance))]
+    sources = [(T("hud.income.base"), scaled_base_income(st, session.core_balance))]
     if musicians:
-        sources.append(("Musicians", musicians))
+        sources.append((T("hud.income.musicians"), musicians))
     if meditators:
-        sources.append(("Meditators", meditators))
+        sources.append((T("hud.income.meditators"), meditators))
     if story:
-        sources.append(("Story", story))
+        sources.append((T("hud.income.story"), story))
     if upkeep:
-        sources.append(("Upkeep", -upkeep))
+        sources.append((T("hud.income.upkeep"), -upkeep))
     return sources
 
 
@@ -357,10 +374,11 @@ class Hud:
                         tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
             remaining = st.love - hover_cost
-            love_txt = f"{HEART} {remaining}" if remaining >= 0 else f"{HEART} -"
+            love_txt = (T("hud.love_display", heart=HEART, amount=remaining)
+                       if remaining >= 0 else T("hud.love_unaffordable", heart=HEART))
             love_col = widgets.C_RED
         else:
-            love_txt = f"{HEART} {st.love}"
+            love_txt = T("hud.love_display", heart=HEART, amount=st.love)
             love_col = widgets.C_GOLD
         if self._love_text.visible:
             lt_color = (self._love_text.text_color
@@ -376,7 +394,7 @@ class Hud:
         net = sum(v for _, v in sources)
         sign = "+" if net >= 0 else ""
         if self._income_text.visible:
-            submit_text(renderer, f"{sign}{net}{HEART}/round",
+            submit_text(renderer, T("hud.income_net", sign=sign, net=net, heart=HEART),
                        self._income_text.rect[:2], self._income_text.font_key,
                        self._income_text.text_color)
         income_pill = (pill[0] - 10, 48, 118, 18)  # prototype pill2 hover zone
@@ -389,18 +407,18 @@ class Hud:
                         skin=self._icon_lives.skin,
                         tint=getattr(self._icon_lives, "tint", None), anim_ms=t)
         if self._lives_text.visible:
-            submit_text(renderer, f"LIVES {st.base_lives}",
+            submit_text(renderer, T("hud.lives", count=st.base_lives),
                        self._lives_text.rect[:2], self._lives_text.font_key,
                        self._lives_text.text_color)
         built, unlocked = _tile_counts(session.tilemap)
         if self._tiles_text.visible:
-            submit_text(renderer, f"{built}/{unlocked} tiles",
+            submit_text(renderer, T("hud.tiles", built=built, unlocked=unlocked),
                        self._tiles_text.rect[:2], self._tiles_text.font_key,
                        self._tiles_text.text_color)
 
         # -- phase banner (bottom-left) -----------------------------------
         if self._phase_label.visible:
-            label = _PHASE_LABEL.get(st.phase, st.phase.name)
+            label = _phase_label_text(st.phase)
             color = (self._phase_label.text_color
                     if self._phase_label.text_color is not None
                     else _phase_color(st.phase, widgets.C_UI_TEXT_DIM))
@@ -417,19 +435,23 @@ class Hud:
                 # TU-9: round 0 is the tutorial's own scripted round — shown
                 # as the word "Tutorial" rather than "ROUND 0"; every round
                 # from 1 on (including a skipped run, which starts at 1)
-                # reads normally.
-                round_text = ("Tutorial" if st.round_num == 0
-                             else f"ROUND {st.round_num}")
+                # reads normally. Both strings go through T() so the Strings
+                # panel owns the wording (Phase C).
+                round_text = (T("hud.round_tutorial") if st.round_num == 0
+                              else T("hud.round", n=st.round_num))
                 submit_centered(renderer, round_text,
                                self._round_label.rect[0],
                                self._round_label.rect[1],
                                self._round_label.font_key,
                                self._round_label.text_color)
+            # a faint separator under the round text keeps the corner legible
+            # (panel-kind — submitted before the button it sits near so it
+            # never draws on top of it; game/ui/CLAUDE.md "panel -> button ->
+            # text").
+            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER))
             if is_visible(self.end_turn):
                 self.end_turn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.end_turn))
-            # a faint separator under the round text keeps the corner legible
-            renderer.submit_hud(HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER))
             if is_visible(self.pause):
                 self.pause.submit(renderer, anim_ms=t,
                                   **button_kwargs(self.pause))
@@ -460,12 +482,17 @@ class Hud:
 
         rows = []
         for label, amount in sources:
-            if label == "Upkeep":
-                rows.append((f"Upkeep: {amount}", _TOOLTIP_RED))
-            elif label == "Story":
-                rows.append((f"Story upgrades: +{amount}", _TOOLTIP_GOLD))
+            # Compare against the RESOLVED category text (not a hardcoded
+            # literal) so a designer renaming hud.income.upkeep/story in
+            # strings.json can't desync this categorization from the label
+            # income_sources() actually returned.
+            if label == T("hud.income.upkeep"):
+                rows.append((T("hud.tooltip_upkeep", amount=amount), _TOOLTIP_RED))
+            elif label == T("hud.income.story"):
+                rows.append((T("hud.tooltip_story", amount=amount), _TOOLTIP_GOLD))
             else:
-                rows.append((f"{label}: +{amount}", widgets.C_HP_GREEN))
+                rows.append((T("hud.tooltip_income", label=label, amount=amount),
+                            widgets.C_HP_GREEN))
         lh = text_h("sm") + 3
         w = max(text_size(t, "sm")[0] for t, _ in rows) + 8
         h = lh * len(rows) + 8
@@ -494,7 +521,7 @@ class Hud:
             ratio = st.player_xp / st.xp_threshold if st.xp_threshold else 0.0
             fill = _XP_PURPLE
         if self._lvl_label.visible:
-            submit_text(renderer, f"LVL {st.village_level}",
+            submit_text(renderer, T("hud.level", n=st.village_level),
                        self._lvl_label.rect[:2], self._lvl_label.font_key,
                        self._lvl_label.text_color)
         # -- 10L wave-3: xp icon, left of the bar --------------------------
@@ -508,7 +535,8 @@ class Hud:
             submit_bar(renderer, bx, by, bw, bh, ratio,
                       bg=self._xp_bar.color, fill=fill, border=widgets.C_UI_BORDER)
         if self._xp_text.visible:
-            submit_text(renderer, f"{st.player_xp}/{st.xp_threshold}",
+            submit_text(renderer, T("hud.xp_progress", current=st.player_xp,
+                                    threshold=st.xp_threshold),
                        self._xp_text.rect[:2], self._xp_text.font_key,
                        self._xp_text.text_color)
 
@@ -528,9 +556,10 @@ class Hud:
         cooldown = session.core_balance["LightningStrike"]["cooldown"][
             st.lightning_level - 1]
         if st.lightning_cooldown <= 0:
-            label, color = "⚡ CLICK TO STRIKE", _LIGHTNING_READY
+            label, color = T("hud.lightning_ready"), _LIGHTNING_READY
         else:
-            label = f"⚡ {st.lightning_cooldown:.1f}s"
+            label = T("hud.lightning_cooldown",
+                      seconds=f"{st.lightning_cooldown:.1f}")
             color = _LIGHTNING_COOLING
         w, h = text_size(label, "md")
         x, y = 12, view_h - 26 - h - 12  # just above the phase banner
