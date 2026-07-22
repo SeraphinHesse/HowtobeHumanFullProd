@@ -58,6 +58,7 @@ from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
 from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
+from editor.panels.cutscenes import CutscenesPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
@@ -65,6 +66,7 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
+from editor.panels.tutorial_panel import TutorialPanel
 from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
 from editor.panels.vfx_preview import VfxPreviewPanel
@@ -112,6 +114,8 @@ class MainWindow(QMainWindow):
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
         self.vfx_preview = VfxPreviewPanel(data_dir=data_dir)
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
+        self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
+        self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         # UH-6/D5 (+ UH-Font-A): configure the engine font cache from
@@ -171,6 +175,8 @@ class MainWindow(QMainWindow):
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
+        self.palette.tutorial_flute_armed.connect(self.viewport.arm_tutorial_flute)
+        self.palette.tutorial_stone_armed.connect(self.viewport.arm_tutorial_stone)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
@@ -208,6 +214,14 @@ class MainWindow(QMainWindow):
         self.selector.theme_selected.connect(self._on_theme_selected)
         self.game_theme.saved.connect(self._on_theme_saved)
 
+        # Cutscenes wiring (TU-3): the "Cutscenes" leaf -> right_stack; reload on
+        # entry mirrors Theme's reload-on-entry convention (registry writes are
+        # immediate per-action inside the panel, so there is no saved signal here).
+        self.selector.cutscenes_selected.connect(self._on_cutscenes_selected)
+
+        # Tutorial wiring (TU-4): the "Tutorial" leaf -> right_stack; reload on
+        # entry, the same convention as every other selection-driven panel.
+        self.selector.tutorial_selected.connect(self._on_tutorial_selected)
         # Strings wiring (Phase C): the "Strings" leaf -> right_stack. No
         # saved-signal consumer — strings.json is game/ui-owned data with no
         # editor-side reconfigure (the palette.json precedent, see
@@ -372,7 +386,9 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
-        self.right_stack.addWidget(self.strings_panel)   # index 4: Strings (Phase C)
+        self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
+        self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
+        self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1045,6 +1061,23 @@ class MainWindow(QMainWindow):
             pass
         self.viewport.render_frame()
 
+    # -- Cutscenes panel (TU-3) ------------------------------------------------
+
+    def _on_cutscenes_selected(self):
+        """The selector's Cutscenes leaf: reload the registry fresh (same
+        reload-on-entry convention as Theme) and show the panel."""
+        self.cutscenes.set_registry()
+        self.right_stack.setCurrentWidget(self.cutscenes)
+
+    # -- Tutorial panel (TU-4) -------------------------------------------------
+
+    def _on_tutorial_selected(self):
+        """The selector's Tutorial leaf: reload fresh from disk (a designer
+        may have hand-edited nothing, but this mirrors every other
+        selection-driven panel's reload-on-entry convention) and show the
+        panel."""
+        self.tutorial_panel.set_tutorial()
+        self.right_stack.setCurrentWidget(self.tutorial_panel)
     # -- Strings panel (Phase C) -----------------------------------------------
 
     def _on_strings_selected(self):

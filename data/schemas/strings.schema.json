@@ -88,6 +88,10 @@
       "description": "HUD round-number readout above the End Turn button. Placeholder: {n} (the current round number, int).",
       "type": "string"
     },
+    "hud.round_tutorial": {
+      "description": "HUD round readout during the tutorial's own scripted round (round 0) — shown instead of hud.round. No placeholders.",
+      "type": "string"
+    },
     "hud.tiles": {
       "description": "HUD built/unlocked tile-count readout. Placeholders: {built} (built tile count, int), {unlocked} (unlocked tile count, int).",
       "type": "string"
@@ -163,6 +167,7 @@
     "hud.phase.levelup",
     "hud.phase.round_end",
     "hud.round",
+    "hud.round_tutorial",
     "hud.tiles",
     "hud.tooltip_income",
     "hud.tooltip_story",

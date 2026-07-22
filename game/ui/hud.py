@@ -462,7 +462,14 @@ class Hud:
         if not self._panel_open:
             bx, by, bw, bh = self.end_turn.rect
             if self._round_label.visible:
-                submit_centered(renderer, T("hud.round", n=st.round_num),
+                # TU-9: round 0 is the tutorial's own scripted round — shown
+                # as the word "Tutorial" rather than "ROUND 0"; every round
+                # from 1 on (including a skipped run, which starts at 1)
+                # reads normally. Both strings go through T() so the Strings
+                # panel owns the wording (Phase C).
+                round_text = (T("hud.round_tutorial") if st.round_num == 0
+                              else T("hud.round", n=st.round_num))
+                submit_centered(renderer, round_text,
                                self._round_label.rect[0],
                                self._round_label.rect[1],
                                self._round_label.font_key,

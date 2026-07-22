@@ -20,6 +20,7 @@
   "hud.phase.levelup": "LEVEL UP",
   "hud.phase.round_end": "REBUILDING",
   "hud.round": "ROUND {n}",
+  "hud.round_tutorial": "Tutorial",
   "hud.tiles": "{built}/{unlocked} tiles",
   "hud.tooltip_income": "{label}: +{amount}",
   "hud.tooltip_story": "Story upgrades: +{amount}",

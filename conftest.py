@@ -57,6 +57,7 @@ TIERS = {
     "test_editor_panels": "editor",
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
+    "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
     "test_run_controls": "editor",
@@ -87,6 +88,8 @@ TIERS = {
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
+    "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
@@ -131,6 +134,9 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
+    "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
+    "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain

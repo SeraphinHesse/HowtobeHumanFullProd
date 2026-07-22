@@ -68,6 +68,43 @@ Four files beside `balance.py`:
 Love → interactive placement + real HUD/End-Turn button are 9G; `Session` owns the
 love store, ready to feed `place_building`.
 
+- **`Session.tutorial_gate` (TU-6)**: an optional host-set callable
+  (`() -> bool`, the `BuildingUI.on_build_vfx` host-callback precedent), `None`
+  by default (a bare `Session` a logic test builds never gates). `end_turn()`
+  checks it right after its existing `state != GAMEPLAY or phase != BUILDING`
+  guard and returns early if it says no — this is the ONE place the round-1
+  guided tutorial (`game/tutorial/director.py`, `game/CLAUDE.md`) actually
+  gates End Turn; `game/main.py` wires it to
+  `gp["tutorial"].allows_end_turn`. TU-5's `pending_cutscene` insertion sits
+  textually below this one (both inside `end_turn()`, non-overlapping).
+- **`Session.tutorial_director` (TU-7)**: an optional `TutorialDirector`
+  reference (not just a bare callable like `tutorial_gate` — `on_base_hit`
+  and `_begin_round_end` need to call more than one method on it), `None` by
+  default, set alongside `tutorial_gate` in `build_gameplay()`
+  (`gp["world"].session.tutorial_director = gp["tutorial"]`). Two call sites,
+  both no-ops when `None` or when the director is finished/inactive:
+  `on_base_hit` consults `director.charges_life_on_base_hit(round_num)`
+  immediately before decrementing `base_lives` (the scripted free-loss
+  waiver — a pure read, never mutates the director; the tutorial's scripted
+  round is round 0 since TU-9, not round 1 — see below); `_begin_round_end`
+  unconditionally calls `director.on_round_end(round_num)` right after
+  setting `phase = ROUND_END`, on every road there (wipe / wave-clear /
+  quick-skip / cheat-skip alike) — harmless outside the one scripted step
+  that's actually waiting on that event id. Detail (script shape, the
+  stone-thrower chain) → `game/CLAUDE.md`'s TU-7 subsection.
+- **The tutorial round is round 0 (TU-9)**: an active tutorial run's
+  `Session` is seeded to `round_num = 0` host-side (`main.py`'s
+  `build_gameplay`), never as a `Session`/`RunState` default — a bare
+  `Session` a logic test builds, or an inactive/auto-skipped director, always
+  starts at round 1 unchanged. `Session.end_turn`'s boss announce-marker
+  check and `_begin_round_end`'s boss-cutscene-queue check both gained a
+  `round_num != 0` guard (round 0 is never a boss round — `0 % n == 0` for
+  every interval); the `first_end_turn` cutscene request re-keyed off a new
+  one-shot `RunState.first_end_turn_cutscene_requested` latch instead of
+  `round_num == 1`, so it still fires exactly once on the run's first
+  `end_turn()` whether that round is 0 (tutorial) or 1 (a skipped run). Full
+  detail → `game/CLAUDE.md`'s "The tutorial is round 0 (Phase TU-9)" section.
+
 > Cross-package note (9F): `engine/render/fonts.py` `get_font` now probes a cached
 > SysFont with `get_height()` and rebuilds it if its pygame session was torn down
 > (a prior `pygame.quit()` — surfaced by drawing HUD text across the repeated

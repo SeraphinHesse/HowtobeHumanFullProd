@@ -244,6 +244,72 @@
       },
       "minItems": 4,
       "type": "array"
+    },
+    "tutorial_flute": {
+      "description": "The tutorial's designer-painted 'first flute' placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like camera_start. The tutorial forces the player's first economy-building placement (the flute player) onto this tile. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Tutorial flute tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Tutorial flute tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_flute",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Flute slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tutorial_stone": {
+      "description": "The tutorial's designer-painted 'first stone' placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like camera_start. The tutorial forces the player's first defence-building placement (the stone thrower) onto this tile. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Tutorial stone tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Tutorial stone tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_stone",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Stone slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "required": [
@@ -256,7 +322,9 @@
     "legend",
     "rows",
     "start_area",
-    "terrain"
+    "terrain",
+    "tutorial_flute",
+    "tutorial_stone"
   ],
   "title": "map_file",
   "type": "object"

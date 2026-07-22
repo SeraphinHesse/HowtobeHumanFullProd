@@ -44,6 +44,8 @@ _STRINGS = {
     "hud.phase.levelup": "LEVEL UP",
     "hud.phase.round_end": "REBUILDING",
     "hud.round": "ROUND {n}",
+    # TU-9: shown instead of hud.round during the tutorial's round 0.
+    "hud.round_tutorial": "Tutorial",
     "hud.tiles": "{built}/{unlocked} tiles",
     "hud.tooltip_income": "{label}: +{amount}",
     "hud.tooltip_story": "Story upgrades: +{amount}",

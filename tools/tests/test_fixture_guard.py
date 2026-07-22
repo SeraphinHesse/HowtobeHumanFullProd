@@ -31,6 +31,8 @@ ALLOWED = {
     "test_balancing_data.py": "validates the live schema/content pairs (D-12)",
     "test_editor_map_mode.py": "TempDataCase write-isolation on the real tree",
     "test_editor_panels.py": "defines TempDataCase (real tree incl. assets)",
+    "test_editor_tutorial_paint.py": "MapModeCase write-isolation on the real "
+                                      "tree, same reason as test_editor_map_mode.py",
     "test_editor_run_controls.py": "TempDataCase-style copy of the real tree",
     "test_game_boot.py": "the 'does today's data actually boot' smoke",
     "test_layout_h_invariant.py": "regenerates the committed screen_defaults.json "

@@ -1,0 +1,59 @@
+{
+  "$defs": {
+    "entry": {
+      "additionalProperties": false,
+      "description": "One cutscene registry entry (D4, planning/TutorialPLAN.md).",
+      "properties": {
+        "audio": {
+          "description": "Bare companion audio filename under data/video/ (the caller supplies the directory prefix), or null for no companion audio. The MP4's own audio track is deliberately not decoded.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ]
+        },
+        "length": {
+          "description": "Cutscene length in seconds. Not a balancing file, so the usual 0-60 balancing seconds convention does not bind it; a generous cap allows longer cutscenes.",
+          "maximum": 3600,
+          "minimum": 0,
+          "type": "number"
+        },
+        "trigger": {
+          "description": "The trigger point this cutscene fires at. A new trigger point is a schema bump.",
+          "enum": [
+            "intro",
+            "first_end_turn"
+          ]
+        },
+        "video": {
+          "description": "Bare video filename under data/video/ (the caller supplies the directory prefix, matching game/main.py's existing data_dir / 'video' / <filename> composition).",
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "video",
+        "audio",
+        "length",
+        "trigger"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "cutscenes.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": {
+    "$ref": "#/$defs/entry"
+  },
+  "description": "The cutscene registry (D4, planning/TutorialPLAN.md): id -> {video, audio, length, trigger}. Open registry (additionalProperties keyed by id) so later phases add entries (e.g. a boss cutscene) with no schema change; only a new trigger enum value is a schema bump. TU-1 seeds the two entries this phase requires: 'intro' (migrated later, TU-5, from game/main.py's hardcoded path) and 'first_end_turn' (new).",
+  "required": [
+    "intro",
+    "first_end_turn"
+  ],
+  "title": "cutscenes",
+  "type": "object"
+}

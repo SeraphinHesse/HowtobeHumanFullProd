@@ -78,6 +78,22 @@ change enemy conventions, update THIS doc. **Adding an enemy type? Use the
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
 
+## Round 0 — the tutorial's forced composition (TU-9)
+`round_num == 0` is the tutorial's own scripted round (game/CLAUDE.md's "The
+tutorial is round 0" section owns the full cross-package picture); this
+package's only piece is `Spawner._compose`'s round-0 early branch, checked
+**FIRST**, before the boss check and before `begin_round`'s tier formula:
+`0 % round_interval == 0` is true for every interval, so an unguarded boss
+check would wrongly route round 0 through `_boss_round`, and
+`(0 - 1) // scale_every_n_levels` goes negative. Round 0 always composes
+exactly `EnemyScaling.tutorial_round_enemy_count` `"standard"` walkers,
+ignoring every other composition rule (raiders/siege/formation/boss all
+emit zero); `begin_round` special-cases `self._tier = 0` for round 0 the
+same way, so the interval/tier math never sees the negative index. Real
+enemy scaling begins at round 1 unshifted — composing round 0 then round 1
+on one `Spawner` yields byte-identical output to composing round 1 fresh
+(pinned by `test_enemies.py`'s `TestSpawnComposition` round-zero tests).
+
 ## Formation (ER-4)
 The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
 ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3

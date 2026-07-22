@@ -59,6 +59,7 @@ C_UI_TEXT = (235, 225, 195)
 C_UI_TEXT_DIM = (150, 140, 120)
 C_HIGHLIGHT = (255, 230, 60)         # selected tile
 C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
+C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
@@ -221,6 +222,34 @@ def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
     if border is not None:
         renderer.submit_overlay_lines(pts, border, width=border_width,
                                       closed=True)
+
+
+def submit_ui_box_highlight(renderer, rect, color=None, width=3):
+    """A highlight ring around a UI element (card / Confirm / End Turn) —
+    the tutorial guided-chain highlight (D8, TU-6). Plain HUD-space rect;
+    ``color`` defaults to the CURRENT ``C_TUTORIAL_HIGHLIGHT`` inside the
+    body (never as a def-time default — the same UH-6 rebind trap
+    ``submit_panel``'s ``fill``/``border`` guards against)."""
+    if color is None:
+        color = C_TUTORIAL_HIGHLIGHT
+    renderer.submit_hud(HudRect(rect, color, width=width))
+
+
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=24,
+                            font_key="lg"):
+    """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
+    ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
+    click anywhere to close"). A filled ``C_TUTORIAL_HIGHLIGHT`` box with a
+    dark border and dark centred text, sized to the text. Deliberately
+    carries NO hit-test and consumes no input, UNLIKE ``TutorialMessageScreen``
+    — a banner instructing a right-click must never itself swallow it."""
+    tw, th = text_size(text, font_key)
+    w, h = tw + pad * 2, th + pad * 2
+    x, y = (view_w - w) // 2, (view_h - h) // 2
+    renderer.submit_hud(HudRect((x, y, w, h), C_TUTORIAL_HIGHLIGHT))
+    renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=3))
+    submit_centered(renderer, text, view_w // 2, y + pad, font_key,
+                    C_UI_PANEL)
 
 
 def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):

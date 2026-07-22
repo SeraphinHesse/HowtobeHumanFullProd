@@ -43,6 +43,10 @@ engine task; if an engine change forces a caller change, tell the user
   (the 2×2 starting area's min corner; bounds cross-checked in `validate_doc`);
   **the emitters deliberately never render `start_area`** — the game doesn't
   draw it and the editor draws a pure 2×2 outline via `submit_overlay_lines`.
+  `tutorial_flute`/`tutorial_stone` (D1, planning/TutorialPLAN.md) are two
+  more designer-painted single-tile markers of the same never-rendered shape
+  — the tutorial's forced first-placement tiles, read by the game-side
+  director (TU-6+), painted by the editor's fourth map paint mode (TU-2).
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never
@@ -75,17 +79,63 @@ engine task; if an engine change forces a caller change, tell the user
   cutscene. cv2 is imported LAZILY; **graceful skip** (`enabled=False`,
   `done=True` immediately) if cv2 is absent, the file is missing, or the capture
   won't open — never crashes, never hangs, headless-safe. Timing delegates to the
-  pure `video_playback` clock. `update(dt)` advances + reads one frame;
+  pure `video_playback` clock. **Pacing (post-2.4×-speed-bug-fix): `update(dt)`
+  paces frame reads by the SOURCE's own fps** (`cv2.CAP_PROP_FPS`, probed once at
+  open time via `_probe_frame_interval`) rather than "one frame per host
+  `update()` call" — the host's frame rate (60fps) no longer dictates playback
+  speed. `dt` accumulates against the frame interval; when the host's frame rate
+  is lower than the video's, more than one frame can be due in a single call —
+  all but the last read that call are decoded and discarded so pacing doesn't
+  drift behind. A single `update()` call reads **at most `_MAX_FRAMES_PER_UPDATE`
+  (10)** frames, so a huge dt spike (a debugger stall) can't spin through the
+  whole clip in one call; it just catches up over the next several calls
+  instead. An absent/zero/negative/NaN probed fps falls back to the pre-fix
+  one-frame-per-`update()` pacing (mirrors `editor/cutscene_import
+  .probe_length_seconds`'s graceful-fallback rule — never divides by zero,
+  never hangs). **`length` no longer ends a live capture** — only running out of
+  frames (EOF) or an explicit `skip()` does, so the full authored clip always
+  plays to its true end; the registry's `length` is now only a legacy/approximate
+  hint the pure clock still tracks for `elapsed`/`progress`.
   `frame_surface()` does BGR→RGB → optional resize →
-  `pygame.surfarray.make_surface`; `skip()`/`release()` free the capture.
+  `pygame.surfarray.make_surface`; `skip()`/`release()` free the capture
+  (unchanged — the user-facing click/key skip is deliberate, not the bug this
+  fixed).
   opencv-python is OPTIONAL (absent = cutscene skips); `tools/build.py` bundles it
   for the frozen exe (`--collect-all cv2` `--hidden-import cv2`).
 - **`video_playback.py`** — pure clock/state machine
-  (`VideoPlayback(length, enabled=True)`) the cv2 source composes for timing:
-  `advance(dt)` accumulates and marks `done` at the `length` cap;
-  `finish/skip/mark_source_ended` all end it; `enabled=False` starts `done`.
-  `length` is a constructor param (engine stays game-agnostic; the prototype's
-  44.2 s cap is a caller concern).
+  (`VideoPlayback(length, enabled=True)`) the cv2 source composes for
+  `elapsed`/`progress` bookkeeping ONLY: `advance(dt)` accumulates and still
+  marks its OWN `done` at the `length` cap (unchanged, still usable/tested
+  standalone), but `video.py`'s `VideoSource.update()` no longer consults that
+  `done` to end playback — see above, EOF/`skip()` are the sole authority on a
+  live capture. `finish/skip/mark_source_ended` all end it; `enabled=False`
+  starts `done`. `length` is a constructor param (engine stays game-agnostic;
+  the prototype's 44.2 s cap is a caller concern).
+- **`tutorial.py`** (pure — no pygame, no game vocabulary, TU-6/TU-8) — a
+  generic step-sequencer for a scripted guided tutorial: `Step` (frozen
+  dataclass: `id`/`message`/`highlight`/`advance_on`/`allow`/`flags`/
+  `revert_on`/`revert_to`, every field an OPAQUE string the caller gives
+  meaning to — the `video_playback.py` "pure clock" shape applied to a
+  linear script instead of a timer) and `TutorialSequencer(steps, *,
+  skippable=True)`: `current`/`active`/`finished` (skipped OR past the last
+  step — the single terminal state every gated call site checks, D6 "one
+  bool check" zero-overhead contract), `advance(event_id)` (no-op unless it
+  matches the CURRENT step's `advance_on`), `revert(event_id)` (TU-8 — the
+  GENERIC backward mirror of `advance`: jumps the index to the step whose
+  `id` equals `current.revert_to` iff `event_id` matches
+  `current.revert_on`; a no-op, never an exception, when finished, when
+  `current.revert_on` is `None`, when the id doesn't match, or when
+  `revert_to` names no step in the list — a typo'd/renamed step id must not
+  crash the game), `skip()` (terminal, a no-op when `not skippable` — the
+  engine never trusts the caller), `allows(action_id)` (True once finished,
+  else membership in `current.allow`), `highlight_ids()` / `message_id()` /
+  `flags()` (all resolve to the empty/None terminal value once finished).
+  Knows nothing of tiles, buildings, cards or love —
+  `game/tutorial/director.py` (`game/CLAUDE.md`) binds every opaque id to a
+  real thing; a "flute"/"musician" check inside this module is a layering
+  violation. `revert_on`/`revert_to` are exactly as opaque as every other
+  field — `game/tutorial/director.py` is the one place `"panel_closed"`
+  means anything.
 
 ## `engine/vfx/` (ESV-3a) — procedural VFX emitters
 Pure Python, no doc of its own yet (this row is it). `params.py` holds frozen

@@ -71,6 +71,8 @@ GHOST_TINT = (255, 255, 140, 255)   # armed brush preview under the cursor
 GRID_COLOR = (110, 110, 140)
 START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
+TUTORIAL_COLOR = (255, 255, 255)          # the placed tutorial marker outline
+TUTORIAL_GHOST_COLOR = (200, 200, 200)    # its armed/drag ghost outline
 
 # ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
 # regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
@@ -153,8 +155,10 @@ class ViewportPanel(QWidget):
         self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._armed_camera = None   # the Camera Start slot when that brush is armed
         self._armed_start_area = None  # the Start Area slot when armed
+        self._armed_tutorial_flute = None  # the First Flute slot when armed
+        self._armed_tutorial_stone = None  # the First Stone slot when armed
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
-                      "camera": True, "start_area": True}
+                      "camera": True, "start_area": True, "tutorial": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
@@ -164,6 +168,8 @@ class ViewportPanel(QWidget):
         self._base_drag = False
         self._camera_drag = False
         self._start_area_drag = False
+        self._tutorial_flute_drag = False
+        self._tutorial_stone_drag = False
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
@@ -346,6 +352,8 @@ class ViewportPanel(QWidget):
         self._anchor = None
         self._base_drag = False
         self._start_area_drag = False
+        self._tutorial_flute_drag = False
+        self._tutorial_stone_drag = False
         if self.in_map_mode():
             doc = self._map_session.doc
             self._coords = self._load_coords(map_cols=doc.cols, map_rows=doc.rows)
@@ -632,6 +640,8 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
@@ -639,6 +649,8 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -648,6 +660,8 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
 
     def arm_camera(self, slot):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
@@ -657,6 +671,8 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
 
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
@@ -666,6 +682,32 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+
+    def arm_tutorial_flute(self, slot):
+        """Arm the First Flute brush (paint = place/move the single "first
+        flute" marker, erase = remove it). Mirrors arm_base; clears any other
+        armed brush, including the sibling First Stone brush."""
+        self._armed_tutorial_flute = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_stone = None
+
+    def arm_tutorial_stone(self, slot):
+        """Arm the First Stone brush (paint = place/move the single "first
+        stone" marker, erase = remove it). Mirrors arm_base; clears any other
+        armed brush, including the sibling First Flute brush."""
+        self._armed_tutorial_stone = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
 
     def set_deco_flip(self, on):
         """Mirror-flip toggle for the armed deco brush — an orthogonal
@@ -723,6 +765,22 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_start_area_remove()
             return
+        if self._armed_tutorial_flute is not None:
+            # the "first flute" marker is placed like the Hole (single
+            # object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_flute_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_flute_remove()
+            return
+        if self._armed_tutorial_stone is not None:
+            # the "first stone" marker is placed like the Hole (single
+            # object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_stone_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_stone_remove()
+            return
         if self._eyes["base"] and doc.base is not None \
                 and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
@@ -736,6 +794,14 @@ class ViewportPanel(QWidget):
                 and doc.start_area["row"] <= cell[1] <= doc.start_area["row"] + 1:
             self._start_area_drag = True   # any of its 4 cells grabs it;
             return                         # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_flute is not None \
+                and cell == (doc.tutorial_flute["col"], doc.tutorial_flute["row"]):
+            self._tutorial_flute_drag = True   # single tile, no brush armed;
+            return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_stone is not None \
+                and cell == (doc.tutorial_stone["col"], doc.tutorial_stone["row"]):
+            self._tutorial_stone_drag = True   # single tile, no brush armed;
+            return                             # hide the eye to paint under it
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
@@ -794,6 +860,14 @@ class ViewportPanel(QWidget):
                 # release cell becomes the new MIN corner (session clamps)
                 self._map_session.push_start_area_place(cell[0], cell[1])
             self._start_area_drag = False
+        elif self._tutorial_flute_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_flute_place(cell[0], cell[1])
+            self._tutorial_flute_drag = False
+        elif self._tutorial_stone_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_stone_place(cell[0], cell[1])
+            self._tutorial_stone_drag = False
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
@@ -821,6 +895,10 @@ class ViewportPanel(QWidget):
                              tint=GHOST_TINT)
             return
         if self._start_area_drag or self._armed_start_area is not None:
+            return   # its ghost is an OUTLINE, drawn by _submit_map_items
+        if (self._tutorial_flute_drag or self._tutorial_stone_drag
+                or self._armed_tutorial_flute is not None
+                or self._armed_tutorial_stone is not None):
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
@@ -1139,6 +1217,7 @@ class ViewportPanel(QWidget):
         for item in self._ghost_items(doc):
             self._renderer.submit(item)
         self._submit_start_area_outline(doc)
+        self._submit_tutorial_outline(doc)
         if self._grid_lines:
             # bound the grid to the visible window too (a 1024-line full grid
             # would swamp the overlay pass)
@@ -1173,6 +1252,39 @@ class ViewportPanel(QWidget):
             col = max(0, min(self._hover_cell[0], doc.cols - 2))
             row = max(0, min(self._hover_cell[1], doc.rows - 2))
             outline(col, row, START_AREA_GHOST_COLOR)
+
+    def _submit_tutorial_outline(self, doc):
+        """The tutorial markers ("first flute" / "first stone") each draw as a
+        single-tile closed OUTLINE through the E-24 overlay primitive (never
+        a sprite — mirrors _submit_start_area_outline), with a labeled
+        HudText caption above it (the screen-mode selection caption idiom,
+        _submit_screen_selection): the placed marker when the tutorial eye
+        is on, plus a ghost outline+caption at the (clamped) hover cell while
+        its brush is armed with the paint tool or during a drag."""
+        def outline(col, row, color):
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+
+        def caption(col, row, label, color):
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(
+                HudText(label, (sx, sy - 14), "sm", color, align="center"))
+
+        for marker, label, dragging, armed in (
+                (doc.tutorial_flute, "First Flute",
+                 self._tutorial_flute_drag, self._armed_tutorial_flute),
+                (doc.tutorial_stone, "First Stone",
+                 self._tutorial_stone_drag, self._armed_tutorial_stone)):
+            if self._eyes["tutorial"] and marker is not None and not dragging:
+                outline(marker["col"], marker["row"], TUTORIAL_COLOR)
+                caption(marker["col"], marker["row"], label, TUTORIAL_COLOR)
+            ghosting = dragging or (armed is not None and self._tool == "paint")
+            if ghosting and self._hover_cell is not None:
+                col = max(0, min(self._hover_cell[0], doc.cols - 1))
+                row = max(0, min(self._hover_cell[1], doc.rows - 1))
+                outline(col, row, TUTORIAL_GHOST_COLOR)
+                caption(col, row, label, TUTORIAL_GHOST_COLOR)
 
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 
@@ -1322,10 +1434,12 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             if event.button() == Qt.MouseButton.LeftButton:
                 self._tool_press(event.position())
-                # "none" tool that didn't start a base/start-area drag →
-                # left-drag pans.
+                # "none" tool that didn't start a base/start-area/tutorial
+                # drag → left-drag pans.
                 if self._tool == "none" and not self._base_drag \
-                        and not self._start_area_drag:
+                        and not self._start_area_drag \
+                        and not self._tutorial_flute_drag \
+                        and not self._tutorial_stone_drag:
                     self._drag_pos = event.position()
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()

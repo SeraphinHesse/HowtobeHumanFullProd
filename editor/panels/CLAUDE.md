@@ -500,6 +500,25 @@ import list.**
   under starting area"` when any covered cell isn't a `tile_buildable`-slot
   code (the marker anchors the game's unlock grid but never forces tile
   states — painted terrain wins).
+- **Tutorial markers (2 single-tile brushes)**: a FOURTH mode page
+  (`palette.MODES` gains `"tutorial"`, registry `core`/`Tutorial Flute`
+  and `core`/`Tutorial Stone`, slots `tutorial_flute`/`tutorial_stone`) with
+  two exclusive sub-brushes, "First Flute" and "First Stone", in the SAME
+  exclusive brush group as every other mode's brushes — arming one disarms
+  the sibling marker and everything else. Paint/move/erase mirrors the
+  Camera Start pattern exactly (single tile, no clamp, unlike Start Area's
+  2×2): paint places the marker if absent or moves it to the clicked cell
+  (one undoable command either way), erase clears it from any cell, and a
+  press on the marker's own painted cell (eye on, no brush armed) grabs it
+  into a drag whose release cell re-places it. **Renders as a labeled white
+  diamond OUTLINE through `submit_overlay_lines` (E-24) — never a sprite**,
+  the same ED-22-clean idiom as Starting Area's 2×2 outline but a single-tile
+  square, plus a `HudText` caption ("First Flute"/"First Stone") above it via
+  `world_to_screen(col + 0.5, row + 0.5)` (the screen-mode selection-caption
+  idiom). ONE `tutorial` layer eye gates both markers together (an
+  implementer's call — a designer hiding tutorial markers wants both gone at
+  once, unlike Start Area/Camera which are independent features with
+  independent eyes).
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the
@@ -1023,6 +1042,99 @@ calls):
   Strings panel's `saved` signal is still emitted (symmetry with
   `GameThemePanel.saved`, kept for a future consumer) but `MainWindow`
   connects nothing to it today.
+
+## Cutscenes panel (`panels/cutscenes.py`, `cutscene_import.py`; TU-3)
+- **Selection**: a single "Cutscenes" LEAF (not a branch — the registry's own
+  row list lives inside the panel, nothing to enumerate in the tree) is the
+  THIRD child of the "ui" category node, after "Screens" then "Theme" (the
+  UH-6 ordering invariant above) — `panels/selector.py`'s `_CUTSCENES_ROLE`
+  marker + `cutscenes_selected()` signal, same never-node_selected rule as
+  Maps/Screens/Theme leaves. `MainWindow._on_cutscenes_selected` →
+  `right_stack` → `CutscenesPanel`.
+- **`CutscenesPanel`** edits `data/video/cutscenes.json` (TU-1's registry, `id
+  -> {video, audio (nullable), length, trigger}`): one row per entry, built
+  via `cutscene_import.ordered_entry_ids(doc)` — a `TRIGGER_ORDER` display
+  pin (`("intro", "first_end_turn")`, the `ordered_views()`/`VIEW_ORDER`
+  precedent) so the alphabetically-first `first_end_turn` placeholder never
+  displays above the seeded `intro` row just because
+  `data_io.dumps_deterministic` sorts keys. Each row: `trigger` shown
+  read-only/disabled (fixed by TU-1's script wiring, never editable here);
+  video/audio filename labels + "Import MP4…"/"Import Audio…" buttons
+  (`QFileDialog.getOpenFileName`, filtered to `*.mp4` / `*.ogg *.mp3`); a
+  "Clear Audio" button enabled only while `audio` is not null; a length
+  `_NoWheelDoubleSpinBox` (imported from `editor.panels.balancing`, never
+  copied) ranged from the schema's `length` `minimum`/`maximum` (0..3600
+  today) via `cutscene_import.length_bounds`, committing on
+  `editingFinished`.
+- **Immediate per-action writes, NOT staged** (unlike `GameThemePanel`'s
+  dirty-dot pattern): import video/audio, Clear Audio, and a committed
+  length edit each call `cutscene_import.write_registry_doc` on the spot —
+  there is no multi-field form to batch here, and a loud
+  `write_validated` failure beats a dirty-dot UI for a 4-field row. No
+  add/remove-row affordance: TU-1 owns which ids exist.
+- **`editor/cutscene_import.py`** (Qt-free, pygame-free, in `TestPurity`):
+  `load_registry_doc`/`write_registry_doc` (load degrades to `{}` on a
+  missing/corrupt file, E-37, mirroring `asset_import.load_manifest_doc`;
+  write is the ONE `write_validated` call site for this file);
+  `video_dest`/`audio_dest` name the destination deterministically off the
+  cutscene id — `data/video/<id><suffix>` /
+  `data/video/<id>_audio<suffix>`, never the source filename (the
+  `imported/<slot_key>.png` rule); `import_video`/`import_audio` copy (skip
+  when source and destination already resolve to the same file) and return
+  the bare destination filename; `probe_length_seconds` lazily imports cv2
+  and returns `None` on every failure mode (absent cv2, unopenable capture,
+  zero/invalid fps) — never raises, mirroring `engine/video.py`'s
+  graceful-skip contract, so a missing cv2 install never blocks editing and
+  the panel's manual spin-box stays authoritative; `clear_audio` deletes the
+  entry's current audio file (no refcount needed — a cutscene's audio is
+  always 1:1-owned by its id, unlike `asset_import`'s shared-sheet model)
+  and returns the doc with `audio: None`, leaving the actual write to the
+  caller.
+
+## Tutorial panel (`panels/tutorial_panel.py`; TU-4, generalized TU-8)
+- **Selection**: a single "Tutorial" LEAF (not a branch — one document,
+  nothing to enumerate) is the FOURTH child of the "ui" category node, after
+  "Screens", "Theme", then "Cutscenes" (the ordering invariant above) —
+  `panels/selector.py`'s `_TUTORIAL_ROLE` marker + `tutorial_selected()`
+  signal, same never-node_selected rule as Maps/Screens/Theme/Cutscenes
+  leaves. `MainWindow._on_tutorial_selected` → `right_stack` →
+  `TutorialPanel`.
+- **`TutorialPanel`** edits `data/tutorial/tutorial.json` (TU-1): one row
+  per key in the **`messages`** object, DATA-DRIVEN off
+  `sorted(self._doc["messages"])` (not a hardcoded key tuple — TU-8 added a
+  third key, `close_panel_hint`, the flute chain's non-modal close-panel
+  banner text, with zero panel code change beyond this generalization; a
+  future fourth key needs only a schema/content change again), each a
+  `QPlainTextEdit` — the first multi-line text field in the editor, a
+  deliberate departure from `balancing.py`'s `QLineEdit` convention,
+  justified by message length. `_message_label(key)` resolves a friendly
+  row label from a small curated table (`_MESSAGE_LABELS`) and falls back to
+  a mechanical title-case of the key for one the table doesn't know, so an
+  unrecognized new key still renders sensibly. Plus the two behavioral flags
+  (`skippable`, `first_loss_costs_life`, `QCheckBox`). Edits are STAGED (the
+  `game_theme.py` pattern): every change updates an in-memory doc + a dirty
+  dot; ONE "Save Tutorial Changes" button (enabled only while dirty) is the
+  sole `write_validated` call site. `data_dir=None` injection. Missing/
+  invalid data degrades to a placeholder message (editor-side E-37 grace).
+- **Empty-text guard (ED-30)**: since `QPlainTextEdit` has no
+  `editingFinished`, this panel commits on focus-out instead (`_MessageEdit`,
+  a thin subclass overriding `focusOutEvent`, calling back into the panel).
+  On that commit path, an all-whitespace message is never staged — the
+  field is restored to its last staged value instead, regardless of what
+  TU-1's schema `minLength` would also catch; this makes invalid text
+  unrepresentable in the UI rather than relying solely on the schema
+  backstop.
+- **`steps` (and any other TU-1-owned key) round-trips untouched**: the
+  whole loaded doc is kept in `self._doc` and written back whole on Save, so
+  an edit to texts/flags never perturbs the step list, and a doc that was
+  never touched saves byte-identical.
+- **`editor/tutorial_ops.py`** (Qt-free, pygame-free, in `TestPurity`) —
+  load/write/path helpers for the one file, mirroring `editor/theme_ops.py`.
+- **`saved = Signal()`** exists for test observability and symmetry with
+  every other staged-edit panel, but has no in-process `MainWindow`
+  consumer (unlike Theme) — no engine reconfiguration follows a text/flag
+  edit. Documented in the panel's own docstring so a future phase does not
+  go looking for a missing connection.
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

@@ -56,6 +56,17 @@ class Session:
         # painter's tile (clear it here as well as on the tilemap). Optional so
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
+        # TU-6: optional callable, host-set (BuildingUI/on_build_vfx
+        # precedent) — allows()->bool gate consulted by end_turn(). None
+        # (default) = always allowed (a bare Session built by a logic test
+        # never gates).
+        self.tutorial_gate = None
+        # TU-7: optional TutorialDirector reference, host-set alongside
+        # tutorial_gate in build_gameplay() — consulted by on_base_hit() (the
+        # scripted first-loss waiver) and notified by _begin_round_end(). None
+        # (default) = normal rules, no notification (a bare Session built by a
+        # logic test never gates/notifies).
+        self.tutorial_director = None
         self._wipe_pending = False
         # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
         # 10G single-slot `_boss_swarm_pending` generalised — several units can
@@ -247,7 +258,15 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
             return
+        if self.tutorial_gate is not None and not self.tutorial_gate():
+            return  # TU-6: the guided chain still owns End Turn
         self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
+        # TU-9: fires once on the first End Turn of the run — round 0 (the
+        # tutorial) or round 1 (a skipped run) alike — never keyed on
+        # round_num == 1 directly any more (see game_state.py).
+        if not st.first_end_turn_cutscene_requested:
+            st.pending_cutscene = {"id": "first_end_turn"}
+            st.first_end_turn_cutscene_requested = True
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
@@ -256,10 +275,12 @@ class Session:
         # game.py:838-839); on a boss round also snapshot lives (the cutscene's
         # win/loss compare) and queue one announce marker (drained by the UI —
         # the enabled gate lives in FloaterManager, session stays ui-free).
+        # TU-9: round 0 (the tutorial) is never a boss round — `0 % n == 0`
+        # for every interval, so it must be excluded explicitly.
         st.boss_love_snapshot = st.love
         boss_interval = \
             self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % boss_interval == 0:
+        if st.round_num != 0 and st.round_num % boss_interval == 0:
             st.boss_lives_snapshot = st.base_lives
             st.boss_events.append(st.round_num)
         # -- /10G --
@@ -441,7 +462,14 @@ class Session:
         if transform is not None:
             st.enemy_death_events.append(transform.world_pos)
         st.enemies_killed += 1
-        st.base_lives -= 1
+        # TU-7: the scripted round-1 loss may be waived (script-toggleable,
+        # `first_loss_costs_life`) — a pure read, never mutates the director.
+        charge = True
+        if self.tutorial_director is not None:
+            charge = self.tutorial_director.charges_life_on_base_hit(
+                st.round_num)
+        if charge:
+            st.base_lives -= 1
         if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
         else:
@@ -504,8 +532,9 @@ class Session:
         # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
         # post_sim/on_base_hit gates stop first). Outcome compares lives to the
         # End-Turn snapshot (prototype game.py:933-938).
+        # TU-9: round 0 (the tutorial) is never a boss round (see end_turn()).
         interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % interval == 0:
+        if st.round_num != 0 and st.round_num % interval == 0:
             st.pending_boss_cutscene = {
                 "boss_num": st.round_num // interval,
                 "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
@@ -513,6 +542,11 @@ class Session:
             }
         # -- /10G --
         st.phase = GamePhase.ROUND_END
+        # TU-7: every road to ROUND_END notifies the tutorial director — a
+        # no-op unless its sequencer is actually waiting on this event (the
+        # scripted round-1 "wait for the loss" step).
+        if self.tutorial_director is not None:
+            self.tutorial_director.on_round_end(st.round_num)
         st.phase_timer = self.core_balance["PhaseLoop"]["round_end_delay"]
 
     def _wipe_round(self, scene):
