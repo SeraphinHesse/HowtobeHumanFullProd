@@ -78,11 +78,6 @@
     },
     {
       "col": 510,
-      "row": 508,
-      "slot": "deco_tree_v4"
-    },
-    {
-      "col": 510,
       "row": 505,
       "slot": "deco_prop_1_v5"
     },
@@ -130,11 +125,6 @@
       "col": 507,
       "row": 514,
       "slot": "deco_rock_v2"
-    },
-    {
-      "col": 510,
-      "row": 509,
-      "slot": "deco_prop_2_v4"
     },
     {
       "col": 520,
@@ -742,24 +732,29 @@
       "slot": "deco_bush_v10"
     },
     {
-      "col": 506,
-      "row": 509,
-      "slot": "deco_prop_1_v6"
-    },
-    {
       "col": 509,
       "row": 512,
-      "slot": "deco_prop_1_v6"
-    },
-    {
-      "col": 510,
-      "row": 508,
       "slot": "deco_prop_1_v6"
     },
     {
       "col": 505,
       "row": 510,
       "slot": "deco_rock"
+    },
+    {
+      "col": 506,
+      "row": 501,
+      "slot": "deco_prop_1_v6"
+    },
+    {
+      "col": 510,
+      "row": 508,
+      "slot": "deco_tree_v6"
+    },
+    {
+      "col": 510,
+      "row": 509,
+      "slot": "deco_bush_v9"
     }
   ],
   "display_name": "Winter Test",
