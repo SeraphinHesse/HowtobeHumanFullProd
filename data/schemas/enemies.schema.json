@@ -206,6 +206,12 @@
           "maximum": 1,
           "minimum": 0,
           "type": "number"
+        },
+        "tutorial_round_enemy_count": {
+          "description": "The tutorial's round 0 always spawns exactly this many Standard/walker enemies, ignoring base_enemy_count/enemies_per_round/scale-tier formulas entirely. Unused once round_num >= 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -215,7 +221,8 @@
         "scale_tiers",
         "spawn_interval",
         "spawn_ramp_enabled",
-        "spawn_ramp_range"
+        "spawn_ramp_range",
+        "tutorial_round_enemy_count"
       ],
       "type": "object"
     },

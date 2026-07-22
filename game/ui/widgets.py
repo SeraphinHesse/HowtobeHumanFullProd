@@ -216,6 +216,23 @@ def submit_ui_box_highlight(renderer, rect, color=None, width=3):
     renderer.submit_hud(HudRect(rect, color, width=width))
 
 
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=24,
+                            font_key="lg"):
+    """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
+    ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
+    click anywhere to close"). A filled ``C_TUTORIAL_HIGHLIGHT`` box with a
+    dark border and dark centred text, sized to the text. Deliberately
+    carries NO hit-test and consumes no input, UNLIKE ``TutorialMessageScreen``
+    — a banner instructing a right-click must never itself swallow it."""
+    tw, th = text_size(text, font_key)
+    w, h = tw + pad * 2, th + pad * 2
+    x, y = (view_w - w) // 2, (view_h - h) // 2
+    renderer.submit_hud(HudRect((x, y, w, h), C_TUTORIAL_HIGHLIGHT))
+    renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=3))
+    submit_centered(renderer, text, view_w // 2, y + pad, font_key,
+                    C_UI_PANEL)
+
+
 def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
     """A horizontal fill bar (HP / lives). ``ratio`` clamped to [0, 1]."""
     ratio = max(0.0, min(1.0, ratio))

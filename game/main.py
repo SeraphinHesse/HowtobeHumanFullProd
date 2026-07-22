@@ -332,6 +332,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
             view_w, view_h, gp["tutorial"].skippable(), skinning=shell.skinning)
         gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
         gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
+        # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own scripted
+        # round, always a single forced walker) so real enemy scaling begins
+        # at round 1 exactly where it always did. A `RunState` defaults to
+        # round 1 (`from_balance`), which is what an old/unpainted map (an
+        # auto-skipped, inactive director) and every bare-Session logic test
+        # keep — this is the ONE seed site, deliberately host-side rather
+        # than a `Session`/`RunState` default, so those stay untouched.
+        if gp["tutorial"].active:
+            gp["world"].session.state.round_num = 0
         # -- /TU-6 --
         gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
@@ -469,6 +478,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
             result = gp["tutorial_message"].hit(mx, my)
             if result == "skip":
                 tutorial.skip()
+                # TU-9: Skip jumps straight to round 1 — no round 0, no
+                # forced single walker, normal wave scaling from here.
+                if session.state.round_num == 0:
+                    session.state.round_num = 1
             elif result == "continue":
                 tutorial.on_message_dismissed()
             return
@@ -495,14 +508,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 session.resolve_levelup(option, world.scene)  # -> payday -> INCOME
             return
         if panel.preview is not None:                      # modal
-            # -- TU-6: only the whitelisted CONFIRM click is gated --
+            # -- TU-6/TU-8: only the whitelisted CONFIRM click is gated;
+            # closing the preview WITHOUT placing (X/CANCEL) fires
+            # panel_closed so the tutorial can revert (Fix 1) --
             if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
                     mx, my, session, buildings_balance, world.scene,
                     world.occupancy):
                 if panel.last_placed_type is not None:
                     gp["tutorial"].on_building_placed(panel.last_placed_type)
                     panel.last_placed_type = None
-            # -- /TU-6 --
+                elif panel.preview is None:  # cancel/close, not a placement
+                    gp["tutorial"].on_panel_closed()
+            # -- /TU-6/TU-8 --
             return
         hud_action = gp["hud"].hit(mx, my)
         if hud_action == "pause":
@@ -521,14 +538,19 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if gp["overlays"].hit(mx, my):
             return
         # -- /10I --
-        # -- TU-6: only the whitelisted card click is gated --
+        # -- TU-6/TU-8: only the whitelisted card click is gated; the panel's
+        # own X button (bare panel, no preview) passes through ungated —
+        # closing it here fires panel_closed for the same revert as above --
+        was_visible = panel.visible
         if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
                 mx, my, session, buildings_balance, world.scene,
                 world.occupancy):
             if panel.mode == "construct" and panel.preview is not None:
                 gp["tutorial"].on_card_selected(panel.preview.building_type)
+            elif was_visible and not panel.visible:
+                gp["tutorial"].on_panel_closed()
             return
-        # -- /TU-6 --
+        # -- /TU-6/TU-8 --
         if panel.visible and mx >= panel.panel_x:          # spatial block
             return
         if session.state.phase == GamePhase.BUILDING:
@@ -565,8 +587,17 @@ def main(max_frames=None, data_dir=None, autostart=False):
             return
         if session.frozen or session.state.phase == GamePhase.BOSS_CUTSCENE:
             return  # LEVELUP / boss cutscene: a choice, not a dismiss
-        gp["panel"].dismiss()
-        if not gp["panel"].visible:
+        # -- TU-8: dismiss() never places, so a preview it peels or a bare
+        # panel it closes both fire panel_closed (Fix 1); peeling only the
+        # boss popup (panel stays visible, preview stays None) does not --
+        panel = gp["panel"]
+        had_preview = panel.preview is not None
+        was_visible = panel.visible
+        panel.dismiss()
+        if (had_preview and panel.preview is None) or (
+                was_visible and not panel.visible):
+            gp["tutorial"].on_panel_closed()
+        if not panel.visible:
             gp["sel"], gp["sel_cat"] = [], None
 
     # -- 10J: shift multi-select (prototype _handle_tile_click,
@@ -676,6 +707,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 if panel.preview is not None:
                     if event.key == pygame.K_ESCAPE and not panel.preview.editing:
                         panel.preview = None
+                        gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         panel.handle_key(event.unicode, _key_name(event.key))
                 elif panel.name_editing:  # 10J: upgrade-panel rename capture
@@ -683,6 +715,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 elif event.key == pygame.K_ESCAPE:
                     if panel.visible:
                         panel.close()
+                        gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif event.key == pygame.K_SPACE:
@@ -1012,10 +1045,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost)
-            # -- TU-6: UI-box highlights (card/Confirm/End Turn) + the
+            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
             # message box, over the HUD --
             for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
                 widgets.submit_ui_box_highlight(renderer, rect)
+            # -- TU-8: the non-modal close-panel-hint banner — NOT the
+            # message box, so it never consumes the right-click it names --
+            banner_text = gp["tutorial"].banner_text()
+            if banner_text is not None:
+                widgets.submit_tutorial_banner(renderer, banner_text,
+                                               view_w, view_h)
             if gp["tutorial"].message_visible:
                 gp["tutorial_message"].submit(
                     renderer, gp["tutorial"].message_text(), view_w, view_h)

@@ -978,7 +978,7 @@ calls):
   and returns the doc with `audio: None`, leaving the actual write to the
   caller.
 
-## Tutorial panel (`panels/tutorial_panel.py`; TU-4)
+## Tutorial panel (`panels/tutorial_panel.py`; TU-4, generalized TU-8)
 - **Selection**: a single "Tutorial" LEAF (not a branch — one document,
   nothing to enumerate) is the FOURTH child of the "ui" category node, after
   "Screens", "Theme", then "Cutscenes" (the ordering invariant above) —
@@ -986,12 +986,19 @@ calls):
   signal, same never-node_selected rule as Maps/Screens/Theme/Cutscenes
   leaves. `MainWindow._on_tutorial_selected` → `right_stack` →
   `TutorialPanel`.
-- **`TutorialPanel`** edits `data/tutorial/tutorial.json` (TU-1): the two
-  message texts (`messages.economy_intro`/`messages.lives_intro`, each a
+- **`TutorialPanel`** edits `data/tutorial/tutorial.json` (TU-1): one row
+  per key in the **`messages`** object, DATA-DRIVEN off
+  `sorted(self._doc["messages"])` (not a hardcoded key tuple — TU-8 added a
+  third key, `close_panel_hint`, the flute chain's non-modal close-panel
+  banner text, with zero panel code change beyond this generalization; a
+  future fourth key needs only a schema/content change again), each a
   `QPlainTextEdit` — the first multi-line text field in the editor, a
   deliberate departure from `balancing.py`'s `QLineEdit` convention,
-  justified by message length) and the two behavioral flags (`skippable`,
-  `first_loss_costs_life`, `QCheckBox`). Edits are STAGED (the
+  justified by message length. `_message_label(key)` resolves a friendly
+  row label from a small curated table (`_MESSAGE_LABELS`) and falls back to
+  a mechanical title-case of the key for one the table doesn't know, so an
+  unrecognized new key still renders sensibly. Plus the two behavioral flags
+  (`skippable`, `first_loss_costs_life`, `QCheckBox`). Edits are STAGED (the
   `game_theme.py` pattern): every change updates an in-memory doc + a dirty
   dot; ONE "Save Tutorial Changes" button (enabled only while dirty) is the
   sole `write_validated` call site. `data_dir=None` injection. Missing/

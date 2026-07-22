@@ -1,4 +1,4 @@
-"""A pure step-sequencer for a scripted guided tutorial (Phase TU-6).
+"""A pure step-sequencer for a scripted guided tutorial (Phase TU-6/TU-8).
 
 No pygame, no game vocabulary (no "flute", no "musician", no "confirm button")
 — every id here is an OPAQUE string chosen by the data script
@@ -15,6 +15,14 @@ only takes effect when the script marked itself ``skippable``; once
 finished (skipped or past the last step) every query resolves to the
 zero-overhead "tutorial is over" answer, at the cost of one bool check per
 gated call site (D6).
+
+**TU-8** added ``revert(event_id)`` — a GENERIC backward move, the mirror
+image of ``advance``: a step may name an ``revert_on`` event id and a
+``revert_to`` step id, so the caller can un-stick a player who abandoned a
+gated multi-step action partway through (closing a panel mid-chain) by
+jumping back to an earlier step instead of leaving the chain dead. Still no
+game vocabulary — ``revert_on``/``revert_to`` are opaque strings exactly like
+every other id here.
 """
 from dataclasses import dataclass, field
 
@@ -27,6 +35,8 @@ class Step:
     advance_on: str | None = None
     allow: tuple[str, ...] = ()
     flags: dict = field(default_factory=dict)
+    revert_on: str | None = None
+    revert_to: str | None = None
 
 
 class TutorialSequencer:
@@ -71,6 +81,24 @@ class TutorialSequencer:
             return False
         self._index += 1
         return True
+
+    def revert(self, event_id):
+        """Jump back to the step whose ``id`` equals ``current.revert_to``
+        iff ``event_id`` matches ``current.revert_on`` — the backward mirror
+        of ``advance``. No-op (returns False, index untouched) if finished,
+        if ``current.revert_on`` is None, if the id doesn't match, or if
+        ``revert_to`` names no step in this sequencer's list (a safe no-op,
+        never raises — a typo'd/renamed step id must not crash the game)."""
+        step = self.current
+        if step is None or step.revert_on is None:
+            return False
+        if step.revert_on != event_id:
+            return False
+        for i, s in enumerate(self._steps):
+            if s.id == step.revert_to:
+                self._index = i
+                return True
+        return False
 
     def skip(self):
         """Terminal, only if ``skippable``; a no-op otherwise (defensive: no

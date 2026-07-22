@@ -262,8 +262,12 @@ class Session:
         if self.tutorial_gate is not None and not self.tutorial_gate():
             return  # TU-6: the guided chain still owns End Turn
         self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
-        if st.round_num == 1:
+        # TU-9: fires once on the first End Turn of the run — round 0 (the
+        # tutorial) or round 1 (a skipped run) alike — never keyed on
+        # round_num == 1 directly any more (see game_state.py).
+        if not st.first_end_turn_cutscene_requested:
             st.pending_cutscene = {"id": "first_end_turn"}
+            st.first_end_turn_cutscene_requested = True
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
@@ -272,10 +276,12 @@ class Session:
         # game.py:838-839); on a boss round also snapshot lives (the cutscene's
         # win/loss compare) and queue one announce marker (drained by the UI —
         # the enabled gate lives in FloaterManager, session stays ui-free).
+        # TU-9: round 0 (the tutorial) is never a boss round — `0 % n == 0`
+        # for every interval, so it must be excluded explicitly.
         st.boss_love_snapshot = st.love
         boss_interval = \
             self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % boss_interval == 0:
+        if st.round_num != 0 and st.round_num % boss_interval == 0:
             st.boss_lives_snapshot = st.base_lives
             st.boss_events.append(st.round_num)
         # -- /10G --
@@ -523,8 +529,9 @@ class Session:
         # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
         # post_sim/on_base_hit gates stop first). Outcome compares lives to the
         # End-Turn snapshot (prototype game.py:933-938).
+        # TU-9: round 0 (the tutorial) is never a boss round (see end_turn()).
         interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % interval == 0:
+        if st.round_num != 0 and st.round_num % interval == 0:
             st.pending_boss_cutscene = {
                 "boss_num": st.round_num // interval,
                 "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot

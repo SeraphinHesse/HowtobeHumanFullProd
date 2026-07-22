@@ -90,10 +90,19 @@ class RunState:
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
     # -- TU-5: registry-driven cutscene request -----------------------------
-    # {"id": <registry key>} queued by Session.end_turn() on round 1, BEFORE
+    # {"id": <registry key>} queued by Session.end_turn() on the FIRST End
+    # Turn of the run (round 0's tutorial round, or round 1 on a skipped
+    # run — see first_end_turn_cutscene_requested below), BEFORE
     # spawner.begin_round(); consumed (set back to None) by the host once it
     # starts playing the matching CutscenePlayer. Never serialized.
     pending_cutscene: object = None
+    # -- TU-9: one-shot latch for the above (round 0 = tutorial) ------------
+    # The prototype/TU-5 keyed the cutscene request on `round_num == 1`; once
+    # the tutorial became round 0, that test would silently never fire for a
+    # real tutorial run. This flag fires the request on the first
+    # `end_turn()` of the run, whether that round is 0 (tutorial) or 1
+    # (skipped straight to round 1), and never again. Never serialized.
+    first_end_turn_cutscene_requested: bool = False
     # -- ESV-5: splash-impact trigger ledger ---------------------------------
     # A mortar shell's landing point, same drained-by-UI contract as
     # enemy_death_events: `(wx, wy)` world points. Appended by

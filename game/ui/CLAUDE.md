@@ -823,10 +823,22 @@ trigger call sites in `main.py`, never unified into one state machine:
   read it). `game/main.py` reads `last_placed_type` once right after a
   successful `panel.handle_click()` to distinguish "a building was placed"
   from "the preview was merely cancelled" (both clear `panel.preview` the
-  same way) and clears it back to `None` itself.
+  same way) and clears it back to `None` itself. TU-8 added a FOURTH:
+  `close_rect()` (the panel's own CLOSE/X rect, or `None` when the panel
+  isn't open — same additive shape).
+- **TU-8 added a second widgets primitive, `submit_tutorial_banner(renderer,
+  text, view_w, view_h)`** — the `submit_ui_box_highlight` sibling for a
+  full-text hint rather than a ring: a big `C_TUTORIAL_HIGHLIGHT`-filled,
+  screen-centred box sized to the text, drawn with **no hit-test and no
+  input consumption** (unlike `TutorialMessageScreen`, which must never be
+  used for a hint instructing a right-click — that modal swallows every
+  click while visible, `main.py` `handle_world_click`'s top branch). Reads
+  its text from `TutorialDirector.banner_text()`, submitted independently of
+  (and alongside) `ui_highlight_rects`'s Close-button ring — see
+  `game/CLAUDE.md`'s "Un-stick on panel close + close-panel hint" section.
 - **Detail on the director/host wiring** (the three choke points, the event
-  feed, the D6 zero-overhead contract) → `game/CLAUDE.md`'s Tutorial
-  director section.
+  feed, the D6 zero-overhead contract, TU-8's revert/close-panel-hint
+  additions) → `game/CLAUDE.md`'s Tutorial director section.
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game

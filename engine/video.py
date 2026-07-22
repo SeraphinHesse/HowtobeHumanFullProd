@@ -1,10 +1,31 @@
 """OpenCV video frame source (prototype src/cutscene.py), Phase 9B.
 
-Reads a video one frame at a time and hands pygame surfaces to the host so
-the game can play the opening cutscene. GRACEFUL SKIP is the whole point: if
-cv2 is not installed, the file is missing, or the capture won't open, the
-source is `disabled` and reports `done` immediately — never a crash, never a
-hang, headless-safe under SDL dummy.
+Reads a video and hands pygame surfaces to the host so the game can play the
+opening cutscene. GRACEFUL SKIP is the whole point: if cv2 is not installed,
+the file is missing, or the capture won't open, the source is `disabled` and
+reports `done` immediately — never a crash, never a hang, headless-safe under
+SDL dummy.
+
+**Pacing (post-2.4x-speed-bug-fix)**: playback is paced by the SOURCE's own
+fps (`cv2.CAP_PROP_FPS`, probed once at open time), not by "one frame per
+host `update()` call" — the host may run at any frame rate (60fps here) and
+the video plays at its authored speed regardless. `update(dt)` accumulates
+`dt` against the frame interval and reads however many frames are due
+(discarding all but the last so a game frame rate slower than the video's
+doesn't fall behind); a single call reads at most `_MAX_FRAMES_PER_UPDATE`
+frames so a huge dt spike (a debugger stall) can't spin through the whole
+clip in one call — it just catches up over the next several calls instead.
+An absent/zero/negative/NaN source fps (probe failure) falls back to the
+pre-fix one-frame-per-`update()` behavior rather than dividing by zero or
+hanging (mirrors `editor/cutscene_import.probe_length_seconds`'s graceful-
+fallback rule).
+
+**Termination is EOF- (or `skip()`-) authoritative, never `length`.** The
+registry's `length` is an approximate/legacy hint the pure
+`engine.video_playback` clock still tracks (`elapsed`/`progress` stay usable
+standalone), but a real, open, readable capture is never cut off early by it
+— only running out of frames or an explicit `skip()` ends playback, so the
+full authored clip always plays to its true end.
 
 Timing (elapsed vs length, source-ended) is delegated to the pure
 `engine.video_playback` clock (the parallel 9B half) so the state machine is
@@ -15,11 +36,37 @@ pygame is allowed here (like the render backend / asset store / audio) —
 surfarray.make_surface is the only pygame touch; cv2 is imported lazily so
 importing this module never requires OpenCV.
 """
+import math
 import os
 
 import pygame
 
 CUTSCENE_LENGTH = 44.2  # prototype cutscene.py — seconds (the game passes this)
+
+# Bound on frames a single update() call may decode-and-discard to catch up
+# after a large dt (a debugger stall, a slow frame). 10 is generous headroom
+# above any dt this game actually produces (60fps target => ~0.016s dt) while
+# still being a cheap, hard cap — worst case it takes a handful of
+# consecutive update() calls (a fraction of a real second at 60fps) to fully
+# catch back up to the source's pace, never a single-frame spike through the
+# whole clip.
+_MAX_FRAMES_PER_UPDATE = 10
+
+
+def _probe_frame_interval(cv2, cap):
+    """Seconds-per-frame from the capture's own reported fps, so playback
+    paces at the video's authored speed. Returns None (the "pace by one
+    frame per update() call" fallback) for an absent/zero/negative/NaN fps
+    or any read failure — mirrors
+    ``editor.cutscene_import.probe_length_seconds``'s graceful-fallback
+    rule; never raises, never divides by zero."""
+    try:
+        fps = float(cap.get(cv2.CAP_PROP_FPS))
+    except Exception:
+        return None
+    if math.isnan(fps) or fps <= 0:
+        return None
+    return 1.0 / fps
 
 
 class _FallbackClock:
@@ -72,6 +119,8 @@ class VideoSource:
         self._cap = None
         self._bgr = None  # last raw frame read (BGR ndarray), or None
         self._clock = _make_clock(length)
+        self._frame_interval = None  # seconds/frame; None = 1 frame/update()
+        self._frame_accum = 0.0  # dt owed toward the next paced frame read
 
         try:
             import cv2
@@ -86,6 +135,7 @@ class VideoSource:
                 self._cap = cap
                 self.enabled = True
                 self._set_clock_enabled(True)
+                self._frame_interval = _probe_frame_interval(cv2, cap)
             else:
                 cap.release()
 
@@ -118,26 +168,43 @@ class VideoSource:
     # -- playback ----------------------------------------------------------
 
     def update(self, dt):
-        """Advance the clock and read the next frame. Marks `done` at the
-        length cap or when the stream ends; never raises."""
+        """Advance playback by `dt` seconds at the source's own authored
+        pace and read whatever frame(s) are due (see module docstring);
+        never raises. Marks `done` only at end-of-stream — the `length` cap
+        no longer ends a live capture, so the full clip always plays out."""
         if self.done or not self.enabled:
             return
-        self._clock.advance(dt)
-        if getattr(self._clock, "done", False):
-            self.done = True
-            self.release()
-            return
-        ret, bgr = self._cap.read()
-        if not ret:
-            try:
-                self._clock.mark_source_ended()
-            except Exception:
-                pass
-            self.done = True
-            self._bgr = None
-            self.release()
-            return
-        self._bgr = bgr
+        self._clock.advance(dt)  # elapsed/progress bookkeeping only
+        for _ in range(self._frames_due(dt)):
+            ret, bgr = self._cap.read()
+            if not ret:
+                self._mark_source_ended()
+                return
+            self._bgr = bgr
+
+    def _frames_due(self, dt):
+        """How many frames `update()` should read this call, paced by
+        `_frame_interval` and capped at `_MAX_FRAMES_PER_UPDATE`. Falls back
+        to exactly one frame/call when the source fps couldn't be probed
+        (the pre-fix behavior)."""
+        if self._frame_interval is None:
+            return 1
+        self._frame_accum += dt
+        frames = int(self._frame_accum // self._frame_interval)
+        if frames <= 0:
+            return 0
+        frames = min(frames, _MAX_FRAMES_PER_UPDATE)
+        self._frame_accum -= frames * self._frame_interval
+        return frames
+
+    def _mark_source_ended(self):
+        try:
+            self._clock.mark_source_ended()
+        except Exception:
+            pass
+        self.done = True
+        self._bgr = None
+        self.release()
 
     def frame_surface(self):
         """Convert the last-read frame to a pygame Surface (BGR→RGB, optional

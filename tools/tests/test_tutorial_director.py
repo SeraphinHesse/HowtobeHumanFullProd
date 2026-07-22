@@ -6,6 +6,11 @@ test_tutorial_data.py convention). Headless, pure Python — no pygame.
 TU-7 extends this module with the round-2 stone-thrower chain, the scripted
 first-loss waiver and the tutorial-end state (``TestRoundTwoChain``,
 ``TestScriptedLossWaiver`` below).
+
+TU-8 extends it further with the panel-close revert (Fix 1) and the
+close-panel-hint step (Fix 2) — ``TestPanelClosedRevert``,
+``TestClosePanelHintStep`` below. ``_walk_round_one`` now also drives the new
+``on_panel_closed()`` call the close-panel-hint step needs to reach End Turn.
 """
 import json
 import logging
@@ -41,29 +46,39 @@ def _director(flute=_FLUTE, stone=_STONE, required=1, data_dir=FIXTURE_DATA):
                             {"economy_buildings_required": required})
 
 
+MSG_CLOSE_PANEL_HINT = "right click anywhere to close"
+
+
 def _walk_round_one(d):
     """Drives the real fake-event sequence game/main.py feeds for the round-1
     flute chain (TestGuidedChain.test_full_chain, condensed) so round-2 tests
-    can start from "round 1 just ended"."""
+    can start from "round 1 just ended". TU-8: includes the close-panel-hint
+    step's ``on_panel_closed()`` between placement and End Turn."""
     d.on_message_dismissed()
     d.on_tile_clicked(_FLUTE["col"], _FLUTE["row"])
     d.on_card_selected("economic")
     d.on_building_placed("economic")
+    d.on_panel_closed()  # TU-8: advances past the close-panel-hint step
     d.on_end_turn()
 
 
 class FakePanel:
-    """Minimal card_rect/confirm_rect stand-in for ui_highlight_rects()."""
+    """Minimal card_rect/confirm_rect/close_rect stand-in for
+    ui_highlight_rects()."""
 
-    def __init__(self, card_rects=None, confirm=None):
+    def __init__(self, card_rects=None, confirm=None, close=None):
         self._cards = card_rects or {}
         self._confirm = confirm
+        self._close = close
 
     def card_rect(self, building_type):
         return self._cards.get(building_type)
 
     def confirm_rect(self):
         return self._confirm
+
+    def close_rect(self):  # TU-8
+        return self._close
 
 
 class TestAutoSkip(unittest.TestCase):
@@ -95,12 +110,14 @@ class TestAutoSkip(unittest.TestCase):
         d.on_message_dismissed()
         d.on_end_turn()
         d.on_round_end(1)  # TU-7
+        d.on_panel_closed()  # TU-8
         d.skip()  # no-op, already finished
         self.assertEqual(d.highlight_targets(), ())
         self.assertEqual(d.tile_highlight_targets(), [])
         self.assertEqual(d.ui_highlight_rects(FakePanel(), SimpleNamespace(
             end_turn=SimpleNamespace(rect=(0, 0, 0, 0)))), [])
         self.assertTrue(d.charges_life_on_base_hit(1))  # TU-7 zero-overhead
+        self.assertIsNone(d.banner_text())  # TU-8 zero-overhead
 
 
 class TestGuidedChain(unittest.TestCase):
@@ -145,6 +162,16 @@ class TestGuidedChain(unittest.TestCase):
         self.assertFalse(d.allows_end_turn())
         d.on_building_placed("economic")
 
+        # -- step 4.5 (TU-8, Fix 2): highlight the panel's own Close button +
+        # the non-modal banner hint; End Turn stays gated until it closes --
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+        self.assertEqual(d.banner_text(), MSG_CLOSE_PANEL_HINT)
+        self.assertFalse(d.allows_end_turn())
+        d.on_end_turn()  # blocked: not the gated action on this step
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+        d.on_panel_closed()
+        self.assertIsNone(d.banner_text())
+
         # -- step 5: highlight End Turn --
         self.assertEqual(d.highlight_targets(), ("button:end_turn",))
         self.assertTrue(d.allows_end_turn())
@@ -169,7 +196,10 @@ class TestGuidedChain(unittest.TestCase):
         d.on_building_placed("economic")  # 1 of 2 required
         self.assertEqual(d.highlight_targets(), ("button:confirm",))
         self.assertFalse(d.allows_end_turn())
-        d.on_building_placed("economic")  # 2 of 2: unlocks End Turn
+        d.on_building_placed("economic")  # 2 of 2: unlocks the close-panel hint
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+        self.assertFalse(d.allows_end_turn())
+        d.on_panel_closed()  # TU-8: closing the panel unlocks End Turn
         self.assertEqual(d.highlight_targets(), ("button:end_turn",))
         self.assertTrue(d.allows_end_turn())
 
@@ -185,7 +215,7 @@ class TestGuidedChain(unittest.TestCase):
 
 
 class TestUiHighlightRects(unittest.TestCase):
-    def test_resolves_card_confirm_and_end_turn(self):
+    def test_resolves_card_confirm_close_and_end_turn(self):
         d = _director()
         d.on_message_dismissed()
         d.on_tile_clicked(2, 3)
@@ -198,7 +228,13 @@ class TestUiHighlightRects(unittest.TestCase):
         self.assertEqual(d.ui_highlight_rects(panel2, hud), [(5, 6, 7, 8)])
 
         d.on_building_placed("economic")
-        self.assertEqual(d.ui_highlight_rects(panel2, hud), [(9, 9, 9, 9)])
+        # TU-8: the close-panel-hint step highlights button:close, not
+        # button:end_turn yet
+        panel3 = FakePanel(close=(2, 4, 6, 8))
+        self.assertEqual(d.ui_highlight_rects(panel3, hud), [(2, 4, 6, 8)])
+
+        d.on_panel_closed()
+        self.assertEqual(d.ui_highlight_rects(panel3, hud), [(9, 9, 9, 9)])
 
     def test_unresolvable_target_is_skipped_not_crashed(self):
         d = _director()
@@ -207,6 +243,103 @@ class TestUiHighlightRects(unittest.TestCase):
         panel = FakePanel(card_rects={})  # "economic" not in the panel's cards
         hud = SimpleNamespace(end_turn=SimpleNamespace(rect=(0, 0, 0, 0)))
         self.assertEqual(d.ui_highlight_rects(panel, hud), [])
+
+
+class TestPanelClosedRevert(unittest.TestCase):
+    """TU-8 Fix 1: ``on_panel_closed()`` un-sticks the player by reverting
+    the card/Confirm steps of BOTH chains back to their own tile step."""
+
+    def test_closing_at_the_card_step_reverts_to_the_tile_step(self):
+        d = _director()
+        d.on_message_dismissed()
+        d.on_tile_clicked(2, 3)
+        self.assertEqual(d.highlight_targets(), ("card:economic",))
+        d.on_panel_closed()
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_flute",))
+        self.assertTrue(d.allows(("tile", 2, 3)))
+        # the tile click works again exactly like a fresh walk
+        d.on_tile_clicked(2, 3)
+        self.assertEqual(d.highlight_targets(), ("card:economic",))
+
+    def test_closing_at_the_confirm_step_reverts_to_the_tile_step(self):
+        d = _director()
+        d.on_message_dismissed()
+        d.on_tile_clicked(2, 3)
+        d.on_card_selected("economic")
+        self.assertEqual(d.highlight_targets(), ("button:confirm",))
+        d.on_panel_closed()
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_flute",))
+        self.assertTrue(d.allows(("tile", 2, 3)))
+
+    def test_successful_placement_does_not_revert(self):
+        d = _director()
+        d.on_message_dismissed()
+        d.on_tile_clicked(2, 3)
+        d.on_card_selected("economic")
+        d.on_building_placed("economic")  # a REAL placement, not a close
+        # lands on the close-panel-hint step, never reverted to the tile
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+
+    def test_a_panel_closed_event_outside_any_gated_step_is_a_noop(self):
+        d = _director()
+        d.on_message_dismissed()
+        # still on the tile step, which has no revert_on -- a stray
+        # panel_closed here must not move the sequencer at all
+        d.on_panel_closed()
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_flute",))
+
+    def test_stone_chain_reverts_the_same_way(self):
+        d = _director()
+        _walk_round_one(d)
+        d.on_round_end(1)
+        d.on_message_dismissed()
+        d.on_tile_clicked(4, 1)
+        d.on_card_selected("defence")
+        self.assertEqual(d.highlight_targets(), ("button:confirm",))
+        d.on_panel_closed()
+        self.assertEqual(d.highlight_targets(), ("tile:tutorial_stone",))
+        self.assertTrue(d.allows(("tile", 4, 1)))
+        # re-drive the chain from the reverted tile step to confirm it still
+        # completes normally
+        d.on_tile_clicked(4, 1)
+        d.on_card_selected("defence")
+        d.on_building_placed("defence")
+        self.assertTrue(d.finished)
+
+
+class TestClosePanelHintStep(unittest.TestCase):
+    """TU-8 Fix 2: the close-panel-hint step (flute chain only) gates End
+    Turn until the panel is actually closed, and its banner text resolves
+    from the script's ``messages`` map."""
+
+    def test_gates_end_turn_until_closed_and_banner_resolves(self):
+        d = _director()
+        d.on_message_dismissed()
+        d.on_tile_clicked(2, 3)
+        d.on_card_selected("economic")
+        d.on_building_placed("economic")
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+        self.assertFalse(d.allows_end_turn())
+        self.assertEqual(d.banner_text(), MSG_CLOSE_PANEL_HINT)
+        d.on_end_turn()  # blocked: End Turn isn't this step's gated action
+        self.assertEqual(d.highlight_targets(), ("button:close",))
+        d.on_panel_closed()
+        self.assertEqual(d.highlight_targets(), ("button:end_turn",))
+        self.assertTrue(d.allows_end_turn())
+        self.assertIsNone(d.banner_text())
+
+    def test_round_two_defence_placement_carries_no_close_panel_step(self):
+        """Deliberately NOT mirrored after the round-2 defence placement —
+        the tutorial ends there and input is released."""
+        d = _director()
+        _walk_round_one(d)
+        d.on_round_end(1)
+        d.on_message_dismissed()
+        d.on_tile_clicked(4, 1)
+        d.on_card_selected("defence")
+        d.on_building_placed("defence")
+        self.assertTrue(d.finished)
+        self.assertIsNone(d.banner_text())
 
 
 class TestRoundTwoChain(unittest.TestCase):
@@ -221,10 +354,10 @@ class TestRoundTwoChain(unittest.TestCase):
         self.assertEqual(d.highlight_targets(), ())
         self.assertFalse(d.allows(("tile", 4, 1)))
         self.assertFalse(d.allows_end_turn())
-        # a round-end that ISN'T round 1's scripted loss (shouldn't happen in
+        # a round-end that ISN'T round 0's scripted loss (shouldn't happen in
         # practice, but the sequencer only cares about the id match) still
         # only advances this exact step once
-        self.assertTrue(d.charges_life_on_base_hit(1))
+        self.assertTrue(d.charges_life_on_base_hit(0))
 
     def test_full_round_two_chain_reaches_finished(self):
         d = _director()
@@ -266,8 +399,8 @@ class TestRoundTwoChain(unittest.TestCase):
         self.assertTrue(d.allows(("card", "economic")))
         self.assertTrue(d.allows(("tile", 9, 9)))
         self.assertTrue(d.allows_end_turn())
+        self.assertTrue(d.charges_life_on_base_hit(0))
         self.assertTrue(d.charges_life_on_base_hit(1))
-        self.assertTrue(d.charges_life_on_base_hit(2))
 
     def test_message_box_two_never_reappears_on_a_later_round_end(self):
         d = _director()
@@ -301,28 +434,29 @@ class TestScriptedLossWaiver(unittest.TestCase):
     def test_default_script_charges_the_life(self):
         d = _director()
         _walk_round_one(d)
-        self.assertTrue(d.charges_life_on_base_hit(1))
+        self.assertTrue(d.charges_life_on_base_hit(0))
 
     def test_script_toggled_false_waives_the_life(self):
         d = self._director_with_free_first_loss()
         _walk_round_one(d)
-        self.assertFalse(d.charges_life_on_base_hit(1))
+        self.assertFalse(d.charges_life_on_base_hit(0))
 
-    def test_waiver_only_applies_to_round_1(self):
+    def test_waiver_only_applies_to_round_0(self):
         d = self._director_with_free_first_loss()
         _walk_round_one(d)
-        # round_num != 1: always charges, even mid the scripted-loss step
-        self.assertTrue(d.charges_life_on_base_hit(2))
+        # round_num != 0 (TU-9: the tutorial's scripted round is round 0):
+        # always charges, even mid the scripted-loss step
+        self.assertTrue(d.charges_life_on_base_hit(1))
 
     def test_waiver_does_not_apply_outside_the_scripted_loss_step(self):
         d = self._director_with_free_first_loss()
-        # still on round-1's message box, not the scripted-loss step yet
-        self.assertTrue(d.charges_life_on_base_hit(1))
+        # still on round-0's message box, not the scripted-loss step yet
+        self.assertTrue(d.charges_life_on_base_hit(0))
 
     def test_finished_tutorial_always_charges(self):
         d = self._director_with_free_first_loss()
         d.skip()
-        self.assertTrue(d.charges_life_on_base_hit(1))
+        self.assertTrue(d.charges_life_on_base_hit(0))
 
 
 if __name__ == "__main__":

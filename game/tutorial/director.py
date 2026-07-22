@@ -9,6 +9,29 @@ one logged warning, never raises) when the script or the flute marker is
 missing/invalid so an old/unpainted map is always fully playable. TU-7 adds
 the round-2 stone-thrower chain, the scripted first-round loss (optionally
 free) and the tutorial-end state riding the SAME sequencer/script.
+
+TU-8 adds two independent fixes riding the same sequencer:
+- **Fix 1 (un-stick on panel close)**: ``on_panel_closed()`` fires the
+  opaque ``"panel_closed"`` event on every panel-close path that did NOT
+  just land a placement (the host discriminates via
+  ``panel.last_placed_type``, same as ``on_building_placed``). The card and
+  Confirm steps of both chains carry ``revert_on: "panel_closed"`` in the
+  script, reverting the sequencer back to their own tile step
+  (``engine.tutorial.TutorialSequencer.revert``) — closing the panel without
+  placing re-highlights the designated tile instead of leaving the chain
+  dead.
+- **Fix 2 (close-panel hint)**: one new step, flute chain only, between the
+  Confirm step and End Turn — highlights the panel's own CLOSE button
+  (``"button:close"``, resolved by ``ui_highlight_rects`` via
+  ``panel.close_rect()``) and shows a non-modal banner (``banner_text()``,
+  resolved off the step's ``flags["banner"]`` key against the script's
+  ``messages`` map — never the modal ``message`` field). Its
+  ``advance_on`` is the SAME ``"panel_closed"`` event ``on_panel_closed()``
+  feeds — the sequencer's ordinary forward `advance` on this step, the
+  backward `revert` on the card/Confirm steps; only one of the two can ever
+  match the CURRENT step, so ``on_panel_closed()`` simply tries both. End
+  Turn stays gated (not in this step's ``allow``) for free, the same
+  whitelist mechanism every other step already uses.
 """
 import json
 import logging
@@ -44,7 +67,8 @@ def _load_script(data_dir):
     steps = tuple(
         Step(id=s["id"], message=s["message"], highlight=tuple(s["highlight"]),
              advance_on=s["advance_on"], allow=tuple(s["allow"]),
-             flags=dict(s["flags"]))
+             flags=dict(s["flags"]), revert_on=s["revert_on"],
+             revert_to=s["revert_to"])
         for s in doc["steps"])
     return (doc["skippable"], doc["first_loss_costs_life"], doc["messages"],
             steps)
@@ -120,11 +144,12 @@ class TutorialDirector:
 
     def charges_life_on_base_hit(self, round_num):
         """True (charge the life, normal rules) unless the tutorial is
-        actively holding on round 1's scripted first-loss step AND the
-        script says that loss is free (``first_loss_costs_life: false``,
-        TU-7). A pure read — never mutates the sequencer; the actual advance
-        past this step happens via ``on_round_end``'s event feed."""
-        if self.sequencer.finished or round_num != 1:
+        actively holding on round 0's scripted first-loss step (TU-9: the
+        tutorial round is round 0, not round 1) AND the script says that
+        loss is free (``first_loss_costs_life: false``, TU-7). A pure read —
+        never mutates the sequencer; the actual advance past this step
+        happens via ``on_round_end``'s event feed."""
+        if self.sequencer.finished or round_num != 0:
             return True
         step = self.sequencer.current
         if step is None or not step.flags.get("is_scripted_loss", False):
@@ -160,6 +185,17 @@ class TutorialDirector:
             return
         self.sequencer.advance(f"building_placed:{building_type}")
 
+    def on_panel_closed(self):
+        """TU-8 Fix 1/Fix 2: fired from every host panel-close path that did
+        NOT just land a placement. Either advances the dedicated
+        close-panel-hint step (flute chain only, ``advance_on:
+        "panel_closed"``) or reverts the card/Confirm steps back to their
+        tile step (``revert_on: "panel_closed"``) — whichever the CURRENT
+        step is wired for; a no-op otherwise (e.g. mid the message box, or
+        any panel mode the script doesn't gate)."""
+        if not self.sequencer.advance("panel_closed"):
+            self.sequencer.revert("panel_closed")
+
     def on_message_dismissed(self):
         mid = self.sequencer.message_id()
         if mid is not None:
@@ -190,6 +226,19 @@ class TutorialDirector:
         mid = self.sequencer.message_id()
         return None if mid is None else self._messages.get(mid)
 
+    def banner_text(self):
+        """TU-8 Fix 2: the CURRENT step's non-modal banner text, resolved
+        via its ``flags["banner"]`` key against the script's ``messages``
+        map — or None when the current step carries no banner / the
+        tutorial is finished. Never the modal ``message`` path
+        (``message_text``) — a banner must never consume the click it is
+        instructing the player to make."""
+        step = self.sequencer.current
+        if step is None:
+            return None
+        mid = step.flags.get("banner")
+        return None if mid is None else self._messages.get(mid)
+
     def skippable(self):
         return self.sequencer.skippable
 
@@ -211,9 +260,9 @@ class TutorialDirector:
 
     def ui_highlight_rects(self, panel, hud):
         """Resolve highlight target ids into screen rects for the UI-box
-        highlight overlay (card / Confirm / End Turn), skipping any that
-        resolve to ``None`` (panel not in the right mode yet — never crashes
-        mid-transition)."""
+        highlight overlay (card / Confirm / End Turn / the panel's own Close,
+        TU-8), skipping any that resolve to ``None`` (panel not in the right
+        mode yet — never crashes mid-transition)."""
         out = []
         for hid in self.highlight_targets():
             rect = None
@@ -223,6 +272,8 @@ class TutorialDirector:
                 rect = panel.confirm_rect()
             elif hid == "button:end_turn":
                 rect = hud.end_turn.rect
+            elif hid == "button:close":
+                rect = panel.close_rect()
             if rect is not None:
                 out.append(rect)
         return out

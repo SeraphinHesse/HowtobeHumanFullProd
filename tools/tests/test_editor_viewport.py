@@ -1258,9 +1258,10 @@ class TestMainWindowVfxMode(TempDataCase):
 
         # details_pane (0) + map_details (1) + screen_details (2) +
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
-        # preview moved INTO details_pane). The point of the pin is that the
+        # preview moved INTO details_pane) + cutscenes (4, TU-3) +
+        # tutorial_panel (5, TU-4). The point of the pin is that the
         # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 4)
+        self.assertEqual(window.right_stack.count(), 6)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")

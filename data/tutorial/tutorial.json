@@ -1,6 +1,7 @@
 {
   "first_loss_costs_life": true,
   "messages": {
+    "close_panel_hint": "right click anywhere to close",
     "economy_intro": "You need love to create. In order for you to gain Love, you need economy buildings",
     "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings"
   },
@@ -15,7 +16,9 @@
       "flags": {},
       "highlight": [],
       "id": "economy_message",
-      "message": "economy_intro"
+      "message": "economy_intro",
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "tile_clicked:tutorial_flute",
@@ -27,7 +30,9 @@
         "tile:tutorial_flute"
       ],
       "id": "highlight_tutorial_flute_tile",
-      "message": null
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "building_selected:economic",
@@ -39,7 +44,9 @@
         "card:economic"
       ],
       "id": "highlight_musician_card",
-      "message": null
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_flute_tile"
     },
     {
       "advance_on": "building_placed:economic",
@@ -51,7 +58,23 @@
         "button:confirm"
       ],
       "id": "highlight_confirm_button",
-      "message": null
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_flute_tile"
+    },
+    {
+      "advance_on": "panel_closed",
+      "allow": [],
+      "flags": {
+        "banner": "close_panel_hint"
+      },
+      "highlight": [
+        "button:close"
+      ],
+      "id": "highlight_close_panel_hint",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "end_turn",
@@ -63,7 +86,9 @@
         "button:end_turn"
       ],
       "id": "highlight_end_turn_button",
-      "message": null
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "round_end",
@@ -73,7 +98,9 @@
       },
       "highlight": [],
       "id": "await_scripted_loss",
-      "message": null
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "message_dismissed:lives_intro",
@@ -83,7 +110,9 @@
       "flags": {},
       "highlight": [],
       "id": "lives_message",
-      "message": "lives_intro"
+      "message": "lives_intro",
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "tile_clicked:tutorial_stone",
@@ -95,7 +124,9 @@
         "tile:tutorial_stone"
       ],
       "id": "highlight_tutorial_stone_tile",
-      "message": null
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
     },
     {
       "advance_on": "building_selected:defence",
@@ -107,7 +138,9 @@
         "card:defence"
       ],
       "id": "highlight_defender_card",
-      "message": null
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_tile"
     },
     {
       "advance_on": "building_placed:defence",
@@ -119,7 +152,9 @@
         "button:confirm"
       ],
       "id": "highlight_confirm_button_defence",
-      "message": null
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_tile"
     }
   ]
 }

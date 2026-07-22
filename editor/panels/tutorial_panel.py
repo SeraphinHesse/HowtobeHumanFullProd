@@ -1,13 +1,17 @@
-"""TutorialPanel (D3, TU-4) — the right-pane form shown while the "Tutorial"
-leaf (selector -> ui -> Tutorial) is selected: a single small document,
-reached the selection-driven way (ED-3), sibling of Screens/Theme/Cutscenes.
+"""TutorialPanel (D3, TU-4; generalized TU-8) — the right-pane form shown
+while the "Tutorial" leaf (selector -> ui -> Tutorial) is selected: a single
+small document, reached the selection-driven way (ED-3), sibling of
+Screens/Theme/Cutscenes.
 
-Edits ``data/tutorial/tutorial.json`` (TU-1): the two message texts
-(``messages.economy_intro``/``messages.lives_intro``) and the two behavioral
-flags (``skippable``, ``first_loss_costs_life``). ``steps`` (and any other
-TU-1-owned key) is loaded into ``self._doc`` and round-tripped byte-identical
--- this panel never reads or renders the step list, so an edit to texts/
-flags never perturbs it, and a doc that was never touched saves unchanged.
+Edits ``data/tutorial/tutorial.json`` (TU-1): one row per key in the
+``messages`` object (rendered from ``self._doc["messages"].keys()`` — DATA-
+DRIVEN since TU-8 added a third key, ``close_panel_hint``, without any panel
+edit; a fourth message key needs only a schema/content change, never a panel
+change) and the two behavioral flags (``skippable``, ``first_loss_costs_life``).
+``steps`` (and any other TU-1-owned key) is loaded into ``self._doc`` and
+round-tripped byte-identical -- this panel never reads or renders the step
+list, so an edit to texts/flags never perturbs it, and a doc that was never
+touched saves unchanged.
 
 Edits are STAGED, not written immediately -- the ``balancing.py``/
 ``game_theme.py`` pattern: every change updates an in-memory doc + a small
@@ -51,16 +55,23 @@ from editor import tutorial_ops
 
 REPO = Path(__file__).resolve().parents[2]
 
-_MESSAGE_KEYS = ("economy_intro", "lives_intro")
 _MESSAGE_LABELS = {
     "economy_intro": "Economy intro message",
     "lives_intro": "Lives intro message",
+    "close_panel_hint": "Close-panel hint (banner)",
 }
 _FLAG_KEYS = ("skippable", "first_loss_costs_life")
 _FLAG_LABELS = {
     "skippable": "Skippable",
     "first_loss_costs_life": "First loss costs life",
 }
+
+
+def _message_label(key):
+    """A friendly label for a ``messages`` key -- the curated table above
+    when known, else a mechanical title-case fallback so a NEW message key
+    (schema/content change only, TU-8) shows up with no panel edit."""
+    return _MESSAGE_LABELS.get(key, key.replace("_", " ").title())
 
 
 class _MessageEdit(QPlainTextEdit):
@@ -157,9 +168,9 @@ class TutorialPanel(QWidget):
         content = QWidget()
         form = QFormLayout(content)
 
-        for key in _MESSAGE_KEYS:
+        for key in sorted(self._doc["messages"]):
             row, edit, dot = self._build_message_row(key, content)
-            form.addRow(_MESSAGE_LABELS[key], row)
+            form.addRow(_message_label(key), row)
             self._message_edits[key] = edit
             self._dots[f"messages.{key}"] = dot
 

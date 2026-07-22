@@ -1,11 +1,11 @@
-"""Phase TU-5: Session.end_turn()'s pending_cutscene request semantics.
+"""Phase TU-5/TU-9: Session.end_turn()'s pending_cutscene request semantics.
 
 Pure-Python, headless (no SDL) — mirrors tools/tests/test_phase_loop.py's
-synth/build_board fixture pattern. The "exactly once, never round 2+" rule is
-a free property of Session.end_turn()'s ``round_num == 1`` guard (round_num
-is only ever incremented by run_payday, never resettable back to 1 within a
-run), so this covers both sides of that guard directly rather than driving a
-full round through the timer loop.
+synth/build_board fixture pattern. TU-9 re-keyed the "exactly once" rule off
+``RunState.first_end_turn_cutscene_requested`` (a one-shot latch) rather than
+``round_num == 1`` directly, so the cutscene still fires on the FIRST
+``end_turn()`` of a run whether that round is 0 (an active tutorial) or 1 (a
+skipped run) — and never again after that, regardless of round number.
 """
 import unittest
 from pathlib import Path
@@ -52,6 +52,8 @@ def _session(rows=("bb",)):
 
 class TestPendingCutsceneRequest(unittest.TestCase):
     def test_round_one_end_turn_requests_first_end_turn(self):
+        """A skipped run continues at round 1 (a bare Session's default) —
+        the cutscene still fires on its first End Turn."""
         session = _session()
         self.assertEqual(session.state.round_num, 1)
         self.assertIsNone(session.state.pending_cutscene)
@@ -61,9 +63,32 @@ class TestPendingCutsceneRequest(unittest.TestCase):
         self.assertEqual(session.state.pending_cutscene,
                          {"id": "first_end_turn"})
         self.assertEqual(session.state.phase, GamePhase.ENEMY)
+        self.assertTrue(session.state.first_end_turn_cutscene_requested)
+
+    def test_round_zero_end_turn_also_requests_first_end_turn(self):
+        """TU-9: an active tutorial run's first End Turn is round 0's, not
+        round 1's — the request must still fire there."""
+        session = _session()
+        session.state.round_num = 0
+        self.assertIsNone(session.state.pending_cutscene)
+
+        session.end_turn()
+
+        self.assertEqual(session.state.pending_cutscene,
+                         {"id": "first_end_turn"})
+        self.assertEqual(session.state.phase, GamePhase.ENEMY)
 
     def test_later_round_end_turn_never_requests_it(self):
+        """Once the run's first End Turn has fired the request (here, round
+        0's — the tutorial), a later round's End Turn never re-requests it,
+        even though round_num no longer equals the round that fired it."""
         session = _session()
+        session.state.round_num = 0
+        session.end_turn()
+        self.assertIsNotNone(session.state.pending_cutscene)
+        session.state.pending_cutscene = None  # host "consumed" it
+
+        session.state.phase = GamePhase.BUILDING
         session.state.round_num = 3
         session.end_turn()
         self.assertIsNone(session.state.pending_cutscene)

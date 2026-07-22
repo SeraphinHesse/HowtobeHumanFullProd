@@ -424,6 +424,53 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual(len(scene.by_tag("enemy")), n)
         self.assertTrue(sp.done)
 
+    # -- TU-9: round 0 is the tutorial's forced-composition round -----------
+
+    def test_round_zero_composes_exactly_the_tutorial_count(self):
+        sp, etypes = self._counts(0)
+        self.assertEqual(len(etypes), SCALE["tutorial_round_enemy_count"])
+        self.assertTrue(all(e == "standard" for e in etypes))
+
+    def test_round_zero_tunable_changes_the_count(self):
+        enem = copy.deepcopy(ENEM)
+        enem["EnemyScaling"]["tutorial_round_enemy_count"] = 3
+        sp = Spawner()
+        sp.begin_round(0, self.tm, enem, rng=FakeRng())
+        etypes = [et for _tile, et, _d in sp._queue]
+        self.assertEqual(etypes, ["standard"] * 3)
+
+    def test_round_zero_never_produces_a_boss_at_any_interval(self):
+        # 0 % n == 0 for every n, so an unguarded boss check would wrongly
+        # treat round 0 as a boss round at EVERY round_interval — the round-0
+        # branch must be checked first, unconditionally.
+        for interval in (1, 2, 5, self._BOSS_INTERVAL):
+            with self.subTest(interval=interval):
+                enem = copy.deepcopy(ENEM)
+                enem["EnemyTypes"]["Boss"]["round_interval"] = interval
+                sp = Spawner()
+                sp.begin_round(0, self.tm, enem, rng=FakeRng())
+                etypes = [et for _tile, et, _d in sp._queue]
+                self.assertNotIn("boss", etypes)
+                self.assertEqual(
+                    len(etypes), enem["EnemyScaling"]["tutorial_round_enemy_count"])
+
+    def test_round_zero_leaves_round_one_scaling_unshifted(self):
+        # Composing round 0 THEN round 1 on the SAME spawner instance must
+        # yield the identical round-1 composition as composing round 1
+        # fresh — round 0 must leave no tier/interval state that shifts the
+        # real wave-scaling formulas (the actual user requirement).
+        sp = Spawner()
+        sp.begin_round(0, self.tm, ENEM, rng=FakeRng())
+        self.assertEqual(sp._tier, 0)
+        sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        after_zero = [et for _tile, et, _d in sp._queue]
+
+        fresh = Spawner()
+        fresh.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        fresh_etypes = [et for _tile, et, _d in fresh._queue]
+
+        self.assertEqual(after_zero, fresh_etypes)
+
 
 # ---------------------------------------------------------------------------
 # Walker locomotion + block-and-attack (prototype enemy._do_move/_do_attack)

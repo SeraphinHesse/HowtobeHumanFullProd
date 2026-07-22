@@ -462,19 +462,26 @@ validating writer; don't hand-edit the JSON.
   so no `tools/smoke.py` directory exception was needed — the plain `else:
   schema = schema_dir / f"{path.stem}.schema.json"` branch already resolves
   it). Root keys: `skippable`/`first_loss_costs_life` (bools, the script's
-  behavioral toggles), `messages` (a **closed** 2-key object,
-  `economy_intro`/`lives_intro`, both required strings — the two message
-  texts verbatim from the designer brief), `steps` (array, `minItems:1`;
-  each step is `additionalProperties:false` — `id`, `message` (nullable
-  string id into `messages`), `highlight` (array of opaque string ids),
-  `advance_on` (string event id), `allow` (array of allowed input action
-  ids), `flags` (object, `additionalProperties:true` — the ONE deliberately
-  open leaf, so later phases attach per-step data with no schema bump)).
-  TU-1 seeds only the round-1 step list (flute-player placement chain);
-  TU-6/TU-7 append round-2 steps under this same schema. Read only by
-  `engine/tutorial.py`'s generic step-sequencer (TU-6+) — the engine knows
-  nothing of flutes or holes; the game-side director binds the opaque ids to
-  real things.
+  behavioral toggles), `messages` (a **closed** 3-key object,
+  `economy_intro`/`lives_intro`/`close_panel_hint` — TU-8 added the third,
+  all required strings — the two message-box texts verbatim from the
+  designer brief plus the flute chain's non-modal close-panel banner text),
+  `steps` (array, `minItems:1`; each step is `additionalProperties:false` —
+  `id`, `message` (nullable string id into `messages`), `highlight` (array
+  of opaque string ids), `advance_on` (string event id), `allow` (array of
+  allowed input action ids), `flags` (object, `additionalProperties:true` —
+  the ONE deliberately open leaf, so later phases attach per-step data with
+  no schema bump), `revert_on`/`revert_to` (TU-8, both nullable strings —
+  the backward mirror of `advance_on`/a target step `id`; `revert_to` naming
+  a step absent from `steps` is a safe engine-side no-op, not a schema
+  violation, since the schema can't express "must be one of the other
+  steps' ids" without a doc-wide cross-check)). TU-1 seeds only the round-1
+  step list (flute-player placement chain); TU-6/TU-7 append round-2 steps,
+  TU-8 adds the revert-flow fields (every existing step now carries an
+  explicit `null`/`null` pair) plus one new close-panel-hint step, all under
+  this same schema. Read only by `engine/tutorial.py`'s generic
+  step-sequencer (TU-6+) — the engine knows nothing of flutes or holes; the
+  game-side director binds the opaque ids to real things.
 - **`data/video/cutscenes.json` ↔ `schemas/cutscenes.schema.json`**: same
   normal stem pairing (no directory exception). An open registry keyed by
   cutscene id (`additionalProperties: {$ref: #/$defs/entry}`), each entry

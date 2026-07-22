@@ -2,7 +2,7 @@
   "$defs": {
     "step": {
       "additionalProperties": false,
-      "description": "One tutorial step. TU-1 seeds only the round-1 steps; TU-6/TU-7 append round-2 steps without a schema change (the shape is fixed here, only content grows).",
+      "description": "One tutorial step. TU-1 seeds only the round-1 steps; TU-6/TU-7/TU-8 append round-2 and revert-flow steps without a schema change (the shape is fixed here, only content grows).",
       "properties": {
         "advance_on": {
           "description": "Event id (opaque string, game-agnostic) that advances past this step, e.g. 'tile_clicked:tutorial_flute'.",
@@ -46,15 +46,41 @@
               "type": "string"
             }
           ]
+        },
+        "revert_on": {
+          "description": "Event id (opaque string, game-agnostic) that reverts this step back to 'revert_to' when it currently holds -- the backward counterpart of 'advance_on'. Null when this step never reverts.",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ]
+        },
+        "revert_to": {
+          "description": "The 'id' of the step to jump back to when 'revert_on' fires while this step holds. Null when this step never reverts; a value naming a step id absent from 'steps' is a safe no-op (never raises).",
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "minLength": 1,
+              "type": "string"
+            }
+          ]
         }
       },
       "required": [
-        "id",
-        "message",
-        "highlight",
         "advance_on",
         "allow",
-        "flags"
+        "flags",
+        "highlight",
+        "id",
+        "message",
+        "revert_on",
+        "revert_to"
       ],
       "type": "object"
     }
@@ -62,7 +88,7 @@
   "$id": "tutorial.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "The guided tutorial script (D3, planning/TutorialPLAN.md): step list, both message texts, and the two behavioral toggles. Read by engine/tutorial.py's generic step-sequencer (TU-6); this schema only fixes the data SHAPE so TU-6/TU-7 can extend the step list without a schema change. Humans edit only through the editor's Tutorial section; agents via write_validated.",
+  "description": "The guided tutorial script (D3, planning/TutorialPLAN.md): step list, the three message/banner texts, and the two behavioral toggles. Read by engine/tutorial.py's generic step-sequencer (TU-6); this schema only fixes the data SHAPE so TU-6/TU-7/TU-8 can extend the step list without a schema change. Humans edit only through the editor's Tutorial section; agents via write_validated.",
   "properties": {
     "first_loss_costs_life": {
       "description": "If true, the scripted first-round loss (no defences placed yet) costs a life like a normal loss; if false the first loss is free.",
@@ -70,8 +96,13 @@
     },
     "messages": {
       "additionalProperties": false,
-      "description": "The two message-box texts the tutorial shows, keyed by id (closed set - the step structure is fixed, only these texts are editor-editable).",
+      "description": "The three message-box/banner texts the tutorial shows, keyed by id (closed set - the step structure is fixed, only these texts are editor-editable).",
       "properties": {
+        "close_panel_hint": {
+          "description": "Non-modal banner text shown while the panel's own CLOSE button is highlighted after the guided flute placement (TU-8) -- resolved via a step's flags.banner key, never the modal message field.",
+          "minLength": 1,
+          "type": "string"
+        },
         "economy_intro": {
           "description": "First message box: explains economy buildings produce Love.",
           "minLength": 1,
@@ -84,6 +115,7 @@
         }
       },
       "required": [
+        "close_panel_hint",
         "economy_intro",
         "lives_intro"
       ],

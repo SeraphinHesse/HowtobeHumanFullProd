@@ -425,6 +425,12 @@ class BuildingUI:
         None when no preview is open."""
         return self.preview.confirm_btn.rect if self.preview is not None else None
 
+    def close_rect(self):
+        """Screen rect of the panel's own CLOSE (X) button, or None when the
+        panel isn't open (TU-8, Fix 2's close-panel-hint step). Read-only —
+        never mutates panel state."""
+        return self.close_btn.rect if self.visible else None
+
     # -- /TU-6 ---------------------------------------------------------------
 
     def open_for_tile(self, tile, session, buildings_balance,

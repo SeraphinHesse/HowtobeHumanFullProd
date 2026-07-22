@@ -170,6 +170,14 @@ class TestPhaseMachine(unittest.TestCase):
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         return session, scene, tm, occ
 
+    def test_a_bare_session_with_no_director_starts_at_round_one(self):
+        # TU-9: round 0 is seeded ONLY by an active TutorialDirector, host-side
+        # (game/main.py's build_gameplay) — a Session a logic test builds
+        # bare, with no tutorial_director ever set, must be untouched.
+        session, _scene, _tm, _occ = self._session(["bb"])
+        self.assertEqual(session.state.round_num, 1)
+        self.assertIsNone(session.tutorial_director)
+
     def test_end_turn_only_from_building(self):
         session, scene, tm, _ = self._session(["bb"])
         session.state.phase = GamePhase.ENEMY
@@ -353,11 +361,14 @@ class TestScriptedTutorialLoss(unittest.TestCase):
 
     def _walk_round_one(self, d):
         """Fake events for the round-1 flute chain, ending on round-2's
-        "wait for the scripted loss" step."""
+        "wait for the scripted loss" step. TU-8: includes the close-panel-
+        hint step's ``on_panel_closed()`` between placement and End Turn
+        (see tools/tests/test_tutorial_director.py's identical convention)."""
         d.on_message_dismissed()
         d.on_tile_clicked(self._FLUTE["col"], self._FLUTE["row"])
         d.on_card_selected("economic")
         d.on_building_placed("economic")
+        d.on_panel_closed()
         d.on_end_turn()
 
     def _enemy(self, tm, scene, col, row):
@@ -369,6 +380,10 @@ class TestScriptedTutorialLoss(unittest.TestCase):
         # base(0,0), spawn(1,0) adjacent -> the enemy reaches the base fast.
         tm, scene, occ = build_board(["bs"])
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        # TU-9: the tutorial's scripted round is round 0, not round 1 — an
+        # active tutorial run starts here (game/main.py's build_gameplay
+        # seed), so charges_life_on_base_hit's round-0 gate can see it.
+        session.state.round_num = 0
         session.tutorial_director = director
         self._walk_round_one(director)
         session.state.phase = GamePhase.ENEMY   # pretend a wave is live
@@ -417,11 +432,21 @@ class TestScriptedTutorialLoss(unittest.TestCase):
         tm, scene, occ = build_board(["bs"])
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         director = self._director()
+        # TU-9: an ACTIVE tutorial run starts at round 0 (game/main.py's
+        # build_gameplay seed) — mirrored here before the Skip.
+        session.state.round_num = 0
         director.skip()  # the player pressed Skip on message box #1
+        # TU-9: Skip promotes the run to round 1 — the SAME two-line contract
+        # game/main.py's handle_world_click applies right after tutorial
+        # .skip() (a host closure — see test_right_click_dismiss.py's
+        # precedent for pinning the composed CONTRACT, not the closure).
+        if session.state.round_num == 0:
+            session.state.round_num = 1
         session.tutorial_director = director
         self.assertFalse(director.message_visible)
+        self.assertEqual(session.state.round_num, 1)
 
-        session.end_turn()  # round 1's End Turn: the TU-5 cutscene request
+        session.end_turn()  # the run's first End Turn: the TU-5 cutscene request
         self.assertEqual(session.state.pending_cutscene,
                          {"id": "first_end_turn"})
 
@@ -435,9 +460,23 @@ class TestScriptedTutorialLoss(unittest.TestCase):
             self.fail("enemy never breached the base")
         scene.update(0.0)
         # a skipped/finished director never shows message box #2 either, and
-        # normal life rules apply (no waiver once finished).
+        # normal life rules apply (no waiver once finished, and round_num is
+        # 1 now — never 0 — so charges_life_on_base_hit's round-0 gate never
+        # even applies here).
         self.assertFalse(director.message_visible)
         self.assertEqual(session.state.base_lives, 2)
+
+    def test_skip_at_round_zero_does_not_advance_an_already_advanced_run(self):
+        # Defense in depth: a stray Skip after the run already reached round
+        # 1 (naturally, or via an earlier Skip) must never knock it backward.
+        director = self._director()
+        tm, scene, occ = build_board(["bbbb"])
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        session.state.round_num = 1
+        director.skip()
+        if session.state.round_num == 0:
+            session.state.round_num = 1
+        self.assertEqual(session.state.round_num, 1)
 
 
 # ---------------------------------------------------------------------------

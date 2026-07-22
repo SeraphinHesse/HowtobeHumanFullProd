@@ -25,6 +25,8 @@ class TestStep(unittest.TestCase):
         self.assertIsNone(s.advance_on)
         self.assertEqual(s.allow, ())
         self.assertEqual(s.flags, {})
+        self.assertIsNone(s.revert_on)  # TU-8
+        self.assertIsNone(s.revert_to)  # TU-8
 
     def test_is_frozen(self):
         s = Step(id="only")
@@ -106,6 +108,66 @@ class TestSkip(unittest.TestCase):
         seq.skip()
         self.assertFalse(seq.finished)
         self.assertEqual(seq.current.id, "a")
+
+
+class TestRevert(unittest.TestCase):
+    """``TutorialSequencer.revert`` (TU-8) — the generic backward mirror of
+    ``advance``, driving Fix 1's "closing the panel un-sticks the player"
+    behavior."""
+
+    def _steps_with_revert(self):
+        return [
+            Step(id="tile", advance_on="event:tile", allow=("tile",)),
+            Step(id="card", advance_on="event:card", allow=("card",),
+                 revert_on="closed", revert_to="tile"),
+            Step(id="confirm", advance_on="event:confirm", allow=("confirm",),
+                 revert_on="closed", revert_to="tile"),
+        ]
+
+    def test_revert_lands_on_the_named_step(self):
+        seq = TutorialSequencer(self._steps_with_revert())
+        seq.advance("event:tile")
+        self.assertEqual(seq.current.id, "card")
+        self.assertTrue(seq.revert("closed"))
+        self.assertEqual(seq.current.id, "tile")
+
+    def test_revert_from_a_later_step_also_lands_on_the_named_step(self):
+        seq = TutorialSequencer(self._steps_with_revert())
+        seq.advance("event:tile")
+        seq.advance("event:card")
+        self.assertEqual(seq.current.id, "confirm")
+        self.assertTrue(seq.revert("closed"))
+        self.assertEqual(seq.current.id, "tile")
+
+    def test_unmatched_event_never_reverts(self):
+        seq = TutorialSequencer(self._steps_with_revert())
+        seq.advance("event:tile")
+        self.assertFalse(seq.revert("something_else"))
+        self.assertEqual(seq.current.id, "card")
+
+    def test_revert_on_none_never_reverts(self):
+        seq = TutorialSequencer(self._steps_with_revert())
+        # current step "tile" has revert_on=None
+        self.assertFalse(seq.revert("closed"))
+        self.assertEqual(seq.current.id, "tile")
+
+    def test_revert_to_an_unknown_step_is_a_safe_noop(self):
+        steps = [Step(id="only", advance_on="e", revert_on="closed",
+                       revert_to="does_not_exist")]
+        seq = TutorialSequencer(steps)
+        self.assertFalse(seq.revert("closed"))
+        self.assertEqual(seq.current.id, "only")
+
+    def test_revert_is_a_noop_once_finished(self):
+        seq = TutorialSequencer(())
+        self.assertFalse(seq.revert("closed"))
+
+    def test_revert_is_a_noop_when_skipped(self):
+        steps = [Step(id="a", advance_on="e", revert_on="closed",
+                       revert_to="a")]
+        seq = TutorialSequencer(steps, skippable=True)
+        seq.skip()
+        self.assertFalse(seq.revert("closed"))
 
 
 class TestAllows(unittest.TestCase):
