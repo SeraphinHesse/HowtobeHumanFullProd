@@ -26,7 +26,7 @@ from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning
 from .widgets import (
-    HEART, anim_ms, contains, submit_centered, submit_panel, wrap_text
+    anim_ms, contains, submit_centered, submit_panel, wrap_text
 )
 from . import widgets
 from .strings import T
@@ -158,7 +158,7 @@ class LevelupWindow:
         label = option.get("cost_label")
         if label:
             text = (T("levelup.cost_free") if cost <= 0
-                    else T("levelup.cost_paid", label=label, heart=HEART, cost=cost))
+                    else T("levelup.cost_paid", label=label, cost=cost))
             submit_centered(renderer, text, cx, cursor, "sm", widgets.C_GOLD)
         cursor += layout_h("sm") + 4
 

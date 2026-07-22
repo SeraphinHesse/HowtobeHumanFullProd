@@ -187,7 +187,7 @@ class TestConstructPreviewZOrder(unittest.TestCase):
         # The standalone labels the bug used to draw BEFORE the buttons —
         # not a button's own label (that always rides with its own button).
         standalone = {preview.title,
-                     f"Cost  {widgets.HEART}{preview.total_cost}", "Name:"}
+                     f"Cost  {preview.total_cost}", "Name:"}
         standalone |= {label for label, _value in preview.stats}
         text_indices = [i for i, item in enumerate(r.items)
                         if isinstance(item, HudText) and item.text in standalone]

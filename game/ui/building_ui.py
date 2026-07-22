@@ -35,7 +35,7 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    HEART, Button, anim_ms, contains, submit_panel,
+    Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size
 )
 from . import widgets
@@ -89,7 +89,7 @@ def _building_stats(b):
         rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("Progress", f"{b.progress}/{b.rounds_to_payout()}"))
-        rows.append(("Payout", f"{HEART}{b.payout_amount()}"))
+        rows.append(("Payout", f"{b.payout_amount()}"))
         rows.append(("Pays in", f"{b.rounds_to_payout()} rounds"))
     elif hasattr(b, "streak_max"):      # meditator — compounding economy
         rows.append(("Yield", b.yield_amount()))  # pure (no streak advance)
@@ -259,7 +259,7 @@ class ConstructPreview:
         cx = x + w // 2
         submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
                     align="center")
-        submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
+        submit_text(renderer, f"Cost  {self.total_cost}", (cx, y + 44),
                     "md", widgets.C_GOLD, align="center")
         submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
         if self.name or self.editing:
@@ -499,9 +499,9 @@ class BuildingUI:
         if not adjacent:
             self.action_btn.label = "NOT ADJACENT"
         elif n > 1:
-            self.action_btn.label = f"UNLOCK {n} AREAS  {HEART}{cost}"
+            self.action_btn.label = f"UNLOCK {n} AREAS  {cost}"
         else:
-            self.action_btn.label = f"UNLOCK  {HEART}{cost}"
+            self.action_btn.label = f"UNLOCK  {cost}"
         hl = []
         for sel in self.selected_tiles:
             hl.append((sel.col, sel.row, widgets.C_HIGHLIGHT))
@@ -530,7 +530,7 @@ class BuildingUI:
             # it is an exact proxy for "one has been placed this run" — grey
             # out (not hide) the card once true.
             placed = btype == "storm_priest" and state.lightning_level > 0
-            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {HEART}{cost}"
+            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {cost}"
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
                          label, "md", skin=skin, enabled=not placed)
             self.cards.append((btype, btn))
@@ -557,7 +557,7 @@ class BuildingUI:
         if mode == "in_tier" and len(self.selected_tiles) > 1:
             targets = self._batch_upgrade_targets()
             cost = sum(c for _, c in targets)
-            label = f"UPGRADE ×{len(targets)}  {HEART}{cost}"
+            label = f"UPGRADE ×{len(targets)}  {cost}"
         self.action_btn.rect = (
             self.panel_x + 12, self.view_h - 120, self.panel_w - 24, 36)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
@@ -572,9 +572,9 @@ class BuildingUI:
         mode, next_name, cost = upgrade_gate(
             self._session.state, b, self._buildings_balance)
         if mode == "in_tier":
-            return mode, cost, f"UPGRADE  {HEART}{cost}", None
+            return mode, cost, f"UPGRADE  {cost}", None
         if mode == "tier_upgrade":
-            return mode, cost, f"ADVANCE: {next_name.upper()}  {HEART}{cost}", None
+            return mode, cost, f"ADVANCE: {next_name.upper()}  {cost}", None
         if mode == "tier_locked":
             return mode, cost, "RESEARCH REQUIRED", "Research it on levelup"
         if mode == "tier_hidden":
@@ -1092,11 +1092,11 @@ class BuildingUI:
                 f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
         if m.get("eco_yield_penalty"):
             lines.append(
-                f'-{m["eco_yield_penalty"] * 100:.0f}% {HEART}/round'
+                f'-{m["eco_yield_penalty"] * 100:.0f}%/round'
                 ' for economy')
         if m.get("eco_yield_bonus"):
             lines.append(
-                f'+{m["eco_yield_bonus"] * 100:.0f}% {HEART}/round'
+                f'+{m["eco_yield_bonus"] * 100:.0f}%/round'
                 ' for economy')
         return lines or ["No terrain effect"]
 
@@ -1149,7 +1149,7 @@ class BuildingUI:
             ("Wave", st.round_num),
             ("Enemies killed", st.enemies_killed),
             ("Buildings", st.buildings_placed),
-            ("Base income", f"{income}{HEART}/round"),
+            ("Base income", f"{income}/round"),
         ]
         y = 72
         for label, value in rows:

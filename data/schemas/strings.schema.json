@@ -33,7 +33,7 @@
       "type": "string"
     },
     "hud.income_net": {
-      "description": "HUD top-left net income-per-round line. Placeholders: {sign} ('+' or ''), {net} (the signed integer amount), {heart} (the love glyph).",
+      "description": "HUD top-left net income-per-round line. Placeholders: {sign} ('+' or ''), {net} (the signed integer amount).",
       "type": "string"
     },
     "hud.level": {
@@ -53,11 +53,11 @@
       "type": "string"
     },
     "hud.love_display": {
-      "description": "HUD love-pill count (also used for the affordable hover-cost preview). Placeholders: {heart} (the love glyph), {amount} (the love count, int).",
+      "description": "HUD love-pill count (also used for the affordable hover-cost preview). Placeholder: {amount} (the love count, int).",
       "type": "string"
     },
     "hud.love_unaffordable": {
-      "description": "HUD love-pill display when a hovered action's cost would take love negative. Placeholder: {heart} (the love glyph).",
+      "description": "HUD love-pill display when a hovered action's cost would take love negative. No placeholders.",
       "type": "string"
     },
     "hud.phase.boss_cutscene": {
@@ -117,7 +117,7 @@
       "type": "string"
     },
     "levelup.cost_paid": {
-      "description": "Level-up option-box cost line when the option has a real cost. Placeholders: {label} (the option's own cost label), {heart} (the love glyph), {cost} (the cost amount, int).",
+      "description": "Level-up option-box cost line when the option has a real cost. Placeholders: {label} (the option's own cost label), {cost} (the cost amount, int).",
       "type": "string"
     },
     "levelup.heading": {

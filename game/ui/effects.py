@@ -158,7 +158,7 @@ from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.phases import GamePhase
 
 from .widgets import (
-    HEART, submit_bar, submit_centered, submit_text
+    submit_bar, submit_centered, submit_text
 )
 from . import widgets
 
@@ -433,7 +433,7 @@ class FloaterManager:
         for col, row, amount, kind in state.income_events:
             color = (widgets.C_GOLD if kind == "income"
                      else self._vfx_params.floaters.upkeep_color)
-            text = f"+{amount}{HEART}" if amount >= 0 else str(amount)
+            text = f"+{amount}" if amount >= 0 else str(amount)
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
 

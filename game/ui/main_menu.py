@@ -57,12 +57,14 @@ class MainMenu:
         # 10L-B review fix (HIGH 1): static header text. Its own copy is NOT
         # game-state, so — unlike hud.py's dynamic readouts — "label" is a
         # legitimate override field here too.
+        # The two static labels are the house purple; the buttons keep their
+        # own palette colours (deliberate — only the text is retinted).
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
-                                      text_color=widgets.C_UI_TEXT, label=_TITLE,
+                                      text_color=widgets.C_PURPLE, label=_TITLE,
                                       visible=True)
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                         text_color=widgets.C_GOLD, label=_SUBTITLE,
-                                         visible=True)
+                                         text_color=widgets.C_PURPLE,
+                                         label=_SUBTITLE, visible=True)
         self.ids = {}
         self._clock = 0.0  # 10L-A: one anim clock per screen
         self.layout(view_w, view_h)  # lay out now so hit() works before submit()

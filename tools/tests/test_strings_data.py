@@ -27,13 +27,13 @@ _FIXTURE_STRINGS = {
     "hud.income.musicians": "Musicians",
     "hud.income.story": "Story",
     "hud.income.upkeep": "Upkeep",
-    "hud.income_net": "{sign}{net}{heart}/round",
+    "hud.income_net": "{sign}{net}/round",
     "hud.level": "LVL {n}",
     "hud.lightning_cooldown": "⚡ {seconds}s",
     "hud.lightning_ready": "⚡ CLICK TO STRIKE",
     "hud.lives": "LIVES {count}",
-    "hud.love_display": "{heart} {amount}",
-    "hud.love_unaffordable": "{heart} -",
+    "hud.love_display": "{amount}",
+    "hud.love_unaffordable": "-",
     "hud.phase.boss_cutscene": "CUTSCENE",
     "hud.phase.building": "BUILDING",
     "hud.phase.enemy": "COMBAT!",
@@ -48,7 +48,7 @@ _FIXTURE_STRINGS = {
     "hud.tooltip_upkeep": "Upkeep: {amount}",
     "hud.xp_progress": "{current}/{threshold}",
     "levelup.cost_free": "FREE",
-    "levelup.cost_paid": "{label}  {heart}{cost}",
+    "levelup.cost_paid": "{label}  {cost}",
     "levelup.heading": "CHOOSE YOUR REWARD",
     "levelup.tier_progress": "Tier {tier_no} of {tier_max}",
     "widgets.condition.forest": "Forest",
@@ -144,11 +144,9 @@ class TestTFormats(unittest.TestCase):
         self.assertEqual(
             strings.T("hud.tiles", built=0, unlocked=4), "0/4 tiles")
         self.assertEqual(
-            strings.T("hud.income_net", sign="+", net=5, heart="♥"),
-            "+5♥/round")
+            strings.T("hud.income_net", sign="+", net=5), "+5/round")
         self.assertEqual(
-            strings.T("levelup.cost_paid", label="Cost", heart="♥", cost=5),
-            "Cost  ♥5")
+            strings.T("levelup.cost_paid", label="Cost", cost=5), "Cost  5")
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ from game.core.xp import scaled_base_income
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    HEART, Button, anim_ms, contains, submit_bar, submit_centered,
+    Button, anim_ms, contains, submit_bar, submit_centered,
     submit_panel, submit_text, text_h, text_size
 )
 from . import widgets
@@ -183,6 +183,12 @@ class Hud:
         # -- /10H --
         # -- 10L-B: love panel + phase label (added B2) --
         self._love_panel = SimpleNamespace(rect=(12, 12, 190, 34), visible=True)
+        # The stone pill behind the income / lives / tiles column, drawn
+        # exactly like ``love_panel`` (same body + inset border) so those
+        # three readouts stay legible over the world. Its rect is finalized
+        # in _layout_readouts() — it wraps the three text anchors.
+        self._readout_panel = SimpleNamespace(rect=(12, 44, 190, 60),
+                                              visible=True)
         self._phase_label = SimpleNamespace(font_key="hud_phase", text_color=None,
                                             visible=True)
         # -- 10L-B review fix (HIGH 1): the ~10 stable readouts around the
@@ -285,10 +291,20 @@ class Hud:
         lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
         self._lives_text.rect = (lives_x, 66, 0, 0)
         self._tiles_text.rect = (pill[0] + 4, 84, 0, 0)
+        # The readout pill wraps the three rows above (income / lives / tiles)
+        # off their DEFAULT anchors — the "no cascade" convention: a rect
+        # override on one of those rows does not retarget this panel.
+        # layout_h (never a live measurement): this rect is stored + exported.
+        pad = 4
+        panel_top = self._income_text.rect[1] - pad
+        panel_bottom = self._tiles_text.rect[1] + layout_h("md") + pad
+        self._readout_panel.rect = (pill[0], panel_top, pill[2],
+                                    panel_bottom - panel_top)
         bx, by, bw, _bh = self.end_turn.rect
         # layout_h: round_label's stored/id'd rect feeds screen_defaults.json.
         self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 4, 0, 0)
         self.ids.update({
+            "readout_panel": ("panel", self._readout_panel),
             "love_text": ("label", self._love_text),
             "lvl_label": ("label", self._lvl_label),
             "xp_bar": ("bar", self._xp_bar),
@@ -374,11 +390,11 @@ class Hud:
                         tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
             remaining = st.love - hover_cost
-            love_txt = (T("hud.love_display", heart=HEART, amount=remaining)
-                       if remaining >= 0 else T("hud.love_unaffordable", heart=HEART))
+            love_txt = (T("hud.love_display", amount=remaining)
+                       if remaining >= 0 else T("hud.love_unaffordable"))
             love_col = widgets.C_RED
         else:
-            love_txt = T("hud.love_display", heart=HEART, amount=st.love)
+            love_txt = T("hud.love_display", amount=st.love)
             love_col = widgets.C_GOLD
         if self._love_text.visible:
             lt_color = (self._love_text.text_color
@@ -389,17 +405,31 @@ class Hud:
         # -- XP bar + village level (right of the love pill) ---------------
         self._submit_xp(renderer, st)
 
+        # -- readout pill behind income / lives / tiles ---------------------
+        # panel BEFORE the three text rows it backs (the panel -> button ->
+        # text house order); same body + inset border as the love pill.
+        readout = self._readout_panel.rect
+        if self._readout_panel.visible:
+            renderer.submit_hud(
+                HudRect(readout, widgets.C_PANEL_STONE, border_radius=4))
+            renderer.submit_hud(
+                HudRect(readout, widgets.C_PANEL_INSET, border_radius=4, width=1))
+
         # -- income line (hover -> 10J breakdown tooltip) -------------------
         sources = income_sources(session)
         net = sum(v for _, v in sources)
         sign = "+" if net >= 0 else ""
         if self._income_text.visible:
-            submit_text(renderer, T("hud.income_net", sign=sign, net=net, heart=HEART),
+            submit_text(renderer, T("hud.income_net", sign=sign, net=net),
                        self._income_text.rect[:2], self._income_text.font_key,
                        self._income_text.text_color)
         income_pill = (pill[0] - 10, 48, 118, 18)  # prototype pill2 hover zone
-        if sources and contains(income_pill, self._mx, self._my):
-            self._submit_income_tooltip(renderer, sources, income_pill)
+        # DEFERRED to the very end of this method on purpose: the tooltip must
+        # sit on the highest HUD layer so it stays in front of the readout
+        # pill it overlaps (the building_ui terrain-tooltip precedent — an
+        # "always on top" overlay, not a target of the panel/button/text rule).
+        tooltip = (sources if sources and contains(income_pill, self._mx, self._my)
+                  else None)
 
         # -- lives + tile counter -----------------------------------------
         if is_visible(self._icon_lives):
@@ -472,6 +502,10 @@ class Hud:
 
         # -- lightning readout (10H) ---------------------------------------
         self._submit_lightning(renderer, session, view_h)
+
+        # -- income tooltip, LAST: topmost HUD layer (see the deferral above)
+        if tooltip is not None:
+            self._submit_income_tooltip(renderer, tooltip, income_pill)
 
     def _submit_income_tooltip(self, renderer, sources, anchor):
         """The 10J per-source breakdown below the income line (prototype

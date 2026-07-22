@@ -264,7 +264,7 @@
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
             "kind": "button",
-            "label": "UNLOCK  ♥40",
+            "label": "UNLOCK  40",
             "rect": [
               1032,
               150,
@@ -302,7 +302,7 @@
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
             "kind": "button",
-            "label": "UPGRADE  ♥10",
+            "label": "UPGRADE  10",
             "rect": [
               1032,
               600,
@@ -350,7 +350,7 @@
       "action_btn": {
         "display_name": "Unlock / Build / Upgrade button",
         "kind": "button",
-        "label": "UNLOCK  ♥40",
+        "label": "UNLOCK  40",
         "rect": [
           1032,
           150,
@@ -833,6 +833,17 @@
           694,
           0,
           0
+        ]
+      },
+      "readout_panel": {
+        "display_name": "Income/lives/tiles panel",
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          12,
+          46,
+          190,
+          55
         ]
       },
       "round_label": {

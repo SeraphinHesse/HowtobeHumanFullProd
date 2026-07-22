@@ -30,8 +30,12 @@ Deliberate exceptions stay commented at their call site — e.g. `building_ui.py
 `BuildingUI.submit()` draws the hovered terrain tooltip LAST, after every mode
 body, on purpose (it must sit on top of everything, panel included); an
 active-toggle highlight ring (`overlays.py MapOverlays.submit_buttons`) is
-drawn after its own button for the same reason. Those are "always on top"
-overlays, not this rule's target. The menu screens that mirror the
+drawn after its own button for the same reason. A third: `hud.py`'s income
+breakdown tooltip — `Hud.submit()` only *decides* whether it is showing at the
+income line (a local `tooltip` variable) and calls
+`_submit_income_tooltip` as the LAST statement of the method, after
+`_submit_lightning`, so it stays in front of the `readout_panel` it overlaps.
+Those are "always on top" overlays, not this rule's target. The menu screens that mirror the
 `game_over.py` template (backdrop → title/body text → action button) are a
 **separate, established, golden-pinned convention**
 (`tools/tests/test_ui_skinning.py::test_all_screens_parity`) predating this
@@ -621,7 +625,12 @@ sets one).
   so — unlike the HUD readouts below — `label` (the text itself) is a
   legitimate override field for these, same shape as any other widget
   (`rect`/`font_key`/`text_color`/`label`/`visible`).
-- **`hud.py`'s ~12 stable readouts all carry ids now**: `love_panel`,
+- **`hud.py`'s ~13 stable readouts all carry ids now**: `love_panel`,
+  `readout_panel` (the second stone pill, behind the income/lives/tiles
+  column — same `C_PANEL_STONE` body + `C_PANEL_INSET` inset border as
+  `love_panel`, drawn with `HudRect` not a skin, and sized in
+  `_layout_readouts()` to wrap those three rows' DEFAULT anchors via
+  `layout_h("md")`, per the no-cascade convention),
   `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
   widget, the schema's `color` key maps to the track color; the fill ratio +
   levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
@@ -714,7 +723,11 @@ unaffected).
 
 ## Fonts + palette are DATA now (UH-6, D5) + optional per-widget tint (D6)
 `data/ui/fonts.json` / `data/ui/palette.json` ship the exact 7 font presets /
-18 `C_*` colors this file used to hardcode alone — `game/main.py` loads +
+19 `C_*` colors this file used to hardcode alone (the 19th, `purple` /
+`C_PURPLE` = the house purple, is what `main_menu.py`'s `title`/`subtitle`
+tint to — its BUTTONS deliberately keep the stock `ui_btn*` colours;
+`hud.py`'s own `_XP_PURPLE` stays a private module constant, same
+"HUD chrome is not the shared palette" line the floater port drew) — `game/main.py` loads +
 schema-validates both at boot (before the `Shell`/screens are built) and
 calls `engine.render.fonts.configure_fonts(doc)` / `widgets.
 configure_palette(doc)`. The literals in `widgets.py`/`engine/render/
@@ -865,6 +878,16 @@ reference to a resolved VALUE, only to the `T` function).
   counter, `credits.py`) are STILL plain f-strings/module literals — good
   candidates for the same treatment, deliberately left for a follow-up pass
   rather than migrated wholesale in one phase.
+
+## The love glyph is GONE
+`widgets.HEART` (`"♥"`) and every `{heart}` placeholder are DELETED — the
+Pixel Emulator game font has no glyph for it, so it rendered as tofu. Four
+`strings.json` templates lost the placeholder (`hud.love_display`,
+`hud.love_unaffordable`, `hud.income_net`, `levelup.cost_paid` — ids and
+every other placeholder unchanged) and `building_ui.py`/`effects.py`'s
+f-strings dropped it inline. Costs/payouts now read as bare numbers
+(`UNLOCK  40`). Do not reintroduce a currency glyph in text; the love ICON
+(`ui_icon_love`, the baked HUD sprite) is where love is signposted.
 
 ## Known divergences (deliberate)
 The XP bar/floaters still drop the prototype's mascot face (never ported); the
