@@ -394,14 +394,40 @@ validating writer; don't hand-edit the JSON.
   3-int array 0-255, all required. The game loads + validates it at boot and
   calls `widgets.configure_palette(doc)`, which rebinds every `C_*` module
   attribute (mechanical `"C_" + key.upper()`). This IS the whole `C_*`
-  block — `widgets.COND_LABELS` and every other inline color literal in
-  `game/ui` stay code, deliberately out of scope.
+  block — `widgets.cond_label`'s COLOR half and every other inline color
+  literal in `game/ui` stay code, deliberately out of scope (its LABEL TEXT
+  half moved to `strings.json` below, Phase C).
 - **Parity is the safety net for both files**: the committed content is
   today's hardcoded values verbatim, and `tools/tests/test_theme_data.py`
   pins that (a) configuring from the stock fixture doc reproduces
   `test_ui_skinning.py`'s golden baseline byte-for-byte, and (b) the
   UNCONFIGURED module defaults (the fallback bare construction uses) equal
   that same fixture — the two value sets can never silently drift apart.
+- **`data/ui/strings.json`** ↔ `schemas/strings.schema.json` (normal stem
+  pairing): a FLAT `{string_id: template}` map, one dotted id per source
+  module/call-site (`hud.phase.building`, `hud.income.base`,
+  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.headline_win`,
+  …), `additionalProperties: false` with every key `required` — the same
+  closed-set convention as `fonts.json`/`palette.json` (a designer cannot
+  invent a new id through this schema; adding one is a schema change).
+  Covers UI text that Phase B's per-widget `label` override
+  (`ui_screen.schema.json`) structurally cannot: text that varies by
+  runtime/enum state (a phase banner, a win/loss headline) or is BUILT FROM
+  A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`) — there is
+  no single fixed string to attach to a widget id for those. Templates use
+  Python `str.format()` placeholders; each property's `description`
+  documents which keyword(s) its call site passes. The game loads +
+  validates it at boot (`game/main.py`, alongside `fonts.json`/
+  `palette.json`) and calls `game.ui.strings.configure_strings(doc)`, which
+  rebinds the module's string table in place; every call site resolves text
+  via `game.ui.strings.T(string_id, **kwargs)` — never a raw f-string. A
+  missing/invalid file fails LOUD (D-2 — boot config data, not art; E-37
+  does not apply). The editor's Strings panel (`editor/panels/
+  strings_panel.py`) is the only writer, through `write_validated`, staged
+  like `fonts.json`/`palette.json`. **No separate editor-side consumer to
+  reconfigure** (`game/ui/strings` is game-only, off limits to the editor,
+  same as `palette.json`'s case above) — the game re-reads `strings.json`
+  at its own next boot.
 - **`ui_screen.schema.json` widget `tint` (D6)**: one new key in the
   per-widget override object, same 3-4-int-array shape as `color` — like
   every other widget override key (`rect`/`skin`/`font`/`label`/`color`/
@@ -411,6 +437,31 @@ validating writer; don't hand-edit the JSON.
   (`engine/render/CLAUDE.md`'s nine-slice/`BLEND_RGBA_MULT` section);
   omitted = unchanged, so an existing screen doc that predates `tint` keeps
   validating and rendering exactly as before.
+- **`data/fonts/font_manifest.json`** ↔ `schemas/font_manifest.schema.json`
+  (UH-Font-A, normal stem pairing): `{"version": 1, "entries": {<font_id>:
+  {"file": "imported/<font_id>.<ttf|otf>", "display_name": "..."}}}` — every
+  custom font a designer has imported through the editor's Theme panel,
+  ORTHOGONAL to `data/ui/fonts.json`'s 7-preset size/bold system above
+  (completely untouched by this feature). `data/fonts/imported/*.ttf`/
+  `*.otf` are committed content (mirrors `data/sprites/imported/*.png`'s
+  D-31 precedent), written ONLY by `editor.font_import.import_font_file`
+  through `write_validated`.
+- **`data/ui/active_font.json`** ↔ `schemas/active_font.schema.json` (normal
+  stem pairing): `{"font_id": "default" | <font_manifest entry id>}` — the
+  single pointer to the game-wide custom font family. `"default"` means
+  today's `pygame.font.SysFont("monospace", ...)` behavior; any other value
+  must match an entry in `font_manifest.json` — a cross-file check the
+  schema can't express, so `game/main.py`'s boot loader cross-checks it
+  (entry exists AND its file exists on disk) and fails LOUD (D-2, the
+  `engine.tilemap.load_map` precedent) rather than degrading. The editor's
+  Theme panel is the only writer (staged like `fonts.json`/`palette.json`);
+  its own resolution (`editor.theme_ops.resolve_active_font_path`) degrades
+  to `None` instead of raising (editor-side E-37 grace). Loaded once at boot
+  and passed to `engine.render.fonts.configure_fonts`'s `font_path=` kwarg
+  — `None` for `"default"`, an absolute path otherwise; every `font_key`
+  then builds via `pygame.font.Font(font_path, size)` instead of
+  `SysFont`. `layout_h`/`_LAYOUT_H` are unaffected either way (same
+  invariant as a plain size change above).
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),

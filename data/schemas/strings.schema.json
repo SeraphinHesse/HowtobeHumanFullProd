@@ -1,0 +1,182 @@
+{
+  "$id": "strings.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/ui/strings.json (Phase C): the global UI string table for text that is NOT one fixed label per widget id (that's the per-widget `label` override, data/schemas/ui_screen.schema.json) — text that varies by runtime/enum state or is built from a template with values. A FLAT {string_id: template} map, one dotted id per source module/call-site (hud.*, widgets.*, levelup.*, boss_cutscene.*). Loaded once at boot (game/main.py) and passed to game.ui.strings.configure_strings, which rebinds the string table in place; every call site resolves text via game.ui.strings.T(string_id, **kwargs) = template.format(**kwargs). The unconfigured module defaults equal this file's stock content. Templates use Python str.format() placeholders — each property's description documents which keyword(s) its call site passes. All keys are required: the game names them by id, so a missing one would raise KeyError at the T() call site; adding a NEW id is a schema change (a closed set, same convention as fonts.json/palette.json).",
+  "properties": {
+    "boss_cutscene.headline_loss": {
+      "description": "Boss-cutscene headline shown on a LOST boss round. No placeholders (win/loss is a 2-variant runtime pick, not part of the template).",
+      "type": "string"
+    },
+    "boss_cutscene.headline_win": {
+      "description": "Boss-cutscene headline shown on a WON boss round. No placeholders.",
+      "type": "string"
+    },
+    "hud.income.base": {
+      "description": "HUD income-breakdown tooltip category label for the base per-round income source. No placeholders.",
+      "type": "string"
+    },
+    "hud.income.meditators": {
+      "description": "HUD income-breakdown tooltip category label for meditator-building income. No placeholders.",
+      "type": "string"
+    },
+    "hud.income.musicians": {
+      "description": "HUD income-breakdown tooltip category label for musician-building income. No placeholders.",
+      "type": "string"
+    },
+    "hud.income.story": {
+      "description": "HUD income-breakdown tooltip category label for boss-bonus story income. No placeholders.",
+      "type": "string"
+    },
+    "hud.income.upkeep": {
+      "description": "HUD income-breakdown tooltip category label for total building upkeep (a negative source). No placeholders.",
+      "type": "string"
+    },
+    "hud.income_net": {
+      "description": "HUD top-left net income-per-round line. Placeholders: {sign} ('+' or ''), {net} (the signed integer amount), {heart} (the love glyph).",
+      "type": "string"
+    },
+    "hud.level": {
+      "description": "HUD village-level readout beside the XP bar. Placeholder: {n} (the village level, int).",
+      "type": "string"
+    },
+    "hud.lightning_cooldown": {
+      "description": "HUD lightning readout while the strike is cooling down. Placeholder: {seconds} (the remaining cooldown, pre-formatted to one decimal place by the caller).",
+      "type": "string"
+    },
+    "hud.lightning_ready": {
+      "description": "HUD lightning readout when a strike is ready to fire. No placeholders.",
+      "type": "string"
+    },
+    "hud.lives": {
+      "description": "HUD lives readout. Placeholder: {count} (remaining base lives, int).",
+      "type": "string"
+    },
+    "hud.love_display": {
+      "description": "HUD love-pill count (also used for the affordable hover-cost preview). Placeholders: {heart} (the love glyph), {amount} (the love count, int).",
+      "type": "string"
+    },
+    "hud.love_unaffordable": {
+      "description": "HUD love-pill display when a hovered action's cost would take love negative. Placeholder: {heart} (the love glyph).",
+      "type": "string"
+    },
+    "hud.phase.boss_cutscene": {
+      "description": "HUD phase-banner text while GamePhase.BOSS_CUTSCENE is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.phase.building": {
+      "description": "HUD phase-banner text while GamePhase.BUILDING is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.phase.enemy": {
+      "description": "HUD phase-banner text while GamePhase.ENEMY is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.phase.income": {
+      "description": "HUD phase-banner text while GamePhase.INCOME is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.phase.levelup": {
+      "description": "HUD phase-banner text while GamePhase.LEVELUP is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.phase.round_end": {
+      "description": "HUD phase-banner text while GamePhase.ROUND_END is active. No placeholders.",
+      "type": "string"
+    },
+    "hud.round": {
+      "description": "HUD round-number readout above the End Turn button. Placeholder: {n} (the current round number, int).",
+      "type": "string"
+    },
+    "hud.tiles": {
+      "description": "HUD built/unlocked tile-count readout. Placeholders: {built} (built tile count, int), {unlocked} (unlocked tile count, int).",
+      "type": "string"
+    },
+    "hud.tooltip_income": {
+      "description": "HUD income-breakdown tooltip row for a positive, non-upkeep/story source. Placeholders: {label} (the source's own resolved category label, e.g. 'Base'/'Musicians'), {amount} (the amount, int).",
+      "type": "string"
+    },
+    "hud.tooltip_story": {
+      "description": "HUD income-breakdown tooltip row for boss-bonus story income. Placeholder: {amount} (the amount, int).",
+      "type": "string"
+    },
+    "hud.tooltip_upkeep": {
+      "description": "HUD income-breakdown tooltip row for total upkeep. Placeholder: {amount} (the upkeep amount — already negative, int).",
+      "type": "string"
+    },
+    "hud.xp_progress": {
+      "description": "HUD XP-bar progress readout. Placeholders: {current} (player XP, int), {threshold} (XP needed for the next level, int).",
+      "type": "string"
+    },
+    "levelup.cost_free": {
+      "description": "Level-up option-box cost line when the option's cost is zero or less. No placeholders.",
+      "type": "string"
+    },
+    "levelup.cost_paid": {
+      "description": "Level-up option-box cost line when the option has a real cost. Placeholders: {label} (the option's own cost label), {heart} (the love glyph), {cost} (the cost amount, int).",
+      "type": "string"
+    },
+    "levelup.heading": {
+      "description": "Level-up modal's fixed heading, above the option boxes. No placeholders.",
+      "type": "string"
+    },
+    "levelup.tier_progress": {
+      "description": "Level-up option-box tier-progress line, tier-kind options only. Placeholders: {tier_no} (the tier this option advances TO, int), {tier_max} (the family's highest tier, int).",
+      "type": "string"
+    },
+    "widgets.condition.forest": {
+      "description": "Display label for the FOREST tile condition (10I terrain badges/tooltips, map overlays). No placeholders.",
+      "type": "string"
+    },
+    "widgets.condition.grass": {
+      "description": "Display label for the GRASS tile condition. No placeholders.",
+      "type": "string"
+    },
+    "widgets.condition.mountain": {
+      "description": "Display label for the MOUNTAIN tile condition. No placeholders.",
+      "type": "string"
+    },
+    "widgets.condition.pond": {
+      "description": "Display label for the POND tile condition. No placeholders.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "boss_cutscene.headline_loss",
+    "boss_cutscene.headline_win",
+    "hud.income.base",
+    "hud.income.meditators",
+    "hud.income.musicians",
+    "hud.income.story",
+    "hud.income.upkeep",
+    "hud.income_net",
+    "hud.level",
+    "hud.lightning_cooldown",
+    "hud.lightning_ready",
+    "hud.lives",
+    "hud.love_display",
+    "hud.love_unaffordable",
+    "hud.phase.boss_cutscene",
+    "hud.phase.building",
+    "hud.phase.enemy",
+    "hud.phase.income",
+    "hud.phase.levelup",
+    "hud.phase.round_end",
+    "hud.round",
+    "hud.tiles",
+    "hud.tooltip_income",
+    "hud.tooltip_story",
+    "hud.tooltip_upkeep",
+    "hud.xp_progress",
+    "levelup.cost_free",
+    "levelup.cost_paid",
+    "levelup.heading",
+    "levelup.tier_progress",
+    "widgets.condition.forest",
+    "widgets.condition.grass",
+    "widgets.condition.mountain",
+    "widgets.condition.pond"
+  ],
+  "title": "strings",
+  "type": "object"
+}

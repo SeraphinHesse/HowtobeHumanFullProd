@@ -19,6 +19,30 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## HUD submission order: panel -> button -> text
+`engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
+`submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
+first-submitted = furthest back. The house discipline within any one
+`draw()`/`submit()` method is **panel/background submissions first, then
+buttons, then standalone text** (back to front), so a later decorative rect
+never paints over an already-drawn button and text always reads on top.
+Deliberate exceptions stay commented at their call site — e.g. `building_ui.py`
+`BuildingUI.submit()` draws the hovered terrain tooltip LAST, after every mode
+body, on purpose (it must sit on top of everything, panel included); an
+active-toggle highlight ring (`overlays.py MapOverlays.submit_buttons`) is
+drawn after its own button for the same reason. Those are "always on top"
+overlays, not this rule's target. The menu screens that mirror the
+`game_over.py` template (backdrop → title/body text → action button) are a
+**separate, established, golden-pinned convention**
+(`tools/tests/test_ui_skinning.py::test_all_screens_parity`) predating this
+rule and are not itself a target for reordering — the button/text there never
+overlap, so there is nothing to occlude.
+Two real violations were fixed here: `ConstructPreview.submit()`
+(`building_ui.py`) had text interspersed between panel/button calls instead
+of trailing them; `Hud.submit()`'s round-cluster separator drew AFTER the End
+Turn button. Regression-pinned by `tools/tests/test_hud_panel.py`
+(`TestHudButtonZOrder`, `TestConstructPreviewZOrder`).
+
 ## Dismissing the panel
 `BuildingUI.dismiss()` is the ONE staged dismiss ladder, shared by Esc and
 right-click: it peels a single sub-overlay per call (construct preview → the
@@ -258,8 +282,10 @@ on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
 exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
 occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
 `track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
-phase edge; blue→yellow→red ramp in `heat_color`). `widgets.COND_LABELS`
-(condition label + colour, keyed by `TileCondition.name`) is shared with
+phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)`
+(condition label + colour, keyed by `TileCondition.name` — the label text is
+Phase C string-table content, `widgets.condition.*`; see "Global UI string
+table" below) is shared with
 `building_ui`'s new terrain badges: a `Terrain: <Label>` pill in the upgrade
 panel (below Level, reads the building's `_tile_condition` snapshot) and at the
 unlock/construct panel foot (reads the tile), each with a hover tooltip whose
@@ -590,7 +616,8 @@ sets one).
   error.
 - **Every static title/header is an id too** (review fix, not just buttons/
   panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
-  `credits`'/`game_over`'s/`add_name`'s `title`. Their copy is NOT game-state,
+  `credits`'/`game_over`'s/`add_name`'s `title`, `cheat_menu`'s `title`/
+  `jump_label`, `boss_cutscene`'s `subtitle`. Their copy is NOT game-state,
   so — unlike the HUD readouts below — `label` (the text itself) is a
   legitimate override field for these, same shape as any other widget
   (`rect`/`font_key`/`text_color`/`label`/`visible`).
@@ -749,6 +776,95 @@ data, so the two can never silently drift apart.
   only (`editor/panels/viewport.py`), and the details-panel Color control
   is repurposed into Tint (enabled, not disabled) on a skinned widget —
   `editor/panels/CLAUDE.md`.
+- **Per-widget `label` override now takes effect at render time (Phase B).**
+  The resolution mechanism was already generic and already live — `apply`'s
+  setattr loop threads `label` onto any id'd widget for free, same as
+  `skin`/`tint` above (no `_SPEC_TO_ATTR` entry, no separate `label_for`
+  accessor needed; there is no per-field `tint_for`/`skin_for` split to
+  mirror — `apply()`'s one setattr loop IS the shared resolver for every
+  override key). Every `Button` already reads `self.label` in `submit()`, so
+  a `Button`'s id'd `label` override has worked since 10L-B with zero extra
+  wiring (`building_ui.py`'s `action_btn`/`boss_btn`/`close_btn`/
+  `rename_dice_btn`/`boss_close_btn`/`preview_*` included — all `Button`
+  instances, all id'd, all already overridable). The gap Phase B closed was
+  narrower: a handful of non-`Button` `"label"`-kind holders (`SimpleNamespace`
+  shadow objects) were never given a `label` attribute at construction, so
+  their `submit()` read a hardcoded module-level string literal instead of
+  `holder.label` — the override landed on the object (`apply()` doesn't care)
+  but nothing ever read it back. Fixed: `cheat_menu.py`'s `title`/
+  `jump_label`, `boss_cutscene.py`'s `subtitle` now default `label=` to
+  today's literal and their `submit()` reads `self._holder.label` — parity
+  preserved (no override ⇒ identical output), override now honored.
+  `boss_cutscene.py`'s `headline` is the deliberate exception: its text is a
+  2-variant win/loss string built from runtime outcome (`self.outcome`), the
+  same "enum-varying, not a fixed title" exclusion HUD's dynamic readouts
+  already use — only its font stays overridable via THIS mechanism, and
+  color stays logic-owned; the two variant TEXTS themselves are Phase-C
+  string-table content instead (`boss_cutscene.headline_win`/`headline_loss`
+  — see "Global UI string table" below), not this `label` mechanism. Dynamic
+  per-mode content (`building_ui.py`'s `action_btn` label text itself varies
+  by mode/afford-ability, "UNLOCK TILE"/"BUILD"/"THE HOLE" mode headers,
+  `levelup`'s/`credits`' list rows, HUD's ~12 game-state readouts) stays out
+  of scope for `label` specifically for the same reason — a stable id alone
+  doesn't put dynamic text in scope, only a FIXED string does; some of it
+  (HUD's readouts, `levelup.py`'s heading/cost lines) is Phase-C string-table
+  content instead, below.
+  `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) to reflect the three previously-`""` labels.
+
+## Global UI string table (Phase C)
+`data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
+`label` override above structurally cannot: text that varies by runtime/enum
+state (the HUD phase banner, the boss-cutscene win/loss headline) or is
+BUILT FROM A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`,
+`"{built}/{unlocked} tiles"`) — there is no single fixed string to attach to
+a widget id for those. Mirrors `engine/render/fonts.py`'s cache/configure
+shape exactly: a module-level `_STRINGS: dict[str, str]` seeded with today's
+literal text (so an unconfigured import — bare test/tool construction —
+still renders byte-identical output, the same precedent `fonts.py`/
+`widgets.configure_palette` set), `configure_strings(doc)` rebinding it in
+place (called at boot, `game/main.py`, alongside `fonts.json`/
+`palette.json`, same fail-loud-on-key-mismatch D-2 behavior), and
+`T(string_id, **kwargs) = _STRINGS[string_id].format(**kwargs)` — the ONE
+way any call site reads an entry (never index `_STRINGS` directly, so a
+later `configure_strings` rebind always reaches every caller; there is no
+C_*-style early-binding trap to guard against, since nothing holds a
+reference to a resolved VALUE, only to the `T` function).
+- **Dotted ids grouped by source module** (`hud.phase.building`,
+  `hud.income.base`, `widgets.condition.grass`, `levelup.heading`,
+  `boss_cutscene.headline_win`, …) — the editor's Strings panel groups rows
+  by the id's prefix before the first dot.
+- **A dict literal built at import time is the SAME early-binding trap
+  `configure_palette`'s `C_*` block warns about, one level up**:
+  `widgets.cond_label(name)` and `hud.py`'s `_phase_label_text(phase)` are
+  FUNCTIONS, not dicts of resolved text, for exactly that reason — each
+  resolves fresh via `T()` on every call instead of caching text at module-
+  import time (which would freeze the pre-`configure_strings` fallback and
+  never see a later rebind). `hud.py`'s `_phase_color` already established
+  this "function, not a frozen dict" shape for the palette; Phase C reuses
+  it for strings.
+- **`hud.py`'s income-tooltip categorization compares against `T(...)`, not
+  a hardcoded literal** (`_submit_income_tooltip`): since `income_sources()`
+  now returns the RESOLVED `hud.income.upkeep`/`hud.income.story` text as
+  each row's label, the tooltip's red/gold/green styling branch re-resolves
+  the same ids at comparison time — so a designer renaming those two labels
+  in `strings.json` can't desync the comparison from what the label list
+  actually contains.
+- **No editor-side in-process reconfigure** (the exact `palette.json` case
+  `data/CLAUDE.md`'s theme-data section documents): `game/ui/strings` is
+  game-only, off limits to the editor (`editor/` never imports `game/**`).
+  The editor's Strings panel (`editor/panels/strings_panel.py`,
+  `editor/strings_ops.py`) writes `strings.json` and stops there; the game
+  re-reads it at its own next boot.
+- **Not yet migrated (scope note)**: this phase covered `hud.py` in full,
+  `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
+  `boss_cutscene.py`'s win/loss headline. `building_ui.py`'s many per-mode
+  dynamic labels (action-button text, stat rows, the boss-history popup),
+  `effects.py`'s floater/announce text, and the remaining menu screens'
+  templated strings (`game_over.py`'s stat lines, `add_name.py`'s pool
+  counter, `credits.py`) are STILL plain f-strings/module literals — good
+  candidates for the same treatment, deliberately left for a follow-up pass
+  rather than migrated wholesale in one phase.
 
 ## Known divergences (deliberate)
 The XP bar/floaters still drop the prototype's mascot face (never ported); the

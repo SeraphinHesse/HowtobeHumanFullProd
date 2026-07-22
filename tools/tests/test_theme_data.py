@@ -71,6 +71,21 @@ def _restore_fonts(snapshot):
     fonts._cache.clear()
 
 
+def _snapshot_font_family():
+    """The UH-Font-A globals, guarded SEPARATELY from ``_FONT_SPECS`` so
+    ``_snapshot_fonts``'s plain-dict shape (which callers below index and
+    ``.items()``) stays intact. A test that configures a custom font family
+    and does not restore these leaves every LATER test in the process
+    rendering in that font — the same poison the module docstring warns
+    about for the size presets, two globals over."""
+    return (fonts._FONT_PATH, fonts._FONT_BYTES)
+
+
+def _restore_font_family(snapshot):
+    fonts._FONT_PATH, fonts._FONT_BYTES = snapshot
+    fonts._cache.clear()
+
+
 def _palette_attr_names():
     return tuple("C_" + key.upper() for key in widgets._PALETTE_KEYS)
 
@@ -94,6 +109,7 @@ class _ConfigureMixin:
         palette_snapshot = _snapshot_palette()
         self.addCleanup(_restore_fonts, fonts_snapshot)
         self.addCleanup(_restore_palette, palette_snapshot)
+        self.addCleanup(_restore_font_family, _snapshot_font_family())
         return fonts_snapshot, palette_snapshot
 
 
@@ -129,6 +145,70 @@ class TestFallbackEqualsStock(unittest.TestCase):
             attr = "C_" + key.upper()
             self.assertEqual(getattr(widgets, attr), tuple(rgb),
                              f"palette key {key!r} drifted from its data fixture")
+
+
+class TestCustomFontFileIsNeverHeldOpen(_ConfigureMixin, unittest.TestCase):
+    """UH-Font-A: ``configure_fonts(font_path=…)`` must SLURP the file, not
+    hand its path to ``pygame.font.Font``.
+
+    A path-built font makes SDL_ttf hold the file open for that object's
+    whole life, and those objects sit in ``fonts._cache`` until the process
+    exits — on Windows a hard lock that (a) leaves the editor sitting on the
+    designer's font file for its whole run and (b) kills every
+    ``TempDataCase`` teardown, since ``shutil.rmtree`` cannot unlink the
+    copied ``.otf``. It went unnoticed until the first real font was made
+    active, because the shipped pointer was ``"default"``.
+
+    Deleting the file BEFORE building the fonts pins it on EVERY platform,
+    not just the one with mandatory locking: on Windows the unlink itself
+    fails while the handle is open, and on Linux/macOS the unlink succeeds
+    but a path-built ``get_font`` then raises on the missing file. Only a
+    genuinely read-once-into-memory implementation survives both."""
+
+    def _font_file_copy(self):
+        """A real ``.ttf`` from pygame's own package (``freesansbold.ttf``),
+        copied into a tempdir. Deliberately NOT a font out of ``data/`` — the
+        house rule is to pin the fixture rather than inherit whatever a
+        designer last imported, and this test wants a font file it is free to
+        delete."""
+        import os
+        import shutil
+        import tempfile
+
+        import pygame
+        source = Path(pygame.__file__).parent / pygame.font.get_default_font()
+        self.assertTrue(source.is_file(), f"pygame ships no {source.name}")
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        target = Path(tmp.name) / "fixture_font.ttf"
+        shutil.copyfile(source, target)
+        return target, os.unlink
+
+    def test_fonts_still_build_after_the_file_is_deleted(self):
+        self._protect_module_state()
+        font_file, unlink = self._font_file_copy()
+        fonts.configure_fonts(_FIXTURE_FONTS, font_path=font_file)
+
+        unlink(font_file)   # Windows: raises here if a handle is still open.
+        self.assertFalse(font_file.exists())
+
+        for key in _FIXTURE_FONTS:
+            # Would raise FileNotFoundError if get_font resolved the path.
+            self.assertGreater(fonts.get_font(key).size("Ag")[0], 0)
+
+    def test_configure_rereads_the_file_rather_than_caching_a_path(self):
+        """The bytes belong to the CONFIGURED font, so pointing the module
+        back at ``None`` must drop them — otherwise a designer switching back
+        to 'default' would keep rendering in the custom family."""
+        self._protect_module_state()
+        font_file, _ = self._font_file_copy()
+
+        fonts.configure_fonts(_FIXTURE_FONTS, font_path=font_file)
+        self.assertIsNotNone(fonts._FONT_BYTES)
+
+        fonts.configure_fonts(_FIXTURE_FONTS)
+        self.assertIsNone(fonts._FONT_BYTES)
+        self.assertIsNone(fonts._FONT_PATH)
 
 
 class TestLayoutHAuthority(_ConfigureMixin, unittest.TestCase):

@@ -1257,9 +1257,10 @@ class TestMainWindowVfxMode(TempDataCase):
 
         # details_pane (0) + map_details (1) + screen_details (2) +
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
-        # preview moved INTO details_pane). The point of the pin is that the
-        # vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 4)
+        # preview moved INTO details_pane) + strings_panel (4, Phase C).
+        # The point of the pin is that the vfx preview is NOT a stack page
+        # of its own.
+        self.assertEqual(window.right_stack.count(), 5)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1428,6 +1429,8 @@ class TestPurity(unittest.TestCase):
             "editor.panels.anchors_panel, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
             "editor.panels.game_theme, editor.theme_ops, "
+            "editor.font_import, "
+            "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
             "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "

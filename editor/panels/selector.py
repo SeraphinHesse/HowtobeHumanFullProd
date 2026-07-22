@@ -40,6 +40,11 @@ theme_selected() + domain_selected("ui") — same never-node_selected rule,
 via its own marker role (_THEME_ROLE) rather than a from-disk id list like
 Maps/Screens, since there is nothing to enumerate.
 
+Phase C adds a single "Strings" LEAF (same shape as Theme — one document,
+nothing to enumerate) as the THIRD child of the "ui" category, right after
+"Theme". Selecting it emits strings_selected() + domain_selected("ui") —
+same never-node_selected rule, via its own marker role (_STRINGS_ROLE).
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -89,10 +94,12 @@ _MAP_ROLE = Qt.ItemDataRole.UserRole + 2        # map_id (Maps-branch leaves)
 _SCREEN_ROLE = Qt.ItemDataRole.UserRole + 3     # screen_id (Screens-branch leaves)
 _VIEW_ROLE = Qt.ItemDataRole.UserRole + 4       # (screen_id, view_id) (UH-2 view leaves)
 _THEME_ROLE = Qt.ItemDataRole.UserRole + 5      # True on the single Theme leaf (UH-6)
+_STRINGS_ROLE = Qt.ItemDataRole.UserRole + 6    # True on the single Strings leaf (Phase C)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
 _THEME_LABEL = "Theme"
+_STRINGS_LABEL = "Strings"
 
 # Registry categories shown as CHILDREN of the "map" node instead of their own
 # top-level node — a tree-shape choice only (see the branch in __init__).
@@ -110,6 +117,7 @@ class SelectorPanel(QTreeWidget):
     screen_selected = Signal(str)    # B4: a Screens-branch leaf was selected
     screen_view_selected = Signal(str, str)  # UH-2: a view leaf was selected
     theme_selected = Signal()        # UH-6: the single Theme leaf was selected
+    strings_selected = Signal()      # Phase C: the single Strings leaf was selected
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -124,6 +132,7 @@ class SelectorPanel(QTreeWidget):
         self._maps_branch = None
         self._screens_branch = None
         self._theme_item = None
+        self._strings_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -173,6 +182,14 @@ class SelectorPanel(QTreeWidget):
                 theme_item.setData(0, _THEME_ROLE, True)
                 root.insertChild(1, theme_item)
                 self._theme_item = theme_item
+                # Phase C: a single "Strings" leaf, third child (right after
+                # Theme) — same "one document, nothing to enumerate" shape
+                # as Theme, its own marker role.
+                strings_item = self._make_item(
+                    _STRINGS_LABEL, "ui", (_STRINGS_LABEL,))
+                strings_item.setData(0, _STRINGS_ROLE, True)
+                root.insertChild(2, strings_item)
+                self._strings_item = strings_item
         self.refresh_maps()
         self.refresh_screens()
         self.refresh_markers()
@@ -469,6 +486,13 @@ class SelectorPanel(QTreeWidget):
             # Theme leaf (UH-6): same never-node_selected rule as Maps/Screens —
             # entity-preview machinery must not react.
             self.theme_selected.emit()
+            if "ui" in self._domains:
+                self.domain_selected.emit("ui")
+            return
+        if items[0].data(0, _STRINGS_ROLE):
+            # Strings leaf (Phase C): the exact _THEME_ROLE pattern above,
+            # one leaf over.
+            self.strings_selected.emit()
             if "ui" in self._domains:
                 self.domain_selected.emit("ui")
             return
