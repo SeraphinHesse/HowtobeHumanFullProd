@@ -92,6 +92,17 @@
       "minItems": 3,
       "type": "array"
     },
+    "purple": {
+      "description": "The house purple — menu/heading text accent, matches the XP bar fill.",
+      "items": {
+        "maximum": 255,
+        "minimum": 0,
+        "type": "integer"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "type": "array"
+    },
     "range_highlight": {
       "description": "Defence attack-range tile overlay color.",
       "items": {
@@ -212,6 +223,7 @@
     "hp_red",
     "panel_inset",
     "panel_stone",
+    "purple",
     "range_highlight",
     "red",
     "ui_border",

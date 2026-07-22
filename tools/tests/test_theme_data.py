@@ -58,6 +58,7 @@ _FIXTURE_PALETTE = {
     "range_highlight": [180, 40, 40],
     "panel_stone": [40, 32, 58],
     "panel_inset": [150, 135, 185],
+    "purple": [168, 105, 222],
 }
 
 

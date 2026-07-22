@@ -62,6 +62,7 @@ C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
+C_PURPLE = (168, 105, 222)           # the house purple (matches the XP bar fill)
 
 # data/ui/palette.json's keys, in the same order as the C_* block above (UH-6,
 # D5) — snake_case with the C_ prefix dropped. configure_palette's key ->
@@ -70,7 +71,7 @@ _PALETTE_KEYS = (
     "gold", "red", "hp_green", "hp_red", "green_stat", "ui_panel",
     "ui_border", "ui_btn", "ui_btn_hover", "ui_btn_active", "ui_btn_disabled",
     "ui_text", "ui_text_dim", "highlight", "highlight2", "range_highlight",
-    "panel_stone", "panel_inset",
+    "panel_stone", "panel_inset", "purple",
 )
 
 
@@ -96,8 +97,6 @@ def configure_palette(doc):
     for key, value in doc.items():
         globals()["C_" + key.upper()] = tuple(value)
 
-
-HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
 
 # -- 10I: tile-condition labels + colours (prototype building_ui.py:23-27) --
 # Shared by the panel badges/tooltips (building_ui) and the map overlays so
