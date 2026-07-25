@@ -35,7 +35,7 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    COND_LABELS, HEART, Button, anim_ms, contains, submit_panel,
+    Button, anim_ms, contains, submit_panel,
     submit_tile_diamond, submit_text, text_h, text_size
 )
 from . import widgets
@@ -89,7 +89,7 @@ def _building_stats(b):
         rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "payout_amount"):     # painter — risky economy (no yield)
         rows.append(("Progress", f"{b.progress}/{b.rounds_to_payout()}"))
-        rows.append(("Payout", f"{HEART}{b.payout_amount()}"))
+        rows.append(("Payout", f"{b.payout_amount()}"))
         rows.append(("Pays in", f"{b.rounds_to_payout()} rounds"))
     elif hasattr(b, "streak_max"):      # meditator — compounding economy
         rows.append(("Yield", b.yield_amount()))  # pure (no streak advance)
@@ -231,38 +231,22 @@ class ConstructPreview:
         from engine.render import HudRect
 
         x, y, w, h = self.rect
+        # Submission order (game/ui/CLAUDE.md "panel -> button -> text"):
+        # ALL panel/background submissions first, THEN all buttons, THEN all
+        # text — HUD draw order is submission order (engine/render/CLAUDE.md).
         if is_visible(self._panel):
             submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
                         border=widgets.C_UI_BORDER, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None),
                         anim_ms=anim_ms)
-        cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
-                    align="center")
-        submit_text(renderer, f"Cost  {HEART}{self.total_cost}", (cx, y + 44),
-                    "md", widgets.C_GOLD, align="center")
-        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
         nx, ny, nw, nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self.name_rect, widgets.C_HIGHLIGHT if self.editing else widgets.C_UI_BORDER,
             width=1))
-        if self.name or self.editing:
-            shown = self.name + ("_" if self.editing else "")
-            tcol = widgets.C_UI_TEXT
-        else:
-            shown = "click to name"
-            tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
         if is_visible(self.dice_btn):
             self.dice_btn.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self.dice_btn))
-        sy = y + 138
-        for label, value in self.stats:
-            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
-                        align="right")
-            sy += 20
         if is_visible(self.confirm_btn):
             self.confirm_btn.submit(renderer, anim_ms=anim_ms,
                                     **button_kwargs(self.confirm_btn))
@@ -272,6 +256,25 @@ class ConstructPreview:
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=anim_ms,
                                   **button_kwargs(self.close_btn))
+        cx = x + w // 2
+        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
+                    align="center")
+        submit_text(renderer, f"Cost  {self.total_cost}", (cx, y + 44),
+                    "md", widgets.C_GOLD, align="center")
+        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
+        if self.name or self.editing:
+            shown = self.name + ("_" if self.editing else "")
+            tcol = widgets.C_UI_TEXT
+        else:
+            shown = "click to name"
+            tcol = widgets.C_UI_TEXT_DIM
+        submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
+        sy = y + 138
+        for label, value in self.stats:
+            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
+            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
+                        align="right")
+            sy += 20
 
 
 class BuildingUI:
@@ -289,6 +292,11 @@ class BuildingUI:
         self.mode = None
         self.tile = None
         self.preview = None
+        # -- TU-6: transient "a placement just landed" signal — the host
+        # reads it once right after a successful handle_click() and clears
+        # it; NEVER reset in close() (open_for_tile()'s internal close() call
+        # inside _do_place() would wipe it before the host gets to read it). --
+        self.last_placed_type = None
         self._selected = None
         self._session = None
         self._upgrade_hint = None
@@ -403,6 +411,31 @@ class BuildingUI:
             return True
         return False
 
+    # -- TU-6: tutorial highlight rect queries (read-only, additive) --------
+
+    def card_rect(self, building_type):
+        """Screen rect of the construct-mode card for ``building_type``, or
+        None if not currently shown. Read-only — never mutates panel state."""
+        if self.mode != "construct":
+            return None
+        for btype, btn in self.cards:
+            if btype == building_type:
+                return btn.rect
+        return None
+
+    def confirm_rect(self):
+        """Screen rect of the open ``ConstructPreview``'s CONFIRM button, or
+        None when no preview is open."""
+        return self.preview.confirm_btn.rect if self.preview is not None else None
+
+    def close_rect(self):
+        """Screen rect of the panel's own CLOSE (X) button, or None when the
+        panel isn't open (TU-8, Fix 2's close-panel-hint step). Read-only —
+        never mutates panel state."""
+        return self.close_btn.rect if self.visible else None
+
+    # -- /TU-6 ---------------------------------------------------------------
+
     def open_for_tile(self, tile, session, buildings_balance,
                       selected_tiles=None):
         """Open for the PRIMARY tile; ``selected_tiles`` (10J shift
@@ -466,9 +499,9 @@ class BuildingUI:
         if not adjacent:
             self.action_btn.label = "NOT ADJACENT"
         elif n > 1:
-            self.action_btn.label = f"UNLOCK {n} AREAS  {HEART}{cost}"
+            self.action_btn.label = f"UNLOCK {n} AREAS  {cost}"
         else:
-            self.action_btn.label = f"UNLOCK  {HEART}{cost}"
+            self.action_btn.label = f"UNLOCK  {cost}"
         hl = []
         for sel in self.selected_tiles:
             hl.append((sel.col, sel.row, widgets.C_HIGHLIGHT))
@@ -497,7 +530,7 @@ class BuildingUI:
             # it is an exact proxy for "one has been placed this run" — grey
             # out (not hide) the card once true.
             placed = btype == "storm_priest" and state.lightning_level > 0
-            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {HEART}{cost}"
+            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {cost}"
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
                          label, "md", skin=skin, enabled=not placed)
             self.cards.append((btype, btn))
@@ -524,7 +557,7 @@ class BuildingUI:
         if mode == "in_tier" and len(self.selected_tiles) > 1:
             targets = self._batch_upgrade_targets()
             cost = sum(c for _, c in targets)
-            label = f"UPGRADE ×{len(targets)}  {HEART}{cost}"
+            label = f"UPGRADE ×{len(targets)}  {cost}"
         self.action_btn.rect = (
             self.panel_x + 12, self.view_h - 120, self.panel_w - 24, 36)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
@@ -539,9 +572,9 @@ class BuildingUI:
         mode, next_name, cost = upgrade_gate(
             self._session.state, b, self._buildings_balance)
         if mode == "in_tier":
-            return mode, cost, f"UPGRADE  {HEART}{cost}", None
+            return mode, cost, f"UPGRADE  {cost}", None
         if mode == "tier_upgrade":
-            return mode, cost, f"ADVANCE: {next_name.upper()}  {HEART}{cost}", None
+            return mode, cost, f"ADVANCE: {next_name.upper()}  {cost}", None
         if mode == "tier_locked":
             return mode, cost, "RESEARCH REQUIRED", "Research it on levelup"
         if mode == "tier_hidden":
@@ -819,6 +852,7 @@ class BuildingUI:
         if not placed_any:
             p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
             return
+        self.last_placed_type = p.building_type  # TU-6: signal a real placement
         self.preview = None
         selection = list(self.selected_tiles)  # keep the batch selected
         self.open_for_tile(self.tile, session, buildings_balance,
@@ -1058,11 +1092,11 @@ class BuildingUI:
                 f'-{m["def_dmg_penalty"] * 100:.0f}% damage for defenders')
         if m.get("eco_yield_penalty"):
             lines.append(
-                f'-{m["eco_yield_penalty"] * 100:.0f}% {HEART}/round'
+                f'-{m["eco_yield_penalty"] * 100:.0f}%/round'
                 ' for economy')
         if m.get("eco_yield_bonus"):
             lines.append(
-                f'+{m["eco_yield_bonus"] * 100:.0f}% {HEART}/round'
+                f'+{m["eco_yield_bonus"] * 100:.0f}%/round'
                 ' for economy')
         return lines or ["No terrain effect"]
 
@@ -1072,7 +1106,7 @@ class BuildingUI:
         tooltip — drawn last by ``submit`` so it sits on top."""
         from engine.render import HudRect  # local: keep module imports lean
 
-        label, color = COND_LABELS[condition.name]
+        label, color = widgets.cond_label(condition.name)
         text = f"Terrain: {label}"
         w = text_size(text, "sm")[0] + 16
         h = text_h("sm") + 8
@@ -1115,7 +1149,7 @@ class BuildingUI:
             ("Wave", st.round_num),
             ("Enemies killed", st.enemies_killed),
             ("Buildings", st.buildings_placed),
-            ("Base income", f"{income}{HEART}/round"),
+            ("Base income", f"{income}/round"),
         ]
         y = 72
         for label, value in rows:

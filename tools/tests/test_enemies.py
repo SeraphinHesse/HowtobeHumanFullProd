@@ -32,7 +32,7 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
+    Boss, Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
     attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
@@ -44,6 +44,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
@@ -423,6 +424,53 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual(len(scene.by_tag("enemy")), n)
         self.assertTrue(sp.done)
 
+    # -- TU-9: round 0 is the tutorial's forced-composition round -----------
+
+    def test_round_zero_composes_exactly_the_tutorial_count(self):
+        sp, etypes = self._counts(0)
+        self.assertEqual(len(etypes), SCALE["tutorial_round_enemy_count"])
+        self.assertTrue(all(e == "standard" for e in etypes))
+
+    def test_round_zero_tunable_changes_the_count(self):
+        enem = copy.deepcopy(ENEM)
+        enem["EnemyScaling"]["tutorial_round_enemy_count"] = 3
+        sp = Spawner()
+        sp.begin_round(0, self.tm, enem, rng=FakeRng())
+        etypes = [et for _tile, et, _d in sp._queue]
+        self.assertEqual(etypes, ["standard"] * 3)
+
+    def test_round_zero_never_produces_a_boss_at_any_interval(self):
+        # 0 % n == 0 for every n, so an unguarded boss check would wrongly
+        # treat round 0 as a boss round at EVERY round_interval — the round-0
+        # branch must be checked first, unconditionally.
+        for interval in (1, 2, 5, self._BOSS_INTERVAL):
+            with self.subTest(interval=interval):
+                enem = copy.deepcopy(ENEM)
+                enem["EnemyTypes"]["Boss"]["round_interval"] = interval
+                sp = Spawner()
+                sp.begin_round(0, self.tm, enem, rng=FakeRng())
+                etypes = [et for _tile, et, _d in sp._queue]
+                self.assertNotIn("boss", etypes)
+                self.assertEqual(
+                    len(etypes), enem["EnemyScaling"]["tutorial_round_enemy_count"])
+
+    def test_round_zero_leaves_round_one_scaling_unshifted(self):
+        # Composing round 0 THEN round 1 on the SAME spawner instance must
+        # yield the identical round-1 composition as composing round 1
+        # fresh — round 0 must leave no tier/interval state that shifts the
+        # real wave-scaling formulas (the actual user requirement).
+        sp = Spawner()
+        sp.begin_round(0, self.tm, ENEM, rng=FakeRng())
+        self.assertEqual(sp._tier, 0)
+        sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        after_zero = [et for _tile, et, _d in sp._queue]
+
+        fresh = Spawner()
+        fresh.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        fresh_etypes = [et for _tile, et, _d in fresh._queue]
+
+        self.assertEqual(after_zero, fresh_etypes)
+
 
 # ---------------------------------------------------------------------------
 # Walker locomotion + block-and-attack (prototype enemy._do_move/_do_attack)
@@ -477,7 +525,7 @@ class TestCombatLedger(unittest.TestCase):
         alive_frames = 0
         for _ in range(1000):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
             alive_frames += 1
@@ -527,7 +575,7 @@ class TestBaseArrival(unittest.TestCase):
         scene.spawn(e)
         for _ in range(200):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
         else:
@@ -740,7 +788,7 @@ class TestFormationBreak(unittest.TestCase):
         session.pre_sim(dt, scene)
         if session.state.state == GameState.GAMEPLAY and not session.frozen:
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD,
+            resolve_combat(scene, tm, dt, BUILD, VFX,
                            on_base_hit=session.on_base_hit,
                            on_enemy_death=session.on_enemy_death)
             session.post_sim(scene)
@@ -826,6 +874,28 @@ class TestFormationBreak(unittest.TestCase):
             self.assertGreater(
                 frac,
                 ENEM["EnemyTypes"][child]["death_spawn"]["at_hp_fraction"])
+
+
+class TestRegistryGroupDrift(unittest.TestCase):
+    """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
+    required `registry_group` leaf (added so the editor can resolve a slot's
+    footprint fit without importing `game/`) is a SECOND home for what
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` class constants already say —
+    nothing wires the two together, and the brief deliberately does NOT ask
+    for that refactor here (follow-up work). This pins the two so a drift
+    between them turns red instead of silently breaking the editor preview
+    for whichever type moved."""
+
+    def test_registry_group_matches_data_for_every_enemy_subclass(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            self.assertEqual(
+                cls.REGISTRY_GROUP, block["registry_group"],
+                msg=f"{cls.__name__}.REGISTRY_GROUP ({cls.REGISTRY_GROUP!r}) "
+                    f"drifted from EnemyTypes.{'.'.join(cls.STAT_SUBTREE)}."
+                    f"registry_group ({block['registry_group']!r})")
 
 
 class TestPurity(unittest.TestCase):

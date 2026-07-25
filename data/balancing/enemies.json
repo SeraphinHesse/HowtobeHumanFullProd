@@ -5,16 +5,16 @@
     "scale_every_n_levels": 10,
     "scale_tiers": [
       {
-        "dmg": 8,
+        "dmg": 6,
         "hp": 35,
         "spawn_interval": 0.07,
-        "speed": 0.07
+        "speed": 0.06
       },
       {
-        "dmg": 15,
-        "hp": 50,
+        "dmg": 10,
+        "hp": 45,
         "spawn_interval": 0.09,
-        "speed": 0.1
+        "speed": 0.085
       },
       {
         "dmg": 20,
@@ -37,7 +37,8 @@
     ],
     "spawn_interval": 0.8,
     "spawn_ramp_enabled": true,
-    "spawn_ramp_range": 0.6
+    "spawn_ramp_range": 0.6,
+    "tutorial_round_enemy_count": 1
   },
   "EnemyTypes": {
     "Boss": {
@@ -75,6 +76,7 @@
       },
       "footprint": 2,
       "kidnapping": false,
+      "registry_group": "Boss",
       "round_counts": [
         {
           "raiders": 12,
@@ -113,7 +115,7 @@
           "attack_range_tiles": 1,
           "attack_speed": 1.5,
           "dmg": 160,
-          "hp": 1000,
+          "hp": 1400,
           "move_speed": 0.65,
           "name": "Throbbin Hood"
         },
@@ -172,6 +174,7 @@
       "hp": 440,
       "kidnapping": false,
       "move_speed": 0.9,
+      "registry_group": "Formation",
       "rounds_per_formation": 3,
       "sprite_scale": 1.0,
       "start_round": 16
@@ -198,6 +201,7 @@
       "kidnapping": true,
       "move_speed": 2.7,
       "per_round": 1,
+      "registry_group": "Raider",
       "sprite_scale": 1.0,
       "start_round": 5
     },
@@ -224,6 +228,7 @@
       "mix_ratio": 0.5,
       "move_speed": 1.0,
       "queue_lead_count": 5,
+      "registry_group": "Siege Cannon",
       "rounds_per_cannon": 1,
       "sprite_scale": 1.0,
       "start_round": 14
@@ -248,6 +253,7 @@
       "hp": 55,
       "kidnapping": true,
       "move_speed": 1.2,
+      "registry_group": "Walker",
       "sprite_scale": 1.0
     }
   },

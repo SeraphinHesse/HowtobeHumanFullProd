@@ -18,6 +18,8 @@ later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
 
+from . import strings
+
 _METRICS = TextMetrics()
 
 # R2 hit seam: host-injected per-pixel alpha test for skinned buttons
@@ -57,9 +59,11 @@ C_UI_TEXT = (235, 225, 195)
 C_UI_TEXT_DIM = (150, 140, 120)
 C_HIGHLIGHT = (255, 230, 60)         # selected tile
 C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
+C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
+C_PURPLE = (168, 105, 222)           # the house purple (matches the XP bar fill)
 
 # data/ui/palette.json's keys, in the same order as the C_* block above (UH-6,
 # D5) — snake_case with the C_ prefix dropped. configure_palette's key ->
@@ -68,7 +72,7 @@ _PALETTE_KEYS = (
     "gold", "red", "hp_green", "hp_red", "green_stat", "ui_panel",
     "ui_border", "ui_btn", "ui_btn_hover", "ui_btn_active", "ui_btn_disabled",
     "ui_text", "ui_text_dim", "highlight", "highlight2", "range_highlight",
-    "panel_stone", "panel_inset",
+    "panel_stone", "panel_inset", "purple",
 )
 
 
@@ -95,18 +99,34 @@ def configure_palette(doc):
         globals()["C_" + key.upper()] = tuple(value)
 
 
-HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
-
 # -- 10I: tile-condition labels + colours (prototype building_ui.py:23-27) --
 # Shared by the panel badges/tooltips (building_ui) and the map overlays so
 # the two surfaces cannot drift. Keyed by the TileCondition NAME (a plain
-# string) so this module needs no game.map import.
-COND_LABELS = {
-    "GRASS": ("Grass", (100, 180, 80)),
-    "MOUNTAIN": ("Mountain", (160, 130, 90)),
-    "POND": ("Pond", (80, 160, 220)),
-    "FOREST": ("Forest", (70, 160, 70)),
+# string) so this module needs no game.map import. Colors stay code-owned
+# (data/ui/palette.json's scope is the C_* block only, D5); the LABEL TEXT
+# is Phase C's string-table content instead (data/ui/strings.json's
+# widgets.condition.* ids).
+_COND_COLORS = {
+    "GRASS": (100, 180, 80),
+    "MOUNTAIN": (160, 130, 90),
+    "POND": (80, 160, 220),
+    "FOREST": (70, 160, 70),
 }
+_COND_LABEL_IDS = {
+    "GRASS": "widgets.condition.grass",
+    "MOUNTAIN": "widgets.condition.mountain",
+    "POND": "widgets.condition.pond",
+    "FOREST": "widgets.condition.forest",
+}
+
+
+def cond_label(name):
+    """(label, color) for a TileCondition NAME (10I). A FUNCTION, not a
+    dict literal (Phase C: same reasoning as hud.py's ``_phase_color`` —
+    a dict built at IMPORT time would freeze the pre-``configure_strings``
+    fallback text and never see a later rebind; this resolves fresh via
+    ``strings.T()`` on every call)."""
+    return strings.T(_COND_LABEL_IDS[name]), _COND_COLORS[name]
 # -- /10I --
 
 
@@ -202,6 +222,34 @@ def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
     if border is not None:
         renderer.submit_overlay_lines(pts, border, width=border_width,
                                       closed=True)
+
+
+def submit_ui_box_highlight(renderer, rect, color=None, width=3):
+    """A highlight ring around a UI element (card / Confirm / End Turn) —
+    the tutorial guided-chain highlight (D8, TU-6). Plain HUD-space rect;
+    ``color`` defaults to the CURRENT ``C_TUTORIAL_HIGHLIGHT`` inside the
+    body (never as a def-time default — the same UH-6 rebind trap
+    ``submit_panel``'s ``fill``/``border`` guards against)."""
+    if color is None:
+        color = C_TUTORIAL_HIGHLIGHT
+    renderer.submit_hud(HudRect(rect, color, width=width))
+
+
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=24,
+                            font_key="lg"):
+    """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
+    ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
+    click anywhere to close"). A filled ``C_TUTORIAL_HIGHLIGHT`` box with a
+    dark border and dark centred text, sized to the text. Deliberately
+    carries NO hit-test and consumes no input, UNLIKE ``TutorialMessageScreen``
+    — a banner instructing a right-click must never itself swallow it."""
+    tw, th = text_size(text, font_key)
+    w, h = tw + pad * 2, th + pad * 2
+    x, y = (view_w - w) // 2, (view_h - h) // 2
+    renderer.submit_hud(HudRect((x, y, w, h), C_TUTORIAL_HIGHLIGHT))
+    renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=3))
+    submit_centered(renderer, text, view_w // 2, y + pad, font_key,
+                    C_UI_PANEL)
 
 
 def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):

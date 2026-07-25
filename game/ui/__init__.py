@@ -25,6 +25,7 @@ from .overlays import MapOverlays
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
 from .shell import Shell
+from .tutorial_message import TutorialMessageScreen  # TU-6
 
 __all__ = [
     "Hud",
@@ -44,4 +45,5 @@ __all__ = [
     "CreditsScreen",
     "AddNameScreen",
     "PauseScreen",
+    "TutorialMessageScreen",
 ]

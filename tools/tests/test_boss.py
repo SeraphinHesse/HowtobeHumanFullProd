@@ -36,6 +36,7 @@ BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
 UI = load_balance(FIXTURE_DATA, "ui")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 BOSS = ENEM["EnemyTypes"]["Boss"]
 SCALE = ENEM["EnemyScaling"]
@@ -67,7 +68,7 @@ def frame(session, scene, tilemap_, dt, dmg_bonus=0):
     session.pre_sim(dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(dt)
-        resolve_combat(scene, tilemap_, dt, BUILD,
+        resolve_combat(scene, tilemap_, dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death,
                        dmg_bonus=dmg_bonus)
@@ -362,7 +363,7 @@ class TestBossBonuses(unittest.TestCase):
         health = enemy.get_component(Health)
         health.max_hp = 10 ** 6
         health.hp = 10 ** 6
-        resolve_combat(scene, tm, 0.0, BUILD, dmg_bonus=dmg_bonus)  # fires
+        resolve_combat(scene, tm, 0.0, BUILD, VFX, dmg_bonus=dmg_bonus)  # fires
         for _ in range(60):                    # let the shot travel + impact
             scene.update(0.05)
             if health.hp < 10 ** 6:

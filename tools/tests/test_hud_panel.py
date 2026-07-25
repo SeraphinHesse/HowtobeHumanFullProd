@@ -18,12 +18,15 @@ from tools.tests.fixture_data import FIXTURE_DATA
 from engine import tilemap
 from engine.core import Scene
 from engine.physics import TileOccupancy
+from engine.render import HudRect, HudText
 from game.buildings import BaseBuilding, attach_base
+from game.buildings.registry import build_cost
 from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
-from game.ui.building_ui import BuildingUI
+from game.ui import widgets
+from game.ui.building_ui import BuildingUI, ConstructPreview
 from game.ui.hud import Hud
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -128,6 +131,70 @@ class TestPanelOccludesHudButtons(unittest.TestCase):
         hud.submit(r, session, VIEW_W, VIEW_H)
         self.assertIn(hud.pause.rect, r.rects())
         self.assertIn(hud.end_turn.rect, r.rects())
+
+
+class TestHudButtonZOrder(unittest.TestCase):
+    """``panel -> button -> text`` (game/ui/CLAUDE.md, engine/render/CLAUDE.md
+    "HUD pass": submission order IS draw order). The round-cluster separator
+    used to be submitted AFTER the End Turn button, so it drew ON TOP of the
+    button's top edge; it must draw BEHIND it instead."""
+
+    def test_separator_precedes_end_turn_button(self):
+        session, panel, hud = build()
+        hud.update(0.016, 0, 0, session, panel)
+        r = RecordingRenderer()
+        hud.submit(r, session, VIEW_W, VIEW_H)
+        bx, by, bw, _bh = hud.end_turn.rect
+        separator = HudRect((bx, by - 2, bw, 1), widgets.C_UI_BORDER)
+        sep_idx = r.items.index(separator)
+        btn_idx = next(i for i, item in enumerate(r.items)
+                       if isinstance(item, HudRect)
+                       and item.rect == hud.end_turn.rect)
+        self.assertLess(sep_idx, btn_idx,
+                        "separator must draw BEHIND (before) the End Turn button")
+
+
+class TestConstructPreviewZOrder(unittest.TestCase):
+    """``ConstructPreview.submit()`` used to intersperse TEXT submissions
+    between the panel/name-box and the confirm/cancel/close/dice BUTTONS.
+    Every standalone text label (title, cost, name label, stat rows) must now
+    draw on top of (after) every button — game/ui/CLAUDE.md "panel -> button
+    -> text"."""
+
+    def _preview(self):
+        cost = build_cost("defence", BUILD, 0)
+        preview = ConstructPreview("defence", cost, BUILD, UI,
+                                   VIEW_W, VIEW_H)
+        preview.hover(-1000, -1000, False)
+        preview.update(0.016)
+        return preview
+
+    def test_every_text_submission_follows_every_button_submission(self):
+        preview = self._preview()
+        r = RecordingRenderer()
+        preview.submit(r)
+
+        button_rects = {preview.dice_btn.rect, preview.confirm_btn.rect,
+                        preview.close_btn.rect}
+        if preview.cancel_btn is not None:
+            button_rects.add(preview.cancel_btn.rect)
+        button_indices = [i for i, item in enumerate(r.items)
+                          if isinstance(item, HudRect)
+                          and item.rect in button_rects]
+        self.assertTrue(button_indices)
+        last_button_idx = max(button_indices)
+
+        # The standalone labels the bug used to draw BEFORE the buttons —
+        # not a button's own label (that always rides with its own button).
+        standalone = {preview.title,
+                     f"Cost  {preview.total_cost}", "Name:"}
+        standalone |= {label for label, _value in preview.stats}
+        text_indices = [i for i, item in enumerate(r.items)
+                        if isinstance(item, HudText) and item.text in standalone]
+        self.assertTrue(text_indices)
+        self.assertTrue(all(i > last_button_idx for i in text_indices),
+                        "every standalone text submission must follow every "
+                        "button submission")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,160 @@
+{
+  "first_loss_costs_life": true,
+  "messages": {
+    "close_panel_hint": "right click anywhere to close",
+    "economy_intro": "You need love to create. In order for you to gain Love, you need economy buildings",
+    "lives_intro": "Once the humans reach our hole the round is lost. You have only 3 lives. If economy buildings get destroyed during the human attack they don't yield resources. To defend your base you need to build defense buildings"
+  },
+  "skippable": true,
+  "steps": [
+    {
+      "advance_on": "message_dismissed:economy_intro",
+      "allow": [
+        "dismiss_message",
+        "skip_tutorial"
+      ],
+      "flags": {},
+      "highlight": [],
+      "id": "economy_message",
+      "message": "economy_intro",
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_flute",
+      "allow": [
+        "tile_click:tutorial_flute"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_flute"
+      ],
+      "id": "highlight_tutorial_flute_tile",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "building_selected:economic",
+      "allow": [
+        "card_select:economic"
+      ],
+      "flags": {},
+      "highlight": [
+        "card:economic"
+      ],
+      "id": "highlight_musician_card",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_flute_tile"
+    },
+    {
+      "advance_on": "building_placed:economic",
+      "allow": [
+        "button:confirm"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:confirm"
+      ],
+      "id": "highlight_confirm_button",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_flute_tile"
+    },
+    {
+      "advance_on": "panel_closed",
+      "allow": [],
+      "flags": {
+        "banner": "close_panel_hint"
+      },
+      "highlight": [
+        "button:close"
+      ],
+      "id": "highlight_close_panel_hint",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "end_turn",
+      "allow": [
+        "button:end_turn"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:end_turn"
+      ],
+      "id": "highlight_end_turn_button",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "round_end",
+      "allow": [],
+      "flags": {
+        "is_scripted_loss": true
+      },
+      "highlight": [],
+      "id": "await_scripted_loss",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "message_dismissed:lives_intro",
+      "allow": [
+        "dismiss_message"
+      ],
+      "flags": {},
+      "highlight": [],
+      "id": "lives_message",
+      "message": "lives_intro",
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "tile_clicked:tutorial_stone",
+      "allow": [
+        "tile_click:tutorial_stone"
+      ],
+      "flags": {},
+      "highlight": [
+        "tile:tutorial_stone"
+      ],
+      "id": "highlight_tutorial_stone_tile",
+      "message": null,
+      "revert_on": null,
+      "revert_to": null
+    },
+    {
+      "advance_on": "building_selected:defence",
+      "allow": [
+        "card_select:defence"
+      ],
+      "flags": {},
+      "highlight": [
+        "card:defence"
+      ],
+      "id": "highlight_defender_card",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_tile"
+    },
+    {
+      "advance_on": "building_placed:defence",
+      "allow": [
+        "button:confirm"
+      ],
+      "flags": {},
+      "highlight": [
+        "button:confirm"
+      ],
+      "id": "highlight_confirm_button_defence",
+      "message": null,
+      "revert_on": "panel_closed",
+      "revert_to": "highlight_tutorial_stone_tile"
+    }
+  ]
+}

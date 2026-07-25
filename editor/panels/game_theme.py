@@ -1,11 +1,16 @@
-"""GameThemePanel (UH-6, D5) — the right-pane form shown while the "Theme"
-leaf (selector ▸ ui ▸ Theme) is selected: a global-ish document, reached the
-selection-driven way (ED-3), sibling of the "Screens" branch.
+"""GameThemePanel (UH-6, D5; UH-Font-A) — the right-pane form shown while the
+"Theme" leaf (selector ▸ ui ▸ Theme) is selected: a global-ish document,
+reached the selection-driven way (ED-3), sibling of the "Screens" branch.
 
 Edits ``data/ui/fonts.json`` (per-key size spinbox, schema-bounded, + bold
-checkbox) and ``data/ui/palette.json`` (per-key color swatch button ->
-``QColorDialog``). Named to avoid colliding with ``editor/theme.py`` (the Qt
-chrome light/dark theme, untouched by this phase).
+checkbox), ``data/ui/palette.json`` (per-key color swatch button ->
+``QColorDialog``), and ``data/ui/active_font.json`` (a font-family combo +
+"Import Font…" button, UH-Font-A — ORTHOGONAL to the size/bold presets
+above: "Default" keeps today's SysFont monospace, any other choice is a
+designer-imported ``data/fonts/imported/*.ttf``/``*.otf`` picked from
+``data/fonts/font_manifest.json``). Named to avoid colliding with
+``editor/theme.py`` (the Qt chrome light/dark theme, untouched by this
+phase).
 
 Edits are STAGED, not written immediately — the ``balancing.py`` pattern
 (``editor/panels/CLAUDE.md`` Phase 4), not the screen-session undo pattern:
@@ -15,29 +20,40 @@ Theme Changes" button (enabled only while dirty) is the sole
 ``engine.data_io.write_validated`` call site. Saving emits ``saved`` so
 ``MainWindow`` can reconfigure ``engine.render.fonts`` in-process and repaint
 the viewport (chrome theme, ``editor/theme.py``, untouched).
+
+**"Import Font…" is the one exception to "staged"**: like
+``DetailsPanel``'s sprite import, it copies the file + writes the
+``font_manifest.json`` entry to disk IMMEDIATELY (through
+``editor.font_import.import_font_file``) — only the CHOICE of which font is
+*active* is staged, not the act of importing one.
 """
 import copy
 from pathlib import Path
 
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QColor
+from PySide6.QtGui import QColor, QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
-from editor import theme_ops
-from editor.panels.balancing import CollapsibleSection, _NoWheelSpinBox
+from editor import font_import, theme_ops
+from editor.panels.balancing import CollapsibleSection, _NoWheelComboBox, _NoWheelSpinBox
 from engine import data_io
 
 REPO = Path(__file__).resolve().parents[2]
+
+_DEFAULT_FONT_LABEL = "Default (System Monospace)"
+_PREVIEW_TEXT = "The quick brown fox jumps over the lazy dog"
 
 
 class GameThemePanel(QWidget):
@@ -50,11 +66,18 @@ class GameThemePanel(QWidget):
         self._fonts_baseline = None
         self._palette_doc = None
         self._palette_baseline = None
+        self._font_manifest_doc = None      # data/fonts/font_manifest.json
+        self._active_font_doc = None        # data/ui/active_font.json
+        self._active_font_baseline = None
         self._font_widgets = {}     # key -> (size_spin, bold_check)
         self._font_dots = {}
         self._palette_buttons = {}  # key -> swatch QPushButton
         self._palette_dots = {}
-        self._dirty = set()         # {"font:<key>", "palette:<key>"}
+        self._font_family_combo = None
+        self._active_font_dot = None
+        self._preview_labels = {}   # font_key -> QLabel
+        self._loaded_font_families = {}  # font_id -> Qt family name (cache)
+        self._dirty = set()         # {"font:<key>", "palette:<key>", "active_font"}
 
         self.save_button = QPushButton("Save Theme Changes", self)
         self.save_button.setEnabled(False)
@@ -76,22 +99,29 @@ class GameThemePanel(QWidget):
     # -- selection drives content (ED-3) -------------------------------------
 
     def set_theme(self):
-        """(Re)load both docs fresh from disk and rebuild the form — called
+        """(Re)load every doc fresh from disk and rebuild the form — called
         on entry (the "Theme" leaf's selection handler) and by ``__init__``.
 
         Editor-side graceful degrade (E-37): a missing/invalid
-        fonts.json/palette.json shows a placeholder instead of raising out
-        of a constructor/Qt slot — the editor must open on a broken tree.
-        The GAME's own boot load (game/main.py) fails loud instead (D-2:
-        this is data, not art); that rule is unchanged."""
+        fonts.json/palette.json/font_manifest.json/active_font.json shows a
+        placeholder instead of raising out of a constructor/Qt slot — the
+        editor must open on a broken tree. The GAME's own boot load
+        (game/main.py) fails loud instead (D-2: this is data, not art);
+        that rule is unchanged."""
         try:
             fonts_doc = theme_ops.load_fonts(self._data_dir)
             palette_doc = theme_ops.load_palette(self._data_dir)
+            font_manifest_doc = theme_ops.load_font_manifest(self._data_dir)
+            active_font_doc = theme_ops.load_active_font(self._data_dir)
         except Exception:
             self._fonts_doc = None
             self._palette_doc = None
             self._fonts_baseline = None
             self._palette_baseline = None
+            self._font_manifest_doc = None
+            self._active_font_doc = None
+            self._active_font_baseline = None
+            self._loaded_font_families = {}
             self._dirty = set()
             self._show_unavailable()
             return
@@ -99,6 +129,10 @@ class GameThemePanel(QWidget):
         self._fonts_baseline = copy.deepcopy(fonts_doc)
         self._palette_doc = palette_doc
         self._palette_baseline = copy.deepcopy(palette_doc)
+        self._font_manifest_doc = font_manifest_doc
+        self._active_font_doc = active_font_doc
+        self._active_font_baseline = copy.deepcopy(active_font_doc)
+        self._loaded_font_families = {}
         self._dirty = set()
         self._rebuild_form()
 
@@ -107,12 +141,16 @@ class GameThemePanel(QWidget):
         self._font_dots = {}
         self._palette_buttons = {}
         self._palette_dots = {}
+        self._font_family_combo = None
+        self._active_font_dot = None
+        self._preview_labels = {}
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
         placeholder = QLabel(
-            "data/ui/fonts.json or data/ui/palette.json is missing or "
-            "invalid — nothing to edit here.", self)
+            "data/ui/fonts.json, data/ui/palette.json, "
+            "data/fonts/font_manifest.json or data/ui/active_font.json is "
+            "missing or invalid — nothing to edit here.", self)
         placeholder.setWordWrap(True)
         self._scroll.setWidget(placeholder)
         self.save_button.setEnabled(False)
@@ -122,6 +160,9 @@ class GameThemePanel(QWidget):
         self._font_dots = {}
         self._palette_buttons = {}
         self._palette_dots = {}
+        self._font_family_combo = None
+        self._active_font_dot = None
+        self._preview_labels = {}
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
@@ -162,6 +203,16 @@ class GameThemePanel(QWidget):
             self._palette_dots[key] = dot
         palette_section.content_layout.addLayout(palette_form)
         content_layout.addWidget(palette_section)
+
+        font_family_section = CollapsibleSection(
+            "Font Family",
+            "The game-wide custom font (UH-Font-A), ORTHOGONAL to the size/"
+            "bold presets above — 'Default' keeps today's system monospace. "
+            "Import a .ttf/.otf, pick it below, then Save to make it active.",
+            expanded=True, parent=content)
+        font_family_section.content_layout.addWidget(
+            self._build_font_family_section())
+        content_layout.addWidget(font_family_section)
 
         content_layout.addStretch(1)
         self._scroll.setWidget(content)
@@ -218,6 +269,133 @@ class GameThemePanel(QWidget):
         button.setStyleSheet(
             f"background-color: rgb({r}, {g}, {b}); color: {text_color};")
 
+    # -- Font Family (UH-Font-A): import + active-font combo + preview -------
+
+    def _build_font_family_section(self):
+        container = QWidget(self)
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        picker_row = QWidget(container)
+        picker_layout = QHBoxLayout(picker_row)
+        picker_layout.setContentsMargins(0, 0, 0, 0)
+        import_button = QPushButton("Import Font…", picker_row)
+        import_button.clicked.connect(self._on_import_font_clicked)
+        combo = _NoWheelComboBox(picker_row)
+        self._font_family_combo = combo
+        self._populate_font_combo()
+        combo.currentIndexChanged.connect(self._on_font_family_changed)
+        dot = self._make_dot()
+        self._active_font_dot = dot
+        picker_layout.addWidget(import_button)
+        picker_layout.addWidget(combo, 1)
+        picker_layout.addWidget(dot)
+        layout.addWidget(picker_row)
+
+        preview_form = QFormLayout()
+        for key in sorted(self._fonts_doc):
+            label = QLabel(_PREVIEW_TEXT, container)
+            label.setWordWrap(True)
+            self._preview_labels[key] = label
+            preview_form.addRow(key, label)
+        layout.addLayout(preview_form)
+
+        self._refresh_preview()
+        return container
+
+    def _populate_font_combo(self):
+        combo = self._font_family_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem(_DEFAULT_FONT_LABEL, "default")
+        for font_id, entry in sorted(
+                self._font_manifest_doc["entries"].items(),
+                key=lambda kv: kv[1]["display_name"].lower()):
+            combo.addItem(entry["display_name"], font_id)
+        current = self._active_font_doc["font_id"]
+        index = combo.findData(current)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
+
+    def _on_import_font_clicked(self):
+        path, _filter = QFileDialog.getOpenFileName(
+            self, "Import Font", "", "Fonts (*.ttf *.otf)")
+        if not path:
+            return
+        try:
+            font_id = font_import.import_font_file(self._data_dir, path)
+        except ValueError as exc:
+            QMessageBox.warning(self, "Import Font", str(exc))
+            return
+        self._font_manifest_doc = theme_ops.load_font_manifest(self._data_dir)
+        self._populate_font_combo()
+        index = self._font_family_combo.findData(font_id)
+        if index >= 0:
+            self._font_family_combo.setCurrentIndex(index)
+
+    def _on_font_family_changed(self, _index):
+        font_id = self._font_family_combo.currentData()
+        if font_id is None:
+            return
+        self._active_font_doc["font_id"] = font_id
+        self._refresh_active_font_dirty()
+        self._refresh_preview()
+
+    def _refresh_active_font_dirty(self):
+        dirty_key = "active_font"
+        if self._active_font_doc["font_id"] != self._active_font_baseline["font_id"]:
+            self._dirty.add(dirty_key)
+        else:
+            self._dirty.discard(dirty_key)
+        if self._active_font_dot is not None:
+            self._active_font_dot.setVisible(dirty_key in self._dirty)
+        self.save_button.setEnabled(bool(self._dirty))
+
+    def _family_for_font_id(self, font_id):
+        """Qt family name for the CURRENTLY SELECTED combo choice — 'None'
+        (Qt's own default) for 'default', loading the .ttf/.otf into
+        QFontDatabase (cached per font_id) otherwise.
+
+        **Registered from BYTES, never a path** (the exact argument
+        ``engine.render.fonts.configure_fonts`` makes for its own side):
+        ``QFontDatabase.addApplicationFont(<path>)`` itself is harmless, but
+        the first time Qt's font engine actually loads a glyph from that
+        family it opens the file and holds it for as long as the family
+        stays registered — on Windows that is a hard lock, so a preview
+        render would leave the editor sitting on the designer's font file
+        and would break every ``TempDataCase`` teardown that rmtree's a
+        copied ``data/``. ``addApplicationFontFromData`` copies into memory
+        up front and never touches the path again."""
+        if font_id == "default":
+            return None
+        if font_id in self._loaded_font_families:
+            return self._loaded_font_families[font_id]
+        entry = self._font_manifest_doc["entries"].get(font_id)
+        if entry is None:
+            return None
+        path = self._data_dir / "fonts" / entry["file"]
+        try:
+            data = Path(path).read_bytes()
+        except OSError:
+            self._loaded_font_families[font_id] = None
+            return None
+        font_db_id = QFontDatabase.addApplicationFontFromData(data)
+        families = QFontDatabase.applicationFontFamilies(font_db_id)
+        family = families[0] if families else None
+        self._loaded_font_families[font_id] = family
+        return family
+
+    def _refresh_preview(self):
+        if not self._preview_labels or self._active_font_doc is None:
+            return
+        family = self._family_for_font_id(self._active_font_doc["font_id"])
+        for key, label in self._preview_labels.items():
+            spec = self._fonts_doc[key]
+            font = QFont(family) if family else QFont()
+            font.setPointSize(spec["size"])
+            font.setBold(spec["bold"])
+            label.setFont(font)
+
     # -- staged edits: every change mutates a doc + a dirty dot --------------
 
     def _on_font_size_changed(self, key, value):
@@ -238,6 +416,7 @@ class GameThemePanel(QWidget):
         if dot is not None:
             dot.setVisible(dirty_key in self._dirty)
         self.save_button.setEnabled(bool(self._dirty))
+        self._refresh_preview()   # UH-Font-A: size/bold edits move the preview too
 
     def _on_palette_clicked(self, key):
         current = self._palette_doc[key]
@@ -274,8 +453,13 @@ class GameThemePanel(QWidget):
         if any(k.startswith("palette:") for k in self._dirty):
             theme_ops.write_palette(self._palette_doc, self._data_dir)
             self._palette_baseline = copy.deepcopy(self._palette_doc)
+        if "active_font" in self._dirty:
+            theme_ops.write_active_font(self._active_font_doc, self._data_dir)
+            self._active_font_baseline = copy.deepcopy(self._active_font_doc)
         self._dirty = set()
-        for dot in list(self._font_dots.values()) + list(self._palette_dots.values()):
+        for dot in (list(self._font_dots.values())
+                    + list(self._palette_dots.values())
+                    + ([self._active_font_dot] if self._active_font_dot else [])):
             dot.setVisible(False)
         self.save_button.setEnabled(False)
         self.saved.emit()

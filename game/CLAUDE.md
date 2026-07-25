@@ -30,6 +30,7 @@ user.
 | `enemies/` | `game/enemies/CLAUDE.md` | Enemy walker; spawner wave queue; type-agnostic combat sweep |
 | `core/` | `game/core/CLAUDE.md` | phase machine; payday ordering; XP / village level-up; balance loader |
 | `ui/` | `game/ui/CLAUDE.md` | HUD; building panel; floaters; level-up modal; shell + menus |
+| `tutorial/` | `game/CLAUDE.md` (this section) | `TutorialDirector` — binds the engine sequencer to real tiles/cards/buttons |
 
 Perf deep-dive → `game/PERF.md`.
 
@@ -87,6 +88,219 @@ Perf deep-dive → `game/PERF.md`.
     could show through. The world background is built from background tiles +
     deco props; `BACKGROUND` tiles always render. `ui.FX.bg_art` survives only as
     a balancing-parity key (nothing reads it at render time).
+
+## Tutorial director (Phase TU-6)
+`game/tutorial/director.py` (`TutorialDirector`, no doc of its own — the
+package is one file) binds `engine.tutorial.TutorialSequencer`'s opaque ids to
+real tiles/cards/buttons for the round-1 guided flute-placement chain. This is
+where "flute"/"economic"/"confirm" vocabulary lives — never in
+`engine/tutorial.py` (D2).
+- **Construction** (`build_gameplay()`, alongside `gp["panel"] =
+  BuildingUI(...)`): `TutorialDirector(data_dir, map_doc,
+  core_balance["Tutorial"])` reads `data/tutorial/tutorial.json` (TU-1) + the
+  map doc's `tutorial_flute` marker. Either missing/invalid → ONE logged
+  warning, an empty already-`skip()`ped sequencer, `self.active = False` —
+  NEVER raises, so an old/unpainted map is always fully playable from frame 1.
+  `TutorialMessageScreen` (the Continue/Skip message box, `game/ui/CLAUDE.md`)
+  is built right after, sharing `shell.skinning` like every other gameplay
+  screen.
+- **The gate sits in the UI layer, not the placement seam** (D6):
+  `place_building`/`registry.py` are untouched. Three choke points, matching
+  the plan's own file-scope note verbatim:
+  1. `handle_world_click`'s message branch — while
+     `tutorial.message_visible`, the message box consumes EVERY click
+     (highest priority bar GAME_OVER), routing Continue/Skip to
+     `tutorial.on_message_dismissed()`/`tutorial.skip()`.
+  2. `_tutorial_allows_panel_click(mx, my)` wraps both `panel.handle_click()`
+     call sites (the preview-modal branch and the normal branch): it checks
+     `tutorial.allows(("confirm",))` / `tutorial.allows(("card", btype))`
+     ONLY when the click actually lands on the Confirm button / a construct
+     card — every other click inside the panel (close, cancel, the name box,
+     the dice reroll) passes through UNGATED, a deliberate simpler reading
+     over the stricter "reject literally everything" prose (flagged, not
+     guessed at silently). The tile-pick branch gates the same way:
+     `tutorial.allows(("tile", col, row))` before `update_selection`.
+  3. `Session.tutorial_gate` (`game/core/CLAUDE.md`) — set to
+     `gp["tutorial"].allows_end_turn` in `build_gameplay()`; `end_turn()`
+     checks it right after its existing BUILDING-phase guard. No keyboard-wide
+     gate exists or is needed — `K_SPACE`'s dev-convenience `end_turn()` is
+     gated by the SAME `Session` check, so it cannot bypass the chain.
+- **Event feed**: a successful gated action calls the matching
+  `on_*` hook (`on_tile_clicked`/`on_card_selected`/`on_building_placed`/
+  `on_message_dismissed`/`on_end_turn`) to advance the sequencer.
+  `panel.last_placed_type` (one extra transient `BuildingUI` field, additive)
+  is how `main.py` detects "a placement just landed" vs. a cancelled preview,
+  since both clear `panel.preview` the same way.
+  `on_building_placed` keeps its own running counter so
+  `Tutorial.economy_buildings_required` > 1 holds off the End-Turn unlock
+  until every required placement lands, even though the shipped default (1)
+  can't live-exercise that path.
+- **Rendering**: `tutorial.tile_highlight_targets()` (0 or 1 `(col, row)`
+  pairs) draws a white `submit_tile_diamond` in the world overlay pass, before
+  `panel.submit()`; `tutorial.ui_highlight_rects(panel, hud)` resolves
+  `"card:*"`/`"button:confirm"`/`"button:end_turn"` highlight ids into screen
+  rects (via `panel.card_rect()`/`panel.confirm_rect()`/`hud.end_turn.rect`,
+  `None` skipped — never crashes mid-transition) for
+  `widgets.submit_ui_box_highlight`, drawn after the HUD; the message box
+  submits last. Detail on the widgets/screen side → `game/ui/CLAUDE.md`.
+- **D6 zero-overhead contract**: an inactive/skipped/finished tutorial costs
+  exactly one `finished` bool check per gated call site — `TutorialDirector`
+  and `TutorialSequencer` both fast-path every query to the "always allowed"
+  answer once finished.
+
+## Scripted loss + stone-thrower chain + tutorial end (Phase TU-7)
+TU-7 appends the round-2 half of the script to the SAME
+`data/tutorial/tutorial.json` step list TU-6 built — round 1's chain flows
+straight into it with no seam: after `highlight_end_turn_button` advances on
+`end_turn`, the very next step is round-2's "wait for the scripted loss".
+`TutorialDirector` binds `map_doc.tutorial_stone` exactly like TU-6 bound
+`tutorial_flute` (same nullable-marker shape, same `"tile_click:tutorial_
+stone"` / `"tile_clicked:tutorial_stone"` / `"tile:tutorial_stone"` naming
+per the `_action_id`/event-feed/highlight-id conventions TU-6 established).
+- **The scripted loss needs no new "force a loss" mechanic.** The tutorial's
+  scripted round (round 0 since TU-9 — see below; this section predates that
+  rework and originally read "round 1") has no defence building yet (only the
+  flute chain fired), so the first enemy that reaches the hole IS the scripted
+  loss — `Session.on_base_hit` already runs unconditionally. TU-7's only
+  addition there is a **free-loss waiver**, gated on a NEW `TutorialDirector.
+  charges_life_on_base_hit(round_num)` query (pure read, never mutates the
+  sequencer): `True` (normal rules) unless the tutorial is active, `round_num
+  == 0` (TU-9), the sequencer's CURRENT step carries `flags: {"is_scripted_loss":
+  true}`, and the script's `first_loss_costs_life` is `False`. `on_base_hit`
+  consults it immediately before `st.base_lives -= 1`; a waived loss leaves
+  lives untouched and can never trigger `GAME_OVER`.
+- **`Session.tutorial_director`** (new attribute, `None` by default, set
+  alongside `tutorial_gate` in `build_gameplay()`) is how `on_base_hit` and
+  `_begin_round_end` reach the director — `tutorial_gate` stayed a bare
+  callable (End-Turn only), so the free-loss query and the round-end
+  notification needed the real object.
+- **`_begin_round_end` notifies the director unconditionally**
+  (`director.on_round_end(round_num)`, a new event-feed method mirroring
+  `on_end_turn`'s shape) on EVERY road to ROUND_END — wipe, normal
+  wave-clear, quick-skip, cheat-skip alike. Harmless outside the exact step
+  that's waiting on the `"round_end"` id (D6): `TutorialSequencer.advance`
+  only ever moves past the CURRENT step, so a repeat or an off-step call is a
+  no-op.
+- **Message box #2** (`lives_intro`, already present in TU-1's schema/content
+  — TU-7 added no new message key) has no Skip button, matching D7 ("only
+  box #1 carries Skip"); its step's `allow` list omits `skip_tutorial`.
+- **The stone-thrower (Defender, `BUILDING_TYPE = "defence"`) chain reuses
+  every TU-6 primitive unchanged**: `allows(("card", "defence"))` /
+  `_tutorial_allows_panel_click` / `ui_highlight_rects` needed zero new code,
+  since TU-6 already read `building_type` generically off the clicked card
+  rather than hardcoding `"economic"`. `on_building_placed` gained ONE
+  generalization: economy placements still count toward `Tutorial.
+  economy_buildings_required` before advancing; any OTHER building type
+  (i.e. `"defence"`) advances the sequencer on a single placement — additive,
+  the economy-counting path is untouched.
+- **No separate "terminal step" object exists.** The round-2 chain's last
+  step (`highlight_confirm_button_defence`, advancing on
+  `building_placed:defence`) is simply the LAST entry in the step list — once
+  `advance()` moves past it, `TutorialSequencer.finished` becomes `True` via
+  its existing "past the last step" semantics, with no new engine code. (A
+  literal step object with `advance_on: null` would instead get the sequencer
+  PERMANENTLY stuck there, since `advance()` no-ops whenever the current
+  step's `advance_on` is `None` — deliberately avoided.)
+- **`engine/tutorial.py` needed no changes.** `charges_life_on_base_hit`
+  reads the current step's flags via the sequencer's existing public
+  `current` property (`Step.flags` is a plain dict field) — no new accessor
+  was needed.
+
+## Un-stick on panel close + close-panel hint (Phase TU-8)
+Two fixes riding the SAME script/sequencer TU-6/TU-7 built.
+- **Fix 1 — closing the panel mid-chain reverts, not dead-ends.** The card
+  and Confirm steps of BOTH chains (`highlight_musician_card`/
+  `highlight_confirm_button`, `highlight_defender_card`/
+  `highlight_confirm_button_defence`) carry `revert_on: "panel_closed"` +
+  `revert_to: <their own tile step id>` in the script — `engine.tutorial
+  .TutorialSequencer.revert` is the new GENERIC backward move this needed
+  (`engine/CLAUDE.md`). `TutorialDirector.on_panel_closed()` feeds the
+  opaque `"panel_closed"` event; `main.py` calls it from EVERY panel-close
+  path that did NOT just land a placement — the preview modal's own
+  X/CANCEL (`_preview_click`'s `"close"`/`"cancel"` outcomes), the bare
+  panel's own X (`handle_click`'s pre-mode `close_btn` branch), Esc in both
+  states, and the right-click universal dismiss (`panel.dismiss()`) — each
+  call site captures `panel.preview`/`panel.visible` BEFORE the panel call
+  and compares after, so a click that only renamed/typed/rerolled the dice
+  (preview stays open) or that a SUCCESSFUL placement cleared (guarded by
+  the same `panel.last_placed_type` signal `on_building_placed` already
+  used) never fires the event. `TutorialDirector` adds no new game-vocabulary
+  concept here — `on_panel_closed` just calls `sequencer.revert("panel_closed")`.
+- **Fix 2 — a close-panel hint step, flute chain only.** One new step,
+  `highlight_close_panel_hint`, sits between `highlight_confirm_button` and
+  `highlight_end_turn_button` in the SAME script (never mirrored after the
+  round-2 defence placement — the tutorial ends there and input is
+  released): `highlight: ["button:close"]` (resolved by
+  `ui_highlight_rects` via a new additive `BuildingUI.close_rect()`,
+  the `card_rect`/`confirm_rect` pattern) and `flags: {"banner":
+  "close_panel_hint"}`, resolved by a new `TutorialDirector.banner_text()`
+  against the script's `messages` map — **never the modal `message` field**,
+  which would show the click-swallowing `TutorialMessageScreen` and block
+  the very right-click it is meant to teach. Its `advance_on` is the SAME
+  `"panel_closed"` event Fix 1 reverts on elsewhere; `on_panel_closed()`
+  simply tries `sequencer.advance("panel_closed")` first, then
+  `sequencer.revert("panel_closed")` — only one of the two can ever match
+  the CURRENT step, so trying both is exactly as cheap as knowing which one
+  in advance. End Turn stays un-highlighted AND unclickable for free: the
+  step's `allow` list omits `button:end_turn`, the exact whitelist mechanism
+  every other step already uses (no new gate).
+- **The banner is NOT `TutorialMessageScreen`.** A new `widgets
+  .submit_tutorial_banner(renderer, text, view_w, view_h)` (the
+  `submit_ui_box_highlight` sibling, same `C_TUTORIAL_HIGHLIGHT` white) draws
+  a big centred filled box + text with **no hit-test, no input
+  consumption** — submitted in `main.py`'s overlay pass off
+  `tutorial.banner_text()`, independent of (and drawn alongside)
+  `ui_highlight_rects`'s Close-button ring. Never gates or gets gated.
+
+## The tutorial is round 0 (Phase TU-9)
+The tutorial's scripted round is **round 0**, not round 1 — real enemy
+spawning/scaling now begins at round 1 exactly where it always numerically
+started, whether the run went through the tutorial or was skipped. This
+re-keys several call sites that previously read `round_num == 1` as "the
+tutorial round"; TU-6/TU-7/TU-8's prose above predates this and still says
+"round 1"/"round 2" in places describing the flute/stone chains conceptually
+(script vocabulary, unaffected) rather than the literal round number (which
+did change — see the fixed callouts above).
+- **Seeding**: `build_gameplay()` (`main.py`) sets
+  `gp["world"].session.state.round_num = 0` right after constructing
+  `gp["tutorial"]`, but ONLY when `gp["tutorial"].active` is `True` — an
+  inactive/auto-skipped director (old/unpainted map) and every bare `Session`
+  a logic test builds are untouched, still defaulting to round 1
+  (`RunState.from_balance`). This is the ONE seed site — deliberately host-side
+  rather than a `Session`/`RunState` default, so those two stay unchanged.
+- **`EnemyScaling.tutorial_round_enemy_count`** (`data/balancing/enemies.json`,
+  default 1, minimum 0) is the ONLY thing round 0 ever spawns — exactly that
+  many `"standard"` walkers, from a NEW early branch in
+  `Spawner._compose` checked BEFORE the boss check and before `begin_round`'s
+  tier formula: `0 % round_interval == 0` is true for every interval, so an
+  unguarded boss check would wrongly treat round 0 as a boss round, and
+  `(0 - 1) // n` goes negative — both are guarded explicitly rather than
+  incidentally. `Session.end_turn`'s boss announce-marker check and
+  `_begin_round_end`'s boss-cutscene-queue check gained the same `round_num
+  != 0` guard for the identical reason (three sites total, `game/enemies/
+  spawner.py` + `game/core/session.py` ×2).
+- **Skip jumps straight to round 1.** `main.py`'s `handle_world_click` message
+  branch, right after `tutorial.skip()`: `if session.state.round_num == 0:
+  session.state.round_num = 1`. No round 0, no forced walker, normal wave
+  scaling from there — a host-side concern (the director holds no `Session`
+  reference).
+- **The cutscene no longer keys on `round_num == 1`.** `RunState` grew a
+  one-shot latch, `first_end_turn_cutscene_requested` (bool, never
+  serialized, sitting beside `pending_cutscene`); `Session.end_turn()` requests
+  the `first_end_turn` cutscene the first time this is `False`, regardless of
+  round number, then sets it `True` — fires once whether the run's first End
+  Turn is round 0's (an active tutorial) or round 1's (a skipped run), and
+  never again after that.
+- **HUD**: `game/ui/hud.py`'s round label shows the literal word `"Tutorial"`
+  at `round_num == 0`, `f"ROUND {n}"` otherwise (`game/ui/CLAUDE.md`'s HUD
+  readout-ids section — the round label is still code-owned text, override
+  surface unchanged). `game_over.py`'s "Round Reached" readout was
+  deliberately left alone.
+- **`TutorialDirector.charges_life_on_base_hit`** re-keyed from `round_num !=
+  1` to `round_num != 0` (see the TU-7 section above) — no other
+  `TutorialDirector`/`TutorialSequencer` change; the script's step ids/event
+  feed are unaffected, only which literal round they fire on shifted down by
+  one.
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

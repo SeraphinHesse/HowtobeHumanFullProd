@@ -42,6 +42,9 @@
     "base_lives": 3,
     "building_revive": true
   },
+  "Tutorial": {
+    "economy_buildings_required": 1
+  },
   "XP": {
     "base_income_per_village_level": 2,
     "levelup_love_reward": 25,

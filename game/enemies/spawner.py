@@ -106,7 +106,12 @@ class Spawner:
 
         scaling = enemies_balance["EnemyScaling"]
         tiers = scaling["scale_tiers"]
-        self._tier = (round_num - 1) // scaling["scale_every_n_levels"]
+        # TU-9: round 0 is the tutorial's forced-composition round (see
+        # _compose) — it never scales, so the tier formula (which goes
+        # negative at round_num - 1 == -1) is skipped outright rather than
+        # guarded piecemeal.
+        self._tier = (0 if round_num == 0 else
+                      (round_num - 1) // scaling["scale_every_n_levels"])
         n = min(self._tier, len(tiers))
         interval = scaling["spawn_interval"] - sum(
             tiers[i]["spawn_interval"] for i in range(n))
@@ -160,9 +165,21 @@ class Spawner:
 
         ``_formation_group`` is called LAST on purpose: every earlier group's
         rng draw sequence then stays byte-identical, so the standard/raider/
-        siege counts and picks are unchanged at every round."""
+        siege counts and picks are unchanged at every round.
+
+        TU-9: round 0 is the tutorial's forced-composition round — checked
+        FIRST, before the boss check (``0 % round_interval == 0`` is always
+        True, so an unguarded boss check would wrongly treat round 0 as a
+        boss round at every ``round_interval``) and before any scaling
+        formula. It always composes exactly
+        ``EnemyScaling.tutorial_round_enemy_count`` Standard walkers,
+        ignoring every other composition rule."""
         if not spawn_tiles:
             return []
+        if round_num == 0:
+            n = balance["EnemyScaling"]["tutorial_round_enemy_count"]
+            return [(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
+                    for _ in range(n)]
         if (ENABLE_BOSS and round_num
                 % balance["EnemyTypes"]["Boss"]["round_interval"] == 0):
             return self._boss_round(round_num, balance, spawn_tiles)

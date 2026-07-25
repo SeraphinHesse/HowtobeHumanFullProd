@@ -19,7 +19,8 @@ stats and marker components.
 from functools import reduce
 
 from engine.core import GameObject, Health, SpriteAnimator, Transform
-from .components import BoostReceiver, Nameplate, RoundStats, TierState
+from .components import (BoostReceiver, BuildingSprite, Nameplate, RoundStats,
+                         TierState)
 
 
 def _ordinal(n):
@@ -46,7 +47,7 @@ class Building(GameObject):
             Nameplate(),
             RoundStats(),
             Health(max_hp=1, hp=1),
-            SpriteAnimator(slot_key="", phase_ms=(col * 137 + row * 251) % 2000),
+            BuildingSprite(slot_key="", phase_ms=(col * 137 + row * 251) % 2000),
         ]
         components.extend(self._extra_components(tiers[tier_idx]))
         super().__init__(
