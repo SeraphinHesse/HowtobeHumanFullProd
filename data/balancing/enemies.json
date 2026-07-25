@@ -17,20 +17,20 @@
         "speed": 0.085
       },
       {
-        "dmg": 20,
-        "hp": 70,
+        "dmg": 25,
+        "hp": 80,
         "spawn_interval": 0.1,
         "speed": 0.2
       },
       {
-        "dmg": 25,
-        "hp": 85,
+        "dmg": 32,
+        "hp": 95,
         "spawn_interval": 0.13,
         "speed": 0.2
       },
       {
-        "dmg": 40,
-        "hp": 100,
+        "dmg": 50,
+        "hp": 115,
         "spawn_interval": 0.3,
         "speed": 0.25
       }
@@ -123,7 +123,7 @@
           "attack_range_tiles": 2,
           "attack_speed": 1.4,
           "dmg": 320,
-          "hp": 2000,
+          "hp": 3000,
           "move_speed": 0.58,
           "name": "Cannon Fortress"
         },
