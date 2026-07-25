@@ -11,8 +11,13 @@ Since 10J the backdrop is the prototype's real alpha-210 dim (RGBA
 ``HudRect``) — the frozen board stays faintly visible behind the choice.
 
 10L-B: five ids (plan R3) — ``backdrop`` (color only), ``headline`` (font
-only — its win/loss COLOR stays logic-owned), ``subtitle`` (font,
-text_color), ``box_a``/``box_b`` (rect — moves draw AND hit together; font;
+only — its win/loss COLOR AND WHICH VARIANT stay logic-owned, a 2-variant
+runtime pick, same "dynamic content" exclusion as HUD readouts; the variant
+TEXT itself is Phase-C string-table content —
+``boss_cutscene.headline_win``/``headline_loss``, ``game/ui/strings.py``),
+``subtitle``
+(font, text_color, **label** — a phase-B addition since its copy is fixed,
+not game-state), ``box_a``/``box_b`` (rect — moves draw AND hit together; font;
 text_color; **skin** via the already-live skinned ``submit_panel`` — a
 CONDITIONAL path: with no skin the box keeps drawing its two raw hover-tinted
 rects, byte-identical to pre-B2 (the golden parity pin); a skin present
@@ -31,6 +36,7 @@ from .widgets import (
     anim_ms, contains, submit_centered, submit_panel
 )
 from . import widgets
+from .strings import T
 
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
@@ -58,9 +64,15 @@ class BossCutscene:
         # same convention every other label id in game/ui uses (review fix:
         # every ids target needs a stored, readable, override-respecting
         # rect, not just font/colour).
+        # headline is a win/loss 2-variant string built from runtime outcome
+        # (like its color) — stays logic-owned, no `label` default (out of
+        # scope per the "dynamic/enum-varying text" rule). subtitle is a
+        # fixed, non-varying string, so — like every other screen's static
+        # title — `label` is a legitimate override field for it.
         self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                         text_color=widgets.C_UI_TEXT_DIM)
+                                         text_color=widgets.C_UI_TEXT_DIM,
+                                         label="How will we react?")
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
         self.box_b = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
@@ -133,12 +145,16 @@ class BossCutscene:
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         won = self.outcome == "win"
-        headline = ("Cutscene: Round Won :)" if won
-                    else "Cutscene: Round Lost :(")
+        # Phase C: the TEXT is now string-table content (boss_cutscene.
+        # headline_win/headline_loss) — the win/loss PICK stays logic-owned
+        # (a 2-variant runtime string, same as the colour below), just like
+        # the module docstring's "dynamic content" exclusion always meant.
+        headline = T("boss_cutscene.headline_win" if won
+                     else "boss_cutscene.headline_loss")
         color = _WIN_GREEN if won else _LOSS_RED
         submit_centered(renderer, headline, self._headline.rect[0],
                         self._headline.rect[1], self._headline.font_key, color)
-        submit_centered(renderer, "How will we react?", self._subtitle.rect[0],
+        submit_centered(renderer, self._subtitle.label, self._subtitle.rect[0],
                         self._subtitle.rect[1], self._subtitle.font_key,
                         self._subtitle.text_color)
         prefix = "Win" if won else "Loss"

@@ -19,6 +19,34 @@ floaters, not-enough-love flash, building HP bars; input routing + click-consume
 priority in `game/main.py`. Every menu screen mirrors the `game_over.py`
 construct→layout→update→hit→submit template + `widgets.Button`.
 
+## HUD submission order: panel -> button -> text
+`engine/render/CLAUDE.md` "HUD pass": the HUD layer has **no depth sort** —
+`submit_hud`/`submit_panel`/`submit_text` draw in the order they're called,
+first-submitted = furthest back. The house discipline within any one
+`draw()`/`submit()` method is **panel/background submissions first, then
+buttons, then standalone text** (back to front), so a later decorative rect
+never paints over an already-drawn button and text always reads on top.
+Deliberate exceptions stay commented at their call site — e.g. `building_ui.py`
+`BuildingUI.submit()` draws the hovered terrain tooltip LAST, after every mode
+body, on purpose (it must sit on top of everything, panel included); an
+active-toggle highlight ring (`overlays.py MapOverlays.submit_buttons`) is
+drawn after its own button for the same reason. A third: `hud.py`'s income
+breakdown tooltip — `Hud.submit()` only *decides* whether it is showing at the
+income line (a local `tooltip` variable) and calls
+`_submit_income_tooltip` as the LAST statement of the method, after
+`_submit_lightning`, so it stays in front of the `readout_panel` it overlaps.
+Those are "always on top" overlays, not this rule's target. The menu screens that mirror the
+`game_over.py` template (backdrop → title/body text → action button) are a
+**separate, established, golden-pinned convention**
+(`tools/tests/test_ui_skinning.py::test_all_screens_parity`) predating this
+rule and are not itself a target for reordering — the button/text there never
+overlap, so there is nothing to occlude.
+Two real violations were fixed here: `ConstructPreview.submit()`
+(`building_ui.py`) had text interspersed between panel/button calls instead
+of trailing them; `Hud.submit()`'s round-cluster separator drew AFTER the End
+Turn button. Regression-pinned by `tools/tests/test_hud_panel.py`
+(`TestHudButtonZOrder`, `TestConstructPreviewZOrder`).
+
 ## Dismissing the panel
 `BuildingUI.dismiss()` is the ONE staged dismiss ladder, shared by Esc and
 right-click: it peels a single sub-overlay per call (construct preview → the
@@ -62,6 +90,33 @@ Both are fixed screen-pixel sizes (never zoom-scaled), anchored through
 the HUD pass — i.e. always on top, never depth-sorted (the accepted "HUD on top"
 simplification). Covered by `tools/tests/test_enemy_hp_bars.py`.
 
+**ESV-1 (SUPERSEDED by fix-anchor-origin-parity, below) originally added an
+optional manifest `hp_bar` anchor as a composed SCREEN OFFSET** on top of
+`_sprite_top`'s baseline (enemies) / the flat `cy - tile_h*zoom` baseline
+(buildings) via `game/anchors.py`'s `screen_offset`/`world_offset`, later
+taught to compose the entry's `offset_x`/`offset_y` draw nudge too
+(**fix-anchor-offset-and-bullet-sprites Fix 1**, reversing ESV-2 §1.4 — see
+`docs/briefs/fix-anchor-offset-and-bullet-sprites.md`). Both functions and
+this whole "offset on top of a baseline" model are DELETED.
+
+**fix-anchor-origin-parity (current)**: an authored `hp_bar` anchor now
+**replaces the baseline outright** rather than nudging it — "anchor wins
+outright" (the designer's decision, `docs/briefs/fix-anchor-origin-
+parity.md`). `submit_hp_bars`/`submit_enemy_hp_bars` call `game.anchors.
+anchor_world_point(assets, cs, obj, "hp_bar")`; when it returns a point, the
+bar's screen anchor is `cs.world_to_screen(point)`, full stop — `_sprite_top`
+is not consulted at all. `None` (no anchor authored, or the store/cs/
+animator is absent) falls back to exactly the pre-ESV-1 baseline expression,
+byte-identical. The measured root cause this replaced: the old baseline
+(`cs.world_to_screen(obj.transform.world_pos)` for VFX, `_sprite_top` for
+enemy bars) was NOT where `engine/render`'s `Renderer.flush` actually draws
+the sprite's centre, so an offset composed on top of it still missed by the
+same gap (`tile_h/2*zoom`, 16px at zoom 1, plus `block_center_offset` for a
+multi-tile footprint) — see `game/anchors.py`'s module docstring and
+`engine/render/CLAUDE.md`'s Anchor convention section for the one shared
+formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
+resolves through.
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -85,7 +140,11 @@ logic is `game/core` — see that doc.)
   `ui.FX.boss_announce.enabled`); `submit_announce` draws the centred two-line
   "SOMETHING BIG / IS APPROACHING!" banner over the
   `boss_announce.{fade_in,hold,fade_out}` timings (a real text-alpha fade
-  since 10J); `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
+  since 10J; **ESV-3b**: the colour + max alpha are now
+  `data/balancing/vfx.json procedural.announce`, read off
+  `FloaterManager._vfx_params.announce` — the two copy strings and the
+  timings stay put, screen-skinning/`ui.json` territory respectively);
+  `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
   NOT drawn here — see the enemy HP bars below, which own every overhead bar in
@@ -156,7 +215,10 @@ world-space diamond for each `"crater"` GameObject a mortar shell left (the
 the sanctioned `game/ui → game/buildings.components` read (building_ui already
 imports it). 10J made the crater an alpha-filled diamond; the beam stays a
 plain line (an alpha GLOW under it remains unported — `HudLines` carries no
-alpha; accepted).
+alpha; accepted). **ESV-3b**: the beam colour ramp/width/origin-lift and the
+crater colour/alpha are now `data/balancing/vfx.json` (`procedural.beam`/
+`.crater`), read off `FloaterManager._vfx_params`; the crater's fade LIFE is
+still on its own `CraterFade` component, now fed from the same domain.
 
 ## Lightning + cheat menu UI (10H; Storm Priest rework)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
@@ -194,6 +256,14 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
   fading yellow world-space diamond sized to the real blast radius (projects
   to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
+  expanding impact-flash polygon, and the alpha marker fade. **ESV-3b**:
+  every colour/width/segment/jitter/flash/marker-alpha number here is now
+  `data/balancing/vfx.json procedural.lightning`, read off
+  `FloaterManager._vfx_params.lightning`; the bolt's per-frame jitter now
+  draws through `self._rng` (shared with `self._vfx`'s injected `random`)
+  instead of the bare module-level call. The two fade LIFEs
+  (`bolt_life`/`marker_life`) are on `LightningFXFade`, fed from the same
+  domain via `lightning.strike`'s new required `vfx` argument.
   expanding impact-flash polygon, and the alpha marker fade. The placed Storm
   Priest's own "attack"/"idle" sprite flash (`game.core.lightning
   .LightningCaster`) is a WORLD sprite, not part of this overlay FX — driven
@@ -216,8 +286,10 @@ on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
 exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
 occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
 `track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
-phase edge; blue→yellow→red ramp in `heat_color`). `widgets.COND_LABELS`
-(condition label + colour, keyed by `TileCondition.name`) is shared with
+phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)`
+(condition label + colour, keyed by `TileCondition.name` — the label text is
+Phase C string-table content, `widgets.condition.*`; see "Global UI string
+table" below) is shared with
 `building_ui`'s new terrain badges: a `Terrain: <Label>` pill in the upgrade
 panel (below Level, reads the building's `_tile_condition` snapshot) and at the
 unlock/construct panel foot (reads the tile), each with a hover tooltip whose
@@ -268,11 +340,155 @@ imports:
   `watch_buildings` (death burst + kill log; alive-flip watcher),
   `watch_enemies` (muzzle/slash on an `EnemyCombat.cooldown` reset while
   blocked — no core hook needed), `submit_projectiles` (stone/shell dots —
-  9E's invisible projectiles), blood splatters (`RunState.enemy_death_events`
+  9E's invisible projectiles; **swappable sprites, fix-anchor-offset-and-
+  bullet-sprites Fix 2**: two SHARED slots, `vfx_projectile` for every
+  defender's stone and `vfx_shell` for a mortar's shell — never per-building
+  art — swap in as a `HudSprite` once imported, colour/size/lift read from
+  `data/balancing/vfx.json procedural.projectile` via
+  `FloaterManager._vfx_params.projectile`; the "has art" check is the same
+  `assets.animation_total_ms(slot, "idle") is not None` signal
+  `engine.vfx.spawn_play_once` uses, so the two paths can never disagree
+  about "imported". Deliberately NOT a `triggers` row — a projectile is
+  continuous, like a beam or a lightning bolt, not a one-shot.
+  **feat-projectile-anchored-flight: the lift is gone from this function —
+  `submit_projectiles` is now a pure projection of `p.transform.world_pos`,
+  no `int(tile_h*zoom*lift_frac)` subtracted at draw time.** It moved into
+  the SPAWN POINT (`game/enemies/combat.py`'s `_fire`, via
+  `game.anchors.projectile_point`), which is what let it double-count
+  against an authored `muzzle` anchor before this fix. Unanchored play is
+  unaffected — see `game/enemies/CLAUDE.md`'s matching entry for the
+  homing-target half of this fix), blood
+  splatters (`RunState.enemy_death_events`
   ledger; double-gated `ui.FX.gore_enabled` AND the settings toggle; cleared
   on the ENEMY-phase edge), and alpha versions of the crater / lightning
   marker / boss-announce / floater fades + an expanding lightning impact
   flash.
+  - **ESV-3a**: the spark/death-shard/muzzle/slash/gold-highlight/splatter
+    emitters + their tunables moved to `engine/vfx/` (pure, injected-RNG
+    emitters + a `VfxSystem`) and `data/balancing/vfx.json` (a new balancing
+    domain, D-10). `FloaterManager` now takes a required third constructor
+    arg, `vfx_balance`, and owns a `VfxSystem` (`self._vfx`) it delegates
+    every FX method's body to; every public method name is unchanged.
+    `_params_from_balance` in `effects.py` is the ONE place a JSON key name
+    meets an `engine.vfx` dataclass field.
+  - **ESV-3b**: craters/beams/lightning/boss-announce (10B/10G/10H) are now
+    also ported — colours/alphas/widths/segments/jitter/flash params live in
+    `data/balancing/vfx.json` (`procedural.beam/.crater/.lightning/
+    .announce`, `engine.vfx.BeamParams`/`CraterParams`/`LightningParams`/
+    `AnnounceParams`). Unlike ESV-3a, `submit_beams`/`submit_craters`/
+    `submit_lightning`/`submit_announce` **stay in `effects.py`** — they read
+    `scene.by_tag(...)` and building components the engine must not learn —
+    and read the four new blocks straight off `FloaterManager._vfx_params`
+    (held alongside `self._vfx`, not inside it: the scene already owns the
+    crater/lightning fade clocks, so `VfxSystem` gained no new state).
+    `submit_lightning` is the one draw that consumes random numbers — every
+    SUBMITTED frame, not once at emit — and now draws through
+    `self._rng` (the same injected `random` module `self._vfx` shares)
+    instead of a bare module-level call. The two cosmetic fade lifetimes
+    (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+    REQUIRED arguments from `resolve_combat`/`lightning.strike`'s new
+    `vfx_balance`/`vfx` parameter (5th/3rd) all the way to the `CraterFade`/
+    `LightningFXFade` component fields that own the despawn clock —
+    `game/enemies/combat.py`'s `resolve_combat`/`Crater`/`ProjectileAOE` and
+    `game/core/lightning.py`'s `strike`/`LightningFX` all gained a required
+    argument; `Session.lightning_strike` gained a required 5th
+    `vfx_balance` too (not stored on `Session` — passed per call, like
+    `scene`/`cs`). The two copy strings (`_ANNOUNCE_L1/L2`) and the
+    `ui.json FX.boss_announce` timings stay put — copy is screen-skinning
+    territory, timings were already datafied.
+  - **ESV-5**: a designer can now bind any of the 8 live cosmetic events
+    (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+    `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact` — plus the
+    still-inert `defender_fire`) to an imported `vfx_*` sprite sheet via
+    `data/balancing/vfx.json`'s top-level `triggers` object (a sibling of
+    `procedural`). `_triggers_from_balance` is the ONE place a trigger event
+    NAME is read out of the JSON; every call site that used to call
+    `self._vfx.emit_*`/`add_splatters` directly now goes through the private
+    `_play(event, wx, wy, **kw)` dispatcher instead: a bound `sprite_slot`
+    with imported art spawns a one-shot `engine.vfx.PlayOnceVfx`
+    (`spawn_play_once` — `None` back means "no art yet", the same E-37
+    signal `spawn_corpse` uses); otherwise the named `procedural` kind runs
+    through the SAME `self._vfx`; an empty row (or an event absent from the
+    table) is a silent no-op. Every shipped row's `procedural` reproduces
+    exactly what that call site did before this phase — byte-identical on a
+    fresh checkout with no art imported. `_play` needs two NEW host-wired
+    attributes, `self.assets`/`self.scene` (the `self.log` precedent,
+    wired in `game/main.py build_gameplay` beside `on_build_vfx`/`log`) —
+    either being `None` degrades to the procedural branch, never raises.
+    `splash_impact` (a mortar shell's landing) has no `FloaterManager` call
+    site of its own: `game/enemies/combat.py`'s `ProjectileArc._impact`
+    pushes `(wx, wy)` onto a new `RunState.splash_impact_events` ledger
+    through `resolve_combat`'s optional `on_splash_impact` callback (the
+    `on_enemy_death` layering pattern — `game/enemies` still imports NO
+    `game/core`); `spawn_splash_impact_events` (called beside
+    `spawn_death_events`) drains it into `_play`. The Crater GameObject's own
+    continuous fade mark keeps spawning UNCONDITIONALLY either way — this
+    only adds an optional additional one-shot at the same point.
+    `enemy_death` fires per DEATH POINT (`_play` called once per point in
+    the drained batch, not once for the whole batch) because a batch has no
+    single shared spawn point for the sprite-one-shot branch; the
+    procedural fallback (`add_splatters([(wx, wy)])` per point) extends the
+    same list in the same order a single batched call would have, so the
+    landing condition is unaffected.
+  - **ESV-6 (the plan's FINAL phase)** re-points a SUBSET of the ESV-5
+    dispatch sites at manifest-authored anchors — VISUAL ONLY (D4), never a
+    damage/range/splash expression. **The anchor map**: `defender_fire` and
+    both `enemy_attack_*` events move to the firing entity's `muzzle`;
+    `building_destroyed` and the new `projectile_hit` (below) move to the
+    destroyed building's / the target's `impact`. **Two exclusions,
+    deliberate**: `enemy_death` (blood splatters) and `splash_impact` (mortar
+    crater) stay UNANCHORED — both are GROUND DECALS with an `impact` anchor
+    authored at body height (negative `y`, i.e. upward), so applying it would
+    lift them off the ground; `splash_impact` additionally has no owning
+    sprite to read an anchor from at all (`ProjectileArc._impact` carries a
+    bare ground coordinate). `building_placed`/`_level_up`/`_tier_up` ALSO
+    stay unanchored — they fire from `(col+0.5, row+0.5)` before any building
+    object is reachable, and `spawn_building_vfx` receives no object, only
+    coordinates. A new private helper, `_anchored(obj, name, wx, wy)`, wraps
+    `game.anchors.anchor_world_point` (fix-anchor-origin-parity renamed this
+    from ESV-1's `world_offset` and changed its return contract from a
+    zoom/pan-invariant DELTA to an ABSOLUTE WORLD POINT — `_anchored` itself
+    stays the ONE site every anchored call goes through) — it returns the
+    input UNCHANGED when the store/cs/animator/anchor is absent (ESV-1), so a
+    fresh checkout with no `anchors` authored stays byte-identical.
+    `FloaterManager` gains a THIRD host-wired handle,
+    `self.cs` (the `self.assets`/`self.scene` precedent — wired in
+    `game/main.py build_gameplay` beside them; `None` degrades to the
+    unanchored point, never raises).
+  - **The plan's promised 10th event, `projectile_hit`** (VISUAL ONLY,
+    at the TARGET's `impact` anchor): `game/enemies/combat.py`'s
+    `ProjectileHoming._impact` pushes the anchored point onto a new
+    `RunState.projectile_hit_events` ledger through `resolve_combat`'s
+    optional `on_projectile_hit` callback (the `on_splash_impact` layering
+    pattern — homing shots only; the mortar keeps its own `splash_impact`
+    event); `spawn_projectile_hit_events` drains it into `_play`. Fires
+    whether or not the target is still alive that frame (a hit VFX on a
+    target that died the same frame is correct) — only a missing target
+    guards it. This is what finally consumes the long-orphaned
+    `vfx_hit`/`vfx_explosion` slots the plan's opening complaint named.
+    `defender_fire` gets its first real call site the same way:
+    `_fire`/`_fire_splash` already compute the muzzle-anchored spawn point
+    for the projectile itself, and `resolve_combat`'s new optional
+    `on_defender_fire` callback fires with that SAME point (never
+    recomputed) into a new `RunState.defender_fire_events` ledger, drained by
+    `spawn_defender_fire_events`. **Both new rows ship INERT** (`{sprite_
+    slot: "", procedural: ""}`), exactly like `defender_fire` shipped in
+    ESV-5 — zero visible change on landing.
+  - **The floater port (closes the plan's §6 item 1 dead-data gap)**: the
+    seven floater colour/lifetime module constants
+    (`_UPKEEP_BLUE`/`_XP_PURPLE`/`_XP_LIFE`/`_PAINTER_FINISHED`/`_PAINTER_
+    LOST`/`_PAINTER_LIFE`/`_BOOST_WHITE`) are DELETED. `data/balancing/
+    vfx.json`'s `procedural.floaters` block existed since ESV-3a but was
+    NEVER read (`_params_from_balance` never touched it) — a designer
+    editing it in the `vfx` balancing form saw no effect in game. The four
+    floater spawn sites (`spawn_income_events`/`spawn_xp_events`/
+    `spawn_painter_events`/`spawn_boost_events`) now read
+    `self._vfx_params.floaters` (`engine.vfx.FloaterParams`, built by
+    `_params_from_balance` like every other family); the JSON already
+    shipped values identical to the constants, so this is a visual no-op on
+    landing and a live designer lever from here on. **`game/ui/hud.py`'s OWN
+    `_XP_PURPLE`** (a different colour, the XP-bar pulse) is HUD chrome, not
+    a floater, and was deliberately NOT touched or unified with this.
 - **Modal dims** are the prototype's real alphas now: levelup 185, boss
   cutscene 210, cheat menu 150, pause 150 (the 9H deferral).
 
@@ -404,11 +620,17 @@ sets one).
   error.
 - **Every static title/header is an id too** (review fix, not just buttons/
   panels/backdrops): `main_menu`'s `title`/`subtitle`, `pause`'s/`settings`'s/
-  `credits`'/`game_over`'s/`add_name`'s `title`. Their copy is NOT game-state,
+  `credits`'/`game_over`'s/`add_name`'s `title`, `cheat_menu`'s `title`/
+  `jump_label`, `boss_cutscene`'s `subtitle`. Their copy is NOT game-state,
   so — unlike the HUD readouts below — `label` (the text itself) is a
   legitimate override field for these, same shape as any other widget
   (`rect`/`font_key`/`text_color`/`label`/`visible`).
-- **`hud.py`'s ~12 stable readouts all carry ids now**: `love_panel`,
+- **`hud.py`'s ~13 stable readouts all carry ids now**: `love_panel`,
+  `readout_panel` (the second stone pill, behind the income/lives/tiles
+  column — same `C_PANEL_STONE` body + `C_PANEL_INSET` inset border as
+  `love_panel`, drawn with `HudRect` not a skin, and sized in
+  `_layout_readouts()` to wrap those three rows' DEFAULT anchors via
+  `layout_h("md")`, per the no-cascade convention),
   `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
   widget, the schema's `color` key maps to the track color; the fill ratio +
   levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
@@ -501,7 +723,11 @@ unaffected).
 
 ## Fonts + palette are DATA now (UH-6, D5) + optional per-widget tint (D6)
 `data/ui/fonts.json` / `data/ui/palette.json` ship the exact 7 font presets /
-18 `C_*` colors this file used to hardcode alone — `game/main.py` loads +
+19 `C_*` colors this file used to hardcode alone (the 19th, `purple` /
+`C_PURPLE` = the house purple, is what `main_menu.py`'s `title`/`subtitle`
+tint to — its BUTTONS deliberately keep the stock `ui_btn*` colours;
+`hud.py`'s own `_XP_PURPLE` stays a private module constant, same
+"HUD chrome is not the shared palette" line the floater port drew) — `game/main.py` loads +
 schema-validates both at boot (before the `Shell`/screens are built) and
 calls `engine.render.fonts.configure_fonts(doc)` / `widgets.
 configure_palette(doc)`. The literals in `widgets.py`/`engine/render/
@@ -563,6 +789,105 @@ data, so the two can never silently drift apart.
   only (`editor/panels/viewport.py`), and the details-panel Color control
   is repurposed into Tint (enabled, not disabled) on a skinned widget —
   `editor/panels/CLAUDE.md`.
+- **Per-widget `label` override now takes effect at render time (Phase B).**
+  The resolution mechanism was already generic and already live — `apply`'s
+  setattr loop threads `label` onto any id'd widget for free, same as
+  `skin`/`tint` above (no `_SPEC_TO_ATTR` entry, no separate `label_for`
+  accessor needed; there is no per-field `tint_for`/`skin_for` split to
+  mirror — `apply()`'s one setattr loop IS the shared resolver for every
+  override key). Every `Button` already reads `self.label` in `submit()`, so
+  a `Button`'s id'd `label` override has worked since 10L-B with zero extra
+  wiring (`building_ui.py`'s `action_btn`/`boss_btn`/`close_btn`/
+  `rename_dice_btn`/`boss_close_btn`/`preview_*` included — all `Button`
+  instances, all id'd, all already overridable). The gap Phase B closed was
+  narrower: a handful of non-`Button` `"label"`-kind holders (`SimpleNamespace`
+  shadow objects) were never given a `label` attribute at construction, so
+  their `submit()` read a hardcoded module-level string literal instead of
+  `holder.label` — the override landed on the object (`apply()` doesn't care)
+  but nothing ever read it back. Fixed: `cheat_menu.py`'s `title`/
+  `jump_label`, `boss_cutscene.py`'s `subtitle` now default `label=` to
+  today's literal and their `submit()` reads `self._holder.label` — parity
+  preserved (no override ⇒ identical output), override now honored.
+  `boss_cutscene.py`'s `headline` is the deliberate exception: its text is a
+  2-variant win/loss string built from runtime outcome (`self.outcome`), the
+  same "enum-varying, not a fixed title" exclusion HUD's dynamic readouts
+  already use — only its font stays overridable via THIS mechanism, and
+  color stays logic-owned; the two variant TEXTS themselves are Phase-C
+  string-table content instead (`boss_cutscene.headline_win`/`headline_loss`
+  — see "Global UI string table" below), not this `label` mechanism. Dynamic
+  per-mode content (`building_ui.py`'s `action_btn` label text itself varies
+  by mode/afford-ability, "UNLOCK TILE"/"BUILD"/"THE HOLE" mode headers,
+  `levelup`'s/`credits`' list rows, HUD's ~12 game-state readouts) stays out
+  of scope for `label` specifically for the same reason — a stable id alone
+  doesn't put dynamic text in scope, only a FIXED string does; some of it
+  (HUD's readouts, `levelup.py`'s heading/cost lines) is Phase-C string-table
+  content instead, below.
+  `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) to reflect the three previously-`""` labels.
+
+## Global UI string table (Phase C)
+`data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
+`label` override above structurally cannot: text that varies by runtime/enum
+state (the HUD phase banner, the boss-cutscene win/loss headline) or is
+BUILT FROM A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`,
+`"{built}/{unlocked} tiles"`) — there is no single fixed string to attach to
+a widget id for those. Mirrors `engine/render/fonts.py`'s cache/configure
+shape exactly: a module-level `_STRINGS: dict[str, str]` seeded with today's
+literal text (so an unconfigured import — bare test/tool construction —
+still renders byte-identical output, the same precedent `fonts.py`/
+`widgets.configure_palette` set), `configure_strings(doc)` rebinding it in
+place (called at boot, `game/main.py`, alongside `fonts.json`/
+`palette.json`, same fail-loud-on-key-mismatch D-2 behavior), and
+`T(string_id, **kwargs) = _STRINGS[string_id].format(**kwargs)` — the ONE
+way any call site reads an entry (never index `_STRINGS` directly, so a
+later `configure_strings` rebind always reaches every caller; there is no
+C_*-style early-binding trap to guard against, since nothing holds a
+reference to a resolved VALUE, only to the `T` function).
+- **Dotted ids grouped by source module** (`hud.phase.building`,
+  `hud.income.base`, `widgets.condition.grass`, `levelup.heading`,
+  `boss_cutscene.headline_win`, …) — the editor's Strings panel groups rows
+  by the id's prefix before the first dot.
+- **A dict literal built at import time is the SAME early-binding trap
+  `configure_palette`'s `C_*` block warns about, one level up**:
+  `widgets.cond_label(name)` and `hud.py`'s `_phase_label_text(phase)` are
+  FUNCTIONS, not dicts of resolved text, for exactly that reason — each
+  resolves fresh via `T()` on every call instead of caching text at module-
+  import time (which would freeze the pre-`configure_strings` fallback and
+  never see a later rebind). `hud.py`'s `_phase_color` already established
+  this "function, not a frozen dict" shape for the palette; Phase C reuses
+  it for strings.
+- **`hud.py`'s income-tooltip categorization compares against `T(...)`, not
+  a hardcoded literal** (`_submit_income_tooltip`): since `income_sources()`
+  now returns the RESOLVED `hud.income.upkeep`/`hud.income.story` text as
+  each row's label, the tooltip's red/gold/green styling branch re-resolves
+  the same ids at comparison time — so a designer renaming those two labels
+  in `strings.json` can't desync the comparison from what the label list
+  actually contains.
+- **No editor-side in-process reconfigure** (the exact `palette.json` case
+  `data/CLAUDE.md`'s theme-data section documents): `game/ui/strings` is
+  game-only, off limits to the editor (`editor/` never imports `game/**`).
+  The editor's Strings panel (`editor/panels/strings_panel.py`,
+  `editor/strings_ops.py`) writes `strings.json` and stops there; the game
+  re-reads it at its own next boot.
+- **Not yet migrated (scope note)**: this phase covered `hud.py` in full,
+  `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
+  `boss_cutscene.py`'s win/loss headline. `building_ui.py`'s many per-mode
+  dynamic labels (action-button text, stat rows, the boss-history popup),
+  `effects.py`'s floater/announce text, and the remaining menu screens'
+  templated strings (`game_over.py`'s stat lines, `add_name.py`'s pool
+  counter, `credits.py`) are STILL plain f-strings/module literals — good
+  candidates for the same treatment, deliberately left for a follow-up pass
+  rather than migrated wholesale in one phase.
+
+## The love glyph is GONE
+`widgets.HEART` (`"♥"`) and every `{heart}` placeholder are DELETED — the
+Pixel Emulator game font has no glyph for it, so it rendered as tofu. Four
+`strings.json` templates lost the placeholder (`hud.love_display`,
+`hud.love_unaffordable`, `hud.income_net`, `levelup.cost_paid` — ids and
+every other placeholder unchanged) and `building_ui.py`/`effects.py`'s
+f-strings dropped it inline. Costs/payouts now read as bare numbers
+(`UNLOCK  40`). Do not reintroduce a currency glyph in text; the love ICON
+(`ui_icon_love`, the baked HUD sprite) is where love is signposted.
 
 ## Known divergences (deliberate)
 The XP bar/floaters still drop the prototype's mascot face (never ported); the
@@ -579,6 +904,80 @@ sprite mutation; splatters/craters draw in the overlay pass, i.e. OVER sprites
 (the prototype drew them under buildings); particle velocities are eyeballed
 around the prototype's presets (life/count/colours are exact); overlay diamond
 BORDERS are opaque lines (`OverlayLines` carries no alpha — fills are exact).
+
+**ESV-3a note**: none of the above changed — the port from module constants +
+inline `random.uniform(...)` to `data/balancing/vfx.json` + `engine/vfx/`'s
+injected-RNG emitters is a landing-condition no-op (byte-identical output);
+these approximations are pre-existing and untouched by it.
+
+## Cutscenes (Phase TU-5)
+`game/ui/cutscene_player.py` — `CutscenePlayer` (wraps `engine.video.VideoSource`
++ an optional companion audio track via `engine.audio.play_music`/`stop_music`)
+and `load_cutscene_registry(data_dir)`, which reads `data/video/cutscenes.json`
+(TU-1's registry, `id -> {video, audio, length, trigger}`). Two independent
+trigger call sites in `main.py`, never unified into one state machine:
+- **`intro`** — the pre-menu `GameState.CUTSCENE` shell state, migrated off its
+  old hardcoded `data/video/cutscene.mp4` + `ui_balance["Menu"]["cutscene_length"]`
+  path onto the registry's `intro` entry.
+- **`first_end_turn`** — `Session.end_turn()` sets `state.pending_cutscene` on
+  round 1 (before `spawner.begin_round()`); the host consumes it at the top of
+  the `_WORLD_STATES` sim branch, freezes the round behind a host-local
+  `gp["cutscene"]` flag (not a new `GamePhase`), and paints the video as a
+  full-screen overlay after the frozen world's own `renderer.flush(window)`.
+  Missing video/cv2 → `CutscenePlayer.enabled` is `False`, `gp["cutscene"]`
+  is never set, and the round starts normally the same frame (graceful skip,
+  never a new branch).
+- **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
+  companion track replaces whatever background music was already playing;
+  nothing restores it afterward (no drift/resume correction in scope).
+
+## Tutorial message box + guided-chain highlights (Phase TU-6)
+- **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
+  `game_over.py` construct→layout→update→hit→submit template: a centred
+  dim-backdrop panel showing the director's (script-driven, NOT
+  id-overridable — the text is runtime state, same convention as every other
+  dynamic HUD readout) message text, a CONTINUE button, and a SKIP TUTORIAL
+  button whose visibility is set from `TutorialDirector.skippable()` each
+  `layout()` (a screen-JSON override still wins, applied after). `hit()`
+  returns `"continue"`/`"skip"`/`None`; `game/main.py`'s
+  `handle_world_click` treats the whole modal as consuming every click while
+  `TutorialDirector.message_visible` is true — the highest-priority branch
+  bar GAME_OVER. Built once per `build_gameplay()` alongside `gp["panel"]`,
+  sharing `shell.skinning` like the other seven gameplay screens;
+  `data/ui/screens/tutorial_message.json` is the 14th screen override file,
+  started `{}` like every other.
+- **`widgets.C_TUTORIAL_HIGHLIGHT`** (white, a plain code constant — NOT
+  palette-data-backed, unlike every other `C_*`) + **`submit_ui_box_highlight
+  (renderer, rect, color=None, width=3)`** (a highlight ring around a card /
+  Confirm / End Turn button, plain HUD-space `HudRect`) are the two new D8
+  primitives the guided chain draws with; no new render-backend work.
+- **`building_ui.py` gained three small, additive, read-only members** (no
+  change to `_construct_click`/`open_for_tile`/any existing control flow):
+  `card_rect(building_type)` (the construct-mode card's rect, or `None`),
+  `confirm_rect()` (the open `ConstructPreview`'s CONFIRM rect, or `None`) —
+  both right after `dismiss()` — and `self.last_placed_type` (a transient set
+  to `p.building_type` in `_do_place` only on a REAL placement, `None`
+  otherwise; never reset by `close()`, since `_do_place`'s own
+  `open_for_tile()` call closes the panel internally before `main.py` gets to
+  read it). `game/main.py` reads `last_placed_type` once right after a
+  successful `panel.handle_click()` to distinguish "a building was placed"
+  from "the preview was merely cancelled" (both clear `panel.preview` the
+  same way) and clears it back to `None` itself. TU-8 added a FOURTH:
+  `close_rect()` (the panel's own CLOSE/X rect, or `None` when the panel
+  isn't open — same additive shape).
+- **TU-8 added a second widgets primitive, `submit_tutorial_banner(renderer,
+  text, view_w, view_h)`** — the `submit_ui_box_highlight` sibling for a
+  full-text hint rather than a ring: a big `C_TUTORIAL_HIGHLIGHT`-filled,
+  screen-centred box sized to the text, drawn with **no hit-test and no
+  input consumption** (unlike `TutorialMessageScreen`, which must never be
+  used for a hint instructing a right-click — that modal swallows every
+  click while visible, `main.py` `handle_world_click`'s top branch). Reads
+  its text from `TutorialDirector.banner_text()`, submitted independently of
+  (and alongside) `ui_highlight_rects`'s Close-button ring — see
+  `game/CLAUDE.md`'s "Un-stick on panel close + close-panel hint" section.
+- **Detail on the director/host wiring** (the three choke points, the event
+  feed, the D6 zero-overhead contract, TU-8's revert/close-panel-hint
+  additions) → `game/CLAUDE.md`'s Tutorial director section.
 
 ## Verify
 Live mouse-only loop — unlock, build both types, upgrade to tier 2, lose → game

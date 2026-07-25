@@ -386,8 +386,9 @@ class TestSelectorScreensBranch(TempDataCase):
         self.assertIn("Buttons", labels[1:])
         screens_branch = ui_root.child(0)
         # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
-        # pills), added the sanctioned "drop in a file + ids" way.
-        self.assertEqual(screens_branch.childCount(), 13)
+        # pills) + TU-6's "tutorial_message" (the guided-tutorial message
+        # box), each added the sanctioned "drop in a file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 14)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
@@ -1241,6 +1242,43 @@ class TestMainWindowScreenMode(TempDataCase):
         self.assertEqual(on_disk["widgets"]["title"]["label"], "NEW TITLE")
 
 
+class TestMainWindowVfxMode(TempDataCase):
+    """ESV-5 §2.4: the vfx-mode routing fix. Regression pin for the pre-ESV-5
+    bug — `_leave_vfx_mode` targeted `self.details`, never a stack page (only
+    `self.details_pane` was ever `addWidget`-ed), so selecting a vfx node
+    once permanently stranded the asset importer for the rest of the
+    session. This test FAILS on the pre-fix code (`_enter_vfx_mode` swapped
+    to a now-nonexistent index-3 page and `_leave_vfx_mode`'s stack call was
+    a no-op)."""
+
+    def test_selecting_vfx_then_a_building_then_vfx_again(self):
+        window = self.track(MainWindow(data_dir=self.data_dir))
+        window.resize(1280, 720)
+        window.show()
+
+        # details_pane (0) + map_details (1) + screen_details (2) +
+        # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
+        # preview moved INTO details_pane) + cutscenes (4, TU-3) +
+        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C). The point
+        # of the pin is that the vfx preview is NOT a stack page of its own.
+        self.assertEqual(window.right_stack.count(), 7)
+        self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())   # importer still reachable
+
+        window.selector.select_domain("buildings")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertFalse(window.vfx_preview.isVisible())
+        self.assertTrue(window.details.isVisible())
+
+        window.selector.select_domain("vfx")
+        self.assertIs(window.right_stack.currentWidget(), window.details_pane)
+        self.assertTrue(window.vfx_preview.isVisible())
+
+
 class TestMainWindowScreenModeViews(TempDataCase):
     """UH-2: selecting the Screens-branch parent leaf opens the first view
     (game-mode order); a view leaf opens that specific view; overrides still
@@ -1377,17 +1415,27 @@ class TestPurity(unittest.TestCase):
             "import editor.main, editor.domains, editor.selection, "
             "editor.tilemap_ops, editor.map_session, editor.asset_import, "
             "editor.registry_ops, editor.balancing_history, "
+            "editor.cutscene_import, "
             "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
             "editor.ui_screen_session, "
+            "editor.anchor_ops, "
+            "editor.sprite_fit, "
+            "editor.vfx_params, "
             "editor.panels.selector, editor.panels.balancing, "
             "editor.panels.viewport, editor.panels.details, "
             "editor.panels.level_bar, editor.panels.palette, "
             "editor.panels.map_details, editor.panels.sheet_preview, "
             "editor.panels.sheet_picker, editor.panels.screen_details, "
+            "editor.panels.anchors_panel, "
             "editor.panels._screen_primitives, editor.panels._screen_rules, "
             "editor.panels.game_theme, editor.theme_ops, "
+            "editor.panels.cutscenes, "
+            "editor.panels.tutorial_panel, editor.tutorial_ops, "
+            "editor.font_import, "
+            "editor.panels.strings_panel, editor.strings_ops, "
+            "editor.panels.vfx_preview, "
             "editor.thats_my_producer; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"

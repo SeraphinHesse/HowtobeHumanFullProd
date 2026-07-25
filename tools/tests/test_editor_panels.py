@@ -189,7 +189,13 @@ class TestDomainsDerivation(TempDataCase):
     categories with a data/balancing/<key>.json), never hardcoded — a new
     balancing domain reaches the editor with zero editor edits."""
 
-    CANONICAL = ("buildings", "enemies", "map", "ui", "core")
+    # ESV-3a promoted "vfx" from an asset-only slots.json category to a real
+    # balancing domain (data/balancing/vfx.json + data/schemas/vfx.schema.json)
+    # — it now belongs in the CANONICAL tuple, positioned exactly where
+    # slots.json's category order puts it: right after "core" (confirmed
+    # directly against data/slots.json's categories[] order, never inferred
+    # from this file's own prior expectation).
+    CANONICAL = ("buildings", "enemies", "map", "ui", "core", "vfx")
 
     def add_domain_files(self, key):
         """A new balancing domain in the temp tree: schema + content, content
@@ -226,20 +232,28 @@ class TestDomainsDerivation(TempDataCase):
     def test_removing_a_balancing_file_drops_the_domain(self):
         (self.data_dir / "balancing" / "map.json").unlink()
         self.assertEqual(
-            domains.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+            domains.domains(self.data_dir),
+            ("buildings", "enemies", "ui", "core", "vfx"))
 
     def test_new_balancing_file_adds_a_domain_in_slots_order(self):
-        """vfx is an asset-only category TODAY; give it balancing files and it
-        becomes a domain — positioned where slots.json puts it (after core),
-        with no editor edit anywhere."""
-        self.add_domain_files("vfx")
+        """deco is an asset-only category TODAY (vfx was this class's
+        example until ESV-3a promoted it to a real domain — see CANONICAL);
+        give deco balancing files and it becomes a domain — positioned where
+        slots.json puts it (after vfx), with no editor edit anywhere."""
+        self.add_domain_files("deco")
         self.assertEqual(
-            domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
+            domains.domains(self.data_dir), self.CANONICAL + ("deco",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
-        self.assertNotIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
-        self.add_domain_files("vfx")
-        self.assertIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        # "backgrounds", not "deco": SelectorPanel.domains() only walks TOP-
+        # LEVEL tree items, and deco's root is nested under "map" (a
+        # tree-construction-only choice, see selector.py) — invisible to
+        # this check regardless of domain-ness. backgrounds stays top-level.
+        self.assertNotIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        self.add_domain_files("backgrounds")
+        self.assertIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
 
 
 class TestSelectorContextMenu(TempDataCase):
@@ -299,9 +313,11 @@ class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
         # the LITERAL canonical tuple, not domains.domains(...) — both sides
-        # derive now, so comparing them would be a tautology
+        # derive now, so comparing them would be a tautology. "vfx" joined
+        # (ESV-3a promoted it from asset-only to a real balancing domain).
         self.assertEqual(
-            panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
+            panel.domains(),
+            ("buildings", "enemies", "map", "ui", "core", "vfx"))
 
     def test_domain_without_file_is_omitted(self):
         """A category INTENDED as a domain (it has a schema) whose balancing
@@ -310,7 +326,8 @@ class TestSelector(TempDataCase):
         balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
-        self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
+        self.assertEqual(
+            panel.domains(), ("buildings", "enemies", "ui", "core", "vfx"))
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
 
@@ -383,12 +400,15 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(domains[-1], "enemies")
 
     def test_asset_only_categories_exist_but_are_not_domains(self):
+        """`vfx` was this class's asset-only example until ESV-3a gave it
+        data/balancing/vfx.json + data/schemas/vfx.schema.json, promoting it
+        to a real domain (D8 fallout) — `deco` is still asset-only and keeps
+        the assertion's meaning intact."""
         panel = self.make()
-        self.assertNotIn("vfx", panel.domains())
         self.assertNotIn("deco", panel.domains())
         domains = []
         panel.domain_selected.connect(domains.append)
-        panel.select_node("vfx", ("Effects",))   # node exists and is selectable
+        panel.select_node("deco", ("Props",))    # node exists and is selectable
         self.assertEqual(domains, [])            # but drives no balancing form
 
     def test_unknown_node_raises(self):
@@ -456,6 +476,24 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(themes, [True])
         self.assertEqual(nodes, [])            # never node_selected
         self.assertIn("ui", domains_seen)      # same "ui" domain as Screens
+
+    def test_tutorial_leaf_exists_under_ui_and_emits_tutorial_selected(self):
+        """TU-4: "Tutorial" is a leaf under "ui" (order not hardcoded — a
+        different phase's own leaf placement is not this test's business),
+        never node_selected."""
+        panel = self.make()
+        ui_root = panel._find_item("ui", ())
+        self.assertIsNotNone(panel._tutorial_item)
+        self.assertIs(panel._tutorial_item.parent(), ui_root)
+
+        tutorials, nodes, domains_seen = [], [], []
+        panel.tutorial_selected.connect(lambda: tutorials.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_tutorial()
+        self.assertEqual(tutorials, [True])
+        self.assertEqual(nodes, [])            # never node_selected
+        self.assertIn("ui", domains_seen)      # same "ui" domain as Screens/Theme
 
 
 class TestBalancingPanel(TempDataCase):
@@ -1180,6 +1218,248 @@ class TestGameThemePanel(TempDataCase):
         self.assertEqual(
             theme_ops.load_fonts(self.data_dir)["lg"]["size"], size_spin.value())
         self.assertTrue(panel._font_dots["lg"].isHidden())
+
+    def test_preview_never_holds_the_font_file_open(self):
+        """UH-Font-A: the Font Family preview must register the font from
+        BYTES (``addApplicationFontFromData``), never from its path.
+
+        ``addApplicationFont(<path>)`` looks harmless — it does not lock on
+        its own — but the first time Qt's font engine loads a GLYPH from
+        that family it opens the file and holds it while the family stays
+        registered. On Windows that is a hard lock, so merely building the
+        preview left the editor sitting on the designer's font file and
+        broke every TempDataCase teardown (``shutil.rmtree`` cannot unlink
+        it). The pygame side has the identical trap; see
+        ``test_theme_data.TestCustomFontFileIsNeverHeldOpen``.
+
+        The fixture is PINNED, not inherited: this imports its own font and
+        makes it active in the temp tree rather than trusting whatever
+        ``data/ui/active_font.json`` happens to point at today — the whole
+        bug is invisible while that pointer reads ``"default"``."""
+        import pygame
+        from PySide6.QtGui import QFont, QFontMetrics
+
+        from editor import font_import, theme_ops
+
+        source = Path(pygame.__file__).parent / pygame.font.get_default_font()
+        font_id = font_import.import_font_file(
+            self.data_dir, source, display_name="Pin Fixture")
+        theme_ops.write_active_font({"font_id": font_id}, self.data_dir)
+        imported = theme_ops.resolve_active_font_path(self.data_dir)
+        self.assertIsNotNone(imported)
+
+        panel = self.make()
+        family = panel._family_for_font_id(font_id)
+        self.assertIsNotNone(family)
+        # Force a real glyph load — registering alone never locked anything.
+        QFontMetrics(QFont(family)).horizontalAdvance("Ag")
+
+        os.unlink(imported)   # Windows: raises here if a handle is open.
+        self.assertFalse(Path(imported).exists())
+
+
+class TestCutscenesPanel(TempDataCase):
+    """TU-3: the single "Cutscenes" leaf's panel over
+    ``data/video/cutscenes.json`` (TU-1's registry). Unlike
+    ``GameThemePanel``, every action is an IMMEDIATE write — no staged/
+    dirty-dot model."""
+
+    def make(self):
+        from editor.panels.cutscenes import CutscenesPanel
+        return self.track(CutscenesPanel(data_dir=self.data_dir))
+
+    def _write_src(self, name, content=b"not a real video"):
+        path = self.data_dir / name
+        path.write_bytes(content)
+        return path
+
+    def test_rows_built_in_trigger_order_with_seeded_intro(self):
+        panel = self.make()
+        self.assertEqual(list(panel._rows), ["intro", "first_end_turn"])
+        self.assertEqual(
+            panel._rows["intro"]["video_label"].text(), "cutscene.mp4")
+
+    def test_import_video_copies_writes_registry_and_updates_length(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.mp4")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=12.5):
+            panel._on_import_video("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn.mp4"
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_bytes(), src.read_bytes())
+        self.assertEqual(
+            panel._rows["first_end_turn"]["video_label"].text(),
+            "first_end_turn.mp4")
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(), 12.5)
+
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+        self.assertEqual(doc["first_end_turn"]["length"], 12.5)
+        path = cutscene_import.registry_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(doc))
+
+    def test_import_video_cv2_absent_leaves_manual_length_untouched(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming2.mp4")
+        original_length = panel._rows["first_end_turn"]["length_spin"].value()
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=None):
+            panel._on_import_video("first_end_turn")
+
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(),
+            original_length)
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["length"], original_length)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+
+    def test_import_audio_then_clear_round_trips_null(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.ogg")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")):
+            panel._on_import_audio("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn_audio.ogg"
+        self.assertTrue(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["audio"], "first_end_turn_audio.ogg")
+        self.assertTrue(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+        panel._on_clear_audio("first_end_turn")
+
+        self.assertFalse(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertIsNone(doc["first_end_turn"]["audio"])
+        self.assertFalse(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+
+class TestTutorialPanel(TempDataCase):
+    """TU-4: the single "Tutorial" leaf's panel over
+    ``data/tutorial/tutorial.json`` (TU-1's file). Staged edits (the
+    game_theme.py pattern): every change updates an in-memory doc + a dirty
+    dot; ONE Save button is the sole write_validated call site. ``steps``
+    (and any other TU-1-owned key) must round-trip byte-identical."""
+
+    def make(self):
+        from editor.panels.tutorial_panel import TutorialPanel
+        return self.track(TutorialPanel(data_dir=self.data_dir))
+
+    def test_loading_populates_both_texts_and_both_flags(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(
+            panel._message_edits["economy_intro"].toPlainText(),
+            doc["messages"]["economy_intro"])
+        self.assertEqual(
+            panel._message_edits["lives_intro"].toPlainText(),
+            doc["messages"]["lives_intro"])
+        self.assertEqual(
+            panel._flag_checks["skippable"].isChecked(), doc["skippable"])
+        self.assertEqual(
+            panel._flag_checks["first_loss_costs_life"].isChecked(),
+            doc["first_loss_costs_life"])
+        self.assertFalse(panel.save_button.isEnabled())
+
+    def test_flag_toggle_stages_dirty_dot_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        before = panel._flag_checks["first_loss_costs_life"].isChecked()
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+
+        panel._flag_checks["first_loss_costs_life"].setChecked(not before)
+
+        self.assertFalse(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        # staged only — nothing written yet
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["first_loss_costs_life"],
+            before)
+
+        saved = []
+        panel.saved.connect(lambda: saved.append(True))
+        panel._on_save()
+
+        self.assertEqual(saved, [True])
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        on_disk = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(on_disk["first_loss_costs_life"], not before)
+        path = tutorial_ops.tutorial_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(on_disk))
+
+    def test_message_edit_commits_on_focus_out_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a brand new economy message")
+        # commit path is manual focus-out (no editingFinished on
+        # QPlainTextEdit) — call it directly, the same convention as the
+        # balancing.py tests emitting editingFinished directly rather than
+        # simulating real OS-level focus loss.
+        panel._commit_message("economy_intro")
+
+        self.assertFalse(panel._dots["messages.economy_intro"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+
+        panel._on_save()
+
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(doc["messages"]["economy_intro"],
+                          "a brand new economy message")
+        self.assertTrue(panel._dots["messages.economy_intro"].isHidden())
+
+    def test_whitespace_only_commit_is_rejected(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        original = tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"]
+        edit = panel._message_edits["lives_intro"]
+
+        edit.setPlainText("   \n  ")
+        panel._commit_message("lives_intro")
+
+        # rejected: field reverts, no dirty dot, Save stays disabled
+        self.assertEqual(edit.toPlainText(), original)
+        self.assertTrue(panel._dots["messages.lives_intro"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"],
+            original)
+
+    def test_steps_round_trip_byte_identical_after_text_only_edit(self):
+        from editor import tutorial_ops
+        before = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a different economy message")
+        panel._commit_message("economy_intro")
+        panel._on_save()
+
+        after = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        self.assertEqual(after, before)
 
 
 class TestThemeSwitch(TempDataCase):

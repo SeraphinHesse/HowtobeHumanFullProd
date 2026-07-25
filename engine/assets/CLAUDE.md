@@ -57,8 +57,46 @@ crashes boot.** When you change asset conventions, update THIS doc.
   `engine/render/backend.py` gives it geometry, and only for **HUD sprites**
   (world sprites keep uniform zoom scaling). Omitted ⇒ plain scale. The grey-X
   placeholder deliberately never carries one. See `engine/render/CLAUDE.md`.
-- **Optional `tint_overlay` (bool)**: the second optional per-entry key, added
-  the same way as `slice` and equally uninterpreted here — a render HINT for the
+- **Optional `anchors` (ESV-1)**: the SECOND optional per-entry key, beside
+  `slice`. A manifest entry may carry `anchors: {muzzle?, impact?, hp_bar?,
+  floater_origin?, status_icon?, beam_endpoint?}` — six declared names, all
+  optional, each a `[x, y]` frame-px point relative to the sprite anchor (same
+  convention as `offset_x`/`offset_y`: `+x` right, `-y` up), measured on the
+  sheet frame at frame resolution, never at draw resolution or a zoom (D2).
+  `entry_from_dict` parses it to a `ManifestEntry.anchors` tuple of
+  `(name, (x, y))` pairs (never a mutable dict on the frozen dataclass) and
+  **raises** on a bare string, a non-2-length value, a non-integer, or an
+  undeclared name — same defensive shape as `slice`, and `load_manifest` is
+  again the E-37 layer turning that into warn-and-skip-this-entry.
+  `ManifestEntry.anchor(name)` / `AssetStore.anchor(slot_key, name)` are the
+  read accessors (never index the raw structure). Unlike `slice`, anchors are
+  **metadata, not frame geometry** — they never touch `Frame`/`frame()`/the
+  blit path; `muzzle` (`game/enemies/combat.py` firing points,
+  `game/ui/effects.py watch_enemies`), `impact` (`game/ui/effects.py
+  watch_buildings`/`spawn_projectile_hit_events`) and `hp_bar`
+  (`game/ui/effects.py` overhead bars, "anchor wins outright") are wired to
+  a read-site today, all through `game/anchors.py`'s single resolver,
+  `anchor_world_point` (below). `floater_origin`/`status_icon`/
+  `beam_endpoint` remain declared and parse-ready but inert (no read-site) —
+  shipped now so their future wiring needs no schema migration.
+  - **`AssetStore.offset(slot_key)`** (the anchor/offset composition fix,
+    `docs/briefs/fix-anchor-offset-and-bullet-sprites.md`) mirrors `anchor()`
+    exactly: `(x, y)` ints from the manifest entry's `offset_x`/`offset_y`, or
+    `(0, 0)` when the slot or its entry is absent — same degrade-never-raise
+    contract. **fix-anchor-origin-parity** replaced the old
+    `screen_offset`/`world_offset` delta pair with ONE absolute-world-point
+    resolver, `game/anchors.py`'s `anchor_world_point` — it composes this
+    `offset()` and `anchor()` through `engine.render.sprite_anchor_screen`,
+    the exact placement math `Renderer.flush` draws with (`block_center_
+    offset` + `fit_factor` + the tile-diamond-centre convention), so the
+    resolved point IS the sprite's drawn anchor, never a delta added to a
+    base point that could disagree with it. `editor/panels/viewport.py`'s
+    `_anchor_draw_params` calls the SAME `sprite_anchor_screen` for the
+    editor's handle, so the two consumers of "where is this sprite's anchor
+    point" cannot drift apart again.
+- **Optional `tint_overlay` (bool)**: the THIRD optional per-entry key (after
+  `slice` and `anchors`), added the same way as `slice` and equally
+  uninterpreted here — a render HINT for the
   consumer, meaning "keep drawing your own flat colour overlay UNDER this art
   instead of letting the sprite stand alone". `entry_from_dict` parses it
   (non-bool raises → `load_manifest`'s E-37 warn+skip); omitted ⇒ `False` ⇒ the

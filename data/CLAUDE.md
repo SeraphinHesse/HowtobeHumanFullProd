@@ -20,7 +20,7 @@ validating writer; don't hand-edit the JSON.
   frame sizes, animation vocabularies, editor grouping) (D-32, E-34; see
   the Phase 5 section for why it is NOT under `schemas/`).
 - `balancing/` — one file per domain (`buildings.json`, `enemies.json`,
-  `map.json`, `ui.json`, `core.json`) (D-10).
+  `map.json`, `ui.json`, `core.json`, `vfx.json`) (D-10).
 - `balancing_history/` — one file per domain (`buildings.json`, …, matching
   `balancing/`'s stems), each a flat newest-first JSON array of full-document
   snapshots appended only by the editor's explicit "Save Balancing Changes"
@@ -45,10 +45,63 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- All five domains exist: `balancing/{buildings,enemies,map,ui,core}.json`,
-  each with `schemas/<domain>.schema.json`. Since **Phase 9A** they hold the
-  prototype's live tuning verbatim, restructured into the REPLAN nested
-  feature tree (see planning/MIGRATION_PLAN.md): PascalCase group objects
+- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
+  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+  it promoted `vfx` from an asset-only `slots.json` category to a full
+  balancing domain (`editor/domains.py::domains()` derives the domain list,
+  so this needed zero editor edits — see `/add-category`). Its `procedural`
+  top-level block holds the particle/gold/slash/splatter emitter tunables
+  ported out of `game/ui/effects.py` module constants (spark bursts,
+  building-death shards, muzzle spray, melee slash, gold tile highlight,
+  blood splatter, floater colour/lifetime); `engine/vfx/` holds the pure
+  emitters, injected with these values as frozen dataclasses (D5 — the
+  engine never reads `data/` itself). **ESV-3b** added four more sibling
+  blocks inside the same `procedural` object — `beam` (Sun Scorcher line
+  colour ramp/width/origin-lift), `crater` (mortar scorch colour/alpha/fade
+  life), `lightning` (bolt/flash/marker colours, widths, jitter, segment
+  count, the two fade lifetimes), `announce` (boss-banner colour/alpha
+  ceiling) — reusing the same `$defs/color`/`$defs/ramp` schema shapes.
+  Unlike ESV-3a's five, none of these four are `VfxSystem` state: the scene
+  already owns the crater/lightning fade clocks (`CraterFade`/
+  `LightningFXFade` components), so the two cosmetic lifetimes
+  (`crater.life`, `lightning.bolt_life`/`marker_life`) are threaded as
+  REQUIRED constructor arguments from `game/enemies/combat.py`'s
+  `resolve_combat` / `game/core/lightning.py`'s `strike` down to those
+  components — never a code-side default. **ESV-5** added the promised
+  sibling `triggers` object at the top level: one row per cosmetic EVENT
+  (`building_placed`/`_level_up`/`_tier_up`, `building_destroyed`,
+  `enemy_attack_melee`/`_ranged`, `enemy_death`, `splash_impact`,
+  `defender_fire`), each `{sprite_slot, procedural}` — an enum'd `vfx_*` slot
+  key (or `""`) to play as a one-shot sprite when it has imported art, and an
+  enum'd procedural fallback (or `""` for a silent no-op). `slots.json`'s
+  `vfx` category's `Effects` group grew four new slots for this —
+  `vfx_muzzle`/`vfx_death`/`vfx_slash`/`vfx_crater` — alongside the two
+  pre-existing, still-unbound `vfx_hit`/`vfx_explosion`. **ESV-6** (the
+  plan's final phase) added the 10th trigger row, `projectile_hit`
+  (`{sprite_slot: "", procedural: ""}`, shipped INERT like `defender_fire`) —
+  the target's `impact` anchor at a homing projectile's landing, and the
+  first consumer of the `vfx_hit`/`vfx_explosion` slots the plan's opening
+  complaint named as orphaned. The `sprite_slot` enum already accepted both
+  before this phase; only the `triggers` object's `properties`/`required`
+  needed the new key. ESV-6 also re-pointed a subset of the ESV-5 dispatch
+  sites at manifest anchors (VISUAL ONLY, D4) — a `data/` change to
+  `data/balancing/vfx.json` content, not to its schema. **The
+  fix-anchor-offset-and-bullet-sprites follow-up** (post-ESV live-testing)
+  added a sibling `procedural.projectile` block — `stone_color`/
+  `shell_color`/`stone_size`/`shell_size`/`lift_frac`, the fallback dot
+  `submit_projectiles` draws for an in-flight shot with no imported sprite —
+  and two new `vfx` category slots in `slots.json`'s `Effects` group,
+  `vfx_projectile`/`vfx_shell` (shared across every defender/every mortar
+  respectively, never per-building art), both bare strings inheriting the
+  category's 64×64/`["idle"]` shape like every other `vfx_*` slot. It is
+  NOT a `triggers` row — a projectile is a continuous in-flight object, like
+  a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
+  a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
+  `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
+  touches no schema. Since **Phase 9A** the other
+  five hold the prototype's live tuning verbatim, restructured into the
+  REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
+  group objects
   (`EconomyBuildings`, `TheHole`, `EnemyScaling`, …), snake_case leaves,
   tier struct-lists under a `tiers` key with the prototype's field names
   verbatim. The prototype's 4 stringified
@@ -64,6 +117,24 @@ validating writer; don't hand-edit the JSON.
   art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
   `Boss/stats` row were deleted from content AND schema in the same change:
   nothing read them, and render size now derives from the footprint.
+- **`registry_group` (fix-editor-preview-footprint)**: each `EnemyTypes/*`
+  block also carries a required `registry_group` string — the
+  `data/slots.json` "enemies" group label that type's sprites live under
+  (`Standard`->`"Walker"`, `Raider`->`"Raider"`, `SiegeCannon`->`"Siege
+  Cannon"`, `Formation`->`"Formation"`, `Boss`->`"Boss"`). It exists so
+  `editor/sprite_fit.py`'s pure `slot_draw_fit` resolver can find a preview
+  slot's real render `(footprint, sprite_scale)` — the values a `RenderItem`
+  needs for the entity preview and its anchor handle to match the game
+  (`editor/panels/CLAUDE.md`'s Anchor handles section) — WITHOUT the editor
+  importing `game/` (D5). The link previously existed only in
+  `game/enemies/enemy.py`'s Python `REGISTRY_GROUP` class constants, and two
+  of the five labels do NOT match their `EnemyTypes` key by string
+  (`Standard`/`SiegeCannon`), so matching by convention would have violated
+  "schemas over convention" — hence a real, required data field instead.
+  `game/enemies/enemy.py`'s `REGISTRY_GROUP` constants remain a second,
+  UN-refactored home for the same value (deliberate, reported follow-up
+  work); `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` pins the
+  two together.
 - **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
   **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
   once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`
@@ -199,6 +270,19 @@ validating writer; don't hand-edit the JSON.
   `rows[0].animation` is schema-forced to `idle` (`prefixItems`). Written ONLY
   by the editor's import panel, through `write_validated`. (The one-shot
   migration tool that seeded it is deleted — the editor is the only door now.)
+  - **`slice` (A2) and `anchors` (ESV-1) are the two OPTIONAL per-entry keys** —
+    everything else is `required`. `"slice": [left, top, right, bottom]`, ints
+    0..1024, nine-slice margins in FRAME pixels (same convention as
+    `offset_x`/`offset_y`). It exists so a UI panel/button skin can be drawn at
+    any size with its corners intact: corners blit 1:1, edges stretch on one
+    axis, the centre on both. **HUD sprites only** — world sprites ignore it and
+    keep uniform zoom scaling. Omit it for plain scaling; no committed entry
+    carries one yet. The geometry lives in `engine/render/backend.py` (see
+    `engine/render/CLAUDE.md`). `"anchors": {muzzle?, impact?, hp_bar?,
+    floater_origin?, status_icon?, beam_endpoint?}` — six declared named
+    `[x, y]` frame-px handle points, all optional, same coordinate convention.
+    Unlike `slice` they are pure metadata (never affect slicing/blitting); see
+    `engine/assets/CLAUDE.md`. No committed entry carries one yet.
   - **`slice` (A2) and `tint_overlay` are the OPTIONAL per-entry keys** —
     everything else is `required`. `tint_overlay` (bool) is a render hint the
     engine carries uninterpreted: "keep drawing the consumer's own flat colour
@@ -310,14 +394,40 @@ validating writer; don't hand-edit the JSON.
   3-int array 0-255, all required. The game loads + validates it at boot and
   calls `widgets.configure_palette(doc)`, which rebinds every `C_*` module
   attribute (mechanical `"C_" + key.upper()`). This IS the whole `C_*`
-  block — `widgets.COND_LABELS` and every other inline color literal in
-  `game/ui` stay code, deliberately out of scope.
+  block — `widgets.cond_label`'s COLOR half and every other inline color
+  literal in `game/ui` stay code, deliberately out of scope (its LABEL TEXT
+  half moved to `strings.json` below, Phase C).
 - **Parity is the safety net for both files**: the committed content is
   today's hardcoded values verbatim, and `tools/tests/test_theme_data.py`
   pins that (a) configuring from the stock fixture doc reproduces
   `test_ui_skinning.py`'s golden baseline byte-for-byte, and (b) the
   UNCONFIGURED module defaults (the fallback bare construction uses) equal
   that same fixture — the two value sets can never silently drift apart.
+- **`data/ui/strings.json`** ↔ `schemas/strings.schema.json` (normal stem
+  pairing): a FLAT `{string_id: template}` map, one dotted id per source
+  module/call-site (`hud.phase.building`, `hud.income.base`,
+  `widgets.condition.grass`, `levelup.heading`, `boss_cutscene.headline_win`,
+  …), `additionalProperties: false` with every key `required` — the same
+  closed-set convention as `fonts.json`/`palette.json` (a designer cannot
+  invent a new id through this schema; adding one is a schema change).
+  Covers UI text that Phase B's per-widget `label` override
+  (`ui_screen.schema.json`) structurally cannot: text that varies by
+  runtime/enum state (a phase banner, a win/loss headline) or is BUILT FROM
+  A TEMPLATE with live values (`"LIVES {count}"`, `"ROUND {n}"`) — there is
+  no single fixed string to attach to a widget id for those. Templates use
+  Python `str.format()` placeholders; each property's `description`
+  documents which keyword(s) its call site passes. The game loads +
+  validates it at boot (`game/main.py`, alongside `fonts.json`/
+  `palette.json`) and calls `game.ui.strings.configure_strings(doc)`, which
+  rebinds the module's string table in place; every call site resolves text
+  via `game.ui.strings.T(string_id, **kwargs)` — never a raw f-string. A
+  missing/invalid file fails LOUD (D-2 — boot config data, not art; E-37
+  does not apply). The editor's Strings panel (`editor/panels/
+  strings_panel.py`) is the only writer, through `write_validated`, staged
+  like `fonts.json`/`palette.json`. **No separate editor-side consumer to
+  reconfigure** (`game/ui/strings` is game-only, off limits to the editor,
+  same as `palette.json`'s case above) — the game re-reads `strings.json`
+  at its own next boot.
 - **`ui_screen.schema.json` widget `tint` (D6)**: one new key in the
   per-widget override object, same 3-4-int-array shape as `color` — like
   every other widget override key (`rect`/`skin`/`font`/`label`/`color`/
@@ -327,6 +437,31 @@ validating writer; don't hand-edit the JSON.
   (`engine/render/CLAUDE.md`'s nine-slice/`BLEND_RGBA_MULT` section);
   omitted = unchanged, so an existing screen doc that predates `tint` keeps
   validating and rendering exactly as before.
+- **`data/fonts/font_manifest.json`** ↔ `schemas/font_manifest.schema.json`
+  (UH-Font-A, normal stem pairing): `{"version": 1, "entries": {<font_id>:
+  {"file": "imported/<font_id>.<ttf|otf>", "display_name": "..."}}}` — every
+  custom font a designer has imported through the editor's Theme panel,
+  ORTHOGONAL to `data/ui/fonts.json`'s 7-preset size/bold system above
+  (completely untouched by this feature). `data/fonts/imported/*.ttf`/
+  `*.otf` are committed content (mirrors `data/sprites/imported/*.png`'s
+  D-31 precedent), written ONLY by `editor.font_import.import_font_file`
+  through `write_validated`.
+- **`data/ui/active_font.json`** ↔ `schemas/active_font.schema.json` (normal
+  stem pairing): `{"font_id": "default" | <font_manifest entry id>}` — the
+  single pointer to the game-wide custom font family. `"default"` means
+  today's `pygame.font.SysFont("monospace", ...)` behavior; any other value
+  must match an entry in `font_manifest.json` — a cross-file check the
+  schema can't express, so `game/main.py`'s boot loader cross-checks it
+  (entry exists AND its file exists on disk) and fails LOUD (D-2, the
+  `engine.tilemap.load_map` precedent) rather than degrading. The editor's
+  Theme panel is the only writer (staged like `fonts.json`/`palette.json`);
+  its own resolution (`editor.theme_ops.resolve_active_font_path`) degrades
+  to `None` instead of raising (editor-side E-37 grace). Loaded once at boot
+  and passed to `engine.render.fonts.configure_fonts`'s `font_path=` kwarg
+  — `None` for `"default"`, an absolute path otherwise; every `font_key`
+  then builds via `pygame.font.Font(font_path, size)` instead of
+  `SysFont`. `layout_h`/`_LAYOUT_H` are unaffected either way (same
+  invariant as a plain size change above).
 
 ## Map data (Phase 6, D-20/21/22 specifics)
 - **`maps/<id>.json` (map files)**: `id` (== filename stem, loader-enforced),
@@ -346,7 +481,12 @@ validating writer; don't hand-edit the JSON.
   section grid, never forces tile states, drawn by the editor as an outline
   only; existing maps were migrated to `"start_area": null`), `deco` (world
   positions; renders ABOVE entities, E-26). Spawning is a painted zone — the
-  format has NO spawn-point objects.
+  format has NO spawn-point objects. `tutorial_flute`/`tutorial_stone`
+  (nullable {col,row,slot}, same shape as `camera_start`; slots const-pinned
+  to `"tutorial_flute"`/`"tutorial_stone"`, TU-1, planning/TutorialPLAN.md D1)
+  are the tutorial's designer-painted forced-first-placement tiles — never
+  rendered by the game or the editor's normal render pipeline; existing maps
+  were migrated to `"tutorial_flute": null, "tutorial_stone": null`.
 - **SCHEMA-PAIRING EXCEPTIONS (the directory rule — there are THREE)**: the
   default is stem pairing (`data/foo.json` ↔ `schemas/foo.schema.json`, missing
   schema fails loud). `tools/smoke.py::validate_data` implements + tests exactly
@@ -366,6 +506,54 @@ validating writer; don't hand-edit the JSON.
   apply to map data).
 - `maps/first_light.json` is the committed starter map (prototype-exact
   initial layout) so the game always boots on real data.
+
+## Tutorial + cutscenes data (Phase TU-1, D3/D4)
+- **`data/tutorial/tutorial.json` ↔ `schemas/tutorial.schema.json`**: normal
+  stem pairing (the file's stem `tutorial` already equals its schema's stem,
+  so no `tools/smoke.py` directory exception was needed — the plain `else:
+  schema = schema_dir / f"{path.stem}.schema.json"` branch already resolves
+  it). Root keys: `skippable`/`first_loss_costs_life` (bools, the script's
+  behavioral toggles), `messages` (a **closed** 3-key object,
+  `economy_intro`/`lives_intro`/`close_panel_hint` — TU-8 added the third,
+  all required strings — the two message-box texts verbatim from the
+  designer brief plus the flute chain's non-modal close-panel banner text),
+  `steps` (array, `minItems:1`; each step is `additionalProperties:false` —
+  `id`, `message` (nullable string id into `messages`), `highlight` (array
+  of opaque string ids), `advance_on` (string event id), `allow` (array of
+  allowed input action ids), `flags` (object, `additionalProperties:true` —
+  the ONE deliberately open leaf, so later phases attach per-step data with
+  no schema bump), `revert_on`/`revert_to` (TU-8, both nullable strings —
+  the backward mirror of `advance_on`/a target step `id`; `revert_to` naming
+  a step absent from `steps` is a safe engine-side no-op, not a schema
+  violation, since the schema can't express "must be one of the other
+  steps' ids" without a doc-wide cross-check)). TU-1 seeds only the round-1
+  step list (flute-player placement chain); TU-6/TU-7 append round-2 steps,
+  TU-8 adds the revert-flow fields (every existing step now carries an
+  explicit `null`/`null` pair) plus one new close-panel-hint step, all under
+  this same schema. Read only by `engine/tutorial.py`'s generic
+  step-sequencer (TU-6+) — the engine knows nothing of flutes or holes; the
+  game-side director binds the opaque ids to real things.
+- **`data/video/cutscenes.json` ↔ `schemas/cutscenes.schema.json`**: same
+  normal stem pairing (no directory exception). An open registry keyed by
+  cutscene id (`additionalProperties: {$ref: #/$defs/entry}`), each entry
+  `{video, audio (nullable), length, trigger}`. `trigger` is a closed enum
+  today (`intro`/`first_end_turn`) — a new trigger point is a schema bump.
+  TU-1 seeds `intro` (mirroring, but not yet migrating, `game/main.py`'s
+  still-hardcoded `data/video/cutscene.mp4` + `ui.json`'s
+  `Menu.cutscene_length` — that migration is TU-5's job) and
+  `first_end_turn` (new, fires in `session.end_turn()` on round 1 before
+  `spawner.begin_round()`, wired by TU-5+).
+- **`data/balancing/core.json`'s `Tutorial` group** (alphabetically between
+  `TheHole` and `XP`): one leaf, `economy_buildings_required` (integer,
+  minimum 1) — the number of economy buildings the player must place before
+  the tutorial's first End Turn / first-end-turn cutscene. Behavioral
+  toggles (`skippable`, `first_loss_costs_life`) live in the tutorial script
+  above, not here — the editor's Tutorial section owns those.
+- **`data/slots.json`'s `core` category gained two new one-slot groups**,
+  `"Tutorial Flute"` (`tutorial_flute`) and `"Tutorial Stone"`
+  (`tutorial_stone`), same shape as `"Start Area"`. Neither is a real sprite
+  — the marker is drawn as an outline — the group exists solely so the
+  editor's palette brush buttons (TU-2) have a slot key to arm.
 
 ## Rules
 - **JSON here is the ONLY value store** (D-1). Never move a value into Python;

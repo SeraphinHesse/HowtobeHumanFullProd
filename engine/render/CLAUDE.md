@@ -41,6 +41,28 @@ frame that ships is 96 or 32 tall, so the new rule is **byte-identical** for
 buildings / tiles / deco / core; the enemy sheets (18/26/28/56/84/88 tall) are
 the intended moves — they used to hang above their tile.
 
+**`sprite_anchor_screen(cs, wx, wy, frame_w, fit_tiles, scale, offset_xy,
+anchor_xy)` (fix-anchor-origin-parity)** — exported from this module (and
+`engine.render`) alongside `fit_factor`/`block_center_offset`: the SCREEN
+point a manifest `anchor_xy` (frame-px, `(0, 0)` = the sprite's drawn
+CENTRE) resolves to for the sprite `flush` draws at world position
+`(wx, wy)`. It composes `block_center_offset` + `fit_factor` + this
+module's centre convention — never restates them — evaluated for one point
+instead of a whole blit. THE one shared origin every anchor consumer, game
+and editor alike, must resolve through: `game/anchors.py`'s
+`anchor_world_point` (game side) and `editor/panels/viewport.py`'s
+`_anchor_draw_params` (editor side) both call it, closing the gap that
+shipped as a live bug — the editor drew every anchor handle from the
+sprite's drawn centre while the game resolved the SAME anchor from a
+different base (`cs.world_to_screen(obj.transform.world_pos)`, missing both
+the `tile_h/2*zoom` tile-diamond-centre shift and, for a multi-tile
+footprint, the `block_center_offset` shift), so a handle dragged onto a
+sprite landed somewhere else in game — always, for every anchor. Measured
+gap on the fixture geometry (tile_h=32, zoom=1): exactly 16px. `frame_h`
+never enters this function — the centre sits on the tile diamond's centre
+regardless of frame height, per the Anchor convention above. Pure: no
+pygame, no game vocabulary. See `docs/briefs/fix-anchor-origin-parity.md`.
+
 ## Sizing: `fit_tiles` / `scale` (ER-1, downscale-only)
 `RenderItem`/`SpriteAnimator` carry two engine-generic sizing fields (**no game
 vocabulary here** — never `footprint`/`sprite_scale`, those are the `game/` names
@@ -189,17 +211,39 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   `game.main`) never hit "font module quit since font created" (added 9F).
   Pure-metadata code that needs string widths asks `TextMetrics` so it never
   imports pygame itself.
-  - **`configure_fonts(doc)` (UH-6, D5)** — the ONE way `_FONT_SPECS` changes
-    after import: takes a LOADED `data/ui/fonts.json` dict (`{key: {size,
-    bold}}`, same 7 keys), rebinds `_FONT_SPECS` in place and clears `_cache`
-    so stale `SysFont`s are rebuilt. The module stays data-dir-free (no
-    `data_io` call inside it) — the HOST (`game/main.py`, `editor/main.py`)
-    loads + schema-validates the file and passes the plain dict, mirroring how
-    `engine.tilemap` consumes docs. Fails loud on a key-set mismatch. The
-    `_FONT_SPECS` literals are the UNCONFIGURED FALLBACK for bare test/tool
-    construction; a pin test (`tools/tests/test_theme_data.py`) proves they
-    equal the committed `fonts.json`, so the fallback can never silently
-    drift from the data it mirrors.
+  - **`configure_fonts(doc, font_path=None)` (UH-6, D5; UH-Font-A)** — the ONE
+    way `_FONT_SPECS`/`_FONT_PATH` change after import: takes a LOADED
+    `data/ui/fonts.json` dict (`{key: {size, bold}}`, same 7 keys), rebinds
+    `_FONT_SPECS` in place and clears `_cache` so stale fonts are rebuilt. The
+    module stays data-dir-free (no `data_io` call inside it) — the HOST
+    (`game/main.py`, `editor/main.py`) loads + schema-validates the file and
+    passes the plain dict, mirroring how `engine.tilemap` consumes docs. Fails
+    loud on a key-set mismatch. The `_FONT_SPECS` literals are the
+    UNCONFIGURED FALLBACK for bare test/tool construction; a pin test
+    (`tools/tests/test_theme_data.py`) proves they equal the committed
+    `fonts.json`, so the fallback can never silently drift from the data it
+    mirrors.
+    - **`font_path` (UH-Font-A, optional)** is the game-wide custom font
+      family — ORTHOGONAL to the per-key size/bold presets: an absolute path
+      to a `.ttf`/`.otf`, or `None` (the default) to keep the plain
+      `SysFont("monospace", ...)` fallback exactly as before. The HOST
+      resolves `data/ui/active_font.json` + `data/fonts/font_manifest.json`
+      to this value — `game/main.py` fails loud on a bad reference (D-2),
+      the editor's Theme panel degrades to `None` (E-37). See
+      `data/CLAUDE.md` "Theme data".
+    - **The file is READ ONCE into `_FONT_BYTES`, and `get_font` builds each
+      size from an `io.BytesIO` over those bytes — NEVER from the path.**
+      `pygame.font.Font(<path>, size)` makes SDL_ttf hold that file OPEN for
+      the font object's whole lifetime, and those objects live in `_cache`
+      until the process exits; on Windows that is a hard lock. Via the path
+      form, the editor sat on the designer's font file for its whole run and
+      every `TempDataCase` teardown died on `shutil.rmtree` ->
+      `PermissionError` the moment a non-`"default"` font was active — which
+      is why nothing caught it until the first real font was selected. The
+      editor's Qt-side PREVIEW has the identical trap and the identical fix
+      (`addApplicationFontFromData`, see `editor/panels/CLAUDE.md`). Reading
+      eagerly also moves a bad file's failure to config time, where the host
+      is already validating, instead of the first draw.
   - **`_LAYOUT_H`/`layout_h` are NEVER touched by `configure_fonts`** — the
     pinned cross-platform layout invariant (below) stays authoritative
     regardless of a designer's font-size edits; only DRAWN glyphs move, never

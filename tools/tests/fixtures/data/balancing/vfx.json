@@ -1,0 +1,324 @@
+{
+  "procedural": {
+    "announce": {
+      "color": [
+        220,
+        40,
+        40
+      ],
+      "max_alpha": 255
+    },
+    "beam": {
+      "colors": {
+        "stop_0": [
+          255,
+          200,
+          40
+        ],
+        "stop_1": [
+          255,
+          110,
+          15
+        ],
+        "stop_2": [
+          210,
+          20,
+          10
+        ]
+      },
+      "origin_lift_tiles": 1.0,
+      "width_base": 2
+    },
+    "crater": {
+      "alpha": 150,
+      "color": [
+        120,
+        78,
+        66
+      ],
+      "life": 1.0
+    },
+    "death_burst": {
+      "colors": {
+        "stop_0": [
+          150,
+          90,
+          200
+        ],
+        "stop_1": [
+          120,
+          70,
+          170
+        ],
+        "stop_2": [
+          180,
+          120,
+          230
+        ]
+      },
+      "count": 14,
+      "gravity": 60.0,
+      "life": 0.65,
+      "size_h_max": 5,
+      "size_h_min": 2,
+      "size_w_max": 4,
+      "size_w_min": 2,
+      "vx_max": 45.0,
+      "vx_min": -45.0,
+      "vy_max": -10.0,
+      "vy_min": -80.0
+    },
+    "floaters": {
+      "boost_color": [
+        255,
+        255,
+        255
+      ],
+      "painter_finished_color": [
+        255,
+        255,
+        100
+      ],
+      "painter_life": 1.5,
+      "painter_lost_color": [
+        255,
+        100,
+        100
+      ],
+      "upkeep_color": [
+        120,
+        170,
+        230
+      ],
+      "xp_color": [
+        202,
+        140,
+        245
+      ],
+      "xp_life": 0.9
+    },
+    "gold_highlight": {
+      "border_color": [
+        255,
+        240,
+        80
+      ],
+      "border_width": 2,
+      "fade_in": 0.15,
+      "fill_alpha": 90,
+      "fill_color": [
+        255,
+        215,
+        0
+      ],
+      "hold": 0.35,
+      "life": 1.2
+    },
+    "lightning": {
+      "bolt_color_end": [
+        255,
+        240,
+        80
+      ],
+      "bolt_color_start": [
+        255,
+        255,
+        255
+      ],
+      "bolt_jitter_px": 6,
+      "bolt_life": 0.5,
+      "bolt_segments": 8,
+      "bolt_width": 2,
+      "flash_alpha": 200,
+      "flash_color": [
+        255,
+        250,
+        200
+      ],
+      "flash_radius_px": 20.0,
+      "marker_color": [
+        255,
+        240,
+        120
+      ],
+      "marker_fill_alpha": 120,
+      "marker_life": 1.0,
+      "marker_outline_width": 2
+    },
+    "muzzle": {
+      "count": 8,
+      "count_strong": 13,
+      "gravity": 0.0,
+      "life": 0.2,
+      "life_strong": 0.32,
+      "ramp": {
+        "stop_0": [
+          255,
+          230,
+          120
+        ],
+        "stop_1": [
+          220,
+          90,
+          50
+        ],
+        "stop_2": [
+          130,
+          30,
+          20
+        ]
+      },
+      "size_h": 2,
+      "size_w": 2,
+      "smoke_chance": 0.25,
+      "smoke_color": [
+        100,
+        80,
+        80
+      ],
+      "vx_max": -30.0,
+      "vx_min": -90.0,
+      "vy_max": 35.0,
+      "vy_min": -35.0
+    },
+    "projectile": {
+      "lift_frac": 0.6,
+      "shell_color": [
+        70,
+        60,
+        55
+      ],
+      "shell_size": 5,
+      "stone_color": [
+        185,
+        180,
+        170
+      ],
+      "stone_size": 3
+    },
+    "slash": {
+      "colors": {
+        "stop_0": [
+          220,
+          230,
+          255
+        ],
+        "stop_1": [
+          200,
+          215,
+          245
+        ],
+        "stop_2": [
+          255,
+          255,
+          255
+        ]
+      },
+      "life": 0.28,
+      "lines_max": 3,
+      "lines_min": 2,
+      "ox_max": 6.0,
+      "ox_min": -6.0,
+      "oy_max": 2.0,
+      "oy_min": -10.0,
+      "size": 7,
+      "size_large": 11
+    },
+    "spark": {
+      "gravity": 55.0,
+      "presets": {
+        "level1": {
+          "count": 7,
+          "life": 0.55
+        },
+        "level2": {
+          "count": 16,
+          "life": 0.88
+        },
+        "place": {
+          "count": 10,
+          "life": 0.75
+        },
+        "tier": {
+          "count": 26,
+          "life": 1.2
+        }
+      },
+      "ramp": {
+        "stop_0": [
+          255,
+          230,
+          80
+        ],
+        "stop_1": [
+          255,
+          150,
+          40
+        ],
+        "stop_2": [
+          210,
+          60,
+          30
+        ]
+      },
+      "size_h": 2,
+      "size_w": 2,
+      "vx_max": 28.0,
+      "vx_min": -28.0,
+      "vy_max": -20.0,
+      "vy_min": -70.0
+    },
+    "splatter": {
+      "alpha": 170,
+      "color": [
+        180,
+        30,
+        30
+      ],
+      "jitter": 0.6,
+      "radius_px": 4.0
+    }
+  },
+  "triggers": {
+    "building_destroyed": {
+      "procedural": "death_burst",
+      "sprite_slot": ""
+    },
+    "building_level_up": {
+      "procedural": "spark_level",
+      "sprite_slot": ""
+    },
+    "building_placed": {
+      "procedural": "spark_place",
+      "sprite_slot": ""
+    },
+    "building_tier_up": {
+      "procedural": "spark_tier",
+      "sprite_slot": ""
+    },
+    "defender_fire": {
+      "procedural": "",
+      "sprite_slot": ""
+    },
+    "enemy_attack_melee": {
+      "procedural": "slash",
+      "sprite_slot": ""
+    },
+    "enemy_attack_ranged": {
+      "procedural": "muzzle",
+      "sprite_slot": ""
+    },
+    "enemy_death": {
+      "procedural": "splatter",
+      "sprite_slot": ""
+    },
+    "projectile_hit": {
+      "procedural": "",
+      "sprite_slot": ""
+    },
+    "splash_impact": {
+      "procedural": "crater",
+      "sprite_slot": ""
+    }
+  }
+}

@@ -493,7 +493,11 @@
             {
               "label": "Era 4",
               "slots": [
-                "boss_era_4"
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "boss_era_4"
+                }
               ]
             }
           ],
@@ -713,6 +717,18 @@
           "slots": [
             "start_area"
           ]
+        },
+        {
+          "label": "Tutorial Flute",
+          "slots": [
+            "tutorial_flute"
+          ]
+        },
+        {
+          "label": "Tutorial Stone",
+          "slots": [
+            "tutorial_stone"
+          ]
         }
       ],
       "key": "core"
@@ -729,7 +745,13 @@
           "label": "Effects",
           "slots": [
             "vfx_hit",
-            "vfx_explosion"
+            "vfx_explosion",
+            "vfx_muzzle",
+            "vfx_death",
+            "vfx_slash",
+            "vfx_crater",
+            "vfx_projectile",
+            "vfx_shell"
           ]
         }
       ],

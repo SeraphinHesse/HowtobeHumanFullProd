@@ -3,10 +3,14 @@ the strike FX object + the Storm Priest's ``LightningCaster`` puppeting.
 
 Ports the prototype's lightning fields on ``Game`` (``game.py:116-119``),
 ``_handle_lightning_click`` / ``_activate_lightning`` (``game.py:492-514``)
-and the cooldown tick (``game.py:1243-1246``). Every tunable comes from
-``core.json`` ``LightningStrike`` (cooldown/damage/radius per level,
-max_level); the two FX lifetimes + ``CASTER_FLASH_DURATION`` are code
-constants, not balancing (the ``CRATER_LIFE`` precedent).
+and the cooldown tick (``game.py:1243-1246``). Every gameplay tunable comes
+from ``core.json`` ``LightningStrike`` (cooldown/damage/radius per level,
+max_level); the two FX lifetimes are cosmetic and come from
+``data/balancing/vfx.json`` ``procedural.lightning.bolt_life``/``marker_life``
+(ESV-3b) via ``strike()``'s ``vfx`` argument — never touching this file's
+gameplay tunables, and never simulation timing (D4).
+``CASTER_FLASH_DURATION`` stays a code constant (the ``CRATER_LIFE``
+precedent).
 
 **Radius semantics** (prototype ``game.py:505-508``): the blast is a Euclidean
 CIRCLE in the PROJECTED pixel plane — ``radius_px = radius_tiles * TILE_HW``
@@ -20,10 +24,10 @@ no iso math leaks out of ``engine.coords``.
 State lives on ``RunState`` (``lightning_level`` / ``lightning_cooldown``);
 this module is pure functions over it plus ``LightningFX`` (the ``Crater``
 pattern: it ages in ``scene.update`` — i.e. on the host's ENEMY-scaled sim dt,
-prototype-exact — self-despawns at ``MARKER_LIFE``, and the FX layer just
-draws it). Damage pays no ``RoundStats`` credit — lightning has no shooter;
-kills flow through the next ``resolve_combat`` sweep's ``on_enemy_death``, so
-they pay XP and count as kills like any other kill.
+prototype-exact — self-despawns at its own ``marker_life``, and the FX layer
+just draws it). Damage pays no ``RoundStats`` credit — lightning has no
+shooter; kills flow through the next ``resolve_combat`` sweep's
+``on_enemy_death``, so they pay XP and count as kills like any other kill.
 
 **Storm Priest rework**: there is no love-priced level-up any more
 (``next_cost``/``upgrade`` are gone). Leveling is driven entirely by the
@@ -35,8 +39,12 @@ fires in combat — it dropped the ``"combat"`` tag).
 """
 from engine.core import Component, GameObject, Health, SpriteAnimator, Transform
 
-# Cosmetic FX lifetimes — code constants like CRATER_LIFE, not balancing
-# (prototype effects.py:232 bolt life; AOE_DEF_CRATER_DURATION default 1.0).
+# Cosmetic FX lifetimes — declared-field FALLBACKS only (the Component base
+# requires a default per field); the runtime source of truth is
+# data/balancing/vfx.json procedural.lightning.bolt_life/marker_life
+# (ESV-3b), threaded through strike()'s required vfx argument. Kept here as
+# the CraterFade-style precedent literal and so a bare LightningFXFade()
+# built with no override still has a sane value.
 BOLT_LIFE = 0.5     # seconds the jagged bolt is drawn
 MARKER_LIFE = 1.0   # seconds the ground marker fades over, then despawns
 CASTER_FLASH_DURATION = 0.4  # seconds the Storm Priest holds its "attack" pose
@@ -79,14 +87,20 @@ def sync_level_from_tier(state, building):
         state.lightning_level = max(state.lightning_level, building.tier_number())
 
 
-def strike(state, core, scene, cs, wx, wy):
+def strike(state, core, vfx, scene, cs, wx, wy):
     """Strike world point ``(wx, wy)`` (prototype ``_activate_lightning``,
     game.py:502-514). Silent no-op (False) while locked or cooling. Otherwise:
     flat damage to EVERY alive enemy inside the projected-plane circle (no
     falloff, no target cap, no love cost), the cooldown is spent
     UNCONDITIONALLY — a whiff that hits nothing still pays it and still shows
     the VFX — and a ``LightningFX`` marker is spawned. Any world point is a
-    valid target: no tile/zone/bounds check, no enemies-required check."""
+    valid target: no tile/zone/bounds check, no enemies-required check.
+
+    ``vfx`` (ESV-3b, required — no default, G-7): the loaded ``vfx.json``
+    dict, read for the two cosmetic fade lifetimes
+    (``procedural.lightning.bolt_life``/``marker_life``) the spawned
+    ``LightningFX`` is built with — never the damage/radius/cooldown above,
+    which stay ``core.json`` ``LightningStrike`` (unchanged by this phase)."""
     if not can_strike(state):
         return False
     ls = core["LightningStrike"]
@@ -102,7 +116,8 @@ def strike(state, core, scene, cs, wx, wy):
         if (ex - sx) ** 2 + (ey - sy) ** 2 <= radius_px ** 2:
             enemy.get_component(Health).damage(dmg)
     state.lightning_cooldown = ls["cooldown"][idx]
-    fx = LightningFX(wx, wy, radius_tiles)
+    lp = vfx["procedural"]["lightning"]
+    fx = LightningFX(wx, wy, radius_tiles, lp["bolt_life"], lp["marker_life"])
     fx.get_component(LightningFXFade)._scene = scene
     scene.spawn(fx)
     for b in scene.by_tag("lightning_source"):
@@ -142,11 +157,20 @@ class LightningCaster(Component):
 
 class LightningFXFade(Component):
     """The strike marker's age clock (the ``CraterFade`` mirror). Purely
-    cosmetic — ages to ``MARKER_LIFE`` in ``scene.update`` then despawns its
-    owner; the FX layer reads ``radius_tiles`` + the owner's fade fractions."""
+    cosmetic — ages to ``marker_life`` in ``scene.update`` then despawns its
+    owner; the FX layer reads ``radius_tiles`` + the owner's fade fractions.
+
+    ``bolt_life``/``marker_life`` (ESV-3b): declared fields, fed from
+    ``data/balancing/vfx.json`` (``procedural.lightning.bolt_life``/
+    ``marker_life``) via ``strike()``. The class defaults (``BOLT_LIFE``/
+    ``MARKER_LIFE``) are only the declared-field fallback the ``Component``
+    base requires — every production path (``strike``) sets both explicitly
+    at construction."""
 
     radius_tiles: float = 0.0
     age: float = 0.0
+    bolt_life: float = BOLT_LIFE
+    marker_life: float = MARKER_LIFE
 
     def on_added(self, owner):
         self._owner = owner
@@ -154,7 +178,7 @@ class LightningFXFade(Component):
 
     def update(self, dt):
         self.age += dt
-        if self.age >= MARKER_LIFE:
+        if self.age >= self.marker_life:
             scene = getattr(self, "_scene", None)
             if scene is not None:
                 scene.despawn(self._owner)
@@ -163,14 +187,20 @@ class LightningFXFade(Component):
 class LightningFX(GameObject):
     """A cosmetic strike marker at the impact point (Phase 10H). Logical only;
     ``game/ui/effects.py submit_lightning`` draws the bolt while
-    ``bolt_frac > 0`` and the fading ground diamond from ``fade_frac``."""
+    ``bolt_frac > 0`` and the fading ground diamond from ``fade_frac``.
 
-    def __init__(self, wx, wy, radius_tiles):
+    ``bolt_life``/``marker_life`` (ESV-3b, required — no default, G-7): the
+    two cosmetic fade lifetimes, always supplied by the one caller
+    (``strike()``) from its balancing-authored ``vfx`` argument."""
+
+    def __init__(self, wx, wy, radius_tiles, bolt_life, marker_life):
         super().__init__(
             name="lightning_fx",
             tags=("lightning_fx",),
             transform=Transform(wx=wx, wy=wy, layer="overlay"),
-            components=[LightningFXFade(radius_tiles=float(radius_tiles))],
+            components=[LightningFXFade(radius_tiles=float(radius_tiles),
+                                        bolt_life=bolt_life,
+                                        marker_life=marker_life)],
         )
 
     @property
@@ -183,10 +213,12 @@ class LightningFX(GameObject):
 
     @property
     def bolt_frac(self):
-        """1.0 fresh -> 0.0 at ``BOLT_LIFE`` (drives the bolt fade)."""
-        return max(0.0, 1.0 - self.age / BOLT_LIFE) if BOLT_LIFE else 0.0
+        """1.0 fresh -> 0.0 at ``bolt_life`` (drives the bolt fade)."""
+        bolt_life = self.get_component(LightningFXFade).bolt_life
+        return max(0.0, 1.0 - self.age / bolt_life) if bolt_life else 0.0
 
     @property
     def fade_frac(self):
-        """1.0 fresh -> 0.0 at ``MARKER_LIFE`` (drives the ground marker)."""
-        return max(0.0, 1.0 - self.age / MARKER_LIFE) if MARKER_LIFE else 0.0
+        """1.0 fresh -> 0.0 at ``marker_life`` (drives the ground marker)."""
+        marker_life = self.get_component(LightningFXFade).marker_life
+        return max(0.0, 1.0 - self.age / marker_life) if marker_life else 0.0

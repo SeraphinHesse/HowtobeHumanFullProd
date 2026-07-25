@@ -160,6 +160,7 @@ _DISPLAY_NAMES = {
         "btn_end_turn": "End Turn button",
         "btn_pause": "Pause button",
         "love_panel": "Love panel",
+        "readout_panel": "Income/lives/tiles panel",
         "phase_label": "Phase label",
         "xp_bar": "XP bar",
     },

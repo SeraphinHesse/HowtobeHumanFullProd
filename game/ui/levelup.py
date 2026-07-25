@@ -26,9 +26,10 @@ from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning
 from .widgets import (
-    HEART, anim_ms, contains, submit_centered, submit_panel, wrap_text
+    anim_ms, contains, submit_centered, submit_panel, wrap_text
 )
 from . import widgets
+from .strings import T
 
 _BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
 _BOX_W, _BOX_H, _GAP = 200, 220, 8
@@ -37,8 +38,9 @@ _BOX_W, _BOX_H, _GAP = 200, 220, 8
 # .C_UI_PANEL` would capture today's value at IMPORT time and never see a
 # later configure_palette() rebind (the same "default arg" trap fonts.py's
 # module docstring calls out, just at module scope instead of a def line).
+# Same reasoning applies to the heading below (Phase C): read via T() at the
+# submit() call site, never cached into a module constant.
 _SPRITE_PX = 72
-_HEADING = "CHOOSE YOUR REWARD"
 
 SCREEN_ID = "levelup"
 
@@ -110,7 +112,7 @@ class LevelupWindow:
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         top = self.rects[0][1] if self.rects else view_h // 2
         # layout_h: the heading position lands in the golden parity stream.
-        submit_centered(renderer, _HEADING, view_w // 2,
+        submit_centered(renderer, T("levelup.heading"), view_w // 2,
                         top - layout_h("xxl") - 16, "xxl", widgets.C_GOLD)
         panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
@@ -155,7 +157,8 @@ class LevelupWindow:
         cost = option.get("display_cost", option["cost"])
         label = option.get("cost_label")
         if label:
-            text = "FREE" if cost <= 0 else f"{label}  {HEART}{cost}"
+            text = (T("levelup.cost_free") if cost <= 0
+                    else T("levelup.cost_paid", label=label, cost=cost))
             submit_centered(renderer, text, cx, cursor, "sm", widgets.C_GOLD)
         cursor += layout_h("sm") + 4
 
@@ -165,7 +168,8 @@ class LevelupWindow:
 
         if option["kind"] == "tier":
             submit_centered(
-                renderer, f"Tier {option['tier_no']} of {option['tier_max']}",
+                renderer, T("levelup.tier_progress", tier_no=option["tier_no"],
+                           tier_max=option["tier_max"]),
                 cx, y + h - layout_h("sm") - 6, "sm", widgets.C_UI_TEXT_DIM)
 
     @staticmethod
