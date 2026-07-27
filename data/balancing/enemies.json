@@ -11,26 +11,26 @@
         "speed": 0.06
       },
       {
-        "dmg": 10,
-        "hp": 45,
+        "dmg": 13,
+        "hp": 50,
         "spawn_interval": 0.09,
         "speed": 0.085
       },
       {
         "dmg": 25,
         "hp": 80,
-        "spawn_interval": 0.1,
+        "spawn_interval": 0.4,
         "speed": 0.2
       },
       {
-        "dmg": 32,
-        "hp": 95,
+        "dmg": 45,
+        "hp": 115,
         "spawn_interval": 0.13,
         "speed": 0.2
       },
       {
-        "dmg": 50,
-        "hp": 115,
+        "dmg": 60,
+        "hp": 140,
         "spawn_interval": 0.3,
         "speed": 0.25
       }
