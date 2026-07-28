@@ -11,14 +11,14 @@
         "speed": 0.06
       },
       {
-        "dmg": 13,
+        "dmg": 14,
         "hp": 50,
         "spawn_interval": 0.09,
         "speed": 0.085
       },
       {
-        "dmg": 25,
-        "hp": 80,
+        "dmg": 27,
+        "hp": 85,
         "spawn_interval": 0.4,
         "speed": 0.2
       },
