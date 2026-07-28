@@ -6,6 +6,7 @@ pathfinder, and screen→tile picking. Behaviour matches the prototype's
 ``src/map/*``; balancing comes from ``data/balancing/map.json``.
 """
 from .conditions import condition_render_items, draws_tint
+from .spawn_deco import spawn_deco_render_items, spawn_tree_slots
 from .pathfinder import (
     find_path,
     find_path_ignoring_walls,
@@ -28,6 +29,8 @@ __all__ = [
     "load_map_balance",
     "condition_render_items",
     "draws_tint",
+    "spawn_deco_render_items",
+    "spawn_tree_slots",
     "find_path",
     "find_path_ignoring_walls",
     "find_path_to_nearest_building",

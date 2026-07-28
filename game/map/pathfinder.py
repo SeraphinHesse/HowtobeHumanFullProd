@@ -498,6 +498,29 @@ def nearest_non_base_building_tile(tilemap, start_col, start_row):
                                      + (g[1] - start_row) ** 2, g[0], g[1]))
 
 
+def find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1):
+    """Cheapest path from (start_col, start_row) to the nearest SPAWNING tile —
+    the kidnapper's route home. ``[]`` when there is no spawn tile at all, or
+    none reachable.
+
+    ``ignore_walls=True`` is deliberate: a carrier is inert (``PathAgent`` no
+    longer scans for blockers or walls once ``carrying`` is set — see
+    ``game/enemies/CLAUDE.md``), so a wall it cannot break must never be able
+    to trap it on the way home. Buildings are traversable weights, never
+    ``impassable_weight``, so a live occupant cannot trap it either.
+
+    A fresh ``_dijkstra`` like every other goal-set variant, NOT flow-field
+    backed: a kidnap fires at most once per building kill, so this stays well
+    inside the one-Dijkstra-per-topology-change invariant (``game/PERF.md``)
+    rather than needing its own cached field."""
+    _pre_query_refresh(tilemap)
+    goals = {(t.col, t.row) for t in tilemap.spawning_tiles()}
+    if not goals:
+        return []
+    return _dijkstra(tilemap, start_col, start_row, goals,
+                     ignore_walls=True, footprint=footprint)
+
+
 def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
                                            footprint=1):
     """Route to the nearest alive NON-BASE building; the base path when the

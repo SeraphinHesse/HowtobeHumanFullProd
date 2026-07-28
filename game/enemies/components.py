@@ -18,12 +18,23 @@ components; locomotion itself is the pure ``engine.physics.advance`` step wrappe
 by ``engine.core.Movement``.
 """
 from engine.core import Component, Health, Movement, SpriteAnimator
+from engine.render.item import RenderItem
 from game.buildings.components import RoundStats
 from game.map.pathfinder import (
     _wall_blocks, block_covers, block_tiles, face_edges,
     find_path_to_nearest_non_base_building, internal_edges,
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
+
+# Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
+# arithmetic, no engine change — world_to_screen is
+# ix = (wx-wy)*half_w, iy = (wx+wy)*half_h and depth_key = (layer, wx+wy, wy)
+# (engine/coords/system.py), so a world offset of (-d, +d): moves the sprite
+# exactly 2*d*half_w px LEFT on screen with zero vertical change, leaves the
+# depth (wx+wy) identical and raises wy, so the carried building sorts AFTER
+# the carrier and draws IN FRONT of it. A cosmetic module constant (the
+# AOE_TRAVEL_TIME / CRATER_LIFE precedent), not balancing.
+CARRY_OFFSET_TILES = 0.25
 
 
 # -- 10I: tile-condition modifier lookup (shared by both components) --------
@@ -89,6 +100,7 @@ class PathAgent(Component):
     footprint: int = 1            # the unit occupies footprint × footprint tiles
     target_col: int = -1          # the building we committed to hunt (BP-3)
     target_row: int = -1          # -1 = none: we are walking at the base
+    carrying: bool = False        # kidnapping (Art/enemies): inert while True
 
     def on_added(self, owner):
         self._owner = owner
@@ -105,6 +117,12 @@ class PathAgent(Component):
         # -- /10I --
 
     def update(self, dt):
+        # Kidnapping (Art/enemies): a carrier is inert — no blocker scan, no
+        # wall scan, no re-path, no condition-speed write. Movement (a
+        # separate component) keeps driving the waypoints ``begin_kidnap``
+        # loaded, on the speed it set.
+        if self.carrying:
+            return
         owner = getattr(self, "_owner", None)
         tm = getattr(self, "_tilemap", None)
         if owner is None or tm is None or self.reached_base:
@@ -364,6 +382,7 @@ class EnemyCombat(Component):
 
     def on_added(self, owner):
         self._owner = owner
+        self._kidnap_victim = None  # transient stash for a pending kidnap
 
     # -- 10I: condition-modified attack damage -------------------------------
 
@@ -412,6 +431,17 @@ class EnemyCombat(Component):
             if rs is not None:
                 rs.dmg_taken_this_round += dmg
             self.cooldown = self.attack_speed
+            # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
+            # type ARMS the transition here; this component never touches the
+            # scene — the combat sweep's kidnap pass (combat.py) owns the
+            # actual retag/carry via begin_kidnap. Never the wall-attack
+            # branch above: walls carry no sprite and no tile.
+            if not getattr(target, "alive", False):
+                kidnap = owner.get_component(Kidnap)
+                if (kidnap is not None and kidnap.enabled
+                        and not kidnap.pending and not kidnap.active):
+                    kidnap.pending = True
+                    self._kidnap_victim = target
 
 
 class DeathSpawn(Component):
@@ -438,3 +468,75 @@ class DeathSpawn(Component):
     spawn_hp_fraction: float = 1.0
     counts: dict = {}
     death_spawned: bool = False
+
+
+class Kidnap(Component):
+    """Kidnapping (Art/enemies): per-type toggle (``EnemyTypes.<type>.
+    kidnapping``) plus the carry-home state machine. ``EnemyCombat`` only
+    ARMS ``pending`` on a killing blow (guard-safe, never touches the scene);
+    ``begin_kidnap`` (``kidnap.py``) is the ONE site that flips ``pending`` ->
+    ``active``, retags the owner to ``"kidnapper"`` and loads the walk-home
+    waypoints — the combat sweep's kidnap pass is what calls it.
+
+    * ``enabled`` — resolved at construction from balancing, like every other
+      per-type stat.
+    * ``pending`` — ``EnemyCombat`` just landed the killing blow; the sweep
+      will transition this frame.
+    * ``active`` — carrying, walking home.
+    * ``frozen`` — pin the sprite clock at frame 0 (the sheet has no
+      ``kidnap`` row, so there is nothing to actually animate).
+    * ``slot_key``/``fit_tiles``/``scale`` — the carried building's own
+      ``SpriteAnimator`` fields, copied once at the transition.
+    """
+
+    enabled: bool = False
+    pending: bool = False
+    active: bool = False
+    frozen: bool = False
+    slot_key: str = ""
+    fit_tiles: float = 0.0
+    scale: float = 1.0
+
+    def on_added(self, owner):
+        self._owner = owner
+        self._scene = None  # set by begin_kidnap; the despawn-on-arrival seam
+
+    def update(self, dt):
+        if not self.active:
+            return
+        owner = getattr(self, "_owner", None)
+        if owner is None:
+            return
+        # Re-pin the sprite clock at frame 0 every frame: SpriteAnimator.update
+        # (which ran earlier in the component list) always advances its own
+        # clock regardless of what animation is set, so this is what actually
+        # locks the frame when the sheet has no `kidnap` row.
+        if self.frozen:
+            anim = owner.get_component(SpriteAnimator)
+            if anim is not None:
+                anim.anim_time_ms = 0.0
+        mv = owner.get_component(Movement)
+        if mv is not None and (mv.arrived or not mv.waypoints):
+            scene = getattr(self, "_scene", None)
+            if scene is not None:
+                scene.despawn(owner)
+
+    def render_items(self, transform):
+        """One extra RenderItem for the carried building's sprite, offset
+        ``(-CARRY_OFFSET_TILES, +CARRY_OFFSET_TILES)`` in world space so it
+        draws to the carrier's left and IN FRONT of it (see the module
+        constant's derivation above). ``Scene.render_items`` collects this
+        generically alongside the carrier's own ``SpriteAnimator`` item — no
+        new GameObject, no engine change."""
+        if not self.active or not self.slot_key:
+            return
+        wx, wy = transform.world_pos
+        yield RenderItem(
+            self.slot_key,
+            (wx - CARRY_OFFSET_TILES, wy + CARRY_OFFSET_TILES),
+            layer=transform.layer,
+            animation="idle",
+            anim_time_ms=0,
+            fit_tiles=self.fit_tiles,
+            scale=self.scale,
+        )

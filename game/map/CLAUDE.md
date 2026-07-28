@@ -124,6 +124,35 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     per visible tile WITH art, every frame — importing grass art puts the whole
     visible window on the layer. Measure before shipping grass art;
     `GroundCache` cannot absorb it (scroll-fill needs an opaque `bg_color`).
+  - **Spawn-band tree deco rides the SAME condition-art init pass** (folded in
+    on purpose — a third O(map) walk is the explicit perf invariant this
+    avoids). `SpawnDeco.tree_chance` (balancing `map` domain) is rolled once
+    per tile — including BACKGROUND tiles, since those are exactly what later
+    backfills into SPAWNING via spawn recede and nothing re-rolls them at that
+    point — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
+    `variant_idx * 2 + flip_bit`; no resolved-slot string field, same
+    8-bytes-per-tile rationale as `condition_variant_idx`).
+    **`spawn_deco.spawn_tree_slots(registry)` is the ONE family definition**,
+    and BOTH consumers must go through it: `TileMap` sizes each roll against
+    its `len()`, `game/main.py` manifest-filters it for the emitter. Deriving
+    it twice is a live trap, not a style nit — the emitter re-bases an
+    out-of-range index with `% len`, so a disagreement would silently SKEW the
+    variant distribution instead of failing. It reads `data/slots.json`'s
+    asset-only `deco` category at group path `("Props", "Tree")`
+    (`DECO_CATEGORY`/`SPAWN_DECO_GROUP`, `tiles.py`), minus
+    `SPAWN_TREE_EXCLUDED` — an ART call (those variants read wrong at
+    spawn-band density) that scopes to the RUNTIME roll only: the excluded
+    slots stay first-class `deco` slots the editor offers and hand-placed map
+    deco still renders.
+    **`spawn_deco.py` is the ONE emitter**, on the **`deco`** layer (above
+    `entities` — enemies walk partly behind the treeline) — and unlike
+    condition art, it reads `tile.state` **live at emit time** rather than
+    caching a resolved slot: a tile only ever draws its tree while
+    CURRENTLY `SPAWNING`, so a SPAWNING→COMBAT conversion (spawn recede)
+    makes it stop being emitted the very next frame with **no
+    `set_tile_state` hook at all** — the roll itself is never touched by a
+    zone transition. `rng=None` or `registry=None` ⇒ every roll stays `-1`,
+    the same headless-fixture escape hatch condition art uses.
   - `CONDITION_MODIFIER_KEY` (`tiles.py`) is the ONE enum→`TileConditions.
     modifiers` key table every stat-modifier consumer (buildings, enemies, UI
     tooltips) shares. Pond is EXPENSIVE (+9 weight), NOT impassable —
@@ -168,6 +197,18 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   pond boards.
 - Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
   nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **`find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1)`
+  is the kidnapper's route home (Art/enemies)** — goal set is every
+  `tilemap.spawning_tiles()`, `[]` when there is none / none reachable (the
+  carrier despawns on the spot in that case; see `game/enemies/CLAUDE.md`).
+  **`ignore_walls=True` is deliberate**: a carrier is inert
+  (`PathAgent.carrying` — no blocker/wall scan, no re-path), so a wall it
+  cannot break must never be able to trap it; buildings are traversable
+  weights, never `impassable_weight`, so a live occupant cannot trap it
+  either. A fresh `_dijkstra` like every other goal-set variant, **NOT**
+  flow-field backed: a kidnap fires at most once per building kill, well
+  inside the one-Dijkstra-per-topology-change invariant below — it does not
+  need its own cached field.
 - **Edge walls are LIVE (10E)**: `WallEdge` (a `@dataclass`: `col_a/row_a/col_b/
   row_b/hp/max_hp/owner`) + `_wall_key` (order-independent edge key) + a
   `TileMap.wall_edges` registry back `get_wall_between` (the pathfinder's

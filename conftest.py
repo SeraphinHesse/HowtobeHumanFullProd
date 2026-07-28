@@ -92,6 +92,7 @@ TIERS = {
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
+    "test_kidnap": "core",  # Art/enemies: kidnapping
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
@@ -111,6 +112,7 @@ TIERS = {
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
+    "test_spawn_deco": "core",
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",

@@ -63,8 +63,14 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.enemies import DEATH_ANIM, Spawner, resolve_combat, spawn_corpse
-from game.map import TileMap, condition_render_items, tile_at_screen
+from game.enemies import (
+    DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
+    spawn_corpse,
+)
+from game.map import (
+    TileMap, condition_render_items, spawn_deco_render_items,
+    spawn_tree_slots, tile_at_screen,
+)
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
 from game.ui import (
@@ -209,6 +215,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
         for slot in registry.group_slots(CONDITION_CATEGORY)
         if manifest.entry(slot) is not None
     }
+    # Spawn-band tree family, manifest-filtered the same way `condition_art`
+    # is: art cannot change mid-run, so it is derived once here rather than
+    # per frame. An empty tuple (no tree slots imported yet) makes
+    # `spawn_deco_render_items` a no-op, same escape hatch as `condition_art`.
+    tree_slots = tuple(
+        s for s in spawn_tree_slots(registry)
+        if manifest.entry(s) is not None)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -422,6 +435,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if hud_action == "end_turn":
             session.end_turn()
             return
+        # -- 10L: fast-forward combat-speed buttons --
+        if isinstance(hud_action, tuple) and hud_action[0] == "speed":
+            session.set_combat_speed(hud_action[1])
+            return
+        # -- /10L speed --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
@@ -665,10 +683,26 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         if ms:
                             spawn_corpse(_scene, enemy, ms)
 
+                # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
+                # count + freeing the building's tile for good) runs first,
+                # then upgrade the default frozen-idle carry pose to the
+                # sheet's own `kidnap` row if it has one — `animation_total_ms`
+                # returns None (never an idle fallback) for a sheet without
+                # one, so this cleanly stays on the frozen-idle branch.
+                def _on_kidnap(enemy, building, _scene=world.scene):
+                    session.on_kidnap(enemy, building, _scene)
+                    anim = enemy.get_component(SpriteAnimator)
+                    if anim is not None:
+                        set_kidnap_pose(
+                            enemy,
+                            bool(assets.animation_total_ms(
+                                anim.slot_key, KIDNAP_ANIM)))
+
                 resolve_combat(world.scene, world.tile_map, sim_dt,
                                buildings_balance,
                                on_base_hit=session.on_base_hit,
                                on_enemy_death=_on_enemy_death,
+                               on_kidnap=_on_kidnap,
                                dmg_bonus=dmg_bonus)
                 session.post_sim(world.scene)
             # payday fills state.income_events + flips to INCOME; spawn once
@@ -785,6 +819,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             for item in tilemap.visible_render_items(
                     map_doc, cmin, cmax, rmin, rmax, terrain=False,
                     camera=show_camera_start, anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
+            # Spawn-band tree deco on the `deco` layer — draws ABOVE enemies
+            # (`entities`), so units emerging from the treeline are partly
+            # occluded by it; submission order within a layer doesn't matter,
+            # the renderer depth-sorts. Reuses the window above; vanishes on
+            # its own the frame a SPAWNING tile converts to COMBAT (the
+            # emitter reads `tile.state` live).
+            for item in spawn_deco_render_items(
+                    world.tile_map, cmin, cmax, rmin, rmax, tree_slots,
+                    anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             # Condition art on the `terrain` layer — above the ground tiles,
             # below everything on `entities`/`deco`. Reuses the window above;

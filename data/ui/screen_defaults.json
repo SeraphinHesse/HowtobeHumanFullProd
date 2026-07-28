@@ -713,6 +713,36 @@
           30
         ]
       },
+      "btn_speed_1_5x": {
+        "kind": "button",
+        "label": "1.5×",
+        "rect": [
+          74,
+          110,
+          56,
+          28
+        ]
+      },
+      "btn_speed_1x": {
+        "kind": "button",
+        "label": "1×",
+        "rect": [
+          12,
+          110,
+          56,
+          28
+        ]
+      },
+      "btn_speed_2x": {
+        "kind": "button",
+        "label": "2×",
+        "rect": [
+          136,
+          110,
+          56,
+          28
+        ]
+      },
       "icon_lives": {
         "kind": "panel",
         "label": "",

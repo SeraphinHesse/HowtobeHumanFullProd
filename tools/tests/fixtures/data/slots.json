@@ -76,25 +76,25 @@
             {
               "label": "Meditator",
               "slots": [
-                "flute_player_t1_lvl1",
-                "flute_player_t1_lvl2",
-                "flute_player_t1_lvl3"
+                "meditator_t1_lvl1",
+                "meditator_t1_lvl2",
+                "meditator_t1_lvl3"
               ]
             },
             {
               "label": "Shaman",
               "slots": [
-                "harp_player_t2_lvl1",
-                "harp_player_t2_lvl2",
-                "harp_player_t2_lvl3"
+                "shaman_t2_lvl1",
+                "shaman_t2_lvl2",
+                "shaman_t2_lvl3"
               ]
             },
             {
               "label": "Sun Priest",
               "slots": [
-                "trio_t3_lvl1",
-                "trio_t3_lvl2",
-                "trio_t3_lvl3"
+                "sun_priest_t3_lvl1",
+                "sun_priest_t3_lvl2",
+                "sun_priest_t3_lvl3"
               ]
             }
           ],
@@ -323,7 +323,8 @@
         "idle",
         "walk",
         "attack",
-        "death"
+        "death",
+        "kidnap"
       ],
       "display_name": "Enemies",
       "frame_h": 96,

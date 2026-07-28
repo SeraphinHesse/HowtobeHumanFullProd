@@ -15,9 +15,10 @@ map-driven. Pure Python — no pygame.
 from dataclasses import dataclass
 
 from game.core.balance import load_balance
+from .spawn_deco import spawn_tree_slots
 from .tiles import (
-    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL, Tile,
-    TileCondition, TileState,
+    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL,
+    Tile, TileCondition, TileState,
 )
 
 
@@ -246,7 +247,28 @@ class TileMap:
         # state's family is active, keeping "variant #2" stable across a
         # zone transition (buildable -> built -> combat -> …).
         if rng is not None and registry is not None:
+            # -- Spawn-band deco: one packed roll per tile, folded into THIS
+            # pass. Deliberately not a third O(map) walk (perf invariant,
+            # game/map/CLAUDE.md): every tile is already visited here for
+            # condition art, so the tree roll rides along for free. Family
+            # size is hoisted out of the loop (one registry lookup, not one
+            # per tile). Rolled for EVERY tile, BEFORE the BACKGROUND
+            # `continue` below — a BACKGROUND tile is exactly the kind that
+            # later backfills into SPAWNING (spawn recede), and it must
+            # already carry its roll when that happens, since nothing
+            # re-rolls it then. `spawn_deco.py` reads `tile.state` live at
+            # emit time, so a tile's tree only ever actually draws while
+            # SPAWNING — no `set_tile_state` hook needed for it to vanish on
+            # COMBAT conversion.
+            # Sized against the SHARED family definition (`spawn_deco.py`) —
+            # never a local `group_slots` call, or the roll's modulus could
+            # drift from the family the emitter actually indexes.
+            n_tree = len(spawn_tree_slots(registry))
+            tree_chance = balance["SpawnDeco"]["tree_chance"]
+
             for t in self.all_tiles():
+                if n_tree and rng.random() < tree_chance:
+                    t.spawn_deco_roll = rng.randrange(n_tree) * 2 + rng.randrange(2)
                 if t.state == TileState.BACKGROUND:
                     continue
                 cond_label = CONDITION_LABEL.get(t.condition)
