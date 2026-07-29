@@ -5352,6 +5352,236 @@
       "col": 532,
       "row": 525,
       "slot": "deco_prop_2_v11"
+    },
+    {
+      "col": 512,
+      "row": 519,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 516,
+      "row": 521,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 512,
+      "row": 522,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 510,
+      "row": 522,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 511,
+      "row": 524,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 513,
+      "row": 526,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 517,
+      "row": 527,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 515,
+      "row": 523,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 518,
+      "row": 520,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 518,
+      "row": 524,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 506,
+      "row": 518,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 508,
+      "row": 526,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 512,
+      "row": 529,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 516,
+      "row": 530,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 520,
+      "row": 525,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 522,
+      "row": 522,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 524,
+      "row": 521,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 525,
+      "row": 529,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 520,
+      "row": 535,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 509,
+      "row": 529,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 506,
+      "row": 529,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 506,
+      "row": 532,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 502,
+      "row": 522,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 497,
+      "row": 519,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 496,
+      "row": 515,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 497,
+      "row": 514,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 495,
+      "row": 522,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 502,
+      "row": 527,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 504,
+      "row": 524,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 514,
+      "row": 532,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 520,
+      "row": 530,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 518,
+      "row": 518,
+      "slot": "deco_tree_v2"
+    },
+    {
+      "col": 521,
+      "row": 516,
+      "slot": "deco_tree_v2"
+    },
+    {
+      "col": 515,
+      "row": 517,
+      "slot": "deco_tree_v2"
+    },
+    {
+      "col": 511,
+      "row": 516,
+      "slot": "deco_tree_v2"
+    },
+    {
+      "col": 500,
+      "row": 504,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 497,
+      "row": 505,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 495,
+      "row": 503,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 498,
+      "row": 498,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 501,
+      "row": 501,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 504,
+      "row": 499,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 498,
+      "row": 509,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 494,
+      "row": 509,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 494,
+      "row": 505,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 496,
+      "row": 498,
+      "slot": "deco_tree"
+    },
+    {
+      "col": 499,
+      "row": 506,
+      "slot": "deco_tree_v9"
     }
   ],
   "display_name": "Map Test",
