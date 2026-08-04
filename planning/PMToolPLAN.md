@@ -178,10 +178,18 @@ wizard (P11) writes it; nothing else is needed to stand up a project.
     "scale": "benchmark",
     "anchor": "1 point = writing one A4 design doc based on research + testing"
   },
-  "tag_taxonomy": [            // consistent with WBS + roles (§8.4)
+  "disciplines": [             // WBS work-item tag axis — matches the Miro production board exactly
+    "tech","ui-fx","sprite","anim","sound","balance"
+  ],
+  "priorities": ["MUST","SHOULD","NICE"],   // MoSCoW; the card border color on the board
+  "departments": [             // ownership axis (roles/dashboards/notifications), the 9 you named
     "gameplay-tech","engine-tech","sound","ui-art","game-art",
     "game-design","marketing","producing","business"
   ],
+  "discipline_department_map": {  // routes a discipline-tagged card to a lead + dashboard (§8.4)
+    "tech":"gameplay-tech","ui-fx":"ui-art","sprite":"game-art",
+    "anim":"game-art","sound":"sound","balance":"game-design"
+  },
   "seniority_ranks": { "pm": 100, "lead": 50, "member": 10 } // conflict policy (§7.4)
 }
 ```
@@ -256,17 +264,22 @@ nature** (two people create a story at once → both grab 42); mitigation in §7
 (client-side ULID shadow id + rename-on-merge, or reserve-ranges per user).
 
 ### 5.4 Domain schemas (abridged; full zod in `packages/schema`)
-All entities share: `title`, `description` (Markdown), `tags[]` (from
-`tag_taxonomy`), `assignees[]` (github handles), `attachments[]` (external
-URLs, §5.6), `links[]`.
+All entities share: `title`, `description` (Markdown), `assignees[]` (github
+handles), `attachments[]` (external URLs, §5.6), `links[]`, and — mirroring the
+production board's two axes — `discipline` (one of `disciplines`) and
+`priority` (MoSCoW, one of `priorities`). `discipline` is what the board calls
+the card's *fill color*; `priority` is its *border*; `discipline` also routes
+the item to a department/lead via `discipline_department_map` (§8.4).
 
-- **Epic** `{ color, story_ids[], department }`
+- **Epic** `{ color, story_ids[], department }` — a board *section* (`#8f7fee`).
 - **Story** `{ epic_id, state, task_ids[], acceptance_criteria[], points?,
-  xp_card_path, plan_path, dependencies{ blocks[], blocked_by[] } }`
+  priority, xp_card_path, plan_path, dependencies{ blocks[], blocked_by[] } }`
+  — a board *feature block* (`#6631d7`). The board has **32** of these.
   - `points?` optional (estimation.optional). `acceptance_criteria[]` = list of
     `{id, text, done}`.
 - **Task** `{ parent_type:"story"|"epic", parent_id, state, subtask_ids[],
-  points?, assignment: HumanOrAI, dependencies{...} }`
+  discipline, priority, points?, assignment: HumanOrAI, dependencies{...} }`
+  — a board *work-item card* (Tech/UI-FX/Sprite/Anim/Sound/Balance).
 - **Subtask** `{ task_id, state, assignment }`
 - **Assignment** (`HumanOrAI`):
   ```jsonc
@@ -281,8 +294,10 @@ URLs, §5.6), `links[]`.
 - **Bug** `{ severity, status, repro, expected, actual, source:"form"|"chat",
   linked_entity? }`
 - **Enhancement** `{ target_entity_id, rationale, size, status }`
-- **XP card** = `docs/xp/<id>.md` (format is user-supplied, §17; the tool treats
-  it as an opaque Markdown doc with a small YAML front-matter it can read).
+- **XP card** = `docs/xp/<id>.md` — a **structured** doc in the team's supplied
+  template (§5.8), YAML front-matter + fixed sections. Authored by **filling out
+  the template form in the tool**, freehand Markdown, or Claude-assisted — all
+  three write this one file (§12.6).
 - **Plan** = `docs/plans/<id>.md` (generated from the XP card, §8.3).
 
 ### 5.5 Dependency edges (feed the blocker tool)
@@ -302,6 +317,66 @@ indent, **keys sorted**, arrays in canonical order (fractional-index order for
 ordered lists, id-sorted for sets), trailing newline. This guarantees the merge
 driver diffs cleanly and two machines produce byte-identical files. (Mirrors the
 game repo's "validating, deterministic writer" rule.)
+
+### 5.8 XP-card structure (the team's supplied template)
+The XP card is a **fixed-shape** doc so designers can fill it in like a form and
+so an LLM (or the auto-plan generator) can read any section by name. On disk it
+is `docs/xp/<id>.md`: readable YAML front-matter for the header/metadata, then
+the template's sections as `##` headings (empty sections are allowed and render
+as prompts in the form). The form UI (§12.6) is a two-way binding over exactly
+these fields — editing the form writes the file, editing the file re-hydrates the
+form.
+
+```markdown
+---
+epic: "X.0 <Epic name>"          # header row on the card
+user_story: "EPIC#.X <story>"    # the feature block this card explains
+last_update: 2026-08-04
+date: 2026-08-04
+change: "<what changed this revision>"
+author: "<name / github handle>"
+status: draft                    # draft | ready  (ready → auto-plan, §8.3)
+---
+
+## Intention | Requirements
+- What is the point of this feature?
+- What does this feature do in general terms?
+- What needs to happen in game for this feature to happen?
+- What requirements must the player meet?
+
+## Player Interaction
+- How does the player interact with this feature?
+
+## World / Feature / Physics Interaction
+- How does this feature interact with other game features?
+
+## Vision Statement (Feel)
+- How is this feature supposed to make the player feel?
+- How does it align with the overall feeling of the game?
+
+## References
+<!-- table: Media | Mechanic | Description | Picture -->
+- Similar mechanics from other games; visual references from film / art / media.
+
+## Required Feedback
+- **Animations:** which animations & FX are needed to bring the feature to life?
+- **Sound:** which sound FX are needed?
+
+## Balancing Variables
+- List every number / data point that can be tuned in balancing
+  **[with a suggested value]**.
+
+## Mechanic Description
+- Room for more notes.
+
+## Sketch
+<!-- optional external image link (§5.6) -->
+```
+
+This mirrors the uploaded *XP card template* one-to-one. The `## References` and
+`## Sketch` blocks may carry external media links (§5.6). The **Balancing
+Variables** section is deliberately structured — the auto-plan step (§8.3) reads
+it to pre-list the tunables the coding plan must expose.
 
 ---
 
@@ -332,8 +407,9 @@ companion; there is no username/password UI. (Matches the "fully GitHub" call.)
 }
 ```
 - A user can hold **many roles**; departments each have exactly one **lead**.
-- Roles map 1:1 to the `tag_taxonomy` (a `game-art` tag ↔ the game-art
-  department ↔ its members), so tags, roles, and the WBS stay coordinated (§8.4).
+- Roles map 1:1 to `departments`; a board **discipline** routes to a department
+  via `discipline_department_map` (a *Sprite/Anim* card ↔ `game-art` ↔ its
+  members), so disciplines, roles, and the WBS stay coordinated (§8.4).
 - **Seniority rank** of a user = max over their roles using
   `project.json.seniority_ranks` (`pm` 100 > any `lead:*` 50 > `member:*` 10).
   This single number drives conflict resolution (§7.4).
@@ -490,12 +566,22 @@ next game" is a backend swap, not a rewrite.
 
 ### 8.1 WBS builder is the source of truth (PM-WBS)
 The visual WBS builder **is** the structured data — nodes are epics/stories/
-tasks/subtasks written straight to the flat files (color-coded by epic, styled
-like the WBS you already use). "Parsing" only matters for the **first import**:
-- **Import path**: paste/point at an indented outline (Markdown/YAML) or a
-  spreadsheet; the `pipeline` package's parser (Haiku-assisted for messy input,
-  pure-deterministic for clean outline) emits the entity files. After import the
-  builder owns it.
+tasks/subtasks written straight to the flat files, colored on the board's two
+axes: **fill = discipline** (Tech/UI-FX/Sprite/Anim/Sound/Balance) and **border
+= MoSCoW** (MUST/SHOULD/NICE), exactly like the Miro production board it seeds
+from. "Parsing" only matters for the **first import**:
+- **The real seed is the production board** — `docs/PRODUCTION_BOARD.md` in the
+  game repo (extracted from Miro: **32 feature blocks / ~1010 work-item cards**,
+  each with discipline + priority). The `pipeline` package ships a
+  **deterministic parser for that exact format**: each `### <Feature block> ·
+  *PRIORITY*` becomes a **Story**, each row in its table becomes a **Task** with
+  `discipline` + `priority`, and the Legend defines the taxonomy. Epics (the
+  Miro `#8f7fee` sections) are reconstructed from the Miro source where present;
+  the flattened MD groups all 32 stories under a single default epic that the PM
+  can re-parent in the builder.
+- **Secondary import paths**: an indented outline (Markdown/YAML) or a
+  spreadsheet, parsed the same way (Haiku-assisted only for messy free input).
+  After any import the builder owns the data.
 - WBS edits (structure) are **PM + leads only** (§6.3); anyone can edit leaf
   fields per their scope.
 
@@ -507,8 +593,9 @@ is **idempotent**: keyed on `xp:<id>` so re-runs don't duplicate it, and it
 auto-closes when `docs/xp/<id>.md` gains real content.
 
 ### 8.3 XP card → auto plan.md (PM-PLAN-AUTO)
-The **design-doc creator** (§12.6) produces `docs/xp/<id>.md` via a Claude
-conversation (Haiku). On XP-card completion (front-matter `status: ready`), a
+The **design-doc creator** (§12.6) produces `docs/xp/<id>.md` — by a designer
+filling out the template form by hand, or via a Claude conversation (Haiku), or
+a mix. On XP-card completion (front-matter `status: ready`), a
 hook enqueues an LLM job that reads the XP card + the story's acceptance criteria
 + linked code-repo context and writes `docs/plans/<id>.md` — a detailed coding
 plan in the game repo's plan-doc house shape (phases, file scope, verify gate).
@@ -516,11 +603,22 @@ Both files are just Markdown in the store; the story's `xp_card_path` /
 `plan_path` point at them, and the UI shows **"Open XP card"** / **"Open plan"**
 buttons on the story.
 
-### 8.4 Tag/role/WBS consistency (PM-TAGS)
-`tag_taxonomy` (§4) == department ids (§6.2) == the 9 categories you named. The
-UI only offers tags from the taxonomy; the WBS colors by epic; a story's
-department is inferred from its tag and used for lead-dashboard scoping and
-notification routing. One list, three consumers — no drift.
+### 8.4 Discipline / department / WBS consistency (PM-TAGS)
+Two coordinated axes, one taxonomy each, no free-text tags:
+- **Discipline** (§4 `disciplines`) is the **work axis** — the board's fill
+  color (Tech/UI-FX/Sprite/Anim/Sound/Balance). The UI only offers these; every
+  card carries exactly one.
+- **Department** (§4 `departments`, §6.2) is the **ownership axis** — the 9
+  roles/leads. A card's department is **derived from its discipline** via
+  `discipline_department_map` (e.g. an *Anim* card → `game-art` → Eve's
+  dashboard + notifications), and can be overridden per item when a card crosses
+  disciplines. Marketing/Producing/Business are departments with no board
+  discipline (they own non-board work: sprints, briefs, business tasks).
+- **MoSCoW priority** (§4 `priorities`) is the board's border color, a
+  first-class field on stories and tasks (drives sort, filters, the blocker's
+  "unblock MUST-first" ordering).
+Defined once in `project.json`, consumed by the WBS colors, kanban filters,
+dashboards, and notification routing — no drift.
 
 ---
 
@@ -632,13 +730,44 @@ library's own store, snapshotted into git on debounce; last-writer-by-seniority
 at the document level.)
 
 ### 12.5 WBS builder (PM-WBS) — see §8.1
-Color-coded tree matching your existing WBS; PM/leads edit structure.
+Color-coded tree matching your existing WBS (fill = discipline, border = MoSCoW);
+PM/leads edit structure.
+
+**MoSCoW composition readout.** The builder computes, live, the **percentage of
+each MoSCoW priority** (MUST / SHOULD / NICE, plus an `unset` bucket) as a
+share of items — shown as a stacked bar + numbers, recomputed on every edit. It
+is available at multiple scopes:
+- **whole project** (the board headline — e.g. the current seed skews NICE-heavy:
+  MUST 151 · SHOULD 353 · NICE 464 · unset 42 across ~1010 cards);
+- **per epic** and **per selected subtree** (select any node → its descendants'
+  split);
+- **counted by items by default, or weighted by points** when estimates exist
+  (§12.2) — a toggle, since a NICE-heavy *count* can still be a MUST-heavy
+  *effort*.
+Percentages are a pure derived view (no stored state); the same helper feeds the
+dashboards' scope-composition widgets (§12.8) so the number is identical
+everywhere. Useful as a scope-balance gut-check ("are we over-investing in NICE
+before MUST is done?").
 
 ### 12.6 Design-doc / XP-card creator (PM-XP)
-A chat surface: you give notes; Claude (Haiku) converses and writes a full **XP
-card** in **your supplied format** (§17) to `docs/xp/<id>.md`. Also runnable from
-a Claude Code terminal (the LLM edits the file directly). Front-matter
-`status: draft|ready` drives the auto-plan hook (§8.3).
+**Three co-equal authoring modes over one file** (`docs/xp/<id>.md`, §5.8) —
+manual is the default; AI is optional assist, never required:
+1. **Template form (primary).** A structured form with the exact template
+   sections (Intention/Requirements, Player Interaction, World/Feature/Physics,
+   Vision/Feel, References, Required Feedback → Animations/Sound, Balancing
+   Variables, Mechanic Description, Sketch) plus the header/metadata row.
+   Designers **fill it out themselves**; each field two-way-binds to its `##`
+   section so saving the form writes the Markdown and opening an existing card
+   re-hydrates the form. Empty sections render as greyed prompts (the template's
+   guiding questions) — you can complete a card entirely by hand, no LLM.
+2. **Raw Markdown.** Toggle to edit the file directly (same file), for people who
+   prefer writing prose; also what a Claude Code terminal edits.
+3. **Claude-assisted (optional).** A chat side-panel: give notes and Haiku drafts
+   or fills sections *into the same form*, which you then edit/approve. Assist,
+   not autopilot.
+
+Front-matter `status: draft|ready` drives the auto-plan hook (§8.3); flipping to
+`ready` is an explicit human action regardless of authoring mode.
 
 ### 12.7 plan.md creator (PM-PLAN) — see §8.3
 Auto on XP-card `ready`, re-runnable on demand.
@@ -725,11 +854,16 @@ built only after everything functional is done.
 ## 15. Bootstrapping this project (P11)
 
 The **New Project wizard** writes `project.json` (tool toggles, states,
-departments, estimation, ranks) and `roles.json`. For **this** instance it seeds:
+disciplines, priorities, departments, estimation, ranks) and `roles.json`. For
+**this** instance it seeds:
 - every tool enabled;
-- the 9-tag taxonomy + departments + leads;
-- the current dev status imported from the game repo (open PRs, `Development`
-  state, the active plan docs in `planning/`) so the board reflects reality on
+- the discipline taxonomy (Tech/UI-FX/Sprite/Anim/Sound/Balance) + MoSCoW
+  priorities + the 9 departments/leads + the discipline→department map;
+- **the real WBS**, parsed from `docs/PRODUCTION_BOARD.md` (§8.1): 32 stories /
+  ~1010 discipline-tagged, MoSCoW-prioritized tasks;
+- **current dev status** cross-walked from `docs/FEATURE_STATUS.md` + the game
+  repo (open PRs, `Development` state, active `planning/` docs) so cards start at
+  the right workflow state instead of all-New — the board reflects reality on
   day one.
 
 ---
@@ -746,14 +880,19 @@ departments, estimation, ranks) and `roles.json`. For **this** instance it seeds
 
 ---
 
-## 17. Inputs still needed from you (content, not structure)
-1. **XP-card format** — your template for `docs/xp/<id>.md` (front-matter fields
-   + section layout). The pipeline is built to treat it as opaque Markdown with a
-   small readable front-matter; drop the template in and it's wired.
-2. **The actual WBS** — the real epic/story breakdown to import as seed data
-   (§8.1). Structure doesn't block; content seeds P2/P11.
+## 17. Inputs — PROVIDED
 
-Neither blocks building the tool; both slot into the phases below as seed data.
+Both content inputs are now in hand and encoded above:
+1. **XP-card format** — the uploaded *XP card template*, transcribed section-for-
+   section into §5.8 and wired as the template form (§12.6).
+2. **The real WBS** — `docs/PRODUCTION_BOARD.md` (the Miro production board: 32
+   feature blocks / ~1010 cards, discipline + MoSCoW). It is the seed for P2/P11
+   and defines the discipline + priority taxonomies (§4, §8.1, §15).
+
+Still open (project mechanics, not blockers): the **Epic grouping** of the 32
+stories (the flattened MD lost the Miro `#8f7fee` sections — the PM re-parents in
+the builder, or we re-extract from Miro), and the **working repo name** for the
+tool (placeholder `drunken-planner`).
 
 ---
 
@@ -773,10 +912,14 @@ brackets.
   worker (§7.1–7.3); `.gitattributes` wiring. *Verify:* **the determinism
   property test passes**; two companions editing the same story converge with the
   PM's field winning and a conflict record written.
-- **P2 — WBS builder + entity tree + tags.** [P1] Epics/stories/tasks/subtasks
-  CRUD through the store; import parser (outline/sheet); color-coded WBS builder;
-  tag taxonomy + department inference; **WBS edit = PM/leads only**. *Verify:*
-  import a sample WBS → tree renders; a member cannot alter structure.
+- **P2 — WBS builder + entity tree + taxonomies.** [P1] Epics/stories/tasks/
+  subtasks CRUD through the store; **`PRODUCTION_BOARD.md` parser** (§8.1) +
+  outline/sheet fallback; color-coded builder (fill=discipline, border=MoSCoW);
+  discipline→department derivation; **live MoSCoW % readout** at project/epic/
+  subtree scope (§12.5); **WBS edit = PM/leads only**. *Verify:* parse the real
+  board → 32 stories + ~1010 tasks render with correct colors; the MUST/SHOULD/
+  NICE percentages match the board's headline (151/353/464/42); a member cannot
+  alter structure.
 - **P3 — Kanban + item detail + assignment.** [P2] States, dnd-kit board,
   detail drawer, human + AI assignment (model/effort/manager), dependency editor.
   Auto "write XP card" task on story/epic create (§8.2). *Verify:* drag persists;
