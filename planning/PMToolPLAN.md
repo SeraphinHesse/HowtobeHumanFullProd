@@ -1194,3 +1194,85 @@ built under them.
 check land in **P5** (AI runs); GitHub branch protection is a one-time setup in
 **P11** (bootstrap). Adding `.claude/policy.json` + a `CONTRIBUTING.md` to the
 game repo is a small **prep task** that can precede Spinner itself.
+
+---
+
+## 21. Agent skills & the "Create Capability" button
+
+### 21.1 Skills the spawned agents actually use (game work)
+Spinner does **not** invent a parallel skill system for game work — it **drives
+the game repo's existing skills** (the CLAUDE.md table), auto-selected from a
+task's discipline/tags and seeded into the spawn prompt (this is the skill half
+of "compliant by construction", §20.4):
+
+| Task shape (from discipline/tags) | Skill the agent opens with |
+|---|---|
+| Add/create a building | `/add-building` |
+| Add/create an enemy | `/add-enemy` |
+| Add/change a balancing value | `/add-balancing-value` |
+| Add an engine component | `/add-engine-component` |
+| Add an editor feature/panel | `/add-editor-feature` |
+| Wire an asset importer | `/add-asset-importer` |
+| Replace a sprite/visual | `/replace-visual` |
+| New slot category / balancing domain | `/add-category` |
+| Small self-contained tweak | `/smalltweak` |
+| Execute a plan phase | `/execute-phase` |
+| Author a phased plan | `/createplan` |
+| Exit gate / handback report | `/testgate`, `/report` |
+
+The mapping is **data, not hardcode**: Spinner reads the repo's
+`.claude/commands/` + `data/agent_forms/*.json` at seed to populate the picker
+(exactly how the editor's launcher discovers forms), so a new repo skill becomes
+selectable without a Spinner change. A task with no matching skill falls back to
+a plain `coder`/`engine-coder` dispatch with the ONE package doc.
+
+### 21.2 Spinner-native skills (its own repo)
+For work *on Spinner itself*, `spinner-project-management` ships its own
+`.claude/commands/` in the same house format: `/add-tool` (a board tool/panel),
+`/add-capability` (§21.3), `/add-widget` (a dashboard widget), `/wbs-import`,
+`/gen-xp-card`, `/gen-plan`, `/blocker-analysis`, and `/ship` (runs the governed
+git ceremony, §20.4).
+
+### 21.3 The "Create Capability" button — skill-creator on a button
+A first-class **＋ Create Capability** button that lets a user **extend Spinner
+from inside the app** — no terminal, no hand-rolled setup. It opens a short
+**capability wizard**, then launches Claude Code with **`skill-creator` /
+`add-skill`** pre-loaded (and, for a new board tool, `/add-tool` + the meta-form
+pattern `/add-form-spec`) — the same spawn contract as any AI run (§9.1), with
+model + effort pickable. It is Spinner's analog of the editor's *"Add new X…"*
+meta-forms: **a capability is declared as a form-spec + a skill, generated for
+you.**
+
+### 21.4 Scope switch — Local (UI/formatting) vs General (tool change)
+The wizard's first, load-bearing choice, because it decides **whether the change
+can touch anyone but you**:
+
+- 🟢 **Local — UI / formatting only.** A per-user view change: layout, density,
+  colors, a custom card or dashboard rendering. It lands in **your user-scoped
+  prefs (§14 liquid UI)** — never the shared schema, never how data is processed,
+  never another user's view. **No PR, no approval, instant and reversible.**
+  Constrained to a **safe, declarative surface** (whitelisted layout/style config
+  + sanctioned view components — *not* arbitrary code with access to tokens or
+  the store), so a broken local capability can only break your own view.
+- 🔴 **General — tool change.** *(shown with a red warning sign.)* A shared
+  capability: a new tool/panel/skill/widget, or **anything touching the data
+  schema or the processing pipeline**. It changes Spinner **for everyone**, so it
+  is **routed straight through governance (§20)**: generated on a
+  `spinner/<id>-<slug>` branch → PR into Spinner's `Development` → CI + `reviewer`
+  → **PM/lead approval before merge**. The red sign plus a one-line *"this changes
+  the tool for the whole team"* confirm-gate make the blast radius obvious before
+  anyone commits.
+
+**Permissions.** Any user may create a **Local** capability (it's their own
+view). **General** is **PM/lead-gated** (§6.3): the button offers the General
+option only to those roles; everyone else can *propose* one — it opens as a
+request a PM/lead approves to launch.
+
+**Invariant preserved.** This is the same wall the liquid-UI requirement drew —
+*layout is personal and free; data shape and shared behavior are governed.* The
+scope switch is just where the user picks which side of that wall they're on;
+the 🔴 path can never skip §20, and the 🟢 path can never reach shared data.
+
+**Phase mapping.** The 🟢 Local path rides on **P12** (liquid UI). The 🔴 General
+path (Create-Capability wizard + `/add-tool`/`/add-capability` + governed spawn)
+is a **P11–P12** addition, once the AI-run + governance spine (P5, §20) exists.
