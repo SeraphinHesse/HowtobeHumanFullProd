@@ -246,45 +246,75 @@ in `game/ui/CLAUDE.md`.
     just the death-burst instance. It was a real bug for the 10G boss from the
     start and would have been a common one for ER-4's Formations.
 
-## Lightning strike + cheat menu (Phase 10H; Storm Priest rework)
+## Lightning strike + cheat menu (Phase 10H; Storm Priest rework; feature-storm-acolyte-multi-build)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
 - **State on `RunState`**: `lightning_level` (**seeded 0** — every run boots
   with lightning LOCKED; placing a Storm Priest, the `"lightning_source"`-
   tagged building, is the ONLY way to raise it to L1, via
   `unlock_from_placement(state, building)` — a pure, tag-gated, latching
   helper (never re-locks) called from `game/ui/building_ui.py._do_place`
-  after every successful placement) and `lightning_cooldown`. **There is no
-  love-priced level-up any more** (`next_cost`/`upgrade` are DELETED — the
-  Storm Priest rework replaced them): leveling past L1 is driven entirely by
-  the placed Storm Priest's own tier, via `sync_level_from_tier(state,
-  building)` (same tag-gated/latching shape, called from
-  `game/ui/building_ui.py`'s tier-advance branch — tier 1/2/3 -> lightning
-  level 1/2/3). Tunables ONLY from `core.json LightningStrike` (cooldown
-  [5,3,2] / damage [12,18,38] / radius [1,2,3] — `unlock_cost`/
-  `upgrade_costs` were removed from the schema + content along with the
-  love-priced path).
-- **`strike(state, core, scene, cs, wx, wy)`** — flat damage to every alive
-  `"enemy"` in a **Euclidean circle in the PROJECTED pixel plane** (prototype
-  `game.py:505-508`): both points go through `cs.world_to_screen` and the
-  threshold is `radius_tiles * tile_w/2 * zoom` (pan cancels in the delta, zoom
-  scales linearly — no iso math outside `engine.coords`). NOT Chebyshev, NOT
-  tile-space Euclidean. The cooldown is spent UNCONDITIONALLY (a whiff still
-  pays + shows VFX); no RoundStats credit (no shooter); kills flow through the
-  next `resolve_combat` → `on_enemy_death` (normal XP/kill path). Spawns a
-  `LightningFX` (`Crater` pattern: overlay object, ages in `scene.update` on the
-  ENEMY-scaled sim dt, self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code
-  constants like `CRATER_LIFE`). Before returning, it also triggers the placed
-  Storm Priest's `LightningCaster` component (found via `scene.by_tag
-  ("lightning_source")`, duck-typed — no `game.buildings` import, keeping the
-  one-way layering) — since Storm Priest dropped the `"combat"` tag and no
-  longer earns its "attack" pose through combat, `strike()` is now what
-  flashes it: `LightningCaster.trigger()` sets its `SpriteAnimator` to
-  "attack" for `CASTER_FLASH_DURATION` (0.4s, a code constant like
-  `BOLT_LIFE`) before it reverts to "idle" in its own `update(dt)`. Both a
-  hit and a whiff trigger the flash (same "a whiff still pays + shows VFX"
-  rule as the cooldown spend).
-- **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** on the host's sim dt
-  (speed-scaled, pause-frozen); never reset by round end or a tier sync.
+  after every successful placement). **There is no love-priced level-up any
+  more** (`next_cost`/`upgrade` are DELETED — the Storm Priest rework
+  replaced them): leveling past L1 is driven entirely by each placed Storm
+  Priest's own tier, via `sync_level_from_tier(state, building)` (same
+  tag-gated/latching shape, called from `game/ui/building_ui.py`'s
+  tier-advance branch — tier 1/2/3 -> lightning level 1/2/3). Tunables ONLY
+  from `core.json LightningStrike` (cooldown [5,3,2] / damage [12,18,38] /
+  radius [1,2,3] — `unlock_cost`/`upgrade_costs` were removed from the schema
+  + content along with the love-priced path).
+  - **feature-storm-acolyte-multi-build re-scoped `lightning_level`'s
+    MEANING (its FIELD/latch semantics are unchanged)**: the run-singleton
+    ban on Storm Priest is lifted (`game/buildings/CLAUDE.md`'s Storm Priest
+    section) — several may be placed, each levelled independently. So
+    `lightning_level` is now a pure **UI/gating signal** ("is lightning
+    unlocked at all" / "the best tier ever placed"), never a damage/radius/
+    cooldown source; every fired bolt reads those off the FIRING building's
+    own `tier_number()` instead (see `strike()` below). `lightning_cooldown`
+    is **DELETED from `RunState`** — the cooldown moved onto each acolyte's
+    own `LightningCaster` component (below), since a run can now have
+    several, each on its own clock.
+- **`LightningCaster` (`game/core/lightning.py`, attached per Storm Priest by
+  `_extra_components`) carries a declared `cooldown: float = 0.0` field** —
+  the per-caster ability clock feature-storm-acolyte-multi-build moved off
+  `RunState`. **Drained ONLY by `tick(state, dt, scene)`, never by
+  `LightningCaster.update(dt)`** (that runs from `scene.update` in EVERY
+  phase and would silently break the "cooldown frozen outside ENEMY" rule —
+  `update(dt)` still owns only the "attack" -> "idle" flash-pose timer,
+  unchanged).
+- **`can_strike(state, scene)`** — `state.lightning_level > 0` (unlocked) AND
+  at least one alive `lightning_source` is off cooldown; a click with every
+  acolyte still charging is a silent no-op, same shape as the old
+  single-caster gate.
+- **`strike(state, core, vfx, scene, cs, wx, wy)`** — **fires EVERY alive,
+  ready caster** at the clicked point in one click (the old "stop after the
+  first `lightning_source`" `break` is GONE): each contributes flat damage to
+  every alive `"enemy"` in ITS OWN tier's **Euclidean circle in the PROJECTED
+  pixel plane** (prototype `game.py:505-508`, `LightningStrike` indexed by
+  that building's own `tier_number() - 1`, not `state.lightning_level`) —
+  both points go through `cs.world_to_screen` and the threshold is
+  `radius_tiles * tile_w/2 * zoom` (pan cancels in the delta, zoom scales
+  linearly — no iso math outside `engine.coords`). NOT Chebyshev, NOT
+  tile-space Euclidean. Several nested `LightningFX` rings landing at once
+  read as several bolts and are honest about which tiers actually
+  contributed — damage stacks (an enemy at the centre takes every firing
+  acolyte's damage). Each firing caster's cooldown is spent UNCONDITIONALLY
+  (a whiff still pays + shows VFX, per-caster); a caster still cooling sits
+  the whole click out, untouched. No RoundStats credit (no shooter); kills
+  flow through the next `resolve_combat` → `on_enemy_death` (normal XP/kill
+  path). Each firing caster spawns its OWN `LightningFX` (`Crater` pattern:
+  overlay object, ages in `scene.update` on the ENEMY-scaled sim dt,
+  self-despawns; `BOLT_LIFE`/`MARKER_LIFE` are code constants like
+  `CRATER_LIFE`) and its OWN `LightningCaster.trigger()` — since Storm Priest
+  dropped the `"combat"` tag and no longer earns its "attack" pose through
+  combat, `strike()` is what flashes each firer: `SpriteAnimator` to "attack"
+  for `CASTER_FLASH_DURATION` (0.4s, a code constant like `BOLT_LIFE`) before
+  it reverts to "idle" in its own `update(dt)`. Both a hit and a whiff
+  trigger the flash (same "a whiff still pays + shows VFX" rule as the
+  cooldown spend).
+- **Cooldown ticks ONLY in `pre_sim`'s ENEMY branch** (`tick(state, dt,
+  scene)`, walking every alive `lightning_source`'s own caster) on the host's
+  sim dt (speed-scaled, pause-frozen); never reset by round end or a tier
+  sync.
 - **`Session` cheat delegates** (all no-op outside GAMEPLAY; the Ctrl+L menu UI
   is `game/ui/cheat_menu.py`, the host maps its action strings here):
   `cheat_add_love`, `cheat_skip_round` (quick-skip's body WITHOUT the ENEMY

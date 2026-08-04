@@ -148,11 +148,16 @@ class CraterParams:
     ``life`` seconds is the fade lifetime (carried on the ``Crater``
     GameObject's ``CraterFade`` component, not read from here at fade time —
     this dataclass only feeds the DRAW). The fill alpha scales linearly with
-    the remaining fade fraction. Draws no random numbers."""
+    the remaining fade fraction. ``segments`` is the world-unit polygon-ring
+    vertex count (the shared ring helper `game/ui/effects.py` draws with —
+    the mortar's splash is Euclidean in TILE space, so this ring is the exact
+    damage-area shape, not just a cosmetic upgrade over the old 4-point
+    diamond). Draws no random numbers."""
 
     color: tuple
     alpha: int
     life: float
+    segments: int
 
 
 @dataclass(frozen=True)
@@ -164,7 +169,11 @@ class LightningParams:
     ``random.Random()`` — that would desync the shared global draw stream).
     ``bolt_life``/``marker_life`` are carried on the ``LightningFX``
     GameObject's ``LightningFXFade`` component, not read from here at fade
-    time — this dataclass only feeds the DRAW."""
+    time — this dataclass only feeds the DRAW. ``marker_segments`` is the
+    ground blast-marker's world-unit polygon-ring vertex count (the shared
+    ring helper `game/ui/effects.py` draws with, generalised from the
+    impact-flash octagon's own fixed 8 segments — ``bolt_segments`` stays a
+    SEPARATE field, the bolt polyline is a different shape entirely)."""
 
     bolt_segments: int
     bolt_jitter_px: int
@@ -179,6 +188,7 @@ class LightningParams:
     marker_fill_alpha: int
     marker_outline_width: int
     marker_life: float
+    marker_segments: int
 
 
 @dataclass(frozen=True)

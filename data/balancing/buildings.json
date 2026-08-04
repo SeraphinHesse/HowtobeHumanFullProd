@@ -370,6 +370,7 @@
       ]
     },
     "StormPriest": {
+      "repeat_cost_multiplier": 1.8,
       "starts_unlocked": false,
       "tiers": [
         {

@@ -36,7 +36,8 @@
         78,
         66
       ],
-      "life": 1.0
+      "life": 1.0,
+      "segments": 12
     },
     "death_burst": {
       "colors": {
@@ -143,7 +144,8 @@
       ],
       "marker_fill_alpha": 120,
       "marker_life": 1.0,
-      "marker_outline_width": 2
+      "marker_outline_width": 2,
+      "marker_segments": 12
     },
     "muzzle": {
       "count": 8,

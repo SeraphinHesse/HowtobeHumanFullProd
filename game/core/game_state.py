@@ -143,8 +143,18 @@ class RunState:
     # erases the prototype's quirk of upgrades persisting across "new game"
     # in the same app session (the 10F combat-speed treatment). The seed is
     # structural (like combat_speed_idx), so no from_balance change.
+    #
+    # feature-storm-acolyte-multi-build: its MEANING narrowed — several Storm
+    # Priests may now be placed, each levelled independently, so this field
+    # is no longer "the" ability's level. It stays as a pure UI/gating
+    # signal (is lightning unlocked at all / the best tier ever placed, via
+    # the same latching max() both helpers below already used) — nothing
+    # reads it for damage/radius/cooldown any more (that comes off each
+    # firing building's own tier). `lightning_cooldown` is DELETED: the
+    # cooldown moved onto each acolyte's own `LightningCaster` component
+    # (game/core/lightning.py), since a run can have several now, each on
+    # its own clock.
     lightning_level: int = 0
-    lightning_cooldown: float = 0.0
     # -- /10H --
 
     @classmethod

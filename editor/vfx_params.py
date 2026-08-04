@@ -111,7 +111,8 @@ def beam_params(bm):
 
 def crater_params(cr):
     return CraterParams(
-        color=color(cr["color"]), alpha=cr["alpha"], life=cr["life"])
+        color=color(cr["color"]), alpha=cr["alpha"], life=cr["life"],
+        segments=cr["segments"])
 
 
 def lightning_params(lp):
@@ -125,7 +126,8 @@ def lightning_params(lp):
         marker_color=color(lp["marker_color"]),
         marker_fill_alpha=lp["marker_fill_alpha"],
         marker_outline_width=lp["marker_outline_width"],
-        marker_life=lp["marker_life"])
+        marker_life=lp["marker_life"],
+        marker_segments=lp["marker_segments"])
 
 
 def announce_params(an):

@@ -77,10 +77,17 @@ class Building(GameObject):
     # -- balancing resolution ---------------------------------------------
 
     @classmethod
+    def _resolve_group(cls, buildings_balance):
+        """The whole GROUP node this leaf's ``SUBTREE`` points at — sibling
+        keys beside ``tiers`` (``starts_unlocked``, an optional
+        ``repeat_cost_multiplier`` — feature-storm-acolyte-multi-build) live
+        here, not on the per-tier table."""
+        return reduce(lambda d, k: d[k], cls.SUBTREE, buildings_balance)
+
+    @classmethod
     def _resolve_tiers(cls, buildings_balance):
         """The per-tier table for this leaf, dug out of the buildings tree."""
-        node = reduce(lambda d, k: d[k], cls.SUBTREE, buildings_balance)
-        return node["tiers"]
+        return cls._resolve_group(buildings_balance)["tiers"]
 
     def _extra_components(self, tier0):
         """Family hook: components beyond the shared set (defence adds Attacker +

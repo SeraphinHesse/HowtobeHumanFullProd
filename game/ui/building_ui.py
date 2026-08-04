@@ -3,8 +3,7 @@ four modes (unlock / construct / upgrade / base_info) + the ConstructPreview
 modal.
 
 Pure logic. Ports the prototype's ``src/ui/building_ui.py``: panel modes +
-terrain badges (10I), the boss-history section (10G), the Storm Priest
-run-singleton grey-out (Storm Priest rework), and the 10J
+terrain badges (10I), the boss-history section (10G), and the 10J
 depth — shift multi-select batches (unlock chunk-dedup / construct ×count /
 in-tier upgrade sums; tier advance stays primary-only), the name dice, the
 upgrade-panel rename row (custom names + rebirth ordinals finally render),
@@ -17,6 +16,13 @@ RunState).
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
 classifier — a tier can only be ADVANCED into once it has been researched on a
 level-up, and it stays unnamed until its ``unlock_min_round``.
+
+**feature-storm-acolyte-multi-build**: the Storm Priest run-singleton
+grey-out is REMOVED — several may be placed, each priced steeper than the
+last (``count_tag``/``LIGHTNING_SOURCE_TAG``, ``game/buildings/registry.py``)
+via the group's ``repeat_cost_multiplier``. See that module's doc + `game/
+core/CLAUDE.md`'s lightning section for the per-caster level/cooldown side
+of the rework.
 """
 import random  # 10J: the name-dice reroll (stdlib — pure)
 from types import SimpleNamespace
@@ -25,7 +31,8 @@ from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
 )
 from game.buildings.registry import (
-    BUILDING_CLASSES, PlacementError, build_cost, create, place_building,
+    BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
+    count_tag, create, place_building,
 )
 from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
@@ -51,6 +58,22 @@ SCREEN_ID = "building_panel"
 _COND_TOOLTIP_BG = (20, 15, 35)
 # -- 10J: the name-dice glyph (prototype building_ui.py:106) --
 _DICE_GLYPH = "⚄"
+
+
+def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count):
+    """The escalating BATCH total for ``count`` fresh placements of
+    ``building_type`` (feature-storm-acolyte-multi-build), each tile priced
+    at its own escalation step — ``repeat_count``, ``repeat_count + 1``, …,
+    ``repeat_count + count - 1`` — via ``build_cost`` per step. This is the
+    SAME formula ``place_building`` recomputes per tile as ``_do_place``
+    walks a batch (each placed tile raises the live ``count_tag`` count
+    before the next tile is priced), so this total always agrees with what
+    will actually be charged. A type with no ``repeat_cost_multiplier``
+    collapses to the familiar flat ``build_cost(...) * count`` (every step
+    prices identically)."""
+    return sum(build_cost(building_type, buildings_balance, tier_idx,
+                          repeat_count + i)
+              for i in range(count))
 
 
 def _display_name(b):
@@ -112,12 +135,19 @@ class ConstructPreview:
     clicks/keys here while it is open."""
 
     def __init__(self, building_type, cost, buildings_balance, ui_balance,
-                 view_w, view_h, count=1, tier_idx=0, skinning=None):
+                 view_w, view_h, count=1, tier_idx=0, repeat_count=0,
+                 skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.building_type = building_type
-        self.cost = cost          # per-building cost
+        self.cost = cost          # per-building cost (this batch's FIRST tile)
         self.count = count        # 10J: batch size (shift multi-select)
+        self._buildings_balance = buildings_balance
+        self._tier_idx = tier_idx
+        # feature-storm-acolyte-multi-build: the count of already-placed
+        # `LIGHTNING_SOURCE_TAG`-tagged occupants at the moment this preview
+        # opened — the escalation baseline `total_cost` sums from.
+        self._repeat_count = repeat_count
         self.view_w = view_w
         self.view_h = view_h
         self._names = _random_names(buildings_balance)
@@ -167,7 +197,14 @@ class ConstructPreview:
 
     @property
     def total_cost(self):
-        return self.cost * self.count
+        """Batch total. feature-storm-acolyte-multi-build: for a batch of a
+        type carrying ``repeat_cost_multiplier``, this SUMS the escalating
+        sequence (``n``, ``n+1``, ``n+2``, …) starting at ``_repeat_count``,
+        not a flat ``cost * count`` — matching what ``place_building`` will
+        actually charge tile by tile as ``_do_place`` walks the batch. A
+        type with no multiplier collapses to the familiar flat total."""
+        return _batch_cost(self.building_type, self._buildings_balance,
+                           self._tier_idx, self._repeat_count, self.count)
 
     @property
     def chosen_name(self):
@@ -518,21 +555,24 @@ class BuildingUI:
         # screen's defaults.button_skin instead — {} (no override) means None,
         # the unskinned flat-rect card the golden parity pin already covers.
         skin = self.skinning.defaults(self.screen_id).get("button_skin")
+        # feature-storm-acolyte-multi-build: the Storm Priest run-singleton
+        # ban is LIFTED — several may be placed, each priced steeper than the
+        # last via the group's `repeat_cost_multiplier`. This is the SAME
+        # already-placed count `build_cost`/`place_building` use, computed
+        # once for every card (a no-op price-wise for every type without the
+        # multiplier key).
+        repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
         for btype in BUILDING_CLASSES:
             if not buildable(state, btype):
                 continue  # type not unlocked / tier 1 not researched (10A)
             tier_idx = tiers_unlocked_for(state, btype) - 1
-            cost = build_cost(btype, self._buildings_balance, tier_idx)
+            cost = build_cost(btype, self._buildings_balance, tier_idx,
+                              repeat_count)
             name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
-            # Storm Priest run-singleton: `lightning_level` only ever rises
-            # off 0 by a Storm Priest placement and never lowers (latch), so
-            # it is an exact proxy for "one has been placed this run" — grey
-            # out (not hide) the card once true.
-            placed = btype == "storm_priest" and state.lightning_level > 0
-            label = f"{name}  ALREADY PLACED" if placed else f"{name}  {cost}"
+            label = f"{name}  {cost}"
             btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
-                         label, "md", skin=skin, enabled=not placed)
+                         label, "md", skin=skin)
             self.cards.append((btype, btn))
             y += 50
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
@@ -631,7 +671,11 @@ class BuildingUI:
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
             if self.preview.confirm_hovered():
-                self._hover_cost = self.preview.cost
+                # The BATCH total, not the first tile's unit price — matches
+                # what CONFIRM will actually charge (feature-storm-acolyte-
+                # multi-build's escalating sequence, or the familiar flat
+                # total for every other type).
+                self._hover_cost = self.preview.total_cost
             return
         if not self.visible:
             return
@@ -640,13 +684,17 @@ class BuildingUI:
         if self.mode == "construct":
             count = max(1, len(self.selected_tiles))  # 10J batch
             state = self._session.state
+            # feature-storm-acolyte-multi-build: the SAME already-placed
+            # count every card's price/label uses (`_build_construct`),
+            # computed once per hover pass.
+            repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
             for btype, btn in self.cards:
                 btn.hover(mx, my, mouse_down)
                 if btn.hovered:
                     tier_idx = tiers_unlocked_for(state, btype) - 1
-                    self._hover_cost = (
-                        build_cost(btype, self._buildings_balance, tier_idx)
-                        * count)
+                    self._hover_cost = _batch_cost(
+                        btype, self._buildings_balance, tier_idx,
+                        repeat_count, count)
         elif self.mode in ("unlock", "upgrade"):
             self.action_btn.hover(mx, my, mouse_down)
             self.action_btn.hovered = (self.action_btn.hovered
@@ -734,17 +782,25 @@ class BuildingUI:
         for btype, btn in self.cards:
             if btn.hit(mx, my):
                 tier_idx = tiers_unlocked_for(session.state, btype) - 1
-                cost = build_cost(btype, buildings_balance, tier_idx)
+                # feature-storm-acolyte-multi-build: the same already-placed
+                # count `_build_construct` priced the card off.
+                repeat_count = count_tag(session.tilemap, LIGHTNING_SOURCE_TAG)
+                cost = build_cost(btype, buildings_balance, tier_idx,
+                                  repeat_count)
                 count = max(1, len(self.selected_tiles))
                 # 10J batch: the whole batch must be affordable up front
-                # (prototype building_ui.py:704-708).
-                if session.state.love < cost * count:
+                # (prototype building_ui.py:704-708) — the ESCALATING total,
+                # not a flat cost x count, so this gate agrees with what
+                # ConstructPreview.total_cost/_do_place will actually charge.
+                total = _batch_cost(btype, buildings_balance, tier_idx,
+                                    repeat_count, count)
+                if session.state.love < total:
                     btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
                 else:
                     self.preview = ConstructPreview(
                         btype, cost, buildings_balance, self._ui_balance,
                         self.view_w, self.view_h, count=count, tier_idx=tier_idx,
-                        skinning=self.skinning)
+                        repeat_count=repeat_count, skinning=self.skinning)
                 return True
         return contains(self.panel_rect, mx, my)
 

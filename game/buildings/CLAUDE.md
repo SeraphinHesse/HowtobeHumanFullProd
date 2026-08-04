@@ -135,10 +135,26 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     type-string-gated**, so `registry.place_building` stays type-agnostic (no
     `storm_priest` branch) — the same G-3 discipline as the
     `IS_COMBAT`→`"combat"` tag.
-  - **Run-singleton**: only one Storm Priest may ever be placed in a run.
-    Enforced in the UI, not here — `game/ui/building_ui.py`'s construct panel
-    greys out (disabled, NOT hidden) its card once `state.lightning_level > 0`
-    (an exact proxy: nothing else ever raises it off 0, and it never lowers).
+  - **Run-singleton REMOVED (feature-storm-acolyte-multi-build)**: any number
+    of Storm Priests may be placed, each levelled independently and firing
+    together on one click (see `game/core/CLAUDE.md`'s lightning section for
+    the per-caster level/cooldown rework and `game/ui/CLAUDE.md` for the
+    charge-bar FX). Each extra one costs more: `DefenceBuildings.StormPriest`
+    carries an OPTIONAL group-level `repeat_cost_multiplier` (1.8); a fresh
+    placement's price is `build_cost * multiplier ** N`, `N` = the count of
+    already-placed `"lightning_source"`-tagged occupants (alive OR dead — a
+    dead one is not a freed slot, payday's slot-9 revive brings it back).
+    `registry.count_tag(tilemap, tag)` is the O(built-tiles) counter
+    (`TileMap.built_tiles()`'s `_by_state` index — never a full-map scan);
+    `registry.build_cost(..., repeat_count=0)` is a no-op for every type
+    without the multiplier key, so this is Storm-Priest-only in practice
+    while staying **tag-gated, not type-string-gated** (G-3) — the counting
+    seam never branches on `building_type == "storm_priest"`.
+    `game/ui/building_ui.py`'s construct card, its hover price, and
+    `ConstructPreview.total_cost` (which sums the ESCALATING batch sequence
+    for a shift-multi-select placement, not a flat `cost * count`) all read
+    off this same count so the label, the hover figure and the actual charge
+    can never disagree.
   - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; its
     `tiers[0].unlock_min_round` is 0) with `starts_unlocked: false` in
     `buildings.json` — offered in the level-up unlock pool from round 1 but
