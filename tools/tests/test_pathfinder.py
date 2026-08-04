@@ -232,5 +232,44 @@ class TestDijkstraReturnsTheRouteItCosted(unittest.TestCase):
                                  self._reference_cost(tm, start, goal))
 
 
+class TestWeightProfiles(unittest.TestCase):
+    """Chunk 3 — the optional per-caller ``cond_weights`` profile threaded
+    through every ``find_path*`` query, and the flow-field cache key it
+    extends to ``(ignore_walls, footprint, profile_key)``."""
+
+    def test_a_low_pond_weight_changes_the_chosen_route(self):
+        # A pond sits directly on the straight route from the spawn to the
+        # base; going around costs 6 (six plain combat tiles) vs going
+        # straight through at the default pond weight (9): 1 + (1+9) + 1 =
+        # 12 — so the default profile detours around it. At pond=1 the
+        # straight route costs 1 + (1+1) + 1 = 4 — cheaper than the detour,
+        # so the SAME query now walks straight through it.
+        tm = synth(["ccccc", "ccccc", "ccccc"], base=(0, 1))
+        tm.get(2, 1).condition = TileCondition.POND
+        start = (4, 1)
+        default_path = find_path(tm, *start)
+        self.assertNotIn((2, 1), default_path)
+        cheap_pond = {"forest": 1, "mountain": 2, "pond": 1}
+        cheap_path = find_path(tm, *start, cond_weights=cheap_pond)
+        self.assertIn((2, 1), cheap_path)
+        self.assertTrue(is_contiguous(cheap_path))
+        self.assertEqual(cheap_path[0], start)
+        self.assertEqual(cheap_path[-1], (0, 1))
+
+    def test_identical_profiles_share_one_flow_field(self):
+        """Two DIFFERENT dict objects with the same values must collapse onto
+        ONE cached field — never one per caller, let alone one per enemy
+        (game/PERF.md)."""
+        tm = synth(OPEN_5x5)
+        profile_a = {"forest": 1, "mountain": 2, "pond": 9}
+        profile_b = dict(profile_a)
+        self.assertIsNot(profile_a, profile_b)
+        find_path(tm, 3, 3, cond_weights=profile_a)
+        find_path(tm, 3, 3, cond_weights=profile_b)
+        fields = tm._flow_cache[1]
+        matching = [k for k in fields if k[0] is False and k[1] == 1]
+        self.assertEqual(len(matching), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

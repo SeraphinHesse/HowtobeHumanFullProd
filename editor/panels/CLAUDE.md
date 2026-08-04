@@ -118,6 +118,32 @@ import list.**
   whatever differs from the current baseline, nothing is written until the user
   clicks Save again); "Delete" removes an entry via
   `balancing_history.delete_session`. Undo (ED-24) deferred for balancing.
+- **Paired weight/override checkbox (`x-toggle`/`x-paired`)**: a schema-driven
+  rendering rule, not a hardcoded path — `map.schema.json`'s
+  `Pathfinding.content_weights.*`/`TileConditions.path_weights.*` are the first
+  (only) users. A numeric leaf's schema carries `"x-toggle": "<sibling key>"`
+  (both are house-style custom JSON Schema keywords: unknown keywords are just
+  ignored data to a validator, so `additionalProperties`/`required`/bounds
+  validation is unaffected) and `_add_leaf_row` builds a QCheckBox — via the
+  exact same construction `_make_widget`'s boolean branch uses — and
+  `row_layout.insertWidget(0, checkbox)`s it left of the numeric widget, inside
+  the SAME row `QWidget`. **Sibling resolution rule**: the toggle bool is a
+  sibling of the LEAF'S PARENT OBJECT, at the same leaf key —
+  `Pathfinding/content_weights/defence_building`'s toggle lives at
+  `Pathfinding/content_weight_overwrites/defence_building`
+  (`path[:-2] + (toggle_key, path[-1])`). `_schema_node_at` resolves the
+  sibling's own schema node (for its tooltip `description`) by walking the
+  FULL schema from the root — it does not reuse the current recursion's schema
+  branch, since the sibling can live anywhere else in the tree. The checkbox
+  commits straight to the sibling's own path via the same `_commit` every
+  widget uses, so dirty tracking/`save_changes` need no special case, and it
+  registers in `self._widgets` under the SIBLING path (not the weight's own
+  path) — same lookup convention as every other widget. Missing sibling
+  object/key (a domain whose doc doesn't carry the toggle object) degrades to
+  a plain row, never raises. The toggle OBJECT itself (e.g.
+  `content_weight_overwrites`) carries `"x-paired": true` so `_build_object`
+  skips it entirely — it never renders as its own `CollapsibleSection`, only
+  inline via its partners' rows.
 - **`domains.py`** (in `editor/`, not `panels/`, but governs the form):
   `domains(data_dir)`, `category_keys`/`is_domain_category`,
   `balancing_path`/`schema_path` — read-only derivation helpers.

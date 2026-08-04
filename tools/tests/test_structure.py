@@ -78,9 +78,12 @@ class TestStructureStats(unittest.TestCase):
         b.advance_tier()                                           # Bulwark
         self.assertEqual(b.max_hp(), BLOCKER[1]["base_hp"])        # 1200
 
-    def test_blocker_uses_traversable_economy_weight(self):
-        # NOT impassable: enemies path over it and attack (prototype fallback).
-        self.assertEqual(Blocker(0, 0, BUILD).CONTENT_KEY, "economic_building")
+    def test_blocker_uses_its_own_traversable_weight(self):
+        # NOT impassable: enemies path over it and attack. Own content key
+        # since the buildings-overwrite-tileweights rework (seeded to the
+        # same traversable weight (1) the shared economy key used to fall
+        # back to).
+        self.assertEqual(Blocker(0, 0, BUILD).CONTENT_KEY, "blocker_building")
 
     def test_wall_builder_wall_hp_upkeep_and_hp(self):
         w = WallBuilder(0, 0, BUILD)

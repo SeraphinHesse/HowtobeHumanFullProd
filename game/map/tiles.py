@@ -46,8 +46,12 @@ _STATE_CONTENT_KEY = {
     TileState.SPAWNING: "spawning_tile",
 }
 
-# Condition -> key in TileConditions.path_weights (GRASS has no entry -> +0).
-_CONDITION_WEIGHT_KEY = {
+# Condition -> key in TileConditions.path_weights / path_weight_overwritable
+# (GRASS has no entry -> +0, and can never be "overwritten" — there is no
+# condition weight to overwrite). Public (not `_`-prefixed): both
+# `Tile.pathfinding_weight` here and `TileMap.refresh_building_overwrite_flags`
+# share it, so the enum->key mapping cannot drift between the two.
+CONDITION_WEIGHT_KEY = {
     TileCondition.MOUNTAIN: "mountain",
     TileCondition.POND: "pond",
     TileCondition.FOREST: "forest",
@@ -196,26 +200,61 @@ class Tile:
         # BUILT without a content key should not occur; stay safe.
         return weights["impassable"]
 
-    def pathfinding_weight(self, balance, defence_range_add=0):
+    def _overwrites_condition(self, balance, ck):
+        """True iff a LIVE building occupying this tile OVERWRITES (rather
+        than adds to) the terrain condition weight keyed ``ck`` — the
+        buildings-overwrite-tileweights rework (stops the water-parking
+        exploit: an economy building on a pond used to cost 1+9 instead of
+        just 1). An OR of three independently designer-controlled switches
+        (deliberate, per the orchestrator's ruling — any one of them can turn
+        overwrite on): the master switch, a per-building-type override, and a
+        per-condition override. Every dict is indexed DIRECTLY (no ``.get()``
+        default) so a missing key fails loud (D-2) — every possible tile must
+        be calculable."""
+        if self.occupant is None or not getattr(self.occupant, "alive", False):
+            return False
+        if self.content_key is None:
+            return False
+        pf = balance["Pathfinding"]
+        return (
+            pf["buildings_overwrite_tileweights"]
+            or pf["content_weight_overwrites"][self.content_key]
+            or balance["TileConditions"]["path_weight_overwritable"][ck]
+        )
+
+    def pathfinding_weight(self, balance, defence_range_add=0, cond_weights=None):
         """Dijkstra edge weight for stepping onto this tile.
 
         PROTOTYPE-EXACT composition order (``tile.py:61-96``): base content
         weight -> + terrain condition -> + defence-range coverage -> ×
         damage-reduction discount. The three modifiers are gated to
         ``0 < base < impassable`` so the goal (base, 0) and impassable walls
-        (999) are exempt.
+        (999) are exempt. Since the buildings-overwrite-tileweights rework
+        the condition step is further gated: a live building whose
+        ``_overwrites_condition`` resolves true OVERWRITES the terrain
+        weight instead of adding to it (nothing to add, so the step is
+        simply skipped — the building's own content weight from
+        ``_base_weight`` above already stands alone).
+
+        ``cond_weights``: ``None`` (default) means "use the map's own
+        ``TileConditions.path_weights``" — today's behaviour, byte-identical.
+        A caller with a per-enemy-type profile (``EnemyTypes.<type>.
+        condition_path_weights``, Chunk 3) passes its own
+        ``{forest, mountain, pond}`` mapping here instead, so a raider can be
+        tuned to swim a pond a walker would avoid.
         """
         pf = balance["Pathfinding"]
         weights = pf["content_weights"]
-        cond_weights = balance["TileConditions"]["path_weights"]
+        weights_by_cond = (cond_weights if cond_weights is not None
+                           else balance["TileConditions"]["path_weights"])
         reduction = pf["damage_reduction"]["reduction"]
         impassable = weights["impassable"]
 
         base = self._base_weight(weights)
         if 0 < base < impassable:
-            ck = _CONDITION_WEIGHT_KEY.get(self.condition)
-            if ck is not None:
-                base += cond_weights[ck]
+            ck = CONDITION_WEIGHT_KEY.get(self.condition)
+            if ck is not None and not self._overwrites_condition(balance, ck):
+                base += weights_by_cond[ck]
         if self.defence_range_covered and 0 < base < impassable:
             base += defence_range_add
         if self.damage_weight_reduced and 0 < base < impassable:

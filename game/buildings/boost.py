@@ -33,8 +33,12 @@ _PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 class BoostBuilding(Building):
     """Family base: identity is set by the three leaves, behaviour lives here."""
 
-    CONTENT_KEY = "economic_building"   # prototype boost tiles fall back to the
-                                        # economy pathfinding weight (traversable, 1)
+    # No CONTENT_KEY here: each leaf below sets its own
+    # (map.json content_weights carries a key per boost type since the
+    # buildings-overwrite-tileweights rework). All three seed to the same
+    # traversable weight (1) the shared economy key used to fall back to —
+    # the intent (a boost tile stays cheap to walk through) is preserved by
+    # the seeded VALUE now, not by sharing a key.
     EXTRA_TAGS = ("boost",)
 
     # Set by leaves:
@@ -180,6 +184,7 @@ def _refresh_max_hp(building):
 
 class BoostSpeed(BoostBuilding):
     BUILDING_TYPE = "boost_speed"
+    CONTENT_KEY = "boost_speed_building"
     SUBTREE = ("BoostBuildings", "Speed")
     TIER_SPRITES = ("boost_speed", "boost_speed", "boost_speed")
     _boost_stat = "speed"
@@ -189,6 +194,7 @@ class BoostSpeed(BoostBuilding):
 
 class BoostDamage(BoostBuilding):
     BUILDING_TYPE = "boost_damage"
+    CONTENT_KEY = "boost_damage_building"
     SUBTREE = ("BoostBuildings", "Damage")
     TIER_SPRITES = ("boost_damage", "boost_damage", "boost_damage")
     _boost_stat = "damage"
@@ -198,6 +204,7 @@ class BoostDamage(BoostBuilding):
 
 class BoostHP(BoostBuilding):
     BUILDING_TYPE = "boost_hp"
+    CONTENT_KEY = "boost_hp_building"
     SUBTREE = ("BoostBuildings", "HP")
     TIER_SPRITES = ("boost_hp", "boost_hp", "boost_hp")
     _boost_stat = "hp"

@@ -59,8 +59,13 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
 - **10D boost line** (`boost.py`: `BoostBuilding` family + thin `BoostSpeed`/
   `BoostDamage`/`BoostHP` leaves) subclasses `Building` directly (neither economy
   nor defence). ONE behaviour class, three data lines
-  (`BoostBuildings.{Speed,Damage,HP}`); `CONTENT_KEY="economic_building"` (the
-  prototype's boost pathfinding-weight fallback — no map change), tag `"boost"`.
+  (`BoostBuildings.{Speed,Damage,HP}`); each leaf carries its OWN
+  `CONTENT_KEY` (`boost_speed_building`/`boost_damage_building`/
+  `boost_hp_building`) since the buildings-overwrite-tileweights rework gave
+  every building type its own `Pathfinding.content_weights` entry — they are
+  **seeded to 1, the economy weight they used to share**, so the prototype's
+  boost pathfinding-weight fallback is preserved by the VALUE, not by a shared
+  key, and a designer can now diverge them per type. Tag `"boost"`.
   All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
   (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
   to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
@@ -79,8 +84,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   each type researches its own tiers (see `game/core`).
 - **10E structure line** (`structure.py`: `StructureBuilding` family + thin `Blocker`
   / `WallBuilder` leaves) subclasses `Building` directly (passive — no attack, no
-  yield), `CONTENT_KEY="economic_building"` (traversable weight — enemies attack, not
-  reroute), tag `"structure"`. Both use a SINGLE flat art slot per type (override
+  yield); each leaf carries its OWN `CONTENT_KEY` (`blocker_building`/
+  `wall_builder_building`) since the buildings-overwrite-tileweights rework, both
+  **seeded to 1 — the economy weight they used to share** — so the traversable
+  "enemies attack, not reroute" intent is preserved by the VALUE, not by a shared
+  key. Tag `"structure"`. Both use a SINGLE flat art slot per type (override
   `slot_key()` → `SLOT`, matching the flat `blocker`/`wall_builder` slots in
   `data/slots.json`; `_tier_option` in `game/core/levelup.py` reads that same flat
   `SLOT` for the research card). **Blocker** is a pure tier-HP soak (no new enemy code
