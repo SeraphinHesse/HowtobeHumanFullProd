@@ -1,13 +1,14 @@
-# PMToolPLAN.md — "Drunken Planner": a git-native, LLM-first project-management tool
+# PMToolPLAN.md — "Spinner Project Management": a git-native, LLM-first PM tool
 
 > **Status: SPEC + PHASED PLAN. Not yet started. Zero code exists.**
 > This document is the agreed specification and build order for a **new,
 > separate product** — a project-management tool for *How To Be Human* and
 > future projects. It is authored inside the game repo (per the C2 workflow)
-> but **the tool is built in its own repository** (working name
-> `drunken-planner`). Nothing here targets `game/`, `editor/`, `engine/`, or
-> `data/`. This doc is the source of truth until the tool's own repo carries
-> its own `PLAN.md`.
+> but **the tool is built in its own repository** — **`spinner-project-
+> management`** (Spinner Project Management), which Seraphin will create. For now
+> this plan lives here in the game repo; it will be moved into that repo once it
+> exists. Nothing here targets `game/`, `editor/`, `engine/`, or `data/`. This
+> doc is the source of truth until the tool's own repo carries its own `PLAN.md`.
 >
 > Requirements are numbered `PM-*` (feature/requirement) and phases `P0..P12`.
 > When the tool's repo is created, copy this file to its `planning/` and mirror
@@ -129,7 +130,7 @@ opening a terminal**.
 ## 3. Repository & project layout (the tool's own repo)
 
 ```
-drunken-planner/
+spinner-project-management/
   apps/
     web/            # React app (built + served by companion in v1)
     companion/      # Node/TS local process: server, sync engine, agent runner
@@ -908,8 +909,8 @@ Both content inputs are now in hand and encoded above:
 The full seed tree — all **9 epics** (6 gameplay + Engine + Editor + PM Tool),
 their stories, and task patterns — is enumerated in **§19**.
 
-Still open (mechanics, not blockers): the **working repo name** for the tool
-(placeholder `drunken-planner`). *Miro is not an open item — it is retired
+Repo name is decided: **`spinner-project-management`** (Seraphin creates it and
+moves this plan over). *Miro is not an open item — it is retired
 (§8.1); no future workflow touches it.*
 
 ---
