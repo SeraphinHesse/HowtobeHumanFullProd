@@ -1108,3 +1108,171 @@ seed (nothing built yet).
 Each story here auto-spawns its "write XP card" task (§8.2) like any other — so
 the PM tool's own features get XP cards and generated plans through the very
 pipeline they implement.
+
+---
+
+## 20. Governance — making spawned agents obey the repo's rules
+
+Spinner's core promise is launching agents that respect *How To Be Human*'s
+rules. Those rules come from **two independent sources**, each needing its own
+strategy. **Model compliance is the weakest layer — every rule that can be
+enforced by tooling is.**
+
+### 20.1 Two rule-sources (and the gap)
+- **Repo-resident (the CLAUDE.md world) — inherited for free.** The router +
+  package `CLAUDE.md`s, `.claude/agents/`, the `.claude/commands/` skills, and
+  the hooks in `.claude/settings.json` (`PreToolUse`→C2, `SessionStart` /
+  **`SubagentStart`**→`orient.py`, which hands each subagent the CLAUDE.md + code
+  graph) **auto-load in any Claude Code session launched in the repo**. CI
+  (`.github/workflows/tests.yml`) enforces the testgate on every PR. Spinner
+  inherits all of it **as long as** it launches with the game-repo clone as cwd,
+  **never sets `WORKFLOW_HOOK_OFF=1`**, and seeds the prompt to invoke the right
+  skill + read the one package doc.
+- **Harness-injected (git/GitHub conventions) — the gap.** Branch-per-feature
+  off `Development`, PR-into-`Development`, the attribution footer, PR-template
+  use, "never push to `Development` directly", no `build/`/`dist/`/`*.exe`, push
+  retry/backoff — today these live **only in the runtime's system prompt, not in
+  the repo**. A plain `claude` Spinner launches would not know them. **Closing
+  this gap is Spinner's job**: make them repo-resident and tool-enforced.
+
+### 20.2 Encode once — a policy manifest the repo owns
+`.claude/policy.json` (added to the game repo, and to Spinner's own repo):
+```jsonc
+{ "default_pr_base": "Development",
+  "protected_branches": ["Development", "main"],
+  "branch_pattern": "spinner/<task-id>-<slug>",
+  "attribution_footer": "…the required footer text…",
+  "forbidden_paths": ["build/", "dist/", "**/*.exe"],
+  "required_checks": ["tests"] }
+```
+Mirrored in prose in a `CONTRIBUTING.md` / a CLAUDE.md "GitHub rules" section so
+an agent reads them too. One source; every enforcer below reads it.
+
+### 20.3 Enforce deterministically (belt and suspenders)
+1. **Server-side — GitHub branch protection on `Development`:** require a PR,
+   require the `tests` check green, require the PR template, block direct pushes.
+   An agent **cannot** merge red or push to `Development`.
+2. **Client-side — git hooks Spinner installs in every managed clone** (the repo
+   ships none today): `pre-push` rejects protected-branch pushes; `commit-msg`
+   rejects a missing footer; `pre-commit` blocks `forbidden_paths` and runs
+   `py tools/testgate.py check --affected`.
+3. **In-session — the C2 `PreToolUse` hook** already hard-denies wrong agent
+   types; Spinner never disables it.
+
+### 20.4 Compliant by construction — the tool does the ceremony
+Per §9 the **model writes code; the companion performs the git/PR mechanics**
+from `policy.json`, so nothing depends on the agent remembering them:
+- *Before launch:* `git fetch` + branch `spinner/<task-id>-<slug>` off fresh
+  `Development`; cwd = the clone; hooks on; prompt seeded with the matching skill
+  (`/add-building`…), the ONE package doc, and the task's XP card + plan.
+- *After the agent reports done:* commit with the footer, push with retry/
+  backoff, open the PR into `Development` with the template — all by the tool.
+- The agent still runs `py tools/testgate.py check` before handback (the in-repo
+  exit gate); CI re-checks on the PR.
+
+### 20.5 Verify, then let a human gate
+- **Deterministic post-run compliance check** — right branch, footer present, no
+  forbidden paths, CI status — surfaced on the card; a violation blocks
+  `Ready for Test → Done`.
+- **`reviewer` agent** pass over the diff against the brief + design pillars
+  (C2's review step), attached to the card.
+- **PR-activity subscription** drives card state (CI red → back to the manager;
+  merged → `Done`).
+
+### 20.6 Human override is explicit and logged
+The rules can be overridden (e.g. a PM committing a plan straight to
+`Development`, as was done for *this* doc) — but in Spinner that is a **PM-only,
+per-action, logged** escape written to the activity feed, **never** something an
+agent self-authorizes.
+
+### 20.7 Spinner's own repo eats its own dog food
+`spinner-project-management` ships the **same** stack — its own `CLAUDE.md` +
+`.claude/policy.json` + hooks + CI — so the tool enforcing the rules is itself
+built under them.
+
+**Phase mapping:** the policy manifest + git-ceremony + client hooks + compliance
+check land in **P5** (AI runs); GitHub branch protection is a one-time setup in
+**P11** (bootstrap). Adding `.claude/policy.json` + a `CONTRIBUTING.md` to the
+game repo is a small **prep task** that can precede Spinner itself.
+
+---
+
+## 21. Agent skills & the "Create Capability" button
+
+### 21.1 Skills the spawned agents actually use (game work)
+Spinner does **not** invent a parallel skill system for game work — it **drives
+the game repo's existing skills** (the CLAUDE.md table), auto-selected from a
+task's discipline/tags and seeded into the spawn prompt (this is the skill half
+of "compliant by construction", §20.4):
+
+| Task shape (from discipline/tags) | Skill the agent opens with |
+|---|---|
+| Add/create a building | `/add-building` |
+| Add/create an enemy | `/add-enemy` |
+| Add/change a balancing value | `/add-balancing-value` |
+| Add an engine component | `/add-engine-component` |
+| Add an editor feature/panel | `/add-editor-feature` |
+| Wire an asset importer | `/add-asset-importer` |
+| Replace a sprite/visual | `/replace-visual` |
+| New slot category / balancing domain | `/add-category` |
+| Small self-contained tweak | `/smalltweak` |
+| Execute a plan phase | `/execute-phase` |
+| Author a phased plan | `/createplan` |
+| Exit gate / handback report | `/testgate`, `/report` |
+
+The mapping is **data, not hardcode**: Spinner reads the repo's
+`.claude/commands/` + `data/agent_forms/*.json` at seed to populate the picker
+(exactly how the editor's launcher discovers forms), so a new repo skill becomes
+selectable without a Spinner change. A task with no matching skill falls back to
+a plain `coder`/`engine-coder` dispatch with the ONE package doc.
+
+### 21.2 Spinner-native skills (its own repo)
+For work *on Spinner itself*, `spinner-project-management` ships its own
+`.claude/commands/` in the same house format: `/add-tool` (a board tool/panel),
+`/add-capability` (§21.3), `/add-widget` (a dashboard widget), `/wbs-import`,
+`/gen-xp-card`, `/gen-plan`, `/blocker-analysis`, and `/ship` (runs the governed
+git ceremony, §20.4).
+
+### 21.3 The "Create Capability" button — skill-creator on a button
+A first-class **＋ Create Capability** button that lets a user **extend Spinner
+from inside the app** — no terminal, no hand-rolled setup. It opens a short
+**capability wizard**, then launches Claude Code with **`skill-creator` /
+`add-skill`** pre-loaded (and, for a new board tool, `/add-tool` + the meta-form
+pattern `/add-form-spec`) — the same spawn contract as any AI run (§9.1), with
+model + effort pickable. It is Spinner's analog of the editor's *"Add new X…"*
+meta-forms: **a capability is declared as a form-spec + a skill, generated for
+you.**
+
+### 21.4 Scope switch — Local (UI/formatting) vs General (tool change)
+The wizard's first, load-bearing choice, because it decides **whether the change
+can touch anyone but you**:
+
+- 🟢 **Local — UI / formatting only.** A per-user view change: layout, density,
+  colors, a custom card or dashboard rendering. It lands in **your user-scoped
+  prefs (§14 liquid UI)** — never the shared schema, never how data is processed,
+  never another user's view. **No PR, no approval, instant and reversible.**
+  Constrained to a **safe, declarative surface** (whitelisted layout/style config
+  + sanctioned view components — *not* arbitrary code with access to tokens or
+  the store), so a broken local capability can only break your own view.
+- 🔴 **General — tool change.** *(shown with a red warning sign.)* A shared
+  capability: a new tool/panel/skill/widget, or **anything touching the data
+  schema or the processing pipeline**. It changes Spinner **for everyone**, so it
+  is **routed straight through governance (§20)**: generated on a
+  `spinner/<id>-<slug>` branch → PR into Spinner's `Development` → CI + `reviewer`
+  → **PM/lead approval before merge**. The red sign plus a one-line *"this changes
+  the tool for the whole team"* confirm-gate make the blast radius obvious before
+  anyone commits.
+
+**Permissions.** Any user may create a **Local** capability (it's their own
+view). **General** is **PM/lead-gated** (§6.3): the button offers the General
+option only to those roles; everyone else can *propose* one — it opens as a
+request a PM/lead approves to launch.
+
+**Invariant preserved.** This is the same wall the liquid-UI requirement drew —
+*layout is personal and free; data shape and shared behavior are governed.* The
+scope switch is just where the user picks which side of that wall they're on;
+the 🔴 path can never skip §20, and the 🟢 path can never reach shared data.
+
+**Phase mapping.** The 🟢 Local path rides on **P12** (liquid UI). The 🔴 General
+path (Create-Capability wizard + `/add-tool`/`/add-capability` + governed spawn)
+is a **P11–P12** addition, once the AI-run + governance spine (P5, §20) exists.

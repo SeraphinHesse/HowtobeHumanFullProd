@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Spinner app icon — spider on a thread in a rounded tile">
+  <title>Spinner — app icon (placeholder)</title>
+  <style>
+    :root { --tile:#f5ecdb; --ink:#2b2118; --thread:#b39769; --accent:#c9942f; }
+    @media (prefers-color-scheme: dark) { :root { --tile:#20180f; --ink:#ece6dd; --thread:#7d6540; --accent:#e0ad4a; } }
+    .tile  { fill: var(--tile); }
+    .ink   { fill: var(--ink); }
+    .legs  { fill: none; stroke: var(--ink); stroke-width: 4.8; stroke-linecap: round; stroke-linejoin: round; }
+    .thread{ fill: none; stroke: var(--thread); stroke-width: 3; stroke-linecap: round; }
+    .eye   { fill: var(--tile); }
+    .band  { fill: none; stroke: var(--accent); stroke-width: 4; stroke-linecap: round; }
+  </style>
+
+  <!-- rounded tile -->
+  <rect class="tile" x="0" y="0" width="256" height="256" rx="56" ry="56" />
+
+  <!-- dragline from the top of the tile to the abdomen -->
+  <path class="thread" d="M128 12 L128 90" />
+
+  <!-- spider, from the base logo, scaled + centered -->
+  <g transform="translate(32,26) scale(0.8)">
+    <g class="legs">
+      <path d="M112 158 L66 120 L48 150" />
+      <path d="M110 167 L56 148 L36 180" />
+      <path d="M112 176 L58 184 L40 212" />
+      <path d="M116 184 L70 212 L58 242" />
+      <path d="M128 158 L174 120 L192 150" />
+      <path d="M130 167 L184 148 L204 180" />
+      <path d="M128 176 L182 184 L200 212" />
+      <path d="M124 184 L170 212 L182 242" />
+    </g>
+    <ellipse class="ink" cx="120" cy="118" rx="32" ry="38" />
+    <path class="band" d="M120 92 C132 106 132 130 120 146" />
+    <ellipse class="ink" cx="120" cy="171" rx="24" ry="21" />
+    <circle class="eye" cx="111" cy="185" r="2.6" />
+    <circle class="eye" cx="120" cy="187" r="2.6" />
+    <circle class="eye" cx="129" cy="185" r="2.6" />
+  </g>
+</svg>
