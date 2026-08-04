@@ -566,22 +566,34 @@ next game" is a backend swap, not a rewrite.
 
 ### 8.1 WBS builder is the source of truth (PM-WBS)
 The visual WBS builder **is** the structured data — nodes are epics/stories/
-tasks/subtasks written straight to the flat files, colored on the board's two
-axes: **fill = discipline** (Tech/UI-FX/Sprite/Anim/Sound/Balance) and **border
-= MoSCoW** (MUST/SHOULD/NICE), exactly like the Miro production board it seeds
-from. "Parsing" only matters for the **first import**:
-- **The real seed is the production board** — `docs/PRODUCTION_BOARD.md` in the
-  game repo (extracted from Miro: **32 feature blocks / ~1010 work-item cards**,
-  each with discipline + priority). The `pipeline` package ships a
-  **deterministic parser for that exact format**: each `### <Feature block> ·
-  *PRIORITY*` becomes a **Story**, each row in its table becomes a **Task** with
-  `discipline` + `priority`, and the Legend defines the taxonomy. Epics (the
-  Miro `#8f7fee` sections) are reconstructed from the Miro source where present;
-  the flattened MD groups all 32 stories under a single default epic that the PM
-  can re-parent in the builder.
-- **Secondary import paths**: an indented outline (Markdown/YAML) or a
-  spreadsheet, parsed the same way (Haiku-assisted only for messy free input).
-  After any import the builder owns the data.
+tasks/subtasks written straight to the flat files, colored on two axes: **fill =
+discipline** (Tech/UI-FX/Sprite/Anim/Sound/Balance) and **border = MoSCoW**
+(MUST/SHOULD/NICE).
+
+> **Miro is retired.** The production board was exported from Miro **once**; from
+> then on this WBS builder is the **sole** workflow — there is no ongoing Miro
+> sync, and nothing depends on re-opening the Miro board. The export files below
+> are a one-time seed, not a live source.
+
+"Parsing" only matters for the **one-time seed import**:
+- **Structure (epics) comes from `docs/Feature list.pdf`** — it groups the ~44
+  features into **6 gameplay epics**: **Buildings** (13 stories), **Enemies &
+  Combat** (8), **Map** (5), **Progression** (7), **UI** (10), **Effects** (1).
+  These become the epic layer (§19.1).
+- **Stories + tasks come from `docs/PRODUCTION_BOARD.md`** (the Miro export: 32
+  feature blocks / ~1010 discipline-tagged, MoSCoW cards). The `pipeline` package
+  ships a **deterministic parser**: each `### <Feature block> · *PRIORITY*` →
+  **Story**; each table row → **Task** with `discipline` + `priority`; the Legend
+  defines the taxonomy. Stories are parented into the 6 epics by name; any
+  feature in the status docs but absent from the 32-block export (e.g. Storm
+  Priest, Game Over, Decoration) is created as a story from `FEATURE_STATUS.md`.
+- **Current state comes from `docs/FEATURE_STATUS.md`** — its Logic/Art/Audio
+  columns set each item's initial workflow state instead of all-New (§15, §19).
+- **Beyond gameplay**, the seed also creates the **Engine**, **Editor**, and
+  **PM Tool** epics (§19.2–19.4).
+- **Secondary import paths** (for future projects): an indented outline
+  (Markdown/YAML) or a spreadsheet, parsed the same way. After any import the
+  builder owns the data — no external board.
 - WBS edits (structure) are **PM + leads only** (§6.3); anyone can edit leaf
   fields per their scope.
 
@@ -889,10 +901,16 @@ Both content inputs are now in hand and encoded above:
    feature blocks / ~1010 cards, discipline + MoSCoW). It is the seed for P2/P11
    and defines the discipline + priority taxonomies (§4, §8.1, §15).
 
-Still open (project mechanics, not blockers): the **Epic grouping** of the 32
-stories (the flattened MD lost the Miro `#8f7fee` sections — the PM re-parents in
-the builder, or we re-extract from Miro), and the **working repo name** for the
-tool (placeholder `drunken-planner`).
+3. **Epic grouping** — `docs/Feature list.pdf`: the 6 gameplay epics (§19.1).
+4. **Current state** — `docs/FEATURE_STATUS.md` (Logic/Art/Audio per feature),
+   used to seed initial workflow states (§15, §19).
+
+The full seed tree — all **9 epics** (6 gameplay + Engine + Editor + PM Tool),
+their stories, and task patterns — is enumerated in **§19**.
+
+Still open (mechanics, not blockers): the **working repo name** for the tool
+(placeholder `drunken-planner`). *Miro is not an open item — it is retired
+(§8.1); no future workflow touches it.*
 
 ---
 
@@ -956,3 +974,136 @@ brackets.
 WBS + kanban + XP/plan + AI runs + dashboards/blocker) is the smallest set that
 delivers "plan the WBS, hand tasks to Claude, watch the board." Everything else
 layers on without rework.
+
+---
+
+## 19. Seed WBS — the initial epic → story → task tree
+
+The one-time seed the bootstrap wizard (P11) writes into the store. **9 epics.**
+Gameplay epics come from `Feature list.pdf` (grouping) + `PRODUCTION_BOARD.md`
+(stories/tasks) + `FEATURE_STATUS.md` (state); the Engine, Editor, and PM-Tool
+epics are authored here from the completed `EngineBuildPLAN.md` and the live
+packages. After seeding, the WBS builder owns all of it — **no Miro** (§8.1).
+
+**State-seeding rule.** Each story's initial workflow state is derived from
+`FEATURE_STATUS.md`: Logic **Shipped** → `Done` for the tech tasks; **Partial**
+→ `In Progress`; **Not started** → `New`. Art/Audio become their own
+discipline tasks (Sprite/Anim/Sound) carrying their own state, so a feature
+whose logic is done but art is idle-only is `Done` on tech and `In Progress` on
+art. Discipline → department routing per §8.4.
+
+### 19.1 Gameplay epics (6) — from `Feature list.pdf`
+Each **story** below is a board feature block; its **tasks** are that block's
+discipline cards (Tech / UI-FX / Sprite / Anim / Sound / Balance @ MoSCoW) — the
+recurring per-feature card set is *sprite (per era/tier) · idle/walk/attack/
+death anim · spawn/attack/damage FX · the matching SFX · the tech logic ·
+balancing values*. Not re-enumerated card-by-card here (the parser emits ~1010);
+the notable current-state facts that become tasks are called out.
+
+- **Buildings** *(13 stories · 13/13 logic Shipped)* — Stone Thrower, Flute
+  Player, Meditator, Sun Scorcher, AOE Mortar, Storm Priest, Blocker, Wall
+  Builder, Base Building (the hole), Painter, Speed Booster, Damage Booster,
+  Health Booster. *Logic all Done. Art: only Stone Thrower + Flute Player are
+  full sets (Done); Meditator/Sun Scorcher/AOE Mortar/Storm Priest/Blocker/Wall
+  Builder are idle-only (Anim tasks `In Progress`); Base Building + Painter +
+  all three Boosters are placeholder (Sprite/Anim tasks `New`). All Sound tasks
+  `New`.*
+- **Enemies & Combat** *(8 stories · 8/8 logic Shipped)* — Normal Soldier, Small
+  Raider, Siege Cannon, Boss, Formation, Kidnap, Corpses, Pathfinding. *Every
+  enemy carries an **art-rework** story-task (Needs rework). Formation has **no
+  sprite slots** (Sprite task `New`, blocker on its art); Boss **era-4 slot
+  missing**; **`kidnap` row never imported**. Pathfinding is logic-only, Done.*
+- **Map** *(5 stories)* — Tile Map, Tile Conditions, Tile Unlocking, Decoration,
+  **Seasons**. *Seasons is the one feature **Not started on all axes** — its
+  story fans out to tasks: season state (Tech), seasonal tiles (Sprite),
+  change-transition (Anim/FX), seasonal music (Sound), all `New`, all MUST-to-
+  scope. 4 Grass conditions + every spawning variant are empty Sprite tasks.*
+- **Progression** *(7 stories · 7/7 logic Shipped)* — Waves, Currency (love),
+  Levelup & XP, Lightning Strike, Boss Bonuses, Tutorial, Cutscenes. *Lightning
+  Strike + Tutorial draw procedurally / have empty marker slots (Sprite tasks
+  `New`). **Cutscenes: 2 of 6 videos exist** → 4 outstanding video tasks.*
+- **UI** *(10 stories · 10/10 logic Shipped)* — HUD, Upgrade Menu, Main Menu,
+  Pause Menu, Settings Menu, Credits, Game Over, Game Log, Cheat Menu, Name
+  Entry. *Every screen carries a **UI-reimport** task (Needs reimport). Main
+  Menu **background slot empty**.*
+- **Effects** *(1 story · Shipped logic)* — Procedural VFX (10 kinds / 10
+  triggers, data-driven). *All **8 VFX sprite slots empty** — bespoke VFX art is
+  the open task set; today everything draws procedurally.*
+
+> **Cross-cutting: Audio is one system, not forty.** `engine/audio.py` is
+> music-only; there is **no SFX API**. Rather than 41 orphan Sound tasks, the
+> seed creates a single **Engine story "Sound-effect layer"** (§19.2) that every
+> per-feature Sound task **depends on** (blocked_by) — so the blocker tool (§12.9)
+> immediately shows it gating the whole Sound column.
+
+### 19.2 Engine epic (NEW) — from completed `EngineBuildPLAN.md` + current state
+Discipline: mostly `tech`. Most stories are **Done** (the engine rebuild is
+complete and archived); audio is the live gap.
+
+- **Coordinate system** (`engine/coords/`) — world↔screen iso authority. *Done.*
+- **GameObject / Component / Scene model** (`engine/core/`) — components-are-what-
+  the-editor-sees; serializable. *Done.* Tasks: add-component seam (`/add-engine-
+  component`) is an ongoing pattern, not a story.
+- **Render pipeline** (`engine/render/`) — 3-layer, headless-testable, RenderItem
+  → renderer → pygame backend. *Done.*
+- **Physics** (`engine/physics/`) — waypoint movement, range/radius spatial-grid
+  queries, tile occupancy. *Done.*
+- **Asset system** (`engine/assets/`) — universal slot registry, manifest v2,
+  grey-X placeholder. *Done.* Ongoing: per-category frame-size overrides
+  (see `EnemyReworkPLAN.md`) — task `In Progress`.
+- **Audio engine** (`engine/audio.py`) — *Partial.* Music playback **Done**;
+  **Sound-effect layer `New` / MUST** — the project-wide blocker. Tasks:
+  design SFX API over `engine/audio.py`; `data/audio/` schema for per-event
+  clips; trigger wiring for place/attack/damage/death/repair/upgrade; volume/mix.
+- **VFX system** (`engine/vfx/`) — procedural effect kinds. *Done (logic).*
+
+### 19.3 Editor epic (NEW) — from `EngineBuildPLAN.md §5` + `editor/panels/`
+Discipline: `tech` + some `ui-fx`. Editor is shipped and under active expansion
+(active plans: `UI_EDITOR_PLAN.md`, `SoundEditorPLAN.md`, `UiEditorHonestyPLAN`).
+
+- **Selector panel** — Map/Buildings/Enemies/UI/VFX tree; selection drives all
+  panels. *Done.*
+- **Tilemap editor** (viewport) — Godot-style paint/erase/line/rect/bucket/
+  picker, layers, pan/zoom, undo, active-map. *Done.*
+- **Entity preview** — real-engine render of the selection, animation dropdown,
+  range overlay, grey-X. *Done.*
+- **Balancing form** — schema-generated recursive form → `write_validated`.
+  *Done.* (`/add-balancing-value` pattern.)
+- **Asset import** — manifest-v2 importer: sheet PNG, per-row anim/fps/hidden/
+  loop, offset nudge, animated preview, clear-to-placeholder. *Done.*
+  (`/add-asset-importer`, `/replace-visual`.)
+- **Screen / UI layout editor** — screen primitives/rules, anchors, strings,
+  game-theme, screen/map details panels. *Done / In Progress* per
+  `UI_EDITOR_PLAN.md`.
+- **Sound editor** — *In Progress* (`SoundEditorPLAN.md`); pairs with §19.2's SFX
+  layer (blocked_by it).
+- **Cutscene editor** — player + registry + video authoring. *Done (2/6 videos).*
+- **Tutorial editor** — director, tooltips, forced click targets. *Done.*
+- **Agent dispatch — "Summon a Drunken Robot"** — form roster
+  (`data/agent_forms/*.json`) → schema-valid handoff → `/dispatch` on a branch or
+  in place; active-plan switch. *Done* (`AgentDispatchPLAN.md`). **This is the
+  bridge the PM tool's AI-run feature (§9) generalizes** — a task-worth noting
+  as a dependency/link between the Editor and PM-Tool epics.
+- **Run / Build controls** — Play (`py game/main.py`), Build (PyInstaller),
+  Playbuild. *Done.*
+
+### 19.4 PM Tool epic (NEW) — this tool tracks its own construction
+Discipline: `tech` (+ `ui-fx` for the polished UI). The tool is self-hosted: its
+**stories are the build phases P0–P12** (§18) and its **tasks are those phases'
+deliverables**, so building the planner is itself on the planner. All `New` at
+seed (nothing built yet).
+
+- **Foundation** — P0 scaffold, P1 store + merge driver + sync. *(MUST)*
+- **Planning spine** — P2 WBS builder + taxonomies + MoSCoW %, P3 kanban +
+  assignment, P4 XP-card form + auto plan.md. *(MUST)*
+- **AI runs** — P5 spawn + auto-PR + My Agents + game token ledger. *(MUST)*
+- **Delivery views** — P6 sprints + estimation, P7 timeline + whiteboard,
+  P8 dashboards + brief + blocker. *(SHOULD)*
+- **Intake & signal** — P9 bugs + enhancements, P10 notifications + activity +
+  token dashboard. *(SHOULD)*
+- **Bootstrap & polish** — P11 project wizard + seed this project, P12 headless
+  runs + liquid UI. *(P11 MUST · liquid-UI NICE, last.)*
+
+Each story here auto-spawns its "write XP card" task (§8.2) like any other — so
+the PM tool's own features get XP cards and generated plans through the very
+pipeline they implement.
