@@ -38,6 +38,7 @@ from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
+from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
@@ -881,6 +882,12 @@ class BuildingUI:
                 st.spend_love(cost)
                 b.advance_tier()
                 lightning.sync_level_from_tier(st, b)  # Storm Priest wiring
+                if session.debug is not None:
+                    session.debug.note_love_spent(cost, dbg.SPEND_RESEARCH)
+                    session.debug.emit(
+                        dbg.RESEARCH, building_type=b.building_type,
+                        tier=b.get_component(TierState).current_tier,
+                        cost=cost)
                 if self.on_build_vfx is not None:
                     self.on_build_vfx(b.col, b.row, "tier")
             else:
@@ -933,6 +940,11 @@ class BuildingUI:
             st.buildings_placed += 1
             placed_any = True
             lightning.unlock_from_placement(st, building)  # Storm Priest wiring
+            if session.debug is not None:
+                session.debug.note_love_spent(cost, dbg.SPEND_PLACE)
+                session.debug.emit(
+                    dbg.PLACE, building_type=p.building_type, col=tile.col,
+                    row=tile.row, cost=cost, tier=p._tier_idx)
             if i == 0:
                 building.set_name(p.chosen_name)
             if self.on_build_vfx is not None:  # 10J: sparks + gold highlight

@@ -2,7 +2,10 @@
 
 Pure logic — the top-level menu the shell shows between runs. Ports the
 prototype's ``src/ui/main_menu.py`` button set (START NEW GAME / ADD A NAME /
-SETTINGS / CREDITS / QUIT) onto the ``game_over.py`` full-screen template: a
+SETTINGS / CREDITS / QUIT) — plus debug-mode-telemetry's PLAY DEBUG row and
+its ``SET`` gear (actions ``play_debug`` / ``play_debug_settings``, the latter
+opening ``game/ui/debug_settings.py`` via the shell) — onto the
+``game_over.py`` full-screen template: a
 solid ``HudRect`` backdrop, a centred title, and a vertical stack of
 ``widgets.Button`` click targets. ``hit`` returns the prototype's action strings.
 The hand-painted background art draws as a full-view ``HudSprite`` from the
@@ -32,6 +35,7 @@ _SUBTITLE = "defend the munckins"
 # (label, action) top-to-bottom
 _ITEMS = [
     ("START NEW GAME", "new_game"),
+    ("PLAY DEBUG", "play_debug"),
     ("ADD A NAME", "add_name"),
     ("SETTINGS", "settings"),
     ("CREDITS", "credits"),
@@ -39,10 +43,17 @@ _ITEMS = [
 ]
 # action -> the ids name a designer picks it by (10L-B)
 _ACTION_IDS = {
-    "new_game": "btn_new_game", "add_name": "btn_add_name",
+    "new_game": "btn_new_game", "play_debug": "btn_play_debug",
+    "add_name": "btn_add_name",
     "settings": "btn_settings", "credits": "btn_credits", "quit": "btn_quit",
 }
 _BTN_W, _BTN_H, _GAP = 320, 52, 14
+# debug-mode-telemetry: the small gear sitting beside PLAY DEBUG. It is its
+# own action (``"play_debug_settings"``) rather than a mode of the row above,
+# so a click on it can never start a run by accident.
+_GEAR_ACTION = "play_debug_settings"
+_GEAR_ID = "btn_play_debug_settings"
+_GEAR_W, _GEAR_GAP = 52, 10
 
 SCREEN_ID = "main_menu"
 
@@ -53,6 +64,10 @@ class MainMenu:
         self.skinning = skinning or ScreenSkinning.empty()
         self.buttons = [(Button((0, 0, _BTN_W, _BTN_H), label), action)
                         for label, action in _ITEMS]
+        # debug-mode-telemetry: the PLAY DEBUG gear. Laid out beside its row in
+        # ``layout()``; opens the debug-log settings modal (game/ui/
+        # debug_settings.py) via the shell.
+        self.debug_gear = Button((0, 0, _GEAR_W, _BTN_H), "SET")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         # 10L-B review fix (HIGH 1): static header text. Its own copy is NOT
         # game-state, so — unlike hud.py's dynamic readouts — "label" is a
@@ -72,8 +87,11 @@ class MainMenu:
     def layout(self, view_w, view_h):
         x = view_w // 2 - _BTN_W // 2
         y = view_h // 2 - 60
-        for btn, _ in self.buttons:
+        for btn, action in self.buttons:
             btn.rect = (x, y, _BTN_W, _BTN_H)
+            if action == "play_debug":
+                self.debug_gear.rect = (x + _BTN_W + _GEAR_GAP, y,
+                                        _GEAR_W, _BTN_H)
             y += _BTN_H + _GAP
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (view_w // 2, view_h // 2 - 150, 0, 0)
@@ -85,11 +103,17 @@ class MainMenu:
         }
         for btn, action in self.buttons:
             self.ids[_ACTION_IDS[action]] = ("button", btn)
+        self.ids[_GEAR_ID] = ("button", self.debug_gear)
         self.skinning.apply(self.screen_id, self.ids)
+
+    def _all_buttons(self):
+        for btn, _ in self.buttons:
+            yield btn
+        yield self.debug_gear
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
-        for btn, _ in self.buttons:
+        for btn in self._all_buttons():
             btn.enabled = True
             btn.hover(mx, my, mouse_down)
             # 10L-B: an invisible button is never hovered (force it off
@@ -98,6 +122,8 @@ class MainMenu:
             btn.update(dt)
 
     def hit(self, mx, my):
+        if is_visible(self.debug_gear) and self.debug_gear.hit(mx, my):
+            return _GEAR_ACTION
         for btn, action in self.buttons:
             if is_visible(btn) and btn.hit(mx, my):
                 return action
@@ -117,6 +143,6 @@ class MainMenu:
             submit_centered(renderer, self._subtitle.label,
                             self._subtitle.rect[0], self._subtitle.rect[1],
                             self._subtitle.font_key, self._subtitle.text_color)
-        for btn, _ in self.buttons:
+        for btn in self._all_buttons():
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))

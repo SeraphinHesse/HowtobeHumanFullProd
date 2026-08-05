@@ -12,7 +12,8 @@ The menu NEVER mutates game state (uniform, unlike the prototype's two
 in-menu appliers): every click/key returns an ACTION the host maps onto
 ``Session`` cheat methods — ``"close"`` / ``"add_love"`` / ``"skip_round"`` /
 ``"trigger_levelup"`` / ``"inf_money"`` / ``"unlock_all"`` /
-``("goto_round", n)`` / None (swallowed). The stays-open rule (prototype
+``("goto_round", n)`` / ``"toggle_debug"`` (debug-mode-telemetry: arm/disarm
+the run's ``DebugRecorder``) / None (swallowed). The stays-open rule (prototype
 ``cheat_menu.py:49-56``) lives in the host: it closes the menu only on
 ``close``, ``trigger_levelup`` and a committed ``goto_round`` — the other
 four leave it open for repeat presses.
@@ -23,7 +24,8 @@ Since 10J the backdrop is the prototype's real ``(0, 0, 0, 150)`` alpha dim
 10L-B (plan R3, PINNED): eleven ids — ``panel``, ``title``, ``btn_close``,
 ``btn_add_love``, ``btn_skip_round``, ``btn_trigger_levelup``,
 ``btn_inf_money``, ``btn_unlock_all``, ``round_field``, ``btn_goto``,
-``jump_label``. ``submit()`` calls ``layout()`` EVERY FRAME (the menu can be
+``jump_label`` — plus debug-mode-telemetry's twelfth, ``btn_toggle_debug``.
+``submit()`` calls ``layout()`` EVERY FRAME (the menu can be
 left open across many frames), so ``skinning.apply()`` must be — and is — a
 cached-dict setattr loop with zero disk reads per call (pinned by
 ``test_ui_skinning.py``'s "loads once" test). ``field_rect``/``round_text``/
@@ -43,7 +45,7 @@ from .widgets import (
 from . import widgets
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
-_PANEL_W, _PANEL_H = 220, 258
+_PANEL_W, _PANEL_H = 220, 288
 _TITLE = "CHEATS"
 _MAX_DIGITS = 4  # prototype round-field cap
 
@@ -54,12 +56,16 @@ _BUTTONS = (
     ("trigger_levelup", "LEVEL UP"),
     ("inf_money", "Infinite Money"),
     ("unlock_all", "Unlock All Tech"),
+    # debug-mode-telemetry: arm/disarm the DebugRecorder mid-run. Appended
+    # LAST so the five prototype rows keep their order (and their exported
+    # default rects' relative positions); the panel grew 30px for it.
+    ("toggle_debug", "Debug Log"),
 )
 # action -> the ids name a designer picks it by (10L-B, PINNED)
 _ACTION_IDS = {
     "add_love": "btn_add_love", "skip_round": "btn_skip_round",
     "trigger_levelup": "btn_trigger_levelup", "inf_money": "btn_inf_money",
-    "unlock_all": "btn_unlock_all",
+    "unlock_all": "btn_unlock_all", "toggle_debug": "btn_toggle_debug",
 }
 
 SCREEN_ID = "cheat_menu"

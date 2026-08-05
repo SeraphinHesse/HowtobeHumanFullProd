@@ -39,6 +39,49 @@ _HUNT_QUERIES = {
     "any_non_base": find_path_to_nearest_non_base_building,
 }
 
+# debug-mode-telemetry (Phase 3): the optional level-2 damage hook
+# EnemyCombat.update() consults at its one enemy-attacks-a-building site.
+# ``EnemyCombat.update(dt)`` runs inside ``Scene.update``'s generic component
+# sweep (``Component.update``'s signature is fixed — dt only), which executes
+# BEFORE ``game.enemies.combat.resolve_combat`` each frame (game/main.py:
+# pre_sim -> scene.update -> resolve_combat) — so ``resolve_combat``'s own
+# ``on_damage=None`` parameter physically cannot reach this call site. This
+# module-level setter is the equivalent seam, mirroring
+# ``game/ui/widgets.py``'s ``set_skin_hit_test`` precedent: unset by default
+# (a bare ``EnemyCombat.update()`` stays byte-identical — one ``is not None``
+# check when off), installed by ``game/main.py`` only when the recorder's
+# level is >= 2, using the SAME ``on_damage(attacker_kind, target_kind, dmg,
+# target_hp_after)`` shape ``resolve_combat``'s own parameter uses.
+_damage_hook = None
+
+
+def set_damage_hook(fn):
+    """Install (or clear, ``fn=None``) the optional level-2 debug damage hook
+    ``EnemyCombat.update()`` calls at its one enemy-attacks-a-building site."""
+    global _damage_hook
+    _damage_hook = fn
+
+
+# debug-mode-telemetry (Phase 5): the SIBLING seam for the edge-wall attack
+# branch of the same method. A wall is a map-owned ``WallEdge``, not a
+# GameObject: it carries no ``Health`` and no ``RoundStats``, so its damage is
+# invisible to BOTH ``resolve_combat(on_damage=…)`` and ``_damage_hook``'s
+# ``(attacker, target, dmg, target_hp_after)`` shape — a wall has no
+# ``building_type`` target and no single ``(col, row)``, it spans an EDGE
+# between two tiles. Hence its own hook with its own shape,
+# ``(attacker_kind, (c1, r1, c2, r2), dmg, hp_after, broke)``. Unset by
+# default, installed by ``game/main.py`` only at recorder level >= 2 — one
+# ``is not None`` check when off, exactly like ``_damage_hook``.
+_wall_damage_hook = None
+
+
+def set_wall_damage_hook(fn):
+    """Install (or clear, ``fn=None``) the optional level-2 debug wall-damage
+    hook ``EnemyCombat.update()`` calls at its edge-wall attack site."""
+    global _wall_damage_hook
+    _wall_damage_hook = fn
+
+
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
 # arithmetic, no engine change — world_to_screen is
 # ix = (wx-wy)*half_w, iy = (wx+wy)*half_h and depth_key = (layer, wx+wy, wy)
@@ -448,7 +491,17 @@ class EnemyCombat(Component):
             if self.cooldown <= 0:
                 tm = getattr(pa, "_tilemap", None)
                 if tm is not None:
-                    tm.damage_wall(*wall, self._effective_dmg(pa))  # 10I
+                    dmg = self._effective_dmg(pa)  # 10I
+                    broke = tm.damage_wall(*wall, dmg)
+                    # debug-mode-telemetry (Phase 5, level 2 only): fired at
+                    # exactly the site the wall's HP is spent. `hp_after` is
+                    # read back through the public `get_wall_between`; a broken
+                    # edge is deleted, so it reports 0.
+                    if _wall_damage_hook is not None:
+                        edge = tm.get_wall_between(*wall)
+                        _wall_damage_hook(getattr(owner, "ETYPE", None), wall,
+                                         dmg, 0 if edge is None else edge.hp,
+                                         bool(broke))
                 self.cooldown = self.attack_speed
             return
         target = pa._target
@@ -457,10 +510,17 @@ class EnemyCombat(Component):
         self.cooldown -= dt
         if self.cooldown <= 0:
             dmg = self._effective_dmg(pa)   # 10I: mountain/forest +10%
-            target.get_component(Health).damage(dmg)
+            health = target.get_component(Health)
+            health.damage(dmg)
             rs = target.get_component(RoundStats)
             if rs is not None:
                 rs.dmg_taken_this_round += dmg
+            # debug-mode-telemetry (Phase 3, level 2 only): fired at exactly
+            # the RoundStats credit site above.
+            if _damage_hook is not None:
+                _damage_hook(getattr(owner, "ETYPE", None),
+                            getattr(target, "building_type", None),
+                            dmg, health.hp)
             self.cooldown = self.attack_speed
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the
