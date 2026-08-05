@@ -781,7 +781,10 @@
                 "deco_tree_v7",
                 "deco_tree_v8",
                 "deco_tree_v9",
-                "deco_tree_v10"
+                "deco_tree_v10",
+                "deco_tree_v11",
+                "deco_tree_v12",
+                "deco_tree_v13"
               ]
             },
             {
@@ -792,7 +795,14 @@
                 "deco_prop_1_v3",
                 "deco_prop_1_v4",
                 "deco_prop_1_v5",
-                "deco_prop_1_v6"
+                "deco_prop_1_v6",
+                "deco_prop_1_v7",
+                "deco_prop_1_v8",
+                {
+                  "frame_h": 96,
+                  "frame_w": 96,
+                  "key": "deco_prop_1_v9"
+                }
               ]
             },
             {

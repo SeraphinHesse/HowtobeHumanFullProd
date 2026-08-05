@@ -1744,6 +1744,60 @@
       ],
       "sheet": "imported/deco_prop_1_v6.png"
     },
+    "deco_prop_1_v7": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 13,
+          "hidden": [],
+          "loop_count": 3,
+          "loop_end": 11,
+          "loop_start": 9
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v7.png"
+    },
+    "deco_prop_1_v8": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 22,
+          "hidden": [],
+          "loop_count": 20,
+          "loop_end": 15,
+          "loop_start": 15
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v8.png"
+    },
+    "deco_prop_1_v9": {
+      "frame_h": 96,
+      "frame_w": 96,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 19,
+          "hidden": [],
+          "loop_count": 30,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v9.png"
+    },
     "deco_prop_2": {
       "frame_h": 96,
       "frame_w": 64,
@@ -2211,6 +2265,60 @@
         }
       ],
       "sheet": "imported/deco_tree_v10.png"
+    },
+    "deco_tree_v11": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v11.png"
+    },
+    "deco_tree_v12": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v12.png"
+    },
+    "deco_tree_v13": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v13.png"
     },
     "deco_tree_v2": {
       "frame_h": 96,

@@ -1707,6 +1707,36 @@
       "col": 504,
       "row": 516,
       "slot": "deco_tree_v3"
+    },
+    {
+      "col": 509,
+      "row": 511,
+      "slot": "deco_prop_1_v7"
+    },
+    {
+      "col": 509,
+      "row": 509,
+      "slot": "deco_prop_1_v8"
+    },
+    {
+      "col": 506,
+      "row": 510,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 507,
+      "row": 509,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 509,
+      "row": 507,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 504,
+      "row": 510,
+      "slot": "deco_prop_1_v9"
     }
   ],
   "display_name": "Summer test 3",
