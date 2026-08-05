@@ -15,7 +15,9 @@ Since ES-2 every count and the spawn interval come from the ONE era clock in
 ``engine.era_math`` — no formula lives in this file any more. Timing is
 otherwise prototype-exact: a linear slow→fast
 ramp across the wave with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off,
-a re-rolled jitter per spawn). The round loop that CALLS ``begin_round`` and
+a re-rolled jitter per batch). Since ES-3 one timer expiry releases the era row's
+``batch_size`` enemies at once (D4) — pacing and batching are the same era row,
+and a round's TOTAL is unaffected by either. The round loop that CALLS ``begin_round`` and
 detects wave-clear is 9F; 9E exposes the pieces (``begin_round`` / ``update`` /
 ``active`` / ``done``);
 ``spawn_death_swarm`` (ER-3) is the Session-driven death burst for ANY type
@@ -60,6 +62,7 @@ class Spawner:
         self._queue = []       # list of (tile, etype, delay | None)
         self._timer = 0.0
         self._interval = 0.0
+        self._batch_size = 1   # enemies released per timer expiry (ES-3/D4)
         self._era = 0          # the round's era (ES-2: era IS the old tier)
         self._round_in_era = 1  # 1-based position inside that era (D2)
         self._round = 0
@@ -126,6 +129,8 @@ class Spawner:
         self._round_in_era = era_math.round_in_era(round_num, rounds_per_era)
         pacing = era_math.resolve_era_row(scaling["eras"], self._era)
         self._interval = max(0.1, pacing["spawn_interval"])
+        # ES-3/D4: how many queue entries ONE timer expiry releases.
+        self._batch_size = max(1, int(pacing["batch_size"]))
 
         spawn_tiles = tilemap.spawning_tiles()
         combined = self._compose(round_num, enemies_balance, spawn_tiles)
@@ -321,23 +326,38 @@ class Spawner:
     # -- spawn loop (prototype _update_enemy_phase) -----------------------
 
     def update(self, dt, scene):
-        """Advance the spawn timer; when it expires, pop one enemy and schedule
-        the next (prototype pops at most one per tick)."""
+        """Advance the spawn timer; when it expires, release ONE BATCH — up to
+        ``_batch_size`` queue entries at once (ES-3/D4) — and schedule the next.
+
+        Each popped entry spawns exactly as it did when the spawner released one
+        per expiry: one ``create_enemy`` + one ``scene.spawn``, in queue order,
+        so the rng draw sequence WITHIN a batch is unchanged. The boss simply
+        leads its batch. At ``batch_size == 1`` this loop is byte-identical to
+        ES-2 (same draws, same times) — that is the fence for the deterministic
+        wave fixtures. Round totals never move with this knob: it changes how
+        many spawn EVENTS a wave takes, not how many enemies are in it."""
         if not self._queue:
             return
         self._timer -= dt
         if self._timer > 0:
             return
-        tile, etype, delay = self._queue.pop(0)
-        # ES-2: ONE era for stats, art and death-spawn rows alike. The boss
-        # takes the era stashed by _boss_round (identical to self._era today —
-        # kept separate so a future boss-only clock has a seam).
-        era = self._boss_era if etype == "boss" else self._era
-        enemy = create_enemy(
-            etype, tile.col, tile.row, self._balance, self._tilemap,
-            era, self._registry, self._rng, self._round_in_era)
-        scene.spawn(enemy)
-        if delay is None:
+        ramp_off = False
+        for _ in range(self._batch_size):
+            if not self._queue:
+                break
+            tile, etype, delay = self._queue.pop(0)
+            # ES-2: ONE era for stats, art and death-spawn rows alike. The boss
+            # takes the era stashed by _boss_round (identical to self._era
+            # today — kept separate so a future boss-only clock has a seam).
+            era = self._boss_era if etype == "boss" else self._era
+            enemy = create_enemy(
+                etype, tile.col, tile.row, self._balance, self._tilemap,
+                era, self._registry, self._rng, self._round_in_era)
+            scene.spawn(enemy)
+            if delay is None:
+                ramp_off = True
+        if ramp_off:
+            # Ramp-off: ONE re-rolled jitter per BATCH, not per enemy.
             base = self._interval
             self._timer = max(0.15, self._rng.uniform(base * 0.4, base * 1.6))
         elif self._queue:

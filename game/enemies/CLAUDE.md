@@ -525,9 +525,19 @@ condition below.
 - **`spawner.py` = the wave queue** (prototype `_begin_enemy_phase` /
   `_update_enemy_phase`): `begin_round` composes the standard count
   `base_enemy_count + (round-1)*(enemies_per_round + tier)` with the exact ramp +
-  `uniform(0.4, 1.6)` jitter; `update(dt, scene)` pops ONE enemy per timer expiry
-  into `scene.spawn`. The round LOOP that calls it + wave-clear detection is 9F; an
-  injectable `rng` keeps tests deterministic.
+  `uniform(0.4, 1.6)` jitter; `update(dt, scene)` releases ONE BATCH per timer
+  expiry into `scene.spawn`. The round LOOP that calls it + wave-clear detection is
+  9F; an injectable `rng` keeps tests deterministic.
+  - **ES-3/D4 — batch spawning.** `EnemyScaling.eras[era]` owns BOTH the pacing
+    (`spawn_interval`) and `batch_size` (seeded 1..5 for eras 0-4), resolved once
+    in `begin_round`. One timer expiry pops up to `batch_size` queue entries, each
+    spawning exactly as a single pop did — one `create_enemy` + one `scene.spawn`,
+    in queue order — so the rng draw sequence WITHIN a batch is unchanged and the
+    boss simply leads its batch. Ramp-on: the next timer is the new queue head's
+    delay. Ramp-off: ONE re-rolled jitter per BATCH (not per enemy). **The knob
+    moves spawn EVENTS, never the round TOTAL**, and `batch_size == 1` is
+    byte-identical to the pre-ES-3 one-per-expiry loop — that is the fence for the
+    deterministic wave fixtures.
   - **10F composition**: raiders join from `Raider.start_round` at
     `base_count + (round-start)*per_round`; siege from `SiegeCannon.start_round` at
     `base_count + (round-start)//rounds_per_cannon`. Siege splits into a **lead

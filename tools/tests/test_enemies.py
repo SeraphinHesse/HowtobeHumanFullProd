@@ -435,6 +435,34 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual(len(scene.by_tag("enemy")), n)
         self.assertTrue(sp.done)
 
+    def test_batch_size_halves_the_spawn_events_not_the_round_total(self):
+        # ES-3/D4: `batch_size` is how many queue entries ONE timer expiry
+        # releases. It changes how many spawn EVENTS a wave takes; the round's
+        # total is untouched by the knob.
+        def drive(batch):
+            enem = copy.deepcopy(ENEM)
+            enem["EnemyScaling"]["eras"][0]["batch_size"] = batch
+            sp = Spawner()
+            sp.begin_round(1, self.tm, enem, rng=FakeRng())
+            scene, events = Scene(), 0
+            for _ in range(2000):
+                if sp.done:
+                    break
+                queued = len(sp._queue)
+                sp.update(0.1, scene)
+                if len(sp._queue) < queued:
+                    events += 1
+            scene.update(0.0)
+            return len(scene.by_tag("enemy")), events
+
+        total_1, events_1 = drive(1)
+        total_2, events_2 = drive(2)
+        self.assertEqual(total_1, expected_count("Standard", 1))
+        self.assertGreater(events_1, 1)
+        self.assertEqual(events_1, total_1)          # one per expiry at 1
+        self.assertEqual(total_2, total_1)           # the total never moves
+        self.assertEqual(events_2, math.ceil(events_1 / 2))
+
     # -- TU-9: round 0 is the tutorial's forced-composition round -----------
 
     def test_round_zero_composes_exactly_the_tutorial_count(self):

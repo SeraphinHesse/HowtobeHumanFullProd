@@ -334,7 +334,7 @@ era row — same numbers, one code path.
 |-------|-------|--------|
 | ES-1 | `engine/era_math.py` — pure era/stat/count resolvers + tests | done |
 | ES-2 | Data + schema restructure, seeded; all game readers swap over | done |
-| ES-3 | Batch spawning + per-era spawn pacing | not started |
+| ES-3 | Batch spawning + per-era spawn pacing | done |
 | ES-4 | Endgame scaling past the last defined era | not started |
 | ES-5 | Editor greyed previous-era reference; docs; BossReworkPLAN amendments | not started |
 
