@@ -29,3 +29,6 @@ Thumbs.db
 
 # Environment doctor output (tools/doctor.py)
 doctor_report.txt
+
+# ── Debug-mode run telemetry (game/debug) — generated per run ──
+logs/

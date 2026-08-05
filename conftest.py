@@ -91,6 +91,7 @@ TIERS = {
     "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
     "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
+    "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
