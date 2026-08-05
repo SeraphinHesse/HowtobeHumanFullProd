@@ -191,10 +191,13 @@ class Session:
             total = sum(hits)
             n = len(hits)
             self.debug.note_lightning(total, n)
+            # No per-enemy `damage` field: several casters of DIFFERENT tiers
+            # can fire in one click, each with its own flat damage, so any
+            # single number here would be an average that no caster actually
+            # dealt. Report the two figures that are always true instead.
             self.debug.emit(
                 dbg.LIGHTNING, level=st.lightning_level,
-                damage=(total // n if n else 0), hits=n, total_damage=total,
-                wx=wx, wy=wy)
+                hits=n, total_damage=total, wx=wx, wy=wy)
         return fired
 
     def cheat_add_love(self, amount):

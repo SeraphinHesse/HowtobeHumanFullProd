@@ -46,12 +46,17 @@ Level-1 kinds and their fields
                   "damage taken" below.
 ``kidnap``        a kidnap-capable enemy carried a building off. ``etype``,
                   ``building_type``, ``col``, ``row``.
-``lightning``     a Lightning Strike fired. ``level``, ``damage`` (the FLAT
-                  damage applied to each enemy hit), ``hits`` (enemies inside
-                  the radius), ``total_damage`` (``damage`` x ``hits`` — this is
-                  what ``note_lightning`` accumulates into
+``lightning``     a Lightning Strike fired. ``level``, ``hits`` (enemies inside
+                  the radius), ``total_damage`` (summed over those hits — this
+                  is what ``note_lightning`` accumulates into
                   ``dmg_dealt_lightning``), ``wx``, ``wy``. Damage here earns NO
                   ``RoundStats`` credit — lightning has no shooter.
+                  **There is deliberately no per-enemy ``damage`` field.**
+                  Several casters of different tiers can fire on one click,
+                  each with its own flat damage, so a single per-enemy number
+                  would be an average no caster actually dealt.
+                  ``total_damage / hits`` is that average if you want it —
+                  derive it knowingly rather than be handed it as a fact.
 ``payday``        the income phase resolved. ``income_actual``,
                   ``income_potential``, ``upkeep_actual``, ``upkeep_potential``,
                   ``story_income``, ``painter_income``, ``love_end``,

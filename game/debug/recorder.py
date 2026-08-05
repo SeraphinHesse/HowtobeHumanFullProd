@@ -243,6 +243,9 @@ class DebugRecorder:
         if self._closed:
             return self._written
         self._closed = True
+        # Kept so a caller can report HOW the run ended without tracking it
+        # separately — a run cut short by a cap must be able to say so.
+        self.outcome = outcome
         self.emit(RUN_END, outcome=outcome, rounds=len(self.rounds))
         self.flush()
 

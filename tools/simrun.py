@@ -340,7 +340,9 @@ def _summary_line(recorder):
     last = rows[-1]
     return (f"rounds={len(rows)} love_end={last['love_end']} "
             f"lives_end={last['lives_end']} "
-            f"income={total('income_actual')} upkeep={total('upkeep_actual')} "
+            f"income={total('income_actual')}/{total('income_potential')} "
+            f"lost_to_damage={total('income_lost_to_damage')} "
+            f"upkeep={total('upkeep_actual')} "
             f"dmg_dealt={total('dmg_dealt')} "
             f"dmg_taken={total('dmg_taken_buildings')} "
             f"kills={total('kills')} leaks={total('leaks')} "
@@ -372,6 +374,16 @@ def main(argv=None):
                        data_dir=args.data_dir, out_dir=args.out)
     print(f"simrun: {args.strategy} seed={args.seed} level={args.level}")
     print(f"simrun: {_summary_line(recorder)}")
+    # Never let a cap pass silently: a run that recorded fewer rounds than
+    # asked for looks identical to a completed one once you are reading the
+    # CSV, and every per-round total above would be quietly short.
+    recorded = len(recorder.rounds)
+    if recorded < args.rounds:
+        why = {"game_over": "the run ended (game over)",
+               "frame_cap": "the per-round frame budget ran out"}.get(
+                   recorder.outcome, f"outcome={recorder.outcome}")
+        print(f"simrun: WARNING recorded {recorded} of {args.rounds} "
+              f"requested rounds — {why}")
     for kind, path in sorted(recorder.paths.items()):
         print(f"simrun: {kind:5s} {path}")
     return 0

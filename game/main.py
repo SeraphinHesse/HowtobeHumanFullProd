@@ -951,28 +951,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     # BEFORE resolve_combat, so it needs the SAME callback
                     # installed through the module-level seam instead — hence
                     # set_damage_hook() bracketing scene.update() below.
+                    # Everything below is inside `if debug_l2` so debug-off
+                    # really does cost ONE attribute check here, as this
+                    # package's docs claim — no closure built and no module
+                    # global written on a frame that will never emit. The
+                    # matching teardown is guarded the same way, which is safe
+                    # because arming and clearing always happen on the SAME
+                    # frame: a frame that never arms cannot leave a live hook.
                     debug_l2 = (session.debug is not None
                                and session.debug.level >= LEVEL_VERBOSE)
+                    _debug_on_damage = None
+                    if debug_l2:
+                        def _debug_on_damage(attacker_kind, target_kind, dmg,
+                                             target_hp_after,
+                                             _rec=session.debug):
+                            _rec.emit(dbg.DAMAGE, attacker=attacker_kind,
+                                     target=target_kind, dmg=dmg,
+                                     target_hp_after=target_hp_after)
 
-                    def _debug_on_damage(attacker_kind, target_kind, dmg,
-                                         target_hp_after, _rec=session.debug):
-                        _rec.emit(dbg.DAMAGE, attacker=attacker_kind,
-                                 target=target_kind, dmg=dmg,
-                                 target_hp_after=target_hp_after)
+                        def _debug_on_wall_damage(attacker_kind, edge, dmg,
+                                                  hp_after, broke,
+                                                  _rec=session.debug):
+                            c1, r1, c2, r2 = edge
+                            _rec.emit(dbg.WALL_DAMAGE, attacker=attacker_kind,
+                                     col=c1, row=r1, col2=c2, row2=r2, dmg=dmg,
+                                     hp_after=hp_after, broke=broke)
 
-                    def _debug_on_wall_damage(attacker_kind, edge, dmg,
-                                              hp_after, broke,
-                                              _rec=session.debug):
-                        c1, r1, c2, r2 = edge
-                        _rec.emit(dbg.WALL_DAMAGE, attacker=attacker_kind,
-                                 col=c1, row=r1, col2=c2, row2=r2, dmg=dmg,
-                                 hp_after=hp_after, broke=broke)
-
-                    set_damage_hook(_debug_on_damage if debug_l2 else None)
-                    # A wall carries no Health and no RoundStats, so its damage
-                    # is invisible to `on_damage` — its own seam, same shape.
-                    set_wall_damage_hook(
-                        _debug_on_wall_damage if debug_l2 else None)
+                        set_damage_hook(_debug_on_damage)
+                        # A wall carries no Health and no RoundStats, so its
+                        # damage is invisible to `on_damage` — its own seam.
+                        set_wall_damage_hook(_debug_on_wall_damage)
                     world.scene.update(sim_dt)
                     # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
                     # once per frame and threaded as a plain int.
@@ -1041,10 +1049,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                                    on_defender_fire=_on_defender_fire,
                                    on_projectile_hit=_on_projectile_hit,
                                    on_kidnap=_on_kidnap,
-                                   on_damage=(_debug_on_damage if debug_l2
-                                             else None))
-                    set_damage_hook(None)  # debug-mode-telemetry: don't leak
-                    set_wall_damage_hook(None)
+                                   on_damage=_debug_on_damage)
+                    if debug_l2:  # armed this frame -> cleared this frame
+                        set_damage_hook(None)
+                        set_wall_damage_hook(None)
                     session.post_sim(world.scene)
                 # payday fills state.income_events + flips to INCOME; spawn once
                 if (session.state.phase == GamePhase.INCOME
