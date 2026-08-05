@@ -265,6 +265,7 @@
     }
   },
   "rows": 1024,
+  "spawnable_background": [],
   "start_area": {
     "col": 512,
     "row": 512,

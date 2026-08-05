@@ -433,6 +433,29 @@ class TestTutorialMarkers(unittest.TestCase):
         self.assertNotIn("tutorial_stone", [i.slot_key for i in windowed])
 
 
+class TestSpawnableBackground(unittest.TestCase):
+    """The designer-painted spawn reserve: {(col,row): purchase} in memory, a
+    list sorted by (row, col) on disk."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.spawnable_background, {})  # empty by default
+        doc.spawnable_background = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["spawnable_background"], [
+            {"col": 4, "row": 0, "purchase": 1},
+            {"col": 0, "row": 1, "purchase": 5},
+            {"col": 3, "row": 1, "purchase": 2},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.spawnable_background = {(0, doc.rows): 1}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only

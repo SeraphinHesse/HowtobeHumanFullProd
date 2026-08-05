@@ -39,6 +39,7 @@ from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import upgrade_gate
 from game.core.xp import scaled_base_income
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
+from game.map import edge_world_points  # wall-edge selection highlight
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
@@ -340,6 +341,7 @@ class BuildingUI:
         self._upgrade_hint = None
         self._buildings_balance = None
         self._highlight_tiles = []
+        self._highlight_edges = []
         self._hover_cost = None
         self._action_cost = 0
         self._clock = 0.0  # 10L-A: one anim clock per screen
@@ -417,6 +419,7 @@ class BuildingUI:
         self._selected = None
         self._upgrade_hint = None
         self._highlight_tiles = []
+        self._highlight_edges = []
         self._hover_cost = None
         self.cards = []
         # -- 10J --
@@ -503,6 +506,7 @@ class BuildingUI:
                 self._build_upgrade()
                 if len(self.selected_tiles) == 1:
                     self._set_range_highlight(occ, session.tilemap)
+                    self._set_wall_highlight(occ, session.tilemap)
                 else:
                     # range diamond only on a single selection (prototype
                     # game.py:552-556); a batch highlights its tiles.
@@ -657,6 +661,33 @@ class BuildingUI:
                     if tilemap.get(b.col + dc, b.row + dr) is not None:
                         hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
         self._highlight_tiles = hl
+
+    def _set_wall_highlight(self, b, tilemap):
+        """Highlight every edge wall ``b`` owns: its walled TILES join the
+        range highlight, and each actual EDGE gets a thick line.
+
+        **Gated on OWNERSHIP, not on type** — the walk asks
+        ``edge.owner is b``, so a building that owns no edges yields nothing
+        and no ``building_type == "wall_builder"`` check is needed. That is
+        the repo's G-3 type-agnostic discipline: a future wall-owning
+        building type gets this highlight for free, with no edit here.
+
+        Called right after ``_set_range_highlight``, which REPLACES
+        ``_highlight_tiles`` wholesale — so this APPENDS to that freshly-built
+        list, and resets ``_highlight_edges`` itself first to stay safe to
+        call repeatedly.
+        """
+        self._highlight_edges = []
+        for edge in getattr(tilemap, "wall_edges", {}).values():
+            if edge.owner is not b:
+                continue
+            self._highlight_tiles.append(
+                (edge.col_a, edge.row_a, widgets.C_RANGE_HIGHLIGHT))
+            pts = edge_world_points(edge.col_a, edge.row_a,
+                                    edge.col_b, edge.row_b)
+            if pts is None:
+                continue          # not a 4-adjacent pair: no edge to draw
+            self._highlight_edges.append(pts)
 
     # -- input ------------------------------------------------------------
 
@@ -876,6 +907,7 @@ class BuildingUI:
             self._build_upgrade()
             if len(self.selected_tiles) == 1:
                 self._set_range_highlight(b, session.tilemap)
+                self._set_wall_highlight(b, session.tilemap)
             return True
         return contains(self.panel_rect, mx, my)
 
@@ -944,6 +976,11 @@ class BuildingUI:
         t = anim_ms(self._clock)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
+        # Each selected wall builder's actual EDGES, as thick world-space
+        # lines. Sits BEFORE the `visible` guard exactly like the tile
+        # diamonds above it, so the two behave identically.
+        for pts in self._highlight_edges:
+            renderer.submit_overlay_lines(pts, widgets.C_HIGHLIGHT, width=4)
         if not self.visible:
             return
         # -- 10I: badge rect/tooltip refresh each frame (base_info shows no
