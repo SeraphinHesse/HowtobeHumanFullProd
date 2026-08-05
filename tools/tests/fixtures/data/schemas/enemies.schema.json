@@ -2,7 +2,7 @@
   "$defs": {
     "boss_stat": {
       "additionalProperties": false,
-      "description": "Per-era boss stats (ported from the prototype's live py-only BOSS_ERAS; its swarm_* fields were dead and are not migrated).",
+      "description": "Per-era boss stats (ported from the prototype's live py-only BOSS_ERAS; its swarm_* fields were dead and are not migrated). BR-1: EVERY boss variable is per-era, so footprint, sprite_scale and shake live in this row too -- the Boss is the ONE type whose render fit is era-indexed (every other type keeps them flat at its root, D10).",
       "properties": {
         "attack_range_tiles": {
           "description": "Boss attack range in tiles (Chebyshev).",
@@ -22,6 +22,12 @@
           "minimum": 0,
           "type": "integer"
         },
+        "footprint": {
+          "description": "This era's boss tile footprint: it occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and ER-2 clearance pathing. Per-era since BR-1, so a later boss can be physically bigger than an early one.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
         "hp": {
           "description": "Boss hit points (x10 combat scale, D-12).",
           "maximum": 100000,
@@ -38,15 +44,47 @@
           "description": "Boss display name for this era (used by the boss announcement).",
           "minLength": 1,
           "type": "string"
+        },
+        "shake": {
+          "additionalProperties": false,
+          "description": "Screen shake while THIS era's boss walks (per-era since BR-1).",
+          "properties": {
+            "interval": {
+              "description": "Seconds between shake impulses.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "strength": {
+              "description": "Shake amplitude (fraction of a tile).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "interval",
+            "strength"
+          ],
+          "type": "object"
+        },
+        "sprite_scale": {
+          "description": "Extra render multiplier applied AFTER this era's footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+          "maximum": 8,
+          "minimum": 0.1,
+          "type": "number"
         }
       },
       "required": [
         "attack_range_tiles",
         "attack_speed",
         "dmg",
+        "footprint",
         "hp",
         "move_speed",
-        "name"
+        "name",
+        "shake",
+        "sprite_scale"
       ],
       "type": "object"
     },
@@ -165,8 +203,14 @@
     },
     "spawn_counts": {
       "additionalProperties": false,
-      "description": "A mix of enemy counts by type.",
+      "description": "A mix of enemy counts by type. SHARED by every death_spawn.spawns row and by Boss.round_counts, so a key added here appears on all of them (BR-1/D3 accepted that cost for commander, deliberately overriding the standing argument against widening this $def).",
       "properties": {
+        "commander": {
+          "description": "Commander count. Ships 0 everywhere: the Commander enemy type itself arrives in BR-2 and nothing spawns it yet.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
         "raiders": {
           "description": "Raider count.",
           "maximum": 10000,
@@ -187,6 +231,7 @@
         }
       },
       "required": [
+        "commander",
         "raiders",
         "regular",
         "siege"
@@ -396,19 +441,13 @@
       "properties": {
         "Boss": {
           "additionalProperties": false,
-          "description": "The boss (on the era's boss_round_in_era round). Per-era arrays are index-aligned with the global era clock: era N uses stats[N], death_spawn.spawns[N], round_counts[N].",
+          "description": "The boss (on the era's boss_round_in_era round). Per-era arrays are index-aligned with the global era clock: era N uses stats[N], death_spawn.spawns[N], round_counts[N]. BR-1: footprint/sprite_scale/shake moved OUT of this block into the stats rows, so every boss variable is per-era -- the Boss is the one type whose render fit is era-indexed rather than flat at the type root.",
           "properties": {
             "condition_path_weights": {
               "$ref": "#/$defs/condition_path_weights"
             },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
-            },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
-              "type": "integer"
             },
             "hunts": {
               "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
@@ -438,37 +477,8 @@
               "minItems": 5,
               "type": "array"
             },
-            "shake": {
-              "additionalProperties": false,
-              "description": "Screen shake while the boss walks.",
-              "properties": {
-                "interval": {
-                  "description": "Seconds between shake impulses.",
-                  "maximum": 60,
-                  "minimum": 0,
-                  "type": "number"
-                },
-                "strength": {
-                  "description": "Shake amplitude (fraction of a tile).",
-                  "maximum": 60,
-                  "minimum": 0,
-                  "type": "number"
-                }
-              },
-              "required": [
-                "interval",
-                "strength"
-              ],
-              "type": "object"
-            },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "stats": {
-              "description": "Per-era boss combat stats.",
+              "description": "Per-era boss combat stats -- since BR-1 this row carries EVERY boss variable, including footprint, sprite_scale and shake (which used to be single global values shared by all five bosses).",
               "items": {
                 "$ref": "#/$defs/boss_stat"
               },
@@ -480,13 +490,10 @@
           "required": [
             "condition_path_weights",
             "death_spawn",
-            "footprint",
             "hunts",
             "kidnapping",
             "registry_group",
             "round_counts",
-            "shake",
-            "sprite_scale",
             "stats"
           ],
           "type": "object"

@@ -91,6 +91,17 @@ def frame(session, scene, tilemap_, dt, dmg_bonus=0):
         session.post_sim(scene)
 
 
+def boss_footprint(enem, footprint):
+    """Set the boss's footprint on a COPY of the balancing doc.
+
+    BR-1: the boss's ``footprint``/``sprite_scale``/``shake`` are PER-ERA —
+    they live in its ``stats[]`` rows, not flat at the type root — so a test
+    that wants a footprint-N boss writes every row."""
+    for row in enem["EnemyTypes"]["Boss"]["stats"]:
+        row["footprint"] = footprint
+    return enem
+
+
 def queue_etypes(round_num, tm, seed=1):
     sp = Spawner()
     sp.begin_round(round_num, tm, ENEM, rng=random.Random(seed))
@@ -713,8 +724,7 @@ class TestBossFootprintTwoDoesNotFreezeBesideANeighbour(unittest.TestCase):
     neighbour, body overlapping its tile, never attacking it."""
 
     def test_boss_kills_a_neighbour_instead_of_freezing_beside_it(self):
-        enem = copy.deepcopy(ENEM)
-        enem["EnemyTypes"]["Boss"]["footprint"] = 2
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
         tm, scene, occ = build_board(["b" * 12] * 12)
         b1 = place_defence(tm, scene, occ, 5, 5, hp=50)
         b2 = place_defence(tm, scene, occ, 7, 5, hp=50)
@@ -857,8 +867,7 @@ class TestChebyshevRangeGateNearestBlockTile(unittest.TestCase):
     hit that same defender fine."""
 
     def _footprint_2_boss(self, tm):
-        enem = copy.deepcopy(ENEM)
-        enem["EnemyTypes"]["Boss"]["footprint"] = 2
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
         return create_enemy("boss", 10, 10, enem, tm, 0)
 
     def test_range_1_defenders_touching_the_block_are_all_in_range(self):

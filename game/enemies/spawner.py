@@ -48,13 +48,18 @@ _SWARM_TYPES = (("standard", "regular"), ("raider", "raiders"),
                 ("siege", "siege"))
 
 
-def _footprint_of(balance, etype):
+def _footprint_of(balance, etype, era=0):
     """The etype's footprint from balancing (G-7), resolved through the class's
-    ``STAT_SUBTREE`` — so a new enemy type needs no change here."""
+    ``STAT_SUBTREE`` — so a new enemy type needs no change here.
+
+    BR-1: the WHERE is the class's own ``resolve_fit`` seam (flat at the type
+    root for every type but the Boss, whose footprint is per-era), so this
+    function and ``Enemy.__init__`` can never read different values."""
+    cls = ENEMY_CLASSES[etype]
     block = balance["EnemyTypes"]
-    for seg in ENEMY_CLASSES[etype].STAT_SUBTREE:
+    for seg in cls.STAT_SUBTREE:
         block = block[seg]
-    return block["footprint"]
+    return cls.resolve_fit(block, era)[0]
 
 
 class Spawner:
@@ -154,8 +159,15 @@ class Spawner:
         unfiltered pick, so an enemy is never dropped from the wave. footprint 1
         takes the byte-identical unfiltered choice — same list, same single rng
         draw, so the deterministic composition fixtures are untouched. The
-        clearance filter itself consumes NO rng."""
-        fp = _footprint_of(self._balance, etype)
+        clearance filter itself consumes NO rng.
+
+        The era passed to ``_footprint_of`` is the same one the enemy will be
+        CONSTRUCTED with in ``update`` (the boss takes ``_boss_era``, stashed
+        by ``_boss_round`` before it picks any tile) — since BR-1 the boss's
+        footprint is per-era, so the clearance filter must ask about the era
+        that is actually about to spawn."""
+        era = self._boss_era if etype == "boss" else self._era
+        fp = _footprint_of(self._balance, etype, era)
         if fp <= 1:
             return self._rng.choice(spawn_tiles)
         clear = self._clear_spawn_tiles(spawn_tiles, fp)

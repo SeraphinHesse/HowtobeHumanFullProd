@@ -39,16 +39,26 @@ ASSETS = AssetStore(
 TILE_W = 64
 
 
+def render_fit(cls, era=0):
+    """``(footprint, sprite_scale)`` for `cls` at `era`, through the class's own
+    BR-1 ``resolve_fit`` seam — which knows WHERE the pair lives (flat at the
+    type root for every type but the Boss, whose is per-era in ``stats[era]``).
+    `era` 0 because ``make_enemy`` constructs at the constructor default, the
+    same era ``DEFAULT_SLOT`` is the art for."""
+    block = ENEMIES_BAL["EnemyTypes"]
+    for seg in cls.STAT_SUBTREE:
+        block = block[seg]
+    return cls.resolve_fit(block, era)
+
+
 def drawn_sprite_h(cls, zoom=1):
     """The on-screen height `cls`'s sprite renders at — re-derived here from the
     sheet + balance rather than by calling the engine, so this test really pins
     ER-1's rule: downscale-only footprint fit, never the raw sheet height."""
-    block = ENEMIES_BAL["EnemyTypes"]
-    for seg in cls.STAT_SUBTREE:
-        block = block[seg]
+    footprint, sprite_scale = render_fit(cls)
     frame_w, frame_h = ASSETS.frame_size(cls.DEFAULT_SLOT)
-    fit = min(1.0, (block["footprint"] * TILE_W) / frame_w)
-    return frame_h * zoom * fit * block["sprite_scale"]
+    fit = min(1.0, (footprint * TILE_W) / frame_w)
+    return frame_h * zoom * fit * sprite_scale
 
 
 def expected_bar_bottom(cls, cy, zoom=1):
@@ -59,10 +69,7 @@ def expected_bar_bottom(cls, cy, zoom=1):
     this term is 0 for all of them — it is exercised by the explicit 2-tile case
     in TestBarGeometry.
     """
-    block = ENEMIES_BAL["EnemyTypes"]
-    for seg in cls.STAT_SUBTREE:
-        block = block[seg]
-    shift = (block["footprint"] - 1) / 2 * 32 * zoom       # tile_h = 32
+    shift = (render_fit(cls)[0] - 1) / 2 * 32 * zoom       # tile_h = 32
     return int(cy + shift - drawn_sprite_h(cls, zoom) / 2 - cls.HP_BAR_PAD * zoom)
 
 

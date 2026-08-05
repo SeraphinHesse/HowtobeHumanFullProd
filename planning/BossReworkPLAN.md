@@ -120,7 +120,7 @@ clearance-filtered tile chooser; `AssetStore.animation_total_ms` already returns
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| BR-1 | Per-boss balancing restructure — data + schema + readers, zero behaviour change | not started |
+| BR-1 | Per-boss balancing restructure — data + schema + readers, zero behaviour change | done |
 | BR-2 | Commander enemy type (`/add-enemy`), dormant in the wave system | not started |
 | BR-3 | `death_spawn` → `second_phase` for the Boss + the delayed second-phase state machine | not started |
 | BR-4 | Endgame boss scaling applied past the last era | not started |

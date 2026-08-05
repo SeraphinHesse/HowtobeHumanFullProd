@@ -45,108 +45,142 @@
         "spawn_hp_fraction": 1.0,
         "spawns": [
           {
+            "commander": 0,
             "raiders": 0,
             "regular": 0,
             "siege": 0
           },
           {
+            "commander": 0,
             "raiders": 3,
             "regular": 5,
             "siege": 1
           },
           {
+            "commander": 0,
             "raiders": 10,
             "regular": 20,
             "siege": 3
           },
           {
+            "commander": 0,
             "raiders": 10,
             "regular": 15,
             "siege": 3
           },
           {
+            "commander": 0,
             "raiders": 16,
             "regular": 34,
             "siege": 5
           }
         ]
       },
-      "footprint": 2,
       "hunts": "any_non_base",
       "kidnapping": false,
       "registry_group": "Boss",
       "round_counts": [
         {
+          "commander": 0,
           "raiders": 12,
           "regular": 8,
           "siege": 0
         },
         {
+          "commander": 0,
           "raiders": 30,
           "regular": 30,
           "siege": 6
         },
         {
+          "commander": 0,
           "raiders": 125,
           "regular": 280,
           "siege": 31
         },
         {
+          "commander": 0,
           "raiders": 170,
           "regular": 400,
           "siege": 46
         },
         {
+          "commander": 0,
           "raiders": 215,
           "regular": 700,
           "siege": 61
         }
       ],
-      "shake": {
-        "interval": 0.12,
-        "strength": 0.6
-      },
-      "sprite_scale": 1.0,
       "stats": [
         {
           "attack_range_tiles": 1,
           "attack_speed": 1.5,
           "dmg": 160,
+          "footprint": 2,
           "hp": 1400,
           "move_speed": 0.65,
-          "name": "Throbbin Hood"
+          "name": "Throbbin Hood",
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0
         },
         {
           "attack_range_tiles": 2,
           "attack_speed": 1.4,
           "dmg": 320,
+          "footprint": 2,
           "hp": 2000,
           "move_speed": 0.58,
-          "name": "Cannon Fortress"
+          "name": "Cannon Fortress",
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0
         },
         {
           "attack_range_tiles": 2,
           "attack_speed": 1.3,
           "dmg": 480,
+          "footprint": 2,
           "hp": 6500,
           "move_speed": 0.59,
-          "name": "Wrecking Ball"
+          "name": "Wrecking Ball",
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0
         },
         {
           "attack_range_tiles": 3,
           "attack_speed": 1.15,
           "dmg": 700,
+          "footprint": 2,
           "hp": 10000,
           "move_speed": 0.61,
-          "name": "Iron Drill"
+          "name": "Iron Drill",
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0
         },
         {
           "attack_range_tiles": 3,
           "attack_speed": 1.0,
           "dmg": 1000,
+          "footprint": 2,
           "hp": 15000,
           "move_speed": 0.7,
-          "name": "Siege Tank"
+          "name": "Siege Tank",
+          "shake": {
+            "interval": 0.12,
+            "strength": 0.6
+          },
+          "sprite_scale": 1.0
         }
       ]
     },
@@ -162,6 +196,7 @@
         "spawn_hp_fraction": 0.8,
         "spawns": [
           {
+            "commander": 0,
             "raiders": 0,
             "regular": 4,
             "siege": 0
@@ -275,6 +310,7 @@
         "spawn_hp_fraction": 1.0,
         "spawns": [
           {
+            "commander": 0,
             "raiders": 0,
             "regular": 0,
             "siege": 0
@@ -388,6 +424,7 @@
         "spawn_hp_fraction": 1.0,
         "spawns": [
           {
+            "commander": 0,
             "raiders": 0,
             "regular": 0,
             "siege": 0
@@ -503,6 +540,7 @@
         "spawn_hp_fraction": 1.0,
         "spawns": [
           {
+            "commander": 0,
             "raiders": 0,
             "regular": 0,
             "siege": 0

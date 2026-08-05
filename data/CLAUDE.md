@@ -110,7 +110,8 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
-- **Enemy sizing leaves (ER-1)**: each `enemies.json` `EnemyTypes/*` block carries
+- **Enemy sizing leaves (ER-1; per-era for the Boss since BR-1)**: each
+  `enemies.json` `EnemyTypes/*` block carries
   a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
   its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
   `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
@@ -150,11 +151,20 @@ validating writer; don't hand-edit the JSON.
     `per_round` / `rounds_per_cannon` / `rounds_per_formation`. The flat
     `hp`/`dmg`/`move_speed`/`attack_speed`/`attack_range_tiles` left the type
     root — they live in era rows now. `Boss` keeps its own 5-row `stats[]` +
-    `round_counts[]` untouched (BossReworkPLAN's territory).
+    `round_counts[]` (BossReworkPLAN's territory) — and since **BR-1** its
+    `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
+    live inside each `stats[]` row, so every boss variable is per-era.
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
     `start_round`, `footprint`, `sprite_scale`, `death_spawn`, `registry_group`,
     `kidnapping`, `hunts`, `condition_path_weights`, `mix_ratio`,
     `queue_lead_count`. Only numbers that scale with the round went per-era.
+    **BR-1 carved out ONE exception**: the Boss's `footprint`/`sprite_scale`
+    are per-era (in its `stats[]` rows), because a designer must be able to
+    make the era-4 boss physically bigger than the era-0 one. Every other type
+    — and every other key in that list — is unchanged. Consequence to know:
+    `editor/sprite_fit.py` still reads the flat pair, so boss slot previews
+    fall back to the render defaults until an editor-side follow-up teaches it
+    the era rows.
   - **`endgame_scaling` blocks** (per type `{hp, dmg, move_speed, count}`, plus
     `EnemyScaling.endgame_scaling {batch_size, spawn_interval}`) are FACTORS,
     not values: past the last authored era the last row is reused with every
@@ -196,6 +206,12 @@ validating writer; don't hand-edit the JSON.
   code-side default is banned) and the editor panel skips schema keys absent from
   the doc. `Boss/death_spawns` was REPLACED by `Boss/death_spawn` (the 5 rows
   moved verbatim under `spawns`).
+  - **`$defs/spawn_counts` gained a required `commander` key (BR-1/D3)** — the
+    `$def` is SHARED by every `death_spawn.spawns` row and by
+    `Boss.round_counts`, so all 14 committed rows now carry `commander: 0`.
+    Nothing reads it yet (the Commander enemy type arrives in BR-2); widening
+    the shared `$def` was chosen deliberately over a boss-only count table,
+    overriding the standing argument against it in `game/enemies/CLAUDE.md`.
 - **The parity gate is GONE, and balancing values are now free.** The migration
   is complete: `tools/tests/test_balancing_parity.py` and its committed mapping
   table (`balancing_parity_map.json`) are **deleted**, along with the prototype's

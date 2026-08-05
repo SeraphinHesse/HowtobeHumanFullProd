@@ -571,11 +571,18 @@ class TestBalancingPanel(TempDataCase):
 
     def test_enemy_rework_fields_surface_and_are_editable(self):
         """ER-5: footprint / sprite_scale / the whole death_spawn block (including
-        the per-era spawns rows) reach the designer as real widgets."""
+        the per-era spawns rows) reach the designer as real widgets.
+
+        BR-1 re-anchored the two sizing fields: they are still flat at the type
+        root for every ordinary type (Standard here), while the BOSS carries
+        them — plus its shake — inside each per-era ``stats`` row."""
         panel = self.make_panel("enemies")
         for key, kind in (
-            ("EnemyTypes/Boss/footprint", QSpinBox),
-            ("EnemyTypes/Boss/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Standard/footprint", QSpinBox),
+            ("EnemyTypes/Standard/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
+            ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),
             ("EnemyTypes/Boss/death_spawn/enabled", QCheckBox),
             ("EnemyTypes/Boss/death_spawn/at_hp_fraction", QDoubleSpinBox),
             ("EnemyTypes/Boss/death_spawn/spawns/0/regular", QSpinBox),

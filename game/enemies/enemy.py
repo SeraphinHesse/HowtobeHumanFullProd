@@ -106,16 +106,17 @@ class Enemy(GameObject):
         era = self._resolve_era(enemies_balance, era)
         rows = ds["spawns"]
         spawn_row = rows[min(max(era, 0), len(rows) - 1)]
+        footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(footprint=int(block["footprint"]), hunt=block["hunts"]),
+            PathAgent(footprint=footprint, hunt=block["hunts"]),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
             SpriteAnimator(slot_key=slot, animation="walk",
                            phase_ms=(col * 137 + row * 251) % 2000,
-                           fit_tiles=float(block["footprint"]),
-                           scale=float(block["sprite_scale"])),
+                           fit_tiles=float(footprint),
+                           scale=float(sprite_scale)),
             DeathSpawn(era=era,
                        enabled=ds["enabled"],
                        at_hp_fraction=float(ds["at_hp_fraction"]),
@@ -146,6 +147,21 @@ class Enemy(GameObject):
         # (not aliased) so a caller can never mutate the balancing doc's own
         # dict through it.
         pa._cond_weights = dict(block["condition_path_weights"])
+
+    # -- render fit / footprint (BR-1 seam) --------------------------------
+
+    @classmethod
+    def resolve_fit(cls, block, era):
+        """``(footprint, sprite_scale)`` for this type at ``era``.
+
+        The ONE seam deciding WHERE a type's render fit lives, so
+        ``__init__`` and the spawner's pre-construction ``_footprint_of``
+        can never disagree. Every type but the Boss keeps them FLAT at its
+        ``EnemyTypes`` root (ES-2/D10 — only numbers that scale with the round
+        went per-era); the Boss overrides it, because BR-1 made every boss
+        variable per-era. A classmethod, not an instance method: the spawner
+        needs the footprint to pick a spawn tile BEFORE the enemy exists."""
+        return int(block["footprint"]), float(block["sprite_scale"])
 
     # -- stat resolution (generic since ES-2; only the Boss overrides) -----
 
@@ -332,6 +348,21 @@ class Boss(Enemy):
         return min(max(era, 0),
                    len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
 
+    @classmethod
+    def resolve_fit(cls, block, era):
+        # BR-1: the boss is the ONE type whose footprint/sprite_scale are
+        # per-era — they live in its `stats[era]` row with every other boss
+        # variable, not flat at the type root. Clamped here too, so the
+        # spawner can ask before a Boss instance exists.
+        st = cls._stat_row(block, era)
+        return int(st["footprint"]), float(st["sprite_scale"])
+
+    @staticmethod
+    def _stat_row(block, era):
+        """``EnemyTypes.Boss.stats`` row for ``era``, clamped to the table."""
+        rows = block["stats"]
+        return rows[min(max(era, 0), len(rows) - 1)]
+
     def _resolve_stats(self, balance, era, position_in_era=1):
         # The ONE surviving override: the boss's table is `stats[]`, not
         # `eras[]` (its rework is BossReworkPLAN's job, D8).
@@ -351,6 +382,18 @@ class Boss(Enemy):
     def era(self):
         """The era index (read by tests + any future era-keyed UI)."""
         return self.get_component(DeathSpawn).era
+
+    @property
+    def shake(self):
+        """This boss's own ``{interval, strength}`` camera shake (BR-1).
+
+        Per-era since BR-1, so the host reads it off the LIVE boss object it
+        already queries by the ``"boss"`` tag (``game/main.py``) rather than
+        re-deriving an era from the round number — the boss knows which era it
+        is. A plain dict copy: nothing may mutate the balancing doc through
+        it. Duck-typed, like ``era``/``death_spawned``."""
+        return dict(self._stat_row(
+            self._balance["EnemyTypes"]["Boss"], self._enemy_era)["shake"])
 
 
 # etype string -> class (the spawner queues etype strings).

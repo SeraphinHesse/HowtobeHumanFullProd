@@ -41,7 +41,8 @@ package (D7).
   clamp — and the old "past tier 5 stats freeze while counts climb forever"
   cliff is gone.
 - **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
-  so are `kidnapping`, `footprint`, `sprite_scale`, `death_spawn`,
+  so are `kidnapping`, `footprint`, `sprite_scale` (**except on the Boss since
+  BR-1** — see the Boss section), `death_spawn`,
   `registry_group`, `start_round`, `mix_ratio`, `queue_lead_count`. The
   restructure moved only the numbers that scale with the round. A Raider hunts
   economic buildings in era 0 and in era 9 — nothing in the "Prey hunting"
@@ -124,8 +125,30 @@ package (D7).
   `Enemy.on_spawn`, see "Prey hunting" below).
 - **The boss keeps its OWN 5-row `stats[]` table** — `Boss._resolve_stats` reads
   `Boss.stats[era]` verbatim (it is the ONE type that does not carry `eras[]`;
-  reshaping it is `planning/BossReworkPLAN.md`'s job, not this rework's);
-  `dmg_bonus` (the 10G optional kwarg on
+  reshaping it into `eras[]` is still `planning/BossReworkPLAN.md`'s job);
+- **EVERY boss variable is PER-ERA (BR-1).** `footprint`, `sprite_scale` and
+  `shake: {interval, strength}` were single GLOBAL keys on `EnemyTypes.Boss`
+  shared by all five bosses; they now live in each `stats[]` row and the
+  global keys are DELETED. The Boss is the one type this is true of — every
+  other type keeps them flat at its root (D10 above).
+  - **`Enemy.resolve_fit(block, era)` is the ONE seam** deciding *where* a
+    type's `(footprint, sprite_scale)` lives. A `classmethod`, because
+    `spawner._footprint_of` needs the footprint to pick a spawn tile BEFORE
+    the enemy exists — so `__init__` and the clearance filter can never read
+    different values. Base returns the flat keys; `Boss` overrides it to read
+    its clamped `stats[era]` row (`Boss._stat_row`). `_pick_spawn_tile` passes
+    `_boss_era` for a boss and `_era` for everything else.
+  - **The shake is read off the LIVE boss**, not re-derived from the round
+    number: `Boss.shake` is a duck-typed property (a dict COPY) beside
+    `era`/`death_spawned`, and `game/main.py`'s camera-shake driver takes it
+    from the first alive object it already finds via `by_tag("boss")`.
+  - **Known follow-up, NOT fixed by BR-1**: `editor/sprite_fit.py`'s
+    `slot_draw_fit` resolves an enemy preview's render fit by reading
+    `EnemyTypes/<type>/footprint` + `sprite_scale` flat — for the Boss those
+    keys are gone, so every `boss_era_*` slot preview silently degrades to the
+    `(0.0, 1.0)` render defaults. Fixing it is an `editor/` change (pick the
+    era row matching the slot's era subgroup) and was out of BR-1's file scope.
+- `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
 
