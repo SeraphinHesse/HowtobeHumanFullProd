@@ -5,7 +5,7 @@
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: NOT STARTED — authored 2026-07-20, reworked against current state 2026-08-05 -->
+<!-- status: COMPLETE 2026-08-05 — authored 2026-07-20, reworked against current state 2026-08-05, ES-1..ES-5 all landed -->
 
 # EnemyScalingReworkPLAN.md — global era clock, per-era manual stats, batch spawning
 
@@ -316,7 +316,15 @@ current formula evaluated at `r0(e)` **without flooring** (D3′).
 | Formation | `1 + (r−16)//3` | 16 | `1/3` | `1 + (r0−16)/3` |
 
 Only the Formation produces a fractional `count_start` — eras 0–4 seed to
-`1` / `1` / `2.667` / `6` / `9.333`. Every other row is a whole number.
+`1` / `1` / `2.666666666666667` / `6` / `9.333333333333334`. Every other row is
+a whole number.
+
+> **Write FULL float precision, never these values rounded for display.** This
+> table said `2.667` / `9.333` when the plan was authored; those are WRONG as
+> data and ES-2 shipped the exact quotients. `9.333 + 2 × ⅓` floors to 9 at
+> round 43 where the true value gives 10 — a one-Formation-short wave, exactly
+> the D3′ failure the fractional `count_start` exists to prevent. The rounded
+> forms remain in D3′'s worked example above **only** as readable illustration.
 
 **This table is verified, not asserted.** Evaluating each `(count_start,
 count_per_round, r0)` triple against the current formula for every round from
@@ -339,11 +347,11 @@ era row — same numbers, one code path.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| ES-1 | `engine/era_math.py` — pure era/stat/count resolvers + tests | not started |
-| ES-2 | Data + schema restructure, seeded; all game readers swap over | not started |
-| ES-3 | Batch spawning + per-era spawn pacing | not started |
-| ES-4 | Endgame scaling past the last defined era | not started |
-| ES-5 | Editor greyed previous-era reference; docs; BossReworkPLAN amendments | not started |
+| ES-1 | `engine/era_math.py` — pure era/stat/count resolvers + tests | done |
+| ES-2 | Data + schema restructure, seeded; all game readers swap over | done |
+| ES-3 | Batch spawning + per-era spawn pacing | done |
+| ES-4 | Endgame scaling past the last defined era | done |
+| ES-5 | Editor greyed previous-era reference; docs; BossReworkPLAN amendments | done |
 
 ---
 
