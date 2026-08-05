@@ -328,7 +328,7 @@ class TestEnemyModifiers(unittest.TestCase):
         Siege is the closest of the normal types to that line and still clears
         it: 1.0 − 0.4 = 0.6 beats its 0.5 floor, so its number is unmoved."""
         tm = synth(["bbccs"])
-        real = ENEM["EnemyTypes"]["SiegeCannon"]["move_speed"]
+        real = ENEM["EnemyTypes"]["SiegeCannon"]["eras"][0]["stats"]["move_speed"]
         s = SiegeCannon(4, 0, ENEM, tm)
         pa = s.get_component(PathAgent)
         pa._current_condition = TileCondition.MOUNTAIN

@@ -76,6 +76,42 @@ import list.**
     would otherwise drop the pending marks of every other staged edit. The buttons
     carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
     WHICH arrays are resizable. Scalar arrays keep their fixed length.
+    Since ES-2 the enemies domain's `eras` arrays (`EnemyScaling/eras` and every
+    `EnemyTypes/<Type>/eras`) are the second family of genuinely resizable
+    arrays, and they got those buttons with **zero editor edits** — the schema
+    said `minItems: 1`, no `maxItems`, and the gate above did the rest.
+  - **The greyed previous-era reference (ES-5, EnemyScalingReworkPLAN D9)**: a
+    leaf whose path sits inside an `eras/<i>/…` subtree with `i > 0` gets a
+    THIRD widget in its row, after the pending dot — a disabled, mid-grey
+    `QLabel` (`prev ⌐ 185`) showing what that field resolves to on the LAST
+    round of the PREVIOUS era. Era 0 shows nothing (there is nothing to
+    reference). Rules that matter:
+    - **Detection is PURELY PATH-SHAPE based** — `_era_context` scans the
+      leaf's path for the literal segment `eras` followed by an integer index
+      (`BalancingPanel.ERA_ARRAY_KEY`), and nothing else. No domain, type or
+      field name is hardcoded anywhere in it, so a future type that grows era
+      rows (BossReworkPLAN's Commander) inherits the label with no edit here.
+      The era LENGTH is found the same way: `_rounds_per_era` picks the one
+      top-level block carrying a `rounds_per_era` key (never "EnemyScaling" by
+      name), falling back to 10.
+    - **The math is `engine.era_math.prev_era_reference`, never a local
+      formula.** The panel importing `engine/` is fine (editor consumes engine,
+      D7); re-deriving `stats + (rounds_per_era − 1) × per_round` here would be
+      the exact drift that module exists to prevent. `start_round` and
+      `endgame_scaling` are read off the era array's PARENT object, again by
+      key shape.
+    - **Values come from the STAGED `self._doc`**, and `_refresh_dirty`
+      re-computes EVERY label on every edit — so retuning era 0's
+      `per_round.hp` updates era 1's reference before anything is saved.
+      A form rebuild (row add/remove, domain switch) regenerates them for free;
+      `self._refs` is cleared alongside `self._widgets`/`self._dots`.
+    - Anything the era math cannot read (a missing key, a non-numeric leaf, a
+      doc shape that raises) degrades to **no label**, never an exception —
+      this runs inside a Qt slot, where an unhandled exception can abort the
+      process. The label carries `objectName` `prevref:<path>` (same convention
+      as the row buttons) so a test can assert which fields have one; its grey
+      is a deliberately theme-independent panel-local colour, like the dirty
+      dot.
   Scalar leaves:
   integer → `QSpinBox`, number → `QDoubleSpinBox` (4 decimals; ranges from schema
   `minimum`/`maximum` — invalid input unrepresentable, ED-30), `enum` → `QComboBox`
@@ -420,6 +456,23 @@ import list.**
     `data/` in this fix) — `tools/tests/test_enemies.py`'s
     `TestRegistryGroupDrift` pins the two together so a future drift turns
     red instead of silently breaking the editor preview.
+    - **PER-ERA fits (BR-5)**: `slot_draw_fit` read `footprint`/
+      `sprite_scale` FLAT off the `EnemyTypes` block, but BossRework BR-1
+      moved the Boss's pair into its per-era `stats[]` rows — so for the Boss
+      it raised `KeyError`, the surrounding **bare `except Exception`**
+      swallowed it, and every `boss_era_*` preview silently drew at
+      `(0.0, 1.0)` for four phases. Two changes: `_type_fit` resolves either
+      shape (`stats[]` when present, clamped), with the era index coming from
+      `_era_index` — the slot's POSITION among its top group's child groups
+      ("Era 0" is child 0), the same index alignment `slots.json` and
+      `stats[]` already share; and the E-37 net now wraps **the two data
+      LOADS only**, with the resolution below written to be total (explicit
+      membership tests, no indexing that can raise) so the next such
+      regression is loud instead of silent. It still does NOT import
+      `game/enemies/enemy.py`'s `Enemy.resolve_fit` seam — `editor/` may
+      never import `game/` (D5), the whole reason `registry_group` is data.
+      Pinned by `tools/tests/test_editor_preview_footprint.py`'s
+      `TestBossPreviewFitIsPerEra` against a WRITTEN per-era fixture.
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live

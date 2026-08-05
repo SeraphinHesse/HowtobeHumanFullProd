@@ -994,7 +994,10 @@ class FloaterManager:
         """
         groups = {}
         for e in scene.by_tag("enemy"):
-            if not getattr(e, "alive", False):
+            # BR-3/D2: a boss staging its second phase is alive but shows NO
+            # bar — it is untouchable, so a draining bar would be a lie.
+            if (not getattr(e, "alive", False)
+                    or not getattr(e, "targetable", True)):
                 continue
             key = (round(e.transform.wx), round(e.transform.wy))
             groups.setdefault(key, []).append(e)
@@ -1131,8 +1134,11 @@ class FloaterManager:
         can never double up and it stacks against a death swarm."""
         if phase != GamePhase.ENEMY:
             return
+        # BR-3/D2: the HUD bar vanishes for a boss in its second phase too —
+        # same `targetable` gate as the overhead bars above.
         boss = next((b for b in scene.by_tag("boss")
-                     if getattr(b, "alive", False)), None)
+                     if getattr(b, "alive", False)
+                     and getattr(b, "targetable", True)), None)
         if boss is None:
             return
         health = boss.get_component(Health)

@@ -4,18 +4,81 @@
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
 here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider +
 SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
-`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`). When you
+`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`); the
+sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
+**dormant** — see its section below. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
 `/add-enemy` skill.**
 
+## The era clock (ES-1..ES-5) — read this before any scaling question
+Difficulty is ONE global clock, not the two that used to be bolted together.
+`EnemyScaling.rounds_per_era` (10) and `boss_round_in_era` (10) live in
+`data/balancing/enemies.json`; `scale_every_n_levels`, `scale_tiers` and
+`Boss.round_interval` are **deleted**. Every formula is
+`engine/era_math.py` — no era arithmetic is written out anywhere in this
+package (D7).
+- **D1 — clock.** `era = (round − 1) // rounds_per_era`, `round_in_era =
+  (round − 1) % rounds_per_era + 1`, boss round iff `round_in_era ==
+  boss_round_in_era`. Round 0 is era 0 by definition and is never a boss round
+  (D11, clamped inside `era_math`, so no caller carries the guard).
+  `Spawner.enemy_tier` survives only as a read-only alias of `enemy_era`.
+- **D2 — per-era stats are fresh MANUAL values.** Each type carries
+  `eras: [{stats:{hp,dmg,move_speed,attack_speed,attack_range_tiles},
+  per_round:{hp,dmg,move_speed}, count_start, count_per_round}]`. A row IS the
+  answer — there are no cumulative bonuses to add. In-era growth is the flat
+  additive `stats + (round_in_era − 1) × per_round`; `attack_speed` and
+  `attack_range_tiles` change BETWEEN eras only.
+- **D3/D3′ — counts are data.** `floor(count_start + (round − r0) ×
+  count_per_round)` with `r0 = max(era's first round, the type's global
+  `start_round`)`. `count_per_round` is fractional-capable (⅓ is the old
+  Formation accretion) and **`count_start` is a NUMBER, not an int** — see
+  `data/CLAUDE.md`. `base_count`/`per_round`/`rounds_per_cannon`/
+  `rounds_per_formation` are gone.
+- **D4 — batch spawning**: `EnemyScaling.eras[era].batch_size` enemies leave
+  the queue per timer expiry (see the spawner bullet in Rules).
+- **D5 — past the last authored era**: the row clamps AND the type's own
+  `endgame_scaling: {hp, dmg, move_speed, count}` (plus
+  `EnemyScaling.endgame_scaling: {batch_size, spawn_interval}`) compound as
+  `value × factor ** N`. All factors ship 1.0, so today this is exactly a
+  clamp — and the old "past tier 5 stats freeze while counts climb forever"
+  cliff is gone.
+- **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
+  so are `kidnapping`, `footprint`, `sprite_scale` (**except on the Boss since
+  BR-1** — see the Boss section), `death_spawn`,
+  `registry_group`, `start_round`, `mix_ratio`, `queue_lead_count`. The
+  restructure moved only the numbers that scale with the round. A Raider hunts
+  economic buildings in era 0 and in era 9 — nothing in the "Prey hunting"
+  section below is era-indexed or was touched by this rework. Promoting them
+  into era rows later would be additive; do not pre-build it.
+- Editor support: era arrays are `minItems 1` with no `maxItems`, so the
+  balancing panel's ER-5 `+ Row`/`− Row` buttons work on them, and every era ≥ 1
+  field shows a greyed previous-era reference (D9, `editor/panels/CLAUDE.md`).
+
 ## Boss (10G)
-- **Boss rounds**: every `Boss.round_interval`-th round `_compose` routes to
-  `_boss_round` — `[ONE boss] + ALL siege + shuffle(standard + raiders)`, counts
-  from `Boss.round_counts[round // interval - 1]` (beyond the 5-row table: the
-  three normal per-type formulas incl. start-round guards). NO siege lead/mix
-  split on boss rounds. The boss entry's **`tier` argument IS its era**
-  (`round // interval - 1`, clamped in `Boss.__init__`; pop-time via
-  `Spawner._boss_era`); companions keep the real scale tier.
+- **Boss rounds**: on a round the era clock calls a boss round
+  (`era_math.is_boss_round`, D1 — `Boss.round_interval` is deleted) `_compose`
+  routes to `_boss_round` — `[ONE boss] + ALL siege + shuffle(standard +
+  raiders + commanders)`, counts from `Boss.round_counts[era]`, **falling back
+  past the 5-row table to the ordinary per-type `_count_of` counts**.
+  - **BR-4 swapped that fallback for the endgame-scaled era-4 row; BR-5
+    REVERTED exactly that branch (user decision) and kept everything else BR-4
+    shipped.** So a round-60 boss round is 295/46/37 companions again, not the
+    era-4 table's 700/215/61 — the escort follows the ordinary per-type curve
+    while the BOSS ITSELF still grows through `endgame_boss_scaling` (stats,
+    fit, shake, `second_phase.spawns`). If the "a round-60 boss round is
+    lighter than a round-50 one" cliff is ever to be closed, close it in the
+    per-type era rows or by re-swapping THIS ONE branch — deliberately, not by
+    accident. Measured: rounds 0–60 of the real `Spawner` (12,659 queue
+    entries, trailing rng state included) are byte-identical to BR-3.
+  - **`round_counts[era]["commander"]` IS wired since BR-5** (it was authored
+    in BR-1 and consumed by nothing until then). Composed **LAST**, after the
+    standard and raider picks, so the shipped all-zero counts draw no rng and
+    every deterministic wave fixture holds — the same rule
+    `_formation_group`/`_commander_group` follow.
+  NO
+  siege lead/mix split on boss rounds. The boss entry's **`era` constructor
+  argument IS the global era** (the old `tier` channel, renamed at its source) (`era_math.era_of_round`, clamped in `Boss._resolve_era`;
+  pop-time via `Spawner._boss_era`); companions carry the same era.
 - **`Boss` hunts buildings, hole LAST (BP-2 / D2)**: `EnemyTypes.Boss.hunts ==
   "any_non_base"` routes it through the generic `Enemy.on_spawn` (Chunk 4 —
   `Boss.on_spawn` itself is DELETED, see "Prey hunting" below) via
@@ -69,18 +132,230 @@ change enemy conventions, update THIS doc. **Adding an enemy type? Use the
   the one place `_current_condition` genuinely went stale, so `_repath` re-reads
   it from the tile underfoot and resyncs `_last_index`.
 - **Death swarm — since ER-3 just ONE instance of the generalised
-  `death_spawn`** (below). The boss ships `at_hp_fraction: 0.0` +
-  `spawn_hp_fraction: 1.0` + `enabled: true` and its 5 per-era rows moved
-  verbatim to `Boss.death_spawn.spawns`, so the 10G burst is byte-identical:
-  same counts, same tile, same CURRENT tier (standard+siege scale; raiders
-  never), children at full HP. `Boss` itself is now just `_resolve_era` +
+  `death_spawn`** (below), and since BR-3 the boss's block is renamed
+  **`second_phase`** and staged (see the next section). The boss ships
+  `at_hp_fraction: 0.0` + `spawn_hp_fraction: 1.0` + `enabled: true` and its 5
+  per-era rows moved
+  verbatim to `Boss.second_phase.spawns`, so the counts/tile/era are
+  unchanged: same counts, same tile, same CURRENT era (each child resolves its
+  own era row), children at full HP. `Boss` itself is now just `_resolve_era` +
   `_resolve_stats` + `era` — its `__init__` is gone (9E-era), and its
   `on_spawn` override is gone too (Chunk 4 — collapsed into the generic
   `Enemy.on_spawn`, see "Prey hunting" below).
-- **No tier scaling on the boss** — `Boss._resolve_stats` reads
-  `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
+- **The boss keeps its OWN 5-row `stats[]` table** — it is the ONE type that
+  does not carry `eras[]` (reshaping it into `eras[]` is still
+  `planning/BossReworkPLAN.md`'s job). `Boss._stat_row(block, era)` is the ONE
+  resolver for it since BR-4 (`_resolve_stats`, `resolve_fit` and `shake` all go
+  through it, so they can never disagree about which era they are);
+- **EVERY boss variable is PER-ERA (BR-1).** `footprint`, `sprite_scale` and
+  `shake: {interval, strength}` were single GLOBAL keys on `EnemyTypes.Boss`
+  shared by all five bosses; they now live in each `stats[]` row and the
+  global keys are DELETED. The Boss is the one type this is true of — every
+  other type keeps them flat at its root (D10 above).
+  - **`Enemy.resolve_fit(block, era)` is the ONE seam** deciding *where* a
+    type's `(footprint, sprite_scale)` lives. A `classmethod`, because
+    `spawner._footprint_of` needs the footprint to pick a spawn tile BEFORE
+    the enemy exists — so `__init__` and the clearance filter can never read
+    different values. Base returns the flat keys; `Boss` overrides it to read
+    its clamped `stats[era]` row (`Boss._stat_row`). `_pick_spawn_tile` passes
+    `_boss_era` for a boss and `_era` for everything else.
+  - **The shake is read off the LIVE boss**, not re-derived from the round
+    number: `Boss.shake` is a duck-typed property (a dict COPY) beside
+    `era`/`death_spawned`, and `game/main.py`'s camera-shake driver takes it
+    from the first alive object it already finds via `by_tag("boss")`.
+  - **FIXED in BR-5** (it was a known BR-1 follow-up): `editor/sprite_fit.py`'s
+    `slot_draw_fit` read `EnemyTypes/<type>/footprint`/`sprite_scale` FLAT, so
+    for the Boss it raised `KeyError` — swallowed by a bare `except Exception`
+    — and every `boss_era_*` preview silently drew at the `(0.0, 1.0)` render
+    defaults for four phases. It now resolves the `stats[]` row whose index is
+    the slot's position among its top group's era child groups, and the
+    tolerance net wraps the two data LOADS only. It does NOT import
+    `Enemy.resolve_fit`: `editor/` may never import `game/` (D5), which is why
+    `registry_group` exists as data in the first place. See
+    `editor/panels/CLAUDE.md`.
+- **ENDGAME BOSS SCALING (BR-4) — `EnemyTypes.Boss.endgame_boss_scaling`.**
+  Past the last authored era the boss no longer repeats verbatim: the last row
+  is grown by `value × factor ** N`, `N = era − (len(stats) − 1)`. **ONE block
+  covers all THREE of the boss's per-era arrays** (D1) — `stats[]`,
+  `round_counts[]` and `second_phase.spawns[]`.
+  - **It is `engine.era_math.resolve_era_row`, not a boss-only helper** — the
+    same ES-4 function every other type's `eras[]` rows go through. Consequence
+    that drives the SHAPE OF THE DATA: the resolver matches a factor to a leaf
+    **by leaf name**, so the block's keys are the leaf names those rows carry —
+    `hp`/`dmg`/`move_speed`/`attack_speed`/`attack_range_tiles`/`footprint`/
+    `sprite_scale`, `interval`/`strength` (the two `shake` leaves — NOT
+    `shake_interval`, which would silently never match), and
+    `regular`/`raiders`/`siege`/**`commander`** for the count rows. A missing
+    name is 1.0, so a key omitted here scales silently not at all.
+    **`second_phase.staging` is the ONE per-era boss array deliberately kept
+    OUT of this path** (BR-5): it is resolved with `endgame_factors=None`, a
+    plain clamp. Its leaves are fractions and a per-child delay — no factor
+    name collides with them today, so routing them through would be a silent
+    no-op, and the first designer to add one would drive `at_hp_fraction` past
+    1.0, which fires the phase the instant the boss spawns.
+  - **All factors ship 1.0, which is EXACTLY the old clamp** — `_scale_leaf`
+    floors only leaves that were ints in the authored row, so an int floors back
+    to itself and a float is untouched. Measured: rounds 0-59 of the real
+    `Spawner` and the boss's resolved stats/fit/shake/second-phase counts at
+    eras 0-8 are byte-identical to BR-3. **Round 60 is the ONE deliberate
+    change** (see the boss-round bullet above): 295/46/37 companions → the era-4
+    table's 700/215/61.
+  - **`Boss._resolve_era` no longer clamps** — it returns the GLOBAL era, and
+    `Boss.era` with it. It has to: the clamp is what tells `resolve_era_row` how
+    far past the table we are, and clamping in the caller would freeze every
+    era-5+ boss at exactly the cliff this removes. `DeathSpawn.era` therefore
+    now holds the global era for a boss too; nothing in `game/` reads it but
+    `Boss.era`.
+  - **`Enemy.endgame_factors(block)` is the seam** (a classmethod beside
+    `resolve_fit`): `None` for every type but the Boss, which returns its
+    `endgame_boss_scaling`. It is why `Enemy.__init__`'s single
+    `resolve_era_row(ds["spawns"], …)` call serves both the boss's 5 scaled
+    rows and every other type's single always-clamping one.
+  - **`round_counts[era]["commander"]` is WIRED since BR-5** — see the
+    boss-round bullet above. The `commander` factor here only ever reaches
+    `second_phase.spawns` now, because BR-5 also took `round_counts` off the
+    past-the-table path.
+- `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
+
+## The boss's SECOND PHASE (BR-3) — the staged death
+`EnemyTypes.Boss.death_spawn` is renamed **`second_phase`** (`$defs/
+second_phase`, a standalone copy of `$defs/death_spawn` plus two keys — never
+an `allOf`/`oneOf`, same balancing-panel reason as everywhere else) and gains
+`delayed_spawns` (bool) + `spawn_delay` (seconds PER CHILD, not a phase
+total). **Only the Boss** — every other type still carries `death_spawn`, and
+`Enemy.DEATH_SPAWN_KEY` (a class attr, `"death_spawn"`; `Boss` overrides it to
+`"second_phase"`) is the ONE place that difference lives. The resolved fields
+are identical either way, which is why this is a key and not an `__init__`
+override.
+- **`delayed_spawns: false` is byte-identical to the one-frame burst.** The
+  new `DeathSpawn` fields all default to the historical behaviour, so a block
+  without them (every non-boss type) resolves to exactly today's component.
+- **`delayed_spawns: true`**: crossing `at_hp_fraction` does NOT kill the boss.
+  It freezes (`Movement.speed = 0` + the new `PathAgent.frozen`, the
+  `carrying` precedent — `EnemyCombat` reads the same flag, because a boss
+  frozen mid-swing keeps whatever `blocked` state it stopped in), goes
+  untargetable, plays `endphase`, trickles one child per `spawn_delay` at its
+  own tile, then dies through the **normal** path (XP, kill count, splatter,
+  `Corpse`).
+- **Two properties carry the whole thing, and both are the SINGLE evaluation
+  site of their question:**
+  - `Enemy.alive` returns True for an enabled+delayed unit until
+    `phase_complete`. That one line is what keeps combat, `_resolve_base_
+    arrivals` and the wave-clear check all correct with **no change to any of
+    them** — `Session.post_sim` needed nothing at all.
+  - `Enemy.targetable` (new, duck-typed — everything reads it as
+    `getattr(obj, "targetable", True)`) is derived straight from HP, NOT from
+    `phase_started`, so it flips on the SAME frame the crossing blow lands and
+    the boss can never eat one extra volley. Readers: `combat.py`'s one
+    `enemies = [...]` filter (which removes it from every defender's
+    `in_range` at once — homing, splash and beam alike), `ProjectileHoming.
+    _impact` + `ProjectileArc._impact` (a shot in flight is wasted, D2),
+    `_update_beam`'s sticky-target check, `game/core/lightning.py` (the storm
+    is a damage source too), and BOTH bars in `game/ui/effects.py`
+    (`submit_enemy_hp_bars` and `submit_boss_bars`).
+- **The machine is split by capability, not arbitrarily.** State lives in
+  `DeathSpawn` (`delayed`, `spawn_delay`, `phase_started`, `phase_complete`,
+  `phase_timer`, `pending` — all declared JSON-safe, E-11); the LOGIC is
+  `Enemy.advance_second_phase(dt)`, which returns the etypes due this frame and
+  **never touches the scene**; the SPAWNER (`Spawner._advance_second_phases`,
+  called FIRST in `update` — before the `if not self._queue: return`, because a
+  boss stages long after its wave queue has drained) turns them into enemies
+  through `_spawn_child`, the one per-child path `spawn_death_swarm` also uses
+  now. `dt` is the host's speed-scaled `sim_dt`, so the cadence holds at
+  1.5×/2× — the `Corpse` fade-clock rule.
+- **The phase claims `death_spawned` at its START**, so the eventual normal
+  death cannot ALSO stash a `death_spawn_plan` with the Session and double-burst.
+- **The `endphase` / `death` rows are NOT in the manifest, and adding
+  placeholder ones would be WRONG (measured, BR-5).** A manifest row's index
+  IS its sheet row (`engine/assets/manifest.py`: `Track.row = row_idx`; there
+  is no explicit row key), and every `boss_era_*` sheet is exactly as many
+  rows tall as it declares (era 0: 384×288 = 3 rows of 96; eras 1–4 are
+  single-row). Appending an `endphase` row therefore resolves to sheet row 3,
+  which `engine/assets/store.py` logs as "outside its sheet" and replaces with
+  the **grey-X placeholder** — for the entire second phase. Leaving the rows
+  absent IS D4's graceful fallback and is strictly better art:
+  `Manifest.current_frame` falls back to the IDLE row for a missing animation,
+  and `animation_total_ms` returns `None` for a missing `death` row, which is
+  the existing no-corpse behaviour. Real rows land with real art, via
+  `/replace-visual`.
+- **Camera shake keeps firing on a frozen boss (BR-3 finding, NOT fixed).**
+  `game/main.py`'s driver keys off `by_tag("boss")` + `alive`, and `alive` is
+  True for the whole second phase — so a frozen, untargetable boss still
+  shakes the screen. It may well be intended drama; it is a one-line change at
+  the driver if it is not. Flagged for the user, deliberately untouched.
+- **Known limitation, now much more visible (NOT fixed here).** The wave-clear
+  check cannot see children spawned on the round's last frame (see Rules
+  below). A boss frozen for several seconds makes that window wider; BR-3
+  deliberately did not expand scope into it. Flagged for the user.
+- **PER-ERA since BR-5 — `second_phase.staging[]`.**
+  `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` were
+  single GLOBAL values on the `second_phase` block; they now live in a 5-row
+  `staging` array index-aligned with `stats[]`/`round_counts[]`/`spawns[]`
+  (`$defs/second_phase_row`, `minItems`/`maxItems` 5 like the boss's other
+  pinned arrays). `spawns[]` did NOT move.
+  - **They are their own array, not extra keys on a `spawns[]` row** — D7:
+    those rows are `$defs/spawn_counts`, SHARED with every other type's
+    `death_spawn.spawns`, so a boss-only threshold key there would land on all
+    14 committed rows.
+  - **`Enemy.resolve_phase_row(ds, era)` is the ONE seam**, the exact shape of
+    `resolve_fit`: base returns the flat `death_spawn` block (a Formation
+    breaks at half health in era 0 and in era 9), `Boss` overrides it to
+    `resolve_era_row(ds["staging"], era, None)` — no endgame factors, on
+    purpose (see the endgame section above).
+  - **D5's tuning, the ONE gameplay change in BR-5**: era 0 ships
+    `at_hp_fraction 0.5` + `spawn_hp_fraction 0.5`; eras 1–4 keep `0.0`/`1.0`.
+    Era 0's `spawns` row ships `commander: 1` (added after BR-5, with the
+    user's approval), so the era-0 boss stages into a real two-phase fight:
+    at 50% HP it freezes, turns untargetable, plays `endphase`, releases ONE
+    Commander at its own tile, then dies. Shipping the thresholds *without*
+    that count is what makes the boss effectively 700 HP instead of 1400 —
+    the two are a pair, so never tune one to zero alone.
+
+## Commander (BR-2) — LIVE code, DORMANT data
+The boss's officer. **Nothing spawns it today** and that is the phase's whole
+invariant: BR-3 wires it to the boss's second phase.
+- **The subclass is four class attrs plus an HP-bar width** — `ETYPE
+  "commander"`, `REGISTRY_GROUP "Commander"`, `DEFAULT_SLOT
+  "commander_stage_1"`, `STAT_SUBTREE ("Commander",)`, `HP_BAR_W/H = 24, 2`
+  (siege-sized). No `__init__`, no `on_spawn`, **no `_resolve_stats`**, no
+  `_resolve_era`, no `EXTRA_TAGS` — so no `"boss"` scene tag and therefore no
+  camera shake and no boss HUD bar, both of which key off that tag.
+- **It is a NORMAL era type** (D8): the base `STAT_SUBTREE`-driven resolver
+  reads its own `EnemyTypes.Commander.eras` rows, and `footprint` /
+  `sprite_scale` stay FLAT at its root — the Boss is still the ONE type whose
+  render fit is per-era (BR-1), and `Boss._resolve_stats` is still the ONE
+  surviving override in the module. Do not add one here.
+- **It hunts buildings like the Boss with no boss-specific code**: `hunts:
+  "any_non_base"` is all it takes — the generic `Enemy.on_spawn` runs the
+  goal-set query, arms `PathAgent.repath_on_kill` and calls `adopt_goal`
+  (so `goal_is_base` is False while any non-base building stands). Same
+  collapse that deleted `Boss.on_spawn` in Chunk 4.
+- **Dormancy is DATA, in two independent places**, and both must stay 0 for
+  BR-2 to hold: every `eras[]` row's `count_start`/`count_per_round`
+  (so `Spawner._commander_group` emits nothing and draws no rng), and every
+  `$defs/spawn_counts` row's `commander` (BR-1 added the key at 0 to all 14).
+  Every schedule key exists, so switching it on is a data edit alone.
+- **`_commander_group` is called LAST in `_compose`, after
+  `_formation_group`** — the same rule the Formation follows: an earlier call
+  site shifts every other group's rng draw sequence and moves the
+  deterministic wave fixtures. Measured: rounds 0–60 composed on the real
+  `Spawner` are byte-identical to BR-1 (12,659 queue entries).
+- **`SWARM_TYPES` gained `("commander", "commander")` in BR-3, appended
+  LAST.** Until then a non-zero `commander` count in ANY `spawn_counts` row
+  silently spawned nothing (BR-2 shipped the type but not its spawn wiring).
+  The table now lives in `enemy.py`, not `spawner.py` — BR-3's second phase
+  lays out its child queue from the SAME order and `enemy.py` cannot import
+  the spawner (the dependency runs the other way); `spawner._SWARM_TYPES` is
+  kept as an alias. Appending LAST is the same rng rule the composition groups
+  follow, and it is **measured**: a 55-child era-4 burst and the rounds-0..60
+  queues (12,659 entries) are both byte-identical to BR-2, trailing rng state
+  included.
+- No manifest rows: its four `data/slots.json` era slots
+  (`commander_stage_1..4`) ship art-less, which is the normal grey-X
+  placeholder state (a slot with no `asset_manifest.json` entry is legal and
+  common). Real art lands via `/replace-visual`.
 
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
@@ -159,14 +434,13 @@ JSON-safe).
 `round_num == 0` is the tutorial's own scripted round (game/CLAUDE.md's "The
 tutorial is round 0" section owns the full cross-package picture); this
 package's only piece is `Spawner._compose`'s round-0 early branch, checked
-**FIRST**, before the boss check and before `begin_round`'s tier formula:
-`0 % round_interval == 0` is true for every interval, so an unguarded boss
-check would wrongly route round 0 through `_boss_round`, and
-`(0 - 1) // scale_every_n_levels` goes negative. Round 0 always composes
-exactly `EnemyScaling.tutorial_round_enemy_count` `"standard"` walkers,
-ignoring every other composition rule (raiders/siege/formation/boss all
-emit zero); `begin_round` special-cases `self._tier = 0` for round 0 the
-same way, so the interval/tier math never sees the negative index. Real
+**FIRST**: round 0 always composes exactly
+`EnemyScaling.tutorial_round_enemy_count` `"standard"` walkers, ignoring every
+other composition rule (raiders/siege/formation/boss all emit zero). It is a
+**composition** rule, not a clock rule — since ES-1 the clock itself is safe at
+round 0 by contract (D11): `era_math.era_of_round(0, …) == 0` and
+`era_math.is_boss_round(0, …)` is False for EVERY configuration, so no caller
+here re-derives the old `0 % round_interval == 0` / `(0 − 1) // n` guards. Real
 enemy scaling begins at round 1 unshifted — composing round 0 then round 1
 on one `Spawner` yields byte-identical output to composing round 1 fresh
 (pinned by `test_enemies.py`'s `TestSpawnComposition` round-zero tests).
@@ -175,16 +449,18 @@ on one `Spawner` yields byte-identical output to composing round 1 fresh
 The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
 ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
 (`death_spawn`), all three driven purely from `data/balancing/enemies.json`.
-- **The subclass is four class attrs + `_resolve_stats`.** No `__init__`, no
-  `on_spawn`, no `EXTRA_TAGS`, no component wiring, no break state machine.
-- **`_resolve_stats` MUST be overridden — and that is a trap, not a style
-  choice.** The base `Enemy._resolve_stats` reads
-  `balance["EnemyTypes"]["Standard"]` **literally**; `STAT_SUBTREE` drives the
-  balancing-block lookup in `__init__` (and `Spawner._footprint_of`) but **not**
-  `_resolve_stats`. An un-overridden subclass silently ships walker stats — a
-  bug with no symptom but wrong numbers. Pinned by
-  `test_enemies.TestFormation.test_stats_come_from_the_formation_block_not_standard`.
-  Formation takes the scale-tier bonuses (like Standard/Siege, unlike Raider).
+- **The subclass is four class attrs, nothing else.** No `__init__`, no
+  `on_spawn`, no `_resolve_stats`, no `EXTRA_TAGS`, no component wiring, no
+  break state machine.
+- **The `_resolve_stats` OVERRIDE TRAP IS GONE (ES-2).** It used to be
+  mandatory: the base `Enemy._resolve_stats` read
+  `balance["EnemyTypes"]["Standard"]` **literally**, so an un-overridden
+  subclass silently shipped walker stats — a bug with no symptom but wrong
+  numbers. The base implementation is now **`STAT_SUBTREE`-driven** like every
+  other lookup, and Raider/SiegeCannon/Formation carry **no override at all**
+  (only the Boss still does, for its own `stats[]` table). The regression test
+  (`test_enemies.TestFormation.test_stats_come_from_the_formation_block_not_standard`)
+  stays — it now proves the GENERIC path resolves the right block.
 - **It does NOT override `_resolve_era`**: it is not era-indexed, so it inherits
   row 0 and ships a **single-row** `death_spawn.spawns` array. The clamp
   (`spawns[min(max(era,0), len-1)]`) does the rest.
@@ -194,9 +470,12 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   `Session` stash → `Spawner.spawn_death_swarm`). The children are regulars at
   `spawn_hp_fraction` (0.8) of their OWN max HP. XP, kill count and splatter all
   fire exactly as for any other death, because it *is* one.
-- **Composition: the siege ACCRETION formula, but body-mixed.**
-  `_formation_group` emits `base_count + (round − start_round) //
-  rounds_per_formation` from `start_round`, mixed into the shuffled body —
+- **Composition: fractional accretion, body-mixed.**
+  `_formation_group` emits `era_math.count_at_round` over the Formation's own
+  era row from `start_round` — the era row's `count_per_round` is **⅓**, which
+  is exactly the old `// rounds_per_formation` accretion (D3′ is why
+  `count_start` may be fractional: `2.666666666666667` in era 2). Mixed into
+  the shuffled body —
   **never `siege_front`**, because a 2×2 at the head of the queue would wall the
   choke point before anything else arrived. It is called **LAST** among the
   composition groups so every earlier group's rng draw sequence stays
@@ -205,7 +484,14 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   `_boss_round` composes from `Boss.round_counts`, a `$defs/spawn_counts` table
   **shared with every `death_spawn.spawns` row**. Adding a `"formation"` key to
   that `$def` would force a meaningless formation count into every death-spawn
-  row. (It also used to fail the prototype-parity gate — that gate is deleted
+  row. **AMENDED (BR-1/D3, user decision): that argument no longer holds
+  absolutely** — `commander` WAS added to the shared `$def` (all 14 rows carry
+  it, at 0), deliberately overriding this note, because the boss's swarm and
+  its round table both wanted the same count vocabulary. The cost was paid and
+  is visible in the file; it is a judgement call per key, not a ban. It still
+  stands for `formation` specifically: nothing wants a formation count in a
+  death-spawn row, and D7 keeps BOSS-ONLY keys (the BR-5 staging rows) out of
+  this `$def` entirely. (It also used to fail the prototype-parity gate — that gate is deleted
   now, so the schema-shape argument is the whole reason and it still stands.) If
   formations on boss rounds are ever wanted, it is a one-line
   `+ self._formation_group(...)` into `_boss_round`'s `rest` — computed from the
@@ -363,7 +649,9 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
 
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
-  `EnemyTypes/<type>` block carries a **required** `death_spawn`
+  `EnemyTypes/<type>` block carries a **required** `death_spawn` — **except the
+  Boss, whose block is `second_phase` since BR-3** (same four keys plus
+  `delayed_spawns`/`spawn_delay`; `Enemy.DEATH_SPAWN_KEY` is the one seam)
   (`at_hp_fraction` / `enabled` / `spawn_hp_fraction` / `spawns`); it is
   resolved at CONSTRUCTION into the `DeathSpawn` component (which absorbed
   10G's `BossState`), exactly like `Health.max_hp`.
@@ -526,35 +814,54 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   `Movement.speed` straight — no ×32 pixel conversion (that was the prototype's
   pixel space); `find_path` output `[(col,row)…]` becomes `[[float(c),float(r)]…]`
   waypoints. Base arrival = `Movement.arrived` → `PathAgent.reached_base`.
-- **Scale-tier stats resolved at CONSTRUCTION** (prototype `enemy.py:88-108`):
-  hp/dmg/speed = type base + cumulative sum of `EnemyScaling.scale_tiers[0..tier)`;
-  tier = `(round-1)//scale_every_n_levels`. Values from
-  `data/balancing/enemies.json` (×10 combat scale baked in). **Who scales is
-  per-type and prototype-exact** (`tier_scaled_stats`): `Standard` AND
-  `SiegeCannon` take the cumulative bonuses; **`Raider` deliberately does NOT**
-  (it stays 32 HP / 20 DMG forever — a glass cannon that only ever grows in
-  COUNT); `Boss` ignores tiers entirely and reads its per-era stat table.
+- **Per-era stats resolved at CONSTRUCTION** (ES-2; the cumulative
+  `tier_scaled_stats` sum is DELETED): the module-level `era_stats(type_block,
+  era, position_in_era, endgame_factors)` runs
+  `era_math.resolve_era_row` → `era_math.stats_at_round` and returns the
+  constructor's `(hp, dmg, move_speed, attack_speed, attack_range_tiles)`
+  tuple. Values from `data/balancing/enemies.json` (×10 combat scale baked in).
+  **Who scales is now DATA, not code**: `Standard`/`SiegeCannon`/`Formation`
+  ship rising era rows; **the Raider ships five IDENTICAL era rows with zero
+  deltas** — "the raider deliberately does not scale" is preserved exactly, but
+  as five flat rows a designer can retune, not as a Python exception (a glass
+  cannon that only ever grows in COUNT, until someone decides otherwise).
+  `Boss` still reads its own per-era `stats[]` table.
 - **Sprite slots are registry-group driven with a random variant per spawn**
   (prototype `_STAGE_SLOT_PREFIX` + `_variant`): each class names its
   `data/slots.json` enemies group via `REGISTRY_GROUP`
   (`"Walker"`/`"Raider"`/`"Siege Cannon"`/`"Boss"`). That group's era subchildren
-  are ordered; the enemy's `tier` clamps to an era index and `variant_slot()` picks
+  are ordered; the enemy's `era` clamps to an era index and `variant_slot()` picks
   a random slot from that era via the spawner's injected `rng` — so a walker rolls
   between `enemy_stage_1_v1`/`_v2` on spawn, and dropping a new `_v3` slot into the
   era (editor) grows the pool with NO code change. The registry + rng are threaded
   `main.py → Spawner.begin_round → create_enemy`; absent a registry (headless
   stat/logic tests) each class falls back to its `DEFAULT_SLOT`. The Walker/Raider
   eras map to the prototype `*_stage_N` sheets (NOT the procedural `*_t2..t4`);
-  Siege/Boss keep their tier/era sheets.
+  Siege/Boss keep their era sheets.
 - **`spawner.py` = the wave queue** (prototype `_begin_enemy_phase` /
-  `_update_enemy_phase`): `begin_round` composes the standard count
-  `base_enemy_count + (round-1)*(enemies_per_round + tier)` with the exact ramp +
-  `uniform(0.4, 1.6)` jitter; `update(dt, scene)` pops ONE enemy per timer expiry
-  into `scene.spawn`. The round LOOP that calls it + wave-clear detection is 9F; an
-  injectable `rng` keeps tests deterministic.
-  - **10F composition**: raiders join from `Raider.start_round` at
-    `base_count + (round-start)*per_round`; siege from `SiegeCannon.start_round` at
-    `base_count + (round-start)//rounds_per_cannon`. Siege splits into a **lead
+  `_update_enemy_phase`): `begin_round` resolves the era + its
+  `EnemyScaling.eras` row, then every per-type count comes from
+  `_count_of` → `era_math.count_at_round` over that type's own era row (the
+  four hardcoded per-type formulas are DELETED), with the ramp +
+  `uniform(0.4, 1.6)` jitter; `update(dt, scene)` releases ONE BATCH per timer
+  expiry into `scene.spawn`. The round LOOP that calls it + wave-clear detection is
+  9F; an injectable `rng` keeps tests deterministic.
+  - **ES-3/D4 — batch spawning.** `EnemyScaling.eras[era]` owns BOTH the pacing
+    (`spawn_interval`) and `batch_size` (seeded 1..5 for eras 0-4), resolved once
+    in `begin_round`. One timer expiry pops up to `batch_size` queue entries, each
+    spawning exactly as a single pop did — one `create_enemy` + one `scene.spawn`,
+    in queue order — so the rng draw sequence WITHIN a batch is unchanged and the
+    boss simply leads its batch. Ramp-on: the next timer is the new queue head's
+    delay. Ramp-off: ONE re-rolled jitter per BATCH (not per enemy). **The knob
+    moves spawn EVENTS, never the round TOTAL**, and `batch_size == 1` is
+    byte-identical to the pre-ES-3 one-per-expiry loop — that is the fence for the
+    deterministic wave fixtures.
+  - **10F composition**: raiders join from `Raider.start_round`, siege from
+    `SiegeCannon.start_round` — both now through the SAME
+    `era_math.count_at_round`, whose `count_per_round` reproduces the old
+    `per_round` slope and `// rounds_per_cannon` accretion exactly (D3/D6;
+    ES-2 swept every round from each type's `start_round` to 60 against the old
+    expressions and found zero mismatches). Siege splits into a **lead
     group** (`int(queue_lead_count * mix_ratio)`) that HEADS the queue and a
     remainder mixed into the shuffled body — so cannons open the wave and then
     trickle. Queue = `siege_front + shuffle(standard + raiders + siege_mixed)`.

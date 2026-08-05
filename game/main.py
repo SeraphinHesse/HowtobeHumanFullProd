@@ -1156,10 +1156,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # game.py:1879-1890). Undone right after flush, with NO clamp in
             # between, so the offset restores exactly; sim state untouched.
             shake_ox = shake_oy = 0
-            if (session.state.phase == GamePhase.ENEMY
-                    and any(getattr(b, "alive", False)
-                            for b in world.scene.by_tag("boss"))):
-                shake = enemies_balance["EnemyTypes"]["Boss"]["shake"]
+            shake = None
+            if session.state.phase == GamePhase.ENEMY:
+                # BR-1: shake is a PER-ERA boss variable, so it comes off the
+                # live boss object (which knows its own era) — never
+                # re-derived from the round number.
+                for b in world.scene.by_tag("boss"):
+                    if getattr(b, "alive", False):
+                        shake = getattr(b, "shake", None)
+                        break
+            if shake:
                 t_ms = time.perf_counter() * 1000.0
                 period_ms = shake["interval"] * 1000.0
                 shake_ox = int(math.sin(t_ms / period_ms * 6.28)

@@ -172,7 +172,11 @@ def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
         radius_tiles = ls["radius"][idx]
         radius_px = radius_tiles * cs.geometry.tile_w / 2 * cs.camera.zoom
         for enemy in scene.by_tag("enemy"):
-            if not getattr(enemy, "alive", False):
+            # BR-3/D2: an untargetable enemy (a boss staging its second phase)
+            # is immune to EVERY damage source, the storm included — the same
+            # duck-typed `targetable` the combat sweep reads.
+            if (not getattr(enemy, "alive", False)
+                    or not getattr(enemy, "targetable", True)):
                 continue
             ex, ey = cs.world_to_screen(*enemy.transform.world_pos)
             if (ex - sx) ** 2 + (ey - sy) ** 2 <= radius_px ** 2:

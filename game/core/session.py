@@ -26,6 +26,7 @@ skips the whole sim, so nothing animates behind the window.
 """
 import random
 
+from engine import era_math
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 
 from . import boss_bonuses as bb
@@ -326,12 +327,13 @@ class Session:
         # game.py:838-839); on a boss round also snapshot lives (the cutscene's
         # win/loss compare) and queue one announce marker (drained by the UI —
         # the enabled gate lives in FloaterManager, session stays ui-free).
-        # TU-9: round 0 (the tutorial) is never a boss round — `0 % n == 0`
-        # for every interval, so it must be excluded explicitly.
+        # ES-2: the boss round comes off the ONE era clock in EnemyScaling
+        # (era_math.is_boss_round is False at round 0 for every configuration,
+        # D11 — the TU-9 guard no longer has to live here).
         st.boss_love_snapshot = st.love
-        boss_interval = \
-            self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num != 0 and st.round_num % boss_interval == 0:
+        scaling = self.enemies_balance["EnemyScaling"]
+        if era_math.is_boss_round(st.round_num, scaling["rounds_per_era"],
+                                  scaling["boss_round_in_era"]):
             st.boss_lives_snapshot = st.base_lives
             st.boss_events.append(st.round_num)
         # -- /10G --
@@ -634,11 +636,14 @@ class Session:
         # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
         # post_sim/on_base_hit gates stop first). Outcome compares lives to the
         # End-Turn snapshot (prototype game.py:933-938).
-        # TU-9: round 0 (the tutorial) is never a boss round (see end_turn()).
-        interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num != 0 and st.round_num % interval == 0:
+        # ES-2: same one clock as end_turn() (round 0 is never a boss round).
+        scaling = self.enemies_balance["EnemyScaling"]
+        rounds_per_era = scaling["rounds_per_era"]
+        if era_math.is_boss_round(st.round_num, rounds_per_era,
+                                  scaling["boss_round_in_era"]):
             st.pending_boss_cutscene = {
-                "boss_num": st.round_num // interval,
+                "boss_num": era_math.era_of_round(
+                    st.round_num, rounds_per_era) + 1,
                 "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
                             else "loss"),
             }

@@ -28,7 +28,7 @@ from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import DeathSpawn
-from game.enemies.enemy import tier_scaled_stats
+from game.enemies.enemy import era_stats
 from game.map.tile_map import TileMap
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -114,7 +114,7 @@ class TestThresholdDeath(unittest.TestCase):
         return with_death_spawn(
             "Standard", at_hp_fraction=0.5, enabled=True,
             spawn_hp_fraction=0.8,
-            spawns=[{"raiders": 0, "regular": 4, "siege": 0}])
+            spawns=[{"commander": 0, "raiders": 0, "regular": 4, "siege": 0}])
 
     def test_alive_boundary_is_at_or_below_the_threshold(self):
         """The boundary is `<=`: hp EXACTLY at the threshold is DEAD, one point
@@ -155,9 +155,8 @@ class TestThresholdDeath(unittest.TestCase):
                          Counter({"standard": 4}))
         self.assertNotIn(parent, scene.by_tag("enemy"))   # the parent despawned
 
-        tier = session.spawner.enemy_tier
-        child_max = tier_scaled_stats(
-            balance["EnemyTypes"]["Standard"], balance, tier)[0]
+        era = session.spawner.enemy_era
+        child_max = era_stats(balance["EnemyTypes"]["Standard"], era)[0]
         for child in children:
             ch = child.get_component(Health)
             self.assertEqual(ch.max_hp, child_max)
@@ -191,7 +190,7 @@ class TestOneShotGuard(unittest.TestCase):
         balance = with_death_spawn(
             "Standard", at_hp_fraction=0.0, enabled=True,
             spawn_hp_fraction=1.0,
-            spawns=[{"raiders": 0, "regular": 3, "siege": 0}])
+            spawns=[{"commander": 0, "raiders": 0, "regular": 3, "siege": 0}])
         tm, scene, occ = build_board(["bs"])
         session = armed_session(tm, scene, occ, balance)
         parent = create_enemy("standard", 1, 0, balance, tm)
@@ -219,9 +218,15 @@ class TestOneShotGuard(unittest.TestCase):
 class TestDefaultFractionIsByteIdentical(unittest.TestCase):
     def test_at_hp_fraction_zero_matches_health_is_dead(self):
         """Every stock type ships at_hp_fraction 0.0, so `alive` is exactly
-        `not Health.is_dead` at every HP — the pre-ER-3 rule, unchanged."""
+        `not Health.is_dead` at every HP — the pre-ER-3 rule, unchanged.
+
+        BR-3 EXCLUDES the boss: it ships `second_phase.delayed_spawns: true`,
+        and a delayed unit is deliberately alive-but-untargetable from the
+        threshold crossing until its staged phase completes (D2). That is the
+        one intended divergence from `not Health.is_dead`, and
+        `TestSecondPhase` in `test_boss.py` pins it."""
         tm = synth(["bs"])
-        for etype in STOCK_TYPES:
+        for etype in (t for t in STOCK_TYPES if t != "boss"):
             enemy = create_enemy(etype, 1, 0, ENEM, tm)
             health = enemy.get_component(Health)
             self.assertEqual(
@@ -239,7 +244,7 @@ class TestTwoUnitsBreakingInOneFrame(unittest.TestCase):
         balance = with_death_spawn(
             "Standard", at_hp_fraction=0.0, enabled=True,
             spawn_hp_fraction=1.0,
-            spawns=[{"raiders": 0, "regular": 2, "siege": 0}])
+            spawns=[{"commander": 0, "raiders": 0, "regular": 2, "siege": 0}])
         tm, scene, occ = build_board(["bbs"])
         session = armed_session(tm, scene, occ, balance)
         first = create_enemy("standard", 1, 0, balance, tm)
@@ -271,7 +276,7 @@ class TestTheRoundOutlivesTheBurst(unittest.TestCase):
         return with_death_spawn(
             "Standard", at_hp_fraction=0.0, enabled=True,
             spawn_hp_fraction=1.0,
-            spawns=[{"raiders": 0, "regular": 3, "siege": 0}])
+            spawns=[{"commander": 0, "raiders": 0, "regular": 3, "siege": 0}])
 
     def test_the_last_enemy_bursting_does_not_end_the_round(self):
         balance = self._balance()
@@ -304,7 +309,7 @@ class TestTheRoundOutlivesTheBurst(unittest.TestCase):
         balance = with_death_spawn(
             "Standard", at_hp_fraction=0.0, enabled=True,
             spawn_hp_fraction=1.0,
-            spawns=[{"raiders": 3, "regular": 0, "siege": 0}])
+            spawns=[{"commander": 0, "raiders": 3, "regular": 0, "siege": 0}])
         tm, scene, occ = build_board(["bs"])
         session = armed_session(tm, scene, occ, balance)
         enemy = create_enemy("standard", 1, 0, balance, tm)

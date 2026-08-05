@@ -1,458 +1,388 @@
-<!-- active-plan: EntitySceneVfxPLAN.md | set: 2026-07-21 -->
-> **Active plan:** EntitySceneVfxPLAN.md (mirror). Source of truth:
-> `planning/EntitySceneVfxPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: BossReworkPLAN.md | set: 2026-08-05 -->
+> **Active plan:** BossReworkPLAN.md (mirror). Source of truth:
+> `planning/BossReworkPLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-<!-- status: COMPLETE — 6/6 phases (ESV-1–ESV-6), authored 2026-07-15, completed 2026-07-21;
-     + 4 post-plan live-testing follow-ups (see §7) and 4 open items (§8) -->
+<!-- status: COMPLETE — 2026-08-05 (BR-1..BR-5 landed) -->
 
-# EntitySceneVfxPLAN.md — Entity Scene Editor + VFX System
+# BossReworkPLAN.md — per-boss balancing, second phase, endgame scaling
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`MIGRATION_PLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/EntitySceneVfxPLAN.md ESV-1-ESV-6` or
-phase-by-phase. Four packages: **data · engine · game · editor**. Design brief
-(verified current-state + decisions): the published artifact
-`Entity Scene Editor + VFX System — Design Brief`.
+`EnemyReworkPLAN.md`). Base branch: `Development`. Runnable via
+`/execute-plan-phases planning/BossReworkPLAN.md BR-1-BR-5` or phase-by-phase.
 
-## 1. Vision
+**PREREQUISITE: `planning/EnemyScalingReworkPLAN.md` (ES-1–ES-5) lands first.**
+That rework replaces scale tiers with a global era clock
+(`EnemyScaling.rounds_per_era` / `boss_round_in_era`, resolved via
+`engine.era_math`), deletes `Boss.round_interval` and gives every type per-era
+`eras[]` stat/count rows. The decisions below were amended (ES-5) to sit on
+that foundation; the `§3` line numbers predate it and shift with ES-2.
 
-Two editor capabilities on one plan, both following the same arc — **lift a
-hardcoded value into `data/`, give it a handle/lever in the editor viewport,
-teach the game to read it back**:
+Package: **game** (`game/enemies`, `game/core`, `game/ui`, `game/main.py`) +
+**data** (`data/balancing/enemies.json`, `data/schemas/enemies.schema.json`,
+`data/slots.json`, `data/sprites/asset_manifest.json`). No engine or editor
+changes. Subsystem doc: `game/enemies/CLAUDE.md`.
 
-- **Track A — Entity Scene Editor.** When a designer selects an entity (a
-  building level or an enemy) in the editor's entity-preview viewport, its
-  **attach points** appear as **draggable handles**: the muzzle a defender
-  fires from, the impact point where a hit lands, the overhead HP-bar position,
-  and other attach points (floater origin, status-icon, beam endpoint). Drag =
-  authoring; the game then fires, bars and impacts from those points. Today all
-  of these are hardcoded in Python (`combat.py:475` fires from the tile centre
-  with **no** muzzle offset; HP-bar position is derived from the sprite's drawn
-  top; there is no impact-point concept).
+## 1. Context
 
-- **Track B — the VFX system.** The game's effects are all procedural today
-  (`game/ui/effects.py`) and the `vfx` slot category has two orphan slots with
-  no consumers and no art. Three parts: **(1)** six discrete one-shot effects
-  become **swappable spritesheets** (import art → it plays; grey-X placeholder +
-  procedural fallback until then); **(2)** the effects that stay procedural
-  become **tunable + previewable** (colours/counts/lifetimes move to `data/`,
-  with editor control levers and a live preview); **(3)** a **reassignable
-  trigger table** in `data/` binds each game event to the effect it plays.
+Source: the user's *Boss Rework Planning Notes*, scoped through four rounds of
+clarifying questions (§2 records every answer).
 
-**Hard guardrail — purely cosmetic.** Nothing in either track reads or writes
-damage, range, splash, or simulation state. The impact anchor decides where the
-hit VFX *draws*, never where damage *resolves*.
+Bosses today are half-generic and half-special-cased. Five eras live in
+`data/balancing/enemies.json` → `EnemyTypes.Boss`, but only `stats[]`,
+`death_spawn.spawns[]` and `round_counts[]` are per-era — **`footprint`,
+`sprite_scale`, `shake` and the death-spawn thresholds are single global values
+shared by all five bosses**, so a designer cannot make the era-4 boss bigger,
+shakier or tougher-to-break than the era-0 one. Past era 4 the last boss repeats
+verbatim forever, so the endgame flattens.
 
-## 2. Architecture
+Separately, the boss's swarm is just an instance of the generic ER-3
+`death_spawn`: the boss dies, and its children appear in one frame. The notes
+want a visible **second phase** instead — freeze, become untouchable, trickle the
+reinforcements out on a timer, then play a final death animation and die.
 
-```
-data/                             engine/                         game/ + editor/
-─────                             ───────                         ───────────────
-sprites/asset_manifest.json       vfx/ (NEW, data-driven)         game/ui/effects.py
-  entry.anchors  (NEW, optional)    ├ particle emitters ◄──────┐    thin trigger site
-  {muzzle,impact,hp_bar,…}          │  (params injected)       ├─► renders via Renderer
-                                    └ PlayOnceVfx (SpriteAnimator  editor/panels/
-balancing/vfx.json (NEW domain)        loop_count=1) GameObject     ├ anchor handles (viewport)
-  procedural params + defaults                                      ├ vfx preview + levers
-  trigger table (event→effect)    engine/render (unchanged path)    └ both consume engine/ + data/
-slots.json  vfx category
-  vfx_muzzle/hit/explosion/…(NEW)
-```
+Outcome: every boss variable becomes per-boss; the endgame gets a declared
+scaling curve; the boss death becomes a staged second phase; and a new
+**Commander** enemy type exists as the era-0 boss's single second-phase spawn.
 
-**Flow, Track A**: select entity → editor draws each anchor as an overlay
-handle over the live preview (through `submit_overlay_lines`, ED-22 — never
-QPainter) → drag maps mouse-world → frame-pixels → `write_validated` into the
-manifest entry's `anchors` → game reads the offset at fire/bar/impact time.
+## 2. Decisions (settled with the user — do not re-litigate)
 
-**Flow, Track B**: a game event fires → the **trigger table** (`data/`) names
-the effect → either a **`PlayOnceVfx`** GameObject spawns at the anchor and
-plays a `vfx_*` sheet once (falling back to the procedural emitter when the slot
-has no art), or the **data-driven procedural emitter** runs with params from
-`balancing/vfx.json`. The editor previews the exact same engine emitter.
+- **D1 — Endgame scaling is a compounding multiplier.** A new
+  `EnemyTypes.Boss.endgame_boss_scaling` block holds one factor per boss variable
+  (`hp`, `dmg`, `move_speed`, `attack_speed`, `attack_range_tiles`, `footprint`,
+  `sprite_scale`, `shake.strength`/`shake.interval`, and every `round_counts` /
+  `second_phase` count key). The Nth boss past the last defined era is
+  `last_era_value × factor^N`; counts round to int. `N = max(0, era − (len(stats) − 1))`,
+  where `era` is `engine.era_math.era_of_round(round, rounds_per_era)` — the
+  global era clock from EnemyScalingRework (ES-5 amendment: the old
+  `round // Boss.round_interval − 1` formula and the `round_interval` key no
+  longer exist). BR-4 implements this by REUSING
+  `era_math.resolve_era_row(rows, era, factors)`, not a bespoke helper.
+- **D2 — A boss in second phase is fully invulnerable and its HP bar is hidden.**
+  Defenders drop it as a target; projectiles already in flight do nothing.
+- **D3 — `commander` joins the SHARED `$defs/spawn_counts`.** Every
+  `death_spawn` row of every enemy type and every `round_counts` row gains
+  `commander: 0`. Era 0's second phase is
+  `{regular: 0, raiders: 0, siege: 0, commander: 1}` — the era-0 boss spawns
+  *only* the Commander, and every other era spawns none. **This deliberately
+  overrides the standing argument in `game/enemies/CLAUDE.md`** against widening
+  that `$def` (the Formation precedent). BR-5 must amend that doc so the data and
+  the doc agree — do not leave the contradiction in place.
+- **D4 — Boss `endphase` + `death` manifest rows ship as placeholders** reusing
+  the existing idle frames; a missing row must fall back gracefully (the phase
+  still runs on its timer). Real art lands later via `/replace-visual`.
+- **D5 — Thresholds change for era 0 only.** Era 0 gets `at_hp_fraction: 0.5` and
+  `spawn_hp_fraction: 0.5`. Eras 1–4 keep `0.0` / `1.0` — their swarm still fires
+  at actual death, just trickled instead of burst.
+- **D6 — Second-phase children spawn at the boss's tile**, exactly as
+  `spawn_death_swarm` does today, one every `spawn_delay` seconds. `spawn_delay`
+  is a **per-child interval**, not a total phase duration.
+- **D7 — Per-era keys nest into the `stats[]` rows.** Each of the five rows gains
+  `footprint`, `sprite_scale` and a `shake: {interval, strength}` object; the
+  global keys are deleted. `round_counts[]` and `second_phase.spawns[]` stay as
+  their own index-aligned arrays — they are count tables, not stats.
+- **D8 — The Commander.** Hunts buildings like the boss (`goal_is_base=False` +
+  `repath_on_kill=True`, reusing the existing `PathAgent` flags); its stats are
+  **resolved by the base per-era resolver** like Standard/Siege (so it inherits
+  the base `_resolve_stats` — no override; ES-5 amendment: scale tiers no
+  longer exist, the base resolver reads the type's own `eras[]` rows), so it
+  carries its own `eras[]` block; siege-sized **24×2** HP bar; **no** camera
+  shake and **no** `"boss"` scene tag. Era-0 stats: `footprint 1` (walker),
+  `move_speed 2.7` (raider), `hp 2000` (era-0 boss), `dmg 100` (half the era-0
+  boss). Its schedule keys are the era model's: `start_round 0` and every era
+  row's `count_start` / `count_per_round` at **0** so it never enters a normal
+  wave yet — but every schedule key exists so it can be switched on later with
+  a data edit alone.
 
-### Decisions (with rationale)
+## 3. Where the code is
 
-- **D1 — Anchors are an OPTIONAL `anchors` key on the asset-manifest entry**,
-  per-slot (one set per spritesheet, applied to the whole sheet). Exact
-  precedent: the entry already carries `offset_x`/`offset_y` and the optional
-  `slice` key (`data/CLAUDE.md`) — a slot with no anchors stays **byte-identical**,
-  like an unsliced slot today. Reuses the whole import/validate/`write_validated`
-  pipeline; no parallel store. Matches the user's "one anchor set for the whole
-  sheet, set per level / per enemy."
-- **D2 — Anchor coordinates are frame-pixels relative to the sprite anchor** —
-  same convention as `offset_x`/`offset_y`, so a muzzle at `[+18, -40]` means the
-  same thing at every zoom and map scale. The drag handle maps mouse-world →
-  frame-space; the numeric side panel shows the raw ints.
-- **D3 — HP-bar offset is relative to the footprint-fit top, not raw sheet
-  pixels.** Since ER-1 the bar rides the sprite's *drawn* top (`_sprite_top`),
-  which is the footprint fit, not the sheet size. A raw-pixel offset would float
-  for downscaled units. The offset is applied *from* the existing fit anchor.
-- **D4 — The impact anchor is VISUAL-ONLY.** Damage geometry (Chebyshev range,
-  splash radius, predictive lead) keeps measuring from footprint centres. The
-  impact anchor only positions the hit/explosion VFX. This is the guardrail made
-  concrete — Track A never touches `resolve_combat`'s math.
-- **D5 — The procedural emitters move into `engine/vfx/` as a data-driven
-  subsystem**, because the editor **cannot import `game/`** (layering rule) yet
-  must render a live preview through the one render path. The subsystem takes
-  params as injected plain values/dataclasses (engine stays pure — it does not
-  hardcode a data path); **game** loads them from `data/balancing/vfx.json` and
-  **editor** loads the same for preview. Behaviour is byte-identical on landing:
-  the current `game/ui/effects.py` constants become the shipped defaults. Chosen
-  over an `editor/`-side lookalike (accepted for the simple UI-widget fallback,
-  but particle systems are too much to keep in sync by eye).
-- **D6 — One reusable `PlayOnceVfx` GameObject** (engine, using `SpriteAnimator`
-  + `loop_count=1`) drives every sprite one-shot: spawn at a world point,
-  despawn on the last frame. Mirrors how enemies pick a sprite by
-  `REGISTRY_GROUP` — one mechanism, many slots; a future effect is "add a slot +
-  a trigger row," never a new system.
-- **D7 — The trigger table lives in `data/` (in the new `vfx` domain)**, mapping
-  each game event (`defender_fire`, `enemy_death`, `splash_impact`, …) to the
-  effect it plays — a `vfx_*` sprite slot **or** a procedural kind. Reassigning
-  an effect is a one-row edit in the editor, never code.
-- **D8 — `vfx` becomes a real balancing domain.** Adding `data/balancing/vfx.json`
-  + `data/schemas/vfx.schema.json` promotes the asset-only `vfx` category to a
-  derived domain automatically (the domain list is `slots.json` categories ∩
-  those with a balancing file — `editor/domains.py`, AD-6). Its numeric params
-  get a generic balancing form for free; the **live-preview levers** are a
-  dedicated panel on top of that domain, not a replacement for it.
+All **verified** by scouting.
 
-Vocabulary/invariants come from root `CLAUDE.md`: one render path (ED-22),
-data is the only value store (D-1, schema-first via `write_validated`), strict
-layering (`editor/` and `game/` never import each other; both consume `engine/`
-+ `data/`), every new editor module joins `test_editor_viewport.TestPurity`,
-and **the gate is ZERO**.
-
-## 3. Package routing (read the ONE doc per phase)
-
-| Phase touches | Read |
+| Concern | Location |
 |---|---|
-| manifest `anchors` schema, `vfx.json` domain, `slots.json` vfx slots | `data/CLAUDE.md` |
-| `engine/vfx/` emitters + `PlayOnceVfx` | `engine/CLAUDE.md`, `engine/render/CLAUDE.md` |
-| combat / HP-bar / effects trigger sites | `game/CLAUDE.md`, `game/enemies/CLAUDE.md`, `game/ui/CLAUDE.md` |
-| anchor handles, vfx preview + levers | `editor/CLAUDE.md`, `editor/panels/CLAUDE.md` |
+| `Boss` subclass (era resolve, building-hunting `on_spawn`) | `game/enemies/enemy.py:267-322` |
+| `Enemy.__init__` reads `footprint` / `sprite_scale` / `death_spawn` | `game/enemies/enemy.py:106-124` |
+| `Enemy.alive` = `hp > max_hp * at_hp_fraction` — the ONE threshold site | `game/enemies/enemy.py:172-180` |
+| Duck-typed contract (`death_spawn_plan`, `death_spawned`, `mark_death_spawned()`) | `game/enemies/enemy.py:189-209` |
+| `DeathSpawn` component | `game/enemies/components.py:401-424` |
+| Boss round trigger + `_boss_round` composition + the past-table fallback | `game/enemies/spawner.py:166-222` |
+| Boss era at pop time (`_boss_era`) | `game/enemies/spawner.py:305` |
+| `spawn_death_swarm` burst | `game/enemies/spawner.py:320-339` |
+| Session stash + `post_sim` flush | `game/core/session.py:298-301, 427-439` |
+| Camera shake driver (reads `Boss.shake`, `by_tag("boss")`) | `game/main.py:717-733` |
+| Corpse / death-anim lifetime from manifest `total_ms` | `game/enemies/corpse.py:23, 45-77` |
+| Boss balancing block | `data/balancing/enemies.json` → `EnemyTypes.Boss` |
+| `$defs/boss_stat` · `$defs/death_spawn` · `$defs/spawn_counts` | `data/schemas/enemies.schema.json:3-52, 53-89, 127-156` |
+| Boss slots `boss_era_0..4` (idle row only) | `data/slots.json`, `data/sprites/asset_manifest.json` |
 
-Cross-package phases (ESV-1, ESV-3, ESV-5) are flagged as such — tell the user;
-they decide whether the executing agent reads both docs.
+**Reuse, do not reinvent:** `PathAgent.goal_is_base` / `repath_on_kill` /
+`adopt_goal` already exist for the boss and are exactly what the Commander needs;
+`variant_slot()` handles per-era slot rolls; `Spawner._pick_spawn_tile` is the one
+clearance-filtered tile chooser; `AssetStore.animation_total_ms` already returns
+`None` for a missing row, which *is* the graceful fallback D4 asks for.
 
 ## 4. Build order
 
-| Phase | Scope | Track | Status |
-|-------|-------|-------|--------|
-| ESV-1 | Anchor schema on manifest + game reads offsets (defaults = today) | A · data + game | done |
-| ESV-2 | Anchor handles + numeric panel in the entity-preview viewport | A · editor | done |
-| ESV-3 | Procedural emitters → `engine/vfx/`; params → `data/balancing/vfx.json` | B · engine + game | done — landed as ESV-3a (particle/gold/slash/splatter emitters) + ESV-3b (beam/crater/lightning/announce) |
-| ESV-4 | Procedural preview + control levers panel | B · editor | done |
-| ESV-5 | Sprite one-shots (`PlayOnceVfx`) + trigger table + importer slots | B · data + game + editor | done |
-| ESV-6 | Converge — anchored impact & muzzle VFX | A × B | done |
-
-Ordering rule: **nothing changes visible behaviour until the piece behind it is
-real.** ESV-1 and ESV-3 land as byte-identical no-ops (defaults reproduce
-today's values); the visible change arrives with the editor handles (ESV-2),
-the levers (ESV-4), imported art (ESV-5), and the convergence (ESV-6).
+| Phase | Scope | Status |
+|-------|-------|--------|
+| BR-1 | Per-boss balancing restructure — data + schema + readers, zero behaviour change | done |
+| BR-2 | Commander enemy type (`/add-enemy`), dormant in the wave system | done |
+| BR-3 | `death_spawn` → `second_phase` for the Boss + the delayed second-phase state machine | done |
+| BR-4 | Endgame boss scaling applied past the last era | done |
+| BR-5 | Era-0 tuning (per-era `second_phase.staging`), round-60 revert, commander wiring, `sprite_fit` fix, docs | done |
 
 ---
 
-### ESV-1 — Anchor schema + game read (Track A · data + game · cross-package)
+### BR-1 — Per-boss balancing restructure
 
-**Goal**: the manifest entry gains an OPTIONAL `anchors` block; combat, HP-bar
-and impact code read the offset with **today's values as the default**, so the
-game looks identical. No editor UI yet.
+**Goal.** Every boss variable becomes per-era. A pure refactor: with the five rows
+carrying today's global values, gameplay is byte-identical.
 
-**Files** — new: none. Modified: `data/schemas/asset_manifest.schema.json`
-(add optional `anchors` object: `muzzle`/`impact`/`hp_bar`/… each `[x,y]`
-frame-px int pairs, all keys optional, `additionalProperties:false`);
-`engine/assets/manifest.py` + `store.py` (parse/expose anchors on the entry,
-absent → `None`); `game/enemies/combat.py` (`_fire`/`_fire_splash` add the
-muzzle offset to `world_pos` when present); `game/ui/effects.py`
-(`submit_enemy_hp_bars`/building bar apply the hp_bar offset relative to
-`_sprite_top`, D3). **Executor scouts exact symbols** — this list is indicative.
+**Files — modified.**
+- `data/schemas/enemies.schema.json` — move `footprint`, `sprite_scale`, `shake`
+  into `$defs/boss_stat`; drop them from `properties.EnemyTypes.Boss`; add
+  `commander` to `$defs/spawn_counts` (required, `minimum: 0`).
+- `data/balancing/enemies.json` — copy `footprint: 2`, `sprite_scale: 1.0`,
+  `shake: {interval: 0.12, strength: 0.6}` into all five `stats[]` rows; add
+  `commander: 0` to every `spawn_counts`-shaped row in the file (every type's
+  `death_spawn.spawns`, plus Boss `round_counts`).
+- `game/enemies/enemy.py` — the Boss resolves `footprint` and `sprite_scale` from
+  its era row. **Trap:** the base `Enemy.__init__` reads `block["footprint"]` off
+  the `STAT_SUBTREE` block directly (`enemy.py:106-124`). The Boss needs an
+  era-aware override *seam* in the base class, not a copy-pasted `__init__`.
+- `game/main.py:717-733` — the shake reads the **live** boss's era row. Take the
+  era off the tagged boss object; do not re-derive it from the round number.
+- `game/enemies/spawner.py` — `_footprint_of` resolves the boss's era row.
 
-**Tests**: manifest round-trips with and without `anchors` (byte-identical when
-absent); an entry with a muzzle anchor shifts the projectile spawn point by the
-declared frame-px (headless, deterministic); an hp_bar offset shifts the bar and
-still tracks the footprint fit for a downscaled unit; **no** change to any
-damage/range/splash assertion (guardrail D4).
+**Tests.** Extend `tools/tests/test_boss.py`: per-era footprint / sprite_scale /
+shake resolve correctly, and changing era 2 does not move era 0. Assert against a
+**pinned fixture** — never live `data/` (`TempDataCase`).
 
-**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check` → GATE PASS.
-Live: `py game/main.py` a round — projectiles/bars look exactly as before
-(defaults reproduce current behaviour).
-
-### ESV-2 — Anchor handles in the viewport (Track A · editor)
-
-**Goal**: selecting an entity shows its anchors as draggable handles over the
-live preview; dragging writes the manifest `anchors` via `write_validated`; a
-numeric X/Y side panel stays in sync.
-
-**Files** — modified: `editor/panels/viewport.py` (handle draw + hit-test +
-drag, submitted through the engine overlay path `submit_overlay_lines`, ED-22 —
-never QPainter; hangs off the existing entity-preview selection, not a new
-mode); `editor/panels/details.py` or a small new panel module for the numeric
-readout (new modules → `TestPurity`). New: possibly
-`editor/anchor_ops.py` (pure mouse-world → frame-px + `write_validated`, in
-`TestPurity`).
-
-**Tests** (offscreen Qt, temp data dir): a synthetic drag on a handle writes the
-expected frame-px into the entry and the on-disk JSON validates; the numeric
-panel and the handle agree after a drag and after an external value change;
-`TestPurity` import sweep includes every new module.
-
-**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py`, select a
-defender, drag the muzzle handle, confirm the JSON on disk, then Play and see
-the projectile emit from the new point.
-
-### ESV-3 — Procedural VFX → engine, params → data (Track B · engine + game · cross-package)
-
-**Goal**: the particle/effect emitters move from `game/ui/effects.py` into a
-data-driven `engine/vfx/` subsystem; their colours/counts/lifetimes/gravity move
-into a new `vfx` balancing domain. **Byte-identical** using today's constants as
-the shipped defaults — no visible change.
-
-**Files** — new: `engine/vfx/` package (emitters taking injected params;
-submits through `Renderer`, no data-path knowledge); `data/balancing/vfx.json` +
-`data/schemas/vfx.schema.json` (procedural params, D8 — becomes a derived domain
-automatically). Modified: `game/ui/effects.py` (becomes a thin caller that loads
-params from `data/balancing/vfx.json` and drives the engine emitters);
-`game/core/balance.py` loader if needed.
-
-**Tests**: an emitter produces the same particle set (count/colour/lifetime) from
-the default params as the old constants (pin a representative effect — muzzle,
-death burst); `vfx` appears in `editor/domains.domains()` once the balancing file
-exists; schema `description`/`minimum`/`maximum` present on every key (D-12).
-
-**Exit gate**: suite + smoke → GATE PASS. Live: `py game/main.py` — every effect
-looks unchanged. Update `engine/CLAUDE.md` (new subsystem) + `game/ui/CLAUDE.md`.
-
-### ESV-4 — Procedural preview + control levers (Track B · editor)
-
-**Goal**: an editor panel exposes the procedural params as levers (colour
-pickers, counts, lifetimes) with a **live preview** rendered through the one
-render path (the editor drives the same `engine/vfx/` emitter).
-
-**Files** — new: `editor/panels/vfx_preview.py` (+ any pure helper; all →
-`TestPurity`). Modified: `editor/main.py` wiring (select the `vfx` domain/leaf →
-show the preview + levers; writes go through the balancing writer / `write_validated`).
-
-**Tests** (offscreen Qt, temp data dir): a lever edit stages/writes a valid
-`vfx.json`; the preview requests the engine emitter with the edited params
-(assert the params passed, not pixels); `TestPurity` covers the new modules.
-
-**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py`, retint a
-muzzle spray / slow a death burst, watch the preview, save, Play and confirm.
-
-### ESV-5 — Sprite one-shots + trigger table + importer slots (Track B · data + game + editor)
-
-**Goal**: the six discrete effects can be spritesheets. `PlayOnceVfx` plays an
-imported `vfx_*` sheet once at a world point; a `data/` trigger table binds
-events → effect; unimported slots fall back to the procedural emitter, so day-one
-is identical.
-
-**Files** — new: `engine/vfx/play_once.py` (the `PlayOnceVfx` GameObject, D6 —
-note `SpriteAnimator` has **no `loop_count` field today**
-(`engine/core/sprite_animator.py`); ESV-5 adds the one-shot mechanism, either
-as a new animator field or completion-tracking inside `PlayOnceVfx`).
-Modified: `data/slots.json` (add `vfx_muzzle`, `vfx_hit`, `vfx_explosion`,
-`vfx_death`, `vfx_slash`, `vfx_crater` to the vfx category — note `vfx_hit`/
-`vfx_explosion` already exist); `data/balancing/vfx.json` + schema (the trigger
-table, D7); `game/ui/effects.py` + the fire/death/impact sites (consult the
-table: spawn `PlayOnceVfx` when the slot has art, else the procedural emitter).
-The existing asset importer handles the sheets with no editor change (registry +
-`/add-asset-importer` semantics).
-
-**Tests**: with no art, each triggered event runs the procedural fallback
-(behaviour unchanged); with a fixture sheet, the event spawns a `PlayOnceVfx`
-that despawns after one loop; the trigger table validates and an event with a
-missing binding is a safe no-op (art tolerance E-37); reassigning a row in the
-table swaps which effect an event plays.
-
-**Exit gate**: suite + smoke → GATE PASS. Live: `py editor/main.py` import a
-placeholder sheet into `vfx_muzzle`; `py game/main.py` — a defender's shot now
-plays the sheet; clear it → procedural muzzle returns.
-
-### ESV-6 — Converge: anchored impact & muzzle VFX (Track A × B)
-
-**Goal**: the two tracks meet — the muzzle VFX (ESV-5) spawns at the muzzle
-anchor (ESV-1/2), and the hit/explosion VFX spawns at the target's impact
-anchor. Still purely visual (D4).
-
-**Files** — modified: the fire site passes the shooter's muzzle anchor as the
-`PlayOnceVfx` spawn point; the impact/death site passes the target's impact
-anchor. No new schema — both anchors already exist from ESV-1.
-
-**Tests**: a defender with a muzzle anchor spawns its muzzle VFX at the anchored
-world point (headless); a target with an impact anchor spawns the hit VFX there;
-damage/kill assertions are unchanged (guardrail).
-
-**Exit gate**: suite + smoke → GATE PASS. Live: drag a muzzle anchor in the
-editor, import a muzzle sheet, Play — the flash follows the handle. Confirm HP
-ledger is identical to before (nothing touched the sim).
+**Exit gate.** `py tools/smoke.py` + `py tools/testgate.py check --affected` →
+GATE PASS. Live: a round-10 and a round-30 boss look and shake exactly as before.
 
 ---
 
-## 5. Risks / open items
+### BR-2 — Commander enemy type
 
-- **Engine purity vs. data-driven params (D5).** `engine/vfx/` must not learn a
-  `data/` path or import a balancing loader — params are injected by each
-  consumer. If a phase is tempted to `open()` a JSON inside `engine/`, stop: load
-  in `game/`/`editor/` and pass values in. Pin with an engine-layer import test.
-- **HP-bar footprint coupling (D3).** The offset must compose with `_sprite_top`
-  / ER-1 fit, not replace it. Test a downscaled (footprint > 1) unit explicitly,
-  or bars will float — this is the ER-4 cosmetic caveat's neighbourhood.
-- **`vfx` domain promotion (D8).** Adding `balancing/vfx.json` changes
-  `editor/domains.domains()` output and the selector tree; a few tests assert the
-  domain list. Update the pinned fixtures, don't assert against live `data/`.
-- **Trigger-table event vocabulary (D7).** The set of events
-  (`defender_fire`, `enemy_death`, `splash_impact`, `melee_hit`, …) is a schema
-  enum — enumerate it deliberately in ESV-5 from the real fire/death/impact sites
-  in `game/ui/effects.py`; adding an event later is a schema + one call-site edit.
-- **Which effects are truly one-shot vs. continuous.** The six sprite effects are
-  bursts. Beams/lightning are continuous and stay procedural (Part 2) — do not
-  force them into `PlayOnceVfx`. Revisit only if a designer asks.
-- **Scope of "other attach points" (Track A).** Muzzle / impact / hp_bar are
-  concrete in ESV-1. Floater-origin / status-icon / beam-endpoint anchors are the
-  same schema shape but need their own game read-sites; land them incrementally
-  under ESV-1's schema rather than blocking the phase.
+**Goal.** A full enemy type on par with the other five — balancing, schema, slots,
+spawner branch — but with every schedule key at 0 so it never appears in a normal
+wave.
 
-## 6. Deferred cleanup — do at convergence (ESV-6 / before the PR)
+**Invoke `/add-enemy`.** Do not hand-roll it. Values and behaviour per D8.
 
-Concrete follow-ups **discovered during execution**, parked here so the
-convergence phase clears them rather than shipping them as debt. Neither blocks
-an intermediate stage; both must be resolved before the PR.
+**Files — new / modified.**
+- `game/enemies/enemy.py` — `class Commander(Enemy)`: `ETYPE = "commander"`,
+  `REGISTRY_GROUP = "Commander"`, `DEFAULT_SLOT`, `STAT_SUBTREE = ("Commander",)`,
+  `HP_BAR_W, HP_BAR_H = 24, 2`. `on_spawn` mirrors the Boss's
+  `find_path_to_nearest_non_base_building` → `adopt_goal` and sets
+  `repath_on_kill=True`. **Deliberately no `_resolve_stats` override** — D8 says
+  the base per-era resolver (`STAT_SUBTREE`-driven since ES-2) applies its
+  `eras[]` rows. Leave a one-line comment saying so, because
+  `game/enemies/CLAUDE.md` documented Formation's pre-ES-2 override as
+  mandatory and the next reader may still expect one.
+- `game/enemies/spawner.py` — `ENABLE_COMMANDER = True` + a `_commander_group`
+  that returns 0 at the shipped values. Call it **LAST** among the composition
+  groups so every earlier group's rng draw sequence stays byte-identical (the
+  deterministic-wave fixtures depend on this — same rule Formation follows).
+- `data/balancing/enemies.json` + `data/schemas/enemies.schema.json` —
+  `EnemyTypes.Commander` in the post-ES-2 era shape: an `eras[]` block whose
+  rows carry `stats` (`hp 2000`, `dmg 100`, `move_speed 2.7`, `attack_speed`
+  and `attack_range_tiles` at walker defaults), zero `per_round` deltas and
+  `count_start` / `count_per_round` **0**; `endgame_scaling` all 1.0;
+  `footprint 1`, `sprite_scale 1.0`, `start_round 0`, and a `death_spawn`
+  block with `enabled: false`.
+- `data/slots.json` — a `Commander` group under `enemies` with 4 era subchildren;
+  grey-X placeholders until art imports.
+- `data/sprites/asset_manifest.json` — placeholder rows per slot (`idle` first per
+  the schema, plus `walk`; `death` optional).
 
-- **RESOLVED by ESV-6.** ESV-3a floater dead-data gap. The seven floater
-  colour/lifetime constants at `game/ui/effects.py:48-56` (`_UPKEEP_BLUE`,
-  `_XP_PURPLE`, `_XP_LIFE`, `_PAINTER_FINISHED`, `_PAINTER_LOST`,
-  `_PAINTER_LIFE`, `_BOOST_WHITE`) are still **live code** — read at the
-  floater spawn sites — while the `procedural.floaters` block ESV-3a added
-  to `data/balancing/vfx.json` is **dead data** (`_params_from_balance`
-  never reads it). Two homes for the same seven values. Resolve ONE way:
-  either wire the floater spawn sites to read `procedural.floaters` (the
-  constants become the removed originals, matching the rest of the port),
-  **or** delete the dead `procedural.floaters` block + its schema if
-  floaters are deliberately staying hardcoded. Decide and land during
-  convergence; verified by ESV-3b, not acted on there.
-  ESV-6 chose the first option: the seven constants are deleted, a new
-  `engine.vfx.FloaterParams` dataclass carries the seven values, and the
-  four floater spawn sites now read `self._vfx_params.floaters` — a visual
-  no-op on landing (the JSON already shipped values identical to the
-  constants) and a live designer lever from here on.
-- **RESOLVED by ESV-5.** ESV-4 stack-index reachability (surfaces in ESV-5).
-  ESV-4 routes the `vfx` selector node to `right_stack` index 3, which makes
-  the asset importer (index 0) unreachable while the vfx preview panel is
-  up. Harmless through Stage 2 — no `vfx_*` sheets exist yet — but **ESV-5
-  imports `vfx_*` sheets AND wants the preview visible at the same time**,
-  so the stack routing must be reconciled when ESV-5 lands (both panels
-  reachable for a selected vfx node). Fold the fix into ESV-5's brief, not
-  deferred past it.
-  ESV-5 landed the fix: the vfx preview is now a third child of
-  `details_pane`'s layout (beside `self.details`/`self.anchors`), toggled by
-  `setVisible(...)` instead of a separate `right_stack` page —
-  `right_stack.count() == 3`, and both the importer and the preview are
-  reachable for a selected vfx node.
+**Tests.** `tools/tests/test_enemies.py`: Commander stats come from its own
+`eras[]` block (not `Standard`'s); its per-era/per-round resolution runs
+through the same base resolver as Standard; it contributes 0 to every wave at
+the shipped values; and the deterministic composition fixtures for rounds
+1 / 6 / 14 / 10 are byte-identical to BR-1.
+
+**Exit gate.** GATE PASS. Live: force one in via the cheat menu — it walks to a
+non-base building, attacks it, re-paths when that building dies, and shows the
+24×2 bar with no screen shake.
 
 ---
 
-## 7. Post-plan follow-ups (live-testing, 2026-07-21)
+### BR-3 — `second_phase` + the delayed state machine
 
-The six phases landed green, then **live designer testing found the anchors did
-not actually work**. Four follow-up branches fixed it. All are merged into
-`VfxEditor`; none is part of the original six phases, and each has a brief in
-`docs/briefs/`.
+**Goal.** For the **Boss only**, `death_spawn` is renamed `second_phase` and gains
+`delayed_spawns` (bool, default `true`) + `spawn_delay` (seconds per child). Every
+other enemy type keeps `death_spawn` untouched.
 
-### 7.1 `fix-anchor-offset-and-bullet-sprites`
+**`delayed_spawns: false`** — byte-identical to today's one-frame burst.
 
-Two designer reports.
+**`delayed_spawns: true`** — on crossing `at_hp_fraction`:
+1. The boss does **not** die; it plays `endphase` if the manifest has that row.
+2. `Movement.speed = 0`; `EnemyCombat` disabled; untargetable and immune; HP bar
+   hidden (D2).
+3. Children spawn one per `spawn_delay` at the boss's tile (D6), reusing
+   `spawn_death_swarm`'s per-child construction path.
+4. When the last child has spawned, the boss plays `death` and dies through the
+   **normal** path — so XP, kill count, splatter and the `Corpse` all fire exactly
+   as they do now.
 
-- **The editor's note "Handle origin ignores this slot's Offset X/Y nudge" was
-  wrong to exist.** The renderer nudges the drawn art by `offset_x`/`offset_y`
-  (`renderer.py`), but neither `game/anchors.py` nor the editor's handle origin
-  composed it, so the handle sat off the art for any nudged slot. Both now
-  compose it; the note is deleted. **Measured**: no manifest entry had both an
-  offset and an anchor, so no authored value moved — but 8 slots carry
-  `offset_y: 8`, including the Maw Mortar and Sun Scorcher.
-- **Bullet sprites were unswappable.** Added `vfx_projectile`/`vfx_shell` slots;
-  `submit_projectiles` draws a `HudSprite` when art exists, else the dot. The
-  two projectile colours moved into `procedural.projectile` — the last
-  un-ported cosmetic constants in `effects.py`.
+**Files — modified.**
+- `game/enemies/components.py` — extend `DeathSpawn` (or add a `SecondPhase`
+  sibling) with `delayed`, `spawn_delay`, the phase clock and the remaining-child
+  queue. All state in components (E-11).
+- `game/enemies/enemy.py` — **the highest-risk edit in this plan.** `Enemy.alive`
+  must not flip for a boss in a delayed phase; add an explicit duck-typed
+  `targetable` (or `invulnerable`) property rather than special-casing at each
+  reader. `alive` is the single evaluation site that `resolve_combat`,
+  `_resolve_base_arrivals` and the wave-clear check all read.
+- `game/enemies/combat.py` — skip acquisition of, and damage to, an untargetable
+  enemy; drop in-flight projectiles whose target became untargetable.
+- `game/enemies/spawner.py` — tick the phase clock, pop one child per expiry.
+- `game/ui/effects.py` — `submit_enemy_hp_bars` skips a boss in second phase.
+- `game/core/session.py` — the wave-clear check must not end the round while a
+  boss is mid-phase. **Note:** this is the natural place to also fix the known
+  limitation in `game/enemies/CLAUDE.md` (a death on the wave's last frame ends
+  the round before its children appear) — a boss frozen for several seconds makes
+  that bug far more visible. Raise it with the user at this phase rather than
+  silently expanding scope.
 
-### 7.2 `fix-anchor-origin-parity` — the real bug
+**Tests.** `tools/tests/test_boss.py`: `delayed_spawns: false` is byte-identical to
+today; a delayed boss survives past its threshold, takes **zero** damage while
+frozen, emits exactly `sum(counts)` children at the right cadence, then dies
+exactly once; the round does not end mid-phase.
 
-Designer: *"all vfx regardless how i assign them are not spawning at the
-assigned spots."* Correct, and the cause was ours:
+**Exit gate.** GATE PASS. Live: the round-10 and round-20 bosses both stage
+correctly at 1× and at 2× combat speed (the phase clock must take the speed-scaled
+`sim_dt`, like the `Corpse` fade clock does).
 
-**The editor drew every handle from the sprite's drawn CENTRE; every game
-consumer applied the anchor from a different base.** `world_offset` omitted both
-the `block_center_offset` shift and the `tile_h/2 * zoom` lift (**measured 16px**
-at zoom 1); HP bars applied from the sprite's TOP (a further ~32px).
+---
 
-Fixed by one shared pure helper, `engine.render.sprite_anchor_screen`, derived
-from `Renderer.flush`'s real placement math, which the editor handle and every
-game consumer now resolve through. `screen_offset`/`world_offset` are **deleted**
-in favour of one absolute-world-point resolver, `anchor_world_point`. HP-bar rule
-(designer's decision): **anchor wins outright** — no anchor keeps `_sprite_top`
-byte-identical.
+### BR-4 — Endgame boss scaling
 
-**Why it shipped green**: the ESV-6 tests asserted `wx == base + world_offset(…)`
-— against the function under test. A tautology that passes for any
-implementation. Replaced with an editor↔game screen-parity test. *Do not write
-that assertion shape again.*
+**Goal.** Bosses past the last defined era grow per D1 instead of repeating.
 
-### 7.3 `fix-editor-preview-footprint`
+**Files — modified.**
+- `data/schemas/enemies.schema.json` + `data/balancing/enemies.json` —
+  `EnemyTypes.Boss.endgame_boss_scaling`, one factor per variable, **all shipped
+  at 1.0** so the phase is behaviour-neutral until tuned.
+- `game/enemies/enemy.py` — `Boss._resolve_stats` resolves its row through
+  `engine.era_math.resolve_era_row(stats, era, endgame_boss_scaling)` (the
+  shared ES-4 helper — no bespoke `_endgame_scaled`);
+  `N = max(0, era − (len(stats) − 1))` is that helper's own formula.
+- `game/enemies/spawner.py` — the same helper applied to `round_counts` and the
+  `second_phase` counts on the past-the-table path (ES-2 already replaced the
+  old fall-back-to-the-standard-formula behaviour with era-row counts; this
+  phase swaps that fallback to endgame-scaled `round_counts` instead).
 
-A review pass found the last live instance: the editor previewed every sprite at
-`fit_tiles=0.0` while the game fits enemies to their footprint. **Measured**:
-`formation_stage_1` (128px frame, 1-tile footprint) drew at `s=0.5` in game vs
-`s=1.0` in the editor, so a Formation anchor landed at half distance. Fixed via a
-new **required** `registry_group` field on each `EnemyTypes` block — the
-data-side link letting `editor/sprite_fit.py` resolve a slot's real render fit
-without the editor importing `game/` (D5). `REGISTRY_GROUP` stays the runtime
-truth; `TestRegistryGroupDrift` pins the two equal.
+**Tests.** Era 4 unchanged; eras 5 / 6 / 7 scale as `last × f¹ / f² / f³`; counts
+come out as ints; an all-1.0 block is byte-identical to BR-3.
 
-> **A perf regression rode in with it and was caught in review**: the new
-> resolver re-read two JSON files *per frame and per mouse-move during a drag* —
-> **measured 125–145 ms/frame (~7 fps)** with any enemy selected. Memoized into
-> `_draw_fit` (resolved on slot change / registry reload). Back to **~5 ms**.
-> **Any per-frame data read in the viewport must be memoized this way.**
+**Exit gate.** GATE PASS + a headless assertion of the round-60 boss's resolved
+stats and counts.
 
-### 7.4 `feat-projectile-anchored-flight`
+---
 
-Designer: projectiles should *start* at the muzzle point and *end* at the impact
-point. Two defects: `submit_projectiles` added a ~19px lift at DRAW time (double-
-counting an authored anchor), and `ProjectileHoming.update` homed at
-`target.transform.world_pos` — the `impact` anchor was only ever used for the hit
-VFX. Now: one `game.anchors.projectile_point` resolver, the lift moved from the
-draw into the endpoints (un-anchored play preserved), and the homing target
-re-resolved every frame. Editor half: a `projectile` family in the VFX preview
-panel, plus the projectile drawn at the muzzle handle in the entity preview.
+### BR-5 — Era-0 tuning, anims, docs
 
-**D4 held throughout**: `launch(origin=…)`'s timer math is untouched, so flight
-timing and damage are invariant under any anchor.
+**Goal.** Ship the designed values and the placeholder animation rows.
 
-**Caught after the coder handed back**: removing the shared draw lift also
-dropped the **mortar shell** ~19px, because `ProjectileArc.update` never moves
-the shell (only its timer ticks) — its spawn point *is* its drawn point.
-`_fire_splash` now resolves through the same `projectile_point`.
+**Files — modified.**
+- `data/balancing/enemies.json` — era 0 `second_phase`: `at_hp_fraction 0.5`,
+  `spawn_hp_fraction 0.5`, `delayed_spawns true`, a chosen `spawn_delay`, spawns
+  `{regular: 0, raiders: 0, siege: 0, commander: 1}`. Eras 1–4 keep `0.0` / `1.0`
+  (D5).
+- `data/sprites/asset_manifest.json` — `endphase` + `death` rows on
+  `boss_era_0..4`, reusing the idle frames (D4).
+- `game/enemies/CLAUDE.md` — update the **Boss** and **`death_spawn`** sections:
+  the second-phase machine, per-era keys, endgame scaling, and an amended note
+  recording *why* `commander` now lives in the shared `$defs/spawn_counts` (D3
+  overrides the existing standing argument — record the override, don't leave the
+  doc contradicting the data). Per root `CLAUDE.md` step 3, the package doc is the
+  one that gets updated — not the root router.
 
-## 8. Known open items
+**Tests.** The era-0 boss enters second phase at exactly 50% HP and emits one
+Commander at 50% of the **Commander's own** max HP.
 
-- **Editor-tier tests are flaky under the gate's parallel workers.**
-  `test_editor_viewport.py::TestMainWindowVfxMode`,
-  `::TestMainWindowScreenModeViews` and three in `test_editor_map_mode.py` have
-  each failed one run and passed the next, and pass serially. Not caused by this
-  work, but a flaky gate erodes the "GATE PASS means something" contract and
-  wants its own investigation.
-- **`tools/tests/fixtures/data/` is stale** in ways unrelated to this work
-  (missing `data/ui/`, several maps, drifted `slots.json`/`buildings.json`/
-  `enemies.json`). Every phase here mirrored only its own files rather than
-  running a blanket `--refresh`. Wants a deliberate refresh + full suite run.
-- **The editor preview still resolves at the entity's footprint only for
-  enemies.** Buildings draw at `fit_tiles=0.0` in both, so they match today —
-  but nothing pins that, and a future building footprint would silently
-  reintroduce the §7.3 class of bug.
-- **A third designer report is unresolved**: *"the current vfx which are using
-  spritesheets haven't been ported."* My reading (the `Corpse` death-animation
-  mechanism + the unplayed building `place`/`upgrade`/`death`/`hurt` animation
-  rows) was **wrong** — the designer said "not at all, ignore this for now". It
-  needs a concrete example before anyone acts on it. **Do not guess at it.**
+**Exit gate.** `py tools/smoke.py` + the **full** `py tools/testgate.py check` →
+GATE PASS.
+
+**AS EXECUTED (2026-08-05).** The user expanded and overrode this phase at
+dispatch time; what actually shipped:
+1. **The four threshold keys became PER-ERA** — a new 5-row
+   `second_phase.staging[]` array (`$defs/second_phase_row`), index-aligned
+   with `stats[]`/`round_counts[]`/`spawns[]`; `spawns[]` stayed put (D7 bars
+   boss-only keys from the shared `$defs/spawn_counts`). Resolved through the
+   new `Enemy.resolve_phase_row` seam, and **deliberately NOT through
+   `endgame_boss_scaling`** — it clamps past era 4, because a compounded
+   `at_hp_fraction` climbs past 1.0. Then D5's tuning on top: era 0 `0.5`/`0.5`,
+   eras 1–4 unchanged.
+2. **BR-4's round-60 companion change was REVERTED** (user decision).
+   `_boss_round` falls back to the per-type `_count_of` counts past the table
+   again, so round 60 is 295/46/37, not 700/215/61. Everything else BR-4
+   shipped stayed: the boss's own stats/fit/shake/`second_phase.spawns` still
+   grow through `endgame_boss_scaling`, and `Boss._resolve_era` still returns
+   the global era. Measured byte-identical to BR-3 over rounds 0–60.
+3. **`round_counts[era]["commander"]` is wired**, composed LAST so the shipped
+   all-zero counts draw no rng.
+4. **`editor/sprite_fit.py` fixed** — it read the Boss's `footprint`/
+   `sprite_scale` flat (gone since BR-1), raised `KeyError`, and a bare
+   `except Exception` swallowed it into a `(0.0, 1.0)` preview. Now per-era,
+   with the tolerance net narrowed to the two data loads.
+
+**NOT shipped, deliberately — open for the user:**
+- **Era 0's `commander: 1` spawn count.** The dispatch scoped BR-5's ONE
+  gameplay change to the thresholds, so era 0's `spawns` row is still all
+  zeros. Consequence, measured: the era-0 boss now freezes at 50% HP with **no
+  children** and dies — effectively 700 HP instead of 1400. One data edit
+  turns the Commander on.
+- **The `endphase`/`death` placeholder manifest rows.** Measured: a manifest
+  row's index IS its sheet row, and every `boss_era_*` sheet is exactly as
+  tall as it declares, so an appended row resolves outside the sheet and
+  renders the **grey-X placeholder** for the whole phase. Leaving them absent
+  IS D4's graceful fallback (idle frames for `endphase`, no corpse for a
+  missing `death`). They land with real art, via `/replace-visual`.
+- **Camera shake on a frozen boss** (BR-3's finding) — untouched; may be
+  intended drama.
+
+## 5. Verification
+
+```bash
+py tools/smoke.py                      # data validation + 5-frame headless boot
+py tools/testgate.py check --affected  # while iterating
+py tools/testgate.py check             # ONCE, before handoff — the gate is ZERO
+```
+
+Live `py game/main.py` — the Quick Test for the PR:
+1. Cheat to round 10. The era-0 boss spawns, hunts buildings, and ignores the hole
+   while anything else stands.
+2. Damage it to 50%. It freezes, its HP bar disappears, defenders stop shooting
+   it, and one Commander appears at its feet after `spawn_delay`.
+3. The boss then plays its death row and dies; XP, kill count and splatter fire.
+4. The Commander walks off, attacks the nearest non-base building, and re-paths
+   when that building dies.
+5. Cheat to round 60 and confirm the boss's HP/damage exceed the era-4 values by
+   the configured factors.
+
+## 6. Risks / open items
+
+- **`Enemy.alive` is load-bearing.** It is the single site that combat, base
+  arrivals and wave-clear all read. "Alive but untargetable" is the one change
+  here that can break unrelated systems — BR-3 must add an explicit property, not
+  special-case each reader.
+- **Widening `$defs/spawn_counts`** touches every `death_spawn` row in the file
+  and contradicts a standing note in `game/enemies/CLAUDE.md`. Chosen
+  deliberately (D3); BR-5 must amend the doc so the reasoning is recorded.
+- **The last-frame death limitation** becomes much more visible with a
+  multi-second second phase. BR-3 flags it; whether to fix it there or split it
+  into its own phase is a call for the user at that point.
+- **`spawn_delay` and the endgame factors ship untuned.** BR-4 ships 1.0
+  everywhere for safety; real values are a balancing pass after a playtest.
+- **The even-footprint sprite offset** (the known 16px cosmetic gap documented in
+  `game/enemies/CLAUDE.md`) is inherited, not addressed here. Per-era footprints
+  make it more noticeable, but the fix is engine-side and wants its own phase.
+- **Second-phase timing under combat speed.** The phase clock must take the
+  speed-scaled `sim_dt` so the phase does not desync at 1.5×/2× — the `Corpse`
+  fade clock is the pattern to copy.

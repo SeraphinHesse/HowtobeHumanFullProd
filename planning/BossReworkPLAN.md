@@ -1,4 +1,4 @@
-<!-- status: NOT STARTED — authored 2026-07-20 -->
+<!-- status: COMPLETE — 2026-08-05 (BR-1..BR-5 landed) -->
 
 # BossReworkPLAN.md — per-boss balancing, second phase, endgame scaling
 
@@ -120,11 +120,11 @@ clearance-filtered tile chooser; `AssetStore.animation_total_ms` already returns
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| BR-1 | Per-boss balancing restructure — data + schema + readers, zero behaviour change | not started |
-| BR-2 | Commander enemy type (`/add-enemy`), dormant in the wave system | not started |
-| BR-3 | `death_spawn` → `second_phase` for the Boss + the delayed second-phase state machine | not started |
-| BR-4 | Endgame boss scaling applied past the last era | not started |
-| BR-5 | Era-0 tuning, boss `endphase`/`death` placeholder anim rows, docs | not started |
+| BR-1 | Per-boss balancing restructure — data + schema + readers, zero behaviour change | done |
+| BR-2 | Commander enemy type (`/add-enemy`), dormant in the wave system | done |
+| BR-3 | `death_spawn` → `second_phase` for the Boss + the delayed second-phase state machine | done |
+| BR-4 | Endgame boss scaling applied past the last era | done |
+| BR-5 | Era-0 tuning (per-era `second_phase.staging`), round-60 revert, commander wiring, `sprite_fit` fix, docs | done |
 
 ---
 
@@ -301,6 +301,44 @@ Commander at 50% of the **Commander's own** max HP.
 
 **Exit gate.** `py tools/smoke.py` + the **full** `py tools/testgate.py check` →
 GATE PASS.
+
+**AS EXECUTED (2026-08-05).** The user expanded and overrode this phase at
+dispatch time; what actually shipped:
+1. **The four threshold keys became PER-ERA** — a new 5-row
+   `second_phase.staging[]` array (`$defs/second_phase_row`), index-aligned
+   with `stats[]`/`round_counts[]`/`spawns[]`; `spawns[]` stayed put (D7 bars
+   boss-only keys from the shared `$defs/spawn_counts`). Resolved through the
+   new `Enemy.resolve_phase_row` seam, and **deliberately NOT through
+   `endgame_boss_scaling`** — it clamps past era 4, because a compounded
+   `at_hp_fraction` climbs past 1.0. Then D5's tuning on top: era 0 `0.5`/`0.5`,
+   eras 1–4 unchanged.
+2. **BR-4's round-60 companion change was REVERTED** (user decision).
+   `_boss_round` falls back to the per-type `_count_of` counts past the table
+   again, so round 60 is 295/46/37, not 700/215/61. Everything else BR-4
+   shipped stayed: the boss's own stats/fit/shake/`second_phase.spawns` still
+   grow through `endgame_boss_scaling`, and `Boss._resolve_era` still returns
+   the global era. Measured byte-identical to BR-3 over rounds 0–60.
+3. **`round_counts[era]["commander"]` is wired**, composed LAST so the shipped
+   all-zero counts draw no rng.
+4. **`editor/sprite_fit.py` fixed** — it read the Boss's `footprint`/
+   `sprite_scale` flat (gone since BR-1), raised `KeyError`, and a bare
+   `except Exception` swallowed it into a `(0.0, 1.0)` preview. Now per-era,
+   with the tolerance net narrowed to the two data loads.
+
+**NOT shipped, deliberately — open for the user:**
+- **Era 0's `commander: 1` spawn count.** The dispatch scoped BR-5's ONE
+  gameplay change to the thresholds, so era 0's `spawns` row is still all
+  zeros. Consequence, measured: the era-0 boss now freezes at 50% HP with **no
+  children** and dies — effectively 700 HP instead of 1400. One data edit
+  turns the Commander on.
+- **The `endphase`/`death` placeholder manifest rows.** Measured: a manifest
+  row's index IS its sheet row, and every `boss_era_*` sheet is exactly as
+  tall as it declares, so an appended row resolves outside the sheet and
+  renders the **grey-X placeholder** for the whole phase. Leaving them absent
+  IS D4's graceful fallback (idle frames for `endphase`, no corpse for a
+  missing `death`). They land with real art, via `/replace-visual`.
+- **Camera shake on a frozen boss** (BR-3's finding) — untouched; may be
+  intended drama.
 
 ## 5. Verification
 

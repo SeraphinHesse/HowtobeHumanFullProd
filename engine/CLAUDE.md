@@ -79,6 +79,17 @@ engine task; if an engine change forces a caller change, tell the user
       `code_overrides={(col,row): code}` consults the caller's RUNTIME zone
       state before `doc.terrain` (the game's unlock/recede visuals) so the doc
       stays pristine; overrides resolve through the same legend/checker rule.
+- **`era_math.py`** (pure, stdlib-only — EnemyScalingReworkPLAN D7) — the era
+  clock + per-era stat/count resolvers (`era_of_round`/`round_in_era`/
+  `is_boss_round`/`resolve_era_row`/`stats_at_round`/`count_at_round`/
+  `prev_era_reference`). **This is the ONE place engine hosts balancing math,
+  and it is deliberate**: `game/` and `editor/` may not import each other, but
+  both consume `engine/`, and the editor's read-only previous-era preview must
+  compute the SAME numbers the runtime spawns. Duplicating the formula in
+  `editor/` invites exactly the drift this module exists to prevent. It keeps
+  the package's no-game-vocabulary rule: it knows "eras", "rows", "stats" and
+  "counts", never a raider or a boss — callers pass already-loaded dicts,
+  nothing here opens a file or names a JSON path. In `TestPurity`.
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).

@@ -35,7 +35,7 @@ from engine import data_io
 from tools.tests.test_editor_anchors import write_entry
 from tools.tests.test_editor_panels import TempDataCase
 
-from editor import anchor_ops
+from editor import anchor_ops, sprite_fit
 from editor.panels.viewport import ViewportPanel
 from game.anchors import anchor_world_point
 
@@ -83,6 +83,46 @@ class TestFormationPreviewMatchesGame(TempDataCase):
 
         self.assertAlmostEqual(editor_screen[0], game_screen[0], places=6)
         self.assertAlmostEqual(editor_screen[1], game_screen[1], places=6)
+
+
+class TestBossPreviewFitIsPerEra(TempDataCase):
+    """BR-5 regression: the Boss's `footprint`/`sprite_scale` moved into its
+    per-era `stats[]` rows in BR-1, so `slot_draw_fit`'s flat read raised
+    `KeyError` — swallowed by a bare `except Exception`, which silently
+    degraded every `boss_era_*` preview to the `(0.0, 1.0)` render defaults
+    for four phases. Pinned against a WRITTEN fixture (never live `data/`):
+    each era row gets its own footprint, so a slot resolving to the wrong
+    row fails just as loudly as one resolving to the defaults."""
+
+    def _write_per_era_boss_fit(self):
+        path = self.data_dir / "balancing" / "enemies.json"
+        schema = self.data_dir / "schemas" / "enemies.schema.json"
+        doc = data_io.load_validated(path, schema)
+        rows = doc["EnemyTypes"]["Boss"]["stats"]
+        for index, row in enumerate(rows):
+            row["footprint"] = index + 1
+            row["sprite_scale"] = 1.0 + index / 10.0
+        data_io.write_validated(doc, path, schema)
+        return len(rows)
+
+    def test_each_boss_era_slot_resolves_its_own_stats_row(self):
+        n_eras = self._write_per_era_boss_fit()
+        for era in range(n_eras):
+            with self.subTest(era=era):
+                fit = sprite_fit.slot_draw_fit(
+                    self.data_dir, "enemies", f"boss_era_{era}")
+                self.assertNotEqual(fit, sprite_fit.DEFAULT_FIT)
+                self.assertEqual(fit, (float(era + 1), 1.0 + era / 10.0))
+
+    def test_a_flat_type_still_reads_its_root_pair(self):
+        fit = sprite_fit.slot_draw_fit(
+            self.data_dir, "enemies", "enemy_stage_1_v1")
+        enemies = data_io.load_validated(
+            self.data_dir / "balancing" / "enemies.json",
+            self.data_dir / "schemas" / "enemies.schema.json")
+        std = enemies["EnemyTypes"]["Standard"]
+        self.assertEqual(fit, (float(std["footprint"]),
+                               float(std["sprite_scale"])))
 
 
 if __name__ == "__main__":

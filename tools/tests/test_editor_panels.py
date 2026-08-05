@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
@@ -38,7 +39,7 @@ from PySide6.QtWidgets import (
 from editor import balancing_history, domains, keybinds, theme
 from editor.panels.balancing import BalancingPanel, CollapsibleSection
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
-from engine import data_io
+from engine import data_io, era_math
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -529,7 +530,7 @@ class TestBalancingPanel(TempDataCase):
         selector.select_domain("buildings")
         self.assertIn("DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets)
         selector.select_domain("enemies")
-        self.assertIn("EnemyTypes/Standard/hp", panel._widgets)
+        self.assertIn("EnemyTypes/Standard/eras/0/stats/hp", panel._widgets)
         self.assertNotIn(
             "DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets
         )
@@ -570,14 +571,27 @@ class TestBalancingPanel(TempDataCase):
 
     def test_enemy_rework_fields_surface_and_are_editable(self):
         """ER-5: footprint / sprite_scale / the whole death_spawn block (including
-        the per-era spawns rows) reach the designer as real widgets."""
+        the per-era spawns rows) reach the designer as real widgets.
+
+        BR-1 re-anchored the two sizing fields: they are still flat at the type
+        root for every ordinary type (Standard here), while the BOSS carries
+        them — plus its shake — inside each per-era ``stats`` row."""
         panel = self.make_panel("enemies")
         for key, kind in (
-            ("EnemyTypes/Boss/footprint", QSpinBox),
-            ("EnemyTypes/Boss/sprite_scale", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/enabled", QCheckBox),
-            ("EnemyTypes/Boss/death_spawn/at_hp_fraction", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/spawns/0/regular", QSpinBox),
+            ("EnemyTypes/Standard/footprint", QSpinBox),
+            ("EnemyTypes/Standard/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
+            ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/enabled", QCheckBox),
+            # BR-5: per-era staging rows, not a flat key on the block.
+            ("EnemyTypes/Boss/second_phase/staging/0/at_hp_fraction",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/4/spawn_delay",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/0/delayed_spawns",
+             QCheckBox),
+            ("EnemyTypes/Boss/second_phase/spawns/0/regular", QSpinBox),
         ):
             with self.subTest(key=key):
                 self.assertIsInstance(panel._widgets[key], kind)
@@ -610,14 +624,14 @@ class TestBalancingPanel(TempDataCase):
 
     def test_remove_row_pops_the_last_row(self):
         panel = self.make_panel("enemies")
-        key = "EnemyTypes/Boss/death_spawn/spawns"
+        key = "EnemyTypes/Boss/second_phase/spawns"
         self.assertEqual(len(panel._value_at(key)), 5)   # the boss's per-era table
         panel._remove_array_row(key)
         self.assertEqual(len(panel._value_at(key)), 4)
         panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "enemies")
         self.assertEqual(
-            len(on_disk["EnemyTypes"]["Boss"]["death_spawn"]["spawns"]), 4)
+            len(on_disk["EnemyTypes"]["Boss"]["second_phase"]["spawns"]), 4)
 
     def test_editing_a_field_of_a_new_row_does_not_raise(self):
         """The new row's path does not exist in the BASELINE (which still has the
@@ -650,7 +664,7 @@ class TestBalancingPanel(TempDataCase):
         """Adding a row rebuilds the form. A staged edit elsewhere must survive
         that with its dot intact — fresh widgets start with the dot hidden."""
         panel = self.make_panel("enemies")
-        edited = "EnemyTypes/Standard/hp"
+        edited = "EnemyTypes/Standard/eras/0/stats/hp"
         panel._widgets[edited].setValue(panel._widgets[edited].value() + 1)
         panel._add_array_row("EnemyTypes/Standard/death_spawn/spawns")
         self.assertIn(edited, panel._dirty)
@@ -666,25 +680,50 @@ class TestBalancingPanel(TempDataCase):
         }
 
     def test_only_schema_resizable_arrays_offer_row_buttons(self):
-        """minItems == maxItems (the 5 scale tiers, the boss's round_counts, every
-        building tier list) => NO buttons. That gate is what keeps every form that
-        shipped before ER-5 byte-identical; `death_spawn.spawns` (minItems 1, no
-        maxItems) is the one array a designer may actually resize."""
+        """minItems == maxItems (the boss's stats/round_counts, every building
+        tier list) => NO buttons. That gate is what keeps every form that
+        shipped before ER-5 byte-identical; `death_spawn.spawns` and — since
+        ES-2 — the variable-length `eras` arrays (minItems 1, no maxItems) are
+        what a designer may actually resize, with no editor code at all."""
         panel = self.make_panel("enemies")
         schema = data_io.load_json(
             self.data_dir / "schemas" / "enemies.schema.json")
-        tiers = schema["properties"]["EnemyScaling"]["properties"]["scale_tiers"]
-        self.assertEqual(tiers["minItems"], tiers["maxItems"])  # premise of the test
+        boss = schema["properties"]["EnemyTypes"]["properties"]["Boss"]
+        counts = boss["properties"]["round_counts"]
+        self.assertEqual(counts["minItems"], counts["maxItems"])  # the premise
 
         resizable = self._resizable_arrays(panel)
-        self.assertNotIn("EnemyScaling/scale_tiers", resizable)
+        self.assertNotIn("EnemyTypes/Boss/round_counts", resizable)
+        self.assertIn("EnemyScaling/eras", resizable)
+        self.assertIn("EnemyTypes/Standard/eras", resizable)
         self.assertIn("EnemyTypes/Standard/death_spawn/spawns", resizable)
-        self.assertIn("EnemyTypes/Boss/death_spawn/spawns", resizable)
+        self.assertIn("EnemyTypes/Boss/second_phase/spawns", resizable)
 
     def test_buildings_form_has_no_row_buttons_at_all(self):
         """The regression guard for every other domain: a fixed-length tier list
         must not sprout an add/remove affordance."""
         self.assertEqual(self._resizable_arrays(self.make_panel("buildings")), set())
+
+    def test_era_rows_carry_a_greyed_previous_era_reference(self):
+        """ES-5/D9: an era >= 1 stat field shows a disabled, read-only label
+        with what that field resolved to on the LAST round of the previous era;
+        era 0 has nothing to reference and carries no label."""
+        panel = self.make_panel("enemies")
+        labels = {
+            lab.objectName().removeprefix(BalancingPanel.PREV_REF): lab
+            for lab in panel.findChildren(QLabel)
+            if lab.objectName().startswith(BalancingPanel.PREV_REF)
+        }
+        self.assertFalse([k for k in labels if "/eras/0/" in k])  # era 0: none
+
+        doc = read_domain(self.data_dir, "enemies")
+        rows = doc["EnemyTypes"]["Standard"]["eras"]
+        expected = era_math.prev_era_reference(
+            rows, 1, doc["EnemyScaling"]["rounds_per_era"]
+        )["stats"]["hp"]
+        label = labels["EnemyTypes/Standard/eras/1/stats/hp"]
+        self.assertFalse(label.isEnabled())
+        self.assertIn(str(expected), label.text())
 
     def test_out_of_range_input_unrepresentable(self):
         """ED-30: the widget clamps to the schema's bounds — invalid values

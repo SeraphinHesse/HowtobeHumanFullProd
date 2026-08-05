@@ -110,7 +110,8 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
-- **Enemy sizing leaves (ER-1)**: each `enemies.json` `EnemyTypes/*` block carries
+- **Enemy sizing leaves (ER-1; per-era for the Boss since BR-1)**: each
+  `enemies.json` `EnemyTypes/*` block carries
   a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
   its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
   `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
@@ -135,6 +136,78 @@ validating writer; don't hand-edit the JSON.
   UN-refactored home for the same value (deliberate, reported follow-up
   work); `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` pins the
   two together.
+- **Era rows (`enemies.json`, EnemyScalingReworkPLAN ES-2..ES-4)** — the shape
+  of enemy difficulty, and the single biggest thing to know before editing this
+  file. `EnemyScaling` owns ONE global clock (`rounds_per_era: 10`,
+  `boss_round_in_era: 10`) plus its own `eras: [{batch_size, spawn_interval}]`;
+  each of `Standard`/`Raider`/`SiegeCannon`/`Formation` owns
+  `eras: [{stats:{hp,dmg,move_speed,attack_speed,attack_range_tiles},
+  per_round:{hp,dmg,move_speed}, count_start, count_per_round}]`. Every era
+  array is `minItems: 1`, **no `maxItems`** — variable length, independent per
+  type, and therefore resizable in the editor with no editor code (ER-5).
+  - **DELETED keys, do not reintroduce**: `EnemyScaling.base_enemy_count` /
+    `enemies_per_round` / `scale_every_n_levels` / `scale_tiers` / the global
+    `spawn_interval`; `Boss.round_interval`; and per type `base_count` /
+    `per_round` / `rounds_per_cannon` / `rounds_per_formation`. The flat
+    `hp`/`dmg`/`move_speed`/`attack_speed`/`attack_range_tiles` left the type
+    root — they live in era rows now. `Boss` keeps its own 5-row `stats[]` +
+    `round_counts[]` (BossReworkPLAN's territory) — and since **BR-1** its
+    `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
+    live inside each `stats[]` row, so every boss variable is per-era.
+  - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
+    `start_round`, `footprint`, `sprite_scale`, `death_spawn`, `registry_group`,
+    `kidnapping`, `hunts`, `condition_path_weights`, `mix_ratio`,
+    `queue_lead_count`. Only numbers that scale with the round went per-era.
+    **BR-1 carved out ONE exception**: the Boss's `footprint`/`sprite_scale`
+    are per-era (in its `stats[]` rows), because a designer must be able to
+    make the era-4 boss physically bigger than the era-0 one. Every other type
+    — and every other key in that list — is unchanged. `editor/sprite_fit.py`
+    reads BOTH shapes since **BR-5** (it read only the flat pair before, so
+    every boss slot preview silently drew at the render defaults).
+  - **`Boss.second_phase` is the SECOND carve-out (BR-5)**: its
+    `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` left
+    the block root for a 5-row `staging` array (`$defs/second_phase_row`),
+    index-aligned with `stats[]`/`round_counts[]`/`spawns[]`, so a designer can
+    stage the era-0 boss at half health without touching era 4. They are their
+    OWN array rather than extra keys on a `spawns[]` row because that row is
+    the SHARED `$defs/spawn_counts` (D7). Unlike the boss's other three arrays
+    it is **not** run through `endgame_boss_scaling` — it clamps past era 4;
+    compounding a fraction would drive `at_hp_fraction` above 1.0. Shipped
+    values: era 0 `0.5`/`0.5` (D5), eras 1–4 `0.0`/`1.0`.
+  - **`endgame_scaling` blocks** (per type `{hp, dmg, move_speed, count}`, plus
+    `EnemyScaling.endgame_scaling {batch_size, spawn_interval}`) are FACTORS,
+    not values: past the last authored era the last row is reused with every
+    leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
+    behaviour-neutral until a designer tunes them; that is the intended knob for
+    "what happens after round 50", replacing the old freeze-forever cliff.
+    - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
+      block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
+      `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
+      names inside those rows (`hp`, `footprint`, `interval`/`strength` for the
+      two `shake` leaves, `regular`/`raiders`/`siege`/`commander` for the
+      counts) because `era_math.resolve_era_row` matches a factor to a leaf by
+      name — renaming a key to something prettier silently disables it.
+  - **`count_start` is a `number`, not an integer — and that is load-bearing
+    (D3′).** Counts resolve as `floor(count_start + (round − r0) ×
+    count_per_round)`, re-anchored at each era's first round. The pre-era
+    accretion formulas floored from a type-GLOBAL anchor, so re-anchoring per
+    era throws away a fractional remainder: with an integer `count_start` the
+    Formation is one short from round 22 onward. The seeded rows therefore carry
+    the exact rational value at the era's first round and the resolver floors
+    once. A designer authoring a fresh era types a whole number and gets the
+    obvious behaviour; fractions appear only in seeded accretion rows.
+    - **Write FULL float precision, never a 3-decimal display value.** Era 2/4
+      of the Formation are `2.666666666666667` / `9.333333333333334`, not
+      `2.667` / `9.333` — the plan's §4 table shows the rounded forms for
+      readability and they are WRONG as data: `9.333 + 2 × ⅓` floors to 9 at
+      round 43 where the true value gives 10.
+    - **Designer nuance (no live effect today, all factors are 1.0):** under a
+      non-1.0 `count` endgame factor, an int-authored `count_start` floors twice
+      (once in the endgame scaling, once in the count resolve) while a
+      float-authored one floors once, so two rows that look equivalent can
+      differ by one enemy past the last era. `era_math.count_at_round` is the
+      final authority on how many spawn (D3′); if you need an exact endgame
+      count, check it there rather than reading the row.
 - **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
   **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
   once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`
@@ -149,6 +222,19 @@ validating writer; don't hand-edit the JSON.
   code-side default is banned) and the editor panel skips schema keys absent from
   the doc. `Boss/death_spawns` was REPLACED by `Boss/death_spawn` (the 5 rows
   moved verbatim under `spawns`).
+  - **`$defs/spawn_counts` gained a required `commander` key (BR-1/D3)** — the
+    `$def` is SHARED by every `death_spawn.spawns` row and by
+    `Boss.round_counts`, so all 14 committed rows now carry `commander: 0`.
+    The Commander enemy type itself landed in **BR-2** —
+    `EnemyTypes.Commander`, a normal era-shaped block (its own `eras[]` rows,
+    `endgame_scaling`, flat `footprint`/`sprite_scale`, `registry_group
+    "Commander"`, four `commander_stage_*` slots in `slots.json`) shipped
+    DORMANT as a *wave* enemy: every era row's `count_start`/`count_per_round`
+    is 0, so it never enters a wave. It reaches the board by exactly one route
+    — `Boss.second_phase.spawns[0].commander` is 1, the era-0 boss's staged
+    child; every other `commander` count is still 0. Widening
+    the shared `$def` was chosen deliberately over a boss-only count table,
+    overriding the standing argument against it in `game/enemies/CLAUDE.md`.
 - **The parity gate is GONE, and balancing values are now free.** The migration
   is complete: `tools/tests/test_balancing_parity.py` and its committed mapping
   table (`balancing_parity_map.json`) are **deleted**, along with the prototype's

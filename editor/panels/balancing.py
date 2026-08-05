@@ -36,6 +36,14 @@ past snapshot into the live widgets (staged, not written — the dirty dots
 reappear for whatever differs from the current baseline) and the user must
 Save again to persist it.
 
+A leaf whose path sits inside an `.../eras/<int>/...` subtree with an index
+above 0 also carries a greyed, disabled, read-only reference label showing what
+that field resolves to on the LAST round of the PREVIOUS era (D9,
+engine.era_math.prev_era_reference). Era 0 shows nothing. Detection is purely
+path-shape based, so any future type that grows era rows inherits it; the values
+come from the STAGED doc and refresh on every edit, so retuning era 0 updates
+era 1's reference before anything is saved.
+
 Undo via the global QUndoStack (ED-24) remains deferred.
 
 A numeric weight leaf whose schema property carries `"x-toggle": "<sibling
@@ -82,7 +90,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import balancing_history, domains
-from engine import data_io
+from engine import data_io, era_math
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -235,6 +243,11 @@ class BalancingPanel(QWidget):
     # reaching into the layout tree.
     ROW_ADD = "rowadd:"
     ROW_REMOVE = "rowremove:"
+    # objectName prefix on the greyed previous-era reference labels (D9), same
+    # convention: the leaf's '/'-joined path follows.
+    PREV_REF = "prevref:"
+    # The ONE structural marker D9's reference labels key off (see _era_context).
+    ERA_ARRAY_KEY = "eras"
     # ESV-4: fires (path, value) whenever ANY value is staged into self._doc —
     # from a generic-form widget edit OR from the vfx preview panel's
     # stage_value() call (§2.3). The preview panel is the one subscriber
@@ -251,6 +264,7 @@ class BalancingPanel(QWidget):
         self._schema = None
         self._widgets = {}
         self._dots = {}
+        self._refs = {}
         self._dirty = set()
 
         self._save_btn = QPushButton("Save Balancing Changes")
@@ -287,6 +301,7 @@ class BalancingPanel(QWidget):
     def _rebuild_form(self, schema):
         self._widgets = {}
         self._dots = {}
+        self._refs = {}
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
@@ -465,10 +480,106 @@ class BalancingPanel(QWidget):
             row_layout.insertWidget(0, toggle)
         row_layout.addWidget(widget)
         row_layout.addWidget(dot)
-        form.addRow(label, row)
         key = "/".join(path)
+        ref = self._build_reference_label(path)
+        if ref is not None:
+            row_layout.addWidget(ref)
+            self._refs[key] = (ref, path)
+        form.addRow(label, row)
         self._widgets[key] = widget
         self._dots[key] = dot
+
+    # -- D9: the greyed previous-era reference -------------------------------
+
+    def _era_context(self, path):
+        """Split a leaf path that sits inside an `.../eras/<int>/...` subtree.
+
+        Returns `(rows_path, era, leaf_subpath)` or None. Detection is purely
+        PATH-SHAPE based — the literal segment `eras` followed by an integer
+        index — so any future type that grows era rows (the Commander) inherits
+        the reference label with zero edits here. No domain, type or field name
+        is hardcoded.
+        """
+        for j in range(len(path) - 3, -1, -1):
+            if path[j] == self.ERA_ARRAY_KEY and path[j + 1].isdigit():
+                return path[: j + 1], int(path[j + 1]), path[j + 2:]
+        return None
+
+    def _rounds_per_era(self):
+        """The staged doc's era length. Found by KEY SHAPE (the one top-level
+        block carrying `rounds_per_era`), never by naming a domain's general
+        block; falls back to 10 so a doc without one still renders."""
+        if isinstance(self._doc, dict):
+            for value in self._doc.values():
+                if isinstance(value, dict) and "rounds_per_era" in value:
+                    return value["rounds_per_era"]
+        return 10
+
+    def _reference_value(self, path):
+        """What this leaf resolved to on the LAST round of the previous era
+        (D9), read off the STAGED doc — so editing era 0 updates era 1's
+        reference before anything is saved. None when there is nothing to
+        show (era 0, no era subtree, a non-numeric or absent leaf)."""
+        context = self._era_context(path)
+        if context is None:
+            return None
+        rows_path, era, leaf_subpath = context
+        if era <= 0 or not leaf_subpath:
+            return None
+        try:
+            rows = self._value_at("/".join(rows_path))
+            root = self._value_at("/".join(rows_path[:-1])) if len(rows_path) > 1 \
+                else self._doc
+            ref = era_math.prev_era_reference(
+                rows,
+                era,
+                self._rounds_per_era(),
+                start_round=root.get("start_round", 1),
+                endgame_factors=root.get("endgame_scaling"),
+            )
+            for seg in leaf_subpath:
+                ref = ref[int(seg)] if seg.isdigit() else ref[seg]
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+            # This runs while building a Qt form and inside a Qt slot; a doc
+            # shape the era math cannot read must degrade to no label.
+            return None
+        if isinstance(ref, bool) or not isinstance(ref, (int, float)):
+            return None
+        return ref
+
+    @staticmethod
+    def _format_reference(value):
+        if isinstance(value, int):
+            return f"prev ⌐ {value}"
+        rounded = round(float(value), 4)
+        if rounded == int(rounded):
+            return f"prev ⌐ {int(rounded)}"
+        return f"prev ⌐ {rounded:g}"
+
+    def _build_reference_label(self, path):
+        value = self._reference_value(path)
+        if value is None:
+            return None
+        ref = QLabel(self._format_reference(value))
+        ref.setObjectName(f"{self.PREV_REF}{'/'.join(path)}")
+        ref.setToolTip(
+            "What this field resolves to on the last round of the previous era "
+            "(read-only)"
+        )
+        ref.setEnabled(False)
+        # Deliberately theme-independent, like the pending dot: a mid grey that
+        # stays legible on both the light and the dark chrome.
+        ref.setStyleSheet("color: #8a8a8a;")
+        return ref
+
+    def _refresh_references(self):
+        """Recompute every visible reference off the staged doc. Cheap enough
+        to run on every edit (a domain's era leaves number in the hundreds) and
+        it is the only thing that keeps era N+1's reference honest while era N
+        is being typed into."""
+        for label, path in self._refs.values():
+            value = self._reference_value(path)
+            label.setText("" if value is None else self._format_reference(value))
 
     def _build_toggle_checkbox(self, prop, path):
         """A weight leaf's `x-toggle` schema annotation names a SIBLING
@@ -621,6 +732,10 @@ class BalancingPanel(QWidget):
         dot = self._dots.get(key)
         if dot is not None:
             dot.setVisible(dirty)
+        # D9: any staged edit can move a LATER era's reference (era 0's
+        # per_round.hp changes what era 1 shows), so refresh them all here —
+        # the one place every staged change funnels through.
+        self._refresh_references()
         self._save_btn.setEnabled(bool(self._dirty))
 
     def _set_widget_value(self, key, widget, value):

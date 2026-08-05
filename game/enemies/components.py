@@ -166,6 +166,7 @@ class PathAgent(Component):
     target_col: int = -1          # the building we committed to hunt (BP-3)
     target_row: int = -1          # -1 = none: we are walking at the base
     carrying: bool = False        # kidnapping (Art/enemies): inert while True
+    frozen: bool = False          # BR-3 second phase: inert, and NOT attacking
     hunt: str = "base"            # what this unit hunts on spawn (Chunk 4)
 
     def on_added(self, owner):
@@ -195,6 +196,12 @@ class PathAgent(Component):
         # separate component) keeps driving the waypoints ``begin_kidnap``
         # loaded, on the speed it set.
         if self.carrying:
+            return
+        # BR-3: a boss in its delayed second phase is frozen in place — the
+        # `carrying` precedent exactly (inert agent, Movement.speed already
+        # zeroed by the transition). EnemyCombat checks the same flag, so a
+        # boss frozen mid-swing stops swinging.
+        if self.frozen:
             return
         owner = getattr(self, "_owner", None)
         tm = getattr(self, "_tilemap", None)
@@ -479,7 +486,10 @@ class EnemyCombat(Component):
         if owner is None:
             return
         pa = owner.get_component(PathAgent)
-        if pa is None or not pa.blocked:
+        # BR-3: `frozen` (the delayed second phase) disables this component
+        # wholesale — the boss keeps whatever `blocked` state it stopped in,
+        # so the flag has to be read here and not inferred from PathAgent.
+        if pa is None or pa.frozen or not pa.blocked:
             return
         wall = getattr(pa, "_wall_target", None)
         if wall is not None:
@@ -551,6 +561,26 @@ class DeathSpawn(Component):
     * ``death_spawned`` — the one-shot burst guard. ``Session.on_enemy_death``
       sets it through ``Enemy.mark_death_spawned()`` the first time a death is
       reported, so a double-death frame can never double-burst.
+
+    BR-3 adds the BOSS's staged second phase on top (``EnemyTypes.Boss.
+    second_phase``; every other type still resolves ``death_spawn`` into the
+    fields above and leaves these at their defaults):
+
+    * ``delayed`` — the phase switch. False is the historical one-frame burst,
+      byte-for-byte.
+    * ``spawn_delay`` — seconds between two children (PER child, not a total).
+    * ``phase_started`` / ``phase_complete`` — the two-bit state machine.
+      ``Enemy.alive`` stays True from the threshold crossing until
+      ``phase_complete``; ``Enemy.targetable`` is False for that whole window.
+    * ``phase_timer`` — seconds until the next child. Ticked by
+      ``Spawner._advance_second_phases`` on the speed-scaled sim dt (the
+      ``Corpse`` fade-clock rule), never on wall time.
+    * ``pending`` — the remaining children as a flat list of etype strings, in
+      ``SWARM_TYPES`` order; the phase ends when it and the frame's due list
+      are both empty.
+
+    All of it is declared JSON-safe component state (E-11) — the LOGIC lives
+    in ``Enemy.advance_second_phase`` + the Spawner, never here.
     """
 
     era: int = 0
@@ -559,6 +589,12 @@ class DeathSpawn(Component):
     spawn_hp_fraction: float = 1.0
     counts: dict = {}
     death_spawned: bool = False
+    delayed: bool = False
+    spawn_delay: float = 0.0
+    phase_started: bool = False
+    phase_complete: bool = False
+    phase_timer: float = 0.0
+    pending: list = []
 
 
 class Kidnap(Component):
