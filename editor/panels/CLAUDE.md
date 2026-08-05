@@ -545,6 +545,53 @@ import list.**
   implementer's call — a designer hiding tutorial markers wants both gone at
   once, unlike Start Area/Camera which are independent features with
   independent eyes).
+- **Spawnable Background / spawn reserve (1 brush + a number)**: a FIFTH mode
+  page (`palette.MODES`/`EYES` gain `"spawn_reserve"`, labelled "Spawnable
+  Background" via `MODE_LABELS` — which the layer-eye loop now consults too, so
+  a mode and its eye can't be labelled two different ways). **A mark is an
+  INVISIBLE OVERLAY, not a legend tile code**: it lives in
+  `TileMapDoc.spawnable_background` (`{(col,row): purchase}`), the underlying
+  background art keeps drawing, and the game never sees it as a tile kind — the
+  runtime flips every cell numbered n to SPAWNING on the player's nth tile
+  purchase.
+  - The page holds ONE **plain-TEXT** brush button (no sprite, no icon — there
+    is nothing to import; like the tutorial markers it draws as an outline) in
+    the SAME exclusive `_brush_group`, so arming it disarms every other brush.
+    It is deliberately NOT in `self._brush_buttons`: that dict drives
+    `refresh_icons()` and `_armed_slot()`, both of which need a real registry
+    SLOT, which this brush has not got. `armed_spawn_reserve()` therefore
+    returns a BOOL, not a slot (the one departure from the
+    `armed_tutorial_stone` shape).
+  - Under it a `_NoWheelSpinBox` (imported from `balancing.py`, ED-30) for the
+    purchase number, ranged from `map_file.schema.json`'s own
+    `spawnable_background.items.purchase` `minimum`/`maximum`
+    (`_reserve_number_bounds`) — the bounds have exactly one home.
+  - **Pure ops mirror the terrain ones one-for-one** in `tilemap_ops.py`
+    (`set_reserve`/`reserve_line`/`reserve_rect`/`reserve_bucket`/
+    `apply_reserve_changes`/`pick_reserve`), same `(col,row,old,new)` change
+    tuple with old/new the purchase number or `None`; `map_session.
+    _ReserveStrokeCommand`/`push_reserve_stroke` are the exact twins of
+    `_StrokeCommand`/`push_stroke`. **`reserve_bucket` floods the region
+    sharing the underlying TERRAIN code, not the region sharing a mark** —
+    "mark this whole background patch" is the gesture, and it needs its own
+    `seen` set since (unlike `bucket_fill`) it never mutates what it walks.
+  - The viewport's reserve branch in `_tool_press` sits **before the
+    terrain-code branches** (paint/erase/line/rect/bucket/picker), accumulates
+    into `_reserve_stroke` and pushes ONE `push_reserve_stroke` on release.
+    The picker returns its value through `viewport.reserve_number_picked` →
+    `palette.set_reserve_number`, mirroring `code_picked` → `arm_code`.
+  - **Rendering is `_submit_spawn_reserve`: an overlay-lines diamond + a
+    `HudText` of the NUMBER per mark (E-24/ED-22 — never QPainter, never a
+    sprite), and BOTH are window-culled** against the same
+    `visible_tile_window` the rest of `_submit_map_items` uses. A map may carry
+    hundreds of marks; drawing them all would reintroduce a full-map overlay
+    pass into a renderer that windows everything else. `_ghost_items` returns
+    nothing for this brush (the outline IS the ghost), like start-area/tutorial.
+  - `map_requirement_warnings` gains two NON-BLOCKING labels: `"spawnable
+    background tiles"` (no marks painted) and `"spawnable background on
+    non-background tiles"` (a mark on a legend code with `checker: true`, i.e.
+    a ZONE code — the runtime only flips BACKGROUND tiles, so such a mark is a
+    silent no-op).
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the

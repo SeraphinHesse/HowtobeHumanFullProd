@@ -498,12 +498,32 @@ validating writer; don't hand-edit the JSON.
   section grid, never forces tile states, drawn by the editor as an outline
   only; existing maps were migrated to `"start_area": null`), `deco` (world
   positions; renders ABOVE entities, E-26). Spawning is a painted zone — the
-  format has NO spawn-point objects. `tutorial_flute`/`tutorial_stone`
+  format has NO spawn-point objects (`spawnable_background` below schedules
+  when a cell BECOMES that zone; it is still not a spawn point).
+  `tutorial_flute`/`tutorial_stone`
   (nullable {col,row,slot}, same shape as `camera_start`; slots const-pinned
   to `"tutorial_flute"`/`"tutorial_stone"`, TU-1, planning/TutorialPLAN.md D1)
   are the tutorial's designer-painted forced-first-placement tiles — never
   rendered by the game or the editor's normal render pipeline; existing maps
   were migrated to `"tutorial_flute": null, "tutorial_stone": null`.
+- **`spawnable_background` — the designer-authored spawn reserve.** A list of
+  `{col, row, purchase}` marks (`purchase` 1..1000 = the tile-purchase count on
+  which that cell flips BACKGROUND → SPAWNING; every mark numbered n releases
+  together, once). It is an **invisible OVERLAY, not a legend tile code**: the
+  painted forest/cliff/ocean underneath keeps drawing, and like
+  `start_area`/`tutorial_*` it is deliberately NOT emitted by any render
+  emitter, so the game never draws it. **On disk a list sorted by (row, col)**
+  (D-3 determinism); **in memory a dict `{(col, row): purchase}`** on
+  `TileMapDoc` — the editor paints O(1) per cell, which the list form cannot.
+  `engine.tilemap.validate_doc` bounds-checks every mark (D-2, the `deco`
+  check's twin); `purchase >= 1` is the schema's job. An empty array is legal
+  and is the "no reserve painted" state — existing maps were migrated to
+  `"spawnable_background": []`. Runtime precedence → `game/map/CLAUDE.md`;
+  the brush → `editor/panels/CLAUDE.md`.
+- **`balancing/map.json` `TileUnlocking.spawn_recede_enabled`** (bool, default
+  `true`) is the master switch for the OLD implicit recede rule only — `false`
+  and the band never recedes on unlock, whatever the reserve state. It does not
+  gate the reserve.
 - **SCHEMA-PAIRING EXCEPTIONS (the directory rule — there are THREE)**: the
   default is stem pairing (`data/foo.json` ↔ `schemas/foo.schema.json`, missing
   schema fails loud). `tools/smoke.py::validate_data` implements + tests exactly

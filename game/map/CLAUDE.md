@@ -35,7 +35,25 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   mutating the shared map doc (a new game builds a fresh TileMap → empty
   overrides → pristine terrain). BUILT/BACKGROUND have no code and never
   write an override.
-- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND**: a successful
+- **The designer-painted RESERVE outranks the implicit recede.** There are two
+  ways the spawn band moves, and `do_unlock` runs them in a fixed order. Every
+  successful unlock bumps `_unlock_purchases`, then `_release_spawn_reserve(n)`
+  flips every tile the map painted with `purchase == n` from BACKGROUND to
+  SPAWNING (`spawnable_background`, `data/CLAUDE.md` — an invisible overlay the
+  game never draws). ONLY THEN, and only if `_unlock_purchases >
+  _reserve_max` **and** `map.json` `TileUnlocking.spawn_recede_enabled`, does
+  the old dual-axis recede below fire. Consequences worth knowing: the `>` (not
+  `>=`) keeps the old rule off on the very purchase that releases the LAST
+  batch; a map with no marks has `_reserve_max == 0`, so the guard is true from
+  the first purchase and behaviour is bit-for-bit what it always was; and
+  `spawn_recede_enabled: false` disables the old rule permanently without
+  touching the reserve. `_reserve` is built in `__init__` by ONE pass over the
+  MARKS (never over the map — the O(strip)-never-O(map) rule below). A mark on
+  a tile that is no longer BACKGROUND (the designer repainted over it) is
+  skipped silently but still counts as released, so the reserve always
+  exhausts and can never wedge the old rule off forever.
+- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND** (the old,
+  implicit rule — gated as above): a successful
   unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk
   AND the nearest col-aligned one to COMBAT (an axis with no aligned band is
   skipped — no nearest-overall fallback), then each converted block backfills

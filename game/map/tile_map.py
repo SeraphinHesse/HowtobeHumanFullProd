@@ -143,6 +143,22 @@ class TileMap:
             self._sec_row_origin = (
                 self.base_row - 1 if has_base else 0)
 
+        # -- Spawnable background: the designer-painted spawn reserve --------
+        # `doc.spawnable_background` is {(col, row): purchase}; inverted ONCE
+        # here into `purchase -> [(col, row), …]` so the nth successful tile
+        # purchase is a single O(1) dict hit at unlock time. This is ONE pass
+        # over the MARKS (a handful of painted cells), never a pass over the
+        # map — the O(strip)/never-O(map) invariant this module lives by.
+        # `_reserve_max` is the highest purchase number painted (0 when the
+        # map has no marks at all), which is what lets `do_unlock` tell
+        # "the reserve still has unreleased batches" from "the reserve is
+        # exhausted, hand back to the implicit recede".
+        self._reserve = {}
+        for (mark_col, mark_row), purchase in doc.spawnable_background.items():
+            self._reserve.setdefault(purchase, []).append((mark_col, mark_row))
+        self._reserve_max = max(self._reserve, default=0)
+        self._unlock_purchases = 0
+
         # Round gate for the damage-weight discount (dormant: nothing calls
         # set_round until 9F/10F). Defence-range coverage function is wired by
         # core in 10I; None keeps the range-affects-path feature dormant.
@@ -443,9 +459,32 @@ class TileMap:
                     return True
         return False
 
+    def _release_spawn_reserve(self, count):
+        """Flip every designer-painted mark numbered `count` from BACKGROUND to
+        SPAWNING — the spawnable-background reserve's nth batch, released on the
+        player's nth successful tile purchase.
+
+        A mark whose tile is NOT BACKGROUND (the designer repainted over it
+        after painting the mark, or an earlier batch/recede already claimed it)
+        is skipped SILENTLY — but it still counts as RELEASED: the batch is
+        consumed either way, so the reserve always exhausts on schedule and the
+        implicit recede takes over exactly when the numbering says it should.
+
+        Routes every write through `set_tile_state`, never `tile.state`: that
+        is the one place a zone change maintains `_by_state`, writes the "s"
+        ground code into `terrain_overrides`, fires `on_zone_change`, bumps
+        `_path_version` and re-resolves the tile's condition art."""
+        for col, row in self._reserve.get(count, ()):
+            t = self.get(col, row)
+            if t is not None and t.state == TileState.BACKGROUND:
+                self.set_tile_state(t, TileState.SPAWNING)
+
     def do_unlock(self, tile):
-        """Convert the tile's 2×2 chunk's COMBAT tiles → BUILDABLE, then recede
-        the spawn band one section outward. Returns True if anything changed."""
+        """Convert the tile's 2×2 chunk's COMBAT tiles → BUILDABLE, then move
+        the spawn band: release this purchase's designer-painted spawnable-
+        background batch, and — only once the whole reserve is exhausted — fall
+        back to the implicit `_recede_spawn_after_unlock`. Returns True if
+        anything changed."""
         if not self.can_unlock(tile):
             return False
         chunk = self.get_chunk_for_tile(tile)
@@ -455,7 +494,18 @@ class TileMap:
                 self.set_tile_state(t, TileState.BUILDABLE)
                 converted = True
         if converted:
-            self._recede_spawn_after_unlock(chunk)
+            self._unlock_purchases += 1
+            self._release_spawn_reserve(self._unlock_purchases)
+            # `>` not `>=` deliberately: on the very purchase that releases the
+            # LAST painted batch the designer's placement is the whole move, so
+            # the implicit recede stays off; it takes over from the next
+            # purchase on. `_reserve_max == 0` (no marks painted anywhere) makes
+            # this true from the first purchase — today's behaviour, bit for
+            # bit. `spawn_recede_enabled: false` disables the implicit system
+            # permanently, reserve or no reserve.
+            if (self._unlock_purchases > self._reserve_max
+                    and self._balance["TileUnlocking"]["spawn_recede_enabled"]):
+                self._recede_spawn_after_unlock(chunk)
         return converted
 
     # -- dynamic zone progression (prototype tile_map.py:377-438) ---------

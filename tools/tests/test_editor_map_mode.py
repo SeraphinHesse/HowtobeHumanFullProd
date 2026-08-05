@@ -317,6 +317,26 @@ class TestStartArea(MapModeCase):
                          {"col": 2, "row": 2, "slot": "start_area"})
 
 
+class TestSpawnReserve(MapModeCase):
+    """The spawnable-background brush: ONE undo command per stroke, and undo
+    restores exactly the marks that were there before."""
+
+    def test_reserve_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.spawnable_background[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.spawnable_background)
+        self.window.palette.set_mode("spawn_reserve")
+        self.window.palette.set_reserve_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.spawnable_background[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.spawnable_background, before)
+
+
 class TestRenderPath(MapModeCase):
     """ED-22: eyes/tints/grid observed at the engine backend, not via Qt."""
 

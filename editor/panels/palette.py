@@ -12,8 +12,13 @@ PAINT MODES (user-directed):
   "Var 2", …), so a specific variant is armed and stored in the map file.
   "+ Variant" adds another variant to the current type; "+ Add Prop" adds a
   brand-new type.
+- **Spawnable Background** — ONE brush (plain text, NO sprite: a mark is an
+  invisible overlay, not a tile kind) plus a spinbox for the purchase NUMBER
+  the marks it paints carry. Every mark numbered n releases together on the
+  player's nth tile purchase; the underlying forest/cliff/ocean art keeps
+  drawing and the game never sees the mark as a legend code.
 
-A single exclusive brush group spans all three mode pages, so exactly one brush
+A single exclusive brush group spans all mode pages, so exactly one brush
 is armed at a time. The tool row (none/paint/erase/line/rect/bucket/picker), the
 layer eyes, the grid toggle, and "Import Spritesheet…" are shared across modes.
 
@@ -41,19 +46,22 @@ from PySide6.QtWidgets import (
 )
 
 from editor.asset_import import import_idle_sheet
-from editor.panels.balancing import _NoWheelComboBox
+from editor.panels.balancing import _NoWheelComboBox, _NoWheelSpinBox
+from engine import data_io, tilemap
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
-EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial")
-MODES = ("gametiles", "background", "decoration", "tutorial")
+EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial",
+        "spawn_reserve")
+MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
     "decoration": "Decoration",
     "tutorial": "Tutorial",
+    "spawn_reserve": "Spawnable Background",
 }
 
 
@@ -72,6 +80,8 @@ class PalettePanel(QWidget):
     start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
     tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
     tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
+    spawn_reserve_armed = Signal()      # the spawnable-background brush (no slot)
+    reserve_number_changed = Signal(int)  # the purchase number marks carry
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -187,6 +197,30 @@ class PalettePanel(QWidget):
         self._deco_flip_box.toggled.connect(self.deco_flip_toggled.emit)
         self._pages["decoration"][2].addWidget(self._deco_flip_box)
 
+        # spawnable-background page: ONE plain-text brush (no sprite — the mark
+        # is an invisible overlay, like the tutorial markers which also draw as
+        # outlines) in the SAME exclusive group as every other brush, with the
+        # purchase-number spinbox directly under it.
+        reserve_layout = self._pages["spawn_reserve"][2]
+        self._spawn_reserve_btn = QToolButton(self)
+        self._spawn_reserve_btn.setText("Spawn Reserve Mark")
+        self._spawn_reserve_btn.setToolTip(
+            "Paint invisible spawnable-background marks: every mark numbered n "
+            "turns SPAWNING on the player's nth tile purchase")
+        self._spawn_reserve_btn.setCheckable(True)
+        self._spawn_reserve_btn.clicked.connect(
+            lambda _=False: self.arm_spawn_reserve())
+        self._brush_group.addButton(self._spawn_reserve_btn)
+        reserve_layout.addWidget(self._spawn_reserve_btn)
+
+        reserve_layout.addWidget(QLabel("Released on tile purchase #"))
+        lo, hi = self._reserve_number_bounds()
+        self._reserve_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._reserve_spin.setRange(lo, hi)
+        self._reserve_spin.setValue(lo)
+        self._reserve_spin.valueChanged.connect(self.reserve_number_changed.emit)
+        reserve_layout.addWidget(self._reserve_spin)
+
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
@@ -196,7 +230,8 @@ class PalettePanel(QWidget):
         layout.addWidget(QLabel("Layers"))
         self._eye_boxes = {}
         for name in EYES:
-            box = QCheckBox(name.replace("_", " ").title(), self)
+            box = QCheckBox(
+                MODE_LABELS.get(name, name.replace("_", " ").title()), self)
             box.setChecked(True)
             box.toggled.connect(
                 lambda on, n=name: self.eye_toggled.emit(n, on))
@@ -264,6 +299,15 @@ class PalettePanel(QWidget):
             return list(self._registry.group_slots("core", ("Tutorial Stone",)))
         except (KeyError, ValueError):
             return []
+
+    def _reserve_number_bounds(self):
+        """(minimum, maximum) for the purchase-number spinbox, read straight
+        from map_file.schema.json's spawnable_background item — invalid input
+        is unrepresentable (ED-30) and the bounds have exactly one home."""
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        purchase = (schema["properties"]["spawnable_background"]
+                    ["items"]["properties"]["purchase"])
+        return purchase["minimum"], purchase["maximum"]
 
     def _zone_codes(self):
         """Legend codes for the zone (checker) tiles, sorted."""
@@ -560,6 +604,8 @@ class PalettePanel(QWidget):
             flutes = self._tutorial_flute_slots()
             if flutes:
                 self.arm_tutorial_flute(flutes[0])
+        elif self._mode == "spawn_reserve":
+            self.arm_spawn_reserve()
         else:
             decos = self._deco_slots()
             if decos:
@@ -659,6 +705,21 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_spawn_reserve(self):
+        """True while the Spawnable Background brush is armed. Follows the
+        armed_tutorial_stone pattern, but the brush has no SLOT to return (a
+        mark is an overlay, not a sprite), so the answer is a bool."""
+        return self._spawn_reserve_btn.isChecked()
+
+    def reserve_number(self):
+        """The purchase number newly painted marks carry."""
+        return self._reserve_spin.value()
+
+    def set_reserve_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        code_picked -> arm_code). Out-of-range values clamp in QSpinBox."""
+        self._reserve_spin.setValue(int(n))
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -727,6 +788,13 @@ class PalettePanel(QWidget):
             return
         btn.setChecked(True)
         self.tutorial_stone_armed.emit(slot)
+
+    def arm_spawn_reserve(self):
+        """Arm the Spawnable Background brush (paint = mark with the spinbox's
+        number, erase = clear the mark). Shares the one exclusive brush group,
+        so this disarms EVERY other brush, tutorial markers included."""
+        self._spawn_reserve_btn.setChecked(True)
+        self.spawn_reserve_armed.emit()
 
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot
