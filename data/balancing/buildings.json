@@ -281,7 +281,7 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Slinger",
-          "range_tiles": 2,
+          "range_tiles": 1,
           "unlock_min_round": 10,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 10,
