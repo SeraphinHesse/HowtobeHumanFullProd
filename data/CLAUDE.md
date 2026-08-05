@@ -229,8 +229,10 @@ validating writer; don't hand-edit the JSON.
     `EnemyTypes.Commander`, a normal era-shaped block (its own `eras[]` rows,
     `endgame_scaling`, flat `footprint`/`sprite_scale`, `registry_group
     "Commander"`, four `commander_stage_*` slots in `slots.json`) shipped
-    DORMANT: every era row's `count_start`/`count_per_round` is 0, so it never
-    enters a wave, and every `commander` count above is still 0. Widening
+    DORMANT as a *wave* enemy: every era row's `count_start`/`count_per_round`
+    is 0, so it never enters a wave. It reaches the board by exactly one route
+    — `Boss.second_phase.spawns[0].commander` is 1, the era-0 boss's staged
+    child; every other `commander` count is still 0. Widening
     the shared `$def` was chosen deliberately over a boss-only count table,
     overriding the standing argument against it in `game/enemies/CLAUDE.md`.
 - **The parity gate is GONE, and balancing values are now free.** The migration

@@ -306,10 +306,12 @@ override.
     purpose (see the endgame section above).
   - **D5's tuning, the ONE gameplay change in BR-5**: era 0 ships
     `at_hp_fraction 0.5` + `spawn_hp_fraction 0.5`; eras 1–4 keep `0.0`/`1.0`.
-    Measured consequence to know, because era 0's `spawns` row is still all
-    zeros: the era-0 boss now **dies at 50% of its max HP with no children** —
-    effectively 700 HP instead of 1400. The plan's era-0 `commander: 1` is
-    NOT shipped (out of BR-5's dispatched scope); one data edit turns it on.
+    Era 0's `spawns` row ships `commander: 1` (added after BR-5, with the
+    user's approval), so the era-0 boss stages into a real two-phase fight:
+    at 50% HP it freezes, turns untargetable, plays `endphase`, releases ONE
+    Commander at its own tile, then dies. Shipping the thresholds *without*
+    that count is what makes the boss effectively 700 HP instead of 1400 —
+    the two are a pair, so never tune one to zero alone.
 
 ## Commander (BR-2) — LIVE code, DORMANT data
 The boss's officer. **Nothing spawns it today** and that is the phase's whole
