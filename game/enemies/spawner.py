@@ -4,12 +4,16 @@ Ports the prototype's ``_begin_enemy_phase`` (composition + queue build) and the
 ``_update_enemy_phase`` spawn loop (``src/core/game.py``). Standard, raider and
 siege enemies are all EMITTED since 10F (raiders from ``Raider.start_round``,
 siege from ``SiegeCannon.start_round``); the boss is LIVE since 10G — every
-``Boss.round_interval``-th round composes ``[boss] + ALL siege +
-shuffle(standard + raiders)`` from the ``round_counts`` table (falling back to
-the three normal per-type formulas beyond it), and the boss entry's tier IS its
-era. Formations join since ER-4 (from ``Formation.start_round``, accreting one
-per ``rounds_per_formation``, mixed into the shuffled body — never leading the
-queue, never on a boss round). Timing is prototype-exact: a linear slow→fast
+boss round (the era clock's ``boss_round_in_era``) composes ``[boss] + ALL
+siege + shuffle(standard + raiders)`` from the ``round_counts`` table (falling
+back to the normal per-type era-row counts beyond it), and the boss entry's era
+is its own. Formations join since ER-4 (from ``Formation.start_round``, mixed
+into the shuffled body — never leading the queue, never on a boss round).
+
+Since ES-2 every count and the spawn interval come from the ONE era clock in
+``EnemyScaling`` (``rounds_per_era`` / ``boss_round_in_era``) resolved through
+``engine.era_math`` — no formula lives in this file any more. Timing is
+otherwise prototype-exact: a linear slow→fast
 ramp across the wave with a per-enemy ``uniform(0.4, 1.6)`` jitter (or, ramp-off,
 a re-rolled jitter per spawn). The round loop that CALLS ``begin_round`` and
 detects wave-clear is 9F; 9E exposes the pieces (``begin_round`` / ``update`` /
@@ -22,6 +26,7 @@ module).
 """
 import random
 
+from engine import era_math
 from engine.core import Health
 from game.map.pathfinder import block_tiles
 
@@ -55,7 +60,8 @@ class Spawner:
         self._queue = []       # list of (tile, etype, delay | None)
         self._timer = 0.0
         self._interval = 0.0
-        self._tier = 0
+        self._era = 0          # the round's era (ES-2: era IS the old tier)
+        self._round_in_era = 1  # 1-based position inside that era (D2)
         self._round = 0
         self._balance = None
         self._tilemap = None
@@ -78,8 +84,15 @@ class Spawner:
         return not self._queue
 
     @property
+    def enemy_era(self):
+        """The round's era — what every stat/count/art lookup is keyed on."""
+        return self._era
+
+    @property
     def enemy_tier(self):
-        return self._tier
+        """Alias kept for external readers (the scale TIER became the ERA in
+        ES-2; one number, two names)."""
+        return self._era
 
     def pending(self):
         """``(tile, etype)`` for every queued, not-yet-spawned enemy. The round
@@ -105,17 +118,14 @@ class Spawner:
         self._clear_cache = {}   # the spawn zone recedes between rounds
 
         scaling = enemies_balance["EnemyScaling"]
-        tiers = scaling["scale_tiers"]
-        # TU-9: round 0 is the tutorial's forced-composition round (see
-        # _compose) — it never scales, so the tier formula (which goes
-        # negative at round_num - 1 == -1) is skipped outright rather than
-        # guarded piecemeal.
-        self._tier = (0 if round_num == 0 else
-                      (round_num - 1) // scaling["scale_every_n_levels"])
-        n = min(self._tier, len(tiers))
-        interval = scaling["spawn_interval"] - sum(
-            tiers[i]["spawn_interval"] for i in range(n))
-        self._interval = max(0.1, interval)
+        # ES-2/D1: ONE clock. TU-9's round 0 needs no special case here —
+        # era_math clamps it to era 0 (D11) instead of the old formula's
+        # negative index.
+        rounds_per_era = scaling["rounds_per_era"]
+        self._era = era_math.era_of_round(round_num, rounds_per_era)
+        self._round_in_era = era_math.round_in_era(round_num, rounds_per_era)
+        pacing = era_math.resolve_era_row(scaling["eras"], self._era)
+        self._interval = max(0.1, pacing["spawn_interval"])
 
         spawn_tiles = tilemap.spawning_tiles()
         combined = self._compose(round_num, enemies_balance, spawn_tiles)
@@ -155,12 +165,30 @@ class Spawner:
             self._clear_cache[footprint] = hit
         return hit
 
+    # -- per-type counts (ES-2: one era-row resolver, no per-type formula) --
+
+    def _count_of(self, balance, type_key, round_num):
+        """How many of ``type_key`` this round wants (D3/D3').
+
+        The type's own era row is resolved from the global clock and handed to
+        ``era_math.count_at_round``, which floors
+        ``count_start + k * count_per_round`` from the era's first ACTIVE round
+        ``max(era first round, start_round)`` — the ONE count formula in the
+        game, shared by the standard/raider/siege/formation sites AND by
+        ``_boss_round``'s past-the-table fallback."""
+        block = balance["EnemyTypes"][type_key]
+        rounds_per_era = balance["EnemyScaling"]["rounds_per_era"]
+        era = era_math.era_of_round(round_num, rounds_per_era)
+        row = era_math.resolve_era_row(block["eras"], era)
+        return era_math.count_at_round(
+            row, round_num, era * rounds_per_era + 1, block["start_round"])
+
     def _compose(self, round_num, balance, spawn_tiles):
         """Build the (tile, etype) list for the round: standard + raiders +
         siege (10F) + formations (ER-4). Siege leads the queue; everything else
-        is shuffled behind it. Every ``Boss.round_interval``-th round takes the
-        boss composition instead (10G) — the lead/mix siege split applies to
-        NON-boss rounds only, and formations do not appear at all (see
+        is shuffled behind it. A boss round (``era_math.is_boss_round``) takes
+        the boss composition instead (10G) — the lead/mix siege split applies
+        to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
         ``_formation_group`` is called LAST on purpose: every earlier group's
@@ -168,10 +196,10 @@ class Spawner:
         siege counts and picks are unchanged at every round.
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
-        FIRST, before the boss check (``0 % round_interval == 0`` is always
-        True, so an unguarded boss check would wrongly treat round 0 as a
-        boss round at every ``round_interval``) and before any scaling
-        formula. It always composes exactly
+        FIRST, before the boss check (``era_math.is_boss_round`` is already
+        False at round 0 for every configuration, D11, but the round-0 branch
+        is a COMPOSITION rule and stays ahead of it). It always composes
+        exactly
         ``EnemyScaling.tutorial_round_enemy_count`` Standard walkers,
         ignoring every other composition rule."""
         if not spawn_tiles:
@@ -180,12 +208,12 @@ class Spawner:
             n = balance["EnemyScaling"]["tutorial_round_enemy_count"]
             return [(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
                     for _ in range(n)]
-        if (ENABLE_BOSS and round_num
-                % balance["EnemyTypes"]["Boss"]["round_interval"] == 0):
-            return self._boss_round(round_num, balance, spawn_tiles)
         scaling = balance["EnemyScaling"]
-        count = scaling["base_enemy_count"] + (round_num - 1) * (
-            scaling["enemies_per_round"] + self._tier)
+        if ENABLE_BOSS and era_math.is_boss_round(
+                round_num, scaling["rounds_per_era"],
+                scaling["boss_round_in_era"]):
+            return self._boss_round(round_num, balance, spawn_tiles)
+        count = self._count_of(balance, "Standard", round_num)
         regular = [(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
                    for _ in range(count)]
 
@@ -202,12 +230,13 @@ class Spawner:
         """Boss-round composition (10G, prototype ``game.py:831-874``): exactly
         ONE boss leads, then EVERY siege cannon (no lead/mix split), then the
         shuffled standard+raider companions. Counts come from
-        ``Boss.round_counts[boss_idx]``; beyond the table the three normal
-        per-type formulas (incl. start-round guards) take over. The boss
-        entry's tier is its ERA (``round // interval - 1``, clamped in
-        ``Boss.__init__``); companions keep the real scale tier."""
+        ``Boss.round_counts[era]``; beyond the table the normal per-type era-row
+        counts (``_count_of``, start-round guards included) take over. The boss
+        entry's era is the global era (clamped in ``Boss._resolve_era``);
+        companions carry the same era."""
         boss_cfg = balance["EnemyTypes"]["Boss"]
-        boss_idx = round_num // boss_cfg["round_interval"] - 1
+        boss_idx = era_math.era_of_round(
+            round_num, balance["EnemyScaling"]["rounds_per_era"])
         self._boss_era = max(0, boss_idx)
         counts = boss_cfg["round_counts"]
         if boss_idx < len(counts):
@@ -216,18 +245,11 @@ class Spawner:
             n_raiders = row["raiders"]
             n_siege = row["siege"]
         else:
-            scaling = balance["EnemyScaling"]
-            n_regular = scaling["base_enemy_count"] + (round_num - 1) * (
-                scaling["enemies_per_round"] + self._tier)
-            r = balance["EnemyTypes"]["Raider"]
-            n_raiders = (
-                r["base_count"] + (round_num - r["start_round"]) * r["per_round"]
-                if ENABLE_RAIDERS and round_num >= r["start_round"] else 0)
-            s = balance["EnemyTypes"]["SiegeCannon"]
-            n_siege = (
-                s["base_count"]
-                + (round_num - s["start_round"]) // s["rounds_per_cannon"]
-                if ENABLE_SIEGE and round_num >= s["start_round"] else 0)
+            n_regular = self._count_of(balance, "Standard", round_num)
+            n_raiders = (self._count_of(balance, "Raider", round_num)
+                         if ENABLE_RAIDERS else 0)
+            n_siege = (self._count_of(balance, "SiegeCannon", round_num)
+                       if ENABLE_SIEGE else 0)
         boss = [(self._pick_spawn_tile(spawn_tiles, "boss"), "boss")]
         siege = [(self._pick_spawn_tile(spawn_tiles, "siege"), "siege")
                  for _ in range(n_siege)]
@@ -241,10 +263,7 @@ class Spawner:
     def _raider_group(self, round_num, balance, spawn_tiles):
         if not ENABLE_RAIDERS:
             return []
-        r = balance["EnemyTypes"]["Raider"]
-        if round_num < r["start_round"]:
-            return []
-        n = r["base_count"] + (round_num - r["start_round"]) * r["per_round"]
+        n = self._count_of(balance, "Raider", round_num)
         return [(self._pick_spawn_tile(spawn_tiles, "raider"), "raider")
                 for _ in range(n)]
 
@@ -252,20 +271,17 @@ class Spawner:
         if not ENABLE_SIEGE:
             return [], []
         s = balance["EnemyTypes"]["SiegeCannon"]
-        if round_num < s["start_round"]:
-            return [], []
-        n = (s["base_count"]
-             + (round_num - s["start_round"]) // s["rounds_per_cannon"])
+        n = self._count_of(balance, "SiegeCannon", round_num)
         siege = [(self._pick_spawn_tile(spawn_tiles, "siege"), "siege")
                  for _ in range(n)]
         lead = min(int(s["queue_lead_count"] * s["mix_ratio"]), len(siege))
         return siege[:lead], siege[lead:]
 
     def _formation_group(self, round_num, balance, spawn_tiles):
-        """Formations from ``Formation.start_round``, one more every
-        ``rounds_per_formation`` rounds — the SiegeCannon ACCRETION formula (a
-        heavy that trickles in), not the Raider one (a swarm that grows
-        linearly). Mixed into the shuffled body: unlike siege they do NOT lead
+        """Formations from ``Formation.start_round``, accreting at the era
+        row's fractional ``count_per_round`` (1/3 = one more every three
+        rounds) — a heavy that trickles in, not a swarm that grows linearly.
+        Mixed into the shuffled body: unlike siege they do NOT lead
         the queue, because a 2×2 body at the head of the wave would wall the
         choke point before anything else arrived.
 
@@ -276,11 +292,7 @@ class Spawner:
         Deliberate; see game/enemies/CLAUDE.md."""
         if not ENABLE_FORMATION:
             return []
-        f = balance["EnemyTypes"]["Formation"]
-        if round_num < f["start_round"]:
-            return []
-        n = (f["base_count"]
-             + (round_num - f["start_round"]) // f["rounds_per_formation"])
+        n = self._count_of(balance, "Formation", round_num)
         return [(self._pick_spawn_tile(spawn_tiles, "formation"), "formation")
                 for _ in range(n)]
 
@@ -317,12 +329,13 @@ class Spawner:
         if self._timer > 0:
             return
         tile, etype, delay = self._queue.pop(0)
-        # The boss's `tier` argument IS its era (Boss.__init__ clamps it, 10G);
-        # every other entry keeps the real scale tier.
-        tier = self._boss_era if etype == "boss" else self._tier
+        # ES-2: ONE era for stats, art and death-spawn rows alike. The boss
+        # takes the era stashed by _boss_round (identical to self._era today —
+        # kept separate so a future boss-only clock has a seam).
+        era = self._boss_era if etype == "boss" else self._era
         enemy = create_enemy(
             etype, tile.col, tile.row, self._balance, self._tilemap,
-            tier, self._registry, self._rng)
+            era, self._registry, self._rng, self._round_in_era)
         scene.spawn(enemy)
         if delay is None:
             base = self._interval
@@ -338,7 +351,7 @@ class Spawner:
         """Burst ``plan`` — an enemy's resolved ``death_spawn_plan`` — at
         ``(col, row)``, IMMEDIATELY into the scene (never the queue), so the
         children path from that tile on spawn. Members take the CURRENT round's
-        scale tier (standard + siege scale; raiders never do). Each child is
+        era row (the Raider's rows are flat by design). Each child is
         seeded to ``plan["spawn_hp_fraction"]`` of its own max HP; at 1.0 (the
         Boss's 10G swarm) ``Health`` is not touched at all, so that path is
         byte-identical. The Session flushes this before its wave-clear check;
@@ -349,7 +362,7 @@ class Spawner:
             for _ in range(counts[key]):
                 enemy = create_enemy(
                     etype, col, row, self._balance, self._tilemap,
-                    self._tier, self._registry, self._rng)
+                    self._era, self._registry, self._rng, self._round_in_era)
                 if frac < 1.0:
                     health = enemy.get_component(Health)
                     health.hp = max(1, int(health.max_hp * frac))

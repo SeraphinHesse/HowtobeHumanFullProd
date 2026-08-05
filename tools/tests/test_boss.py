@@ -4,9 +4,11 @@ A/B bonuses (payday slot 3 + in-sweep deltas + story damage), cutscene flow, XP.
 Pure-Python, headless — the ``test_phase_loop.py`` fixture style: a synth
 ``TileMapDoc`` -> ``TileMap`` board, real balancing via ``load_balance``, and a
 deterministic ``random.Random(seed)`` injected into ``Spawner.begin_round`` /
-``Session``. All hand-computed expectations use the REPO's live JSON (NOT the
-prototype's numbers — ``EnemyScaling.scale_every_n_levels`` is 9 here vs the
-prototype's 10, a pre-existing deliberate drift)."""
+``Session``. All hand-computed expectations come from the fixture's own JSON —
+since ES-2 that means the per-era rows (``EnemyTypes.<type>.eras``) and the ONE
+era clock (``EnemyScaling.rounds_per_era`` / ``boss_round_in_era``), never a
+tier formula."""
+import math
 import copy
 import random
 import unittest
@@ -27,7 +29,7 @@ from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.combat import _chebyshev, _fp_offset
 from game.enemies.components import EnemyCombat, PathAgent
-from game.enemies.enemy import tier_scaled_stats
+from game.enemies.enemy import era_stats
 from game.map.tile_map import TileMap
 from game.map.tiles import TileCondition
 
@@ -44,7 +46,21 @@ RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
 HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
-INTERVAL = BOSS["round_interval"]
+INTERVAL = SCALE["rounds_per_era"]   # boss_round_in_era == the era's last
+
+
+def expected_count(type_key, round_num):
+    """Hand-computed per-era count (D3/D3'): floor(count_start + k *
+    count_per_round) from the era's first ACTIVE round, 0 before start_round."""
+    block = ENEM["EnemyTypes"][type_key]
+    rows = block["eras"]
+    era = max(0, (round_num - 1) // INTERVAL)
+    row = rows[min(era, len(rows) - 1)]
+    r0 = max(era * INTERVAL + 1, block["start_round"])
+    if round_num < r0:
+        return 0
+    return math.floor(round(
+        row["count_start"] + (round_num - r0) * row["count_per_round"], 9))
 
 
 def synth(rows, base=(0, 0)):
@@ -112,16 +128,13 @@ class TestBossQueueComposition(unittest.TestCase):
                          Counter({"standard": row["regular"],
                                   "raider": row["raiders"]}))
 
-    def test_round_60_beyond_table_falls_back_to_formulas(self):
-        r = INTERVAL * 6  # boss_idx 5 — past the 5-row table
+    def test_round_60_beyond_table_falls_back_to_era_row_counts(self):
+        r = INTERVAL * 6  # era 5 — past the 5-row table AND past era 4, so the
+        # era rows clamp to the last one (D5; ES-4 adds the endgame factors).
         _sp, etypes = queue_etypes(r, self.tm)
-        tier = (r - 1) // SCALE["scale_every_n_levels"]
-        n_regular = SCALE["base_enemy_count"] + (r - 1) * (
-            SCALE["enemies_per_round"] + tier)
-        n_raiders = (RAIDER["base_count"]
-                     + (r - RAIDER["start_round"]) * RAIDER["per_round"])
-        n_siege = (SIEGE["base_count"]
-                   + (r - SIEGE["start_round"]) // SIEGE["rounds_per_cannon"])
+        n_regular = expected_count("Standard", r)
+        n_raiders = expected_count("Raider", r)
+        n_siege = expected_count("SiegeCannon", r)
         self.assertEqual(etypes[0], "boss")
         self.assertEqual(etypes.count("boss"), 1)
         self.assertEqual(etypes.count("standard"), n_regular)
@@ -133,15 +146,8 @@ class TestBossQueueComposition(unittest.TestCase):
         r = INTERVAL + 1
         _sp, etypes = queue_etypes(r, self.tm)
         self.assertNotIn("boss", etypes)
-        tier = (r - 1) // SCALE["scale_every_n_levels"]
-        self.assertEqual(
-            etypes.count("standard"),
-            SCALE["base_enemy_count"] + (r - 1) * (
-                SCALE["enemies_per_round"] + tier))
-        self.assertEqual(
-            etypes.count("raider"),
-            RAIDER["base_count"]
-            + (r - RAIDER["start_round"]) * RAIDER["per_round"])
+        self.assertEqual(etypes.count("standard"), expected_count("Standard", r))
+        self.assertEqual(etypes.count("raider"), expected_count("Raider", r))
         self.assertEqual(etypes.count("siege"), 0)  # r11 < siege start_round
 
 
@@ -244,16 +250,15 @@ class TestDeathSwarm(unittest.TestCase):
                                           "siege": SWARM["siege"]}))
         for e in enemies:
             self.assertEqual((e._col, e._row), (1, 0))  # the boss's tile
-        # CURRENT tier: standard swarm members carry the cumulative bonus
-        # (round 10 -> tier (10-1)//9 = 1 with repo data); raiders never do.
-        tier = (INTERVAL - 1) // SCALE["scale_every_n_levels"]
-        std_hp = tier_scaled_stats(
-            self.enem["EnemyTypes"]["Standard"], self.enem, tier)[0]
+        # CURRENT era: swarm members carry the round's era row (round 10 is
+        # still era 0); the raider's rows are flat, so it never moves.
+        era = (INTERVAL - 1) // INTERVAL
+        std_hp = era_stats(self.enem["EnemyTypes"]["Standard"], era)[0]
         std = next(e for e in enemies if e.ETYPE == "standard")
         self.assertEqual(std.get_component(Health).max_hp, std_hp)
         raider = next(e for e in enemies if e.ETYPE == "raider")
         self.assertEqual(raider.get_component(Health).max_hp,
-                         self.enem["EnemyTypes"]["Raider"]["hp"])
+                         era_stats(self.enem["EnemyTypes"]["Raider"], era)[0])
         # One-shot guard: reporting the same boss again spawns nothing.
         n = len(enemies)
         session.on_enemy_death(boss)
@@ -602,7 +607,7 @@ class TestConditionSpeedFloor(unittest.TestCase):
                                    ("siege", "SiegeCannon", 0.6),
                                    ("formation", "Formation", 0.5)):
             with self.subTest(etype=etype):
-                real = ENEM["EnemyTypes"][key]["move_speed"]
+                real = ENEM["EnemyTypes"][key]["eras"][0]["stats"]["move_speed"]
                 speed = self._speed_on(create_enemy(etype, 1, 0, ENEM, tm),
                                        TileCondition.FOREST)
                 self.assertAlmostEqual(speed, real - self.PEN)

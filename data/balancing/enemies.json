@@ -1,41 +1,33 @@
 {
   "EnemyScaling": {
-    "base_enemy_count": 1,
-    "enemies_per_round": 2,
-    "scale_every_n_levels": 10,
-    "scale_tiers": [
+    "boss_round_in_era": 10,
+    "endgame_scaling": {
+      "batch_size": 1.0,
+      "spawn_interval": 1.0
+    },
+    "eras": [
       {
-        "dmg": 6,
-        "hp": 35,
-        "spawn_interval": 0.07,
-        "speed": 0.06
+        "batch_size": 1,
+        "spawn_interval": 0.8
       },
       {
-        "dmg": 10,
-        "hp": 45,
-        "spawn_interval": 0.09,
-        "speed": 0.085
+        "batch_size": 2,
+        "spawn_interval": 0.73
       },
       {
-        "dmg": 20,
-        "hp": 70,
-        "spawn_interval": 0.1,
-        "speed": 0.2
+        "batch_size": 3,
+        "spawn_interval": 0.64
       },
       {
-        "dmg": 25,
-        "hp": 85,
-        "spawn_interval": 0.13,
-        "speed": 0.2
+        "batch_size": 4,
+        "spawn_interval": 0.54
       },
       {
-        "dmg": 40,
-        "hp": 100,
-        "spawn_interval": 0.3,
-        "speed": 0.25
+        "batch_size": 5,
+        "spawn_interval": 0.41000000000000003
       }
     ],
-    "spawn_interval": 0.8,
+    "rounds_per_era": 10,
     "spawn_ramp_enabled": true,
     "spawn_ramp_range": 0.6,
     "tutorial_round_enemy_count": 1
@@ -110,7 +102,6 @@
           "siege": 61
         }
       ],
-      "round_interval": 10,
       "shake": {
         "interval": 0.12,
         "strength": 0.6
@@ -160,9 +151,6 @@
       ]
     },
     "Formation": {
-      "attack_range_tiles": 1,
-      "attack_speed": 1.4,
-      "base_count": 1,
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
@@ -180,21 +168,102 @@
           }
         ]
       },
-      "dmg": 30,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 0.3333333333333333,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.4,
+            "dmg": 30,
+            "hp": 440,
+            "move_speed": 0.9
+          }
+        },
+        {
+          "count_per_round": 0.3333333333333333,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.4,
+            "dmg": 36,
+            "hp": 475,
+            "move_speed": 0.96
+          }
+        },
+        {
+          "count_per_round": 0.3333333333333333,
+          "count_start": 2.666666666666667,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.4,
+            "dmg": 46,
+            "hp": 520,
+            "move_speed": 1.045
+          }
+        },
+        {
+          "count_per_round": 0.3333333333333333,
+          "count_start": 6,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.4,
+            "dmg": 66,
+            "hp": 590,
+            "move_speed": 1.245
+          }
+        },
+        {
+          "count_per_round": 0.3333333333333333,
+          "count_start": 9.333333333333334,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.4,
+            "dmg": 91,
+            "hp": 675,
+            "move_speed": 1.445
+          }
+        }
+      ],
       "footprint": 1,
-      "hp": 440,
       "hunts": "base",
       "kidnapping": false,
-      "move_speed": 0.9,
       "registry_group": "Formation",
-      "rounds_per_formation": 3,
       "sprite_scale": 1.0,
       "start_round": 16
     },
     "Raider": {
-      "attack_range_tiles": 1,
-      "attack_speed": 0.8,
-      "base_count": 1,
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
@@ -212,21 +281,102 @@
           }
         ]
       },
-      "dmg": 20,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 1,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 0.8,
+            "dmg": 20,
+            "hp": 42,
+            "move_speed": 2.7
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 7,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 0.8,
+            "dmg": 20,
+            "hp": 42,
+            "move_speed": 2.7
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 17,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 0.8,
+            "dmg": 20,
+            "hp": 42,
+            "move_speed": 2.7
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 27,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 0.8,
+            "dmg": 20,
+            "hp": 42,
+            "move_speed": 2.7
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 37,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 0.8,
+            "dmg": 20,
+            "hp": 42,
+            "move_speed": 2.7
+          }
+        }
+      ],
       "footprint": 1,
-      "hp": 42,
       "hunts": "economic",
       "kidnapping": true,
-      "move_speed": 2.7,
-      "per_round": 1,
       "registry_group": "Raider",
       "sprite_scale": 1.0,
       "start_round": 5
     },
     "SiegeCannon": {
-      "attack_range_tiles": 2,
-      "attack_speed": 1.9,
-      "base_count": 1,
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
@@ -244,22 +394,104 @@
           }
         ]
       },
-      "dmg": 100,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 1,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 1.9,
+            "dmg": 100,
+            "hp": 280,
+            "move_speed": 1.0
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 1.9,
+            "dmg": 106,
+            "hp": 315,
+            "move_speed": 1.06
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 8,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 1.9,
+            "dmg": 116,
+            "hp": 360,
+            "move_speed": 1.145
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 18,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 1.9,
+            "dmg": 136,
+            "hp": 430,
+            "move_speed": 1.345
+          }
+        },
+        {
+          "count_per_round": 1,
+          "count_start": 28,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 1.9,
+            "dmg": 161,
+            "hp": 515,
+            "move_speed": 1.545
+          }
+        }
+      ],
       "footprint": 1,
-      "hp": 280,
       "hunts": "defence",
       "kidnapping": false,
       "mix_ratio": 0.5,
-      "move_speed": 1.0,
       "queue_lead_count": 5,
       "registry_group": "Siege Cannon",
-      "rounds_per_cannon": 1,
       "sprite_scale": 1.0,
       "start_round": 14
     },
     "Standard": {
-      "attack_range_tiles": 1,
-      "attack_speed": 1.2,
       "condition_path_weights": {
         "forest": 1,
         "mountain": 2,
@@ -277,14 +509,100 @@
           }
         ]
       },
-      "dmg": 10,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 2,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.2,
+            "dmg": 10,
+            "hp": 55,
+            "move_speed": 1.2
+          }
+        },
+        {
+          "count_per_round": 3,
+          "count_start": 31,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.2,
+            "dmg": 16,
+            "hp": 90,
+            "move_speed": 1.26
+          }
+        },
+        {
+          "count_per_round": 4,
+          "count_start": 81,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.2,
+            "dmg": 26,
+            "hp": 135,
+            "move_speed": 1.345
+          }
+        },
+        {
+          "count_per_round": 5,
+          "count_start": 151,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.2,
+            "dmg": 46,
+            "hp": 205,
+            "move_speed": 1.545
+          }
+        },
+        {
+          "count_per_round": 6,
+          "count_start": 241,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.2,
+            "dmg": 71,
+            "hp": 290,
+            "move_speed": 1.745
+          }
+        }
+      ],
       "footprint": 1,
-      "hp": 55,
       "hunts": "base",
       "kidnapping": true,
-      "move_speed": 1.2,
       "registry_group": "Walker",
-      "sprite_scale": 1.0
+      "sprite_scale": 1.0,
+      "start_round": 1
     }
   },
   "MortarTargeting": {

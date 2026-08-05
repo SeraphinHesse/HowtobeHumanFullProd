@@ -7,24 +7,24 @@ the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-saf
 ``@property``s over ``Health`` / ``EnemyCombat``.
 
 ``Standard`` / ``Raider`` / ``SiegeCannon`` are all LIVE since 10F, ``Boss``
-since 10G (era stats via tier-as-era, nearest-building hunting with
-re-path-on-kill, the ``"boss"`` scene tag), ``Formation`` since ER-4 (the 2×2
-marching column that dies at half HP and scatters regulars — pure data over the
-ER-1/ER-2/ER-3 mechanics, no new code path). Each subclass resolves its own stat
-subtree + slot prefix and little else.
+since 10G (nearest-building hunting with re-path-on-kill, the ``"boss"`` scene
+tag), ``Formation`` since ER-4 (the 2×2 marching column that dies at half HP and
+scatters regulars — pure data over the ER-1/ER-2/ER-3 mechanics, no new code
+path). Each subclass resolves its own stat subtree + slot prefix and little else.
 
-Scale-tier stats are resolved at CONSTRUCTION into component fields (prototype
-``enemy.py:88-108``): ``hp``/``dmg``/``speed`` = the type's base plus the
-cumulative sum of ``EnemyScaling.scale_tiers[0..tier)`` bonuses — Standard and
-SiegeCannon scale that way, ``Raider`` deliberately does NOT, and ``Boss`` reads a
-per-era table (see ``tier_scaled_stats``). Movement is in
-fractional tile coords (``move_speed`` tiles/sec straight into ``Movement.speed``
-— no ×32 pixel conversion; that lived in the prototype's pixel space).
+Stats are resolved at CONSTRUCTION into component fields, since ES-2 from the
+type's OWN per-era rows (``EnemyTypes.<type>.eras[era]``): fully manual absolute
+values per era plus a flat ``per_round`` growth inside the era
+(``era_stats`` → ``engine.era_math``). The old cumulative ``scale_tiers`` are
+gone; the Raider's "never scales" exception is now DATA (five identical rows),
+and ``Boss`` still reads its own ``stats`` table. Movement is in fractional tile
+coords (``move_speed`` tiles/sec straight into ``Movement.speed`` — no ×32 pixel
+conversion; that lived in the prototype's pixel space).
 
 Sprite slots are registry-group-driven (prototype ``_STAGE_SLOT_PREFIX`` +
-``_variant``): each type's ``data/slots.json`` group holds one era subgroup per
-scaling tier (``REGISTRY_GROUP`` names it), each era listing its variant slots.
-At construction the enemy clamps its tier to an era index and picks a random
+``_variant``): each type's ``data/slots.json`` group holds one era subgroup
+(``REGISTRY_GROUP`` names it), each era listing its variant slots.
+At construction the enemy clamps its era to an era index and picks a random
 variant from that era (``rng`` threaded from the spawner for determinism) — so a
 walker rolls between ``enemy_stage_1_v1``/``_v2`` on spawn, and dropping a
 ``_v3`` slot into the era grows the pool with no code change. Absent a registry
@@ -32,6 +32,7 @@ walker rolls between ``enemy_stage_1_v1``/``_v2`` on spawn, and dropping a
 """
 import random
 
+from engine.era_math import resolve_era_row, stats_at_round
 from engine.core import (
     GameObject, Health, Movement, RangeSensor, SpriteAnimator, Transform,
 )
@@ -42,11 +43,11 @@ from game.map.pathfinder import (
 from .components import _HUNT_QUERIES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
 
 
-def variant_slot(registry, group_label, tier, rng=None, fallback=None):
-    """Random variant slot for ``group_label`` at the era matching ``tier``.
+def variant_slot(registry, group_label, era, rng=None, fallback=None):
+    """Random variant slot for ``group_label`` at ``era``.
 
     The type's registry group (``data/slots.json`` enemies category) lists eras
-    as ordered children; ``tier`` clamps to an era index and one of that era's
+    as ordered children; ``era`` clamps to an era index and one of that era's
     variant slots is chosen via ``rng`` (module ``random`` if None). Returns
     ``fallback`` when no registry / group / variants are available so headless
     tests that construct enemies without art still work."""
@@ -58,35 +59,33 @@ def variant_slot(registry, group_label, tier, rng=None, fallback=None):
         return fallback
     if not eras:
         return fallback
-    era = eras[min(max(tier, 0), len(eras) - 1)]
-    variants = registry.group_slots("enemies", (group_label, era.label))
+    era_group = eras[min(max(era, 0), len(eras) - 1)]
+    variants = registry.group_slots("enemies", (group_label, era_group.label))
     if not variants:
         return fallback
     return (rng or random).choice(variants)
 
 
-def tier_scaled_stats(type_block, balance, tier):
-    """``type_block``'s base stats plus the cumulative sum of
-    ``EnemyScaling.scale_tiers[0..tier)`` (prototype ``enemy.py:88-100``).
+def era_stats(type_block, era, position_in_era=1, endgame_factors=None):
+    """``type_block``'s stats for ``era`` at ``position_in_era`` (ES-2, D2/D5).
 
-    Standard AND SiegeCannon scale this way; ``Raider`` deliberately does not
-    (prototype ``raider.py`` overrides the stats without adding tier bonuses),
-    and ``Boss`` reads a per-era table instead of scaling at all.
+    The type's own ``eras`` row is clamped to the last authored one (past it the
+    optional ``endgame_factors`` compound it, D5), then grown by its flat
+    ``per_round`` deltas for the position inside the era. NO cumulative tier
+    sums exist any more — a row IS the answer. Returns the constructor's
+    ``(hp, dmg, move_speed, attack_speed, attack_range_tiles)`` tuple.
     """
-    tiers = balance["EnemyScaling"]["scale_tiers"]
-    n = min(tier, len(tiers))
-    hp = type_block["hp"] + sum(tiers[i]["hp"] for i in range(n))
-    dmg = type_block["dmg"] + sum(tiers[i]["dmg"] for i in range(n))
-    speed = type_block["move_speed"] + sum(tiers[i]["speed"] for i in range(n))
-    return (hp, dmg, speed, type_block["attack_speed"],
-            type_block["attack_range_tiles"])
+    row = resolve_era_row(type_block["eras"], era, endgame_factors)
+    st = stats_at_round(row, position_in_era)
+    return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
+            st["attack_range_tiles"])
 
 
 class Enemy(GameObject):
     ETYPE = "standard"
     REGISTRY_GROUP = "Walker"      # data/slots.json enemies group (era subtree)
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
-    STAT_SUBTREE = ("Standard",)  # under EnemyTypes; scaled by scale_tiers
+    STAT_SUBTREE = ("Standard",)  # under EnemyTypes; drives EVERY lookup
     EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
     # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
     # prototype-exact. PAD is only the GAP above the sprite's head — how high
@@ -94,17 +93,17 @@ class Enemy(GameObject):
     # it (footprint-fitted since ER-1), never off the sheet's raw pixels.
     HP_BAR_W, HP_BAR_H, HP_BAR_PAD = 14, 2, 4
 
-    def __init__(self, col, row, enemies_balance, tilemap, tier=0,
-                 registry=None, rng=None):
+    def __init__(self, col, row, enemies_balance, tilemap, era=0,
+                 registry=None, rng=None, position_in_era=1):
         hp, dmg, speed, attack_speed, attack_range = self._resolve_stats(
-            enemies_balance, tier)
-        slot = variant_slot(registry, self.REGISTRY_GROUP, tier, rng,
+            enemies_balance, era, position_in_era)
+        slot = variant_slot(registry, self.REGISTRY_GROUP, era, rng,
                             self.DEFAULT_SLOT)
         block = enemies_balance["EnemyTypes"]
         for seg in self.STAT_SUBTREE:
             block = block[seg]
         ds = block["death_spawn"]
-        era = self._resolve_era(enemies_balance, tier)
+        era = self._resolve_era(enemies_balance, era)
         rows = ds["spawns"]
         spawn_row = rows[min(max(era, 0), len(rows) - 1)]
         components = [
@@ -138,7 +137,7 @@ class Enemy(GameObject):
         self._tilemap = tilemap
         self._col = col
         self._row = row
-        self._enemy_tier = tier
+        self._enemy_era = era
         pa = self.get_component(PathAgent)
         pa._tilemap = tilemap
         pa._real_speed = speed
@@ -148,13 +147,22 @@ class Enemy(GameObject):
         # dict through it.
         pa._cond_weights = dict(block["condition_path_weights"])
 
-    # -- stat resolution (Standard scales; subclasses override) ------------
+    # -- stat resolution (generic since ES-2; only the Boss overrides) -----
 
-    def _resolve_stats(self, balance, tier):
-        return tier_scaled_stats(
-            balance["EnemyTypes"]["Standard"], balance, tier)
+    def _resolve_stats(self, balance, era, position_in_era=1):
+        """This type's stats for the round's era, off its OWN ``eras`` rows.
 
-    def _resolve_era(self, balance, tier):
+        ES-2 made this ``STAT_SUBTREE``-driven, retiring the trap it used to
+        be: it read ``EnemyTypes["Standard"]`` LITERALLY, so every subclass had
+        to override it or silently ship walker stats. Raider/SiegeCannon/
+        Formation therefore carry no override any more — the Raider's
+        "never scales" is five identical era rows in ``data/``, not code."""
+        block = balance["EnemyTypes"]
+        for seg in self.STAT_SUBTREE:
+            block = block[seg]
+        return era_stats(block, era, position_in_era)
+
+    def _resolve_era(self, balance, era):
         """Which row of ``death_spawn.spawns`` (and, for the Boss, of
         ``stats``) this unit uses. Types with no era table are always row 0."""
         return 0
@@ -255,12 +263,8 @@ class Raider(Enemy):
     REGISTRY_GROUP = "Raider"
     DEFAULT_SLOT = "raider_stage_1"
     STAT_SUBTREE = ("Raider",)
-
-    def _resolve_stats(self, balance, tier):
-        # Raiders do NOT take the scale-tier bonuses (prototype raider.py).
-        r = balance["EnemyTypes"]["Raider"]
-        return (r["hp"], r["dmg"], r["move_speed"], r["attack_speed"],
-                r["attack_range_tiles"])
+    # No _resolve_stats override: the Raider "never scales" as DATA now —
+    # five identical era rows with zero per_round deltas (ES-2, D6).
 
 
 class SiegeCannon(Enemy):
@@ -270,25 +274,22 @@ class SiegeCannon(Enemy):
     STAT_SUBTREE = ("SiegeCannon",)
     HP_BAR_W = 24                    # prototype siege_cannon.py:145-152
 
-    def _resolve_stats(self, balance, tier):
-        # Siege scales with the tiers exactly like Standard (prototype
-        # siege_cannon.py adds the same cumulative ENEMY_SCALE_TIERS bonuses).
-        return tier_scaled_stats(
-            balance["EnemyTypes"]["SiegeCannon"], balance, tier)
-
 
 class Formation(Enemy):
     """A marching column — many soldiers moving as one body (ER-4). Two tiles
     square (``footprint: 2``, ER-2 clearance pathing: it only stands where all
     four tiles are clear, so it cannot thread a one-tile gap a walker slips
-    through). It takes the scale-tier bonuses exactly like Standard/Siege.
+    through). Its stats come from its own ``eras`` rows like every other type.
 
     It has NO break state: ``death_spawn.at_hp_fraction`` 0.5 makes ``alive``
     False at half HP (D4 — breaking formation IS dying), and the ER-3 pipeline
     bursts its ``spawns`` row of regulars at ``spawn_hp_fraction`` of their own
     max HP. One code path, one editor form — hence no ``__init__``, no
-    ``on_spawn``, no ``_resolve_era`` (it is not era-indexed: it inherits row 0
-    and ships a single ``spawns`` row)."""
+    ``on_spawn``, no ``_resolve_stats`` (ES-2 made the base one
+    ``STAT_SUBTREE``-driven; it used to REQUIRE an override, and
+    ``test_enemies.TestFormation`` still pins that its stats come from the
+    Formation block) and no ``_resolve_era`` for ``death_spawn`` (it ships a
+    single ``spawns`` row and clamps to row 0)."""
 
     ETYPE = "formation"
     REGISTRY_GROUP = "Formation"
@@ -296,19 +297,12 @@ class Formation(Enemy):
     STAT_SUBTREE = ("Formation",)
     HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
 
-    def _resolve_stats(self, balance, tier):
-        # MANDATORY override: the base Enemy._resolve_stats reads the
-        # `Standard` block LITERALLY (STAT_SUBTREE does not drive it), so an
-        # un-overridden Formation would silently ship walker stats. Scales with
-        # the tiers exactly like Standard and SiegeCannon.
-        return tier_scaled_stats(
-            balance["EnemyTypes"]["Formation"], balance, tier)
-
 
 class Boss(Enemy):
-    """The boss (LIVE since 10G). ``tier`` doubles as the ERA index — the
-    spawner passes ``round // interval - 1``, clamped to the stat table; NO
-    scale-tier bonuses ever apply (prototype ``boss.py:17-39`` overwrites the
+    """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
+    clock (the spawner passes it like every other type), clamped to its own
+    stat table; it never took the retired scale-tier bonuses either
+    (prototype ``boss.py:17-39`` overwrites the
     ``super().__init__(tier=tier)`` stats from ``BOSS_ERAS``). It grinds through
     the player's buildings one at a time — nearest alive NON-BASE building, the
     hole strictly last (D2) — re-pathing every time its target dies, whoever
@@ -318,7 +312,7 @@ class Boss(Enemy):
     death-spawn stash reads over ``DeathSpawn`` (game/core never imports this
     package). Its 10G swarm is now just the generalised ER-3 mechanic with
     ``at_hp_fraction`` 0.0 + ``spawn_hp_fraction`` 1.0 — same counts, same
-    tile, same tier."""
+    tile, same era."""
 
     ETYPE = "boss"
     REGISTRY_GROUP = "Boss"
@@ -327,14 +321,17 @@ class Boss(Enemy):
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
     HP_BAR_W, HP_BAR_H = 48, 4   # prototype boss.py:136-143 max(48, …) floor
 
-    def _resolve_era(self, balance, tier):
-        # `tier` doubles as the era index for the boss (spawner-threaded, 10G).
-        return min(max(tier, 0),
+    def _resolve_era(self, balance, era):
+        # The global era, clamped to the boss's own 5-row table (D5's clamp
+        # precedent — the boss had it first).
+        return min(max(era, 0),
                    len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
 
-    def _resolve_stats(self, balance, tier):
+    def _resolve_stats(self, balance, era, position_in_era=1):
+        # The ONE surviving override: the boss's table is `stats[]`, not
+        # `eras[]` (its rework is BossReworkPLAN's job, D8).
         st = balance["EnemyTypes"]["Boss"]["stats"][
-            self._resolve_era(balance, tier)]
+            self._resolve_era(balance, era)]
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
 
@@ -361,9 +358,13 @@ ENEMY_CLASSES = {
 }
 
 
-def create_enemy(etype, col, row, enemies_balance, tilemap, tier=0,
-                 registry=None, rng=None):
+def create_enemy(etype, col, row, enemies_balance, tilemap, era=0,
+                 registry=None, rng=None, position_in_era=1):
     """Construct an enemy of ``etype`` at ``(col, row)`` (the spawner factory).
+
+    ``era`` is the global era (stats row, ART era and death-spawn row — ONE
+    number, never a second channel); ``position_in_era`` is the round's 1-based
+    place inside it, which drives the era row's ``per_round`` growth (D2).
     ``registry``/``rng`` drive the random sprite-variant pick (E-34 groups)."""
-    return ENEMY_CLASSES[etype](col, row, enemies_balance, tilemap, tier,
-                                registry, rng)
+    return ENEMY_CLASSES[etype](col, row, enemies_balance, tilemap, era,
+                                registry, rng, position_in_era)

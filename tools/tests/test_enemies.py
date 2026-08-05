@@ -48,6 +48,35 @@ VFX = load_balance(FIXTURE_DATA, "vfx")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
+RPE = SCALE["rounds_per_era"]        # ES-2: THE clock (era == the old tier)
+
+
+def era_stats(type_key, era=0):
+    """A type's stats for `era`, straight off its own era rows (ES-2).
+
+    Rows clamp to the last authored one, exactly as `engine.era_math` does —
+    written out here so the expectations stay hand-computable from `data/`."""
+    rows = ENEM["EnemyTypes"][type_key]["eras"]
+    return rows[min(max(era, 0), len(rows) - 1)]["stats"]
+
+
+def expected_count(type_key, round_num):
+    """How many of `type_key` round `round_num` must contain, hand-computed
+    from the era rows: `floor(count_start + k * count_per_round)` counted from
+    the era's first ACTIVE round `max(era first round, start_round)` (D3/D3'),
+    and 0 before `start_round`."""
+    block = ENEM["EnemyTypes"][type_key]
+    rows = block["eras"]
+    era = max(0, (round_num - 1) // RPE)
+    row = rows[min(era, len(rows) - 1)]
+    r0 = max(era * RPE + 1, block["start_round"])
+    if round_num < r0:
+        return 0
+    return math.floor(round(
+        row["count_start"] + (round_num - r0) * row["count_per_round"], 9))
+
+
+STD0 = era_stats("Standard")
 
 
 def footprint_balance(etype, footprint):
@@ -91,78 +120,62 @@ class FakeRng:
 
 
 # ---------------------------------------------------------------------------
-# Scale-tier stats resolved at spawn (prototype enemy.py:88-108)
+# Per-era stats resolved at spawn (ES-2: the type's own `eras` rows, clamped)
 # ---------------------------------------------------------------------------
 class TestScaling(unittest.TestCase):
-    def _expected(self, tier):
-        tiers = SCALE["scale_tiers"]
-        n = min(tier, len(tiers))
-        hp = STD["hp"] + sum(tiers[i]["hp"] for i in range(n))
-        dmg = STD["dmg"] + sum(tiers[i]["dmg"] for i in range(n))
-        speed = STD["move_speed"] + sum(tiers[i]["speed"] for i in range(n))
-        return hp, dmg, speed
-
-    def test_stats_scale_cumulatively(self):
+    def test_stats_come_from_the_era_row(self):
         tm = synth(["bbs"])
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                e = Enemy(2, 0, ENEM, tm, tier=tier)
-                hp, dmg, speed = self._expected(tier)
-                self.assertEqual(e.get_component(Health).max_hp, hp)
-                self.assertEqual(e.get_component(Health).hp, hp)
-                self.assertEqual(e.dmg, dmg)
-                self.assertAlmostEqual(e.get_component(Movement).speed, speed)
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era)
+                st = era_stats("Standard", era)     # clamps past the last row
+                self.assertEqual(e.get_component(Health).max_hp, st["hp"])
+                self.assertEqual(e.get_component(Health).hp, st["hp"])
+                self.assertEqual(e.dmg, st["dmg"])
+                self.assertAlmostEqual(e.get_component(Movement).speed,
+                                       st["move_speed"])
                 self.assertEqual(
                     e.get_component(EnemyCombat).attack_speed,
-                    STD["attack_speed"])
+                    st["attack_speed"])
 
-    def test_tier0_is_base_stats(self):
+    def test_era0_is_the_first_row(self):
         tm = synth(["bbs"])
-        e = Enemy(2, 0, ENEM, tm, tier=0)
-        self.assertEqual(e.get_component(Health).hp, STD["hp"])
-        self.assertEqual(e.dmg, STD["dmg"])
+        e = Enemy(2, 0, ENEM, tm, 0)
+        self.assertEqual(e.get_component(Health).hp, STD0["hp"])
+        self.assertEqual(e.dmg, STD0["dmg"])
 
     def test_subclasses_read_own_subtree(self):
         tm = synth(["bbs"])
         r = Raider(2, 0, ENEM, tm)
-        self.assertEqual(r.get_component(Health).hp,
-                         ENEM["EnemyTypes"]["Raider"]["hp"])
+        self.assertEqual(r.get_component(Health).hp, era_stats("Raider")["hp"])
         s = SiegeCannon(2, 0, ENEM, tm)
         self.assertEqual(s.get_component(Health).hp,
-                         ENEM["EnemyTypes"]["SiegeCannon"]["hp"])
+                         era_stats("SiegeCannon")["hp"])
 
-    def test_siege_scales_with_tiers_like_standard(self):
-        # Prototype siege_cannon.py adds the same cumulative tier bonuses the
-        # standard walker takes (10F).
+    def test_siege_reads_its_own_era_rows(self):
         tm = synth(["bbs"])
-        siege = ENEM["EnemyTypes"]["SiegeCannon"]
-        tiers = SCALE["scale_tiers"]
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                n = min(tier, len(tiers))
-                s = SiegeCannon(2, 0, ENEM, tm, tier=tier)
-                self.assertEqual(
-                    s.get_component(Health).hp,
-                    siege["hp"] + sum(tiers[i]["hp"] for i in range(n)))
-                self.assertEqual(
-                    s.dmg,
-                    siege["dmg"] + sum(tiers[i]["dmg"] for i in range(n)))
-                self.assertAlmostEqual(
-                    s.get_component(Movement).speed,
-                    siege["move_speed"]
-                    + sum(tiers[i]["speed"] for i in range(n)))
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                st = era_stats("SiegeCannon", era)
+                s = SiegeCannon(2, 0, ENEM, tm, era)
+                self.assertEqual(s.get_component(Health).hp, st["hp"])
+                self.assertEqual(s.dmg, st["dmg"])
+                self.assertAlmostEqual(s.get_component(Movement).speed,
+                                       st["move_speed"])
 
-    def test_raider_never_takes_tier_bonuses(self):
-        # Prototype raider.py overrides the stats WITHOUT adding tier bonuses.
+    def test_raider_era_rows_are_flat(self):
+        # The Raider's "it never scales" is DATA now (five identical rows), not
+        # a code exception — so every era resolves to the same numbers.
         tm = synth(["bbs"])
-        raider = ENEM["EnemyTypes"]["Raider"]
-        for tier in (0, 1, 3, 9):
-            with self.subTest(tier=tier):
-                r = Raider(2, 0, ENEM, tm, tier=tier)
-                self.assertEqual(r.get_component(Health).hp, raider["hp"])
-                self.assertEqual(r.dmg, raider["dmg"])
+        first = era_stats("Raider", 0)
+        for era in (0, 1, 3, 9):
+            with self.subTest(era=era):
+                self.assertEqual(era_stats("Raider", min(era, 4)), first)
+                r = Raider(2, 0, ENEM, tm, era)
+                self.assertEqual(r.get_component(Health).hp, first["hp"])
+                self.assertEqual(r.dmg, first["dmg"])
                 self.assertAlmostEqual(r.get_component(Movement).speed,
-                                       raider["move_speed"])
+                                       first["move_speed"])
 
 
 # ---------------------------------------------------------------------------
@@ -174,16 +187,16 @@ class TestSpriteVariants(unittest.TestCase):
     def _slot(self, enemy):
         return enemy.get_component(SpriteAnimator).slot_key
 
-    def test_tier_selects_the_matching_era_slot(self):
-        # Walker eras 1-4 = enemy_stage_1..4; tier clamps to the last era.
+    def test_era_selects_the_matching_era_slot(self):
+        # Walker eras 1-4 = enemy_stage_1..4; the era clamps to the last one.
         # FakeRng.choice -> first variant, so multi-variant eras resolve to _v1.
         tm = synth(["bbs"])
         cases = {0: "enemy_stage_1_v1", 1: "enemy_stage_2",
                  2: "enemy_stage_3", 3: "enemy_stage_4_v1",
                  9: "enemy_stage_4_v1"}
-        for tier, slot in cases.items():
-            with self.subTest(tier=tier):
-                e = Enemy(2, 0, ENEM, tm, tier=tier, registry=self.REG,
+        for era, slot in cases.items():
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era, registry=self.REG,
                           rng=FakeRng())
                 self.assertEqual(self._slot(e), slot)
 
@@ -191,20 +204,20 @@ class TestSpriteVariants(unittest.TestCase):
         # Era 1 has two variants; over many spawns a seeded rng yields both.
         tm = synth(["bbs"])
         rng = random.Random(1234)
-        seen = {self._slot(Enemy(2, 0, ENEM, tm, tier=0, registry=self.REG,
+        seen = {self._slot(Enemy(2, 0, ENEM, tm, 0, registry=self.REG,
                                  rng=rng)) for _ in range(50)}
         self.assertEqual(seen, {"enemy_stage_1_v1", "enemy_stage_1_v2"})
 
     def test_raider_resolves_its_own_group(self):
         tm = synth(["bbs"])
-        r = Raider(2, 0, ENEM, tm, tier=2, registry=self.REG, rng=FakeRng())
+        r = Raider(2, 0, ENEM, tm, 2, registry=self.REG, rng=FakeRng())
         self.assertEqual(self._slot(r), "raider_stage_3")
 
     def test_fallback_slot_without_registry(self):
         # Headless stat/logic tests construct without a registry -> DEFAULT_SLOT.
         tm = synth(["bbs"])
         self.assertEqual(
-            self._slot(Enemy(2, 0, ENEM, tm, tier=0)), "enemy_stage_1_v1")
+            self._slot(Enemy(2, 0, ENEM, tm, 0)), "enemy_stage_1_v1")
         self.assertEqual(
             self._slot(Raider(2, 0, ENEM, tm)), "raider_stage_1")
 
@@ -231,6 +244,7 @@ class TestSpriteVariants(unittest.TestCase):
 RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
 FORM = ENEM["EnemyTypes"]["Formation"]
+FORM0 = era_stats("Formation")
 
 
 class TestSpawnComposition(unittest.TestCase):
@@ -248,7 +262,7 @@ class TestSpawnComposition(unittest.TestCase):
     # BOSS_ROUND_COUNTS composition instead of the per-type formulas — those
     # rounds are covered by tools/tests/test_boss.py, so the formula loops
     # below skip them.
-    _BOSS_INTERVAL = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+    _BOSS_INTERVAL = SCALE["rounds_per_era"]   # boss_round_in_era == the last
 
     def test_standard_count_formula(self):
         for r in range(1, 26):
@@ -256,10 +270,8 @@ class TestSpawnComposition(unittest.TestCase):
                 continue  # boss-round composition (10G) — see test_boss.py
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
-                tier = (r - 1) // SCALE["scale_every_n_levels"]
-                expected = SCALE["base_enemy_count"] + (r - 1) * (
-                    SCALE["enemies_per_round"] + tier)
-                self.assertEqual(etypes.count("standard"), expected)
+                self.assertEqual(etypes.count("standard"),
+                                 expected_count("Standard", r))
 
     def test_raider_count_formula_and_start_round(self):
         start = RAIDER["start_round"]
@@ -269,11 +281,10 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("raider"), 0)
                 else:
-                    expected = (RAIDER["base_count"]
-                                + (r - start) * RAIDER["per_round"])
-                self.assertEqual(etypes.count("raider"), expected)
+                    self.assertEqual(etypes.count("raider"),
+                                     expected_count("Raider", r))
 
     def test_siege_count_formula_and_start_round(self):
         start = SIEGE["start_round"]
@@ -283,11 +294,10 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("siege"), 0)
                 else:
-                    expected = (SIEGE["base_count"]
-                                + (r - start) // SIEGE["rounds_per_cannon"])
-                self.assertEqual(etypes.count("siege"), expected)
+                    self.assertEqual(etypes.count("siege"),
+                                     expected_count("SiegeCannon", r))
 
     def test_siege_lead_group_heads_the_queue(self):
         # The lead group spawns FIRST (prototype siege_front + shuffled rest);
@@ -311,16 +321,17 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("formation"), 0)
                 else:
-                    expected = (FORM["base_count"]
-                                + (r - start) // FORM["rounds_per_formation"])
-                self.assertEqual(etypes.count("formation"), expected)
+                    self.assertEqual(etypes.count("formation"),
+                                     expected_count("Formation", r))
 
-    def test_formations_accrete_one_per_rounds_per_formation(self):
-        # The proposed tuning spells out to r16 -> 1, r19 -> 2, r22 -> 3.
+    def test_formations_accrete_one_every_three_rounds(self):
+        # The proposed tuning spells out to r16 -> 1, r19 -> 2, r22 -> 3 — and
+        # r22 is the D3' fence: it only survives the era-1 -> era-2 boundary
+        # because count_start is a NUMBER (era 2 anchors at 2.666..., not 2).
         self.assertEqual(FORM["start_round"], 16)
-        self.assertEqual(FORM["rounds_per_formation"], 3)
+        self.assertAlmostEqual(FORM["eras"][0]["count_per_round"], 1 / 3)
         for r, n in ((15, 0), (16, 1), (19, 2), (22, 3)):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
@@ -381,10 +392,10 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual([e for e in etypes if e != "formation"], without)
 
     def test_boss_leads_every_boss_round(self):
-        # ENABLE_BOSS flipped in 10G: every `round_interval`-th round emits
-        # exactly ONE boss at the head of the queue, and non-boss rounds never
-        # emit one (the detailed composition lives in test_boss.py).
-        interval = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+        # ENABLE_BOSS flipped in 10G: every boss round (the era clock's
+        # boss_round_in_era) emits exactly ONE boss at the head of the queue,
+        # and non-boss rounds never emit one (composition -> test_boss.py).
+        interval = SCALE["rounds_per_era"]
         for r in (interval, interval * 2):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
@@ -416,7 +427,7 @@ class TestSpawnComposition(unittest.TestCase):
         sp = Spawner()
         sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
         scene = Scene()
-        n = SCALE["base_enemy_count"]
+        n = expected_count("Standard", 1)
         # Drive well past the total wave duration; one pop per expiry.
         for _ in range(2000):
             sp.update(0.1, scene)
@@ -440,13 +451,15 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual(etypes, ["standard"] * 3)
 
     def test_round_zero_never_produces_a_boss_at_any_interval(self):
-        # 0 % n == 0 for every n, so an unguarded boss check would wrongly
-        # treat round 0 as a boss round at EVERY round_interval — the round-0
-        # branch must be checked first, unconditionally.
+        # (0 - 1) // n goes negative for every n, and a naive `0 % n == 0`
+        # boss check would fire at EVERY era length — era_math clamps round 0
+        # to era 0 and never calls it a boss round (D11), and the round-0
+        # composition branch is still checked first, unconditionally.
         for interval in (1, 2, 5, self._BOSS_INTERVAL):
             with self.subTest(interval=interval):
                 enem = copy.deepcopy(ENEM)
-                enem["EnemyTypes"]["Boss"]["round_interval"] = interval
+                enem["EnemyScaling"]["rounds_per_era"] = interval
+                enem["EnemyScaling"]["boss_round_in_era"] = interval
                 sp = Spawner()
                 sp.begin_round(0, self.tm, enem, rng=FakeRng())
                 etypes = [et for _tile, et, _d in sp._queue]
@@ -457,11 +470,11 @@ class TestSpawnComposition(unittest.TestCase):
     def test_round_zero_leaves_round_one_scaling_unshifted(self):
         # Composing round 0 THEN round 1 on the SAME spawner instance must
         # yield the identical round-1 composition as composing round 1
-        # fresh — round 0 must leave no tier/interval state that shifts the
+        # fresh — round 0 must leave no era/interval state that shifts the
         # real wave-scaling formulas (the actual user requirement).
         sp = Spawner()
         sp.begin_round(0, self.tm, ENEM, rng=FakeRng())
-        self.assertEqual(sp._tier, 0)
+        self.assertEqual(sp._era, 0)          # D11: round 0 is era 0
         sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
         after_zero = [et for _tile, et, _d in sp._queue]
 
@@ -581,9 +594,9 @@ class TestBaseArrival(unittest.TestCase):
         else:
             self.fail("enemy never reached the base")
         self.assertEqual(base.get_component(Health).hp,
-                         max(0, CORE["TheHole"]["base_hp"] - STD["dmg"]))
+                         max(0, CORE["TheHole"]["base_hp"] - STD0["dmg"]))
         self.assertEqual(
-            base.get_component(RoundStats).dmg_taken_this_round, STD["dmg"])
+            base.get_component(RoundStats).dmg_taken_this_round, STD0["dmg"])
 
 
 class TestSpawnTilesAreSpawningOnly(unittest.TestCase):
@@ -658,7 +671,7 @@ class TestFormation(unittest.TestCase):
         anim = f.get_component(SpriteAnimator)
         self.assertEqual(anim.fit_tiles, 2.0)      # threaded from the balance
         self.assertEqual(anim.scale, 1.0)
-        self.assertEqual(f.get_component(Health).max_hp, FORM["hp"])
+        self.assertEqual(f.get_component(Health).max_hp, FORM0["hp"])
 
     def test_stats_come_from_the_formation_block_not_standard(self):
         """The bug an un-overridden `_resolve_stats` would ship: the BASE
@@ -666,32 +679,25 @@ class TestFormation(unittest.TestCase):
         — STAT_SUBTREE does not drive it — so a Formation without the override
         would silently walk around with walker stats."""
         tm = synth(["bbs"])
-        f = Formation(2, 0, ENEM, tm, tier=0)
-        self.assertEqual(f.get_component(Health).hp, FORM["hp"])
-        self.assertEqual(f.dmg, FORM["dmg"])
+        f = Formation(2, 0, ENEM, tm, 0)
+        self.assertEqual(f.get_component(Health).hp, FORM0["hp"])
+        self.assertEqual(f.dmg, FORM0["dmg"])
         self.assertAlmostEqual(f.get_component(Movement).speed,
-                               FORM["move_speed"])
-        self.assertNotEqual(FORM["hp"], STD["hp"])          # the fixture is real
-        self.assertNotEqual(f.get_component(Health).hp, STD["hp"])
-        self.assertNotEqual(f.dmg, STD["dmg"])
+                               FORM0["move_speed"])
+        self.assertNotEqual(FORM0["hp"], STD0["hp"])        # the fixture is real
+        self.assertNotEqual(f.get_component(Health).hp, STD0["hp"])
+        self.assertNotEqual(f.dmg, STD0["dmg"])
 
-    def test_scales_with_the_tiers_like_standard_and_siege(self):
+    def test_reads_its_own_era_rows_like_standard_and_siege(self):
         tm = synth(["bbs"])
-        tiers = SCALE["scale_tiers"]
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                n = min(tier, len(tiers))
-                f = Formation(2, 0, ENEM, tm, tier=tier)
-                self.assertEqual(
-                    f.get_component(Health).hp,
-                    FORM["hp"] + sum(tiers[i]["hp"] for i in range(n)))
-                self.assertEqual(
-                    f.dmg,
-                    FORM["dmg"] + sum(tiers[i]["dmg"] for i in range(n)))
-                self.assertAlmostEqual(
-                    f.get_component(Movement).speed,
-                    FORM["move_speed"]
-                    + sum(tiers[i]["speed"] for i in range(n)))
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                st = era_stats("Formation", era)
+                f = Formation(2, 0, ENEM, tm, era)
+                self.assertEqual(f.get_component(Health).hp, st["hp"])
+                self.assertEqual(f.dmg, st["dmg"])
+                self.assertAlmostEqual(f.get_component(Movement).speed,
+                                       st["move_speed"])
 
     def test_the_type_itself_refuses_a_one_tile_gap_a_walker_threads(self):
         """End-to-end proof that balancing -> PathAgent -> pathfinder is wired:
@@ -750,11 +756,11 @@ class TestFormation(unittest.TestCase):
 
     def test_the_registry_group_resolves_a_slot_per_era(self):
         tm = synth(["bbs"])
-        for tier, slot in {0: "formation_stage_1", 1: "formation_stage_2",
+        for era, slot in {0: "formation_stage_1", 1: "formation_stage_2",
                            2: "formation_stage_3", 3: "formation_stage_4",
                            9: "formation_stage_4"}.items():
-            with self.subTest(tier=tier):
-                f = Formation(2, 0, ENEM, tm, tier=tier, registry=self.REG,
+            with self.subTest(era=era):
+                f = Formation(2, 0, ENEM, tm, era, registry=self.REG,
                               rng=FakeRng())
                 self.assertEqual(f.get_component(SpriteAnimator).slot_key, slot)
 
@@ -817,7 +823,7 @@ class TestFormationBreak(unittest.TestCase):
         frac = FORM["death_spawn"]["spawn_hp_fraction"]
         for child in children:
             ch = child.get_component(Health)
-            self.assertEqual(ch.max_hp, STD["hp"])        # tier 0
+            self.assertEqual(ch.max_hp, STD0["hp"])       # era 0
             self.assertEqual(ch.hp, max(1, int(ch.max_hp * frac)))
             self.assertLess(ch.hp, ch.max_hp)
             self.assertTrue(child.alive)   # 0.8 > Standard's 0.0 -> no cascade
@@ -851,14 +857,15 @@ class TestFormationBreak(unittest.TestCase):
     def test_the_scattering_pool_is_the_intended_hp_budget(self):
         """The tuning story, pinned so a retune in the editor stays honest: it
         absorbs half its HP as one body, then the survivors carry the rest."""
-        absorbed = FORM["hp"] * FORM["death_spawn"]["at_hp_fraction"]
+        absorbed = FORM0["hp"] * FORM["death_spawn"]["at_hp_fraction"]
         row = FORM["death_spawn"]["spawns"][0]
         scattered = row["regular"] * int(
-            STD["hp"] * FORM["death_spawn"]["spawn_hp_fraction"])
+            STD0["hp"] * FORM["death_spawn"]["spawn_hp_fraction"])
         self.assertEqual(absorbed, 220)           # 440 * 0.5
         self.assertEqual(scattered, 176)          # 4 * int(55 * 0.8)
-        self.assertGreater(absorbed + scattered, SIEGE["hp"])   # > one cannon
-        self.assertLess(absorbed + scattered, 2 * SIEGE["hp"])  # < two
+        siege_hp = era_stats("SiegeCannon")["hp"]
+        self.assertGreater(absorbed + scattered, siege_hp)      # > one cannon
+        self.assertLess(absorbed + scattered, 2 * siege_hp)     # < two
 
     def test_spawn_hp_fraction_stays_above_every_child_at_hp_fraction(self):
         """The documented footgun: a spawn_hp_fraction at or below a child

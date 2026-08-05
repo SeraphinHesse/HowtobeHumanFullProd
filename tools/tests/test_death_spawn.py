@@ -28,7 +28,7 @@ from game.core import Session, load_balance
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import DeathSpawn
-from game.enemies.enemy import tier_scaled_stats
+from game.enemies.enemy import era_stats
 from game.map.tile_map import TileMap
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
@@ -155,9 +155,8 @@ class TestThresholdDeath(unittest.TestCase):
                          Counter({"standard": 4}))
         self.assertNotIn(parent, scene.by_tag("enemy"))   # the parent despawned
 
-        tier = session.spawner.enemy_tier
-        child_max = tier_scaled_stats(
-            balance["EnemyTypes"]["Standard"], balance, tier)[0]
+        era = session.spawner.enemy_era
+        child_max = era_stats(balance["EnemyTypes"]["Standard"], era)[0]
         for child in children:
             ch = child.get_component(Health)
             self.assertEqual(ch.max_hp, child_max)

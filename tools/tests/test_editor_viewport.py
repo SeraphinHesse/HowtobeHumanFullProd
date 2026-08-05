@@ -1436,7 +1436,10 @@ class TestPurity(unittest.TestCase):
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
-            "editor.thats_my_producer; "
+            "editor.thats_my_producer, "
+            # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
+            # module must stay pure of game/ for that import to be legal.
+            "engine.era_math; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

@@ -529,7 +529,7 @@ class TestBalancingPanel(TempDataCase):
         selector.select_domain("buildings")
         self.assertIn("DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets)
         selector.select_domain("enemies")
-        self.assertIn("EnemyTypes/Standard/hp", panel._widgets)
+        self.assertIn("EnemyTypes/Standard/eras/0/stats/hp", panel._widgets)
         self.assertNotIn(
             "DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets
         )
@@ -650,7 +650,7 @@ class TestBalancingPanel(TempDataCase):
         """Adding a row rebuilds the form. A staged edit elsewhere must survive
         that with its dot intact — fresh widgets start with the dot hidden."""
         panel = self.make_panel("enemies")
-        edited = "EnemyTypes/Standard/hp"
+        edited = "EnemyTypes/Standard/eras/0/stats/hp"
         panel._widgets[edited].setValue(panel._widgets[edited].value() + 1)
         panel._add_array_row("EnemyTypes/Standard/death_spawn/spawns")
         self.assertIn(edited, panel._dirty)
@@ -666,18 +666,22 @@ class TestBalancingPanel(TempDataCase):
         }
 
     def test_only_schema_resizable_arrays_offer_row_buttons(self):
-        """minItems == maxItems (the 5 scale tiers, the boss's round_counts, every
-        building tier list) => NO buttons. That gate is what keeps every form that
-        shipped before ER-5 byte-identical; `death_spawn.spawns` (minItems 1, no
-        maxItems) is the one array a designer may actually resize."""
+        """minItems == maxItems (the boss's stats/round_counts, every building
+        tier list) => NO buttons. That gate is what keeps every form that
+        shipped before ER-5 byte-identical; `death_spawn.spawns` and — since
+        ES-2 — the variable-length `eras` arrays (minItems 1, no maxItems) are
+        what a designer may actually resize, with no editor code at all."""
         panel = self.make_panel("enemies")
         schema = data_io.load_json(
             self.data_dir / "schemas" / "enemies.schema.json")
-        tiers = schema["properties"]["EnemyScaling"]["properties"]["scale_tiers"]
-        self.assertEqual(tiers["minItems"], tiers["maxItems"])  # premise of the test
+        boss = schema["properties"]["EnemyTypes"]["properties"]["Boss"]
+        counts = boss["properties"]["round_counts"]
+        self.assertEqual(counts["minItems"], counts["maxItems"])  # the premise
 
         resizable = self._resizable_arrays(panel)
-        self.assertNotIn("EnemyScaling/scale_tiers", resizable)
+        self.assertNotIn("EnemyTypes/Boss/round_counts", resizable)
+        self.assertIn("EnemyScaling/eras", resizable)
+        self.assertIn("EnemyTypes/Standard/eras", resizable)
         self.assertIn("EnemyTypes/Standard/death_spawn/spawns", resizable)
         self.assertIn("EnemyTypes/Boss/death_spawn/spawns", resizable)
 
