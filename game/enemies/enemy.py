@@ -39,7 +39,7 @@ from game.map.pathfinder import (
     find_path, find_path_ignoring_walls,
     find_path_to_nearest_non_base_building,
 )
-from .components import DeathSpawn, EnemyCombat, Kidnap, PathAgent
+from .components import _HUNT_QUERIES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
 
 
 def variant_slot(registry, group_label, tier, rng=None, fallback=None):
@@ -109,7 +109,7 @@ class Enemy(GameObject):
         spawn_row = rows[min(max(era, 0), len(rows) - 1)]
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(footprint=int(block["footprint"])),
+            PathAgent(footprint=int(block["footprint"]), hunt=block["hunts"]),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
@@ -142,6 +142,11 @@ class Enemy(GameObject):
         pa = self.get_component(PathAgent)
         pa._tilemap = tilemap
         pa._real_speed = speed
+        # Chunk 3: this unit's own path-weight profile, a transient (E-11)
+        # beside _tilemap — a dict is not JSON-safe component state. Copied
+        # (not aliased) so a caller can never mutate the balancing doc's own
+        # dict through it.
+        pa._cond_weights = dict(block["condition_path_weights"])
 
     # -- stat resolution (Standard scales; subclasses override) ------------
 
@@ -157,18 +162,50 @@ class Enemy(GameObject):
     # -- lifecycle ---------------------------------------------------------
 
     def on_spawn(self):
-        """Request a path to the base and load it as tile-coord waypoints. The
-        footprint is read back off the component (E-11: state lives in
-        components, never a stashed ``self._footprint``)."""
-        fp = self.get_component(PathAgent).footprint
-        path = find_path(self._tilemap, self._col, self._row, footprint=fp)
+        """Request a path toward this type's hunt target and load it as
+        tile-coord waypoints. The footprint/hunt/weight-profile are read back
+        off the component (E-11: state lives in components, never stashed
+        ``self._`` fields).
+
+        ``hunt == "base"`` (Standard, Formation) keeps the ORIGINAL walk-to-
+        the-hole behaviour byte-for-byte: ``find_path`` with the
+        ``find_path_ignoring_walls`` fallback, no ``repath_on_kill``, no
+        ``adopt_goal`` call — ``goal_is_base`` stays at its default-True.
+        Any other hunt (Chunk 4 — was boss-only, ``Boss.on_spawn`` collapsed
+        into this generic version) runs the matching goal-set query
+        (``_HUNT_QUERIES``, keyed by ``PathAgent.hunt``) with the SAME
+        ``find_path_ignoring_walls`` fallback the boss always used, arms
+        ``repath_on_kill`` and calls ``adopt_goal`` — the one site that
+        derives ``goal_is_base``/``target_col``/``target_row`` from the
+        fresh path, so ``on_spawn`` and ``_repath`` can never drift apart."""
+        pa = self.get_component(PathAgent)
+        fp = pa.footprint
+        cw = pa._cond_weights
+        if pa.hunt == "base":
+            path = find_path(self._tilemap, self._col, self._row,
+                             footprint=fp, cond_weights=cw)
+            if not path:
+                path = find_path_ignoring_walls(
+                    self._tilemap, self._col, self._row, footprint=fp,
+                    cond_weights=cw)
+            mv = self.get_component(Movement)
+            mv.waypoints = [[float(c), float(r)] for c, r in path]
+            mv.index = 0
+            mv.arrived = False
+            return
+        query = _HUNT_QUERIES.get(pa.hunt, find_path_to_nearest_non_base_building)
+        path = query(self._tilemap, self._col, self._row, footprint=fp,
+                     cond_weights=cw)
         if not path:
             path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row, footprint=fp)
+                self._tilemap, self._col, self._row, footprint=fp,
+                cond_weights=cw)
         mv = self.get_component(Movement)
         mv.waypoints = [[float(c), float(r)] for c, r in path]
         mv.index = 0
         mv.arrived = False
+        pa.repath_on_kill = True
+        pa.adopt_goal(path, self._tilemap)
 
     # -- duck-typed contract read by the combat sweep ----------------------
 
@@ -301,24 +338,12 @@ class Boss(Enemy):
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
 
-    def on_spawn(self):
-        """Hunt the nearest alive NON-BASE building (BP-2 / D2 — the hole is
-        the last thing it touches, and only once the board is clear). Arms the
-        10G ``PathAgent`` flags: re-path when the target dies, and never count
-        arrival at a non-base goal as a breach."""
-        fp = self.get_component(PathAgent).footprint
-        path = find_path_to_nearest_non_base_building(
-            self._tilemap, self._col, self._row, footprint=fp)
-        if not path:
-            path = find_path_ignoring_walls(
-                self._tilemap, self._col, self._row, footprint=fp)
-        mv = self.get_component(Movement)
-        mv.waypoints = [[float(c), float(r)] for c, r in path]
-        mv.index = 0
-        mv.arrived = False
-        pa = self.get_component(PathAgent)
-        pa.repath_on_kill = True
-        pa.adopt_goal(path, self._tilemap)
+    # No on_spawn override (Chunk 4 — collapsed into the generic
+    # Enemy.on_spawn): EnemyTypes.Boss.hunts == "any_non_base" is exactly the
+    # dispatch it used to hardcode (find_path_to_nearest_non_base_building,
+    # the find_path_ignoring_walls fallback, repath_on_kill, adopt_goal) —
+    # nothing boss-specific was left once every type could carry its own
+    # hunt string. Pinned by tools/tests/test_boss.py.
 
     @property
     def era(self):

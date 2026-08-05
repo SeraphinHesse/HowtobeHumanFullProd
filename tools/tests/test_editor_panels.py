@@ -36,7 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import balancing_history, domains, keybinds, theme
-from editor.panels.balancing import BalancingPanel
+from editor.panels.balancing import BalancingPanel, CollapsibleSection
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
 from engine import data_io
 from engine.assets import load_registry
@@ -799,6 +799,49 @@ class TestBalancingPanel(TempDataCase):
         panel = self.make_panel("buildings")
         for key, widget in panel._widgets.items():
             self.assertTrue(widget.isEnabled(), msg=key)
+
+    def test_x_toggle_weight_row_pairs_a_checkbox_at_the_sibling_path(self):
+        """A `map` weight leaf carrying `x-toggle` gets a QCheckBox registered
+        at the resolved sibling path, not at the weight's own path."""
+        panel = self.make_panel("map")
+        sibling_key = "Pathfinding/content_weight_overwrites/defence_building"
+        self.assertIsInstance(panel._widgets[sibling_key], QCheckBox)
+        # The 4 non-building content keys carry no x-toggle and stay plain.
+        self.assertNotIn(
+            "Pathfinding/content_weight_overwrites/buildable_tile", panel._widgets
+        )
+
+    def test_toggling_the_paired_checkbox_marks_dirty_and_saves(self):
+        """The checkbox commits straight to the sibling's own path through the
+        same _commit every widget uses — dirty tracking and Save need no
+        special case."""
+        panel = self.make_panel("map")
+        key = "TileConditions/path_weight_overwritable/forest"
+        checkbox = panel._widgets[key]
+        before = read_domain(self.data_dir, "map")
+        original = before["TileConditions"]["path_weight_overwritable"]["forest"]
+        checkbox.setChecked(not original)
+        self.assertIn(key, panel._dirty)
+        panel.save_changes("Test session")
+        on_disk = read_domain(self.data_dir, "map")
+        self.assertEqual(
+            on_disk["TileConditions"]["path_weight_overwritable"]["forest"],
+            not original,
+        )
+
+    def test_x_paired_object_produces_no_own_collapsible_section(self):
+        """`content_weight_overwrites`/`path_weight_overwritable` render ONLY
+        inline as paired checkboxes — never as their own section, per the
+        `x-paired` annotation."""
+        panel = self.make_panel("map")
+        titles = {
+            s._button.text() for s in panel.findChildren(CollapsibleSection)
+        }
+        self.assertNotIn("content_weight_overwrites", titles)
+        self.assertNotIn("path_weight_overwritable", titles)
+        # The plain (unpaired) weight sections still render as usual.
+        self.assertIn("content_weights", titles)
+        self.assertIn("path_weights", titles)
 
 
 class TestBalancingHistory(TempDataCase):

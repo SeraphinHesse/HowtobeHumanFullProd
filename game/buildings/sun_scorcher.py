@@ -16,6 +16,7 @@ from .defence import DefenceBuilding
 
 class SunScorcher(DefenceBuilding):
     BUILDING_TYPE = "sun_scorcher"
+    CONTENT_KEY = "sun_scorcher_building"
     SUBTREE = ("DefenceBuildings", "BeamDefence")
     TIER_SPRITES = ("sun_scorcher", "radiant_beam", "laser_beam")
 

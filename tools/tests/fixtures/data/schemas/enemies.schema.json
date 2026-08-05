@@ -50,6 +50,36 @@
       ],
       "type": "object"
     },
+    "condition_path_weights": {
+      "additionalProperties": false,
+      "description": "This type's own terrain path-cost weights (per-enemy-type override of the base pathfinder weights). DUPLICATES map.json's TileConditions.path_weights and will NOT track future changes to it -- there is deliberately no nullable \"inherit\" sentinel, because editor/panels/balancing.py reads prop.get(\"type\") and a type-less schema node raises \"no widget for schema\", crashing the balancing panel for the whole enemies domain. Same bounds policy as Pathfinding.content_weights in map.json.",
+      "properties": {
+        "forest": {
+          "description": "Extra path weight of a forest tile for this enemy type.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "mountain": {
+          "description": "Extra path weight of a mountain tile for this enemy type.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "pond": {
+          "description": "Extra path weight of a pond tile for this enemy type.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "forest",
+        "mountain",
+        "pond"
+      ],
+      "type": "object"
+    },
     "death_spawn": {
       "additionalProperties": false,
       "description": "Optional-mechanic block (ER-3, D4): when this unit's HP falls to or below at_hp_fraction of its max it DIES (one code path - breaking formation is dying) and, if enabled, bursts the spawns row for its era at the tile it died on. at_hp_fraction 0.0 + enabled false is an inert unit that dies at zero HP and leaves nothing.",
@@ -234,6 +264,9 @@
           "additionalProperties": false,
           "description": "The boss (every round_interval rounds). Per-era arrays are index-aligned: era N uses stats[N], death_spawn.spawns[N], round_counts[N].",
           "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
@@ -242,6 +275,16 @@
               "maximum": 8,
               "minimum": 1,
               "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
             },
             "kidnapping": {
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
@@ -307,8 +350,10 @@
             }
           },
           "required": [
+            "condition_path_weights",
             "death_spawn",
             "footprint",
+            "hunts",
             "kidnapping",
             "registry_group",
             "round_counts",
@@ -341,6 +386,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
@@ -361,6 +409,16 @@
               "maximum": 100000,
               "minimum": 0,
               "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
             },
             "kidnapping": {
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
@@ -400,10 +458,12 @@
             "attack_range_tiles",
             "attack_speed",
             "base_count",
+            "condition_path_weights",
             "death_spawn",
             "dmg",
             "footprint",
             "hp",
+            "hunts",
             "kidnapping",
             "move_speed",
             "registry_group",
@@ -435,6 +495,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
@@ -455,6 +518,16 @@
               "maximum": 100000,
               "minimum": 0,
               "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
             },
             "kidnapping": {
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
@@ -494,10 +567,12 @@
             "attack_range_tiles",
             "attack_speed",
             "base_count",
+            "condition_path_weights",
             "death_spawn",
             "dmg",
             "footprint",
             "hp",
+            "hunts",
             "kidnapping",
             "move_speed",
             "per_round",
@@ -529,6 +604,9 @@
               "minimum": 0,
               "type": "integer"
             },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
@@ -549,6 +627,16 @@
               "maximum": 100000,
               "minimum": 0,
               "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
             },
             "kidnapping": {
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
@@ -600,10 +688,12 @@
             "attack_range_tiles",
             "attack_speed",
             "base_count",
+            "condition_path_weights",
             "death_spawn",
             "dmg",
             "footprint",
             "hp",
+            "hunts",
             "kidnapping",
             "mix_ratio",
             "move_speed",
@@ -631,6 +721,9 @@
               "minimum": 0,
               "type": "number"
             },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
             "death_spawn": {
               "$ref": "#/$defs/death_spawn"
             },
@@ -651,6 +744,16 @@
               "maximum": 100000,
               "minimum": 0,
               "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
             },
             "kidnapping": {
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
@@ -677,10 +780,12 @@
           "required": [
             "attack_range_tiles",
             "attack_speed",
+            "condition_path_weights",
             "death_spawn",
             "dmg",
             "footprint",
             "hp",
+            "hunts",
             "kidnapping",
             "move_speed",
             "registry_group",

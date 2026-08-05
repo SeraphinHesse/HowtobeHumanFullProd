@@ -37,6 +37,25 @@ reappear for whatever differs from the current baseline) and the user must
 Save again to persist it.
 
 Undo via the global QUndoStack (ED-24) remains deferred.
+
+A numeric weight leaf whose schema property carries `"x-toggle": "<sibling
+key>"` (a house-style JSON Schema annotation, ignored by validation — schemas
+still validate structurally, unknown keywords are just data) gets a paired
+QCheckBox rendered immediately LEFT of its spinbox, inside the same row
+widget. The sibling is resolved as a SIBLING OF THE LEAF'S PARENT OBJECT: for
+`Pathfinding/content_weights/defence_building`, the toggle bool lives at
+`Pathfinding/content_weight_overwrites/defence_building` (same leaf key, one
+level up then across to the sibling object named by `x-toggle`, `_schema_node_at`
+walks the schema's OWN properties tree the same way, from the root, so the
+sibling's tooltip description resolves independently of the current recursion
+branch). The checkbox commits straight to the sibling's OWN path via the same
+`_commit` every widget uses, so dirty tracking and the single Save write path
+need no changes; it registers in `self._widgets` under the sibling path like
+any other widget. A toggle object itself (e.g. `content_weight_overwrites`)
+carries `"x-paired": true` so `_build_object` skips it as its own section —
+its only rendering is inline, paired with its partner weights. Missing
+sibling object/key degrades to a plain row (no exception) so a domain whose
+doc doesn't carry the toggle object still builds.
 """
 import copy
 from pathlib import Path
@@ -298,6 +317,23 @@ class BalancingPanel(QWidget):
             node = self._schema["$defs"][ref.removeprefix("#/$defs/")]
         return node
 
+    def _schema_node_at(self, path):
+        """Walk the FULL schema tree (from the root, not just the branch a
+        recursive _build_object call happens to be holding) to the property
+        node at a '/'-joined-style path tuple. Used to resolve an `x-toggle`
+        sibling's own schema node (for its `description`) without needing
+        every caller up the recursion to thread its schema branch through.
+        Returns None on any missing segment — a domain whose doc/schema
+        omits the toggle path must degrade, not raise."""
+        node = self._schema
+        for seg in path:
+            node = self._deref(node)
+            props = node.get("properties")
+            if not props or seg not in props:
+                return None
+            node = props[seg]
+        return self._deref(node)
+
     def _build_object(self, node, value, path, parent_layout, depth):
         """One object level: scalar leaves collect into QFormLayouts, nested
         objects/arrays become CollapsibleSections, in sorted key order."""
@@ -308,6 +344,8 @@ class BalancingPanel(QWidget):
             if key not in value:
                 continue  # schema-optional leaf absent here (e.g. era_unlock_round on later tiers)
             prop = self._deref(prop)
+            if prop.get("x-paired"):
+                continue  # a toggle-bool sibling object (x-toggle) renders inline, not as its own section
             kind = prop.get("type")
             if kind in ("object", "array"):
                 form = None
@@ -422,12 +460,45 @@ class BalancingPanel(QWidget):
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
+        toggle = self._build_toggle_checkbox(prop, path)
+        if toggle is not None:
+            row_layout.insertWidget(0, toggle)
         row_layout.addWidget(widget)
         row_layout.addWidget(dot)
         form.addRow(label, row)
         key = "/".join(path)
         self._widgets[key] = widget
         self._dots[key] = dot
+
+    def _build_toggle_checkbox(self, prop, path):
+        """A weight leaf's `x-toggle` schema annotation names a SIBLING
+        object (a resolved sibling of the leaf's own parent object, same
+        leaf key — `Pathfinding/content_weights/defence_building`'s toggle
+        lives at `Pathfinding/content_weight_overwrites/defence_building`)
+        holding the paired override bool. Returns a QCheckBox built exactly
+        like a generic boolean leaf's widget (`_make_widget`'s boolean
+        branch), or None if there is no `x-toggle`, the path is too shallow
+        to have a sibling, or the sibling object/key is missing from the doc
+        or schema — a domain whose doc omits the toggle object must still
+        render the row exactly as today, not raise."""
+        toggle_key = prop.get("x-toggle")
+        if not toggle_key or len(path) < 2:
+            return None
+        sibling_path = path[:-2] + (toggle_key, path[-1])
+        try:
+            sibling_value = self._value_at("/".join(sibling_path))
+        except (KeyError, IndexError, TypeError):
+            return None
+        sibling_prop = self._schema_node_at(sibling_path)
+        if sibling_prop is None:
+            return None
+        checkbox = QCheckBox()
+        checkbox.setChecked(bool(sibling_value))
+        checkbox.setToolTip(sibling_prop.get("description", ""))
+        key = "/".join(sibling_path)
+        checkbox.toggled.connect(lambda v, k=key: self._commit(k, bool(v)))
+        self._widgets[key] = checkbox
+        return checkbox
 
     # -- widget per schema type: invalid input unrepresentable (ED-30) ------
 

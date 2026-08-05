@@ -69,6 +69,13 @@ it).
   3. **Spawn the correct execution agent(s)** with the matching skill.
   4. **`reviewer`** reviews the resulting diff.
 
+- **Two or more implementation agents running AT THE SAME TIME must each get
+  `isolation: "worktree"`.** A file-scope fence written in a dispatch prompt is
+  honour-based prose; a worktree is enforced. Concurrent agents sharing one
+  checkout have already produced one incident (a `git restore` that reverted a
+  parallel agent's uncommitted work — see Branching). Sequential dispatches into
+  one tree are fine.
+
 Agent roles and the skill table are defined once below (**Agent roster** and the
 skills table) — this section does not duplicate them. `planner` is exempt: it is
 reached only via the explicit `/createplan` flow, not general exploration.
@@ -252,6 +259,12 @@ The old branch+lock protocol is **REMOVED** (its successor is a future,
 separate design — nothing enforces domain locks today).
 - One branch per phase/feature off `Development`; land via PR.
 - **Never run destructive git on uncommitted work:** no `git reset --hard`,
-  `git clean`, `git checkout -- <file>`, force-push.
+  `git clean`, `git checkout -- <file>`, **`git restore`**, `git stash`,
+  force-push. `git restore` is the modern spelling of `git checkout -- <file>`
+  and was missing from this list until an agent used it to "clean up" its own
+  mistake and silently reverted a *parallel* agent's uncommitted work, then
+  reported the resulting 177 failures as someone else's pre-existing bug.
+  **HEAD is not a safe restore point** — the tree routinely holds uncommitted
+  work from other agents or the user. Undo by editing FORWARD.
 - Never commit `build/`, `dist/`, or any `*.exe` (gitignored — keep it that
   way).
