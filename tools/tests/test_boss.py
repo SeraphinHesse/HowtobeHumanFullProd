@@ -508,6 +508,48 @@ class TestDeathSwarm(unittest.TestCase):
         for e in scene.by_tag("enemy"):
             self.assertEqual((e._col, e._row), (boss_col, 0))  # the boss's tile
 
+    def test_era_zero_phase_spawns_the_commander(self):
+        """The era-0 shipping shape: `commander: 1` on the staged second phase
+        must produce exactly ONE real Commander (BR-3's `SWARM_TYPES` entry is
+        what makes the count non-inert), at the boss's own tile, at
+        `spawn_hp_fraction` of its OWN max HP — and the boss dies once the
+        queue drains. Counts are pinned here, not read from live balance."""
+        delay = 0.25
+        enem = swarm_balance({"regular": 0, "raiders": 0, "siege": 0,
+                              "commander": 1},
+                             spawn_hp_fraction=0.5, delayed=True,
+                             spawn_delay=delay, at_hp_fraction=0.5)
+        tm, scene, occ = build_board(["b" + "." * 40 + "s"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(2), occupancy=occ)
+        session.state.round_num = INTERVAL
+        session.state.phase = GamePhase.ENEMY
+        session.spawner.begin_round(INTERVAL, tm, enem, rng=random.Random(2))
+        session.spawner.clear()
+        boss_col = 41
+        boss = create_enemy("boss", boss_col, 0, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        health = boss.get_component(Health)
+        health.hp = int(health.max_hp * 0.49)   # past the 0.5 crossing
+
+        self.assertTrue(boss.alive)             # staging, not dead
+        self.assertFalse(boss.targetable)
+        for _ in range(400):
+            frame(session, scene, tm, delay / 2)
+            scene.update(0.0)
+            if boss not in scene.by_tag("enemy"):
+                break
+        self.assertNotIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(session.state.enemies_killed, 1)
+        children = [e for e in scene.by_tag("enemy") if e is not boss]
+        self.assertEqual(Counter(e.ETYPE for e in children),
+                         Counter({"commander": 1}))
+        child = children[0]
+        self.assertEqual((child._col, child._row), (boss_col, 0))
+        ch = child.get_component(Health)
+        self.assertEqual(ch.hp, max(1, int(ch.max_hp * 0.5)))
+
     def test_quick_skip_despawns_boss_without_swarm(self):
         tm, scene, session, _boss = self._setup()
         session.quick_skip_combat(scene)

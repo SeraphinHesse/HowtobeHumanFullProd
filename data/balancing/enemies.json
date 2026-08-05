@@ -93,7 +93,7 @@
         "enabled": true,
         "spawns": [
           {
-            "commander": 0,
+            "commander": 1,
             "raiders": 0,
             "regular": 0,
             "siege": 0
