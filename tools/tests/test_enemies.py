@@ -178,6 +178,57 @@ class TestScaling(unittest.TestCase):
                                        first["move_speed"])
 
 
+class TestEndgameScaling(unittest.TestCase):
+    """ES-4/D5 — past the last authored era the row clamps AND the type's own
+    ``endgame_scaling`` factors compound: ``last * factor ** N`` with
+    ``N = era - (len(eras) - 1)``. `test_era_math` proves `f**N` on the pure
+    resolver; this is the ONE integration pin that the game's two era-row
+    lookups (stat resolution + count) actually thread the factors through."""
+
+    FACTORS = {"hp": 2.0, "dmg": 1.5, "move_speed": 1.1, "count": 2.0}
+
+    def _scaled_balance(self):
+        bal = copy.deepcopy(ENEM)
+        bal["EnemyTypes"]["Standard"]["endgame_scaling"] = dict(self.FACTORS)
+        return bal
+
+    def test_eras_5_6_7_compound_the_factors(self):
+        bal = self._scaled_balance()
+        tm = synth(["bbs"])
+        rpe = bal["EnemyScaling"]["rounds_per_era"]
+        rows = bal["EnemyTypes"]["Standard"]["eras"]
+        last, spawner = rows[-1], Spawner()
+        for era in (5, 6, 7):
+            n = era - (len(rows) - 1)          # 1, 2, 3
+            with self.subTest(era=era, n=n):
+                e = Enemy(2, 0, bal, tm, era)
+                self.assertEqual(e.get_component(Health).max_hp,
+                                 math.floor(last["stats"]["hp"] * 2.0 ** n))
+                self.assertEqual(e.dmg,
+                                 math.floor(last["stats"]["dmg"] * 1.5 ** n))
+                self.assertAlmostEqual(e.get_component(Movement).speed,
+                                       last["stats"]["move_speed"] * 1.1 ** n)
+                # Counts at the era's FIRST round: zero in-era steps, so the
+                # expectation is exactly the scaled anchor, floored to an int.
+                first_round = era * rpe + 1
+                self.assertEqual(
+                    spawner._count_of(bal, "Standard", first_round),
+                    math.floor(last["count_start"] * 2.0 ** n))
+
+    def test_shipped_all_1_factors_are_a_plain_clamp(self):
+        # The invariant: with the shipped all-1.0 file a past-the-end wave is
+        # byte-identical to the pre-ES-4 raw clamp.
+        tm, spawner = synth(["bbs"]), Spawner()
+        rows = ENEM["EnemyTypes"]["Standard"]["eras"]
+        for era in (5, 6, 7):
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era)
+                self.assertEqual(e.get_component(Health).max_hp,
+                                 rows[-1]["stats"]["hp"])
+                self.assertEqual(spawner._count_of(ENEM, "Standard", 60),
+                                 expected_count("Standard", 60))
+
+
 # ---------------------------------------------------------------------------
 # Sprite variant selection (registry-group driven; random per spawn)
 # ---------------------------------------------------------------------------

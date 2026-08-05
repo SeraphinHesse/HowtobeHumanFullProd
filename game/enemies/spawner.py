@@ -127,7 +127,11 @@ class Spawner:
         rounds_per_era = scaling["rounds_per_era"]
         self._era = era_math.era_of_round(round_num, rounds_per_era)
         self._round_in_era = era_math.round_in_era(round_num, rounds_per_era)
-        pacing = era_math.resolve_era_row(scaling["eras"], self._era)
+        # ES-4/D5: past the last authored era the row clamps AND
+        # EnemyScaling.endgame_scaling's factors compound onto it. All 1.0 as
+        # shipped, so this is exactly the plain clamp until a designer tunes it.
+        pacing = era_math.resolve_era_row(
+            scaling["eras"], self._era, scaling["endgame_scaling"])
         self._interval = max(0.1, pacing["spawn_interval"])
         # ES-3/D4: how many queue entries ONE timer expiry releases.
         self._batch_size = max(1, int(pacing["batch_size"]))
@@ -180,11 +184,16 @@ class Spawner:
         ``count_start + k * count_per_round`` from the era's first ACTIVE round
         ``max(era first round, start_round)`` — the ONE count formula in the
         game, shared by the standard/raider/siege/formation sites AND by
-        ``_boss_round``'s past-the-table fallback."""
+        ``_boss_round``'s past-the-table fallback.
+
+        ES-4/D5: past the last authored era the row clamps AND the type's own
+        ``endgame_scaling`` factors compound onto it (all 1.0 as shipped, so a
+        round-60 wave is unchanged until a designer tunes them)."""
         block = balance["EnemyTypes"][type_key]
         rounds_per_era = balance["EnemyScaling"]["rounds_per_era"]
         era = era_math.era_of_round(round_num, rounds_per_era)
-        row = era_math.resolve_era_row(block["eras"], era)
+        row = era_math.resolve_era_row(
+            block["eras"], era, block["endgame_scaling"])
         return era_math.count_at_round(
             row, round_num, era * rounds_per_era + 1, block["start_round"])
 

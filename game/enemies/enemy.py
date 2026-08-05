@@ -156,11 +156,16 @@ class Enemy(GameObject):
         be: it read ``EnemyTypes["Standard"]`` LITERALLY, so every subclass had
         to override it or silently ship walker stats. Raider/SiegeCannon/
         Formation therefore carry no override any more — the Raider's
-        "never scales" is five identical era rows in ``data/``, not code."""
+        "never scales" is five identical era rows in ``data/``, not code.
+
+        ES-4/D5: past the last authored era the row clamps AND the type's own
+        ``endgame_scaling`` factors compound (``value * factor ** N``). Shipped
+        all-1.0, so this is exactly the plain clamp until a designer tunes it."""
         block = balance["EnemyTypes"]
         for seg in self.STAT_SUBTREE:
             block = block[seg]
-        return era_stats(block, era, position_in_era)
+        return era_stats(block, era, position_in_era,
+                         block["endgame_scaling"])
 
     def _resolve_era(self, balance, era):
         """Which row of ``death_spawn.spawns`` (and, for the Boss, of
