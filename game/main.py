@@ -66,13 +66,17 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
-from game.debug import DebugRecorder, LEVEL_OFF, LEVEL_VERBOSE  # debug-mode-telemetry
+from game.debug import (  # debug-mode-telemetry
+    DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
+)
 from game.debug import events as dbg
 from game.enemies import (
     DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
     spawn_corpse,
 )
-from game.enemies.components import set_damage_hook  # debug-mode-telemetry Phase 3
+from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
+    set_damage_hook, set_wall_damage_hook,
+)
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
     spawn_tree_slots, tile_at_screen,
@@ -446,6 +450,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         shell.enter_gameplay()
 
     def teardown_gameplay():
+        nonlocal recorder
+        # debug-mode-telemetry: a run torn down mid-way (quit to menu, or the
+        # game-over screen's MAIN MENU button) must still write its artifacts —
+        # `close()` is idempotent, so a run that already closed at GAME_OVER
+        # keeps that outcome. Dropping the reference is what lets the NEXT run
+        # decide for itself whether it is instrumented.
+        if recorder is not None:
+            recorder.close(outcome="quit_to_menu")
+            recorder = None
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
@@ -456,9 +469,22 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         if tune_gc:
             gc.collect()
 
+    def _new_recorder():
+        """A fresh recorder from the shell's debug-log settings (level +
+        which artifacts) — the ONE construction site the PLAY DEBUG button and
+        the cheat-menu arm toggle share."""
+        return DebugRecorder(REPO / "logs", level=shell.debug_settings.level,
+                             outputs=shell.debug_settings.outputs)
+
     def execute(intent):
-        nonlocal running, window
+        nonlocal running, window, recorder
         if intent == "new_game":
+            build_gameplay()
+        elif intent == "new_game_debug":
+            # debug-mode-telemetry: PLAY DEBUG. `recorder` is a plain main()
+            # local precisely so this can reassign it BEFORE build_gameplay()
+            # binds it to the fresh run's RunState and Session.
+            recorder = _new_recorder()
             build_gameplay()
         elif intent == "quit_to_menu":
             teardown_gameplay()  # shell already set state -> MAIN_MENU
@@ -485,7 +511,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         phase-changing action that leaves LEVELUP, close the level-up window
         so no orphaned modal lingers — ``levelup_pending`` survives, so the
         window re-opens at the next ROUND_END (the prototype's pending-flag
-        behavior)."""
+        behavior).
+
+        debug-mode-telemetry: ``toggle_debug`` arms/disarms the run's
+        ``DebugRecorder`` in place (``Session.debug`` is a plain public
+        attribute — arming mid-run is one assignment). Both directions record
+        a ``cheat`` event, which also latches the round row's ``cheated`` flag
+        for the rest of the run: a run captured from round N onward is NOT
+        clean balance data, and saying so is the whole point."""
+        nonlocal recorder
         world = gp["world"]
         session = world.session
         if action == "close":
@@ -498,6 +532,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             session.cheat_add_love(999999)
         elif action == "unlock_all":
             session.cheat_unlock_all()
+        elif action == "toggle_debug":
+            if recorder is not None:
+                # Mark the point capture STOPS, then write the artifacts.
+                recorder.emit(dbg.CHEAT, action="debug_log_off",
+                              round=session.state.round_num)
+                recorder.close(outcome="debug_log_disarmed")
+                recorder = None
+                session.debug = None
+            else:
+                recorder = _new_recorder()
+                recorder.bind(session.state)
+                session.debug = recorder
+                recorder.emit(
+                    dbg.RUN_START, level=recorder.level,
+                    run_id=recorder.run_id, map_id=map_doc.map_id, seed=None,
+                    love=session.state.love, lives=session.state.base_lives)
+                # THE arm marker: everything before this round is missing.
+                recorder.emit(dbg.CHEAT, action="debug_log_on",
+                              round=session.state.round_num)
         elif action == "trigger_levelup":
             gp["cheat"].close()
             session.cheat_trigger_levelup()
@@ -907,7 +960,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                                  target=target_kind, dmg=dmg,
                                  target_hp_after=target_hp_after)
 
+                    def _debug_on_wall_damage(attacker_kind, edge, dmg,
+                                              hp_after, broke,
+                                              _rec=session.debug):
+                        c1, r1, c2, r2 = edge
+                        _rec.emit(dbg.WALL_DAMAGE, attacker=attacker_kind,
+                                 col=c1, row=r1, col2=c2, row2=r2, dmg=dmg,
+                                 hp_after=hp_after, broke=broke)
+
                     set_damage_hook(_debug_on_damage if debug_l2 else None)
+                    # A wall carries no Health and no RoundStats, so its damage
+                    # is invisible to `on_damage` — its own seam, same shape.
+                    set_wall_damage_hook(
+                        _debug_on_wall_damage if debug_l2 else None)
                     world.scene.update(sim_dt)
                     # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
                     # once per frame and threaded as a plain int.
@@ -936,8 +1001,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     # convergence-demo triggers — both ship INERT rows, so these
                     # ledgers filling every frame is a no-op emit until a
                     # designer binds art.
-                    def _on_defender_fire(wx, wy, _state=session.state):
+                    def _on_defender_fire(wx, wy, _state=session.state,
+                                          _rec=session.debug, _l2=debug_l2):
                         _state.defender_fire_events.append((wx, wy))
+                        # debug-mode-telemetry (level 2): a shot left a muzzle.
+                        # `resolve_combat`'s callback carries only the ALREADY
+                        # muzzle-anchored spawn point — the shooter and its
+                        # target are not in the signature and are NOT worth a
+                        # gameplay-file signature change to reach, so the event
+                        # reports exactly what it has (see events.py).
+                        if _l2:
+                            _rec.emit(dbg.DEFENDER_FIRE, wx=wx, wy=wy)
 
                     def _on_projectile_hit(wx, wy, _state=session.state):
                         _state.projectile_hit_events.append((wx, wy))
@@ -970,6 +1044,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                                    on_damage=(_debug_on_damage if debug_l2
                                              else None))
                     set_damage_hook(None)  # debug-mode-telemetry: don't leak
+                    set_wall_damage_hook(None)
                     session.post_sim(world.scene)
                 # payday fills state.income_events + flips to INCOME; spawn once
                 if (session.state.phase == GamePhase.INCOME
@@ -1238,5 +1313,35 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     return frames
 
 
+def debug_level_from_argv(argv):
+    """Parse the ``--debug[=N]`` CLI flag (debug-mode-telemetry Phase 5).
+
+    Returns what ``main(debug_log=...)`` wants: ``None`` for "off" (no flag,
+    or an explicit ``--debug=0``), else the integer level. Deliberately hand
+    rolled rather than argparse: this is the entry point's ONLY flag, and
+    ``main``'s other parameters (``max_frames``/``autostart``) are a headless
+    test seam that must stay off the command line — a player cannot be given a
+    way to boot a 5-frame run by accident.
+
+    An unparseable or out-of-range level exits with a message rather than
+    booting silently un-instrumented (the D-2 fail-loud convention: a debug
+    run that quietly records nothing is worse than no run)."""
+    for arg in argv:
+        if arg == "--debug":
+            return LEVEL_BASIC
+        if arg.startswith("--debug="):
+            raw = arg.split("=", 1)[1]
+            try:
+                level = int(raw)
+            except ValueError:
+                raise SystemExit(
+                    f"--debug expects an integer level {list(LEVELS)}: {raw!r}")
+            if level not in LEVELS:
+                raise SystemExit(
+                    f"--debug level must be one of {list(LEVELS)}: {level}")
+            return level if level > LEVEL_OFF else None
+    return None
+
+
 if __name__ == "__main__":
-    main()
+    main(debug_log=debug_level_from_argv(sys.argv[1:]))

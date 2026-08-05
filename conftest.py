@@ -127,6 +127,7 @@ TIERS = {
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
+    "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",

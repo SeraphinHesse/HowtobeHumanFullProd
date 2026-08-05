@@ -66,13 +66,30 @@ Level-1 kinds and their fields
                   (``amount`` / ``round``). **Any cheat sets ``cheated`` = 1 on
                   every round row for the REST of the run** — a cheated run must
                   be visibly tagged or it silently pollutes the balance data.
+                  The cheat menu's own **debug-log arm/disarm toggle** reports
+                  here too (``action`` ``debug_log_on`` / ``debug_log_off``,
+                  with the ``round`` it happened on). That is deliberate on
+                  both counts: the ``debug_log_on`` marker is where capture
+                  STARTS, so every round before it is missing rather than
+                  empty, and latching ``cheated`` says out loud that a
+                  part-way-captured run is not clean balance data either.
 ``game_over``     ``round``, ``kills``, ``buildings_placed``.
 ``run_end``       ``outcome`` ("game_over" / "quit" / whatever the host passes),
                   ``rounds`` (rows written).
 
 Level-2 kinds
 -------------
-``enemy_spawn``   ``etype``, ``col``, ``row``, ``hp``.
+``enemy_spawn``   **RESERVED — declared, never emitted.** The intended fields
+                  are ``etype``, ``col``, ``row``, ``hp``, but nothing calls it:
+                  the only place one enemy enters the world is
+                  ``Spawner.update``'s pop (``game/enemies/spawner.py``), which
+                  has no host seam to reach it and no ``resolve_combat``
+                  callback covers it. The per-round count IS recorded — the
+                  whole wave is counted at ``wave_start`` via ``note_spawn``, so
+                  ``enemies_spawned`` and ``composition`` are complete; only the
+                  per-enemy line is missing. Do not "look for" this kind in a
+                  stream: its absence is the documented state, not a bug in the
+                  run you are reading.
 ``damage``        one damage application, from ``resolve_combat(on_damage=…)``.
                   ``attacker`` (``BUILDING_TYPE`` / ``ETYPE``, **null when no
                   attacker is credited** — e.g. a homing projectile whose
@@ -80,8 +97,23 @@ Level-2 kinds
                   The level-1/level-2 cross-check sums only events with a
                   non-null BUILDING attacker: that is exactly the set
                   ``RoundStats.dmg_dealt_this_round`` credits.
-``wall_damage``   ``col``, ``row``, ``dmg``, ``hp_after``.
-``defender_fire`` ``building_type``, ``col``, ``row``, ``target``.
+``wall_damage``   an enemy spent a hit on a perimeter edge WALL (10E).
+                  ``attacker`` (the enemy's ``ETYPE``), ``col``/``row`` +
+                  ``col2``/``row2`` — the two tiles the damaged edge sits
+                  BETWEEN (a wall spans an edge; it has no single tile) —
+                  ``dmg``, ``hp_after`` (``0`` once it broke), ``broke``.
+                  A wall is a map-owned ``WallEdge`` with no ``Health`` and no
+                  ``RoundStats``, so this damage is credited to NOTHING and
+                  appears in no round-row column: it is stream-only, and it is
+                  deliberately absent from ``dmg_dealt``'s enemy-side mirror.
+``defender_fire`` a defender launched a projectile. ``wx``, ``wy`` — the
+                  muzzle-anchored spawn point, which is ALL
+                  ``resolve_combat``'s ``on_defender_fire`` callback carries.
+                  The shooter and its target are not in that signature and
+                  telemetry does not get to widen a gameplay one to reach
+                  them. **Beam defenders (Sun Scorcher) never emit this** —
+                  they are instant hitscan and fire no projectile; their
+                  output shows up as ``damage`` events only.
 
 What the numbers do and do not include
 --------------------------------------

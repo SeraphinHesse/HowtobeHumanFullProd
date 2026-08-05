@@ -479,7 +479,7 @@
         "label": "+10 Love",
         "rect": [
           540,
-          263,
+          248,
           200,
           26
         ]
@@ -490,7 +490,7 @@
         "label": "X",
         "rect": [
           724,
-          237,
+          222,
           20,
           18
         ]
@@ -501,7 +501,7 @@
         "label": "Go to Round",
         "rect": [
           642,
-          439,
+          454,
           98,
           22
         ]
@@ -512,7 +512,7 @@
         "label": "Infinite Money",
         "rect": [
           540,
-          353,
+          338,
           200,
           26
         ]
@@ -523,7 +523,17 @@
         "label": "Skip Round",
         "rect": [
           540,
-          293,
+          278,
+          200,
+          26
+        ]
+      },
+      "btn_toggle_debug": {
+        "kind": "button",
+        "label": "Debug Log",
+        "rect": [
+          540,
+          398,
           200,
           26
         ]
@@ -534,7 +544,7 @@
         "label": "LEVEL UP",
         "rect": [
           540,
-          323,
+          308,
           200,
           26
         ]
@@ -545,7 +555,7 @@
         "label": "Unlock All Tech",
         "rect": [
           540,
-          383,
+          368,
           200,
           26
         ]
@@ -556,7 +566,7 @@
         "label": "Jump to round:",
         "rect": [
           540,
-          421,
+          436,
           0,
           0
         ]
@@ -567,9 +577,9 @@
         "label": "",
         "rect": [
           530,
-          231,
+          216,
           220,
-          258
+          288
         ]
       },
       "round_field": {
@@ -578,7 +588,7 @@
         "label": "",
         "rect": [
           540,
-          439,
+          454,
           96,
           22
         ]
@@ -589,7 +599,7 @@
         "label": "CHEATS",
         "rect": [
           640,
-          239,
+          224,
           0,
           0
         ]
@@ -925,7 +935,7 @@
         "label": "ADD A NAME",
         "rect": [
           480,
-          366,
+          432,
           320,
           52
         ]
@@ -936,7 +946,7 @@
         "label": "CREDITS",
         "rect": [
           480,
-          498,
+          564,
           320,
           52
         ]
@@ -952,13 +962,33 @@
           52
         ]
       },
+      "btn_play_debug": {
+        "kind": "button",
+        "label": "PLAY DEBUG",
+        "rect": [
+          480,
+          366,
+          320,
+          52
+        ]
+      },
+      "btn_play_debug_settings": {
+        "kind": "button",
+        "label": "SET",
+        "rect": [
+          810,
+          366,
+          52,
+          52
+        ]
+      },
       "btn_quit": {
         "display_name": "Quit button",
         "kind": "button",
         "label": "QUIT",
         "rect": [
           480,
-          564,
+          630,
           320,
           52
         ]
@@ -969,7 +999,7 @@
         "label": "SETTINGS",
         "rect": [
           480,
-          432,
+          498,
           320,
           52
         ]
