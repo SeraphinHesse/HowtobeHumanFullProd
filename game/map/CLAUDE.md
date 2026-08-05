@@ -254,8 +254,39 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   each alive builder's snapshot to full HP) are driven by the payday slots;
   `damage_wall` (enemy attack) deletes an edge at hp≤0. The map layer stays
   IMPORT-FREE of `game.buildings` — it DUCK-TYPES the builder (`wall_hp()` /
-  `wall_snapshot()` / `set_wall_snapshot()` / `building_type` / `alive`), same as it
-  already duck-types occupants.
+  `wall_snapshot()` / `set_wall_snapshot()` / `building_type` / `alive` /
+  `wall_slot()`), same as it already duck-types occupants.
+  - **`wall_render.py` is the ONE wall-art emitter** (pure, the `conditions.py`
+    sibling): `wall_render_items(tile_map, col_min, col_max, row_min, row_max,
+    art_slots, anim_time_ms)` → `RenderItem`s on the **`terrain`** layer, one per
+    EDGE, positioned on the PLAYER tile (`(edge.col_a, edge.row_a)` — both
+    `place_walls_for_builder` and the `rebuild_walls` snapshot store the player
+    tile first; `_wall_key` normalises only the dict KEY, never the dataclass
+    fields). Slot = `edge.owner.wall_slot()` (duck-typed); animation row =
+    `SIDE_OF_DELTA[(dcol, drow)]`, the `walls` category's four
+    `edge_se`/`edge_sw`/`edge_nw`/`edge_ne` rows. Same E-37 `art_slots` gating
+    as condition art — an un-imported wall tier emits NOTHING, never a grey X.
+    Several edges on one tile emit several items (different animation rows of
+    the SAME slot) — a corner tile really is walled on two sides.
+    - **It deliberately DIFFERS from `conditions.py` in two ways, both
+      load-bearing.** (1) It iterates `tile_map.wall_edges.values()` and filters
+      to the window instead of walking the window's tiles: `wall_edges` is
+      PERIMETER-sized (tens to low hundreds even on 1024²), so this is strictly
+      cheaper than the per-tile scan and still honours the no-full-map-scans
+      invariant — do not "fix" it into a grid scan. (2) NO per-cell animation
+      phase jitter: a wall is one continuous structure and must animate in
+      lockstep, so `anim_time_ms` passes straight through.
+    - **`SIDE_OF_DELTA` and `edge_world_points` are DERIVED from
+      `engine/coords/system.py`, and the derivation is in the module
+      docstring.** With `ix=(wx−wy)·tile_w/2`, `iy=(wx+wy)·tile_h/2`:
+      `(+1,0)`=down-right=`edge_se`, `(0,+1)`=down-left=`edge_sw`,
+      `(−1,0)`=up-left=`edge_nw`, `(0,−1)`=up-right=`edge_ne`. **The
+      prototype's comments call `(0,+1)` "NE" — WRONG for this repo's coord
+      authority; never "fix" the table back to it.** `edge_world_points`
+      returns the two shared diamond corners in WORLD TILE UNITS (what
+      `submit_overlay_lines` consumes), COMPUTED from the delta rather than
+      from a second lookup table, so it and `SIDE_OF_DELTA` cannot disagree;
+      `None` for a non-adjacent pair.
 - **Occupancy is occupant-driven and updated incrementally**: a tile with a
   GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
   impassability is a weight concern, not occupancy). Placement seams
