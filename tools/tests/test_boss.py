@@ -217,16 +217,25 @@ class TestBossEraStats(unittest.TestCase):
 #: balance moves. Pin the counts so these tests exercise the ER-3 MECHANIC — the
 #: plan, the one-shot guard, the tile, the tier — never the balance of the day.
 #: That balance has its own guard: the schema + tools/smoke.py.
-SWARM = {"regular": 3, "raiders": 2, "siege": 1}
+SWARM = {"regular": 3, "raiders": 2, "siege": 1, "commander": 0}
 
 
-def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0):
-    """A copy of the enemies balance whose boss leaves a NON-EMPTY era-0 burst."""
+def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0, delayed=False,
+                  spawn_delay=0.0, at_hp_fraction=0.0):
+    """A copy of the enemies balance whose boss leaves a NON-EMPTY era-0 burst.
+
+    BR-3 renamed the boss's block `death_spawn` -> `second_phase` and gave it
+    `delayed_spawns`/`spawn_delay`. This class pins the ONE-FRAME burst, so it
+    forces `delayed_spawns` OFF (the shipped data has it ON); the staged phase
+    has its own class below."""
     enem = copy.deepcopy(ENEM)
-    death_spawn = enem["EnemyTypes"]["Boss"]["death_spawn"]
-    death_spawn["enabled"] = True
-    death_spawn["spawn_hp_fraction"] = spawn_hp_fraction
-    death_spawn["spawns"][0] = dict(counts)
+    second_phase = enem["EnemyTypes"]["Boss"]["second_phase"]
+    second_phase["enabled"] = True
+    second_phase["at_hp_fraction"] = at_hp_fraction
+    second_phase["spawn_hp_fraction"] = spawn_hp_fraction
+    second_phase["spawns"][0] = dict(counts)
+    second_phase["delayed_spawns"] = delayed
+    second_phase["spawn_delay"] = spawn_delay
     return enem
 
 
@@ -296,11 +305,72 @@ class TestDeathSwarm(unittest.TestCase):
         leaves no children. Balance says "this boss doesn't burst" and the code
         honours it — the case that used to masquerade as a passing assertion."""
         tm, scene, session, boss = self._setup(
-            enem=swarm_balance({"regular": 0, "raiders": 0, "siege": 0}))
+            enem=swarm_balance({"regular": 0, "raiders": 0, "siege": 0,
+                                "commander": 0}))
         boss.get_component(Health).damage(10 ** 9)
         frame(session, scene, tm, 0.0)
         scene.update(0.0)
         self.assertEqual([e for e in scene.by_tag("enemy") if e.alive], [])
+
+    def test_delayed_boss_stages_instead_of_bursting(self):
+        """BR-3: the ONE test of the delay -> second-phase machine.
+
+        `delayed_spawns: true` + `at_hp_fraction 0.5`: crossing the threshold
+        must NOT kill the boss. It freezes, goes untargetable, trickles exactly
+        `sum(counts)` children one per `spawn_delay` at its own tile, holds the
+        round open the whole time, then dies exactly once through the normal
+        path (kill count + the round ending)."""
+        delay = 0.25
+        enem = swarm_balance(delayed=True, spawn_delay=delay,
+                             at_hp_fraction=0.5)
+        # A LONG board, unlike the burst tests' two-tile one: the phase runs
+        # over real dt, so children that spawned early would otherwise reach
+        # the hole mid-phase and wipe the round out from under the machine.
+        tm, scene, occ = build_board(["b" + "." * 40 + "s"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(2), occupancy=occ)
+        session.state.round_num = INTERVAL
+        session.state.phase = GamePhase.ENEMY
+        session.spawner.begin_round(INTERVAL, tm, enem, rng=random.Random(2))
+        session.spawner.clear()
+        boss_col = 41
+        boss = create_enemy("boss", boss_col, 0, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        health = boss.get_component(Health)
+        health.hp = health.max_hp // 2          # <= 0.5 * max: the crossing
+
+        self.assertTrue(boss.alive)             # NOT dead — the whole point
+        self.assertFalse(boss.targetable)       # D2: immune + no HP bar
+
+        frame(session, scene, tm, 0.0)          # the transition frame
+        scene.update(0.0)
+        self.assertIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(boss.get_component(Movement).speed, 0.0)
+        self.assertTrue(boss.get_component(PathAgent).frozen)
+        self.assertEqual(session.state.enemies_killed, 0)
+        # Immune while frozen: a full-power hit changes nothing.
+        before = health.hp
+        resolve_combat(scene, tm, 0.0, BUILD, VFX)
+        self.assertEqual(health.hp, before)
+
+        total = sum(SWARM.values())
+        children = 0
+        for _ in range(400):                    # 400 * delay/2 >> the phase
+            frame(session, scene, tm, delay / 2)
+            scene.update(0.0)
+            children = len([e for e in scene.by_tag("enemy")
+                            if e.alive and e is not boss])
+            if boss not in scene.by_tag("enemy"):
+                break
+            # The round can never end while the boss is mid-phase.
+            self.assertEqual(session.state.phase, GamePhase.ENEMY)
+            self.assertLessEqual(children, total)
+        self.assertEqual(children, total)       # exactly sum(counts), no more
+        self.assertNotIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(session.state.enemies_killed, 1)   # died ONCE
+        for e in scene.by_tag("enemy"):
+            self.assertEqual((e._col, e._row), (boss_col, 0))  # the boss's tile
 
     def test_quick_skip_despawns_boss_without_swarm(self):
         tm, scene, session, _boss = self._setup()

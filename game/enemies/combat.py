@@ -128,7 +128,11 @@ class ProjectileHoming(Component):
         target = getattr(self, "_target", None)
         shooter = getattr(self, "_shooter", None)
         scene = getattr(self, "_scene", None)
-        if target is not None and getattr(target, "alive", False):
+        # BR-3/D2: a shot already in flight when its target entered a delayed
+        # second phase does NOTHING — the same "wasted if the target dies
+        # first" rule, extended to "or became untouchable first".
+        if (target is not None and getattr(target, "alive", False)
+                and getattr(target, "targetable", True)):
             target.get_component(Health).damage(self.dmg)
             if shooter is not None:
                 rs = shooter.get_component(RoundStats)
@@ -219,7 +223,9 @@ class ProjectileArc(Component):
         shooter = getattr(self, "_shooter", None)
         rs = shooter.get_component(RoundStats) if shooter is not None else None
         for enemy in scene.by_tag("enemy"):
-            if not getattr(enemy, "alive", False):
+            # BR-3/D2: splash passes over an untargetable second-phase boss.
+            if (not getattr(enemy, "alive", False)
+                    or not getattr(enemy, "targetable", True)):
                 continue
             ex, ey = _enemy_center_world(enemy)   # the body's centre (ER-2)
             if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
@@ -484,7 +490,13 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     crater_life = vfx_balance["procedural"]["crater"]["life"]
     lift_frac = vfx_balance["procedural"]["projectile"]["lift_frac"]
 
-    enemies = [e for e in scene.by_tag("enemy") if e.alive]
+    # BR-3/D2: a boss in its delayed second phase is alive but UNTARGETABLE —
+    # dropping it here removes it from every defender's `in_range` list at
+    # once (homing, splash and beam alike), so no acquisition site needs its
+    # own guard. `getattr` default True: buildings and the combat tests' stub
+    # enemies carry no such property.
+    enemies = [e for e in scene.by_tag("enemy")
+               if e.alive and getattr(e, "targetable", True)]
     # ER-2: the footprint offset is a per-enemy CONSTANT. Resolve it once per
     # enemy per frame here — never inside the (defender x enemy) pairwise loop
     # below, where it would cost a component scan per pair (game/PERF.md).
@@ -607,6 +619,7 @@ def _update_beam(defender, targets, dt, dmg_bonus=0):
 
     target = getattr(attacker, "_target", None)
     if target is not None and (not getattr(target, "alive", False)
+                               or not getattr(target, "targetable", True)
                                or target not in in_range):
         target = None
     if target is None and beam.death_cooldown <= 0 and in_range:

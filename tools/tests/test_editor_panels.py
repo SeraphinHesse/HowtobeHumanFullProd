@@ -583,9 +583,9 @@ class TestBalancingPanel(TempDataCase):
             ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
             ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
             ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/enabled", QCheckBox),
-            ("EnemyTypes/Boss/death_spawn/at_hp_fraction", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/spawns/0/regular", QSpinBox),
+            ("EnemyTypes/Boss/second_phase/enabled", QCheckBox),
+            ("EnemyTypes/Boss/second_phase/at_hp_fraction", QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/spawns/0/regular", QSpinBox),
         ):
             with self.subTest(key=key):
                 self.assertIsInstance(panel._widgets[key], kind)
@@ -618,14 +618,14 @@ class TestBalancingPanel(TempDataCase):
 
     def test_remove_row_pops_the_last_row(self):
         panel = self.make_panel("enemies")
-        key = "EnemyTypes/Boss/death_spawn/spawns"
+        key = "EnemyTypes/Boss/second_phase/spawns"
         self.assertEqual(len(panel._value_at(key)), 5)   # the boss's per-era table
         panel._remove_array_row(key)
         self.assertEqual(len(panel._value_at(key)), 4)
         panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "enemies")
         self.assertEqual(
-            len(on_disk["EnemyTypes"]["Boss"]["death_spawn"]["spawns"]), 4)
+            len(on_disk["EnemyTypes"]["Boss"]["second_phase"]["spawns"]), 4)
 
     def test_editing_a_field_of_a_new_row_does_not_raise(self):
         """The new row's path does not exist in the BASELINE (which still has the
@@ -691,7 +691,7 @@ class TestBalancingPanel(TempDataCase):
         self.assertIn("EnemyScaling/eras", resizable)
         self.assertIn("EnemyTypes/Standard/eras", resizable)
         self.assertIn("EnemyTypes/Standard/death_spawn/spawns", resizable)
-        self.assertIn("EnemyTypes/Boss/death_spawn/spawns", resizable)
+        self.assertIn("EnemyTypes/Boss/second_phase/spawns", resizable)
 
     def test_buildings_form_has_no_row_buttons_at_all(self):
         """The regression guard for every other domain: a fixed-length tier list

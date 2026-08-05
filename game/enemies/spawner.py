@@ -23,7 +23,10 @@ and a round's TOTAL is unaffected by either. The round loop that CALLS ``begin_r
 detects wave-clear is 9F; 9E exposes the pieces (``begin_round`` / ``update`` /
 ``active`` / ``done``);
 ``spawn_death_swarm`` (ER-3) is the Session-driven death burst for ANY type
-carrying an enabled ``death_spawn`` (10G's boss swarm is one instance of it).
+carrying an enabled ``death_spawn``. Since BR-3 the BOSS instead carries a
+``second_phase``: ``_advance_second_phases`` (driven first in ``update``)
+trickles its children out one per ``spawn_delay`` while the boss is frozen and
+untouchable, through the same ``_spawn_child`` path the burst uses.
 
 An ``rng`` is injectable so tests are deterministic (default: the ``random``
 module).
@@ -34,7 +37,7 @@ from engine import era_math
 from engine.core import Health
 from game.map.pathfinder import block_tiles
 
-from .enemy import ENEMY_CLASSES, create_enemy
+from .enemy import ENEMY_CLASSES, SWARM_TYPES, create_enemy
 
 # Raiders + siege went live in 10F; the boss in 10G; the formation in ER-4.
 ENABLE_RAIDERS = True
@@ -46,12 +49,12 @@ ENABLE_FORMATION = True
 # gives it its real entrance, the boss's second phase.
 ENABLE_COMMANDER = True
 
-# spawn_counts key -> the etype it spawns. The iteration ORDER is load-bearing:
-# it fixes how many draws each burst takes from the injected `rng` (variant
-# picks), so it must stay standard -> raider -> siege (prototype
-# game.py:1314-34).
-_SWARM_TYPES = (("standard", "regular"), ("raider", "raiders"),
-                ("siege", "siege"))
+# The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
+# delayed second phase lays out its child queue from the SAME table and
+# enemy.py cannot import this module (the dependency runs the other way).
+# BR-3 appended ("commander", "commander") to it LAST: until then a non-zero
+# `commander` count in ANY spawn_counts row silently spawned nothing.
+_SWARM_TYPES = SWARM_TYPES
 
 
 def _footprint_of(balance, etype, era=0):
@@ -382,7 +385,12 @@ class Spawner:
         leads its batch. At ``batch_size == 1`` this loop is byte-identical to
         ES-2 (same draws, same times) — that is the fence for the deterministic
         wave fixtures. Round totals never move with this knob: it changes how
-        many spawn EVENTS a wave takes, not how many enemies are in it."""
+        many spawn EVENTS a wave takes, not how many enemies are in it.
+
+        BR-3: the delayed second phase is driven FIRST, before the queue's own
+        early-out — a boss stages long after its wave queue has drained, so it
+        cannot hang off the `if not self._queue: return` below."""
+        self._advance_second_phases(dt, scene)
         if not self._queue:
             return
         self._timer -= dt
@@ -427,10 +435,44 @@ class Spawner:
         frac = plan["spawn_hp_fraction"]
         for etype, key in _SWARM_TYPES:
             for _ in range(counts[key]):
-                enemy = create_enemy(
-                    etype, col, row, self._balance, self._tilemap,
-                    self._era, self._registry, self._rng, self._round_in_era)
-                if frac < 1.0:
-                    health = enemy.get_component(Health)
-                    health.hp = max(1, int(health.max_hp * frac))
-                scene.spawn(enemy)
+                self._spawn_child(scene, etype, col, row, frac)
+
+    def _spawn_child(self, scene, etype, col, row, frac):
+        """Construct ONE death-spawn / second-phase child at ``(col, row)``.
+        The single per-child path both the one-frame burst above and BR-3's
+        delayed phase go through, so the two can never drift on era,
+        registry/rng variant picks or the HP seeding."""
+        enemy = create_enemy(
+            etype, col, row, self._balance, self._tilemap,
+            self._era, self._registry, self._rng, self._round_in_era)
+        if frac < 1.0:
+            health = enemy.get_component(Health)
+            health.hp = max(1, int(health.max_hp * frac))
+        scene.spawn(enemy)
+
+    # -- delayed second phase (BR-3) ---------------------------------------
+
+    def _advance_second_phases(self, dt, scene):
+        """Tick every staged second phase and spawn the children it releases.
+
+        Duck-typed over ``by_tag("enemy")`` rather than ``by_tag("boss")``: the
+        Boss is the only type with a ``second_phase`` block today, but the
+        mechanic is a property of the data, not of the tag. ``dt`` is the
+        host's speed-scaled ``sim_dt`` (``Session.pre_sim``), which is what
+        keeps the cadence honest at 1.5x/2x — the ``Corpse`` fade-clock rule.
+
+        The children land at the parent's own tile (D6) through the SAME
+        ``_spawn_child`` path the one-frame burst uses. ``Enemy`` owns the
+        state machine; this method owns the scene."""
+        for enemy in list(scene.by_tag("enemy")):
+            advance = getattr(enemy, "advance_second_phase", None)
+            if advance is None:
+                continue
+            due = advance(dt)
+            if not due:
+                continue
+            wx, wy = enemy.transform.world_pos
+            col, row = round(wx), round(wy)
+            frac = enemy.second_phase_child_hp_fraction
+            for etype in due:
+                self._spawn_child(scene, etype, col, row, frac)

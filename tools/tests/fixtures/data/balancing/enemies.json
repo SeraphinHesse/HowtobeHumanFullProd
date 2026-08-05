@@ -39,43 +39,6 @@
         "mountain": 2,
         "pond": 9
       },
-      "death_spawn": {
-        "at_hp_fraction": 0.0,
-        "enabled": true,
-        "spawn_hp_fraction": 1.0,
-        "spawns": [
-          {
-            "commander": 0,
-            "raiders": 0,
-            "regular": 0,
-            "siege": 0
-          },
-          {
-            "commander": 0,
-            "raiders": 7,
-            "regular": 14,
-            "siege": 2
-          },
-          {
-            "commander": 0,
-            "raiders": 10,
-            "regular": 20,
-            "siege": 3
-          },
-          {
-            "commander": 0,
-            "raiders": 13,
-            "regular": 26,
-            "siege": 4
-          },
-          {
-            "commander": 0,
-            "raiders": 16,
-            "regular": 34,
-            "siege": 5
-          }
-        ]
-      },
       "hunts": "any_non_base",
       "kidnapping": false,
       "registry_group": "Boss",
@@ -111,6 +74,45 @@
           "siege": 61
         }
       ],
+      "second_phase": {
+        "at_hp_fraction": 0.0,
+        "delayed_spawns": true,
+        "enabled": true,
+        "spawn_delay": 0.5,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          },
+          {
+            "commander": 0,
+            "raiders": 7,
+            "regular": 14,
+            "siege": 2
+          },
+          {
+            "commander": 0,
+            "raiders": 10,
+            "regular": 20,
+            "siege": 3
+          },
+          {
+            "commander": 0,
+            "raiders": 13,
+            "regular": 26,
+            "siege": 4
+          },
+          {
+            "commander": 0,
+            "raiders": 16,
+            "regular": 34,
+            "siege": 5
+          }
+        ]
+      },
       "stats": [
         {
           "attack_range_tiles": 2,

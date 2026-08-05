@@ -42,6 +42,21 @@ from game.map.pathfinder import (
 )
 from .components import _HUNT_QUERIES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
 
+# spawn_counts key -> the etype it spawns. The ORDER is load-bearing twice
+# over: it fixes how many draws a death burst takes from the injected `rng`
+# (variant picks) AND the order children leave a delayed second phase.
+# standard -> raider -> siege is the prototype's (game.py:1314-34); BR-3
+# appended "commander" LAST for exactly that reason — a new key anywhere
+# earlier would move every deterministic wave/burst fixture.
+SWARM_TYPES = (("standard", "regular"), ("raider", "raiders"),
+               ("siege", "siege"), ("commander", "commander"))
+
+# BR-3 / D4: the animations the staged second phase plays. Missing manifest
+# rows are graceful by construction — SpriteAnimator just holds a name string
+# and the renderer falls back, so the phase still runs on its timer.
+ENDPHASE_ANIM = "endphase"
+DEATH_ANIM = "death"
+
 
 def variant_slot(registry, group_label, era, rng=None, fallback=None):
     """Random variant slot for ``group_label`` at ``era``.
@@ -87,6 +102,11 @@ class Enemy(GameObject):
     DEFAULT_SLOT = "enemy_stage_1_v1"  # no-registry fallback (headless tests)
     STAT_SUBTREE = ("Standard",)  # under EnemyTypes; drives EVERY lookup
     EXTRA_TAGS = ()               # extra scene tags beside "enemy" (Boss: 10G)
+    # Which balancing key holds this type's death-spawn block (BR-3): the Boss
+    # renamed its to `second_phase` when it grew delayed_spawns/spawn_delay;
+    # every other type keeps the plain `death_spawn`. ONE class attr rather
+    # than a per-type __init__ override — the resolved fields are identical.
+    DEATH_SPAWN_KEY = "death_spawn"
     # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
     # prototype-exact. PAD is only the GAP above the sprite's head — how high
     # the bar actually floats is measured off the sprite as the renderer draws
@@ -102,7 +122,7 @@ class Enemy(GameObject):
         block = enemies_balance["EnemyTypes"]
         for seg in self.STAT_SUBTREE:
             block = block[seg]
-        ds = block["death_spawn"]
+        ds = block[self.DEATH_SPAWN_KEY]
         era = self._resolve_era(enemies_balance, era)
         rows = ds["spawns"]
         spawn_row = rows[min(max(era, 0), len(rows) - 1)]
@@ -121,7 +141,13 @@ class Enemy(GameObject):
                        enabled=ds["enabled"],
                        at_hp_fraction=float(ds["at_hp_fraction"]),
                        spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
-                       counts=dict(spawn_row)),
+                       counts=dict(spawn_row),
+                       # BR-3: absent on every non-Boss `death_spawn` block —
+                       # the component defaults ARE the historical one-frame
+                       # burst, so `.get` here is a shape fallback, not a
+                       # code-side default for an authored value (G-7).
+                       delayed=bool(ds.get("delayed_spawns", False)),
+                       spawn_delay=float(ds.get("spawn_delay", 0.0))),
             # Kidnapping (Art/enemies): LAST — it must tick after both
             # Movement (sees arrival the same frame) and SpriteAnimator (its
             # per-frame clock re-pin wins).
@@ -244,14 +270,110 @@ class Enemy(GameObject):
         breaking formation IS dying — one code path, no separate break state).
         At the default ``at_hp_fraction`` 0.0 this is exactly
         ``not Health.is_dead`` (``hp <= 0``), so every pre-ER-3 type is
-        byte-identical."""
-        h = self.get_component(Health)
+        byte-identical.
+
+        BR-3: a unit with a DELAYED second phase (the Boss only) stays alive
+        from the threshold crossing until its phase completes — this is THE
+        site combat, base arrivals and the wave-clear check all read, so
+        holding it True here is what keeps the round open and the boss on the
+        board for the whole phase without special-casing any of them."""
         ds = self.get_component(DeathSpawn)
+        if ds.enabled and ds.delayed and not ds.phase_complete:
+            return True
+        h = self.get_component(Health)
+        return h.hp > h.max_hp * ds.at_hp_fraction
+
+    @property
+    def targetable(self):
+        """False while this unit is in (or past the threshold of) a delayed
+        second phase — D2: fully invulnerable, defenders drop it, in-flight
+        projectiles do nothing, no HP bars.
+
+        Derived straight from HP rather than from ``phase_started``, so it
+        flips on the SAME frame the crossing blow lands (the transition itself
+        only runs on the next spawner tick) and the boss can never eat one
+        extra volley. Duck-typed: everything else in the game reads it through
+        ``getattr(obj, "targetable", True)``, so buildings and stub enemies are
+        untouched."""
+        ds = self.get_component(DeathSpawn)
+        if not (ds.enabled and ds.delayed):
+            return True
+        h = self.get_component(Health)
         return h.hp > h.max_hp * ds.at_hp_fraction
 
     @property
     def dmg(self):
         return self.get_component(EnemyCombat).dmg
+
+    # -- the delayed second phase (BR-3) -----------------------------------
+
+    def advance_second_phase(self, dt):
+        """Drive one frame of the staged second phase; return the etypes whose
+        child is due NOW (``()`` on every frame of every ordinary enemy).
+
+        The ONE state machine. Called by ``Spawner._advance_second_phases`` on
+        the speed-scaled sim dt, which is also the only thing that turns a
+        returned etype into an actual enemy — this method never touches the
+        scene, so all construction stays on the spawner's side:
+
+        1. below ``at_hp_fraction`` and not yet started -> freeze (D2/D6);
+        2. started -> tick the clock, releasing one child per ``spawn_delay``;
+        3. queue drained -> ``phase_complete``, which drops ``alive`` and lets
+           the NORMAL death path run (XP, kill count, splatter, corpse).
+        """
+        ds = self.get_component(DeathSpawn)
+        if not (ds.enabled and ds.delayed) or ds.phase_complete:
+            return ()
+        if not ds.phase_started:
+            h = self.get_component(Health)
+            if h.hp > h.max_hp * ds.at_hp_fraction:
+                return ()
+            self._begin_second_phase(ds)
+            return ()
+        if not ds.pending:
+            # The last child left last tick — die through the normal path.
+            ds.phase_complete = True
+            self._set_phase_anim(DEATH_ANIM)
+            return ()
+        ds.phase_timer -= dt
+        if ds.phase_timer > 0:
+            return ()
+        if ds.spawn_delay <= 0:      # 0 = release the whole row at once
+            due, ds.pending = list(ds.pending), []
+            return tuple(due)
+        due = []
+        while ds.phase_timer <= 0 and ds.pending:
+            due.append(ds.pending.pop(0))
+            ds.phase_timer += ds.spawn_delay
+        return tuple(due)
+
+    def _begin_second_phase(self, ds):
+        """Freeze, become untouchable, and lay out the child queue."""
+        ds.phase_started = True
+        ds.pending = [etype for etype, key in SWARM_TYPES
+                      for _ in range(ds.counts.get(key, 0))]
+        ds.phase_timer = ds.spawn_delay
+        # The phase IS the burst: claim the one-shot guard now so the eventual
+        # normal death cannot ALSO stash a `death_spawn_plan` with the Session.
+        ds.death_spawned = True
+        mv = self.get_component(Movement)
+        if mv is not None:
+            mv.speed = 0.0
+        pa = self.get_component(PathAgent)
+        if pa is not None:
+            pa.frozen = True
+        self._set_phase_anim(ENDPHASE_ANIM)
+
+    def _set_phase_anim(self, name):
+        anim = self.get_component(SpriteAnimator)
+        if anim is not None and anim.animation != name:
+            anim.set_animation(name)
+
+    @property
+    def second_phase_child_hp_fraction(self):
+        """The fraction of their own max HP second-phase children spawn at —
+        the same ``spawn_hp_fraction`` the one-frame burst uses."""
+        return self.get_component(DeathSpawn).spawn_hp_fraction
 
     # -- duck-typed contract read by Session.on_enemy_death (ER-3) ----------
 
@@ -370,6 +492,10 @@ class Boss(Enemy):
     STAT_SUBTREE = ("Boss",)
     EXTRA_TAGS = ("boss",)  # scene queries by HUD bar / shake need no host ref
     HP_BAR_W, HP_BAR_H = 48, 4   # prototype boss.py:136-143 max(48, …) floor
+    # BR-3: the boss is the ONE type whose death-spawn block is `second_phase`
+    # (death_spawn + delayed_spawns + spawn_delay). Same resolved fields, one
+    # extra pair — hence a key, not an __init__ override.
+    DEATH_SPAWN_KEY = "second_phase"
 
     def _resolve_era(self, balance, era):
         # The global era, clamped to the boss's own 5-row table (D5's clamp

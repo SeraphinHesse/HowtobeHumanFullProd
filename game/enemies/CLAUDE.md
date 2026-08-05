@@ -117,11 +117,13 @@ package (D7).
   the one place `_current_condition` genuinely went stale, so `_repath` re-reads
   it from the tile underfoot and resyncs `_last_index`.
 - **Death swarm — since ER-3 just ONE instance of the generalised
-  `death_spawn`** (below). The boss ships `at_hp_fraction: 0.0` +
-  `spawn_hp_fraction: 1.0` + `enabled: true` and its 5 per-era rows moved
-  verbatim to `Boss.death_spawn.spawns`, so the 10G burst is byte-identical:
-  same counts, same tile, same CURRENT era (each child resolves its own era
-  row), children at full HP. `Boss` itself is now just `_resolve_era` +
+  `death_spawn`** (below), and since BR-3 the boss's block is renamed
+  **`second_phase`** and staged (see the next section). The boss ships
+  `at_hp_fraction: 0.0` + `spawn_hp_fraction: 1.0` + `enabled: true` and its 5
+  per-era rows moved
+  verbatim to `Boss.second_phase.spawns`, so the counts/tile/era are
+  unchanged: same counts, same tile, same CURRENT era (each child resolves its
+  own era row), children at full HP. `Boss` itself is now just `_resolve_era` +
   `_resolve_stats` + `era` — its `__init__` is gone (9E-era), and its
   `on_spawn` override is gone too (Chunk 4 — collapsed into the generic
   `Enemy.on_spawn`, see "Prey hunting" below).
@@ -154,6 +156,63 @@ package (D7).
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
 
+## The boss's SECOND PHASE (BR-3) — the staged death
+`EnemyTypes.Boss.death_spawn` is renamed **`second_phase`** (`$defs/
+second_phase`, a standalone copy of `$defs/death_spawn` plus two keys — never
+an `allOf`/`oneOf`, same balancing-panel reason as everywhere else) and gains
+`delayed_spawns` (bool) + `spawn_delay` (seconds PER CHILD, not a phase
+total). **Only the Boss** — every other type still carries `death_spawn`, and
+`Enemy.DEATH_SPAWN_KEY` (a class attr, `"death_spawn"`; `Boss` overrides it to
+`"second_phase"`) is the ONE place that difference lives. The resolved fields
+are identical either way, which is why this is a key and not an `__init__`
+override.
+- **`delayed_spawns: false` is byte-identical to the one-frame burst.** The
+  new `DeathSpawn` fields all default to the historical behaviour, so a block
+  without them (every non-boss type) resolves to exactly today's component.
+- **`delayed_spawns: true`**: crossing `at_hp_fraction` does NOT kill the boss.
+  It freezes (`Movement.speed = 0` + the new `PathAgent.frozen`, the
+  `carrying` precedent — `EnemyCombat` reads the same flag, because a boss
+  frozen mid-swing keeps whatever `blocked` state it stopped in), goes
+  untargetable, plays `endphase`, trickles one child per `spawn_delay` at its
+  own tile, then dies through the **normal** path (XP, kill count, splatter,
+  `Corpse`).
+- **Two properties carry the whole thing, and both are the SINGLE evaluation
+  site of their question:**
+  - `Enemy.alive` returns True for an enabled+delayed unit until
+    `phase_complete`. That one line is what keeps combat, `_resolve_base_
+    arrivals` and the wave-clear check all correct with **no change to any of
+    them** — `Session.post_sim` needed nothing at all.
+  - `Enemy.targetable` (new, duck-typed — everything reads it as
+    `getattr(obj, "targetable", True)`) is derived straight from HP, NOT from
+    `phase_started`, so it flips on the SAME frame the crossing blow lands and
+    the boss can never eat one extra volley. Readers: `combat.py`'s one
+    `enemies = [...]` filter (which removes it from every defender's
+    `in_range` at once — homing, splash and beam alike), `ProjectileHoming.
+    _impact` + `ProjectileArc._impact` (a shot in flight is wasted, D2),
+    `_update_beam`'s sticky-target check, `game/core/lightning.py` (the storm
+    is a damage source too), and BOTH bars in `game/ui/effects.py`
+    (`submit_enemy_hp_bars` and `submit_boss_bars`).
+- **The machine is split by capability, not arbitrarily.** State lives in
+  `DeathSpawn` (`delayed`, `spawn_delay`, `phase_started`, `phase_complete`,
+  `phase_timer`, `pending` — all declared JSON-safe, E-11); the LOGIC is
+  `Enemy.advance_second_phase(dt)`, which returns the etypes due this frame and
+  **never touches the scene**; the SPAWNER (`Spawner._advance_second_phases`,
+  called FIRST in `update` — before the `if not self._queue: return`, because a
+  boss stages long after its wave queue has drained) turns them into enemies
+  through `_spawn_child`, the one per-child path `spawn_death_swarm` also uses
+  now. `dt` is the host's speed-scaled `sim_dt`, so the cadence holds at
+  1.5×/2× — the `Corpse` fade-clock rule.
+- **The phase claims `death_spawned` at its START**, so the eventual normal
+  death cannot ALSO stash a `death_spawn_plan` with the Session and double-burst.
+- **Known limitation, now much more visible (NOT fixed here).** The wave-clear
+  check cannot see children spawned on the round's last frame (see Rules
+  below). A boss frozen for several seconds makes that window wider; BR-3
+  deliberately did not expand scope into it. Flagged for the user.
+- **Not per-era yet**: `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/
+  `spawn_delay` are single values on the `second_phase` block, while `spawns[]`
+  is per-era. Plan D5 wants era-0-only thresholds — that restructure is BR-5's
+  and has no home in the shape BR-3 shipped.
+
 ## Commander (BR-2) — LIVE code, DORMANT data
 The boss's officer. **Nothing spawns it today** and that is the phase's whole
 invariant: BR-3 wires it to the boss's second phase.
@@ -183,9 +242,16 @@ invariant: BR-3 wires it to the boss's second phase.
   site shifts every other group's rng draw sequence and moves the
   deterministic wave fixtures. Measured: rounds 0–60 composed on the real
   `Spawner` are byte-identical to BR-1 (12,659 queue entries).
-- **`spawn_death_swarm`'s `_SWARM_TYPES` deliberately has no `commander` row
-  yet** — a non-zero `commander` count therefore spawns nothing. That is
-  BR-3's wiring, not an oversight.
+- **`SWARM_TYPES` gained `("commander", "commander")` in BR-3, appended
+  LAST.** Until then a non-zero `commander` count in ANY `spawn_counts` row
+  silently spawned nothing (BR-2 shipped the type but not its spawn wiring).
+  The table now lives in `enemy.py`, not `spawner.py` — BR-3's second phase
+  lays out its child queue from the SAME order and `enemy.py` cannot import
+  the spawner (the dependency runs the other way); `spawner._SWARM_TYPES` is
+  kept as an alias. Appending LAST is the same rng rule the composition groups
+  follow, and it is **measured**: a 55-child era-4 burst and the rounds-0..60
+  queues (12,659 entries) are both byte-identical to BR-2, trailing rng state
+  included.
 - No manifest rows: its four `data/slots.json` era slots
   (`commander_stage_1..4`) ship art-less, which is the normal grey-X
   placeholder state (a slot with no `asset_manifest.json` entry is legal and
@@ -452,7 +518,9 @@ condition below.
 
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
-  `EnemyTypes/<type>` block carries a **required** `death_spawn`
+  `EnemyTypes/<type>` block carries a **required** `death_spawn` — **except the
+  Boss, whose block is `second_phase` since BR-3** (same four keys plus
+  `delayed_spawns`/`spawn_delay`; `Enemy.DEATH_SPAWN_KEY` is the one seam)
   (`at_hp_fraction` / `enabled` / `spawn_hp_fraction` / `spawns`); it is
   resolved at CONSTRUCTION into the `DeathSpawn` component (which absorbed
   10G's `BossState`), exactly like `Health.max_hp`.
