@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
@@ -38,7 +39,7 @@ from PySide6.QtWidgets import (
 from editor import balancing_history, domains, keybinds, theme
 from editor.panels.balancing import BalancingPanel, CollapsibleSection
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
-from engine import data_io
+from engine import data_io, era_math
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -689,6 +690,27 @@ class TestBalancingPanel(TempDataCase):
         """The regression guard for every other domain: a fixed-length tier list
         must not sprout an add/remove affordance."""
         self.assertEqual(self._resizable_arrays(self.make_panel("buildings")), set())
+
+    def test_era_rows_carry_a_greyed_previous_era_reference(self):
+        """ES-5/D9: an era >= 1 stat field shows a disabled, read-only label
+        with what that field resolved to on the LAST round of the previous era;
+        era 0 has nothing to reference and carries no label."""
+        panel = self.make_panel("enemies")
+        labels = {
+            lab.objectName().removeprefix(BalancingPanel.PREV_REF): lab
+            for lab in panel.findChildren(QLabel)
+            if lab.objectName().startswith(BalancingPanel.PREV_REF)
+        }
+        self.assertFalse([k for k in labels if "/eras/0/" in k])  # era 0: none
+
+        doc = read_domain(self.data_dir, "enemies")
+        rows = doc["EnemyTypes"]["Standard"]["eras"]
+        expected = era_math.prev_era_reference(
+            rows, 1, doc["EnemyScaling"]["rounds_per_era"]
+        )["stats"]["hp"]
+        label = labels["EnemyTypes/Standard/eras/1/stats/hp"]
+        self.assertFalse(label.isEnabled())
+        self.assertIn(str(expected), label.text())
 
     def test_out_of_range_input_unrepresentable(self):
         """ED-30: the widget clamps to the schema's bounds — invalid values

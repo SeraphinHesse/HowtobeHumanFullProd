@@ -135,6 +135,53 @@ validating writer; don't hand-edit the JSON.
   UN-refactored home for the same value (deliberate, reported follow-up
   work); `tools/tests/test_enemies.py`'s `TestRegistryGroupDrift` pins the
   two together.
+- **Era rows (`enemies.json`, EnemyScalingReworkPLAN ES-2..ES-4)** — the shape
+  of enemy difficulty, and the single biggest thing to know before editing this
+  file. `EnemyScaling` owns ONE global clock (`rounds_per_era: 10`,
+  `boss_round_in_era: 10`) plus its own `eras: [{batch_size, spawn_interval}]`;
+  each of `Standard`/`Raider`/`SiegeCannon`/`Formation` owns
+  `eras: [{stats:{hp,dmg,move_speed,attack_speed,attack_range_tiles},
+  per_round:{hp,dmg,move_speed}, count_start, count_per_round}]`. Every era
+  array is `minItems: 1`, **no `maxItems`** — variable length, independent per
+  type, and therefore resizable in the editor with no editor code (ER-5).
+  - **DELETED keys, do not reintroduce**: `EnemyScaling.base_enemy_count` /
+    `enemies_per_round` / `scale_every_n_levels` / `scale_tiers` / the global
+    `spawn_interval`; `Boss.round_interval`; and per type `base_count` /
+    `per_round` / `rounds_per_cannon` / `rounds_per_formation`. The flat
+    `hp`/`dmg`/`move_speed`/`attack_speed`/`attack_range_tiles` left the type
+    root — they live in era rows now. `Boss` keeps its own 5-row `stats[]` +
+    `round_counts[]` untouched (BossReworkPLAN's territory).
+  - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
+    `start_round`, `footprint`, `sprite_scale`, `death_spawn`, `registry_group`,
+    `kidnapping`, `hunts`, `condition_path_weights`, `mix_ratio`,
+    `queue_lead_count`. Only numbers that scale with the round went per-era.
+  - **`endgame_scaling` blocks** (per type `{hp, dmg, move_speed, count}`, plus
+    `EnemyScaling.endgame_scaling {batch_size, spawn_interval}`) are FACTORS,
+    not values: past the last authored era the last row is reused with every
+    leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
+    behaviour-neutral until a designer tunes them; that is the intended knob for
+    "what happens after round 50", replacing the old freeze-forever cliff.
+  - **`count_start` is a `number`, not an integer — and that is load-bearing
+    (D3′).** Counts resolve as `floor(count_start + (round − r0) ×
+    count_per_round)`, re-anchored at each era's first round. The pre-era
+    accretion formulas floored from a type-GLOBAL anchor, so re-anchoring per
+    era throws away a fractional remainder: with an integer `count_start` the
+    Formation is one short from round 22 onward. The seeded rows therefore carry
+    the exact rational value at the era's first round and the resolver floors
+    once. A designer authoring a fresh era types a whole number and gets the
+    obvious behaviour; fractions appear only in seeded accretion rows.
+    - **Write FULL float precision, never a 3-decimal display value.** Era 2/4
+      of the Formation are `2.666666666666667` / `9.333333333333334`, not
+      `2.667` / `9.333` — the plan's §4 table shows the rounded forms for
+      readability and they are WRONG as data: `9.333 + 2 × ⅓` floors to 9 at
+      round 43 where the true value gives 10.
+    - **Designer nuance (no live effect today, all factors are 1.0):** under a
+      non-1.0 `count` endgame factor, an int-authored `count_start` floors twice
+      (once in the endgame scaling, once in the count resolve) while a
+      float-authored one floors once, so two rows that look equivalent can
+      differ by one enemy past the last era. `era_math.count_at_round` is the
+      final authority on how many spawn (D3′); if you need an exact endgame
+      count, check it there rather than reading the row.
 - **`death_spawn` (ER-3)**: each `enemies.json` `EnemyTypes/*` block carries a
   **required** `death_spawn` block — `at_hp_fraction` (number 0–1: the unit dies
   once `hp <= max_hp *` this; `0.0` = the normal die-at-zero rule), `enabled`

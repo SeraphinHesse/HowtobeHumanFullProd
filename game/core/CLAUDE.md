@@ -98,8 +98,11 @@ love store, ready to feed `place_building`.
   `Session` a logic test builds, or an inactive/auto-skipped director, always
   starts at round 1 unchanged. `Session.end_turn`'s boss announce-marker
   check and `_begin_round_end`'s boss-cutscene-queue check both gained a
-  `round_num != 0` guard (round 0 is never a boss round — `0 % n == 0` for
-  every interval); the `first_end_turn` cutscene request re-keyed off a new
+  `round_num != 0` guard (round 0 is never a boss round — `0 % n == 0` was true
+  for every interval under the pre-ES-1 expression; since ES-2 both sites go
+  through `era_math.is_boss_round`, which is False at round 0 by contract for
+  every configuration (D11), so the explicit guard is now belt-and-braces
+  rather than load-bearing); the `first_end_turn` cutscene request re-keyed off a new
   one-shot `RunState.first_end_turn_cutscene_requested` latch instead of
   `round_num == 1`, so it still fires exactly once on the run's first
   `end_turn()` whether that round is 0 (tutorial) or 1 (a skipped run). Full
@@ -212,8 +215,14 @@ in `game/ui/CLAUDE.md`.
   magnitudes are code constants** (the `COMBAT_SPEEDS` precedent), everything
   else reads balancing.
 - **Phase flow**: `end_turn` snapshots love EVERY round (Boss3A) and, on a boss
-  round (`round_num % Boss.round_interval == 0`), lives + one `boss_events`
-  announce marker. `_begin_round_end` queues
+  round, lives + one `boss_events` announce marker. **Both boss-round checks in
+  this file (`end_turn`'s announce marker and `_begin_round_end`'s cutscene
+  queue) read the era clock through `engine.era_math`** (ES-2/D1):
+  `era_math.is_boss_round(round_num, EnemyScaling.rounds_per_era,
+  EnemyScaling.boss_round_in_era)`, and the cutscene's `boss_num` is
+  `era_math.era_of_round(round_num, rounds_per_era) + 1`. `Boss.round_interval`
+  is DELETED — there is one clock, in `EnemyScaling`, and no round arithmetic is
+  written out here. `_begin_round_end` queues
   `pending_boss_cutscene = {boss_num, outcome}` (outcome = lives vs snapshot).
   At ROUND_END expiry the pending cutscene **beats** `levelup_pending`;
   `Session.frozen` covers `BOSS_CUTSCENE` exactly like LEVELUP.
