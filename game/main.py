@@ -72,10 +72,11 @@ from game.enemies import (
 )
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
-    spawn_tree_slots, tile_at_screen,
+    spawn_tree_slots, tile_at_screen, wall_render_items,
 )
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
+from game.map.wall_render import WALL_CATEGORY
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
     BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
@@ -228,6 +229,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
     # `spawn_deco_render_items` a no-op, same escape hatch as `condition_art`.
     tree_slots = tuple(
         s for s in spawn_tree_slots(registry)
+        if manifest.entry(s) is not None)
+    # Edge-wall art, manifest-filtered exactly like the two above: art cannot
+    # change mid-run, so it is derived once here rather than per frame. An
+    # empty set (no wall tier imported yet) makes `wall_render_items` a no-op —
+    # the same E-37 escape hatch `condition_art`/`tree_slots` use, i.e. an
+    # un-imported wall draws nothing rather than the grey-X placeholder.
+    wall_art = frozenset(
+        s for s in registry.group_slots(WALL_CATEGORY)
         if manifest.entry(s) is not None)
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
@@ -1043,6 +1052,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
             for item in condition_render_items(
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
                     anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
+            # Edge-wall art on the SAME `terrain` layer as condition art —
+            # above the ground tiles, below everything on `entities`/`deco`.
+            # Reuses the window above; one item per perimeter edge, and
+            # nothing at all for a wall tier with no imported sheet.
+            for item in wall_render_items(world.tile_map, cmin, cmax, rmin, rmax,
+                                          wall_art, anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)

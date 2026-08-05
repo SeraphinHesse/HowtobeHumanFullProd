@@ -96,8 +96,27 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   component (its only field is `wall_snapshot`, the frozen `[c1,r1,c2,r2]` edge list)
   + computed `wall_hp()` (NOT ×10) / `upkeep()`; `on_placed()` calls
   `TileMap.place_walls_for_builder(self)` and `_on_apply_stats()` resyncs owned wall
-  HP on a tier upgrade. The edge-wall registry itself lives in `game/map` (see that
-  doc); the payday teardown/rebuild is `game/core` (slots 8/10). Research: both
+  HP. The edge-wall registry itself lives in `game/map` (see that
+  doc); the payday teardown/rebuild is `game/core` (slots 8/10).
+  **`wall_hp()` is per TIER *and* LEVEL**: `wall_hp + lvl_idx *
+  wall_hp_per_level`, composed exactly like `upkeep()` beside it.
+  `wall_hp_per_level` is seeded **0** in all three tiers, so the shipped
+  behaviour is the prototype's flat per-tier value until a designer tunes it.
+  Consequently `_on_apply_stats()` now fires meaningfully on LEVEL upgrades too
+  (it always ran on both, but a level upgrade could not previously change
+  `wall_hp()`), and it **FULL-HEALS** owned edges (`edge.hp = new_hp`, was
+  `min(edge.hp, new_hp)`) — matching `Building.apply_tier_stats`'s
+  every-re-apply `hp = max_hp` rule, so walls follow the same
+  upgrade-heals-you contract the builder itself has.
+  - **The WALLS have their own art family, separate from the builder's flat
+    `SLOT`**: `WallBuilder.wall_slot()` → `wall_t{tier}_lvl{level}` (both
+    1-based — the 9 keys in `data/slots.json`'s `walls` category), reading the
+    same `TierState` cursor `Building.slot_key` does. It lives HERE, beside
+    `slot_key()`, because the slot-key convention is a building concern;
+    `game/map/wall_render.py` reaches it **duck-typed** as
+    `edge.owner.wall_slot()`, so the map layer keeps importing NOTHING from
+    `game.buildings` — the same rule `wall_hp()` / `wall_snapshot()` /
+    `building_type` already follow. Research: both
   `blocker` and `wall_builder` are bare `ResearchSpec()` rows — each type's
   UNLOCK card is gated by its own `tiers[0].unlock_min_round` (Blocker 5,
   WallBuilder 10), and unlocking either makes its tier 1 immediately placeable

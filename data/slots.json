@@ -1015,6 +1015,50 @@
         }
       ],
       "key": "backgrounds"
+    },
+    {
+      "animations": [
+        "idle",
+        "edge_se",
+        "edge_sw",
+        "edge_nw",
+        "edge_ne"
+      ],
+      "display_name": "Walls",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "label": "Bush Wall",
+              "slots": [
+                "wall_t1_lvl1",
+                "wall_t1_lvl2",
+                "wall_t1_lvl3"
+              ]
+            },
+            {
+              "label": "Wooden Wall",
+              "slots": [
+                "wall_t2_lvl1",
+                "wall_t2_lvl2",
+                "wall_t2_lvl3"
+              ]
+            },
+            {
+              "label": "Stone Wall",
+              "slots": [
+                "wall_t3_lvl1",
+                "wall_t3_lvl2",
+                "wall_t3_lvl3"
+              ]
+            }
+          ],
+          "label": "Wall"
+        }
+      ],
+      "key": "walls"
     }
   ]
 }
