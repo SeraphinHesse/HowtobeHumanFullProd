@@ -434,7 +434,7 @@ class TestTutorialMarkers(unittest.TestCase):
 
 
 class TestSpawnableBackground(unittest.TestCase):
-    """The designer-painted spawn reserve: {(col,row): purchase} in memory, a
+    """The designer-painted spawn reserve: {(col,row): stage} in memory, a
     list sorted by (row, col) on disk."""
 
     def test_round_trips_dict_to_sorted_list(self):
@@ -443,9 +443,9 @@ class TestSpawnableBackground(unittest.TestCase):
         doc.spawnable_background = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
         data = tilemap.to_dict(doc)
         self.assertEqual(data["spawnable_background"], [
-            {"col": 4, "row": 0, "purchase": 1},
-            {"col": 0, "row": 1, "purchase": 5},
-            {"col": 3, "row": 1, "purchase": 2},
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
         ])
         self.assertEqual(tilemap.from_dict(data), doc)
 
@@ -458,7 +458,7 @@ class TestSpawnableBackground(unittest.TestCase):
 
 class TestDespawnableSpawn(unittest.TestCase):
     """The designer-painted despawn schedule: same shape as the spawn reserve —
-    {(col,row): purchase} in memory, a list sorted by (row, col) on disk."""
+    {(col,row): stage} in memory, a list sorted by (row, col) on disk."""
 
     def test_round_trips_dict_to_sorted_list(self):
         doc = make_doc()
@@ -466,15 +466,38 @@ class TestDespawnableSpawn(unittest.TestCase):
         doc.despawnable_spawn = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
         data = tilemap.to_dict(doc)
         self.assertEqual(data["despawnable_spawn"], [
-            {"col": 4, "row": 0, "purchase": 1},
-            {"col": 0, "row": 1, "purchase": 5},
-            {"col": 3, "row": 1, "purchase": 2},
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
         ])
         self.assertEqual(tilemap.from_dict(data), doc)
 
     def test_out_of_bounds_fails_loud(self):
         doc = make_doc()
         doc.despawnable_spawn = {(0, doc.rows): 1}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
+class TestStageZones(unittest.TestCase):
+    """The designer-painted stage zones: the third overlay of the same shape —
+    {(col,row): stage} in memory, a list sorted by (row, col) on disk."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.stage_zones, {})  # empty by default
+        doc.stage_zones = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["stage_zones"], [
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.stage_zones = {(0, doc.rows): 1}
         with self.assertRaises(ValueError):
             tilemap.validate_doc(doc)
 

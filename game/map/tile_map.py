@@ -144,37 +144,56 @@ class TileMap:
                 self.base_row - 1 if has_base else 0)
 
         # -- Spawnable background: the designer-painted spawn reserve --------
-        # `doc.spawnable_background` is {(col, row): purchase}; inverted ONCE
-        # here into `purchase -> [(col, row), …]` so the nth successful tile
-        # purchase is a single O(1) dict hit at unlock time. This is ONE pass
-        # over the MARKS (a handful of painted cells), never a pass over the
-        # map — the O(strip)/never-O(map) invariant this module lives by.
-        # `_reserve_max` is the highest purchase number painted (0 when the
-        # map has no marks at all), which is what lets `do_unlock` tell
-        # "the reserve still has unreleased batches" from "the reserve is
+        # `doc.spawnable_background` is {(col, row): stage}; inverted ONCE
+        # here into `stage -> [(col, row), …]` so firing a stage's batch is a
+        # single O(1) dict hit at unlock time. This is ONE pass over the MARKS
+        # (a handful of painted cells), never a pass over the map — the
+        # O(strip)/never-O(map) invariant this module lives by.
+        # `_reserve_max` is the highest stage number painted (0 when the map
+        # has no marks at all), which is what lets `do_unlock` tell "the
+        # reserve still has unreleased batches" from "the reserve is
         # exhausted, hand back to the implicit recede".
         self._reserve = {}
-        for (mark_col, mark_row), purchase in doc.spawnable_background.items():
-            self._reserve.setdefault(purchase, []).append((mark_col, mark_row))
+        for (mark_col, mark_row), stage in doc.spawnable_background.items():
+            self._reserve.setdefault(stage, []).append((mark_col, mark_row))
         self._reserve_max = max(self._reserve, default=0)
+        # Raw tally of successful purchases. Since stage zones landed it gates
+        # NOTHING (the stage counter below does) — kept because "how many 2×2s
+        # has this run bought" is still a useful, cheap thing to know.
         self._unlock_purchases = 0
 
         # -- Despawnable spawn: the designer-painted despawn schedule --------
         # `doc.despawnable_spawn` is the exact mirror of the reserve above,
         # inverted the same way and for the same reason: ONE pass over the
-        # MARKS, never over the map, so the nth purchase is an O(1) dict hit.
-        # `_despawn_max` is the highest despawn number painted (0 when none).
+        # MARKS, never over the map, so firing a stage's batch is an O(1) dict
+        # hit. `_despawn_max` is the highest stage number painted (0 when none).
         self._despawn = {}
-        for (mark_col, mark_row), purchase in doc.despawnable_spawn.items():
-            self._despawn.setdefault(purchase, []).append((mark_col, mark_row))
+        for (mark_col, mark_row), stage in doc.despawnable_spawn.items():
+            self._despawn.setdefault(stage, []).append((mark_col, mark_row))
         self._despawn_max = max(self._despawn, default=0)
-        # the purchase number after which no painted mark of EITHER kind can fire
+        # the stage at or beyond which no painted mark of EITHER kind can fire
         self._scripted_max = max(self._reserve_max, self._despawn_max)
         # the spawn-reserve batches, ascending n, retired one per purchase
         # afterwards — the tiles the reserve released die in the order they
         # were born. `_retire_cursor` is how many have already been retired.
         self._retire_batches = sorted(self._reserve)
         self._retire_cursor = 0
+
+        # -- Stage zones: the designer-painted STAGE counter ------------------
+        # `doc.stage_zones` is {(col, row): stage}, marks painted on COMBAT
+        # tiles. Kept FLAT here (not inverted like the two overlays above)
+        # because the lookup runs the other way round: `_advance_stage` asks
+        # "what stage is painted under THIS tile", four tiles per purchase.
+        # Still ONE pass over the MARKS, never over the map.
+        # `_stage` is the run's stage counter: starts at 0, only ever advanced
+        # by `_advance_stage`, never decreases. It — not the purchase tally —
+        # is what drives the release/despawn batches and gates the retire and
+        # recede stages.
+        self._stage_zones = {
+            (mark_col, mark_row): stage
+            for (mark_col, mark_row), stage in doc.stage_zones.items()
+        }
+        self._stage = 0
 
         # Round gate for the damage-weight discount (dormant: nothing calls
         # set_round until 9F/10F). Defence-range coverage function is wired by
@@ -478,8 +497,8 @@ class TileMap:
 
     def _release_spawn_reserve(self, count):
         """Flip every designer-painted mark numbered `count` from BACKGROUND to
-        SPAWNING — the spawnable-background reserve's nth batch, released on the
-        player's nth successful tile purchase.
+        SPAWNING — the spawnable-background reserve's nth batch, released when
+        the run's stage counter reaches n.
 
         A mark whose tile is NOT BACKGROUND (the designer repainted over it
         after painting the mark, or an earlier batch/recede already claimed it)
@@ -499,7 +518,7 @@ class TileMap:
     def _despawn_spawn_reserve(self, count):
         """Flip every designer-painted despawn mark numbered `count` from
         SPAWNING to COMBAT — the despawnable-spawn schedule's nth batch, retired
-        on the player's nth successful tile purchase.
+        when the run's stage counter reaches n.
 
         A mark whose tile is NOT SPAWNING (the designer repainted over it after
         painting the mark, or it was never a spawn tile in the first place) is
@@ -519,10 +538,11 @@ class TileMap:
     def _retire_spawn_reserve(self):
         """Retire ONE spawnable-background batch (ascending `n`), flipping the
         cells it released from SPAWNING back to COMBAT — the third stage, which
-        runs once BOTH painted mark sets are exhausted, one batch per further
-        purchase, so the tiles the reserve released die in the order they were
-        born. Only reserve-released cells are ever eligible: legend-painted `s`
-        tiles belong to the implicit recede, which owns them still.
+        runs once the stage counter has spent BOTH painted mark sets, one batch
+        per further purchase, so the tiles the reserve released die in the order
+        they were born. Only reserve-released cells are ever eligible:
+        legend-painted `s` tiles belong to the implicit recede, which owns them
+        still.
 
         A cell that is NOT SPAWNING (repainted, already receded, or its release
         was itself silently skipped) is skipped SILENTLY — but the batch is
@@ -540,14 +560,47 @@ class TileMap:
             if t is not None and t.state == TileState.SPAWNING:
                 self.set_tile_state(t, TileState.COMBAT)
 
+    def _advance_stage(self, chunk):
+        """Advance the run's STAGE counter to the highest stage-zone number
+        painted under the bought chunk's four tiles, firing every batch the
+        jump passes over. Returns True iff the stage actually moved.
+
+        The stage is the designer's own clock, and stage zones are the ONLY
+        thing that winds it: a chunk with no painted cell under it leaves the
+        counter exactly where it was (the number of 2×2s bought is irrelevant),
+        and a zone numbered BELOW the current stage never winds it backwards.
+
+        A jump of more than one — stage 2 straight to stage 5 — fires batches
+        3, 4 and 5 in ASCENDING order, release before despawn within each. That
+        catch-up is load-bearing, not a nicety: it is what still guarantees both
+        painted mark sets exhaust on schedule (and therefore that the retire
+        stage and the implicit recede can never be wedged off forever) however
+        coarsely the designer numbered the zones.
+
+        Every write lands through `_release_spawn_reserve`/
+        `_despawn_spawn_reserve`, so it inherits their `set_tile_state` routing
+        and their skip-silently-but-still-consume-the-batch rule."""
+        new_stage = self._stage
+        for t in chunk:
+            painted = self._stage_zones.get((t.col, t.row))
+            if painted is not None and painted > new_stage:
+                new_stage = painted
+        if new_stage <= self._stage:
+            return False
+        for k in range(self._stage + 1, new_stage + 1):
+            self._release_spawn_reserve(k)
+            self._despawn_spawn_reserve(k)
+        self._stage = new_stage
+        return True
+
     def do_unlock(self, tile):
         """Convert the tile's 2×2 chunk's COMBAT tiles → BUILDABLE, then move
-        the spawn band in three ordered stages: release this purchase's
-        designer-painted spawnable-background batch, retire this purchase's
-        designer-painted despawnable-spawn batch, and — only once BOTH painted
-        mark sets are exhausted — retire one released reserve batch per further
-        purchase, falling back to the implicit `_recede_spawn_after_unlock`
-        only when those are exhausted too. Returns True if anything changed."""
+        the spawn band. THREE sources can move it, in strict precedence:
+        the designer's stage zones (this purchase advanced the stage counter →
+        every skipped release/despawn batch fires, ascending); else, once the
+        stage has spent every painted mark, the retire stage (one released
+        reserve batch per further purchase); else the implicit
+        `_recede_spawn_after_unlock`. Returns True if anything changed."""
         if not self.can_unlock(tile):
             return False
         chunk = self.get_chunk_for_tile(tile)
@@ -558,23 +611,23 @@ class TileMap:
                 converted = True
         if converted:
             self._unlock_purchases += 1
-            self._release_spawn_reserve(self._unlock_purchases)
-            self._despawn_spawn_reserve(self._unlock_purchases)
-            # Three stages, strictest precedence first. `>` not `>=`
-            # deliberately: on the very purchase that fires the LAST painted
-            # mark of either kind the designer's script is the whole move, so
-            # nothing implicit runs; the later stages take over from the next
-            # purchase on. Then the `elif`: a purchase that retires a reserve
-            # batch is itself the whole move too, exactly as a purchase that
-            # releases one is, so the implicit recede stays off for it and only
-            # resumes once every retire batch is spent.
-            # LOAD-BEARING: a map with no marks of EITHER kind has
-            # `_scripted_max == 0` and an empty `_retire_batches`, so the guard
-            # is true from the first purchase and the `elif` falls straight
-            # through to the implicit recede — today's behaviour, bit for bit.
+            advanced = self._advance_stage(chunk)
+            # `not advanced` first: a purchase that moved the designer's stage
+            # counter is itself the whole move — its placement is the designer's
+            # statement, so nothing implicit piles on top of it. Then
+            # `_stage >= _scripted_max` ("the stage has passed every painted
+            # release/despawn mark, so none can ever fire again") gates the two
+            # implicit stages, and the `elif` keeps them exclusive: a purchase
+            # that retires a reserve batch is likewise the whole move, and the
+            # recede only resumes once every retire batch is spent.
+            # LOAD-BEARING: a map with no marks of ANY of the three kinds has
+            # `_scripted_max == 0`, an empty `_retire_batches`, and `advanced`
+            # always False (nothing can ever paint a stage), so the guard is
+            # true from the first purchase and the `elif` falls straight through
+            # to the implicit recede — today's behaviour, bit for bit.
             # `spawn_recede_enabled: false` disables the implicit system
             # permanently, marks or no marks.
-            if self._unlock_purchases > self._scripted_max:
+            if not advanced and self._stage >= self._scripted_max:
                 if self._retire_cursor < len(self._retire_batches):
                     self._retire_spawn_reserve()
                 elif self._balance["TileUnlocking"]["spawn_recede_enabled"]:

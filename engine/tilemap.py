@@ -45,21 +45,27 @@ class TileMapDoc:
     terrain: list      # rows × cols nested lists of legend codes (mutable)
     base: dict         # {"col": int, "row": int, "slot": str} OR None (no hole)
     deco: list         # [{"col": num, "row": num, "slot": str}, ...]
-    # {(col, row): purchase} — the designer-painted spawn reserve. A DICT in
+    # {(col, row): stage} — the designer-painted spawn reserve. A DICT in
     # memory (O(1) paint/lookup; the on-disk list form is not), a list sorted by
     # (row, col) on disk for deterministic diffs (D-3). Deliberately NOT emitted
     # by the render emitters — that silence is what makes it invisible in game;
-    # the runtime flips every cell numbered n to SPAWNING on the nth tile
-    # purchase, and the editor draws its own overlay.
+    # the runtime flips every cell numbered n to SPAWNING when the run's stage
+    # counter reaches n, and the editor draws its own overlay.
     spawnable_background: dict = None
-    # {(col, row): purchase} — the designer-painted spawn DESPAWN schedule, the
+    # {(col, row): stage} — the designer-painted spawn DESPAWN schedule, the
     # exact mirror of `spawnable_background` above: a DICT in memory (O(1)
     # paint/lookup), a list sorted by (row, col) on disk for deterministic diffs
     # (D-3). Deliberately NOT emitted by the render emitters either — that same
     # silence is what makes it invisible in game; the runtime flips every cell
-    # numbered n from SPAWNING to COMBAT on the nth tile purchase, and the
-    # editor draws its own overlay.
+    # numbered n from SPAWNING to COMBAT when the run's stage counter reaches n,
+    # and the editor draws its own overlay.
     despawnable_spawn: dict = None
+    # {(col, row): stage} — the designer-painted STAGE ZONES, the third overlay
+    # of the same never-rendered shape (dict in memory, (row, col)-sorted list
+    # on disk). `tilemap.py` neither knows nor cares that the game reads it as
+    # "buying a 2×2 that intersects these cells advances the run's stage counter
+    # to the maximum number under the chunk" — the numbers are opaque here.
+    stage_zones: dict = None
     camera_start: dict = None  # {"col": int, "row": int, "slot": str} OR None
     # {"col": int, "row": int, "slot": str} OR None — the 2×2 starting area's
     # MIN corner (spans col..col+1 × row..row+1). Deliberately NOT emitted by
@@ -80,6 +86,8 @@ class TileMapDoc:
             self.spawnable_background = {}
         if self.despawnable_spawn is None:
             self.despawnable_spawn = {}
+        if self.stage_zones is None:
+            self.stage_zones = {}
 
 
 # -- dict <-> doc (terrain rows are strings on disk, char lists in memory) --
@@ -95,12 +103,16 @@ def from_dict(data):
         base=dict(data["base"]) if data["base"] is not None else None,
         deco=[dict(d) for d in data["deco"]],
         spawnable_background={
-            (m["col"], m["row"]): m["purchase"]
+            (m["col"], m["row"]): m["stage"]
             for m in data["spawnable_background"]
         },
         despawnable_spawn={
-            (m["col"], m["row"]): m["purchase"]
+            (m["col"], m["row"]): m["stage"]
             for m in data["despawnable_spawn"]
+        },
+        stage_zones={
+            (m["col"], m["row"]): m["stage"]
+            for m in data["stage_zones"]
         },
         camera_start=(dict(data["camera_start"])
                       if data["camera_start"] is not None else None),
@@ -121,8 +133,8 @@ def to_dict(doc):
         "cols": doc.cols,
         "deco": [dict(d) for d in doc.deco],
         "despawnable_spawn": [
-            {"col": c, "row": r, "purchase": p}
-            for (c, r), p in sorted(doc.despawnable_spawn.items(),
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.despawnable_spawn.items(),
                                     key=lambda kv: (kv[0][1], kv[0][0]))
         ],
         "display_name": doc.display_name,
@@ -130,8 +142,13 @@ def to_dict(doc):
         "legend": copy.deepcopy(doc.legend),
         "rows": doc.rows,
         "spawnable_background": [
-            {"col": c, "row": r, "purchase": p}
-            for (c, r), p in sorted(doc.spawnable_background.items(),
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.spawnable_background.items(),
+                                    key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
+        "stage_zones": [
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.stage_zones.items(),
                                     key=lambda kv: (kv[0][1], kv[0][0]))
         ],
         "start_area": (dict(doc.start_area)
@@ -199,6 +216,11 @@ def validate_doc(doc):
         if not (0 <= col < doc.cols and 0 <= row < doc.rows):
             raise ValueError(
                 f"map {doc.map_id!r}: despawnable_spawn {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
+    for (col, row) in doc.stage_zones:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: stage_zones {(col, row)} outside "
                 f"{doc.cols}x{doc.rows}")
 
 
@@ -434,6 +456,7 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         deco=[],
         spawnable_background={},
         despawnable_spawn={},
+        stage_zones={},
         camera_start=None,
         start_area=None,
         tutorial_flute=None,
