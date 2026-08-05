@@ -584,7 +584,13 @@ class TestBalancingPanel(TempDataCase):
             ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
             ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),
             ("EnemyTypes/Boss/second_phase/enabled", QCheckBox),
-            ("EnemyTypes/Boss/second_phase/at_hp_fraction", QDoubleSpinBox),
+            # BR-5: per-era staging rows, not a flat key on the block.
+            ("EnemyTypes/Boss/second_phase/staging/0/at_hp_fraction",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/4/spawn_delay",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/0/delayed_spawns",
+             QCheckBox),
             ("EnemyTypes/Boss/second_phase/spawns/0/regular", QSpinBox),
         ):
             with self.subTest(key=key):

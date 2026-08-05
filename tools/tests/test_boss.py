@@ -102,9 +102,10 @@ def boss_footprint(enem, footprint):
     return enem
 
 
-def queue_etypes(round_num, tm, seed=1):
+def queue_etypes(round_num, tm, seed=1, balance=None):
     sp = Spawner()
-    sp.begin_round(round_num, tm, ENEM, rng=random.Random(seed))
+    sp.begin_round(round_num, tm, balance if balance is not None else ENEM,
+                   rng=random.Random(seed))
     return sp, [et for _t, et, _d in sp._queue]
 
 
@@ -139,24 +140,40 @@ class TestBossQueueComposition(unittest.TestCase):
                          Counter({"standard": row["regular"],
                                   "raider": row["raiders"]}))
 
-    def test_round_60_beyond_table_uses_the_endgame_scaled_last_row(self):
+    def test_round_60_beyond_table_falls_back_to_the_per_type_counts(self):
         r = INTERVAL * 6  # era 5 — one past the 5-row round_counts table.
-        # BR-4/D1: the boss round is that TABLE at every era; past its last row
-        # the row is grown by endgame_boss_scaling (all 1.0 as shipped, so the
-        # era-4 wave repeats). It used to fall back to the ordinary per-type
-        # era-row counts, which made a round-60 boss round LIGHTER than a
-        # round-50 one — the cliff BR-4 removes.
+        # The 10G behaviour, restored in BR-5 (USER DECISION): past the table
+        # the COMPANIONS come from the ordinary per-type era-row counts, not
+        # from the era-4 table row. BR-4 had swapped that branch — round 60
+        # went 295/46/37 -> 700/215/61 — and only that branch was reverted:
+        # the BOSS itself still grows through endgame_boss_scaling (see
+        # TestBossEndgameScaling).
         _sp, etypes = queue_etypes(r, self.tm)
-        row = BOSS["round_counts"][-1]
-        n_regular = row["regular"]
-        n_raiders = row["raiders"]
-        n_siege = row["siege"]
+        n_regular = expected_count("Standard", r)
+        n_raiders = expected_count("Raider", r)
+        n_siege = expected_count("SiegeCannon", r)
         self.assertEqual(etypes[0], "boss")
         self.assertEqual(etypes.count("boss"), 1)
         self.assertEqual(etypes.count("standard"), n_regular)
         self.assertEqual(etypes.count("raider"), n_raiders)
         self.assertEqual(etypes.count("siege"), n_siege)
         self.assertEqual(etypes[1:1 + n_siege], ["siege"] * n_siege)
+        # ... and it is genuinely LIGHTER than the era-4 table row it replaced
+        # — the shape of the revert, pinned so a re-swap turns this red.
+        self.assertLess(n_regular, BOSS["round_counts"][-1]["regular"])
+
+    def test_commander_count_in_the_round_table_is_composed(self):
+        """BR-5 wires `round_counts[era]["commander"]`, authored since BR-1 and
+        consumed by nothing until now. Shipped 0 everywhere, so this pins the
+        MECHANIC against a written row, never the balance of the day."""
+        bal = copy.deepcopy(ENEM)
+        bal["EnemyTypes"]["Boss"]["round_counts"][0]["commander"] = 4
+        _sp, etypes = queue_etypes(INTERVAL, self.tm, balance=bal)
+        self.assertEqual(etypes.count("commander"), 4)
+        # LAST in the composition (after standard+raider) so the shipped
+        # all-zero table draws no rng and every wave fixture holds.
+        _sp2, shipped = queue_etypes(INTERVAL, self.tm)
+        self.assertEqual(shipped.count("commander"), 0)
 
     def test_non_boss_round_composes_as_before_10g(self):
         r = INTERVAL + 1
@@ -214,15 +231,45 @@ class TestBossEraStats(unittest.TestCase):
                     boss.get_component(Health).max_hp,
                     BOSS["stats"][era]["hp"])
 
+    def test_second_phase_staging_is_per_era(self):
+        """BR-5/D5: `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/
+        `spawn_delay` are per-era rows on `second_phase.staging`, resolved by
+        the `Enemy.resolve_phase_row` seam. Written fixture, not the balance of
+        the day; era 5 proves the array CLAMPS (no endgame factor compounds a
+        fraction past 1.0 and fires the phase on spawn)."""
+        bal = copy.deepcopy(ENEM)
+        staging = bal["EnemyTypes"]["Boss"]["second_phase"]["staging"]
+        for era, row in enumerate(staging):
+            row["at_hp_fraction"] = 0.1 * era
+            row["spawn_hp_fraction"] = 1.0 - 0.1 * era
+            row["spawn_delay"] = 0.25 * (era + 1)
+        for era in list(range(len(staging))) + [5, 40]:
+            with self.subTest(era=era):
+                row = staging[min(era, len(staging) - 1)]
+                ds = create_enemy("boss", 1, 0, bal, self.tm,
+                                  era).get_component(DeathSpawn)
+                self.assertAlmostEqual(ds.at_hp_fraction,
+                                       row["at_hp_fraction"])
+                self.assertAlmostEqual(ds.spawn_hp_fraction,
+                                       row["spawn_hp_fraction"])
+                self.assertAlmostEqual(ds.spawn_delay, row["spawn_delay"])
+                self.assertLessEqual(ds.at_hp_fraction, 1.0)
+
 
 class TestBossEndgameScaling(unittest.TestCase):
     """BR-4/D1 — past the last authored era every boss array is the last row
     grown by ``endgame_boss_scaling``: ``last * factor ** N`` with
     ``N = era - (len(stats) - 1)``. ``test_era_math`` proves ``f ** N`` on the
     pure resolver; this is the ONE integration pin that the boss's THREE
-    era-row lookups (stats, round_counts, second_phase.spawns) actually thread
-    the factors through — the commander count included, since that key is
-    invisible in the shipped file (it is 0 everywhere)."""
+    era-row lookups (stats and second_phase.spawns) actually thread the factors
+    through — the commander count included, since that key is invisible in the
+    shipped file (it is 0 everywhere).
+
+    BR-5 removed the THIRD lookup from this list: ``round_counts`` no longer
+    feeds a past-the-table boss round at all (the per-type counts do again, a
+    user decision), so there is nothing there for the factors to reach. The
+    factors themselves stay in the block — the table is still consulted at
+    eras 0-4, where a factor is by definition inert."""
 
     FACTORS = {"hp": 2.0, "dmg": 1.5, "move_speed": 1.1, "regular": 1.2,
                "commander": 3.0}
@@ -263,13 +310,16 @@ class TestBossEndgameScaling(unittest.TestCase):
                 self.assertEqual(counts["commander"], math.floor(round(
                     last_spawns["commander"] * 3.0 ** n, 9)))
                 self.assertEqual(counts["raiders"], last_spawns["raiders"])
-                # round_counts — the boss round's own composition table.
-                sp.begin_round((era + 1) * INTERVAL, synth(["bbs"]), bal,
-                               rng=random.Random(3))
+                # round_counts is NOT reached past the table since BR-5 — the
+                # companions come from the per-type counts again, untouched by
+                # this block however hard it is tuned.
+                r = (era + 1) * INTERVAL
+                sp.begin_round(r, synth(["bbs"]), bal, rng=random.Random(3))
                 etypes = [et for _t, et, _d in sp._queue]
-                self.assertEqual(etypes.count("standard"), math.floor(round(
+                self.assertEqual(etypes.count("standard"),
+                                 expected_count("Standard", r))
+                self.assertNotEqual(etypes.count("standard"), math.floor(round(
                     last_counts["regular"] * 1.2 ** n, 9)))
-                self.assertEqual(etypes.count("raider"), last_counts["raiders"])
 
     def test_shipped_all_1_factors_are_a_plain_clamp(self):
         # The invariant BR-4 shipped: an all-1.0 block IS the old clamp, on
@@ -308,15 +358,20 @@ def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0, delayed=False,
     BR-3 renamed the boss's block `death_spawn` -> `second_phase` and gave it
     `delayed_spawns`/`spawn_delay`. This class pins the ONE-FRAME burst, so it
     forces `delayed_spawns` OFF (the shipped data has it ON); the staged phase
-    has its own class below."""
+    has its own class below.
+
+    BR-5 moved those four keys into per-era `staging` rows, so this writes
+    EVERY row: the callers below spawn era-0 bosses, but pinning one row would
+    leave a silently different era 1+ for anything that ever moves."""
     enem = copy.deepcopy(ENEM)
     second_phase = enem["EnemyTypes"]["Boss"]["second_phase"]
     second_phase["enabled"] = True
-    second_phase["at_hp_fraction"] = at_hp_fraction
-    second_phase["spawn_hp_fraction"] = spawn_hp_fraction
     second_phase["spawns"][0] = dict(counts)
-    second_phase["delayed_spawns"] = delayed
-    second_phase["spawn_delay"] = spawn_delay
+    for row in second_phase["staging"]:
+        row["at_hp_fraction"] = at_hp_fraction
+        row["spawn_hp_fraction"] = spawn_hp_fraction
+        row["delayed_spawns"] = delayed
+        row["spawn_delay"] = spawn_delay
     return enem
 
 

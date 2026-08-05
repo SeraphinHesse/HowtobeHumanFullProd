@@ -456,6 +456,23 @@ import list.**
     `data/` in this fix) — `tools/tests/test_enemies.py`'s
     `TestRegistryGroupDrift` pins the two together so a future drift turns
     red instead of silently breaking the editor preview.
+    - **PER-ERA fits (BR-5)**: `slot_draw_fit` read `footprint`/
+      `sprite_scale` FLAT off the `EnemyTypes` block, but BossRework BR-1
+      moved the Boss's pair into its per-era `stats[]` rows — so for the Boss
+      it raised `KeyError`, the surrounding **bare `except Exception`**
+      swallowed it, and every `boss_era_*` preview silently drew at
+      `(0.0, 1.0)` for four phases. Two changes: `_type_fit` resolves either
+      shape (`stats[]` when present, clamped), with the era index coming from
+      `_era_index` — the slot's POSITION among its top group's child groups
+      ("Era 0" is child 0), the same index alignment `slots.json` and
+      `stats[]` already share; and the E-37 net now wraps **the two data
+      LOADS only**, with the resolution below written to be total (explicit
+      membership tests, no indexing that can raise) so the next such
+      regression is loud instead of silent. It still does NOT import
+      `game/enemies/enemy.py`'s `Enemy.resolve_fit` seam — `editor/` may
+      never import `game/` (D5), the whole reason `registry_group` is data.
+      Pinned by `tools/tests/test_editor_preview_footprint.py`'s
+      `TestBossPreviewFitIsPerEra` against a WRITTEN per-era fixture.
   - **Drag**: LEFT-press hit-tests handles first (`HANDLE_HIT_PX = 10`,
     reverse submission order, the `_hit_widget` rule) and suppresses the pan
     on a hit; RIGHT never grabs a handle. Move recomputes frame-px live

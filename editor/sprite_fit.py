@@ -24,10 +24,25 @@ by name would be convention, not schema. `registry_group` (added to every
 this module resolves a slot -> its top-level `data/slots.json` "enemies"
 group label -> the `EnemyTypes` entry whose `registry_group` matches it.
 
+**Per-era fits (BR-1/BR-5)**: the Boss is the ONE enemy type whose
+`footprint`/`sprite_scale` are NOT flat at its `EnemyTypes` root — BR-1 moved
+them into its per-era `stats[]` rows, so a flat read raised `KeyError` and
+every `boss_era_*` preview silently degraded to `(0.0, 1.0)`. `_type_fit`
+resolves either shape, and the era index comes from the slot's position among
+its top group's CHILD groups ("Era 0" is child 0), which is the same
+index-alignment `data/slots.json` and the `stats[]` array already share. The
+game's own seam for this is `game/enemies/enemy.py`'s `Enemy.resolve_fit`
+classmethod — deliberately NOT imported: `editor/` may never import `game/`
+(D5), which is the whole reason `registry_group` exists as data.
+
 Degrades to `(0.0, 1.0)` (the render defaults) for any slot with no
 footprint concept (every non-enemy category today) and for anything
 unresolvable (E-37) — this must never raise; the editor has to open on a
-broken `data/` tree."""
+broken `data/` tree. **The safety net wraps the two LOADS only**, not the
+resolution below them: a bare `except Exception` around everything is exactly
+what swallowed the BR-1 `KeyError` for four phases, so the resolution path is
+written to be total instead (explicit membership tests, no indexing that can
+raise) and any exception it does throw is a real bug that must be loud."""
 from pathlib import Path
 
 from editor.domains import balancing_path, schema_path
@@ -64,6 +79,43 @@ def _enemy_registry_group(registry, slot_key):
     return None
 
 
+def _era_index(registry, group_label, slot_key):
+    """Which era subgroup of `group_label` holds `slot_key` — 0 for the first
+    child group, 1 for the second, … (the enemies tree is one child group per
+    era, in era order, and `EnemyTypes.Boss.stats` is index-aligned with it).
+    0 when the group has no children (a flat leaf group) or the slot is not
+    found under any of them."""
+    try:
+        group = registry.group(_ENEMIES_CATEGORY, (group_label,))
+    except KeyError:
+        return 0
+    for index, child in enumerate(group.children):
+        try:
+            slots = registry.group_slots(
+                _ENEMIES_CATEGORY, (group_label, child.label))
+        except KeyError:
+            continue
+        if slot_key in slots:
+            return index
+    return 0
+
+
+def _type_fit(type_block, era):
+    """`(footprint, sprite_scale)` off one `EnemyTypes/<Type>` block.
+
+    Flat at the block root for every type but the Boss, whose pair lives in
+    its per-era `stats[]` rows (BR-1). Total by construction — an unexpected
+    shape returns the render defaults rather than raising, but nothing here
+    can `KeyError`."""
+    row = type_block
+    stats = type_block.get("stats")
+    if isinstance(stats, list) and stats:
+        row = stats[min(max(int(era), 0), len(stats) - 1)]
+    if "footprint" not in row or "sprite_scale" not in row:
+        return DEFAULT_FIT
+    return float(row["footprint"]), float(row["sprite_scale"])
+
+
 def slot_draw_fit(data_dir, category_key, slot_key):
     """``(fit_tiles, scale)`` the GAME draws `slot_key` at — the values its
     `RenderItem` carries. `(0.0, 1.0)` for any slot with no footprint
@@ -72,17 +124,20 @@ def slot_draw_fit(data_dir, category_key, slot_key):
     if category_key != _ENEMIES_CATEGORY:
         return DEFAULT_FIT
     base = _base(data_dir)
+    # E-37: the editor must open on a broken/absent data tree. Only the two
+    # LOADS are tolerated — see the module docstring on why the resolution
+    # below deliberately sits outside this net.
     try:
         registry = load_registry(base)
-        group_label = _enemy_registry_group(registry, slot_key)
-        if group_label is None:
-            return DEFAULT_FIT
         enemies = data_io.load_validated(
             balancing_path("enemies", base), schema_path("enemies", base))
-        for type_block in enemies["EnemyTypes"].values():
-            if type_block.get("registry_group") == group_label:
-                return (float(type_block["footprint"]),
-                        float(type_block["sprite_scale"]))
     except Exception:
         return DEFAULT_FIT
+    group_label = _enemy_registry_group(registry, slot_key)
+    if group_label is None:
+        return DEFAULT_FIT
+    for type_block in enemies.get("EnemyTypes", {}).values():
+        if type_block.get("registry_group") == group_label:
+            return _type_fit(type_block, _era_index(registry, group_label,
+                                                    slot_key))
     return DEFAULT_FIT

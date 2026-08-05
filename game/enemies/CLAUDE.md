@@ -58,10 +58,23 @@ package (D7).
 - **Boss rounds**: on a round the era clock calls a boss round
   (`era_math.is_boss_round`, D1 — `Boss.round_interval` is deleted) `_compose`
   routes to `_boss_round` — `[ONE boss] + ALL siege + shuffle(standard +
-  raiders)`, counts from `Boss.round_counts[era]` at EVERY era (**BR-4**: past
-  the 5-row table that row is the last one grown by `endgame_boss_scaling`, see
-  the endgame section below — it used to fall back to the ordinary per-type
-  `_count_of`, which made a round-60 boss round *lighter* than a round-50 one).
+  raiders + commanders)`, counts from `Boss.round_counts[era]`, **falling back
+  past the 5-row table to the ordinary per-type `_count_of` counts**.
+  - **BR-4 swapped that fallback for the endgame-scaled era-4 row; BR-5
+    REVERTED exactly that branch (user decision) and kept everything else BR-4
+    shipped.** So a round-60 boss round is 295/46/37 companions again, not the
+    era-4 table's 700/215/61 — the escort follows the ordinary per-type curve
+    while the BOSS ITSELF still grows through `endgame_boss_scaling` (stats,
+    fit, shake, `second_phase.spawns`). If the "a round-60 boss round is
+    lighter than a round-50 one" cliff is ever to be closed, close it in the
+    per-type era rows or by re-swapping THIS ONE branch — deliberately, not by
+    accident. Measured: rounds 0–60 of the real `Spawner` (12,659 queue
+    entries, trailing rng state included) are byte-identical to BR-3.
+  - **`round_counts[era]["commander"]` IS wired since BR-5** (it was authored
+    in BR-1 and consumed by nothing until then). Composed **LAST**, after the
+    standard and raider picks, so the shipped all-zero counts draw no rng and
+    every deterministic wave fixture holds — the same rule
+    `_formation_group`/`_commander_group` follow.
   NO
   siege lead/mix split on boss rounds. The boss entry's **`era` constructor
   argument IS the global era** (the old `tier` channel, renamed at its source) (`era_math.era_of_round`, clamped in `Boss._resolve_era`;
@@ -150,12 +163,16 @@ package (D7).
     number: `Boss.shake` is a duck-typed property (a dict COPY) beside
     `era`/`death_spawned`, and `game/main.py`'s camera-shake driver takes it
     from the first alive object it already finds via `by_tag("boss")`.
-  - **Known follow-up, NOT fixed by BR-1**: `editor/sprite_fit.py`'s
-    `slot_draw_fit` resolves an enemy preview's render fit by reading
-    `EnemyTypes/<type>/footprint` + `sprite_scale` flat — for the Boss those
-    keys are gone, so every `boss_era_*` slot preview silently degrades to the
-    `(0.0, 1.0)` render defaults. Fixing it is an `editor/` change (pick the
-    era row matching the slot's era subgroup) and was out of BR-1's file scope.
+  - **FIXED in BR-5** (it was a known BR-1 follow-up): `editor/sprite_fit.py`'s
+    `slot_draw_fit` read `EnemyTypes/<type>/footprint`/`sprite_scale` FLAT, so
+    for the Boss it raised `KeyError` — swallowed by a bare `except Exception`
+    — and every `boss_era_*` preview silently drew at the `(0.0, 1.0)` render
+    defaults for four phases. It now resolves the `stats[]` row whose index is
+    the slot's position among its top group's era child groups, and the
+    tolerance net wraps the two data LOADS only. It does NOT import
+    `Enemy.resolve_fit`: `editor/` may never import `game/` (D5), which is why
+    `registry_group` exists as data in the first place. See
+    `editor/panels/CLAUDE.md`.
 - **ENDGAME BOSS SCALING (BR-4) — `EnemyTypes.Boss.endgame_boss_scaling`.**
   Past the last authored era the boss no longer repeats verbatim: the last row
   is grown by `value × factor ** N`, `N = era − (len(stats) − 1)`. **ONE block
@@ -170,6 +187,12 @@ package (D7).
     `shake_interval`, which would silently never match), and
     `regular`/`raiders`/`siege`/**`commander`** for the count rows. A missing
     name is 1.0, so a key omitted here scales silently not at all.
+    **`second_phase.staging` is the ONE per-era boss array deliberately kept
+    OUT of this path** (BR-5): it is resolved with `endgame_factors=None`, a
+    plain clamp. Its leaves are fractions and a per-child delay — no factor
+    name collides with them today, so routing them through would be a silent
+    no-op, and the first designer to add one would drive `at_hp_fraction` past
+    1.0, which fires the phase the instant the boss spawns.
   - **All factors ship 1.0, which is EXACTLY the old clamp** — `_scale_leaf`
     floors only leaves that were ints in the authored row, so an int floors back
     to itself and a float is untouched. Measured: rounds 0-59 of the real
@@ -188,11 +211,10 @@ package (D7).
     `endgame_boss_scaling`. It is why `Enemy.__init__`'s single
     `resolve_era_row(ds["spawns"], …)` call serves both the boss's 5 scaled
     rows and every other type's single always-clamping one.
-  - **Not wired, deliberately: `round_counts[era]["commander"]`.**
-    `_boss_round` still composes only regular/raiders/siege, so a non-zero
-    commander count in that table spawns nothing (it is 0 in every shipped
-    row). The factor exists so the block is complete per D1; wiring the count
-    is a later phase's call.
+  - **`round_counts[era]["commander"]` is WIRED since BR-5** — see the
+    boss-round bullet above. The `commander` factor here only ever reaches
+    `second_phase.spawns` now, because BR-5 also took `round_counts` off the
+    past-the-table path.
 - `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
@@ -245,14 +267,49 @@ override.
   1.5×/2× — the `Corpse` fade-clock rule.
 - **The phase claims `death_spawned` at its START**, so the eventual normal
   death cannot ALSO stash a `death_spawn_plan` with the Session and double-burst.
+- **The `endphase` / `death` rows are NOT in the manifest, and adding
+  placeholder ones would be WRONG (measured, BR-5).** A manifest row's index
+  IS its sheet row (`engine/assets/manifest.py`: `Track.row = row_idx`; there
+  is no explicit row key), and every `boss_era_*` sheet is exactly as many
+  rows tall as it declares (era 0: 384×288 = 3 rows of 96; eras 1–4 are
+  single-row). Appending an `endphase` row therefore resolves to sheet row 3,
+  which `engine/assets/store.py` logs as "outside its sheet" and replaces with
+  the **grey-X placeholder** — for the entire second phase. Leaving the rows
+  absent IS D4's graceful fallback and is strictly better art:
+  `Manifest.current_frame` falls back to the IDLE row for a missing animation,
+  and `animation_total_ms` returns `None` for a missing `death` row, which is
+  the existing no-corpse behaviour. Real rows land with real art, via
+  `/replace-visual`.
+- **Camera shake keeps firing on a frozen boss (BR-3 finding, NOT fixed).**
+  `game/main.py`'s driver keys off `by_tag("boss")` + `alive`, and `alive` is
+  True for the whole second phase — so a frozen, untargetable boss still
+  shakes the screen. It may well be intended drama; it is a one-line change at
+  the driver if it is not. Flagged for the user, deliberately untouched.
 - **Known limitation, now much more visible (NOT fixed here).** The wave-clear
   check cannot see children spawned on the round's last frame (see Rules
   below). A boss frozen for several seconds makes that window wider; BR-3
   deliberately did not expand scope into it. Flagged for the user.
-- **Not per-era yet**: `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/
-  `spawn_delay` are single values on the `second_phase` block, while `spawns[]`
-  is per-era. Plan D5 wants era-0-only thresholds — that restructure is BR-5's
-  and has no home in the shape BR-3 shipped.
+- **PER-ERA since BR-5 — `second_phase.staging[]`.**
+  `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` were
+  single GLOBAL values on the `second_phase` block; they now live in a 5-row
+  `staging` array index-aligned with `stats[]`/`round_counts[]`/`spawns[]`
+  (`$defs/second_phase_row`, `minItems`/`maxItems` 5 like the boss's other
+  pinned arrays). `spawns[]` did NOT move.
+  - **They are their own array, not extra keys on a `spawns[]` row** — D7:
+    those rows are `$defs/spawn_counts`, SHARED with every other type's
+    `death_spawn.spawns`, so a boss-only threshold key there would land on all
+    14 committed rows.
+  - **`Enemy.resolve_phase_row(ds, era)` is the ONE seam**, the exact shape of
+    `resolve_fit`: base returns the flat `death_spawn` block (a Formation
+    breaks at half health in era 0 and in era 9), `Boss` overrides it to
+    `resolve_era_row(ds["staging"], era, None)` — no endgame factors, on
+    purpose (see the endgame section above).
+  - **D5's tuning, the ONE gameplay change in BR-5**: era 0 ships
+    `at_hp_fraction 0.5` + `spawn_hp_fraction 0.5`; eras 1–4 keep `0.0`/`1.0`.
+    Measured consequence to know, because era 0's `spawns` row is still all
+    zeros: the era-0 boss now **dies at 50% of its max HP with no children** —
+    effectively 700 HP instead of 1400. The plan's era-0 `commander: 1` is
+    NOT shipped (out of BR-5's dispatched scope); one data edit turns it on.
 
 ## Commander (BR-2) — LIVE code, DORMANT data
 The boss's officer. **Nothing spawns it today** and that is the phase's whole
@@ -425,7 +482,14 @@ ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
   `_boss_round` composes from `Boss.round_counts`, a `$defs/spawn_counts` table
   **shared with every `death_spawn.spawns` row**. Adding a `"formation"` key to
   that `$def` would force a meaningless formation count into every death-spawn
-  row. (It also used to fail the prototype-parity gate — that gate is deleted
+  row. **AMENDED (BR-1/D3, user decision): that argument no longer holds
+  absolutely** — `commander` WAS added to the shared `$def` (all 14 rows carry
+  it, at 0), deliberately overriding this note, because the boss's swarm and
+  its round table both wanted the same count vocabulary. The cost was paid and
+  is visible in the file; it is a judgement call per key, not a ban. It still
+  stands for `formation` specifically: nothing wants a formation count in a
+  death-spawn row, and D7 keeps BOSS-ONLY keys (the BR-5 staging rows) out of
+  this `$def` entirely. (It also used to fail the prototype-parity gate — that gate is deleted
   now, so the schema-shape argument is the whole reason and it still stands.) If
   formations on boss rounds are ever wanted, it is a one-line
   `+ self._formation_group(...)` into `_boss_round`'s `rest` — computed from the

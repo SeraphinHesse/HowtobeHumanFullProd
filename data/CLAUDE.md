@@ -161,10 +161,19 @@ validating writer; don't hand-edit the JSON.
     **BR-1 carved out ONE exception**: the Boss's `footprint`/`sprite_scale`
     are per-era (in its `stats[]` rows), because a designer must be able to
     make the era-4 boss physically bigger than the era-0 one. Every other type
-    — and every other key in that list — is unchanged. Consequence to know:
-    `editor/sprite_fit.py` still reads the flat pair, so boss slot previews
-    fall back to the render defaults until an editor-side follow-up teaches it
-    the era rows.
+    — and every other key in that list — is unchanged. `editor/sprite_fit.py`
+    reads BOTH shapes since **BR-5** (it read only the flat pair before, so
+    every boss slot preview silently drew at the render defaults).
+  - **`Boss.second_phase` is the SECOND carve-out (BR-5)**: its
+    `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` left
+    the block root for a 5-row `staging` array (`$defs/second_phase_row`),
+    index-aligned with `stats[]`/`round_counts[]`/`spawns[]`, so a designer can
+    stage the era-0 boss at half health without touching era 4. They are their
+    OWN array rather than extra keys on a `spawns[]` row because that row is
+    the SHARED `$defs/spawn_counts` (D7). Unlike the boss's other three arrays
+    it is **not** run through `endgame_boss_scaling` — it clamps past era 4;
+    compounding a fraction would drive `at_hp_fraction` above 1.0. Shipped
+    values: era 0 `0.5`/`0.5` (D5), eras 1–4 `0.0`/`1.0`.
   - **`endgame_scaling` blocks** (per type `{hp, dmg, move_speed, count}`, plus
     `EnemyScaling.endgame_scaling {batch_size, spawn_interval}`) are FACTORS,
     not values: past the last authored era the last row is reused with every

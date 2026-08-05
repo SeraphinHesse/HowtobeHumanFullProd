@@ -25,6 +25,15 @@ from game.enemies.enemy import Boss, Enemy, Raider, SiegeCannon
 from game.ui.effects import _ENEMY_BAR_STACK, FloaterManager
 
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
+# PIN, don't assume (data/CLAUDE.md): these tests damage a boss to hp=1 to make
+# a bar appear, and since BR-3 a boss below its era's `at_hp_fraction` is
+# UNTARGETABLE — `submit_enemy_hp_bars` deliberately draws no bar for it. BR-5
+# then tuned era 0 to 0.5 (D5), so hp=1 fell under the threshold and every boss
+# bar assertion here started measuring "no bar" instead of the GEOMETRY it is
+# about. Force the era-0 threshold back to the die-at-zero rule: what this
+# module pins is where a bar lands, never the balance of the day.
+ENEMIES_BAL["EnemyTypes"]["Boss"]["second_phase"]["staging"][0][
+    "at_hp_fraction"] = 0.0
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg

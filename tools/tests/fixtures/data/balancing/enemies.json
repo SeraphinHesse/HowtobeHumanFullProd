@@ -90,11 +90,7 @@
         }
       ],
       "second_phase": {
-        "at_hp_fraction": 0.0,
-        "delayed_spawns": true,
         "enabled": true,
-        "spawn_delay": 0.5,
-        "spawn_hp_fraction": 1.0,
         "spawns": [
           {
             "commander": 0,
@@ -125,6 +121,38 @@
             "raiders": 16,
             "regular": 34,
             "siege": 5
+          }
+        ],
+        "staging": [
+          {
+            "at_hp_fraction": 0.5,
+            "delayed_spawns": true,
+            "spawn_delay": 0.5,
+            "spawn_hp_fraction": 0.5
+          },
+          {
+            "at_hp_fraction": 0.0,
+            "delayed_spawns": true,
+            "spawn_delay": 0.5,
+            "spawn_hp_fraction": 1.0
+          },
+          {
+            "at_hp_fraction": 0.0,
+            "delayed_spawns": true,
+            "spawn_delay": 0.5,
+            "spawn_hp_fraction": 1.0
+          },
+          {
+            "at_hp_fraction": 0.0,
+            "delayed_spawns": true,
+            "spawn_delay": 0.5,
+            "spawn_hp_fraction": 1.0
+          },
+          {
+            "at_hp_fraction": 0.0,
+            "delayed_spawns": true,
+            "spawn_delay": 0.5,
+            "spawn_hp_fraction": 1.0
           }
         ]
       },

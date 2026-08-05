@@ -124,6 +124,9 @@ class Enemy(GameObject):
             block = block[seg]
         ds = block[self.DEATH_SPAWN_KEY]
         era = self._resolve_era(enemies_balance, era)
+        # BR-5: WHEN/HOW the phase fires is per-era on the Boss and flat on
+        # every other type — one seam, exactly like `resolve_fit`.
+        phase = self.resolve_phase_row(ds, era)
         # BR-4: ONE resolver for every per-era row — the same clamp as before
         # for an authored era, and past the last row the type's endgame factors
         # compound (all 1.0 as shipped, and an int leaf floors back to itself,
@@ -143,15 +146,15 @@ class Enemy(GameObject):
                            scale=float(sprite_scale)),
             DeathSpawn(era=era,
                        enabled=ds["enabled"],
-                       at_hp_fraction=float(ds["at_hp_fraction"]),
-                       spawn_hp_fraction=float(ds["spawn_hp_fraction"]),
+                       at_hp_fraction=float(phase["at_hp_fraction"]),
+                       spawn_hp_fraction=float(phase["spawn_hp_fraction"]),
                        counts=dict(spawn_row),
                        # BR-3: absent on every non-Boss `death_spawn` block —
                        # the component defaults ARE the historical one-frame
                        # burst, so `.get` here is a shape fallback, not a
                        # code-side default for an authored value (G-7).
-                       delayed=bool(ds.get("delayed_spawns", False)),
-                       spawn_delay=float(ds.get("spawn_delay", 0.0))),
+                       delayed=bool(phase.get("delayed_spawns", False)),
+                       spawn_delay=float(phase.get("spawn_delay", 0.0))),
             # Kidnapping (Art/enemies): LAST — it must tick after both
             # Movement (sees arrival the same frame) and SpriteAnimator (its
             # per-frame clock re-pin wins).
@@ -192,6 +195,19 @@ class Enemy(GameObject):
         variable per-era. A classmethod, not an instance method: the spawner
         needs the footprint to pick a spawn tile BEFORE the enemy exists."""
         return int(block["footprint"]), float(block["sprite_scale"])
+
+    @classmethod
+    def resolve_phase_row(cls, ds, era):
+        """The block holding ``at_hp_fraction``/``spawn_hp_fraction``/
+        ``delayed_spawns``/``spawn_delay`` for this type at ``era`` (BR-5).
+
+        The ONE seam deciding WHERE those four live, the exact shape of
+        ``resolve_fit``. Every type but the Boss keeps them FLAT on its
+        ``death_spawn`` block (a Formation breaks at half health in era 0 and
+        in era 9); the Boss overrides it to pick its ``second_phase.staging``
+        row, because D5 wants the era-0 boss to stage at half health while
+        eras 1-4 keep firing at actual death."""
+        return ds
 
     @classmethod
     def endgame_factors(cls, block):
@@ -540,6 +556,21 @@ class Boss(Enemy):
         # instance exists.
         st = cls._stat_row(block, era)
         return int(st["footprint"]), float(st["sprite_scale"])
+
+    @classmethod
+    def resolve_phase_row(cls, ds, era):
+        """The boss's ``second_phase.staging`` row for ``era`` (BR-5).
+
+        Resolved with **no endgame factors** — deliberately the ONE per-era
+        boss array that only ever clamps. `resolve_era_row` matches a factor
+        to a leaf by NAME, and `endgame_boss_scaling` carries none of these
+        four names today, so passing the block would be a silent no-op that
+        the next designer to add a matching key would turn into nonsense:
+        `at_hp_fraction`/`spawn_hp_fraction` are FRACTIONS, and compounding
+        one past era 4 drives it above 1.0, which fires the phase the instant
+        the boss spawns. Passing ``None`` says that in the code, not just in
+        the schema description."""
+        return resolve_era_row(ds["staging"], era, None)
 
     @classmethod
     def _stat_row(cls, block, era):
