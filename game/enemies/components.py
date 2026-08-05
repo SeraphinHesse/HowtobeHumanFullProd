@@ -39,6 +39,29 @@ _HUNT_QUERIES = {
     "any_non_base": find_path_to_nearest_non_base_building,
 }
 
+# debug-mode-telemetry (Phase 3): the optional level-2 damage hook
+# EnemyCombat.update() consults at its one enemy-attacks-a-building site.
+# ``EnemyCombat.update(dt)`` runs inside ``Scene.update``'s generic component
+# sweep (``Component.update``'s signature is fixed — dt only), which executes
+# BEFORE ``game.enemies.combat.resolve_combat`` each frame (game/main.py:
+# pre_sim -> scene.update -> resolve_combat) — so ``resolve_combat``'s own
+# ``on_damage=None`` parameter physically cannot reach this call site. This
+# module-level setter is the equivalent seam, mirroring
+# ``game/ui/widgets.py``'s ``set_skin_hit_test`` precedent: unset by default
+# (a bare ``EnemyCombat.update()`` stays byte-identical — one ``is not None``
+# check when off), installed by ``game/main.py`` only when the recorder's
+# level is >= 2, using the SAME ``on_damage(attacker_kind, target_kind, dmg,
+# target_hp_after)`` shape ``resolve_combat``'s own parameter uses.
+_damage_hook = None
+
+
+def set_damage_hook(fn):
+    """Install (or clear, ``fn=None``) the optional level-2 debug damage hook
+    ``EnemyCombat.update()`` calls at its one enemy-attacks-a-building site."""
+    global _damage_hook
+    _damage_hook = fn
+
+
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
 # arithmetic, no engine change — world_to_screen is
 # ix = (wx-wy)*half_w, iy = (wx+wy)*half_h and depth_key = (layer, wx+wy, wy)
@@ -457,10 +480,17 @@ class EnemyCombat(Component):
         self.cooldown -= dt
         if self.cooldown <= 0:
             dmg = self._effective_dmg(pa)   # 10I: mountain/forest +10%
-            target.get_component(Health).damage(dmg)
+            health = target.get_component(Health)
+            health.damage(dmg)
             rs = target.get_component(RoundStats)
             if rs is not None:
                 rs.dmg_taken_this_round += dmg
+            # debug-mode-telemetry (Phase 3, level 2 only): fired at exactly
+            # the RoundStats credit site above.
+            if _damage_hook is not None:
+                _damage_hook(getattr(owner, "ETYPE", None),
+                            getattr(target, "building_type", None),
+                            dmg, health.hp)
             self.cooldown = self.attack_speed
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the

@@ -30,9 +30,53 @@ user.
 | `enemies/` | `game/enemies/CLAUDE.md` | Enemy walker; spawner wave queue; type-agnostic combat sweep |
 | `core/` | `game/core/CLAUDE.md` | phase machine; payday ordering; XP / village level-up; balance loader |
 | `ui/` | `game/ui/CLAUDE.md` | HUD; building panel; floaters; level-up modal; shell + menus |
+| `debug/` | `game/CLAUDE.md` (this section) | `DebugRecorder` — structured run telemetry (JSONL/CSV/MD/HTML) for balancing + LLM debugging |
 | `tutorial/` | `game/CLAUDE.md` (this section) | `TutorialDirector` — binds the engine sequencer to real tiles/cards/buttons |
 
 Perf deep-dive → `game/PERF.md`.
+
+## Debug mode — structured run telemetry (debug-mode-telemetry)
+`game/debug/` is a pure package (no pygame, no `data/` I/O — its own
+`TestPurity`) hanging a `DebugRecorder` off `Session.debug`, `None` by default
+— the `tutorial_director` precedent (`game/core/CLAUDE.md`). Every emit site
+across the game is `if session.debug is not None: session.debug.<call>(...)`,
+so debug-off costs one attribute check per site and a bare `Session` a logic
+test builds is byte-identical. See `game/debug/events.py`'s module docstring
+for the full event-kind contract (what an LLM or a human reads) and
+`game/debug/recorder.py`'s docstring for the `DebugRecorder` API.
+- **Level 1 (`LEVEL_BASIC`)** — the causal trace: waves, placements, unlocks,
+  research, deaths, base hits, kidnaps, lightning, payday, the per-round
+  summary row, level-ups, boss choices, cheats, game over. Emit sites:
+  `game/core/session.py` (`end_turn`/`on_base_hit`/`on_enemy_death`/
+  `on_kidnap`/`resolve_levelup`/`resolve_boss_cutscene`/`lightning_strike`/
+  every `cheat_*`), `game/core/payday.py` (`run_payday`'s three hooks, see
+  that doc's payday section), `game/ui/building_ui.py` (`_do_place`, the
+  upgrade panel's tier-advance branch).
+- **Level 2 (`LEVEL_VERBOSE`)** adds per-tick combat detail via
+  `resolve_combat(..., on_damage=None)` (`game/enemies/combat.py`) — the
+  ESV-5/ESV-6 optional-callback precedent, `None` keeping every existing
+  caller byte-identical. **One damage site cannot be reached through that
+  parameter**: an enemy attacking a blocking building/wall
+  (`game/enemies/components.py EnemyCombat.update`) runs inside
+  `Scene.update`, which the host calls BEFORE `resolve_combat` each frame —
+  so `components.py` exposes its own module-level seam,
+  `set_damage_hook(fn)` (the `game/ui/widgets.py set_skin_hit_test`
+  precedent: unset by default, installed by `game/main.py` only when the
+  recorder's level is >= 2, bracketing the `scene.update()` call).
+- **`game/main.py`** wires the whole thing: `main(debug_log=None)` accepts
+  `None` (off), an `int` level (builds a fresh `DebugRecorder` writing to
+  `REPO / "logs"`), or an already-constructed `DebugRecorder` (the seam
+  headless callers/tests, and a future CLI flag / menu button, drive
+  directly — see that function's docstring). The recorder is bound to the
+  fresh run's `RunState` and assigned to `session.debug` inside
+  `build_gameplay()`; `set_frame()` is stamped once per simulated frame;
+  `close()` is called at the GAME_OVER transition AND again (idempotent —
+  a no-op the second time) just before `pygame.quit()`, so the four
+  artifacts (`-events.jsonl`/`-rounds.csv`/`-summary.md`/`-report.html`) are
+  always written. **Not yet wired**: a CLI flag, main-menu activation
+  buttons, and the cheat-menu arm/disarm toggle — left as a clean seam
+  (`main()`'s `debug_log` parameter + `recorder` being a plain, reassignable
+  local) for a follow-up phase.
 
 ## Host conventions (`main.py`, Phase 2 → 10A)
 - `main(max_frames=None)` is importable so `tools/smoke.py` can drive the same code

@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
 
 from engine import tilemap
-from engine.core import Health, Scene
+from engine.core import Health, Movement, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
 from game.buildings.components import RoundStats, YieldEconomy
@@ -30,11 +30,14 @@ from game.debug import (
     LEVEL_BASIC, LEVEL_VERBOSE, ROUND_FIELDS, DebugRecorder,
 )
 from game.debug import events, metrics, report
+from game.enemies import create_enemy, resolve_combat
 from game.map.tile_map import TileMap
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
+ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 
 def synth(rows, base=(0, 0)):
@@ -366,6 +369,68 @@ class TestReports(unittest.TestCase):
             self.assertIn("Leak rounds", md)
             # Idempotent: a second close() is a no-op returning the same dict.
             self.assertEqual(rec.close(), written)
+
+
+class TestOffPathRegression(unittest.TestCase):
+    """8. Phase 2 + 3's load-bearing guardrail pin: with ``debug``/``on_damage``
+    left at their ``None`` defaults, ``run_payday`` and ``resolve_combat``
+    behave EXACTLY as they did before this feature existed — not one frame,
+    not one point of love, not one point of damage moves. Proven by running
+    the SAME scripted board/fight twice, once with a bound recorder / a real
+    callback and once with neither, and asserting the two outcomes agree."""
+
+    def test_run_payday_debug_none_matches_a_bound_recorder(self):
+        def fresh_board():
+            tm, scene, occ = build_board(["bbbb", "bbbb"])
+            state = RunState.from_balance(CORE, BUILD)
+            state.love = 500
+            place(tm, scene, occ, state, 1, 0, "economic")
+            return tm, scene, occ, state
+
+        tm_a, scene_a, occ_a, state_a = fresh_board()
+        run_payday(state_a, tm_a, CORE, occ_a, scene_a)  # debug omitted
+
+        tm_b, scene_b, occ_b, state_b = fresh_board()
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = DebugRecorder(tmp, level=LEVEL_BASIC, run_id="t").bind(state_b)
+            run_payday(state_b, tm_b, CORE, occ_b, scene_b, rec)
+            rec.close()
+
+        self.assertEqual(state_a.love, state_b.love)
+        self.assertEqual(state_a.round_num, state_b.round_num)
+        self.assertEqual(state_a.phase, state_b.phase)
+        self.assertEqual(state_a.income_events, state_b.income_events)
+
+    def test_resolve_combat_on_damage_none_matches_a_real_callback(self):
+        def fresh_fight():
+            tm = synth(["bbb"])
+            scene, occ = Scene(), TileOccupancy()
+            defender, _cost = place_building(
+                tm, tm.get(1, 0), "defence", 9999, BUILD, scene, occ)
+            target = create_enemy("standard", 2, 0, ENEM, tm)
+            scene.spawn(target)
+            scene.update(0.0)
+            target.get_component(Movement).waypoints = []  # frozen — no base hit
+            return scene, tm, defender, target
+
+        def run_fight(on_damage):
+            scene, tm, defender, target = fresh_fight()
+            for _ in range(400):
+                scene.update(0.05)
+                resolve_combat(scene, tm, 0.05, BUILD, VFX, on_damage=on_damage)
+                if target.get_component(Health).hp < target.get_component(Health).max_hp:
+                    break
+            return defender, target
+
+        def_a, tgt_a = run_fight(None)
+        events_seen = []
+        def_b, tgt_b = run_fight(lambda *a: events_seen.append(a))
+
+        self.assertEqual(tgt_a.get_component(Health).hp,
+                         tgt_b.get_component(Health).hp)
+        self.assertEqual(def_a.get_component(RoundStats).dmg_dealt_this_round,
+                         def_b.get_component(RoundStats).dmg_dealt_this_round)
+        self.assertTrue(events_seen)  # the callback really did observe the hit
 
 
 class TestPurity(unittest.TestCase):

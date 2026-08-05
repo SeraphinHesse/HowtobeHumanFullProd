@@ -66,10 +66,13 @@ from game.buildings.coverage import wire_defence_coverage
 from game.core import Session, append_random_name, load_balance
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
+from game.debug import DebugRecorder, LEVEL_OFF, LEVEL_VERBOSE  # debug-mode-telemetry
+from game.debug import events as dbg
 from game.enemies import (
     DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
     spawn_corpse,
 )
+from game.enemies.components import set_damage_hook  # debug-mode-telemetry Phase 3
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
     spawn_tree_slots, tile_at_screen,
@@ -168,12 +171,35 @@ def step_zoom(cs, direction, view_w, view_h):
     cs.clamp(view_w, view_h)
 
 
-def main(max_frames=None, data_dir=None, autostart=False):
+def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     """``autostart=True`` skips the shell (cutscene/menu) and boots straight into
     a fresh GAMEPLAY run — the headless test seam so tools/smoke.py and the boot
     tests still exercise the full _World/Session construction + sim frames the
-    shell would otherwise defer until START NEW GAME."""
+    shell would otherwise defer until START NEW GAME.
+
+    ``debug_log`` (debug-mode-telemetry — the CLI/menu activation seam):
+    ``None`` (default) — debug off, every code path byte-identical (the
+    guardrail this whole feature is built on). An ``int`` (``game.debug.
+    LEVEL_BASIC``/``LEVEL_VERBOSE``) builds a fresh ``DebugRecorder`` writing
+    to ``REPO / "logs"``. An already-constructed ``DebugRecorder`` is used
+    as-is — the seam headless callers/tests (and Phase 5's CLI flag) drive
+    directly, e.g. to pick a custom ``out_dir``/``outputs``/``run_id``. The
+    recorder (if any) is bound to the run's ``RunState`` and assigned to
+    ``session.debug`` inside ``build_gameplay()`` below, and closed at the
+    game-over transition and again (idempotent) just before ``pygame.quit()``.
+    Phase 5 (CLI flag + menu buttons) builds on top of this — see the
+    docstring note beside ``recorder`` below for exactly how."""
     data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
+    # debug-mode-telemetry: `recorder` is a plain local, deliberately NOT
+    # nested inside an `if` — so a later dispatch (Phase 5's "PLAY DEBUG"
+    # menu button / cheat-menu arm-disarm toggle) can reassign it with
+    # `nonlocal recorder` from `execute()`/`_execute_cheat()` without
+    # restructuring this function. `None` (the default) is debug off.
+    recorder = None
+    if isinstance(debug_log, DebugRecorder):
+        recorder = debug_log
+    elif isinstance(debug_log, int) and debug_log > LEVEL_OFF:
+        recorder = DebugRecorder(REPO / "logs", level=debug_log)
     display = data_io.load_validated(
         data_dir / "display.json", data_dir / "schemas" / "display.schema.json"
     )
@@ -374,6 +400,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if gp["tutorial"].active:
             gp["world"].session.state.round_num = 0
         # -- /TU-6 --
+        # debug-mode-telemetry: bind the (optional) recorder to THIS run's
+        # RunState. `recorder` is the outer main()-scoped variable (closure
+        # read, never reassigned here) — None is the default and leaves
+        # session.debug at its own None default, byte-identical.
+        if recorder is not None:
+            gp["world"].session.debug = recorder
+            recorder.bind(gp["world"].session.state)
+            recorder.emit(
+                dbg.RUN_START, level=recorder.level, run_id=recorder.run_id,
+                map_id=map_doc.map_id, seed=None,
+                love=gp["world"].session.state.love,
+                lives=gp["world"].session.state.base_lives)
         gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
@@ -846,8 +884,30 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 sim_dt = (dt * session.combat_speed
                           if session.state.phase == GamePhase.ENEMY else dt)
                 session.pre_sim(sim_dt, world.scene)
+                # debug-mode-telemetry: stamp the host's frame counter (a
+                # cheap int set) once per frame, whenever a recorder is bound.
+                if session.debug is not None:
+                    session.debug.set_frame(frames)
                 # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
                 if session.state.state == GameState.GAMEPLAY and not session.frozen:
+                    # debug-mode-telemetry (Phase 3): level-2-only per-tick
+                    # damage detail. `_debug_on_damage` is threaded to
+                    # resolve_combat's own on_damage= parameter for the three
+                    # sites it owns; the enemy-attacks-a-building site
+                    # (game/enemies/components.py) runs inside scene.update,
+                    # BEFORE resolve_combat, so it needs the SAME callback
+                    # installed through the module-level seam instead — hence
+                    # set_damage_hook() bracketing scene.update() below.
+                    debug_l2 = (session.debug is not None
+                               and session.debug.level >= LEVEL_VERBOSE)
+
+                    def _debug_on_damage(attacker_kind, target_kind, dmg,
+                                         target_hp_after, _rec=session.debug):
+                        _rec.emit(dbg.DAMAGE, attacker=attacker_kind,
+                                 target=target_kind, dmg=dmg,
+                                 target_hp_after=target_hp_after)
+
+                    set_damage_hook(_debug_on_damage if debug_l2 else None)
                     world.scene.update(sim_dt)
                     # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
                     # once per frame and threaded as a plain int.
@@ -906,7 +966,10 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                    on_splash_impact=_on_splash_impact,
                                    on_defender_fire=_on_defender_fire,
                                    on_projectile_hit=_on_projectile_hit,
-                                   on_kidnap=_on_kidnap)
+                                   on_kidnap=_on_kidnap,
+                                   on_damage=(_debug_on_damage if debug_l2
+                                             else None))
+                    set_damage_hook(None)  # debug-mode-telemetry: don't leak
                     session.post_sim(world.scene)
                 # payday fills state.income_events + flips to INCOME; spawn once
                 if (session.state.phase == GamePhase.INCOME
@@ -946,6 +1009,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                         and session.state.state == GameState.GAME_OVER):
                     gp["cheat"].close()  # 10H: never hide the game-over screen
                     shell.enter_game_over()
+                    # debug-mode-telemetry: write the reports as soon as THIS
+                    # run ends, not just at process exit. close() is
+                    # idempotent, so the unconditional call right before
+                    # pygame.quit() below stays a harmless no-op afterward.
+                    if session.debug is not None:
+                        session.debug.close(outcome="game_over")
                 gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
                 gp["panel"].hover(mx, my, mouse_down=held)
                 gp["panel"].update(dt)
@@ -1160,6 +1229,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if max_frames is not None and frames >= max_frames:
             running = False
 
+    # debug-mode-telemetry: idempotent — a no-op if the game-over path (or a
+    # test) already closed it. Guarantees the reports are written even for a
+    # run that ends by window-close rather than reaching GAME_OVER.
+    if recorder is not None:
+        recorder.close(outcome="quit")
     pygame.quit()
     return frames
 
