@@ -144,6 +144,7 @@ TIERS = {
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
 }
 
 
