@@ -197,9 +197,9 @@ class TestFieldCachePerFootprint(unittest.TestCase):
         calls = []
         orig = pathfinder._build_flow_field
 
-        def counted(tm, ignore_walls, footprint=1):
+        def counted(tm, ignore_walls, footprint=1, cond_weights=None):
             calls.append((ignore_walls, footprint))
-            return orig(tm, ignore_walls, footprint)
+            return orig(tm, ignore_walls, footprint, cond_weights)
 
         return calls, orig, counted
 
@@ -223,13 +223,18 @@ class TestFieldCachePerFootprint(unittest.TestCase):
         finally:
             pathfinder._build_flow_field = orig
 
-    def test_cache_is_keyed_on_ignore_walls_and_footprint(self):
+    def test_cache_is_keyed_on_ignore_walls_footprint_and_profile(self):
+        # The key gained a third member when per-enemy condition path weights
+        # landed: `profile_key` is None for the map's own weights, else the
+        # (forest, mountain, pond) tuple. Every query here uses the map's own
+        # weights, so all three keys carry None.
         tm = synth(self.ROWS, base=(0, 0))
         find_path(tm, 4, 2)
         find_path(tm, 4, 2, footprint=2)
         find_path_ignoring_walls(tm, 4, 2, footprint=2)
         fields = tm._flow_cache[1]
-        self.assertEqual(set(fields), {(False, 1), (False, 2), (True, 2)})
+        self.assertEqual(set(fields),
+                         {(False, 1, None), (False, 2, None), (True, 2, None)})
 
 
 # -- 4. walls vs a block: internal edges, faces, ignore_walls ---------------
