@@ -29,6 +29,7 @@ from .economy import EconomyBuilding
 
 class Meditator(EconomyBuilding):
     BUILDING_TYPE = "meditator"
+    CONTENT_KEY = "meditator_building"
     SUBTREE = ("EconomyBuildings", "Meditators")
     TIER_SPRITES = ("meditator", "shaman", "sun_priest")
 

@@ -51,9 +51,24 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   no-match axis search O(strip), never O(map).
 - **Pathfinding weight is content-key driven, not `isinstance(Building)`**: each
   tile resolves to a key in `map.json` `Pathfinding.content_weights` (empty tiles
-  from their zone; occupied tiles carry the key set at placement). Composition
-  order is PROTOTYPE-EXACT: base → +condition (`path_weights`) → +defence-range
-  coverage → ×damage discount, all gated `0 < w < impassable`.
+  from their zone; occupied tiles carry the key set at placement — 17 keys total
+  since the buildings-overwrite-tileweights rework below: the 4 non-building keys
+  plus one per building type, including `painter_building` and the previously
+  economy-key-sharing boost/structure leaves). Composition order is
+  PROTOTYPE-EXACT: base → +condition (`path_weights`) → +defence-range coverage →
+  ×damage discount, all gated `0 < w < impassable` — **except the condition step
+  is now itself conditional (buildings-overwrite-tileweights rework)**: a live
+  building (`occupant.alive`) whose tile's condition-weight resolution
+  OVERWRITES rather than adds (`Tile._overwrites_condition`, an OR of three
+  designer-controlled switches — the master `Pathfinding.
+  buildings_overwrite_tileweights`, a per-building-type `Pathfinding.
+  content_weight_overwrites[content_key]`, or a per-condition `TileConditions.
+  path_weight_overwritable[condition]`) skips the `+condition` add entirely, so
+  the building's own content weight stands alone (stops the water-parking
+  exploit: an economy building on a pond used to cost 1+9 instead of just 1). A
+  dead occupant (content_key survives death) reverts to additive. Every dict in
+  `_overwrites_condition` is indexed DIRECTLY (no `.get()` default) — a missing
+  key fails loud (D-2).
 - **Picking goes through `engine.coords` only** (`screen_to_world` + floor) — no
   iso math in `game/`.
 - **Balancing** loads through `game/core/balance.py` (`load_balance(data_dir,
@@ -182,6 +197,14 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     unreachable, one multi-goal search finds any other reachable one before we
     fall back to the base — a walled-off building can never send the boss home
     early.
+  - **Chunk 4 extracted this choose-then-route-then-fallback body into a
+    shared `_hunt(tilemap, start_col, start_row, goals, footprint,
+    cond_weights)`**, with `nearest_non_base_building_tile` itself thinned
+    into a wrapper over the predicate-free `_nearest_goal_tile(goals,
+    start_col, start_row)` (kept under its original name — tests reference it
+    directly). `find_path_to_nearest_non_base_building` is byte-identical
+    through this refactor; `find_path_to_nearest_economic`/`_defence` (below)
+    are its two new callers.
 - **`_dijkstra` keeps a SEPARATE tentative-`best` map, and that is load-bearing**
   (same reason `_build_flow_field` does — its docstring has the long version).
   It used to guard the relax on `dist`, the **settled** map: `dist.get(node)` is
@@ -195,8 +218,18 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `test_pathfinder.TestDijkstraReturnsTheRouteItCosted`, which compares the
   returned path's cost against an independent settle-only Dijkstra over 40 random
   pond boards.
-- Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
-  nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **`find_path_to_nearest_economic` / `_defence` are LIVE (Chunk 4 — was
+  "dormant, queried by nothing")** — armed via `EnemyTypes.<type>.hunts`
+  (`Raider` → `"economic"`, `SiegeCannon` → `"defence"`), dispatched by
+  `game/enemies/components.py`'s `_HUNT_QUERIES`. Both now share the same
+  `_hunt` helper `find_path_to_nearest_non_base_building` uses — choose the
+  nearest goal by geometric distance, route by weighted cost, multi-goal
+  fallback if the chosen one is unreachable, base path if no goal exists at
+  all — which is the FIX, not just the activation: before Chunk 4 both went
+  straight through `_find_path_to_goals` alone, i.e. picked by cost, so a
+  cost-cheaper building (e.g. one not ringed by pond) could beat a
+  geometrically-nearer one. See `game/enemies/CLAUDE.md`'s prey-hunting
+  section for the per-type wiring.
 - **`find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1)`
   is the kidnapper's route home (Art/enemies)** — goal set is every
   `tilemap.spawning_tiles()`, `[]` when there is none / none reachable (the
@@ -282,15 +315,44 @@ Tile-state writes MUST route through `TileMap.set_tile_state` (keeps the
 forward walker would enter, so field distances equal forward costs exactly),
 keyed by `TileMap._path_version`. Since ER-2 the field is **footprint-aware**
 and the per-version cache is keyed on **`(ignore_walls, footprint)`** — so the
-invariant is now **ONE Dijkstra per topology change PER FOOTPRINT, never one per
-enemy**. EVERY weight/blocking mutation must bump the
+invariant was **ONE Dijkstra per topology change PER FOOTPRINT, never one per
+enemy**.
+
+**Chunk 3 (weight profiles) extends the key to `(ignore_walls, footprint,
+profile_key)`** — the invariant is now **one Dijkstra per topology change PER
+(footprint, weight profile), still never one per enemy**. Every `find_path*`
+query takes an optional trailing `cond_weights` (a caller's own `{forest,
+mountain, pond}` mapping, e.g. `EnemyTypes.<type>.condition_path_weights`);
+`profile_key` is `None`, or the hashable `(forest, mountain, pond)` tuple
+`_ensure_flow_field` derives from it for the cache key (a dict is not
+hashable, so the tuple — not the dict — is what collapses identical profiles
+onto one key). At most a handful of distinct profiles ever exist (one per
+enemy type, not one per enemy instance), and every shipped
+`condition_path_weights` is seeded equal to the map's own
+`TileConditions.path_weights`, so today every type still shares ONE field —
+measured: `test_pathfinder.py`'s `TestWeightProfileSharing` spawns two
+enemies with identical (default) profiles and asserts the tilemap's
+`_flow_cache` holds exactly one entry for their shared `(ignore_walls,
+footprint)` pair. EVERY weight/blocking mutation must bump the
 counter: `set_tile_state`, `set_tile_content` (the ONE occupant/content-key
 seam — never write `tile.occupant`/`tile.content_key` directly from outside
 the map layer), wall add/remove/death (mid-HP wall hits don't bump —
-`_wall_blocks` is hp>0), and the two pre-query weight producers, which
-change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev`)
-and bump only on a real difference. Goal-set `find_path_to_nearest_*` variants
-stay fresh Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
+`_wall_blocks` is hp>0), and the THREE pre-query weight producers, which
+change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev` /
+`_overwrite_prev`) and bump only on a real difference. **`_overwrite_prev`
+(buildings-overwrite-tileweights rework) is a NEW hazard, not a cosmetic
+addition**: before this rework a building's `content_key` survived its death
+untouched, so nothing about a death ever changed its tile's weight and no bump
+was needed; now the occupant's `alive` flag is itself part of the weight
+calculation (see the weight-composition bullet above), so a building dying
+changes its tile's weight and `TileMap.refresh_building_overwrite_flags` —
+wired into `pathfinder._pre_query_refresh` via the same guarded `getattr` style
+as the other two producers — is what catches it. It short-circuits to a no-op
+scan when no overwrite can ever be active under the current balancing (master
+switch off, every per-building override off, every per-condition override
+off), so a headless fixture with the feature off pays nothing beyond one bool
++ two dict reads. Goal-set `find_path_to_nearest_*` variants stay fresh
+Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base

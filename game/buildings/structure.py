@@ -7,8 +7,9 @@ defence) and are PASSIVE: no attack, no yield.
 
   ``blocker``       — a stubborn HP-soak. It is NOT impassable: enemies path over
                       its tile and stop to attack it via the normal building
-                      block-and-attack (``CONTENT_KEY="economic_building"`` = the
-                      prototype's traversable weight fallback). Pure tier HP.
+                      block-and-attack (``CONTENT_KEY="blocker_building"``, seeded
+                      to the same traversable weight the shared economy key used
+                      to fall back to). Pure tier HP.
   ``wall_builder``  — raises a perimeter of destructible EDGE walls around the
                       player's territory when placed. The wall edges live in the
                       map-owned ``TileMap.wall_edges`` registry; this class carries
@@ -24,11 +25,16 @@ from .components import WallBuilderState
 
 
 class StructureBuilding(Building):
-    """Family base: passive structures (Blocker / WallBuilder). Falls back to the
-    economy pathfinding weight (traversable, 1) so enemies attack rather than
-    reroute, and uses a single flat art slot per type."""
+    """Family base: passive structures (Blocker / WallBuilder). Each leaf sets
+    its own CONTENT_KEY (traversable weight, seeded to 1) so enemies attack
+    rather than reroute, and uses a single flat art slot per type."""
 
-    CONTENT_KEY = "economic_building"
+    # No CONTENT_KEY here: each leaf below sets its own (map.json
+    # content_weights carries a key per structure type since the
+    # buildings-overwrite-tileweights rework). Both seed to the same
+    # traversable weight (1) the shared economy key used to fall back to —
+    # the intent (enemies attack rather than reroute) is preserved by the
+    # seeded VALUE now, not by sharing a key.
     EXTRA_TAGS = ("structure",)
     SLOT = ""   # flat slot key (set by leaves) — no tier/level suffix
 
@@ -38,12 +44,14 @@ class StructureBuilding(Building):
 
 class Blocker(StructureBuilding):
     BUILDING_TYPE = "blocker"
+    CONTENT_KEY = "blocker_building"
     SUBTREE = ("StructureBuildings", "Blocker")
     SLOT = "blocker"
 
 
 class WallBuilder(StructureBuilding):
     BUILDING_TYPE = "wall_builder"
+    CONTENT_KEY = "wall_builder_building"
     SUBTREE = ("StructureBuildings", "WallBuilder")
     SLOT = "wall_builder"
 

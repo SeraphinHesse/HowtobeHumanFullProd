@@ -275,13 +275,18 @@ class TestKidnapperIsInvisibleToCombatAndLightning(unittest.TestCase):
             [e for e in scene.by_tag("enemy") if e.alive], [])
 
         # Lightning sweeps by_tag("enemy") too — a retagged carrier is never
-        # in that set, regardless of radius.
+        # in that set, regardless of radius. feature-storm-acolyte-multi-
+        # build: strike() now needs a REAL placed caster (the old bare
+        # state.lightning_level flag no longer drives it) — place one on the
+        # empty buildable lane between the base and the victim's old tile.
         cs = CoordinateSystem(Geometry(
             tile_w=64, tile_h=32, map_cols=16, map_rows=16,
             zoom_levels=(1.0,)))
         state = session.state
-        state.lightning_level = 1
-        state.lightning_cooldown = 0.0
+        priest, _c = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                    BUILD, scene, occ)
+        scene.update(0.0)   # flush the spawn queue: by_tag needs it live
+        lt.unlock_from_placement(state, priest)
         wx, wy = kidnapper.transform.world_pos
         struck = lt.strike(state, CORE, VFX, scene, cs, wx, wy)
         self.assertTrue(struck)  # it fired (unlocked, off cooldown)...

@@ -22,9 +22,22 @@ from engine.render.item import RenderItem
 from game.buildings.components import RoundStats
 from game.map.pathfinder import (
     _wall_blocks, block_covers, block_tiles, face_edges,
+    find_path_to_nearest_defence, find_path_to_nearest_economic,
     find_path_to_nearest_non_base_building, internal_edges,
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
+
+# Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
+# query it dispatches to. "base" is NOT in here — it is handled separately by
+# Enemy.on_spawn, which never routes a base hunt through this dict; every
+# other value re-arms PathAgent.repath_on_kill and is consulted here both by
+# on_spawn's non-base branch and by _repath below, so the two can never
+# disagree about which query a given hunt string means.
+_HUNT_QUERIES = {
+    "economic": find_path_to_nearest_economic,
+    "defence": find_path_to_nearest_defence,
+    "any_non_base": find_path_to_nearest_non_base_building,
+}
 
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
 # arithmetic, no engine change — world_to_screen is
@@ -83,14 +96,23 @@ class PathAgent(Component):
       hazard the 10F raider/siege deferral documented.
     * ``repath_on_kill`` — on unblocking (the blocker died), on arriving at a
       dead non-base goal, or the moment the committed target dies to ANYONE,
-      re-run ``find_path_to_nearest_non_base_building`` from the current tile
-      and reload the waypoints — the prototype boss's ``_repath``-after-kill
+      re-run this unit's hunt query (``_HUNT_QUERIES[hunt]``, default
+      ``find_path_to_nearest_non_base_building`` — Chunk 4 generalised this
+      from a hardcoded boss-only call) from the current tile and reload the
+      waypoints — the prototype boss's ``_repath``-after-kill
       (``boss.py:108-114``) mapped onto the block-and-attack model.
 
     BP-3 adds ``target_col``/``target_row``: the victim the agent has COMMITTED
     to, so it can watch that one building instead of re-litigating the board
     after every swing. ``-1`` is the default-off sentinel (no target — walking
     at the base), which is what keeps the other four enemy types byte-identical.
+
+    Chunk 4 adds ``hunt`` (JSON-safe: a declared field, resolved at
+    construction from ``EnemyTypes.<type>.hunts``, exactly like ``footprint``)
+    — what this unit paths toward on spawn and re-targets to on a kill.
+    ``"base"`` is the default and keeps every type that never opts in
+    byte-identical; any other value is looked up in the module-level
+    ``_HUNT_QUERIES`` dict by both ``Enemy.on_spawn`` and ``_repath`` below.
     """
 
     reached_base: bool = False
@@ -101,6 +123,7 @@ class PathAgent(Component):
     target_col: int = -1          # the building we committed to hunt (BP-3)
     target_row: int = -1          # -1 = none: we are walking at the base
     carrying: bool = False        # kidnapping (Art/enemies): inert while True
+    hunt: str = "base"            # what this unit hunts on spawn (Chunk 4)
 
     def on_added(self, owner):
         self._owner = owner
@@ -108,6 +131,13 @@ class PathAgent(Component):
         self._real_speed = 0.0    # cached move speed for block/unblock gating
         self._target = None       # the building we are stopped attacking
         self._wall_target = None  # (c1,r1,c2,r2) edge wall we are attacking, or None
+        # Chunk 3: this unit's own {forest, mountain, pond} path-weight
+        # profile (EnemyTypes.<type>.condition_path_weights), set by Enemy at
+        # construction beside _tilemap — a transient (E-11) because a dict is
+        # not JSON-safe component state. None until Enemy sets it (headless
+        # component-only tests) falls back to the map's own weights, exactly
+        # like every find_path* call's cond_weights=None default.
+        self._cond_weights = None
         # -- 10I: condition of the tile last ARRIVED at (prototype
         # enemy.py:111-114 / 191-192). GRASS at spawn; the spawn tile's own
         # condition is never applied (waypoint 0 IS the spawn tile — update()
@@ -282,8 +312,9 @@ class PathAgent(Component):
         dead-target watch from re-pathing every frame forever."""
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
-        path = find_path_to_nearest_non_base_building(tm, col, row,
-                                                      footprint=self.footprint)
+        query = _HUNT_QUERIES.get(self.hunt, find_path_to_nearest_non_base_building)
+        path = query(tm, col, row, footprint=self.footprint,
+                     cond_weights=self._cond_weights)
         self.adopt_goal(path, tm)
         if not path:
             return

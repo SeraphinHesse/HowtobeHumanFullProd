@@ -140,6 +140,7 @@ play is unaffected — the same lift lands at the same screen pixel, just
 computed once at spawn instead of every draw. The mortar's `ProjectileArc`
 path (`_fire_splash`) is untouched.
 """
+import math    # feature-storm-acolyte-multi-build: the polygon-ring helper
 import random  # 10H bolt jitter / 10J particle spread (stdlib — pure)
 
 from engine.core import Health, SpriteAnimator
@@ -155,6 +156,7 @@ from engine.vfx import (
     spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
+from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase
 
 from .widgets import (
@@ -191,6 +193,15 @@ _ENEMY_BAR_FALLBACK = (14, 2, 4)   # a stub enemy with no HP_BAR_* attrs
 # now in data/balancing/vfx.json procedural.lightning (ESV-3b) — see
 # _params_from_balance below.
 # -- /10H --
+
+# -- feature-storm-acolyte-multi-build: per-caster charge bar chrome. Code
+# constants beside HP_BAR_W/HP_BAR_H (the established bar-chrome precedent —
+# these are not gameplay tunables, just fixed screen-pixel bar geometry) --
+_CHARGE_BAR_W, _CHARGE_BAR_H = 28, 4      # same footprint as a building HP bar
+_CHARGE_BAR_SLATE = (70, 70, 90)          # empty/just-fired ramp start
+_CHARGE_BAR_READY_YELLOW = (255, 240, 80)  # ramp end == hud.py's ready colour
+_CHARGE_BAR_LIFT = 8   # px below the HP-bar baseline, so the two don't overlap
+# -- /feature-storm-acolyte-multi-build --
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
 # data/balancing/vfx.json now (ESV-3a) — see _params_from_balance below. The
@@ -283,7 +294,8 @@ def _params_from_balance(vfx):
 
     cr = proc["crater"]
     crater = CraterParams(
-        color=_color(cr["color"]), alpha=cr["alpha"], life=cr["life"])
+        color=_color(cr["color"]), alpha=cr["alpha"], life=cr["life"],
+        segments=cr["segments"])
 
     lp = proc["lightning"]
     lightning = LightningParams(
@@ -296,7 +308,7 @@ def _params_from_balance(vfx):
         marker_color=_color(lp["marker_color"]),
         marker_fill_alpha=lp["marker_fill_alpha"],
         marker_outline_width=lp["marker_outline_width"],
-        marker_life=lp["marker_life"])
+        marker_life=lp["marker_life"], marker_segments=lp["marker_segments"])
 
     an = proc["announce"]
     announce = AnnounceParams(
@@ -337,6 +349,21 @@ def _triggers_from_balance(vfx):
     key name, they just pass the event string they already know."""
     return {event: (row["sprite_slot"], row["procedural"])
             for event, row in vfx["triggers"].items()}
+
+
+def _polygon_ring(cx, cy, r, segments):
+    """A regular ``segments``-gon of radius ``r`` in WORLD units, centred at
+    ``(cx, cy)``, starting at the top and stepping clockwise — the same shape
+    the lightning impact-flash octagon has always drawn (feature-storm-
+    acolyte-multi-build generalises that inline 8-point literal into this one
+    shared helper). A world-space N-gon projects to the iso 2:1 ground
+    ellipse (the same reason the flash octagon reads as light on the ground
+    rather than a flat shape); every "round" world-unit ground marker in this
+    file goes through here now: the lightning blast marker, the mortar
+    crater, and the flash itself."""
+    return [(cx + r * math.sin(2 * math.pi * i / segments),
+             cy - r * math.cos(2 * math.pi * i / segments))
+            for i in range(segments)]
 
 
 def _sprite_top(renderer, cs, enemy, cy, zoom):
@@ -390,6 +417,9 @@ class FloaterManager:
     def __init__(self, ui_balance, core_balance, vfx_balance):
         self._enabled = ui_balance["FX"]["income_floaters_enabled"]
         self._life = core_balance["PhaseLoop"]["income_phase_duration"]
+        # feature-storm-acolyte-multi-build: submit_lightning_charge_bars
+        # reads each caster's own tier cooldown ceiling straight off core.
+        self._core_balance = core_balance
         self._floaters = []
         # -- 10G boss announcement: timings from ui.FX.boss_announce; the age
         # clock is None while no announcement runs.
@@ -815,8 +845,12 @@ class FloaterManager:
     def submit_craters(self, renderer, cs, scene):
         """A fading world-space scorch where each mortar shell landed (Phase
         10B). Purely cosmetic — the ``Crater`` GameObjects age + self-despawn in
-        the scene; since 10J the diamond is alpha-FILLED and fades by alpha
-        (prototype's SRCALPHA ground ellipse). Params from
+        the scene; since 10J the fill is alpha-FILLED and fades by alpha
+        (prototype's SRCALPHA ground ellipse). feature-storm-acolyte-multi-
+        build: a ``cp.segments``-gon (the shared ``_polygon_ring`` helper),
+        not the old 4-point diamond — the mortar's splash is Euclidean in
+        TILE space, so this ring is the EXACT damage-area shape, a real
+        fidelity fix, not just cosmetics. Params from
         ``self._vfx_params.crater`` (ESV-3b); the fade LIFETIME itself is on
         the ``Crater``'s own ``CraterFade`` component, not read here. Draws no
         random numbers."""
@@ -825,8 +859,7 @@ class FloaterManager:
             frac = c.fade_frac
             r = c.radius
             cx, cy = c.transform.world_pos
-            pts = [(cx + 0.5, cy + 0.5 - r), (cx + 0.5 + r, cy + 0.5),
-                   (cx + 0.5, cy + 0.5 + r), (cx + 0.5 - r, cy + 0.5)]
+            pts = _polygon_ring(cx + 0.5, cy + 0.5, r, cp.segments)
             renderer.submit_overlay_polys(
                 pts, cp.color + (int(cp.alpha * frac),))
 
@@ -839,10 +872,15 @@ class FloaterManager:
         impact point — horizontal jitter re-rolled every SUBMITTED frame
         (through ``self._rng`` — the shared injected stdlib ``random``, never a
         fresh ``Random()``, ESV-3b §2.2), colour fading start -> end over the
-        bolt life; (2) a fading world-space diamond sized to the REAL blast
-        radius (the crater pattern; a world diamond of r tiles projects to a
-        2:1 screen lozenge — exactly the prototype's w = 2r, h = r ground
-        ellipse). The alpha impact-flash circle is 10J (no per-pixel alpha in
+        bolt life; (2) a fading world-space polygon RING sized to the REAL
+        blast radius (feature-storm-acolyte-multi-build's shared
+        ``_polygon_ring`` helper, replacing the old 4-point diamond — a ring
+        reads as light lying on the isometric ground rather than a flat
+        rotated box; the damage circle itself is a Euclidean circle in the
+        PROJECTED PIXEL plane, so the world-space ring under-covers it
+        slightly vertically, same as the diamond did, only far less —
+        visual only, the damage maths is unchanged). The alpha impact-flash
+        circle is 10J (no per-pixel alpha in
         the HUD/overlay pass). Params from ``self._vfx_params.lightning``
         (ESV-3b); the fade LIFETIMES (``bolt_life``/``marker_life``) are on the
         FX object's own ``LightningFXFade`` component, not read here — the FX
@@ -870,21 +908,26 @@ class FloaterManager:
                                              width=lp.bolt_width))
             if bolt > 0:
                 # 10J: the expanding alpha impact flash (prototype
-                # effects.py:222-290). An 8-gon in world units projects to
-                # the 2:1 ground ellipse.
+                # effects.py:222-290). A world-unit polygon ring projects to
+                # the 2:1 ground ellipse — the flash keeps its own fixed
+                # 8-gon (feature-storm-acolyte-multi-build's shared
+                # `_polygon_ring` helper generalises this literal; only the
+                # ground MARKER below and the mortar crater are data-driven).
                 fr = (1.0 - bolt) * (lp.flash_radius_px
                                      / (cs.geometry.tile_w / 2.0))
                 if fr > 0:
-                    k = 0.7071 * fr
-                    pts = [(wx, wy - fr), (wx + k, wy - k), (wx + fr, wy),
-                           (wx + k, wy + k), (wx, wy + fr), (wx - k, wy + k),
-                           (wx - fr, wy), (wx - k, wy - k)]
+                    pts = _polygon_ring(wx, wy, fr, 8)
                     renderer.submit_overlay_polys(
                         pts, lp.flash_color + (int(lp.flash_alpha * bolt),))
             frac = fx.fade_frac
             if frac > 0:
                 r = fx.radius_tiles
-                pts = [(wx, wy - r), (wx + r, wy), (wx, wy + r), (wx - r, wy)]
+                # feature-storm-acolyte-multi-build: a polygon ring, not a
+                # 4-point diamond — the ring's radius is the REAL blast
+                # radius, so it reads as round light on the ground instead of
+                # a flat rotated box (the damage circle itself is unchanged,
+                # visual only).
+                pts = _polygon_ring(wx, wy, r, lp.marker_segments)
                 # 10J: alpha-filled ground marker fading out (prototype fill);
                 # the outline keeps the old colour-fade (lines carry no alpha)
                 renderer.submit_overlay_polys(
@@ -991,6 +1034,49 @@ class FloaterManager:
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
+
+    # -- feature-storm-acolyte-multi-build: per-caster charge bars ----------
+
+    def submit_lightning_charge_bars(self, renderer, cs, scene):
+        """One bar per alive ``lightning_source`` whose caster is STILL
+        CHARGING — the ``submit_hp_bars`` pattern (fixed screen-pixel size,
+        never zoom-scaled, anchored through ``cs.world_to_screen``): hidden
+        entirely once ready, matching the house "HP bar hides at full HP"
+        rule. Fill fraction is ``1 - cooldown / tier_cooldown`` (that
+        caster's OWN tier reads its own cooldown ceiling off
+        ``core.LightningStrike``); colour lerps from a dim slate toward the
+        HUD's ready-yellow as it fills, so a nearly-charged acolyte reads
+        visibly yellow before the bar disappears. Drawn ``_CHARGE_BAR_LIFT``
+        px below the HP-bar baseline (same anchor point) so the two never
+        fully overlap on a damaged, still-charging acolyte."""
+        zoom = cs.camera.zoom
+        tile_h = cs.geometry.tile_h
+        assets = getattr(renderer, "assets", None)
+        cooldowns = self._core_balance["LightningStrike"]["cooldown"]
+        for b in scene.by_tag("lightning_source"):
+            if not getattr(b, "alive", False):
+                continue
+            caster = b.get_component(LightningCaster)
+            if caster is None or caster.cooldown <= 0:
+                continue   # ready -> hidden (the HP-bar-at-full-HP rule)
+            tier_cd = cooldowns[b.tier_number() - 1]
+            frac = 1.0 - (caster.cooldown / tier_cd if tier_cd else 0.0)
+            w, h = _CHARGE_BAR_W, _CHARGE_BAR_H
+            point = anchor_world_point(assets, cs, b, "hp_bar")
+            if point is not None:
+                x_c, y_c = cs.world_to_screen(*point)
+            else:
+                cx, cy = cs.world_to_screen(b.transform.wx + 0.5,
+                                            b.transform.wy + 0.5)
+                x_c, y_c = cx, cy - tile_h * zoom
+            x = int(x_c - w / 2)
+            y = int(y_c) + _CHARGE_BAR_LIFT
+            fill = tuple(int(a + (r - a) * frac) for a, r in
+                        zip(_CHARGE_BAR_SLATE, _CHARGE_BAR_READY_YELLOW))
+            submit_bar(renderer, x, y, w, h, frac,
+                       bg=widgets.C_UI_BORDER, fill=fill, border=(0, 0, 0))
+
+    # -- /feature-storm-acolyte-multi-build ---------------------------------
 
     # -- 10G boss: announcement + boss HP bars ------------------------------
 

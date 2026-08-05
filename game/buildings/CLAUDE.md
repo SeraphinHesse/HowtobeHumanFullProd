@@ -59,8 +59,13 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
 - **10D boost line** (`boost.py`: `BoostBuilding` family + thin `BoostSpeed`/
   `BoostDamage`/`BoostHP` leaves) subclasses `Building` directly (neither economy
   nor defence). ONE behaviour class, three data lines
-  (`BoostBuildings.{Speed,Damage,HP}`); `CONTENT_KEY="economic_building"` (the
-  prototype's boost pathfinding-weight fallback — no map change), tag `"boost"`.
+  (`BoostBuildings.{Speed,Damage,HP}`); each leaf carries its OWN
+  `CONTENT_KEY` (`boost_speed_building`/`boost_damage_building`/
+  `boost_hp_building`) since the buildings-overwrite-tileweights rework gave
+  every building type its own `Pathfinding.content_weights` entry — they are
+  **seeded to 1, the economy weight they used to share**, so the prototype's
+  boost pathfinding-weight fallback is preserved by the VALUE, not by a shared
+  key, and a designer can now diverge them per type. Tag `"boost"`.
   All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
   (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
   to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
@@ -79,8 +84,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   each type researches its own tiers (see `game/core`).
 - **10E structure line** (`structure.py`: `StructureBuilding` family + thin `Blocker`
   / `WallBuilder` leaves) subclasses `Building` directly (passive — no attack, no
-  yield), `CONTENT_KEY="economic_building"` (traversable weight — enemies attack, not
-  reroute), tag `"structure"`. Both use a SINGLE flat art slot per type (override
+  yield); each leaf carries its OWN `CONTENT_KEY` (`blocker_building`/
+  `wall_builder_building`) since the buildings-overwrite-tileweights rework, both
+  **seeded to 1 — the economy weight they used to share** — so the traversable
+  "enemies attack, not reroute" intent is preserved by the VALUE, not by a shared
+  key. Tag `"structure"`. Both use a SINGLE flat art slot per type (override
   `slot_key()` → `SLOT`, matching the flat `blocker`/`wall_builder` slots in
   `data/slots.json`; `_tier_option` in `game/core/levelup.py` reads that same flat
   `SLOT` for the research card). **Blocker** is a pure tier-HP soak (no new enemy code
@@ -135,10 +143,26 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     type-string-gated**, so `registry.place_building` stays type-agnostic (no
     `storm_priest` branch) — the same G-3 discipline as the
     `IS_COMBAT`→`"combat"` tag.
-  - **Run-singleton**: only one Storm Priest may ever be placed in a run.
-    Enforced in the UI, not here — `game/ui/building_ui.py`'s construct panel
-    greys out (disabled, NOT hidden) its card once `state.lightning_level > 0`
-    (an exact proxy: nothing else ever raises it off 0, and it never lowers).
+  - **Run-singleton REMOVED (feature-storm-acolyte-multi-build)**: any number
+    of Storm Priests may be placed, each levelled independently and firing
+    together on one click (see `game/core/CLAUDE.md`'s lightning section for
+    the per-caster level/cooldown rework and `game/ui/CLAUDE.md` for the
+    charge-bar FX). Each extra one costs more: `DefenceBuildings.StormPriest`
+    carries an OPTIONAL group-level `repeat_cost_multiplier` (1.8); a fresh
+    placement's price is `build_cost * multiplier ** N`, `N` = the count of
+    already-placed `"lightning_source"`-tagged occupants (alive OR dead — a
+    dead one is not a freed slot, payday's slot-9 revive brings it back).
+    `registry.count_tag(tilemap, tag)` is the O(built-tiles) counter
+    (`TileMap.built_tiles()`'s `_by_state` index — never a full-map scan);
+    `registry.build_cost(..., repeat_count=0)` is a no-op for every type
+    without the multiplier key, so this is Storm-Priest-only in practice
+    while staying **tag-gated, not type-string-gated** (G-3) — the counting
+    seam never branches on `building_type == "storm_priest"`.
+    `game/ui/building_ui.py`'s construct card, its hover price, and
+    `ConstructPreview.total_cost` (which sums the ESCALATING batch sequence
+    for a shift-multi-select placement, not a flat `cost * count`) all read
+    off this same count so the label, the hover figure and the actual charge
+    can never disagree.
   - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; its
     `tiers[0].unlock_min_round` is 0) with `starts_unlocked: false` in
     `buildings.json` — offered in the level-up unlock pool from round 1 but

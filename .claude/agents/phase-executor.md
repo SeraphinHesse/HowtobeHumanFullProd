@@ -24,6 +24,18 @@ drive it to done. You execute plans; you never write or rewrite them.
    finding, not a decision you make.
 5. Small commits on the phase branch. Never push or open PRs unless dispatched
    to.
+6. **NEVER run a git command that discards working-tree changes** — no
+   `git restore`, `git checkout -- <path>`, `git reset --hard`, `git clean`,
+   `git stash`. **Assume the tree contains uncommitted work that is not yours**
+   (a parallel agent's, or the user's), so HEAD is NOT a safe restore point.
+   Undo your own edits by editing FORWARD; if you cannot, STOP and report rather
+   than "clean up". Likewise never run a blanket regenerate/refresh/mirror
+   command that rewrites a whole generated tree from live sources.
+7. **"Outside my diff" is a CLAIM you must falsify before reporting it**: run
+   `git status --short` and `git diff --stat <file>`, confirm you did not touch
+   the file, and quote that output. An unverified attribution is a defect — it
+   sends the orchestrator chasing a cause that does not exist while your real
+   breakage ships.
 
 ## Exit gate
 - **Umbrella workflow — MINIMAL gate only.** `py tools/smoke.py` green +

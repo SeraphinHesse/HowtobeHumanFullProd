@@ -13,6 +13,20 @@ You may edit `engine/**` and engine-focused tests in `tools/tests/` only. If
 your change forces a caller change in `game/**` or `editor/**`, STOP and report
 it as a cross-package finding — never cross the boundary yourself.
 
+## Working-tree safety (violations are incidents, not style)
+- **NEVER run a git command that discards working-tree changes** — no
+  `git restore`, `git checkout -- <path>`, `git reset --hard`, `git clean`,
+  `git stash`. **Assume the tree contains uncommitted work that is not yours**
+  (a parallel agent's, or the user's), so HEAD is NOT a safe restore point. Undo
+  your own edits by editing FORWARD. If you cannot repair something that way,
+  STOP and report — do not "clean up".
+- **NEVER run a blanket regenerate/refresh/mirror command** that rewrites a
+  whole generated tree from live sources; it captures other agents' in-flight
+  edits. Patch precisely what your task needs.
+- **"Outside my diff" is a CLAIM you must falsify before reporting it**: run
+  `git status --short` and `git diff --stat <file>`, confirm you did not touch
+  the file, and quote that output. An unverified attribution is a defect.
+
 ## Baked-in invariants (violations are bugs, not style)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
   `render/ground_cache.py`, `assets/store.py`, `assets/placeholder.py`,

@@ -118,6 +118,7 @@ TIERS = {
     "test_physics_occupancy": "core",
     "test_picking": "core",
     "test_placeholder": "core",
+    "test_prey_hunting": "core",  # Chunk 3/4 prey-hunting + weight profiles
     "test_projectile_anchored_flight": "core",  # feat-projectile-anchored-flight
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",

@@ -74,7 +74,8 @@ def begin_kidnap(scene, tilemap, enemy, building):
     mv.speed = pa._real_speed  # the enemy was blocked/attacking -> 0.0
     col = round(enemy.transform.wx)
     row = round(enemy.transform.wy)
-    path = find_path_to_nearest_spawn(tilemap, col, row, footprint=pa.footprint)
+    path = find_path_to_nearest_spawn(tilemap, col, row, footprint=pa.footprint,
+                                      cond_weights=pa._cond_weights)
     if not path:
         scene.despawn(enemy)  # no spawn tile / unreachable -> despawn on the spot
         return

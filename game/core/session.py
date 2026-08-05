@@ -300,7 +300,9 @@ class Session:
             # sim dt the host already speed-scales (prototype game.py:1243-46):
             # 2x drains it faster, the in-combat pause freezes it, and it
             # persists frozen across BUILDING/ROUND_END/LEVELUP/INCOME.
-            lt.tick(st, dt)
+            # feature-storm-acolyte-multi-build: ticks every alive acolyte's
+            # OWN LightningCaster cooldown now, not one RunState field.
+            lt.tick(st, dt, scene)
             self.spawner.update(dt, scene)
             self._award_building_deaths(scene)
         elif st.phase == GamePhase.ROUND_END:

@@ -438,6 +438,21 @@ class TestDamageReduction(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
+# 7b. buildings-overwrite-tileweights: a building's death must bump the
+#     shared flow field, or a stale field serves a pre-death route/cost.
+# ---------------------------------------------------------------------------
+class TestBuildingOverwriteFlowFieldInvalidation(unittest.TestCase):
+    def test_building_death_bumps_path_version(self):
+        tm = synth(["bbbbb"])
+        place(tm, 2, 0, "defence", TileCondition.MOUNTAIN)
+        find_path(tm, 4, 0)   # pre-query refresh populates _overwrite_prev
+        v0 = tm._path_version
+        tm.get(2, 0).occupant.get_component(Health).damage(10 ** 6)
+        find_path(tm, 4, 0)   # must detect the flag-set change and bump
+        self.assertGreater(tm._path_version, v0)
+
+
+# ---------------------------------------------------------------------------
 # 8. Defence-range coverage -> +1 path weight (mortar excluded, raw range)
 # ---------------------------------------------------------------------------
 class TestDefenceRangeCoverage(unittest.TestCase):

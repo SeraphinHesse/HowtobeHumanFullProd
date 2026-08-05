@@ -111,7 +111,7 @@ SPLATTER = SplatterParams(color=(180, 30, 30), alpha=170, radius_px=4.0,
 BEAM = BeamParams(colors=((255, 200, 40), (255, 110, 15), (210, 20, 10)),
                   width_base=2, origin_lift_tiles=1.0)
 
-CRATER = CraterParams(color=(120, 78, 66), alpha=150, life=1.0)
+CRATER = CraterParams(color=(120, 78, 66), alpha=150, life=1.0, segments=12)
 
 LIGHTNING = LightningParams(
     bolt_segments=8, bolt_jitter_px=6,
@@ -119,7 +119,7 @@ LIGHTNING = LightningParams(
     bolt_width=2, bolt_life=0.5,
     flash_radius_px=20.0, flash_color=(255, 250, 200), flash_alpha=200,
     marker_color=(255, 240, 120), marker_fill_alpha=120,
-    marker_outline_width=2, marker_life=1.0)
+    marker_outline_width=2, marker_life=1.0, marker_segments=12)
 
 ANNOUNCE = AnnounceParams(color=(220, 40, 40), max_alpha=255)
 
@@ -436,6 +436,7 @@ class TestDefaultRoundTrip(unittest.TestCase):
         self.assertEqual(c["color"], [120, 78, 66])
         self.assertEqual(c["alpha"], 150)
         self.assertEqual(c["life"], 1.0)
+        self.assertEqual(c["segments"], 12)
 
     def test_lightning(self):
         lp = self.data["procedural"]["lightning"]
@@ -452,6 +453,7 @@ class TestDefaultRoundTrip(unittest.TestCase):
         self.assertEqual(lp["marker_fill_alpha"], 120)
         self.assertEqual(lp["marker_outline_width"], 2)
         self.assertEqual(lp["marker_life"], 1.0)
+        self.assertEqual(lp["marker_segments"], 12)
 
     def test_announce(self):
         a = self.data["procedural"]["announce"]
@@ -741,11 +743,14 @@ class TestCraterAndMarkerAlphaParity(unittest.TestCase):
                 self.assertEqual(color, CRATER.color + (expected_alpha,))
 
     def test_lightning_marker_alpha_at_1_0_0_5_0_0(self):
-        """``age`` drives fade_frac == 1 - age/marker_life directly; the
-        4-point marker diamond is distinguished from the 8-point flash
-        octagon by point count, so no extra isolation is needed (and at
-        frac=0.5/0.0 here age >= bolt_life anyway, so the flash's own `if
-        fr > 0` gate is already false)."""
+        """``age`` drives fade_frac == 1 - age/marker_life directly. The
+        marker is now a `marker_segments`-gon (ring helper, feature-storm-
+        acolyte-multi-build), same segment count as the flash's own octagon
+        by default in the fixture data — so the two are distinguished by
+        DRAW ORDER (submit_lightning always submits the flash poly, if any,
+        before the marker poly), not by point count any more; at frac=0.5/
+        0.0 here age >= bolt_life anyway, so the flash's own `if fr > 0`
+        gate is already false and the marker is the only poly submitted."""
         fm = make_floater_manager()
         cs = make_cs()
         for frac, expected_alpha in ((1.0, 120), (0.5, 60), (0.0, 0)):
@@ -759,10 +764,7 @@ class TestCraterAndMarkerAlphaParity(unittest.TestCase):
                 if frac == 0.0:
                     self.assertEqual(renderer.overlay_polys, [])
                     continue
-                marker_polys = [p for p in renderer.overlay_polys
-                               if len(p[0]) == 4]
-                self.assertEqual(len(marker_polys), 1)
-                _, color = marker_polys[0]
+                _, color = renderer.overlay_polys[-1]   # marker submits last
                 self.assertAlmostEqual(color[3], expected_alpha, delta=1)
                 self.assertEqual(color[:3], LIGHTNING.marker_color)
 

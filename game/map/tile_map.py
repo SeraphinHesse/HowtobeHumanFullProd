@@ -18,7 +18,7 @@ from game.core.balance import load_balance
 from .spawn_deco import spawn_tree_slots
 from .tiles import (
     CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL,
-    Tile, TileCondition, TileState,
+    CONDITION_WEIGHT_KEY, Tile, TileCondition, TileState,
 )
 
 
@@ -175,13 +175,17 @@ class TileMap:
         # stale cached path becomes a correctness bug. Bumpers: zone changes
         # (`set_tile_state`), occupant/content-key writes
         # (`set_tile_content`), wall add/remove/death (mid-HP hits keep
-        # `_wall_blocks` true, so they do NOT bump), and the two pre-query
+        # `_wall_blocks` true, so they do NOT bump), and the three pre-query
         # weight producers below when their flag SETS actually change. All
         # underscore transients — TileMap is a plain class, not a GameObject.
         self._path_version = 0
         self._flow_cache = None
         self._dmg_reduced_prev = set()
         self._defence_covered_prev = set()
+        # buildings-overwrite-tileweights rework: a building's `alive` flag
+        # now changes its tile's weight (dead = additive again), so a death
+        # must bump the flow field exactly like the other two producers.
+        self._overwrite_prev = set()
 
         # Seed the runtime grid from terrain codes; the base occupies its tile.
         # An incremental per-state index (`_by_state`) is built in the SAME pass:
@@ -302,9 +306,13 @@ class TileMap:
     def impassable_weight(self):
         return self._balance["Pathfinding"]["content_weights"]["impassable"]
 
-    def weight(self, tile):
-        """Dijkstra edge weight for `tile` under this map's balancing."""
-        return tile.pathfinding_weight(self._balance, self._defence_range_add)
+    def weight(self, tile, cond_weights=None):
+        """Dijkstra edge weight for `tile` under this map's balancing.
+        ``cond_weights`` (Chunk 3) is passed straight through to
+        ``Tile.pathfinding_weight`` — ``None`` keeps today's map-wide
+        ``TileConditions.path_weights`` behaviour."""
+        return tile.pathfinding_weight(
+            self._balance, self._defence_range_add, cond_weights)
 
     # -- access -----------------------------------------------------------
 
@@ -653,6 +661,43 @@ class TileMap:
                 t.defence_range_covered = (col, row) in covered
         self._defence_covered_prev = covered
         self._bump_path_version()
+
+    def refresh_building_overwrite_flags(self):
+        """Change-detect the set of tiles whose LIVE occupant currently
+        OVERWRITES (rather than adds to) the terrain condition weight
+        (buildings-overwrite-tileweights rework — `Tile._overwrites_
+        condition`), and bump the flow field only when that set actually
+        changed. This is a NEW hazard the rework introduces: `content_key`
+        used to survive a building's death untouched, so nothing needed to
+        bump on death; now the occupant's `alive` flag is part of the
+        weight calculation itself, so a building dying (tile weight reverts
+        from overwrite to additive) must invalidate the cached field exactly
+        like the other two pre-query producers above.
+
+        Short-circuits to a no-op scan when no overwrite can EVER be active
+        under the current balancing (master switch off, every per-building
+        override off, every per-condition override off) — headless fixtures
+        and any run with the whole feature off pay nothing beyond the one
+        bool + two dict reads."""
+        pf = self._balance["Pathfinding"]
+        tc = self._balance["TileConditions"]
+        if (not pf["buildings_overwrite_tileweights"]
+                and not any(pf["content_weight_overwrites"].values())
+                and not any(tc["path_weight_overwritable"].values())):
+            return
+        flagged = set()
+        for t in self.built_tiles():
+            ck = CONDITION_WEIGHT_KEY.get(t.condition)
+            if ck is None:
+                continue
+            # Reuses Tile's own resolution rather than re-deriving the OR of
+            # the three switches here — one source of truth for "does this
+            # tile currently overwrite", shared with `pathfinding_weight`.
+            if t._overwrites_condition(self._balance, ck):
+                flagged.add((t.col, t.row))
+        if flagged != self._overwrite_prev:
+            self._overwrite_prev = flagged
+            self._bump_path_version()
 
     # -- edge walls (10E, prototype tile_map.py:152-252) ------------------
 

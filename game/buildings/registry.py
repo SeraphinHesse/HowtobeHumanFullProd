@@ -1,4 +1,5 @@
-"""Building factory + placement seam (Phase 9D).
+"""Building factory + placement seam (Phase 9D; feature-storm-acolyte-multi-
+build's escalating-cost seam).
 
 ``create`` maps a ``building_type`` string to its leaf class — also the way to
 reconstruct a subclass after ``GameObject.from_dict`` (which returns a base
@@ -35,10 +36,40 @@ def create(building_type, col, row, buildings_balance, tier_idx=0):
     return BUILDING_CLASSES[building_type](col, row, buildings_balance, tier_idx)
 
 
-def build_cost(building_type, buildings_balance, tier_idx=0):
-    """Build cost for ``building_type`` at ``tier_idx`` (the placement price)."""
-    tiers = BUILDING_CLASSES[building_type]._resolve_tiers(buildings_balance)
-    return tiers[tier_idx]["build_cost"]
+# Storm Acolyte multi-build (feature-storm-acolyte-multi-build): the ONE tag
+# whose already-built count escalates a fresh placement's price, via each
+# group's OPTIONAL ``repeat_cost_multiplier`` balancing key (today only
+# ``DefenceBuildings.StormPriest`` carries it). Tag-gated (G-3) — never a
+# ``building_type == "storm_priest"`` branch anywhere on this seam.
+LIGHTNING_SOURCE_TAG = "lightning_source"
+
+
+def count_tag(tilemap, tag):
+    """Count of BUILT-tile occupants (alive OR dead — a dead one is not a
+    freed slot, payday's slot-9 revive brings it back) carrying ``tag``.
+    O(built tiles) via ``TileMap.built_tiles()``'s ``_by_state`` index — never
+    a full-map scan (``game/map/CLAUDE.md``'s perf invariants)."""
+    return sum(1 for t in tilemap.built_tiles()
+              if t.occupant is not None and tag in t.occupant.tags)
+
+
+def build_cost(building_type, buildings_balance, tier_idx=0, repeat_count=0):
+    """Build cost for ``building_type`` at ``tier_idx`` (the placement price).
+
+    ``repeat_count`` (feature-storm-acolyte-multi-build) escalates the price
+    by the group's own ``repeat_cost_multiplier ** repeat_count`` when that
+    OPTIONAL balancing key is present; ``repeat_count=0`` (the default) and a
+    group with no such key both leave today's price untouched, so every
+    caller that predates this feature is unaffected."""
+    cls = BUILDING_CLASSES[building_type]
+    tiers = cls._resolve_tiers(buildings_balance)
+    cost = tiers[tier_idx]["build_cost"]
+    if repeat_count:
+        mult = cls._resolve_group(buildings_balance).get(
+            "repeat_cost_multiplier")
+        if mult is not None:
+            cost = round(cost * (mult ** repeat_count))
+    return cost
 
 
 def place_building(tilemap, tile, building_type, love, buildings_balance,
@@ -82,7 +113,12 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
     # ``state=None`` (logic tests that predate RunState) keeps tier 0.
     tier_idx = (tiers_unlocked_for(state, building_type) - 1
                 if state is not None else 0)
-    cost = build_cost(building_type, buildings_balance, tier_idx)
+    # feature-storm-acolyte-multi-build: every placement counts the already-
+    # built ``lightning_source``-tagged occupants (tag-gated, G-3 — never a
+    # ``storm_priest`` branch) and passes it through; ``build_cost`` is a
+    # no-op with this for every OTHER type (no ``repeat_cost_multiplier`` key).
+    repeat_count = count_tag(tilemap, LIGHTNING_SOURCE_TAG)
+    cost = build_cost(building_type, buildings_balance, tier_idx, repeat_count)
     if love < cost:
         raise PlacementError(
             f"{building_type} costs {cost} love, have {love}")

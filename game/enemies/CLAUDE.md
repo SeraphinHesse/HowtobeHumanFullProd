@@ -16,8 +16,10 @@ change enemy conventions, update THIS doc. **Adding an enemy type? Use the
   split on boss rounds. The boss entry's **`tier` argument IS its era**
   (`round // interval - 1`, clamped in `Boss.__init__`; pop-time via
   `Spawner._boss_era`); companions keep the real scale tier.
-- **`Boss` hunts buildings, hole LAST (BP-2 / D2)**: `on_spawn` paths via
-  `find_path_to_nearest_non_base_building` and arms
+- **`Boss` hunts buildings, hole LAST (BP-2 / D2)**: `EnemyTypes.Boss.hunts ==
+  "any_non_base"` routes it through the generic `Enemy.on_spawn` (Chunk 4 —
+  `Boss.on_spawn` itself is DELETED, see "Prey hunting" below) via
+  `find_path_to_nearest_non_base_building`, arming
   `PathAgent.repath_on_kill=True`, then `PathAgent.adopt_goal(path, tm)`. Carries
   the extra `"boss"` scene tag (`Enemy.EXTRA_TAGS`) so HUD-bar/shake queries need
   no host reference. Duck-typed contract for `Session.on_enemy_death`: `era`
@@ -72,11 +74,86 @@ change enemy conventions, update THIS doc. **Adding an enemy type? Use the
   verbatim to `Boss.death_spawn.spawns`, so the 10G burst is byte-identical:
   same counts, same tile, same CURRENT tier (standard+siege scale; raiders
   never), children at full HP. `Boss` itself is now just `_resolve_era` +
-  `_resolve_stats` + `on_spawn` + `era` — its `__init__` is gone.
+  `_resolve_stats` + `era` — its `__init__` is gone (9E-era), and its
+  `on_spawn` override is gone too (Chunk 4 — collapsed into the generic
+  `Enemy.on_spawn`, see "Prey hunting" below).
 - **No tier scaling on the boss** — `Boss._resolve_stats` reads
   `Boss.stats[era]` verbatim; `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
+
+## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
+Two independent per-type balancing knobs, both threaded through `PathAgent`
+transients set once by `Enemy.__init__` (E-11: a dict/str resolved from
+balancing is not itself component-declared JSON state unless it needs to
+survive save/load — `hunt` IS declared since it's a plain string the editor's
+inspector can show; `_cond_weights` is a transient because a dict is not
+JSON-safe).
+
+- **`EnemyTypes.<type>.hunts`** (required enum `"base" | "economic" |
+  "defence" | "any_non_base"`) drives `PathAgent.hunt` (declared field,
+  default `"base"`). `Enemy.on_spawn` is now generic over it:
+  - `"base"` (Standard, Formation) keeps the ORIGINAL walk-to-the-hole
+    behaviour byte-for-byte — `find_path` with the `find_path_ignoring_walls`
+    fallback, `repath_on_kill` never armed, `goal_is_base` stays at its
+    default `True`. This is what keeps every pre-Chunk-4 fixture green.
+  - Any other value runs the matching goal-set query
+    (`game/map/pathfinder.py`'s `find_path_to_nearest_economic` /
+    `_defence` / `_non_base_building`, dispatched through a module-level
+    `_HUNT_QUERIES` dict in `components.py` — the ONE place the
+    hunt-string → query mapping lives, imported by both `enemy.py` and
+    `components.py`'s own `PathAgent._repath`, so the two can never
+    disagree about what a given `hunt` means), with the SAME
+    `find_path_ignoring_walls` fallback the Boss always used, arms
+    `PathAgent.repath_on_kill = True`, and calls `pa.adopt_goal(path,
+    tilemap)` — the one site deriving `goal_is_base`/`target_col`/
+    `target_row` from the fresh path (10G, unchanged).
+  - **`Boss.on_spawn` is DELETED** — `EnemyTypes.Boss.hunts ==
+    "any_non_base"` is exactly the dispatch it used to hardcode, so once
+    every type could carry its own hunt string there was nothing
+    boss-specific left in it. `Boss` is now `_resolve_era` + `_resolve_stats`
+    + `era` only. Fenced by `tools/tests/test_boss.py` (unchanged — the
+    generic path reproduces its behaviour exactly).
+  - Seeded values (byte-identical to 10F/10G, "ships behaviourally neutral"):
+    `Standard`/`Formation` `"base"`, `Raider` `"economic"`, `SiegeCannon`
+    `"defence"`, `Boss` `"any_non_base"`.
+- **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,
+  pond}`, same bounds as `map.json`'s `Pathfinding.content_weights`) is this
+  type's OWN terrain path-cost profile, threaded as `PathAgent._cond_weights`
+  (a transient dict, copied — never aliased — off the resolved balancing
+  block) into EVERY `find_path*` call this package makes (`Enemy.on_spawn`,
+  `PathAgent._repath`, `kidnap.py`'s `begin_kidnap`). **It DUPLICATES
+  `map.json`'s `TileConditions.path_weights` and will not track future
+  changes to it** — there is deliberately no nullable "inherit" sentinel,
+  because `editor/panels/balancing.py` reads `prop.get("type")` and a
+  type-less schema node crashes the balancing panel for the whole domain
+  (the same reason `death_spawn.spawns` is an array, never a union — see
+  Rules below). Seeded to the map's current values (forest 1 / mountain 2 /
+  pond 9) for every type, so this ships **behaviourally neutral**: every
+  enemy still costs exactly what it did before this profile seam existed.
+  Retuning one type's `pond` weight (e.g. to make raiders swim) changes
+  ONLY that type's routing.
+  - `Tile.pathfinding_weight`/`TileMap.weight`/every `game/map/pathfinder.py`
+    query take an optional trailing `cond_weights` (`None` = "use the map's
+    own `TileConditions.path_weights`", today's behaviour byte-for-byte).
+    The flow-field cache key gains a third component, `profile_key` — see
+    `game/map/CLAUDE.md`'s perf section for the full mechanism and the
+    "still shares one field" measurement.
+- **`kidnap.py`'s `find_path_to_nearest_spawn` call takes the carrier's own
+  profile too** (`pa._cond_weights`) — the carrier still routes home by its
+  own terrain preferences even mid-carry.
+- **Already generic, needed NO change (verified, not re-derived)**:
+  `PathAgent.update`'s `goal_is_base`-false-on-arrival branch (re-paths
+  instead of breaching, line ~137 of `components.py`), the dead-target watch
+  (`repath_on_kill and not blocked and not _target_alive`, line ~149), and
+  `begin_kidnap`'s clearing of `goal_is_base`/`target_col`/`target_row`/
+  `repath_on_kill` (`kidnap.py`) — none of these read or care WHICH hunt
+  produced the path they're watching, only whether one is active. Raiders
+  are kidnappers (`kidnapping: true`), so a killed economy building the
+  raider is still walking toward gets hoisted home via the SAME
+  `begin_kidnap` transition every other kidnap uses — never re-pathed from,
+  because the carrier is inert (`PathAgent.carrying`) the instant the
+  transition fires.
 
 ## Round 0 — the tutorial's forced composition (TU-9)
 `round_num == 0` is the tutorial's own scripted round (game/CLAUDE.md's "The
@@ -355,9 +432,10 @@ condition below.
   whose **anchor is the MIN corner** (the body extends right and down); the whole
   rule set + the helper functions live in `game/map/CLAUDE.md` / `pathfinder.py`
   and are imported, never re-derived. Consequences in this package:
-  - `Enemy.on_spawn` threads the footprint into `find_path` /
-    `find_path_ignoring_walls`; `_repath` threads it into
-    `find_path_to_nearest_non_base_building`, and `adopt_goal` re-derives
+  - `Enemy.on_spawn` threads the footprint (and, since Chunk 3, the unit's own
+    `PathAgent._cond_weights`) into `find_path` / `find_path_ignoring_walls`
+    or its dispatched hunt query; `_repath` threads both into whichever query
+    `_HUNT_QUERIES[self.hunt]` resolves to, and `adopt_goal` re-derives
     `goal_is_base` with `block_covers` (the block COVERS the base — it need not
     anchor on it).
   - **The blocker scan is block-wide** (`_blocker_ahead`): the first live,
@@ -456,16 +534,16 @@ condition below.
     group** (`int(queue_lead_count * mix_ratio)`) that HEADS the queue and a
     remainder mixed into the shuffled body — so cannons open the wave and then
     trickle. Queue = `siege_front + shuffle(standard + raiders + siege_mixed)`.
-- **Raiders/siege seek the BASE, not their prototype prey (deliberate 10F
-  divergence).** The prototype re-paths raiders onto the nearest economy building
-  and siege onto the nearest defence building (`_repath`). Here they path to the
-  base once at spawn and attack whatever blocks them (the unified
-  block-and-attack model), so a raider still eats an economy building standing in
-  its lane — it just doesn't hunt one. **10G shipped the re-path machinery for
-  the BOSS** (`PathAgent.goal_is_base` + `repath_on_kill`, above) — porting real
-  raider/siege prey-hunting is now just arming those flags with
-  `find_path_to_nearest_economic` / `_defence` in their `on_spawn`, if ever
-  ruled desired.
+- **Raiders/siege now HUNT their prototype prey (Chunk 3/4 — this bullet used to
+  say the opposite; it was true for 10F and is FALSE today).** Every
+  `EnemyTypes/<type>` block carries a required `hunts` enum (`"base"` |
+  `"economic"` | `"defence"` | `"any_non_base"`) — `Standard`/`Formation` are
+  `"base"` (byte-identical to 10F: walk straight at the hole, attack whatever
+  blocks en route), `Raider` is `"economic"` (Flute Player/Meditator/Painter),
+  `SiegeCannon` is `"defence"`, `Boss` is `"any_non_base"` (unchanged from
+  10G). See the "Prey hunting" section below for the full mechanism — the
+  machinery 10G shipped boss-only (`PathAgent.goal_is_base` +
+  `repath_on_kill`, `adopt_goal`) is now generic across every type.
 - **`combat.py` = the type-agnostic sweep** `resolve_combat(scene, tilemap, dt,
   buildings_balance)`, called each frame AFTER `scene.update`: (1) every
   `"combat"`-tagged building keeps its sticky target if alive + in Chebyshev range,
@@ -626,17 +704,29 @@ condition below.
 now walk the shared base flow field — a wave of hundreds of spawns pays ONE
 Dijkstra per map-topology change, not one each, and `spawn_death_swarm`'s
 burst rides it for free. Since ER-2 the field caches on
-**`(ignore_walls, footprint)`**, so the invariant is one Dijkstra per topology
-change **per footprint** — still NEVER one per enemy. Passing a footprint into
-`find_path` must therefore stay a plain argument; do not add a per-enemy search.
-`Boss.on_spawn`'s `find_path_to_nearest_non_base_building` stays a fresh
-Dijkstra, as every goal-set variant does — but note BP-3 makes the boss re-path
-**once per kill** rather than once per wave, plus once when a target dies to
-someone else. That is still a handful of searches per boss per round (there is
-one boss), not one per enemy, so the flow-field invariant holds. If a future
-enemy type ever arms `repath_on_kill`, re-measure. Nothing in this package
-invalidates the field directly — all mutations route through `TileMap`. Detail →
-`game/PERF.md`.
+**`(ignore_walls, footprint)`**; since Chunk 3 it's
+**`(ignore_walls, footprint, profile_key)`** (`profile_key` derived from the
+caller's `cond_weights`, `None` for the map default) — so the invariant is one
+Dijkstra per topology change **per (footprint, weight profile)**, still NEVER
+one per enemy. At most a handful of distinct profiles ever exist (one per
+enemy TYPE, never per instance), and every shipped
+`EnemyTypes.<type>.condition_path_weights` is seeded identical to the map
+default, so today every type still shares ONE field — see
+`game/map/CLAUDE.md`'s perf section for the measurement. Passing a footprint
+(and a weight profile) into `find_path` must therefore stay a plain argument;
+do not add a per-enemy search.
+`find_path_to_nearest_non_base_building`/`_economic`/`_defence` (the
+goal-set/hunt-query variants, Chunk 4 generalised from boss-only) stay fresh
+Dijkstras, as every goal-set variant does — but note BP-3 makes a hunting
+unit re-path **once per kill** rather than once per wave, plus once when its
+committed target dies to someone else. With the boss this is still a handful
+of searches per round (there is one boss); Chunk 4 arms the SAME
+`repath_on_kill` machinery for every Raider and every SiegeCannon in a wave
+(both COMMON types), so this is the first time re-measuring under a real wave
+matters — nothing observed regressed the affected-tier gate, but a future
+phase adding more hunting types or higher counts should re-measure rather
+than assume. Nothing in this package invalidates the field directly — all
+mutations route through `TileMap`. Detail → `game/PERF.md`.
 
 ## Verify
 Scripted round asserts HP ledger matches hand-computed prototype values:

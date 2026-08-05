@@ -34,6 +34,7 @@ from .defence import DefenceBuilding
 
 class StormPriest(DefenceBuilding):
     BUILDING_TYPE = "storm_priest"
+    CONTENT_KEY = "storm_priest_building"
     SUBTREE = ("DefenceBuildings", "StormPriest")
     TIER_SPRITES = ("storm_priest_i", "storm_priest_ii", "storm_priest_iii")
     EXTRA_TAGS = ("lightning_source",)
