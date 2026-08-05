@@ -1345,6 +1345,12 @@
           "additionalProperties": false,
           "description": "The lightning-unlocking defender line (initially locked); placing one raises the run's lightning_level to 1.",
           "properties": {
+            "repeat_cost_multiplier": {
+              "description": "Escalating price multiplier for the Storm Acolyte multi-build: the Nth fresh lightning_source-tagged placement (N = count of already-placed acolytes, alive or dead) costs build_cost * this ** N.",
+              "maximum": 10.0,
+              "minimum": 1.0,
+              "type": "number"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1360,6 +1366,7 @@
             }
           },
           "required": [
+            "repeat_cost_multiplier",
             "starts_unlocked",
             "tiers"
           ],

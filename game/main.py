@@ -1059,6 +1059,9 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
+            # feature-storm-acolyte-multi-build: per-acolyte charge bars
+            gp["floaters"].submit_lightning_charge_bars(
+                renderer, cs, world.scene)
             # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
             # overlay, before the panel's own selection highlights --
             for col, row in gp["tutorial"].tile_highlight_targets():
@@ -1076,7 +1079,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                             session.state.phase, view_w, view_h)
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
-                             hover_cost=gp["panel"].hover_cost)
+                             hover_cost=gp["panel"].hover_cost,
+                             scene=world.scene)
             # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
             # message box, over the HUD --
             for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):

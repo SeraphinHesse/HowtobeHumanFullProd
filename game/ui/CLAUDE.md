@@ -210,17 +210,27 @@ logic is `game/core` — see that doc.)
 `effects.py` `FloaterManager` grew `submit_beams` + `submit_craters`, drawn from
 live scene state (like `submit_hp_bars`): a per-tier colored `HudLines` from each
 firing Sun Scorcher to the enemy its `BeamAttacker._target` names, and a fading
-world-space diamond for each `"crater"` GameObject a mortar shell left (the
-`Crater` objects age + self-despawn in the scene; the FX just draws them). This is
-the sanctioned `game/ui → game/buildings.components` read (building_ui already
-imports it). 10J made the crater an alpha-filled diamond; the beam stays a
+world-space **polygon ring** for each `"crater"` GameObject a mortar shell left
+(the `Crater` objects age + self-despawn in the scene; the FX just draws them).
+This is the sanctioned `game/ui → game/buildings.components` read (building_ui
+already imports it). 10J made the crater an alpha-filled shape; the beam stays a
 plain line (an alpha GLOW under it remains unported — `HudLines` carries no
 alpha; accepted). **ESV-3b**: the beam colour ramp/width/origin-lift and the
 crater colour/alpha are now `data/balancing/vfx.json` (`procedural.beam`/
 `.crater`), read off `FloaterManager._vfx_params`; the crater's fade LIFE is
 still on its own `CraterFade` component, now fed from the same domain.
+**feature-storm-acolyte-multi-build**: the crater's shape is now a
+`cp.segments`-gon (`procedural.crater.segments`, `CraterParams.segments`), not
+the old 4-point diamond — drawn through the same `_polygon_ring(cx, cy, r,
+segments)` module helper the lightning blast marker uses, generalised from
+the lightning impact-flash's own inline 8-point octagon. The mortar's splash
+is Euclidean in TILE space, so this ring is the EXACT damage-area shape (a
+real fidelity fix, not just cosmetics) — unlike the lightning marker, whose
+damage circle is Euclidean in the PROJECTED PIXEL plane, so its ring still
+slightly under-covers the true circle vertically (far less than the diamond
+did). Neither change touches the damage math (visual only, D4).
 
-## Lightning + cheat menu UI (10H; Storm Priest rework)
+## Lightning + cheat menu UI (10H; Storm Priest rework; feature-storm-acolyte-multi-build)
 The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
 `game/ui` renders + routes:
 - **`cheat_menu.py`** (`CheatMenu`, the `game_over.py` modal template) —
@@ -236,38 +246,67 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   max 4, Enter commits (n ≥ 1).
 - **`building_ui.py` base_info no longer shows a lightning section or button
   at all** (Storm Priest rework — the whole "⚡ LIGHTNING STRIKE" block plus
-  `lightning_btn`/`_build_base_info` were removed). Selecting the Storm
+  `lightning_btn`/`_build_base_info` were removed). Selecting a Storm
   Priest's OWN building panel is the leveling UI now: its existing generic
   tier-upgrade button pays the tier's own advance cost and
   `game.core.lightning.sync_level_from_tier` raises `lightning_level` to
-  match. `building_ui.py`'s construct panel greys out (disabled, NOT hidden)
-  the Storm Priest's card once `state.lightning_level > 0` — an exact
-  run-singleton proxy, since nothing else raises it off 0 and it never
-  lowers (latch semantics), so it survives the Storm Priest later dying/
-  reviving too. Placing a `"lightning_source"`-tagged building
+  match. Placing a `"lightning_source"`-tagged building
   (`game.core.lightning.unlock_from_placement`, called from `_do_place`) is
   still the ONLY way to reach L1. Reads via `game.core.lightning` (the
   sanctioned ui→core direction).
+  - **Run-singleton grey-out REMOVED (feature-storm-acolyte-multi-build)**:
+    `building_ui.py`'s construct panel no longer greys out or disables the
+    Storm Priest card — any number may be placed. Its price ESCALATES
+    instead: `game/buildings/CLAUDE.md`'s Storm Priest section owns the
+    counting seam (`registry.count_tag`/`LIGHTNING_SOURCE_TAG`,
+    `build_cost(..., repeat_count=)`); this module's `_build_construct`
+    (the card label), `hover` (the hover price) and
+    `ConstructPreview.total_cost` (a shift-multi-select batch's up-front
+    figure — the ESCALATING sequence `n, n+1, n+2, …`, not a flat
+    `cost * count`) all price off that SAME count via the shared
+    `_batch_cost` helper, so the label, the hover figure and what
+    `place_building` actually charges can never disagree.
 - **`hud.py _submit_lightning`** — ENEMY-phase-only bottom-left readout
   (`⚡ CLICK TO STRIKE` / countdown) + a 22×3 cursor-attached progress bar
-  (`Hud.update` now stores `_mx/_my`).
+  (`Hud.update` now stores `_mx/_my`). **feature-storm-acolyte-multi-build**:
+  takes a new `scene` argument (threaded through `Hud.submit`, wired from
+  `main.py`'s `world.scene`) and walks `scene.by_tag("lightning_source")` for
+  the SOONEST-ready alive caster (the smallest `LightningCaster.cooldown`) —
+  several acolytes may exist, each on its own clock, and this readout always
+  tracks whichever will fire next. No placed caster at all → nothing drawn,
+  even if `lightning_level` is latched > 0 from one that died and hasn't
+  revived yet.
 - **`effects.py submit_lightning`** — draws each `"lightning_fx"` scene object
   (the `submit_craters` pattern): a jagged screen-space `HudLines` bolt from
   y=0 to the impact (±6 px jitter per frame, white→yellow over 0.5 s) + a
-  fading yellow world-space diamond sized to the real blast radius (projects
-  to the prototype's 2:1 ground ellipse). 10J added the alpha fill, an
-  expanding impact-flash polygon, and the alpha marker fade. **ESV-3b**:
-  every colour/width/segment/jitter/flash/marker-alpha number here is now
-  `data/balancing/vfx.json procedural.lightning`, read off
+  fading yellow world-space **polygon ring** (feature-storm-acolyte-multi-
+  build's shared `_polygon_ring(cx, cy, r, segments)` helper — see "Round
+  ground markers" below) sized to the real blast radius. 10J added the alpha
+  fill, an expanding impact-flash polygon, and the alpha marker fade.
+  **ESV-3b**: every colour/width/segment/jitter/flash/marker-alpha number
+  here is now `data/balancing/vfx.json procedural.lightning`, read off
   `FloaterManager._vfx_params.lightning`; the bolt's per-frame jitter now
   draws through `self._rng` (shared with `self._vfx`'s injected `random`)
   instead of the bare module-level call. The two fade LIFEs
   (`bolt_life`/`marker_life`) are on `LightningFXFade`, fed from the same
-  domain via `lightning.strike`'s new required `vfx` argument.
-  expanding impact-flash polygon, and the alpha marker fade. The placed Storm
-  Priest's own "attack"/"idle" sprite flash (`game.core.lightning
-  .LightningCaster`) is a WORLD sprite, not part of this overlay FX — driven
-  by its own `SpriteAnimator`, submitted the normal `scene.render_items()` way.
+  domain via `lightning.strike`'s new required `vfx` argument. Every firing
+  caster in a multi-acolyte click spawns its OWN `"lightning_fx"` object, so
+  several rings of differing radius can land at the same point in one frame —
+  each is drawn independently, no batching. Since `strike()` fires per
+  caster now, `LightningCaster.trigger()` (the "attack"/"idle" sprite flash)
+  runs once per FIRING caster, not once per click — a WORLD sprite, not part
+  of this overlay FX, driven by its own `SpriteAnimator`, submitted the
+  normal `scene.render_items()` way.
+- **`effects.py submit_lightning_charge_bars` (feature-storm-acolyte-multi-
+  build)** — the `submit_hp_bars` pattern (fixed screen-pixel size, anchored
+  through `cs.world_to_screen`): one bar per alive `lightning_source` whose
+  caster is STILL CHARGING, hidden once ready (the HP-bar-at-full-HP
+  convention). Fill fraction `1 - cooldown/tier_cooldown`; colour lerps from
+  a dim slate to the ready-yellow `(255, 240, 80)` as it fills. Bar size +
+  ramp endpoints are code constants beside `HP_BAR_W`/`HP_BAR_H`
+  (`_CHARGE_BAR_*`, `game/ui/effects.py`). Wired in `main.py` beside
+  `submit_lightning`, world-overlay pass (before the panel), not the later
+  HP-bar section.
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns

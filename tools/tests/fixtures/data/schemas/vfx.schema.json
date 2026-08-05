@@ -170,12 +170,19 @@
               "maximum": 60,
               "minimum": 0,
               "type": "number"
+            },
+            "segments": {
+              "description": "Mortar scorch polygon-ring segment count (same world-unit N-gon helper the lightning blast marker uses; a world-space ring projects to the iso 2:1 ground ellipse).",
+              "maximum": 10000,
+              "minimum": 3,
+              "type": "integer"
             }
           },
           "required": [
             "alpha",
             "color",
-            "life"
+            "life",
+            "segments"
           ],
           "type": "object"
         },
@@ -433,6 +440,12 @@
               "maximum": 4096,
               "minimum": 0,
               "type": "integer"
+            },
+            "marker_segments": {
+              "description": "Ground blast-marker polygon-ring segment count (the same world-unit N-gon helper the crater scorch and the impact-flash octagon use; a world-space ring projects to the iso 2:1 ground ellipse).",
+              "maximum": 10000,
+              "minimum": 3,
+              "type": "integer"
             }
           },
           "required": [
@@ -448,7 +461,8 @@
             "marker_color",
             "marker_fill_alpha",
             "marker_life",
-            "marker_outline_width"
+            "marker_outline_width",
+            "marker_segments"
           ],
           "type": "object"
         },
