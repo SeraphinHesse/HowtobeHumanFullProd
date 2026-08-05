@@ -53,7 +53,11 @@ engine task; if an engine change forces a caller change, tell the user
   D-3 determinism, bounds-checked in `validate_doc` like `deco`. It carries no
   game vocabulary — `tilemap.py` neither knows nor cares that the game reads
   `purchase` as "flip this cell to spawning on the nth tile purchase"
-  (`game/map/CLAUDE.md`).
+  (`game/map/CLAUDE.md`). `despawnable_spawn` is its exact sibling — same
+  never-rendered per-cell `{(col, row): purchase}` overlay, same dict-in-memory
+  / (row, col)-sorted-list-on-disk split, same `validate_doc` bounds check —
+  and `tilemap.py` is equally indifferent to the game reading it as "flip this
+  cell out of spawning on the nth tile purchase".
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never

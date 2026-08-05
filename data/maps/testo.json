@@ -2532,6 +2532,7 @@
       "slot": "deco_rock_v3"
     }
   ],
+  "despawnable_spawn": [],
   "display_name": "testo",
   "id": "testo",
   "legend": {

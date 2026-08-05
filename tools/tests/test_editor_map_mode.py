@@ -337,6 +337,26 @@ class TestSpawnReserve(MapModeCase):
         self.assertEqual(doc.spawnable_background, before)
 
 
+class TestDespawnableSpawn(MapModeCase):
+    """The despawnable-spawn brush: ONE undo command per stroke, and undo
+    restores exactly the marks that were there before."""
+
+    def test_despawn_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.despawnable_spawn[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.despawnable_spawn)
+        self.window.palette.set_mode("despawnable_spawn")
+        self.window.palette.set_despawn_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.despawnable_spawn[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.despawnable_spawn, before)
+
+
 class TestRenderPath(MapModeCase):
     """ED-22: eyes/tints/grid observed at the engine backend, not via Qt."""
 
