@@ -162,11 +162,6 @@
       "slot": "deco_tree_v2"
     },
     {
-      "col": 506,
-      "row": 511,
-      "slot": "deco_tree_v4"
-    },
-    {
       "col": 507,
       "row": 508,
       "slot": "deco_tree_v4"
@@ -197,28 +192,8 @@
       "slot": "deco_tree_v5"
     },
     {
-      "col": 508,
-      "row": 512,
-      "slot": "deco_tree"
-    },
-    {
-      "col": 509,
-      "row": 514,
-      "slot": "deco_tree"
-    },
-    {
       "col": 510,
       "row": 517,
-      "slot": "deco_tree"
-    },
-    {
-      "col": 513,
-      "row": 518,
-      "slot": "deco_tree"
-    },
-    {
-      "col": 513,
-      "row": 515,
       "slot": "deco_tree"
     },
     {
@@ -465,11 +440,6 @@
       "col": 504,
       "row": 497,
       "slot": "deco_tree_v3"
-    },
-    {
-      "col": 507,
-      "row": 510,
-      "slot": "deco_prop_2_v11"
     },
     {
       "col": 505,
@@ -782,11 +752,6 @@
       "slot": "deco_tree"
     },
     {
-      "col": 541,
-      "row": 511,
-      "slot": "deco_tree"
-    },
-    {
       "col": 548,
       "row": 508,
       "slot": "deco_tree"
@@ -899,11 +864,6 @@
     {
       "col": 541,
       "row": 513,
-      "slot": "deco_tree_v4"
-    },
-    {
-      "col": 545,
-      "row": 507,
       "slot": "deco_tree_v4"
     },
     {
@@ -1052,11 +1012,6 @@
       "slot": "deco_bush_v8"
     },
     {
-      "col": 545,
-      "row": 499,
-      "slot": "deco_bush"
-    },
-    {
       "col": 539,
       "row": 494,
       "slot": "deco_bush"
@@ -1117,19 +1072,9 @@
       "slot": "deco_bush_v6"
     },
     {
-      "col": 541,
-      "row": 505,
-      "slot": "deco_bush_v6"
-    },
-    {
       "col": 535,
       "row": 499,
       "slot": "deco_bush_v6"
-    },
-    {
-      "col": 543,
-      "row": 507,
-      "slot": "deco_bush_v7"
     },
     {
       "col": 535,
@@ -1140,16 +1085,6 @@
       "col": 524,
       "row": 516,
       "slot": "deco_bush_v7"
-    },
-    {
-      "col": 513,
-      "row": 482,
-      "slot": "deco_prop_2_v13"
-    },
-    {
-      "col": 540,
-      "row": 506,
-      "slot": "deco_prop_2_v13"
     },
     {
       "col": 530,
@@ -1177,18 +1112,8 @@
       "slot": "deco_prop_2_v11"
     },
     {
-      "col": 543,
-      "row": 508,
-      "slot": "deco_prop_2_v11"
-    },
-    {
       "col": 535,
       "row": 500,
-      "slot": "deco_prop_2_v11"
-    },
-    {
-      "col": 544,
-      "row": 503,
       "slot": "deco_prop_2_v11"
     },
     {
@@ -1312,21 +1237,6 @@
       "slot": "deco_prop_2_v2"
     },
     {
-      "col": 539,
-      "row": 509,
-      "slot": "deco_prop_2_v2"
-    },
-    {
-      "col": 546,
-      "row": 505,
-      "slot": "deco_prop_2_v2"
-    },
-    {
-      "col": 539,
-      "row": 504,
-      "slot": "deco_prop_2_v2"
-    },
-    {
       "col": 526,
       "row": 485,
       "slot": "deco_prop_2_v2"
@@ -1397,11 +1307,6 @@
       "slot": "deco_prop_2"
     },
     {
-      "col": 515,
-      "row": 489,
-      "slot": "deco_prop_2_v5"
-    },
-    {
       "col": 509,
       "row": 510,
       "slot": "deco_prop_1"
@@ -1427,29 +1332,14 @@
       "slot": "deco_prop_1_v3"
     },
     {
-      "col": 515,
-      "row": 489,
-      "slot": "deco_prop_1_v3"
-    },
-    {
       "col": 514,
       "row": 484,
-      "slot": "deco_prop_1"
-    },
-    {
-      "col": 539,
-      "row": 504,
       "slot": "deco_prop_1"
     },
     {
       "col": 538,
       "row": 497,
       "slot": "deco_prop_1_v2"
-    },
-    {
-      "col": 539,
-      "row": 509,
-      "slot": "deco_prop_1_v3"
     },
     {
       "col": 526,
@@ -1498,23 +1388,6 @@
       "slot": "deco_prop_1_v4"
     },
     {
-      "col": 538,
-      "row": 493,
-      "slot": "deco_prop_1_v4"
-    },
-    {
-      "col": 521,
-      "flip": true,
-      "row": 485,
-      "slot": "deco_prop_1_v4"
-    },
-    {
-      "col": 511,
-      "flip": true,
-      "row": 475,
-      "slot": "deco_prop_1_v4"
-    },
-    {
       "col": 508,
       "flip": true,
       "row": 493,
@@ -1546,16 +1419,6 @@
       "slot": "deco_rock"
     },
     {
-      "col": 542,
-      "row": 509,
-      "slot": "deco_rock_v3"
-    },
-    {
-      "col": 548,
-      "row": 512,
-      "slot": "deco_rock_v3"
-    },
-    {
       "col": 535,
       "row": 509,
       "slot": "deco_bush"
@@ -1564,11 +1427,6 @@
       "col": 547,
       "row": 515,
       "slot": "deco_bush"
-    },
-    {
-      "col": 546,
-      "row": 509,
-      "slot": "deco_bush_v5"
     },
     {
       "col": 537,
@@ -1737,6 +1595,346 @@
       "col": 504,
       "row": 510,
       "slot": "deco_prop_1_v9"
+    },
+    {
+      "col": 540,
+      "row": 505,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 540,
+      "row": 510,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 545,
+      "row": 508,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 543,
+      "row": 496,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 544,
+      "row": 502,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 526,
+      "row": 485,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 517,
+      "row": 479,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 513,
+      "row": 482,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 509,
+      "row": 480,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 515,
+      "row": 488,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 512,
+      "row": 485,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 522,
+      "row": 479,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 516,
+      "row": 476,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 526,
+      "row": 476,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 525,
+      "row": 480,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 520,
+      "row": 475,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 537,
+      "row": 487,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 540,
+      "row": 491,
+      "slot": "deco_tree_v13"
+    },
+    {
+      "col": 534,
+      "row": 486,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 523,
+      "row": 477,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 516,
+      "row": 486,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 518,
+      "row": 486,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 506,
+      "row": 486,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 513,
+      "row": 475,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 513,
+      "row": 471,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 529,
+      "row": 480,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 527,
+      "row": 482,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 519,
+      "row": 477,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 523,
+      "row": 481,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 541,
+      "row": 509,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 538,
+      "row": 508,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 535,
+      "row": 504,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 539,
+      "row": 511,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 534,
+      "row": 510,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 529,
+      "row": 517,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 509,
+      "row": 515,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 508,
+      "row": 518,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 505,
+      "row": 503,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 507,
+      "row": 496,
+      "slot": "deco_tree_v12"
+    },
+    {
+      "col": 505,
+      "row": 491,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 506,
+      "row": 489,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 505,
+      "row": 489,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 510,
+      "row": 496,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 507,
+      "row": 491,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 520,
+      "row": 485,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 516,
+      "row": 483,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 520,
+      "row": 487,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 517,
+      "row": 488,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 514,
+      "row": 489,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 511,
+      "row": 486,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 513,
+      "row": 484,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 540,
+      "row": 498,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 536,
+      "row": 495,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 537,
+      "row": 498,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 540,
+      "row": 504,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 543,
+      "row": 503,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 541,
+      "row": 500,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 536,
+      "row": 501,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 538,
+      "row": 500,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 542,
+      "row": 507,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 542,
+      "row": 511,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 537,
+      "row": 511,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 540,
+      "row": 502,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 538,
+      "row": 503,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 535,
+      "row": 499,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 521,
+      "row": 515,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 518,
+      "row": 518,
+      "slot": "deco_tree_v11"
+    },
+    {
+      "col": 531,
+      "row": 515,
+      "slot": "deco_tree_v11"
     }
   ],
   "display_name": "Summer test 3",
