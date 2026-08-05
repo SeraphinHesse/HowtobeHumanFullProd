@@ -5,9 +5,9 @@ Ports the prototype's ``_begin_enemy_phase`` (composition + queue build) and the
 siege enemies are all EMITTED since 10F (raiders from ``Raider.start_round``,
 siege from ``SiegeCannon.start_round``); the boss is LIVE since 10G — every
 boss round (the era clock's ``boss_round_in_era``) composes ``[boss] + ALL
-siege + shuffle(standard + raiders)`` from the ``round_counts`` table (falling
-back to the normal per-type era-row counts beyond it), and the boss entry's era
-is its own. Formations join since ER-4 (from ``Formation.start_round``, mixed
+siege + shuffle(standard + raiders)`` from the ``round_counts`` table (past its
+last row, that row grown by ``Boss.endgame_boss_scaling`` since BR-4), and the
+boss entry's era is its own. Formations join since ER-4 (from ``Formation.start_round``, mixed
 into the shuffled body — never leading the queue, never on a boss round). The
 Commander's branch exists since BR-2 but is DORMANT: its era rows carry zero
 counts, so it never enters a normal wave (BR-3 gives it its real entrance).
@@ -204,8 +204,9 @@ class Spawner:
         ``era_math.count_at_round``, which floors
         ``count_start + k * count_per_round`` from the era's first ACTIVE round
         ``max(era first round, start_round)`` — the ONE count formula in the
-        game, shared by the standard/raider/siege/formation sites AND by
-        ``_boss_round``'s past-the-table fallback.
+        game, shared by the standard/raider/siege/formation/commander sites.
+        (``_boss_round`` used to borrow it past its own table; since BR-4 the
+        boss round is the ``round_counts`` table at every era.)
 
         ES-4/D5: past the last authored era the row clamps AND the type's own
         ``endgame_scaling`` factors compound onto it (all 1.0 as shipped, so a
@@ -268,26 +269,31 @@ class Spawner:
         """Boss-round composition (10G, prototype ``game.py:831-874``): exactly
         ONE boss leads, then EVERY siege cannon (no lead/mix split), then the
         shuffled standard+raider companions. Counts come from
-        ``Boss.round_counts[era]``; beyond the table the normal per-type era-row
-        counts (``_count_of``, start-round guards included) take over. The boss
-        entry's era is the global era (clamped in ``Boss._resolve_era``);
-        companions carry the same era."""
+        ``Boss.round_counts[era]`` — the boss-round table, at EVERY era.
+
+        BR-4: past the 5-row table that row is the LAST one grown by
+        ``Boss.endgame_boss_scaling`` (``era_math.resolve_era_row``, the same
+        helper the boss's own stats go through), not — as before this phase —
+        the ordinary per-type ``_count_of`` counts. That fallback made a
+        round-60 boss round LIGHTER than a round-50 one (295/46/37 against the
+        era-4 table's 700/215/61), which is the endgame cliff D1 exists to
+        remove. At the shipped all-1.0 factors the era-5+ boss round is
+        therefore the era-4 wave, forever, until a designer tunes the block.
+
+        The boss entry's era is the global era (unclamped since BR-4);
+        companions carry the round's own era, as always."""
         boss_cfg = balance["EnemyTypes"]["Boss"]
         boss_idx = era_math.era_of_round(
             round_num, balance["EnemyScaling"]["rounds_per_era"])
         self._boss_era = max(0, boss_idx)
-        counts = boss_cfg["round_counts"]
-        if boss_idx < len(counts):
-            row = counts[boss_idx]
-            n_regular = row["regular"]
-            n_raiders = row["raiders"]
-            n_siege = row["siege"]
-        else:
-            n_regular = self._count_of(balance, "Standard", round_num)
-            n_raiders = (self._count_of(balance, "Raider", round_num)
-                         if ENABLE_RAIDERS else 0)
-            n_siege = (self._count_of(balance, "SiegeCannon", round_num)
-                       if ENABLE_SIEGE else 0)
+        row = era_math.resolve_era_row(boss_cfg["round_counts"], self._boss_era,
+                                       boss_cfg["endgame_boss_scaling"])
+        # No ENABLE_* gating: the table IS the boss round's composition and
+        # always was for eras 0-4 (only the deleted past-the-table branch ever
+        # consulted the flags), so era 5+ now behaves like every other era.
+        n_regular = row["regular"]
+        n_raiders = row["raiders"]
+        n_siege = row["siege"]
         boss = [(self._pick_spawn_tile(spawn_tiles, "boss"), "boss")]
         siege = [(self._pick_spawn_tile(spawn_tiles, "siege"), "siege")
                  for _ in range(n_siege)]

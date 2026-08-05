@@ -28,7 +28,7 @@ from game.core import boss_bonuses as bb
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.combat import _chebyshev, _fp_offset
-from game.enemies.components import EnemyCombat, PathAgent
+from game.enemies.components import DeathSpawn, EnemyCombat, PathAgent
 from game.enemies.enemy import era_stats
 from game.map.tile_map import TileMap
 from game.map.tiles import TileCondition
@@ -139,13 +139,18 @@ class TestBossQueueComposition(unittest.TestCase):
                          Counter({"standard": row["regular"],
                                   "raider": row["raiders"]}))
 
-    def test_round_60_beyond_table_falls_back_to_era_row_counts(self):
-        r = INTERVAL * 6  # era 5 — past the 5-row table AND past era 4, so the
-        # era rows clamp to the last one (D5; ES-4 adds the endgame factors).
+    def test_round_60_beyond_table_uses_the_endgame_scaled_last_row(self):
+        r = INTERVAL * 6  # era 5 — one past the 5-row round_counts table.
+        # BR-4/D1: the boss round is that TABLE at every era; past its last row
+        # the row is grown by endgame_boss_scaling (all 1.0 as shipped, so the
+        # era-4 wave repeats). It used to fall back to the ordinary per-type
+        # era-row counts, which made a round-60 boss round LIGHTER than a
+        # round-50 one — the cliff BR-4 removes.
         _sp, etypes = queue_etypes(r, self.tm)
-        n_regular = expected_count("Standard", r)
-        n_raiders = expected_count("Raider", r)
-        n_siege = expected_count("SiegeCannon", r)
+        row = BOSS["round_counts"][-1]
+        n_regular = row["regular"]
+        n_raiders = row["raiders"]
+        n_siege = row["siege"]
         self.assertEqual(etypes[0], "boss")
         self.assertEqual(etypes.count("boss"), 1)
         self.assertEqual(etypes.count("standard"), n_regular)
@@ -187,9 +192,12 @@ class TestBossEraStats(unittest.TestCase):
                 self.assertEqual(b.era, era)
 
     def test_huge_era_clamps_to_last_row(self):
+        # At the shipped all-1.0 endgame_boss_scaling the stats still clamp;
+        # `era` itself is the GLOBAL era since BR-4 (unclamped — resolve_era_row
+        # needs the distance past the table to compound the factors).
         b = self._boss(99)
         self.assertEqual(b.get_component(Health).max_hp, BOSS["stats"][-1]["hp"])
-        self.assertEqual(b.era, len(BOSS["stats"]) - 1)
+        self.assertEqual(b.era, 99)
 
     def test_spawner_era_selection(self):
         # round 10 -> era 0, round 50 -> era 4, round 60 -> era 4 (clamped).
@@ -205,6 +213,79 @@ class TestBossEraStats(unittest.TestCase):
                 self.assertEqual(
                     boss.get_component(Health).max_hp,
                     BOSS["stats"][era]["hp"])
+
+
+class TestBossEndgameScaling(unittest.TestCase):
+    """BR-4/D1 — past the last authored era every boss array is the last row
+    grown by ``endgame_boss_scaling``: ``last * factor ** N`` with
+    ``N = era - (len(stats) - 1)``. ``test_era_math`` proves ``f ** N`` on the
+    pure resolver; this is the ONE integration pin that the boss's THREE
+    era-row lookups (stats, round_counts, second_phase.spawns) actually thread
+    the factors through — the commander count included, since that key is
+    invisible in the shipped file (it is 0 everywhere)."""
+
+    FACTORS = {"hp": 2.0, "dmg": 1.5, "move_speed": 1.1, "regular": 1.2,
+               "commander": 3.0}
+
+    def _scaled_balance(self):
+        bal = copy.deepcopy(ENEM)
+        boss = bal["EnemyTypes"]["Boss"]
+        boss["endgame_boss_scaling"] = {
+            **{k: 1.0 for k in boss["endgame_boss_scaling"]}, **self.FACTORS}
+        # The shipped commander counts are all 0, and 0 * anything is 0.
+        boss["second_phase"]["spawns"][-1]["commander"] = 2
+        boss["round_counts"][-1]["commander"] = 2
+        return bal
+
+    def test_eras_5_6_7_compound_the_factors(self):
+        bal = self._scaled_balance()
+        boss_cfg = bal["EnemyTypes"]["Boss"]
+        last = boss_cfg["stats"][-1]
+        last_spawns = boss_cfg["second_phase"]["spawns"][-1]
+        last_counts = boss_cfg["round_counts"][-1]
+        tm = synth(["bs"])
+        sp = Spawner()
+        for era in (5, 6, 7):
+            n = era - (len(boss_cfg["stats"]) - 1)     # 1, 2, 3
+            with self.subTest(era=era, n=n):
+                b = create_enemy("boss", 1, 0, bal, tm, era)
+                self.assertEqual(b.era, era)           # unclamped since BR-4
+                self.assertEqual(b.get_component(Health).max_hp,
+                                 math.floor(last["hp"] * 2.0 ** n))
+                self.assertEqual(b.get_component(EnemyCombat).dmg,
+                                 math.floor(last["dmg"] * 1.5 ** n))
+                self.assertAlmostEqual(b.get_component(Movement).speed,
+                                       last["move_speed"] * 1.1 ** n)
+                # second_phase.spawns — counts floor to whole enemies.
+                counts = b.get_component(DeathSpawn).counts
+                self.assertEqual(counts["regular"], math.floor(round(
+                    last_spawns["regular"] * 1.2 ** n, 9)))
+                self.assertEqual(counts["commander"], math.floor(round(
+                    last_spawns["commander"] * 3.0 ** n, 9)))
+                self.assertEqual(counts["raiders"], last_spawns["raiders"])
+                # round_counts — the boss round's own composition table.
+                sp.begin_round((era + 1) * INTERVAL, synth(["bbs"]), bal,
+                               rng=random.Random(3))
+                etypes = [et for _t, et, _d in sp._queue]
+                self.assertEqual(etypes.count("standard"), math.floor(round(
+                    last_counts["regular"] * 1.2 ** n, 9)))
+                self.assertEqual(etypes.count("raider"), last_counts["raiders"])
+
+    def test_shipped_all_1_factors_are_a_plain_clamp(self):
+        # The invariant BR-4 shipped: an all-1.0 block IS the old clamp, on
+        # every one of the boss's arrays (int leaves floor back to themselves).
+        tm = synth(["bs"])
+        last = BOSS["stats"][-1]
+        for era in (5, 8, 40):
+            with self.subTest(era=era):
+                b = create_enemy("boss", 1, 0, ENEM, tm, era)
+                self.assertEqual(b.get_component(Health).max_hp, last["hp"])
+                self.assertEqual(b.get_component(EnemyCombat).dmg, last["dmg"])
+                self.assertEqual(b.get_component(PathAgent).footprint,
+                                 last["footprint"])
+                self.assertEqual(b.shake, last["shake"])
+                self.assertEqual(b.get_component(DeathSpawn).counts,
+                                 BOSS["second_phase"]["spawns"][-1])
 
 
 # ---------------------------------------------------------------------------

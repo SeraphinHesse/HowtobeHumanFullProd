@@ -171,6 +171,13 @@ validating writer; don't hand-edit the JSON.
     leaf multiplied by `factor ** N`. **All ship 1.0**, so they are
     behaviour-neutral until a designer tunes them; that is the intended knob for
     "what happens after round 50", replacing the old freeze-forever cliff.
+    - **`Boss.endgame_boss_scaling` (BR-4) is the Boss's own version** — one
+      block for all THREE of its per-era arrays (`stats[]`, `round_counts[]`,
+      `second_phase.spawns[]`), 13 factors, all 1.0. Its KEY NAMES are the LEAF
+      names inside those rows (`hp`, `footprint`, `interval`/`strength` for the
+      two `shake` leaves, `regular`/`raiders`/`siege`/`commander` for the
+      counts) because `era_math.resolve_era_row` matches a factor to a leaf by
+      name — renaming a key to something prettier silently disables it.
   - **`count_start` is a `number`, not an integer — and that is load-bearing
     (D3′).** Counts resolve as `floor(count_start + (round − r0) ×
     count_per_round)`, re-anchored at each era's first round. The pre-era

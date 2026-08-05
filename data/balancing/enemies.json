@@ -39,6 +39,21 @@
         "mountain": 2,
         "pond": 9
       },
+      "endgame_boss_scaling": {
+        "attack_range_tiles": 1.0,
+        "attack_speed": 1.0,
+        "commander": 1.0,
+        "dmg": 1.0,
+        "footprint": 1.0,
+        "hp": 1.0,
+        "interval": 1.0,
+        "move_speed": 1.0,
+        "raiders": 1.0,
+        "regular": 1.0,
+        "siege": 1.0,
+        "sprite_scale": 1.0,
+        "strength": 1.0
+      },
       "hunts": "any_non_base",
       "kidnapping": false,
       "registry_group": "Boss",

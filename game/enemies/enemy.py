@@ -124,8 +124,12 @@ class Enemy(GameObject):
             block = block[seg]
         ds = block[self.DEATH_SPAWN_KEY]
         era = self._resolve_era(enemies_balance, era)
-        rows = ds["spawns"]
-        spawn_row = rows[min(max(era, 0), len(rows) - 1)]
+        # BR-4: ONE resolver for every per-era row — the same clamp as before
+        # for an authored era, and past the last row the type's endgame factors
+        # compound (all 1.0 as shipped, and an int leaf floors back to itself,
+        # so this is bit-equal to the old `rows[min(max(era, 0), len - 1)]`).
+        spawn_row = resolve_era_row(ds["spawns"], era,
+                                    self.endgame_factors(block))
         footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
             Health(max_hp=hp, hp=hp),
@@ -188,6 +192,20 @@ class Enemy(GameObject):
         variable per-era. A classmethod, not an instance method: the spawner
         needs the footprint to pick a spawn tile BEFORE the enemy exists."""
         return int(block["footprint"]), float(block["sprite_scale"])
+
+    @classmethod
+    def endgame_factors(cls, block):
+        """Factors compounding onto this type's PER-ERA ROWS past the last one.
+
+        ``None`` for every type but the Boss (BR-4). The other types scale
+        their ``eras[]`` stats through ``endgame_scaling`` inside
+        ``era_stats``; their ``death_spawn.spawns`` is a single row that
+        always clamps, so there is nothing here to scale. The Boss overrides
+        it with ``endgame_boss_scaling`` — the ONE block covering its
+        ``stats[]``, ``round_counts[]`` and ``second_phase.spawns[]`` alike
+        (D1), which is why the factor names are the LEAF names those rows
+        carry (``era_math.resolve_era_row`` matches by leaf name)."""
+        return None
 
     # -- stat resolution (generic since ES-2; only the Boss overrides) -----
 
@@ -472,8 +490,10 @@ class Commander(Enemy):
 
 class Boss(Enemy):
     """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
-    clock (the spawner passes it like every other type), clamped to its own
-    stat table; it never took the retired scale-tier bonuses either
+    clock (the spawner passes it like every other type) and resolves its own
+    ``stats[]`` table from it — clamped to the last row in range, and past it
+    grown by ``endgame_boss_scaling`` (BR-4); it never took the retired
+    scale-tier bonuses either
     (prototype ``boss.py:17-39`` overwrites the
     ``super().__init__(tier=tier)`` stats from ``BOSS_ERAS``). It grinds through
     the player's buildings one at a time — nearest alive NON-BASE building, the
@@ -498,31 +518,49 @@ class Boss(Enemy):
     DEATH_SPAWN_KEY = "second_phase"
 
     def _resolve_era(self, balance, era):
-        # The global era, clamped to the boss's own 5-row table (D5's clamp
-        # precedent — the boss had it first).
-        return min(max(era, 0),
-                   len(balance["EnemyTypes"]["Boss"]["stats"]) - 1)
+        # The GLOBAL era, unclamped (BR-4). It used to clamp here to the boss's
+        # 5-row table; the clamp now lives one level down, inside
+        # `era_math.resolve_era_row`, which needs to know HOW FAR past the last
+        # row we are to compound `endgame_boss_scaling`. Clamping here would
+        # silently freeze every boss from era 5 on, which is the exact cliff
+        # this phase removes.
+        return max(0, int(era))
+
+    @classmethod
+    def endgame_factors(cls, block):
+        # BR-4/D1: ONE block for every per-era boss array.
+        return block["endgame_boss_scaling"]
 
     @classmethod
     def resolve_fit(cls, block, era):
         # BR-1: the boss is the ONE type whose footprint/sprite_scale are
         # per-era — they live in its `stats[era]` row with every other boss
-        # variable, not flat at the type root. Clamped here too, so the
-        # spawner can ask before a Boss instance exists.
+        # variable, not flat at the type root. Resolved (clamped, and past the
+        # table endgame-scaled) here too, so the spawner can ask before a Boss
+        # instance exists.
         st = cls._stat_row(block, era)
         return int(st["footprint"]), float(st["sprite_scale"])
 
-    @staticmethod
-    def _stat_row(block, era):
-        """``EnemyTypes.Boss.stats`` row for ``era``, clamped to the table."""
-        rows = block["stats"]
-        return rows[min(max(era, 0), len(rows) - 1)]
+    @classmethod
+    def _stat_row(cls, block, era):
+        """``EnemyTypes.Boss.stats`` row for ``era`` (BR-4).
+
+        The ONE place a boss stat row is resolved — footprint/sprite_scale
+        (``resolve_fit``), the combat stats (``_resolve_stats``) and the shake
+        all come through here, so they cannot disagree about which era they
+        are. In range it is the authored row itself; past it,
+        ``era_math.resolve_era_row`` returns a NEW dict whose leaves are
+        ``last * factor ** N`` (``N = era - (len(stats) - 1)``). At the shipped
+        all-1.0 factors that is bit-equal to the old plain clamp."""
+        return resolve_era_row(block["stats"], era,
+                               cls.endgame_factors(block))
 
     def _resolve_stats(self, balance, era, position_in_era=1):
         # The ONE surviving override: the boss's table is `stats[]`, not
-        # `eras[]` (its rework is BossReworkPLAN's job, D8).
-        st = balance["EnemyTypes"]["Boss"]["stats"][
-            self._resolve_era(balance, era)]
+        # `eras[]` (its rework is BossReworkPLAN's job, D8). No `per_round`
+        # growth inside an era either — a boss appears once per era.
+        st = self._stat_row(balance["EnemyTypes"]["Boss"],
+                            self._resolve_era(balance, era))
         return (st["hp"], st["dmg"], st["move_speed"], st["attack_speed"],
                 st["attack_range_tiles"])
 
@@ -535,7 +573,11 @@ class Boss(Enemy):
 
     @property
     def era(self):
-        """The era index (read by tests + any future era-keyed UI)."""
+        """The GLOBAL era index (read by tests + any future era-keyed UI).
+
+        Unclamped since BR-4: era 7 is era 7, not "the last authored row".
+        Which row that resolves to — and by how much its leaves are scaled —
+        is `_stat_row`'s business."""
         return self.get_component(DeathSpawn).era
 
     @property

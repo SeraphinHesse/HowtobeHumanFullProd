@@ -1,5 +1,105 @@
 {
   "$defs": {
+    "boss_endgame_scaling": {
+      "additionalProperties": false,
+      "description": "How the boss keeps growing past its last authored era row (BR-4/D1), instead of the last boss repeating verbatim forever. One factor per boss variable: the Nth boss past the last row is last_row_value * factor**N, where N = era - (len(stats) - 1). The KEY NAMES are the leaf names inside stats[] and round_counts[]/second_phase.spawns[] rows (interval/strength are the two shake leaves), because engine.era_math.resolve_era_row matches a factor to a leaf by name. All factors ship 1.0, which is EXACTLY a plain clamp - integer leaves floor back to themselves - so this block is behaviour-neutral until a designer tunes it.",
+      "properties": {
+        "attack_range_tiles": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_range_tiles; the leaf is an integer, so the result is floored to whole tiles.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "attack_speed": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to attack_speed - SECONDS BETWEEN ATTACKS, so a factor below 1.0 makes a late boss attack faster.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "commander": {
+          "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the commander count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "dmg": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to dmg; floored to a whole number (x10 combat scale, D-12).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "footprint": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to footprint; floored to whole tiles, so a factor just above 1.0 grows the boss only every few eras.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "hp": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to hp; floored to a whole number (x10 combat scale, D-12).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "interval": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.interval leaf - SECONDS BETWEEN shake impulses, so a factor below 1.0 shakes the screen more often.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "move_speed": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to move_speed (tiles per second).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "raiders": {
+          "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the raiders count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "regular": {
+          "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the regular (Standard) count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "siege": {
+          "description": "Compounding multiplier applied once per era past the last authored row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the siege count in round_counts and second_phase.spawns; floored to whole enemies.",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "sprite_scale": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to sprite_scale (the post-fit render scale).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        },
+        "strength": {
+          "description": "Compounding multiplier applied once per era past the last authored stats row: last_row_value * factor**N. 1.0 = plain clamp (what ships today, behaviour-neutral). Applied to the shake.strength leaf (amplitude as a fraction of a tile).",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "attack_range_tiles",
+        "attack_speed",
+        "commander",
+        "dmg",
+        "footprint",
+        "hp",
+        "interval",
+        "move_speed",
+        "raiders",
+        "regular",
+        "siege",
+        "sprite_scale",
+        "strength"
+      ],
+      "type": "object"
+    },
     "boss_stat": {
       "additionalProperties": false,
       "description": "Per-era boss stats (ported from the prototype's live py-only BOSS_ERAS; its swarm_* fields were dead and are not migrated). BR-1: EVERY boss variable is per-era, so footprint, sprite_scale and shake live in this row too -- the Boss is the ONE type whose render fit is era-indexed (every other type keeps them flat at its root, D10).",
@@ -490,10 +590,13 @@
       "properties": {
         "Boss": {
           "additionalProperties": false,
-          "description": "The boss (on the era's boss_round_in_era round). Per-era arrays are index-aligned with the global era clock: era N uses stats[N], second_phase.spawns[N], round_counts[N]. BR-1: footprint/sprite_scale/shake moved OUT of this block into the stats rows, so every boss variable is per-era -- the Boss is the one type whose render fit is era-indexed rather than flat at the type root. BR-3: the boss's death_spawn is renamed second_phase and gains delayed_spawns/spawn_delay - the staged death only the Boss has.",
+          "description": "The boss (on the era's boss_round_in_era round). Per-era arrays are index-aligned with the global era clock: era N uses stats[N], second_phase.spawns[N], round_counts[N]. BR-1: footprint/sprite_scale/shake moved OUT of this block into the stats rows, so every boss variable is per-era -- the Boss is the one type whose render fit is era-indexed rather than flat at the type root. BR-3: the boss's death_spawn is renamed second_phase and gains delayed_spawns/spawn_delay - the staged death only the Boss has. BR-4: past the last row (era 5+) every one of those arrays is resolved through endgame_boss_scaling instead of repeating verbatim.",
           "properties": {
             "condition_path_weights": {
               "$ref": "#/$defs/condition_path_weights"
+            },
+            "endgame_boss_scaling": {
+              "$ref": "#/$defs/boss_endgame_scaling"
             },
             "hunts": {
               "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
@@ -538,6 +641,7 @@
           },
           "required": [
             "condition_path_weights",
+            "endgame_boss_scaling",
             "hunts",
             "kidnapping",
             "registry_group",

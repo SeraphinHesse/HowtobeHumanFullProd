@@ -58,9 +58,11 @@ package (D7).
 - **Boss rounds**: on a round the era clock calls a boss round
   (`era_math.is_boss_round`, D1 — `Boss.round_interval` is deleted) `_compose`
   routes to `_boss_round` — `[ONE boss] + ALL siege + shuffle(standard +
-  raiders)`, counts from `Boss.round_counts[era]` (beyond the 5-row table: the
-  same per-type `era_math.count_at_round` over each type's resolved era row that
-  every normal round uses — one code path, not a second set of formulas). NO
+  raiders)`, counts from `Boss.round_counts[era]` at EVERY era (**BR-4**: past
+  the 5-row table that row is the last one grown by `endgame_boss_scaling`, see
+  the endgame section below — it used to fall back to the ordinary per-type
+  `_count_of`, which made a round-60 boss round *lighter* than a round-50 one).
+  NO
   siege lead/mix split on boss rounds. The boss entry's **`era` constructor
   argument IS the global era** (the old `tier` channel, renamed at its source) (`era_math.era_of_round`, clamped in `Boss._resolve_era`;
   pop-time via `Spawner._boss_era`); companions carry the same era.
@@ -127,9 +129,11 @@ package (D7).
   `_resolve_stats` + `era` — its `__init__` is gone (9E-era), and its
   `on_spawn` override is gone too (Chunk 4 — collapsed into the generic
   `Enemy.on_spawn`, see "Prey hunting" below).
-- **The boss keeps its OWN 5-row `stats[]` table** — `Boss._resolve_stats` reads
-  `Boss.stats[era]` verbatim (it is the ONE type that does not carry `eras[]`;
-  reshaping it into `eras[]` is still `planning/BossReworkPLAN.md`'s job);
+- **The boss keeps its OWN 5-row `stats[]` table** — it is the ONE type that
+  does not carry `eras[]` (reshaping it into `eras[]` is still
+  `planning/BossReworkPLAN.md`'s job). `Boss._stat_row(block, era)` is the ONE
+  resolver for it since BR-4 (`_resolve_stats`, `resolve_fit` and `shake` all go
+  through it, so they can never disagree about which era they are);
 - **EVERY boss variable is PER-ERA (BR-1).** `footprint`, `sprite_scale` and
   `shake: {interval, strength}` were single GLOBAL keys on `EnemyTypes.Boss`
   shared by all five bosses; they now live in each `stats[]` row and the
@@ -152,6 +156,43 @@ package (D7).
     keys are gone, so every `boss_era_*` slot preview silently degrades to the
     `(0.0, 1.0)` render defaults. Fixing it is an `editor/` change (pick the
     era row matching the slot's era subgroup) and was out of BR-1's file scope.
+- **ENDGAME BOSS SCALING (BR-4) — `EnemyTypes.Boss.endgame_boss_scaling`.**
+  Past the last authored era the boss no longer repeats verbatim: the last row
+  is grown by `value × factor ** N`, `N = era − (len(stats) − 1)`. **ONE block
+  covers all THREE of the boss's per-era arrays** (D1) — `stats[]`,
+  `round_counts[]` and `second_phase.spawns[]`.
+  - **It is `engine.era_math.resolve_era_row`, not a boss-only helper** — the
+    same ES-4 function every other type's `eras[]` rows go through. Consequence
+    that drives the SHAPE OF THE DATA: the resolver matches a factor to a leaf
+    **by leaf name**, so the block's keys are the leaf names those rows carry —
+    `hp`/`dmg`/`move_speed`/`attack_speed`/`attack_range_tiles`/`footprint`/
+    `sprite_scale`, `interval`/`strength` (the two `shake` leaves — NOT
+    `shake_interval`, which would silently never match), and
+    `regular`/`raiders`/`siege`/**`commander`** for the count rows. A missing
+    name is 1.0, so a key omitted here scales silently not at all.
+  - **All factors ship 1.0, which is EXACTLY the old clamp** — `_scale_leaf`
+    floors only leaves that were ints in the authored row, so an int floors back
+    to itself and a float is untouched. Measured: rounds 0-59 of the real
+    `Spawner` and the boss's resolved stats/fit/shake/second-phase counts at
+    eras 0-8 are byte-identical to BR-3. **Round 60 is the ONE deliberate
+    change** (see the boss-round bullet above): 295/46/37 companions → the era-4
+    table's 700/215/61.
+  - **`Boss._resolve_era` no longer clamps** — it returns the GLOBAL era, and
+    `Boss.era` with it. It has to: the clamp is what tells `resolve_era_row` how
+    far past the table we are, and clamping in the caller would freeze every
+    era-5+ boss at exactly the cliff this removes. `DeathSpawn.era` therefore
+    now holds the global era for a boss too; nothing in `game/` reads it but
+    `Boss.era`.
+  - **`Enemy.endgame_factors(block)` is the seam** (a classmethod beside
+    `resolve_fit`): `None` for every type but the Boss, which returns its
+    `endgame_boss_scaling`. It is why `Enemy.__init__`'s single
+    `resolve_era_row(ds["spawns"], …)` call serves both the boss's 5 scaled
+    rows and every other type's single always-clamping one.
+  - **Not wired, deliberately: `round_counts[era]["commander"]`.**
+    `_boss_round` still composes only regular/raiders/siege, so a non-zero
+    commander count in that table spawns nothing (it is 0 in every shipped
+    row). The factor exists so the block is complete per D1; wiring the count
+    is a later phase's call.
 - `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
