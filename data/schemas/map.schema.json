@@ -521,6 +521,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "spawn_recede_enabled": {
+          "description": "Master switch for the OLD implicit spawn-recede rule (spawning tiles turning buildable as the player unlocks land). If false the spawn band never recedes on unlock, whatever the painted spawn-reserve state is.",
+          "type": "boolean"
+        },
         "unlock_cost_distance_mod": {
           "description": "Extra love cost per tile of distance from the base.",
           "maximum": 10000,
@@ -531,6 +535,7 @@
       "required": [
         "adjacent_unlock_only",
         "base_unlock_cost",
+        "spawn_recede_enabled",
         "unlock_cost_distance_mod"
       ],
       "type": "object"

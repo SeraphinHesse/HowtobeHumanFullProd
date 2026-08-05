@@ -7,6 +7,7 @@ sections cost exactly BASE) with the live map.json values; adjacency requires a
 chunk COMBAT tile edge-adjacent to an unlocked tile; a successful unlock
 recedes the spawn band one 2×2 section outward on BOTH axes.
 """
+import copy
 import unittest
 from pathlib import Path
 
@@ -324,6 +325,68 @@ class TestDualAxisRecede(unittest.TestCase):
             self.assertEqual(tm.get(c, r).state, TileState.COMBAT, (c, r))
         # one conversion → one backfill
         self.assertEqual(len(tm.spawning_tiles()), 4)
+
+
+class TestSpawnableBackgroundReserve(unittest.TestCase):
+    """The designer-painted spawn reserve: mark batch `n` flips BACKGROUND →
+    SPAWNING on the nth successful purchase, and the implicit recede is
+    suppressed until the reserve is exhausted.
+
+    Pinned synthetic 8×4 map (never live `data/`): per row
+    ``bb cc ss oo`` — buildable pocket, the chunks we buy, the spawn band,
+    then background for the marks/backfill. Section grid anchored at (0, 0),
+    so the two purchasable chunks are cols2-3 × rows0-1 and cols2-3 × rows2-3.
+    """
+
+    ROWS = ["bbccssoo"] * 4
+
+    @staticmethod
+    def _make(marks, balance=BALANCE):
+        doc = tilemap.TileMapDoc(
+            map_id="synthreserve", display_name="Synth Reserve",
+            cols=8, rows=4, legend={},
+            terrain=[list(r) for r in TestSpawnableBackgroundReserve.ROWS],
+            base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
+            spawnable_background=dict(marks),
+            start_area={"col": 0, "row": 0, "slot": "start_area"})
+        return TileMap(doc, balance)
+
+    def test_batch_one_releases_on_the_first_purchase_and_not_before(self):
+        tm = self._make({(6, 0): 1, (7, 0): 1, (6, 2): 2})
+        for c, r in ((6, 0), (7, 0), (6, 2)):
+            self.assertEqual(tm.get(c, r).state, TileState.BACKGROUND)
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))
+        for c, r in ((6, 0), (7, 0)):
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+        # batch 2 waits for the second purchase
+        self.assertEqual(tm.get(6, 2).state, TileState.BACKGROUND)
+
+    def test_implicit_recede_waits_until_the_reserve_is_exhausted(self):
+        tm = self._make({(6, 0): 1})
+        # purchase 1 releases the LAST batch -> the implicit recede stays off:
+        # the painted band (cols4-5 rows0-1) is untouched.
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))
+        self.assertEqual(tm.get(6, 0).state, TileState.SPAWNING)
+        for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+        # purchase 2 is past the reserve -> the old system takes over: the
+        # row-aligned band recedes to COMBAT and backfills behind it.
+        self.assertTrue(tm.do_unlock(tm.get(2, 2)))
+        for c, r in ((4, 2), (5, 2), (4, 3), (5, 3)):
+            self.assertEqual(tm.get(c, r).state, TileState.COMBAT, (c, r))
+        for c, r in ((6, 2), (7, 2), (6, 3), (7, 3)):
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+
+    def test_spawn_recede_enabled_false_suppresses_the_old_system(self):
+        balance = copy.deepcopy(BALANCE)
+        balance["TileUnlocking"]["spawn_recede_enabled"] = False
+        tm = self._make({}, balance=balance)   # no marks at all
+        self.assertTrue(tm.do_unlock(tm.get(2, 0)))
+        self.assertTrue(tm.do_unlock(tm.get(2, 2)))
+        # every painted spawn tile is exactly where the designer left it
+        self.assertEqual(
+            {(t.col, t.row) for t in tm.spawning_tiles()},
+            {(c, r) for c in (4, 5) for r in range(4)})
 
 
 class TestZoneVisualOverrides(unittest.TestCase):

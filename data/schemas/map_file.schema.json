@@ -203,6 +203,37 @@
       "minimum": 4,
       "type": "integer"
     },
+    "spawnable_background": {
+      "description": "Designer-painted SPAWN RESERVE marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n releases together on the player's nth tile purchase - the whole group of cells carrying that number flips to the SPAWNING zone at once. An empty array means no reserve is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "purchase": {
+            "description": "Tile-purchase count (whole tile purchases made by the player, 1-based) on which this cell becomes SPAWNING. 1 = the very first tile purchase.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "purchase"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "start_area": {
       "description": "The 2x2 starting area - a single movable map object, click-placed or dragged in the editor (Game tiles mode). {col,row} is the 2x2's MIN corner (top-left anchor); it spans col..col+1 x row..row+1 and must fit inside the grid (col+1 < cols, row+1 < rows - cross-checked by engine.tilemap.load_map). The game anchors the 2x2 tile-unlock section grid (and the playfield window) on it; the marker never forces tile states - the designer still paints buildable tiles under it (the editor warns otherwise). Not rendered in-game; the editor draws it as a 2x2 outline. MAY BE null (the editor shows a yellow warning; the game falls back to base-anchored sections); the key is always present.",
       "oneOf": [
@@ -321,6 +352,7 @@
     "id",
     "legend",
     "rows",
+    "spawnable_background",
     "start_area",
     "terrain",
     "tutorial_flute",
