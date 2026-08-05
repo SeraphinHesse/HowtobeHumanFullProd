@@ -73,6 +73,10 @@ START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
 TUTORIAL_COLOR = (255, 255, 255)          # the placed tutorial marker outline
 TUTORIAL_GHOST_COLOR = (200, 200, 200)    # its armed/drag ghost outline
+RESERVE_COLOR = (120, 235, 220)           # spawnable-background mark outline
+# despawnable-spawn mark outline — deliberately MAGENTA against the reserve's
+# cyan so the two invisible overlays are tellable apart at a glance
+DESPAWN_COLOR = (245, 110, 210)
 
 # ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
 # regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
@@ -110,6 +114,8 @@ def surface_to_qimage(surface):
 class ViewportPanel(QWidget):
     cursor_world = Signal(float, float)   # ED-23 readout (both modes)
     code_picked = Signal(str)             # picker tool → palette re-arm
+    reserve_number_picked = Signal(int)   # picker on a mark → palette spinbox
+    despawn_number_picked = Signal(int)   # picker on a despawn mark → spinbox
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
     anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
     anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
@@ -157,13 +163,28 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None  # the Start Area slot when armed
         self._armed_tutorial_flute = None  # the First Flute slot when armed
         self._armed_tutorial_stone = None  # the First Stone slot when armed
+        # the Spawnable Background brush: True when armed (it has no slot —
+        # a mark is an invisible overlay, not a sprite)
+        self._armed_spawn_reserve = None
+        self._reserve_number = 1      # purchase number newly painted marks carry
+        # the Despawnable Spawn brush: True when armed (same shape — a mark is
+        # an invisible overlay, not a sprite)
+        self._armed_despawn = None
+        self._despawn_number = 1   # purchase number newly painted marks carry
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
-                      "camera": True, "start_area": True, "tutorial": True}
+                      "camera": True, "start_area": True, "tutorial": True,
+                      "spawn_reserve": True, "despawnable_spawn": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
         self._stroke_code = None
         self._stroke_last = None
+        # spawn-reserve stroke accumulator + the value it writes (None = erase)
+        self._reserve_stroke = None
+        self._reserve_stroke_value = None
+        # despawn stroke accumulator + the value it writes (None = erase)
+        self._despawn_stroke = None
+        self._despawn_stroke_value = None
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
         self._camera_drag = False
@@ -349,6 +370,8 @@ class ViewportPanel(QWidget):
             session is not None and session.doc is not None) else None
         self._hover_cell = None
         self._stroke = None
+        self._reserve_stroke = None
+        self._despawn_stroke = None
         self._anchor = None
         self._base_drag = False
         self._start_area_drag = False
@@ -642,6 +665,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
@@ -651,6 +676,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -662,6 +689,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_camera(self, slot):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
@@ -673,6 +702,8 @@ class ViewportPanel(QWidget):
         self._armed_start_area = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
@@ -684,6 +715,8 @@ class ViewportPanel(QWidget):
         self._armed_camera = None
         self._armed_tutorial_flute = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_tutorial_flute(self, slot):
         """Arm the First Flute brush (paint = place/move the single "first
@@ -696,6 +729,8 @@ class ViewportPanel(QWidget):
         self._armed_camera = None
         self._armed_start_area = None
         self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
 
     def arm_tutorial_stone(self, slot):
         """Arm the First Stone brush (paint = place/move the single "first
@@ -708,6 +743,46 @@ class ViewportPanel(QWidget):
         self._armed_camera = None
         self._armed_start_area = None
         self._armed_tutorial_flute = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+
+    def arm_spawn_reserve(self):
+        """Arm the Spawnable Background brush (paint = mark the cell with the
+        current purchase number, erase = clear the mark). Mirrors arm_base,
+        but the brush has NO slot — a mark is an invisible overlay, never a
+        sprite; clears every other armed brush."""
+        self._armed_spawn_reserve = True
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_despawn = None
+
+    def set_reserve_number(self, n):
+        """The purchase number newly painted marks carry (palette spinbox)."""
+        self._reserve_number = int(n)
+
+    def arm_despawn(self):
+        """Arm the Despawnable Spawn brush (paint = mark the cell with the
+        current purchase number, erase = clear the mark). The exact twin of
+        arm_spawn_reserve — no slot, clears every other armed brush."""
+        self._armed_despawn = True
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+
+    def set_despawn_number(self, n):
+        """The purchase number newly painted despawn marks carry (palette
+        spinbox)."""
+        self._despawn_number = int(n)
 
     def set_deco_flip(self, on):
         """Mirror-flip toggle for the armed deco brush — an orthogonal
@@ -810,6 +885,45 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_deco_remove(cell[0], cell[1])
             return
+        if self._armed_spawn_reserve is not None:
+            # the spawn reserve is an INVISIBLE OVERLAY, not a legend code —
+            # it gets its own ops over doc.spawnable_background, and must be
+            # handled BEFORE the terrain-code branches below.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_reserve(doc, *cell)
+                if picked is not None:
+                    self.reserve_number_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._reserve_number if self._tool == "paint" else None
+                self._reserve_stroke_value = value
+                self._reserve_stroke = tilemap_ops.set_reserve(doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_reserve_stroke(
+                    tilemap_ops.reserve_bucket(doc, *cell, self._reserve_number),
+                    "spawn reserve bucket fill")
+            return
+        if self._armed_despawn is not None:
+            # the despawn mark is an INVISIBLE OVERLAY too — its own ops over
+            # doc.despawnable_spawn, likewise BEFORE the terrain-code branches.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_despawn(doc, *cell)
+                if picked is not None:
+                    self.despawn_number_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._despawn_number if self._tool == "paint" else None
+                self._despawn_stroke_value = value
+                self._despawn_stroke = tilemap_ops.set_despawn(doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_despawn_stroke(
+                    tilemap_ops.despawn_bucket(doc, *cell, self._despawn_number),
+                    "spawn despawn bucket fill")
+            return
         if self._tool == "picker":
             code = tilemap_ops.pick(doc, *cell)
             if code is not None:
@@ -836,6 +950,22 @@ class ViewportPanel(QWidget):
     def _tool_move(self, pos):
         cell = self._cell_at(pos)
         self._hover_cell = cell
+        if self._reserve_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the terrain stroke below
+            self._reserve_stroke.extend(tilemap_ops.reserve_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._reserve_stroke_value))
+            self._stroke_last = cell
+            return
+        if self._despawn_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the reserve stroke above
+            self._despawn_stroke.extend(tilemap_ops.despawn_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._despawn_stroke_value))
+            self._stroke_last = cell
+            return
         if self._stroke is not None and cell is not None \
                 and cell != self._stroke_last:
             # Bresenham-interpolate between events so fast drags don't gap
@@ -868,16 +998,40 @@ class ViewportPanel(QWidget):
             if cell is not None:
                 self._map_session.push_tutorial_stone_place(cell[0], cell[1])
             self._tutorial_stone_drag = False
+        elif self._reserve_stroke is not None:
+            self._map_session.push_reserve_stroke(
+                self._reserve_stroke, "spawn reserve stroke")
+            self._reserve_stroke = None
+            self._stroke_last = None
+        elif self._despawn_stroke is not None:
+            self._map_session.push_despawn_stroke(
+                self._despawn_stroke, "spawn despawn stroke")
+            self._despawn_stroke = None
+            self._stroke_last = None
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
             self._stroke_last = None
         elif self._anchor is not None:
             if cell is not None:
-                op = (tilemap_ops.line if self._tool == "line"
-                      else tilemap_ops.rect_fill)
-                self._map_session.push_stroke(
-                    op(doc, *self._anchor, *cell, self._armed_code), self._tool)
+                if self._armed_spawn_reserve is not None:
+                    op = (tilemap_ops.reserve_line if self._tool == "line"
+                          else tilemap_ops.reserve_rect)
+                    self._map_session.push_reserve_stroke(
+                        op(doc, *self._anchor, *cell, self._reserve_number),
+                        f"spawn reserve {self._tool}")
+                elif self._armed_despawn is not None:
+                    op = (tilemap_ops.despawn_line if self._tool == "line"
+                          else tilemap_ops.despawn_rect)
+                    self._map_session.push_despawn_stroke(
+                        op(doc, *self._anchor, *cell, self._despawn_number),
+                        f"spawn despawn {self._tool}")
+                else:
+                    op = (tilemap_ops.line if self._tool == "line"
+                          else tilemap_ops.rect_fill)
+                    self._map_session.push_stroke(
+                        op(doc, *self._anchor, *cell, self._armed_code),
+                        self._tool)
             self._anchor = None
 
     def _ghost_items(self, doc):
@@ -900,6 +1054,10 @@ class ViewportPanel(QWidget):
                 or self._armed_tutorial_flute is not None
                 or self._armed_tutorial_stone is not None):
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
+        if self._armed_spawn_reserve is not None:
+            return   # its ghost is the OUTLINE drawn by the reserve overlay
+        if self._armed_despawn is not None:
+            return   # its ghost is the OUTLINE drawn by the despawn overlay
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
         if self._armed_base is not None:
@@ -1218,6 +1376,8 @@ class ViewportPanel(QWidget):
             self._renderer.submit(item)
         self._submit_start_area_outline(doc)
         self._submit_tutorial_outline(doc)
+        self._submit_spawn_reserve(doc, cmin, cmax, rmin, rmax)
+        self._submit_despawn(doc, cmin, cmax, rmin, rmax)
         if self._grid_lines:
             # bound the grid to the visible window too (a 1024-line full grid
             # would swamp the overlay pass)
@@ -1285,6 +1445,51 @@ class ViewportPanel(QWidget):
                 row = max(0, min(self._hover_cell[1], doc.rows - 1))
                 outline(col, row, TUTORIAL_GHOST_COLOR)
                 caption(col, row, label, TUTORIAL_GHOST_COLOR)
+
+    def _submit_spawn_reserve(self, doc, cmin, cmax, rmin, rmax):
+        """The spawnable-background marks: per mark a single-tile closed
+        diamond OUTLINE through the E-24 overlay primitive plus a `HudText`
+        of its purchase NUMBER at the tile centre — never a sprite, never
+        QPainter (the _submit_tutorial_outline idiom). The marks are
+        editor-only chrome: the game draws nothing for them.
+
+        WINDOW-CULLED against the caller's visible tile window: a map may
+        carry hundreds of marks, and drawing them all would put a full-map
+        overlay pass back into a renderer that windows everything else.
+        Iterates the MARKS (a dict of painted cells) and filters, rather
+        than the window — the marks are almost always the smaller set."""
+        if not self._eyes["spawn_reserve"]:
+            return
+        for (col, row), number in doc.spawnable_background.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                RESERVE_COLOR, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                str(number), (sx, sy - 6), "sm", RESERVE_COLOR, align="center"))
+
+    def _submit_despawn(self, doc, cmin, cmax, rmin, rmax):
+        """The despawnable-spawn marks: the exact twin of
+        _submit_spawn_reserve — a single-tile closed diamond OUTLINE through
+        the E-24 overlay primitive plus a `HudText` of its purchase NUMBER,
+        in DESPAWN_COLOR (magenta) so it can never be mistaken for a
+        spawn-reserve mark (cyan). Editor-only chrome; the game draws nothing.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the reserve overlay is."""
+        if not self._eyes["despawnable_spawn"]:
+            return
+        for (col, row), number in doc.despawnable_spawn.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                DESPAWN_COLOR, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                str(number), (sx, sy + 4), "sm", DESPAWN_COLOR, align="center"))
 
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 

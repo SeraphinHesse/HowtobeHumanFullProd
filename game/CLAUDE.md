@@ -30,9 +30,90 @@ user.
 | `enemies/` | `game/enemies/CLAUDE.md` | Enemy walker; spawner wave queue; type-agnostic combat sweep |
 | `core/` | `game/core/CLAUDE.md` | phase machine; payday ordering; XP / village level-up; balance loader |
 | `ui/` | `game/ui/CLAUDE.md` | HUD; building panel; floaters; level-up modal; shell + menus |
+| `debug/` | `game/CLAUDE.md` (this section) | `DebugRecorder` — structured run telemetry (JSONL/CSV/MD/HTML) for balancing + LLM debugging |
 | `tutorial/` | `game/CLAUDE.md` (this section) | `TutorialDirector` — binds the engine sequencer to real tiles/cards/buttons |
 
 Perf deep-dive → `game/PERF.md`.
+
+## Debug mode — structured run telemetry (debug-mode-telemetry)
+`game/debug/` is a pure package (no pygame, no `data/` I/O — its own
+`TestPurity`) hanging a `DebugRecorder` off `Session.debug`, `None` by default
+— the `tutorial_director` precedent (`game/core/CLAUDE.md`). Every emit site
+across the game is `if session.debug is not None: session.debug.<call>(...)`,
+so debug-off costs one attribute check per site and a bare `Session` a logic
+test builds is byte-identical. See `game/debug/events.py`'s module docstring
+for the full event-kind contract (what an LLM or a human reads) and
+`game/debug/recorder.py`'s docstring for the `DebugRecorder` API.
+- **Level 1 (`LEVEL_BASIC`)** — the causal trace: waves, placements, unlocks,
+  research, deaths, base hits, kidnaps, lightning, payday, the per-round
+  summary row, level-ups, boss choices, cheats, game over. Emit sites:
+  `game/core/session.py` (`end_turn`/`on_base_hit`/`on_enemy_death`/
+  `on_kidnap`/`resolve_levelup`/`resolve_boss_cutscene`/`lightning_strike`/
+  every `cheat_*`), `game/core/payday.py` (`run_payday`'s three hooks, see
+  that doc's payday section), `game/ui/building_ui.py` (`_do_place`, the
+  upgrade panel's tier-advance branch).
+- **Level 2 (`LEVEL_VERBOSE`)** adds per-tick combat detail via
+  `resolve_combat(..., on_damage=None)` (`game/enemies/combat.py`) — the
+  ESV-5/ESV-6 optional-callback precedent, `None` keeping every existing
+  caller byte-identical. **One damage site cannot be reached through that
+  parameter**: an enemy attacking a blocking building/wall
+  (`game/enemies/components.py EnemyCombat.update`) runs inside
+  `Scene.update`, which the host calls BEFORE `resolve_combat` each frame —
+  so `components.py` exposes its own module-level seam,
+  `set_damage_hook(fn)` (the `game/ui/widgets.py set_skin_hit_test`
+  precedent: unset by default, installed by `game/main.py` only when the
+  recorder's level is >= 2, bracketing the `scene.update()` call). Its
+  sibling `set_wall_damage_hook(fn)` covers the edge-WALL branch of that
+  same method: a wall carries no `Health` and no `RoundStats` and spans an
+  EDGE rather than sitting on a tile, so it needs its own shape and its own
+  seam — detail in `game/enemies/CLAUDE.md`.
+- **Two documented gaps in the event contract, both deliberate.**
+  `defender_fire` reports only the muzzle POINT (`resolve_combat`'s
+  `on_defender_fire` callback carries nothing else, and telemetry does not
+  widen a gameplay signature to find out more), and a beam defender never
+  emits it at all — it is hitscan and fires no projectile. `enemy_spawn` is
+  **declared but never emitted**: the only per-enemy entry point is
+  `Spawner.update`'s pop, which has no host seam; the per-round count is
+  complete via `note_spawn` at `wave_start`. Both are spelled out in
+  `game/debug/events.py`'s docstring so the contract does not lie.
+- **`game/main.py`** wires the whole thing: `main(debug_log=None)` accepts
+  `None` (off), an `int` level (builds a fresh `DebugRecorder` writing to
+  `REPO / "logs"`), or an already-constructed `DebugRecorder` (the seam
+  headless callers/tests drive directly — see that function's docstring).
+  The recorder is bound to the fresh run's `RunState` and assigned to
+  `session.debug` inside `build_gameplay()`; `set_frame()` is stamped once
+  per simulated frame; `close()` is called at the GAME_OVER transition, in
+  `teardown_gameplay()` (quit-to-menu / the game-over screen's MAIN MENU
+  button), AND again (idempotent — a no-op every time after the first) just
+  before `pygame.quit()`, so the four artifacts
+  (`-events.jsonl`/`-rounds.csv`/`-summary.md`/`-report.html`) are always
+  written.
+- **Three activation surfaces, all built on that one seam.** `recorder` is a
+  plain `main()` local (never nested in an `if`) precisely so each of them can
+  reassign it with `nonlocal`:
+  1. **CLI** — `--debug` / `--debug=N`, parsed by `debug_level_from_argv` in
+     the `if __name__ == "__main__"` block. Hand-rolled, not argparse, so
+     `max_frames`/`autostart` (a headless TEST seam) stay off the command
+     line; a bad level exits loud rather than booting un-instrumented.
+  2. **Main menu `PLAY DEBUG` + its gear** (`game/ui/CLAUDE.md`) — the shell
+     returns a new `"new_game_debug"` intent, and `execute()` builds the
+     recorder from `shell.debug_settings` BEFORE `build_gameplay()`.
+  3. **Cheat menu `Debug Log`** — arms/disarms mid-run (`session.debug` is a
+     plain public attribute). Both directions emit a `cheat` event: the
+     `debug_log_on` marker is where capture STARTS, and it latches the round
+     row's `cheated` flag, because a part-way-captured run is not clean
+     balance data either.
+- **`tools/simrun.py`** is the headless balance-sweep host — real active map,
+  real balancing, real `Session`/`resolve_combat`/`place_building`, no
+  window, one seeded RNG, writing the same four artifacts to
+  `logs/sim-<strategy>-<seed>-*`. It answers for the player: what to build
+  (`game/debug/policies.py`, the pure `(state, tilemap, buildings_balance) ->
+  [(tile, building_type)]` contract), when to unlock territory and end the
+  turn, and the two modal phases (LEVELUP/BOSS_CUTSCENE freeze the world and
+  would otherwise deadlock). `policies.py` is deliberately NOT re-exported
+  from `game/debug/__init__.py` — it imports `game.buildings.registry`, and
+  `game.core.session` imports `game.debug` at module scope, so exporting it
+  would close an import cycle.
 
 ## Host conventions (`main.py`, Phase 2 → 10A)
 - `main(max_frames=None)` is importable so `tools/smoke.py` can drive the same code

@@ -46,6 +46,20 @@ Four files beside `balance.py`:
     onto neighbours once (guarded by `BoostEmitter.exploded`, reset in `rebuild()`)
     and, in flat mode, reverses its 10× contribution. Runs before revive for the
     same reason painters do — it must see the dead booster as `alive == False`.
+  - **debug-mode-telemetry threads three hooks BETWEEN existing steps,
+    never reordering them**: `debug.on_payday_start(state, tilemap,
+    core_balance, built)` runs BEFORE step 2's snapshot (so it still sees
+    this round's true `dmg_*_this_round`, and the potential ledger can see
+    which occupants died during the wave); `debug.on_payday_story(state)`
+    runs immediately AFTER step 3 (story_income is measured as the exact
+    love delta across that one step, since the Boss1B/3B payouts leave no
+    `income_events` trace); `debug.on_payday_end(state, tilemap)` runs
+    immediately AFTER step 6 (painters) — BEFORE steps 7-11 — so
+    `income_events` holds base + yields + upkeep + painter payouts while
+    `round_num` is still pre-increment. `debug=None` (every pre-existing
+    caller) is a no-op at all three sites; `payday.py` never imports
+    `game.debug` — it duck-types the three method calls on whatever object
+    `Session` hands it, exactly like `occupancy`/`scene`.
   - **10C filled slot 6**: `_process_painters` advances alive painters and, on a
     completed one, pays the lump sum + frees the tile (occupant/content_key
     cleared, BUILDABLE, occupancy cleared, building despawned) + bars it via
@@ -107,6 +121,48 @@ love store, ready to feed `place_building`.
   `round_num == 1`, so it still fires exactly once on the run's first
   `end_turn()` whether that round is 0 (tutorial) or 1 (a skipped run). Full
   detail → `game/CLAUDE.md`'s "The tutorial is round 0 (Phase TU-9)" section.
+
+- **`Session.debug` (debug-mode-telemetry)**: an optional `game.debug.
+  DebugRecorder` reference, `None` by default — the SAME shape as
+  `tutorial_director` above (host-set, `build_gameplay()` assigns it, a bare
+  `Session` a logic test builds is untouched). Every emit site across this
+  module is `if self.debug is not None: self.debug.<call>(...)`: `end_turn`
+  (`wave_start`, reading composition off `spawner.pending()` since that is
+  the only source for `wave_size`/`enemy_tier`), `on_base_hit` (`note_base_
+  hit` + `base_hit`, plus `game_over` on the fatal hit — a base breach
+  applies NO HP damage, so this is `lives_lost`/`leaks` bookkeeping only,
+  never fused with `RoundStats`), `on_enemy_death` (`note_kill` + `enemy_
+  death`), `on_kidnap` (`note_kidnap` + `kidnap`), `resolve_levelup` (`unlock`/
+  `research` for the level-up reward + `note_love_spent`, then `levelup`),
+  `resolve_boss_cutscene` (`boss_choice`), `lightning_strike` (an optional
+  `on_hit` collector threaded into `lightning.strike`, summed into `note_
+  lightning` — see below), and every `cheat_*` method (`cheat` — a cheated
+  run is latched `cheated=1` for the rest of the run by the recorder itself,
+  never unset here). `run_payday` takes `debug` as its sixth positional
+  argument at all three call sites (`pre_sim`'s ROUND_END branch,
+  `resolve_levelup`, `resolve_boss_cutscene`) — see `payday.py`'s doc section
+  below for the three-hook ordering.
+  - **`lightning.strike` gained an optional `on_hit(dmg)` callback** (additive
+    — `None` keeps every other caller, including every test in this module,
+    byte-identical): lightning earns no `RoundStats` credit (no shooter), so
+    this is the only way to learn a strike's total damage/hit count.
+    `Session.lightning_strike` collects every `on_hit` call from every firing
+    caster in the click into one list and reports the SUM as `note_lightning`'s
+    `dmg` argument (total damage, not per-enemy) — only when `fired` is True,
+    so a click that hit nothing because every caster was still cooling logs
+    nothing (a caster that DID fire but hit zero enemies still logs, per
+    `note_lightning`'s own "a whiff still pays the cooldown" contract).
+  - **`RESEARCH`/`UNLOCK` have TWO distinct sources**, both legitimate per
+    `events.py`'s "researched / advanced" wording: `resolve_levelup` emits
+    them for a TYPE-WIDE reward (a level-up card unlocking a building type, or
+    researching its next tier — `RunState.unlocked_buildings`/
+    `tiers_unlocked`); `game/ui/building_ui.py`'s upgrade-panel tier-advance
+    branch emits `RESEARCH` for one INSTANCE advancing into an
+    already-researched tier (`building.advance_tier()`). Neither building_ui
+    site has a natural `UNLOCK` action to pair with `PLACE`/`RESEARCH` — a
+    tile unlock (`_unlock_click`, COMBAT → BUILDABLE) is a different concept
+    with different fields (col/row, not building_type) and is NOT wired to any
+    debug event.
 
 > Cross-package note (9F): `engine/render/fonts.py` `get_font` now probes a cached
 > SysFont with `get_height()` and rebuilds it if its pygame session was torn down

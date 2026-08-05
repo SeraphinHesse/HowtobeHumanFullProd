@@ -2532,6 +2532,7 @@
       "slot": "deco_rock_v3"
     }
   ],
+  "despawnable_spawn": [],
   "display_name": "testo",
   "id": "testo",
   "legend": {
@@ -2585,6 +2586,7 @@
     }
   },
   "rows": 1024,
+  "spawnable_background": [],
   "start_area": {
     "col": 512,
     "row": 512,

@@ -109,6 +109,184 @@ def apply_changes(doc, changes, reverse=False):
             doc.terrain[row][col] = new
 
 
+# -- spawn reserve: the INVISIBLE spawnable-background overlay ---------------
+# Direct mirrors of the terrain paint ops above, over doc.spawnable_background
+# ({(col, row): purchase}) instead of doc.terrain. The change tuple keeps the
+# same (col, row, old, new) shape — old/new are the purchase NUMBER or None
+# ("no mark here") — so the undo command is the exact twin of _StrokeCommand.
+# A mark is an overlay, never a legend code: the underlying terrain keeps
+# drawing and the game never sees it as a tile kind.
+
+def _set_reserve(doc, col, row, n, changes):
+    if not _in_bounds(doc, col, row):
+        return
+    old = doc.spawnable_background.get((col, row))
+    if old == n:
+        return
+    if n is None:
+        doc.spawnable_background.pop((col, row), None)
+    else:
+        doc.spawnable_background[(col, row)] = n
+    changes.append((col, row, old, n))
+
+
+def set_reserve(doc, col, row, n):
+    """Mark the cell for release on the nth tile purchase; ``n=None`` erases."""
+    changes = []
+    _set_reserve(doc, col, row, n, changes)
+    return changes
+
+
+def reserve_line(doc, c0, r0, c1, r1, n):
+    changes = []
+    for col, row in line_cells(c0, r0, c1, r1):
+        _set_reserve(doc, col, row, n, changes)
+    return changes
+
+
+def reserve_rect(doc, c0, r0, c1, r1, n):
+    changes = []
+    for col, row in rect_cells(c0, r0, c1, r1):
+        _set_reserve(doc, col, row, n, changes)
+    return changes
+
+
+def reserve_bucket(doc, col, row, n):
+    """4-connected flood fill of the region sharing the start cell's UNDERLYING
+    TERRAIN CODE — not the region sharing a mark. Marking a whole painted
+    background patch in one gesture is what a designer means by "bucket" here,
+    and the marks themselves are usually empty (nothing to flood).
+
+    Unlike bucket_fill, the terrain is never mutated, so the visited set is
+    what terminates the walk."""
+    if not _in_bounds(doc, col, row):
+        return []
+    target = doc.terrain[row][col]
+    changes = []
+    seen = set()
+    stack = [(col, row)]
+    while stack:
+        c, r = stack.pop()
+        if (c, r) in seen or not _in_bounds(doc, c, r) \
+                or doc.terrain[r][c] != target:
+            continue
+        seen.add((c, r))
+        _set_reserve(doc, c, r, n, changes)
+        stack.extend(((c + 1, r), (c - 1, r), (c, r + 1), (c, r - 1)))
+    return changes
+
+
+def pick_reserve(doc, col, row):
+    """Eyedropper: the purchase number marked on the cell, or None (no mark /
+    outside the grid)."""
+    return doc.spawnable_background.get((col, row)) if _in_bounds(doc, col, row) \
+        else None
+
+
+def apply_reserve_changes(doc, changes, reverse=False):
+    """Re-apply (redo) or roll back (undo) a reserve change list — set-to-value
+    writes (None removes the key), so re-applying over live-painted marks is
+    idempotent. Mirrors apply_changes."""
+    if reverse:
+        steps = ((col, row, old) for col, row, old, _new in reversed(changes))
+    else:
+        steps = ((col, row, new) for col, row, _old, new in changes)
+    for col, row, value in steps:
+        if value is None:
+            doc.spawnable_background.pop((col, row), None)
+        else:
+            doc.spawnable_background[(col, row)] = value
+
+
+# -- spawn despawn: the INVISIBLE despawnable-spawn overlay ------------------
+# The exact twin of the spawn-reserve ops above, over doc.despawnable_spawn
+# ({(col, row): purchase}) instead of doc.spawnable_background. Same
+# (col, row, old, new) change tuple, old/new the purchase NUMBER or None.
+# A mark is an overlay, never a legend code: the underlying SPAWNING tile keeps
+# drawing, and the runtime flips every cell numbered n from SPAWNING to COMBAT
+# on the player's nth tile purchase.
+
+def _set_despawn(doc, col, row, n, changes):
+    if not _in_bounds(doc, col, row):
+        return
+    old = doc.despawnable_spawn.get((col, row))
+    if old == n:
+        return
+    if n is None:
+        doc.despawnable_spawn.pop((col, row), None)
+    else:
+        doc.despawnable_spawn[(col, row)] = n
+    changes.append((col, row, old, n))
+
+
+def set_despawn(doc, col, row, n):
+    """Mark the cell for retirement on the nth tile purchase; ``n=None``
+    erases."""
+    changes = []
+    _set_despawn(doc, col, row, n, changes)
+    return changes
+
+
+def despawn_line(doc, c0, r0, c1, r1, n):
+    changes = []
+    for col, row in line_cells(c0, r0, c1, r1):
+        _set_despawn(doc, col, row, n, changes)
+    return changes
+
+
+def despawn_rect(doc, c0, r0, c1, r1, n):
+    changes = []
+    for col, row in rect_cells(c0, r0, c1, r1):
+        _set_despawn(doc, col, row, n, changes)
+    return changes
+
+
+def despawn_bucket(doc, col, row, n):
+    """4-connected flood fill of the region sharing the start cell's UNDERLYING
+    TERRAIN CODE — not the region sharing a mark; the exact mirror of
+    reserve_bucket (marking a whole painted spawn patch in one gesture).
+
+    Unlike bucket_fill, the terrain is never mutated, so the visited set is
+    what terminates the walk."""
+    if not _in_bounds(doc, col, row):
+        return []
+    target = doc.terrain[row][col]
+    changes = []
+    seen = set()
+    stack = [(col, row)]
+    while stack:
+        c, r = stack.pop()
+        if (c, r) in seen or not _in_bounds(doc, c, r) \
+                or doc.terrain[r][c] != target:
+            continue
+        seen.add((c, r))
+        _set_despawn(doc, c, r, n, changes)
+        stack.extend(((c + 1, r), (c - 1, r), (c, r + 1), (c, r - 1)))
+    return changes
+
+
+def pick_despawn(doc, col, row):
+    """Eyedropper: the purchase number marked on the cell, or None (no mark /
+    outside the grid)."""
+    return doc.despawnable_spawn.get((col, row)) if _in_bounds(doc, col, row) \
+        else None
+
+
+def apply_despawn_changes(doc, changes, reverse=False):
+    """Re-apply (redo) or roll back (undo) a despawn change list — set-to-value
+    writes (None removes the key), so re-applying over live-painted marks is
+    idempotent. Mirrors apply_reserve_changes."""
+    if reverse:
+        steps = ((col, row, old) for col, row, old, _new in reversed(changes))
+    else:
+        steps = ((col, row, new) for col, row, _old, new in changes)
+    for col, row, value in steps:
+        if value is None:
+            doc.despawnable_spawn.pop((col, row), None)
+        else:
+            doc.despawnable_spawn[(col, row)] = value
+
+
 # -- deco + base (the other undoable map edits, ED-20/ED-24) -----------------
 
 def place_deco(doc, col, row, slot, flip=False):
@@ -192,8 +370,21 @@ def map_requirement_warnings(doc):
     spawning tile painted, plus a hole (base), a camera startpoint and a 2×2
     starting area — and the starting area's four cells must be painted
     buildable (the marker anchors the game's unlock grid but never forces tile
-    states: painted terrain wins). Returns a list of labels (empty when nothing
-    is missing)."""
+    states: painted terrain wins).
+
+    Two further NON-BLOCKING labels cover the spawnable-background reserve:
+    the map carrying no marks at all, and a mark sitting on a ZONE code
+    (legend ``checker: true``) — the runtime only flips BACKGROUND tiles, so
+    a mark on a zone tile is a silent no-op the designer should see.
+
+    Two more mirror them for the despawnable-spawn overlay: no marks at all,
+    and a mark sitting on a code that is not a SPAWNING tile (slot
+    ``tile_spawning``) — flipping SPAWNING → COMBAT is meaningless anywhere
+    else, so such a mark is a silent no-op too. The predicate is deliberately
+    NARROWER than the reserve's ``checker`` test: this mark belongs on spawn
+    tiles specifically, not on any zone tile.
+
+    Returns a list of labels (empty when nothing is missing)."""
     codes_by_slot = {}
     for code, entry in doc.legend.items():
         codes_by_slot.setdefault(entry["slot"], set()).add(code)
@@ -215,4 +406,21 @@ def map_requirement_warnings(doc):
                    for dr in range(2) for dc in range(2))
         if any(code not in buildable_codes for code in covered):
             warnings.append("buildable tiles under starting area")
+    if not doc.spawnable_background:
+        warnings.append("spawnable background tiles")
+    else:
+        zone_codes = {code for code, entry in doc.legend.items()
+                      if entry["checker"]}
+        if any(doc.terrain[row][col] in zone_codes
+               for (col, row) in doc.spawnable_background
+               if _in_bounds(doc, col, row)):
+            warnings.append("spawnable background on non-background tiles")
+    if not doc.despawnable_spawn:
+        warnings.append("despawnable spawn tiles")
+    else:
+        spawn_codes = codes_by_slot.get("tile_spawning", set())
+        if any(doc.terrain[row][col] not in spawn_codes
+               for (col, row) in doc.despawnable_spawn
+               if _in_bounds(doc, col, row)):
+            warnings.append("despawnable spawn on non-spawn tiles")
     return warnings

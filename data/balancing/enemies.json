@@ -20,11 +20,11 @@
       },
       {
         "batch_size": 4,
-        "spawn_interval": 0.54
+        "spawn_interval": 0.24
       },
       {
         "batch_size": 5,
-        "spawn_interval": 0.41000000000000003
+        "spawn_interval": 0.10999999999999999
       }
     ],
     "rounds_per_era": 10,
@@ -176,7 +176,7 @@
           "attack_speed": 1.4,
           "dmg": 320,
           "footprint": 2,
-          "hp": 2000,
+          "hp": 3000,
           "move_speed": 0.58,
           "name": "Cannon Fortress",
           "shake": {
@@ -412,8 +412,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 46,
-            "hp": 520,
+            "dmg": 50,
+            "hp": 525,
             "move_speed": 1.045
           }
         },
@@ -428,8 +428,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 66,
-            "hp": 590,
+            "dmg": 77,
+            "hp": 610,
             "move_speed": 1.245
           }
         },
@@ -444,8 +444,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.4,
-            "dmg": 91,
-            "hp": 675,
+            "dmg": 122,
+            "hp": 725,
             "move_speed": 1.445
           }
         }
@@ -640,8 +640,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 1.9,
-            "dmg": 116,
-            "hp": 360,
+            "dmg": 120,
+            "hp": 365,
             "move_speed": 1.145
           }
         },
@@ -656,8 +656,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 1.9,
-            "dmg": 136,
-            "hp": 430,
+            "dmg": 147,
+            "hp": 450,
             "move_speed": 1.345
           }
         },
@@ -672,8 +672,8 @@
           "stats": {
             "attack_range_tiles": 2,
             "attack_speed": 1.9,
-            "dmg": 161,
-            "hp": 515,
+            "dmg": 192,
+            "hp": 565,
             "move_speed": 1.545
           }
         }
@@ -756,8 +756,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 26,
-            "hp": 135,
+            "dmg": 30,
+            "hp": 140,
             "move_speed": 1.345
           }
         },
@@ -772,8 +772,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 46,
-            "hp": 205,
+            "dmg": 57,
+            "hp": 225,
             "move_speed": 1.545
           }
         },
@@ -788,8 +788,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 71,
-            "hp": 290,
+            "dmg": 102,
+            "hp": 340,
             "move_speed": 1.745
           }
         }

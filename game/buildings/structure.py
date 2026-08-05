@@ -19,6 +19,10 @@ defence) and are PASSIVE: no attack, no yield.
 Slot keys are FLAT (one slot per type, no ``_t{n}_lvl{n}`` suffix) to match the
 single ``blocker`` / ``wall_builder`` slots in ``data/slots.json`` — the prototype
 had no per-tier/level art for either. Grey-X until real art is imported.
+
+The WALLS a ``WallBuilder`` raises are a SEPARATE art family, though: the
+``walls`` slot category's 9 ``wall_t{n}_lvl{n}`` keys, resolved by
+``WallBuilder.wall_slot()`` and consumed duck-typed by ``game/map/wall_render.py``.
 """
 from .building import Building
 from .components import WallBuilderState
@@ -58,12 +62,38 @@ class WallBuilder(StructureBuilding):
     def _extra_components(self, tier0):
         return [WallBuilderState()]
 
+    # -- art slot for the WALLS this builder raises -----------------------
+    # (the BUILDER's own slot is the flat ``SLOT`` on ``StructureBuilding``
+    #  above — this is the second, per-tier/level slot family.)
+
+    def wall_slot(self):
+        """The ``walls`` slot key for the segments this builder currently owns
+        (``wall_t{tier}_lvl{level}``, both 1-based — the 9 keys in
+        ``data/slots.json``'s ``walls`` category).
+
+        WHY this lives in the BUILDING layer: the slot-key convention is a
+        building concern (exactly like ``Building.slot_key``, whose
+        ``_t{n}_lvl{n}`` shape this mirrors, reading the same ``TierState``
+        cursor — ``current_tier`` 0-indexed, ``current_level_in_tier``
+        1-indexed). ``game/map/wall_render.py`` reaches it DUCK-TYPED, as
+        ``edge.owner.wall_slot()``, so the map layer keeps importing NOTHING
+        from ``game.buildings`` — the same rule ``wall_hp()`` /
+        ``wall_snapshot()`` / ``building_type`` already follow.
+        """
+        ts = self._tier
+        return f"wall_t{ts.current_tier + 1}_lvl{ts.current_level_in_tier}"
+
     # -- computed stats (prototype ``WallBuilderBuilding``) ----------------
 
     def wall_hp(self):
-        """HP of each perimeter wall at the current tier. NOT on the ×10 combat
-        scale — read straight from balancing (prototype ``wall_hp`` property)."""
-        return int(self.tier_data()["wall_hp"])
+        """HP of each perimeter wall at the current tier AND level. NOT on the
+        ×10 combat scale — read straight from balancing (prototype ``wall_hp``
+        property), plus the per-LEVEL term ``wall_hp_per_level`` (also not ×10),
+        composed exactly like ``upkeep()`` below: base + level_idx × per_level.
+        Seeded to 0 in every tier, so by default this is the prototype's flat
+        per-tier value."""
+        d = self.tier_data()
+        return int(d["wall_hp"]) + self._lvl_idx * int(d["wall_hp_per_level"])
 
     def upkeep(self):
         d = self.tier_data()
@@ -87,9 +117,17 @@ class WallBuilder(StructureBuilding):
         tilemap.place_walls_for_builder(self)
 
     def _on_apply_stats(self):
-        """On a tier upgrade, lift every wall this builder owns to the new tier's
-        ``wall_hp`` (prototype ``_sync_wall_hp``). No-op before placement (no
-        tilemap cached yet) and in headless stat tests."""
+        """Resync every wall this builder owns to the current ``wall_hp()``, and
+        FULL-HEAL it (prototype ``_sync_wall_hp``, now matching
+        ``Building.apply_tier_stats``, which sets ``hp = max_hp`` on every
+        re-apply).
+
+        Fires on LEVEL upgrades as well as tier advances — ``apply_tier_stats``
+        always ran on both, but before ``wall_hp_per_level`` existed a level
+        upgrade could not change ``wall_hp()``, so only a tier advance was
+        observable. It can now, so the walls follow the builder's own
+        upgrade-heals-you rule at every step. No-op before placement (no tilemap
+        cached yet) and in headless stat tests."""
         tilemap = getattr(self, "_tilemap", None)
         if tilemap is None:
             return
@@ -97,4 +135,4 @@ class WallBuilder(StructureBuilding):
         for edge in getattr(tilemap, "wall_edges", {}).values():
             if edge.owner is self:
                 edge.max_hp = new_hp
-                edge.hp = min(edge.hp, new_hp)
+                edge.hp = new_hp

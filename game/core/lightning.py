@@ -125,7 +125,7 @@ def sync_level_from_tier(state, building):
         state.lightning_level = max(state.lightning_level, building.tier_number())
 
 
-def strike(state, core, vfx, scene, cs, wx, wy):
+def strike(state, core, vfx, scene, cs, wx, wy, on_hit=None):
     """Strike world point ``(wx, wy)`` (prototype ``_activate_lightning``,
     game.py:502-514 — feature-storm-acolyte-multi-build generalises it to
     every ready caster). Silent no-op (``False``) while locked or every
@@ -146,7 +146,15 @@ def strike(state, core, vfx, scene, cs, wx, wy):
     which stay ``core.json`` ``LightningStrike`` (unchanged by this phase),
     indexed by EACH FIRING BUILDING's own ``tier_number()`` rather than
     ``state.lightning_level`` — the run-wide level is a UI/gating signal
-    only now, never a damage source."""
+    only now, never a damage source.
+
+    ``on_hit`` (debug-mode-telemetry, optional — additive, ``None`` keeps
+    every existing caller byte-identical): called as ``on_hit(dmg)`` once per
+    enemy actually damaged, across every firing caster. Lightning earns no
+    ``RoundStats`` credit (no shooter), so this is the ONLY place a per-strike
+    damage/hit total can be counted — ``Session.lightning_strike`` sums it
+    into ``DebugRecorder.note_lightning``. Never changes what gets damaged or
+    by how much; it is a read of a value already about to be applied."""
     if not can_strike(state, scene):
         return False
     ls = core["LightningStrike"]
@@ -173,6 +181,8 @@ def strike(state, core, vfx, scene, cs, wx, wy):
             ex, ey = cs.world_to_screen(*enemy.transform.world_pos)
             if (ex - sx) ** 2 + (ey - sy) ** 2 <= radius_px ** 2:
                 enemy.get_component(Health).damage(dmg)
+                if on_hit is not None:
+                    on_hit(dmg)
         caster.cooldown = ls["cooldown"][idx]
         fx = LightningFX(wx, wy, radius_tiles, lp["bolt_life"], lp["marker_life"])
         fx.get_component(LightningFXFade)._scene = scene

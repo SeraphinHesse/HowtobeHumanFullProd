@@ -621,6 +621,30 @@ condition below.
   round-ending frame, so a wave ended early by a base breach can no longer
   swallow it (`game/core/CLAUDE.md`).
 
+## Telemetry seams in `components.py` (debug-mode-telemetry)
+Two module-level hooks, **`None` by default and installed by the HOST only at
+debug level >= 2** (`game/main.py` sets them around `scene.update()` and clears
+them straight after, so nothing can leak into the next caller). Both are
+OBSERVATION only — with either unset, `EnemyCombat.update()` is byte-identical
+to before they existed (one `is not None` check). They exist because
+`EnemyCombat.update(dt)` runs inside `Scene.update`'s generic component sweep,
+which the host calls BEFORE `resolve_combat` — so `resolve_combat`'s own
+`on_damage=` parameter physically cannot reach these two call sites. The
+precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
+- **`set_damage_hook(fn)`** — the enemy-attacks-a-blocking-building site,
+  fired at exactly the `RoundStats` credit line, with the SAME
+  `(attacker_kind, target_kind, dmg, target_hp_after)` shape
+  `resolve_combat(on_damage=…)` uses.
+- **`set_wall_damage_hook(fn)`** — the edge-WALL attack branch of the same
+  method (10E). It needs its own hook, not the one above: a wall is a
+  map-owned `WallEdge` with no `Health`, no `RoundStats` and no
+  `building_type`, and it spans an EDGE rather than sitting on a tile — so
+  the shape is `(attacker_kind, (c1, r1, c2, r2), dmg, hp_after, broke)`,
+  with `hp_after` read back through the public `TileMap.get_wall_between`
+  (a broken edge is deleted, so it reports 0). Wall damage is credited to
+  nothing and therefore appears in NO per-round telemetry column — it is
+  event-stream-only, deliberately.
+
 ## Rules
 - **`death_spawn` — the ONE death-spawn mechanic (ER-3, plan D4)**. Every
   `EnemyTypes/<type>` block carries a **required** `death_spawn` — **except the

@@ -77,6 +77,7 @@
       "slot": "deco_rock"
     }
   ],
+  "despawnable_spawn": [],
   "display_name": "4x4&Hole",
   "id": "holex",
   "legend": {
@@ -110,6 +111,7 @@
     }
   },
   "rows": 1024,
+  "spawnable_background": [],
   "start_area": {
     "col": 512,
     "row": 512,

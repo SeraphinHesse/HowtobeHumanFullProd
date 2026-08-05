@@ -995,6 +995,12 @@
           "maximum": 100000,
           "minimum": 0,
           "type": "integer"
+        },
+        "wall_hp_per_level": {
+          "description": "Extra HP per level above 1 for each wall segment this builder raises. NOT on the x10 combat scale (like wall_hp itself) -- read straight from balancing.",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
         }
       },
       "required": [
@@ -1009,7 +1015,8 @@
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level",
-        "wall_hp"
+        "wall_hp",
+        "wall_hp_per_level"
       ],
       "type": "object"
     }

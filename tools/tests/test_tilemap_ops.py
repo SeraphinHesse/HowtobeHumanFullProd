@@ -140,6 +140,14 @@ class TestRequirementWarnings(unittest.TestCase):
         ops.paint(doc, 4, 1, "c")
         ops.paint(doc, 5, 1, "s")
         doc.camera_start = {"col": 3, "row": 3, "slot": "camera_startpoint"}
+        # one spawnable-background mark on a BACKGROUND ("f") cell — a doc with
+        # no marks now carries the (non-blocking) empty-reserve warning, which
+        # test_empty_spawn_reserve_warns owns.
+        ops.set_reserve(doc, 7, 5, 1)
+        # one despawn mark on the SPAWNING ("s") cell — a doc with no despawn
+        # marks carries the (non-blocking) empty-despawn warning, which
+        # test_empty_despawnable_spawn_warns owns.
+        ops.set_despawn(doc, 5, 1, 1)
         return doc
 
     def test_missing_start_area_warns(self):
@@ -161,6 +169,20 @@ class TestRequirementWarnings(unittest.TestCase):
         self.assertNotIn("starting area", warnings)
         self.assertNotIn("buildable tiles under starting area", warnings)
         self.assertEqual(warnings, [])   # nothing else missing either
+
+    def test_empty_spawn_reserve_warns(self):
+        doc = self._playable_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        doc.spawnable_background.clear()
+        self.assertIn("spawnable background tiles",
+                      ops.map_requirement_warnings(doc))
+
+    def test_empty_despawnable_spawn_warns(self):
+        doc = self._playable_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        doc.despawnable_spawn.clear()
+        self.assertIn("despawnable spawn tiles",
+                      ops.map_requirement_warnings(doc))
 
 
 if __name__ == "__main__":

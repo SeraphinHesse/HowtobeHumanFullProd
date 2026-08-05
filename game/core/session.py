@@ -27,6 +27,7 @@ skips the whole sim, so nothing animates behind the window.
 import random
 
 from engine import era_math
+from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 
 from . import boss_bonuses as bb
 from . import levelup as lv
@@ -69,6 +70,11 @@ class Session:
         # (default) = normal rules, no notification (a bare Session built by a
         # logic test never gates/notifies).
         self.tutorial_director = None
+        # debug-mode-telemetry: optional DebugRecorder, host-set (the
+        # tutorial_director precedent) — None (default) means a bare Session
+        # built by a logic test is byte-identical; every emit site below is
+        # guarded on `self.debug is not None`. See game/core/CLAUDE.md.
+        self.debug = None
         self._wipe_pending = False
         # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
         # 10G single-slot `_boss_swarm_pending` generalised — several units can
@@ -174,7 +180,26 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return False
-        return lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy)
+        # debug-mode-telemetry: an optional per-hit collector, additive to
+        # lt.strike's signature (None keeps every other caller untouched —
+        # see game/core/lightning.py). note_lightning wants the STRIKE's
+        # total damage (per-enemy flat damage x hits), not a per-enemy figure.
+        hits = []
+        on_hit = (lambda dmg: hits.append(dmg)) if self.debug is not None else None
+        fired = lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy,
+                          on_hit=on_hit)
+        if self.debug is not None and fired:
+            total = sum(hits)
+            n = len(hits)
+            self.debug.note_lightning(total, n)
+            # No per-enemy `damage` field: several casters of DIFFERENT tiers
+            # can fire in one click, each with its own flat damage, so any
+            # single number here would be an average that no caster actually
+            # dealt. Report the two figures that are always true instead.
+            self.debug.emit(
+                dbg.LIGHTNING, level=st.lightning_level,
+                hits=n, total_damage=total, wx=wx, wy=wy)
+        return fired
 
     def cheat_add_love(self, amount):
         """``+10 Love`` / ``Infinite Money`` (prototype game.py:305, 313).
@@ -182,6 +207,8 @@ class Session:
         if self.state.state != GameState.GAMEPLAY:
             return
         self.state.add_love(amount)
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="add_love", amount=amount)
 
     def cheat_skip_round(self, scene):
         """``Skip Round`` — ``quick_skip_combat``'s body WITHOUT its ENEMY
@@ -198,6 +225,8 @@ class Session:
             scene.despawn(e)
         self.spawner.clear()
         self._wipe_pending = False
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="skip_round")
         self._begin_round_end()
 
     def cheat_goto_round(self, n, scene):
@@ -217,6 +246,8 @@ class Session:
         self._wipe_pending = False
         self.state.round_num = n
         self.state.phase = GamePhase.BUILDING
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="goto_round", round=n)
 
     def cheat_trigger_levelup(self):
         """``LEVEL UP`` (prototype ``_cheat_trigger_levelup``, game.py:1493-99):
@@ -228,6 +259,8 @@ class Session:
         if st.state != GameState.GAMEPLAY:
             return
         st.levelup_pending = True
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="trigger_levelup")
         if st.phase not in (GamePhase.ENEMY, GamePhase.LEVELUP):
             self._begin_levelup(run_income=False, return_phase=st.phase)
 
@@ -246,6 +279,8 @@ class Session:
             st.unlocked_buildings[bt] = True
             st.tiers_unlocked[bt] = len(
                 LEAF_CLASSES[bt]._resolve_tiers(self.buildings_balance))
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="unlock_all")
 
     # -- /10H ---------------------------------------------------------------
 
@@ -272,6 +307,21 @@ class Session:
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
+        # debug-mode-telemetry: the wave's composition has no other source —
+        # the recorder reads wave_size/enemy_tier off THIS event into the
+        # round row (game/debug/events.py). note_spawn counts every queued
+        # enemy as "spawned" (an exact wipe/quick-skip proxy is out of
+        # reach without instrumenting game/enemies, which is out of scope).
+        if self.debug is not None:
+            composition = {}
+            for _tile, etype in self.spawner.pending():
+                composition[etype] = composition.get(etype, 0) + 1
+            wave_size = sum(composition.values())
+            self.debug.note_spawn(wave_size)
+            self.debug.emit(
+                dbg.WAVE_START, wave_size=wave_size,
+                enemy_tier=self.spawner.enemy_tier, composition=composition,
+                love=st.love, lives=st.base_lives)
         # -- 10G boss: End-Turn snapshots + announcement marker --
         # Love snapshot EVERY round (the Boss3A damage base, prototype
         # game.py:838-839); on a boss round also snapshot lives (the cutscene's
@@ -320,7 +370,7 @@ class Session:
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
-                               self.occupancy, scene)  # -> INCOME
+                               self.occupancy, scene, self.debug)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -392,9 +442,14 @@ class Session:
         on both paths (prototype game.py:1501-1517)."""
         st = self.state
         lv.apply_levelup_option(st, option, self.core_balance)
+        if self.debug is not None:
+            self._emit_levelup_option(option)
         st.levelup_pending = False
         st.levelup_options = []
         xpmod.advance_village_level(st, self.core_balance)
+        if self.debug is not None:
+            self.debug.emit(dbg.LEVELUP, village_level=st.village_level,
+                            option=option.get("kind"), player_xp=st.player_xp)
         # -- 10H: the cheat return_phase path — NO payday --
         if not self._levelup_run_income:
             st.phase = self._levelup_return_phase or GamePhase.BUILDING
@@ -403,7 +458,25 @@ class Session:
             return
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
-                   self.occupancy, scene)  # -> INCOME
+                   self.occupancy, scene, self.debug)  # -> INCOME
+
+    def _emit_levelup_option(self, option):
+        """debug-mode-telemetry: the level-up reward IS the natural source of
+        the ``unlock``/``research`` events (a whole-type unlock or a type-wide
+        tier research) — distinct from ``building_ui.py``'s per-INSTANCE
+        tier-advance ``research`` event. Both are "a tier was researched /
+        advanced" per ``events.py``'s docstring."""
+        kind = option.get("kind")
+        cost = option.get("cost", 0)
+        if kind == "unlock_building":
+            self.debug.note_love_spent(cost, dbg.SPEND_UNLOCK)
+            self.debug.emit(dbg.UNLOCK, building_type=option.get("building_type"),
+                            cost=cost)
+        elif kind == "tier":
+            self.debug.note_love_spent(cost, dbg.SPEND_RESEARCH)
+            self.debug.emit(dbg.RESEARCH,
+                            building_type=option.get("building_type"),
+                            tier=option.get("tier_no"), cost=cost)
 
     # -- BOSS_CUTSCENE (10G) -----------------------------------------------
 
@@ -425,11 +498,14 @@ class Session:
         bb.apply_choice(st, (boss_num - 1) % 3, option)
         st.boss_choices.append((boss_num, option, outcome))
         st.pending_boss_cutscene = None
+        if self.debug is not None:
+            self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
+                            outcome=outcome)
         if st.levelup_pending:
             self._begin_levelup()
         else:
             run_payday(st, self.tilemap, self.core_balance,
-                       self.occupancy, scene)  # -> INCOME
+                       self.occupancy, scene, self.debug)  # -> INCOME
 
     # -- XP award sites (10A) ---------------------------------------------
 
@@ -475,8 +551,18 @@ class Session:
                 st.round_num)
         if charge:
             st.base_lives -= 1
+        if self.debug is not None:
+            # A base breach applies NO HP damage — note_base_hit tracks
+            # leaks/lives_lost separately, never fused with dmg_taken_buildings
+            # (game/debug/events.py).
+            self.debug.note_base_hit(waived=not charge)
+            self.debug.emit(dbg.BASE_HIT, etype=getattr(enemy, "ETYPE", None),
+                            waived=not charge, lives_after=st.base_lives)
         if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
+            if self.debug is not None:
+                self.debug.emit(dbg.GAME_OVER, kills=st.enemies_killed,
+                                buildings_placed=st.buildings_placed)
         else:
             self._wipe_pending = True
 
@@ -503,6 +589,12 @@ class Session:
             self.state.enemy_death_events.append(transform.world_pos)
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
+        if self.debug is not None:
+            self.debug.note_kill()
+            etype = getattr(enemy, "ETYPE", None)
+            xp = xpmod.xp_for_etype(etype or "standard", self.core_balance)
+            wx, wy = transform.world_pos if transform is not None else (None, None)
+            self.debug.emit(dbg.ENEMY_DEATH, etype=etype, xp=xp, wx=wx, wy=wy)
 
     # -- kidnapping (fed from resolve_combat's on_kidnap) -----------------
 
@@ -521,6 +613,13 @@ class Session:
         ``BuildingSprite`` — nothing here has to hide or free anything."""
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
+        if self.debug is not None:
+            self.debug.note_kidnap()
+            self.debug.emit(
+                dbg.KIDNAP, etype=getattr(enemy, "ETYPE", None),
+                building_type=getattr(building, "building_type", None),
+                col=getattr(building, "col", None),
+                row=getattr(building, "row", None))
 
     def _award_enemy_xp(self, enemy):
         amount = xpmod.xp_for_etype(getattr(enemy, "ETYPE", "standard"),

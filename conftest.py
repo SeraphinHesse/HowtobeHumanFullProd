@@ -91,6 +91,7 @@ TIERS = {
     "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
     "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
+    "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
@@ -127,6 +128,7 @@ TIERS = {
     "test_scenarios": "core",
     "test_scene_query": "core",
     "test_shell": "core",
+    "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
     "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",
@@ -145,6 +147,7 @@ TIERS = {
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
 }
 
 

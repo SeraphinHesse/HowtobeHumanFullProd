@@ -203,6 +203,32 @@ logic is `game/core` — see that doc.)
   `background_master` `GroundCache` underlay was cut before merge (it suppressed
   `BACKGROUND` tiles to show art through); `backgrounds` is a main-menu-only
   slot category. Do not reintroduce a world-art underlay.
+- **Debug-log activation (debug-mode-telemetry)**: `main_menu.py` grew a
+  `PLAY DEBUG` row (`play_debug` -> the new `"new_game_debug"` intent, which
+  the host executes by building a `DebugRecorder` before `build_gameplay()`)
+  and a small `SET` gear beside it (`play_debug_settings`, id
+  `btn_play_debug_settings`) opening **`game/ui/debug_settings.py`** — a
+  `settings.py`-shaped modal (`< value >` level cycler + four ON/OFF artifact
+  toggles + BACK) over a session-only `DebugSettings` dataclass, the
+  `SessionSettings` precedent. `cheat_menu.py` grew a matching `Debug Log`
+  row (`toggle_debug`, id `btn_toggle_debug`) that arms/disarms the recorder
+  mid-run; the panel is 30px taller for it.
+  - **The gear's modal is a MAIN_MENU OVERLAY, not a sixth menu state.** The
+    `Shell` holds `debug_settings_open`; `_main_menu_click` lets the modal
+    consume every click while it is up (so a click cannot fall through and
+    start a run), `_active_screen` returns it instead of the menu, and Esc
+    closes it. A new `GameState` member would have meant editing
+    `game/core/phases.py` for one screen reachable from exactly one place.
+  - **`debug_settings` is CODE-ONLY**: no `data/ui/screens/debug_settings.json`
+    and no `data/ui/screen_defaults.json` entry, and it is not in
+    `tools/export_ui_layouts.py`'s `SCREEN_IDS`. An absent override means
+    "code defaults" (`ScreenSkinning.apply` no-ops and id validation stays
+    silent until the defaults file names a screen), so it still carries a
+    proper `ids` dict and submission order and is a drop-in the day someone
+    exports it. The two screens that DID change (`main_menu`, `cheat_menu`)
+    required regenerating `data/ui/screen_defaults.json` and their two
+    `test_ui_skinning.py` golden entries — the sanctioned "a screen's default
+    geometry changed on purpose" path, never relaxing the pin.
 - **Deferred**: the settings audio slider is inert (no audio system beyond
   music). (The pause dim landed with 10J's HUD alpha.)
 

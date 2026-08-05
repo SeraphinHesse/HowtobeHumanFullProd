@@ -9,6 +9,9 @@ physically touches pygame or disk is returned to the host as an **intent
 string** (the established ``hit() -> "end_turn"`` convention):
 
   ``"new_game"``          build a fresh run          (host builds the world)
+  ``"new_game_debug"``    build a fresh run WITH a   (host builds the recorder
+                          DebugRecorder armed        from ``shell.debug_settings``,
+                                                     then the world)
   ``"quit_to_menu"``      tear the run down          (host drops the world)
   ``"quit_app"``          leave the game
   ``"set_display_mode"``  re-create the window       (host applies the mode)
@@ -23,6 +26,7 @@ from game.core.phases import GameState
 
 from .add_name import AddNameScreen
 from .credits import CreditsScreen
+from .debug_settings import DebugSettings, DebugSettingsScreen
 from .main_menu import MainMenu
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
@@ -48,6 +52,15 @@ class Shell:
         self.add_name_screen = AddNameScreen(view_w, view_h,
                                              skinning=self.skinning)
         self.pause = PauseScreen(view_w, view_h, skinning=self.skinning)
+        # debug-mode-telemetry: the PLAY DEBUG gear's modal. It is a MAIN_MENU
+        # OVERLAY, not its own ``GameState`` — a sixth menu state would have to
+        # be declared in ``game/core/phases.py``, and this screen is reachable
+        # from exactly one place, so a plain flag the screen lookup consults
+        # first keeps the enum (and every consumer of it) untouched.
+        self.debug_settings = DebugSettings()
+        self.debug_settings_screen = DebugSettingsScreen(
+            view_w, view_h, self.debug_settings, skinning=self.skinning)
+        self.debug_settings_open = False
         self.state = start_state
         self.settings_caller = GameState.MAIN_MENU
         self._pool_count = 0
@@ -112,7 +125,9 @@ class Shell:
             return self._add_name_action(
                 self.add_name_screen.handle_key(char, key))
         if key == "escape":
-            if st == GameState.SETTINGS:
+            if st == GameState.MAIN_MENU and self.debug_settings_open:
+                self.debug_settings_open = False  # debug-mode-telemetry
+            elif st == GameState.SETTINGS:
                 self.state = self.settings_caller
             elif st == GameState.CREDITS:
                 self.state = GameState.MAIN_MENU
@@ -121,9 +136,21 @@ class Shell:
         return None
 
     def _main_menu_click(self, mx, my):
+        # debug-mode-telemetry: while the gear's modal is up it consumes EVERY
+        # main-menu click (the in-round modal convention), so a click that
+        # lands on a menu button behind it can never start a run.
+        if self.debug_settings_open:
+            if self.debug_settings_screen.hit(mx, my) == "back":
+                self.debug_settings_open = False
+            return None
         action = self.main_menu.hit(mx, my)
         if action == "new_game":
             return "new_game"
+        if action == "play_debug":
+            return "new_game_debug"
+        if action == "play_debug_settings":
+            self.debug_settings_open = True
+            return None
         if action == "quit":
             return "quit_app"
         if action == "settings":
@@ -166,6 +193,11 @@ class Shell:
     # -- per-frame -------------------------------------------------------
 
     def _active_screen(self):
+        # debug-mode-telemetry: the gear's modal replaces the main menu while
+        # it is open (it is opaque and consumes every click, so drawing the
+        # menu under it would only cost fill rate).
+        if self.state == GameState.MAIN_MENU and self.debug_settings_open:
+            return self.debug_settings_screen
         return {
             GameState.MAIN_MENU: self.main_menu,
             GameState.SETTINGS: self.settings_screen,

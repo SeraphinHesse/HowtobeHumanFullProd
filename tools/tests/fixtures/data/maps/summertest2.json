@@ -192,6 +192,7 @@
       "slot": "deco_prop_1_v5"
     }
   ],
+  "despawnable_spawn": [],
   "display_name": "Summer Test 2",
   "id": "summertest2",
   "legend": {
@@ -245,6 +246,7 @@
     }
   },
   "rows": 1024,
+  "spawnable_background": [],
   "start_area": {
     "col": 512,
     "row": 512,

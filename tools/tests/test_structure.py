@@ -98,6 +98,32 @@ class TestStructureStats(unittest.TestCase):
         w.advance_tier()                                           # Wooden
         self.assertEqual(w.wall_hp(), WALLB[1]["wall_hp"])         # 120
 
+    def test_upgrade_full_heals_owned_walls_to_the_new_wall_hp(self):
+        # ``_on_apply_stats`` is a FULL-HEAL now (matching
+        # ``Building.apply_tier_stats``), and it fires on LEVEL upgrades too --
+        # ``wall_hp()`` carries a per-level term since ``wall_hp_per_level``.
+        tm, scene, occ = board(WALL_MAP)
+        w, _ = place_building(tm, tm.get(2, 1), "wall_builder", 9999, BUILD,
+                              scene, occ)
+        self.assertTrue(tm.wall_edges)
+        for edge in tm.wall_edges.values():
+            edge.hp = 1                                # chewed down mid-round
+
+        w.upgrade()                                    # lvl 2 -- same tier
+        lvl2_hp = w.wall_hp()
+        self.assertEqual(
+            lvl2_hp, WALLB[0]["wall_hp"] + WALLB[0]["wall_hp_per_level"])
+        for edge in tm.wall_edges.values():
+            self.assertEqual((edge.hp, edge.max_hp), (lvl2_hp, lvl2_hp))
+
+        for edge in tm.wall_edges.values():
+            edge.hp = 1
+        w.advance_tier()                               # Wooden -- new tier
+        tier2_hp = w.wall_hp()
+        self.assertEqual(tier2_hp, WALLB[1]["wall_hp"])   # back to level 1
+        for edge in tm.wall_edges.values():
+            self.assertEqual((edge.hp, edge.max_hp), (tier2_hp, tier2_hp))
+
     def test_wall_builder_flat_slot_key(self):
         self.assertEqual(WallBuilder(0, 0, BUILD).slot_key(), "wall_builder")
         self.assertEqual(Blocker(0, 0, BUILD).slot_key(), "blocker")

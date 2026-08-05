@@ -73,6 +73,10 @@ class ProjectileHoming(Component):
         self._assets = None
         self._cs = None
         self._on_hit = None
+        # debug-mode-telemetry (Phase 3): the optional level-2 damage
+        # callback, set by _fire — the same transient-ref pattern as
+        # _on_hit above.
+        self._on_damage = None
         # feat-projectile-anchored-flight: the COSMETIC lift fraction (E-11,
         # like _assets/_cs) — set by _fire from vfx_balance's
         # procedural.projectile.lift_frac, read by update() to resolve the
@@ -133,11 +137,21 @@ class ProjectileHoming(Component):
         # first" rule, extended to "or became untouchable first".
         if (target is not None and getattr(target, "alive", False)
                 and getattr(target, "targetable", True)):
-            target.get_component(Health).damage(self.dmg)
+            health = target.get_component(Health)
+            health.damage(self.dmg)
             if shooter is not None:
                 rs = shooter.get_component(RoundStats)
                 if rs is not None:
                     rs.dmg_dealt_this_round += self.dmg
+            # debug-mode-telemetry (Phase 3, level 2 only): fired at exactly
+            # the RoundStats credit site above. attacker is None when the
+            # shooter is gone (e.g. despawned mid-flight) — the null case is
+            # load-bearing, see resolve_combat's docstring.
+            on_dmg = getattr(self, "_on_damage", None)
+            if on_dmg is not None:
+                on_dmg(getattr(shooter, "building_type", None)
+                       if shooter is not None else None,
+                       getattr(target, "ETYPE", None), self.dmg, health.hp)
         # ESV-6: the projectile_hit trigger, at the TARGET's impact anchor.
         # Purely visual (D4) — reads nothing the damage block above wrote.
         # Fires whether or not the target is STILL alive this frame (a hit
@@ -200,6 +214,9 @@ class ProjectileArc(Component):
         # for it (the crater's continuous fade mark is not this phase's
         # concern). Set (or left None) by _fire_splash, transient (E-11).
         self._on_impact = None
+        # debug-mode-telemetry (Phase 3): the optional level-2 damage
+        # callback, set by _fire_splash — same transient-ref pattern.
+        self._on_damage = None
 
     def launch(self, gx, gy, shooter, scene, travel_time):
         self._gx, self._gy = gx, gy
@@ -222,6 +239,7 @@ class ProjectileArc(Component):
             return
         shooter = getattr(self, "_shooter", None)
         rs = shooter.get_component(RoundStats) if shooter is not None else None
+        on_dmg = getattr(self, "_on_damage", None)
         for enemy in scene.by_tag("enemy"):
             # BR-3/D2: splash passes over an untargetable second-phase boss.
             if (not getattr(enemy, "alive", False)
@@ -229,9 +247,17 @@ class ProjectileArc(Component):
                 continue
             ex, ey = _enemy_center_world(enemy)   # the body's centre (ER-2)
             if math.hypot(ex - self._gx, ey - self._gy) <= self.radius:
-                enemy.get_component(Health).damage(self.dmg)
+                health = enemy.get_component(Health)
+                health.damage(self.dmg)
                 if rs is not None:
                     rs.dmg_dealt_this_round += self.dmg
+                # debug-mode-telemetry (Phase 3, level 2 only): fired at
+                # exactly the RoundStats credit site above, once per enemy
+                # actually hit by the splash.
+                if on_dmg is not None:
+                    on_dmg(getattr(shooter, "building_type", None)
+                           if shooter is not None else None,
+                           getattr(enemy, "ETYPE", None), self.dmg, health.hp)
         crater = Crater(self._gx, self._gy, self.radius, self.crater_life)
         crater.get_component(CraterFade)._scene = scene
         scene.spawn(crater)
@@ -434,7 +460,7 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
                    on_base_hit=None, on_enemy_death=None, dmg_bonus=0,
                    assets=None, cs=None, on_splash_impact=None,
                    on_defender_fire=None, on_projectile_hit=None,
-                   on_kidnap=None):
+                   on_kidnap=None, on_damage=None):
     """``dmg_bonus`` (10G): a flat per-shot damage bonus every defender adds at
     fire time — the boss-bonus story damage (Boss1A/3A) crossing the package
     boundary as a plain int (the host computes it per frame from
@@ -481,7 +507,22 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
 
     ``on_kidnap(enemy, building)`` (Art/enemies): fed to every enemy whose
     ``Kidnap.pending`` was armed this frame by ``EnemyCombat`` — see
-    ``_resolve_kidnaps`` below."""
+    ``_resolve_kidnaps`` below.
+
+    ``on_damage`` (debug-mode-telemetry, optional, level-2 only — the
+    ``on_splash_impact`` pattern): forwarded to the three damage sites this
+    module owns (homing impact, mortar splash, beam), invoked as
+    ``on_damage(attacker_kind, target_kind, dmg, target_hp_after)`` at exactly
+    the place each site already credits ``RoundStats`` — never a new damage
+    application, never a reordering. ``attacker_kind`` is a
+    ``building.BUILDING_TYPE``/``enemy.ETYPE`` string or ``None`` when no
+    attacker is credited (e.g. a homing shot whose shooter despawned mid-
+    flight). ``None`` (every pre-Phase-3 caller) is a no-op — every existing
+    caller/test is byte-identical. The fourth site, an enemy attacking a
+    blocking building, lives in ``game/enemies/components.py`` — it runs
+    inside ``Scene.update`` (BEFORE this function is even called each frame),
+    so it cannot be reached through this parameter; see
+    ``components.set_damage_hook``."""
     globals_ = buildings_balance["DefenceBuildings"]["globals"]
     min_atk = globals_["min_attack_speed"]
     proj_speed = globals_["projectile_speed_tiles"]
@@ -504,7 +545,8 @@ def resolve_combat(scene, tilemap, dt, buildings_balance, vfx_balance,
     for defender in scene.by_tag("combat"):
         _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                          crater_life, dmg_bonus, assets, cs, on_splash_impact,
-                         on_defender_fire, on_projectile_hit, lift_frac)
+                         on_defender_fire, on_projectile_hit, lift_frac,
+                         on_damage)
 
     _resolve_kidnaps(scene, tilemap, on_kidnap)
 
@@ -543,7 +585,7 @@ def _resolve_kidnaps(scene, tilemap, on_kidnap=None):
 def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
                      crater_life, dmg_bonus=0, assets=None, cs=None,
                      on_splash_impact=None, on_defender_fire=None,
-                     on_projectile_hit=None, lift_frac=0.0):
+                     on_projectile_hit=None, lift_frac=0.0, on_damage=None):
     """``targets`` is ``[(enemy, footprint_offset), ...]`` — the offsets are
     resolved once per frame by ``resolve_combat`` (ER-2). ``assets``/``cs``
     (ESV-1) pass straight through to ``_fire``/``_fire_splash``; the beam
@@ -555,14 +597,15 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
     hit`` (ESV-6) passes only to ``_fire`` — the homing path — since the
     mortar's splash already has its own impact event. ``lift_frac``
     (feat-projectile-anchored-flight) passes only to ``_fire`` too — see
-    that module-level function's docstring."""
+    that module-level function's docstring. ``on_damage`` (debug-mode-
+    telemetry) passes to BOTH firing paths and to ``_update_beam``."""
     attacker = defender.get_component(Attacker)
     if attacker is None or not getattr(defender, "alive", True):
         return
     # Beam buildings have their OWN acquisition (highest-HP, death cooldown) and
     # tick model — handle them wholesale, then bail.
     if defender.get_component(BeamAttacker) is not None:
-        _update_beam(defender, targets, dt, dmg_bonus)
+        _update_beam(defender, targets, dt, dmg_bonus, on_damage)
         return
 
     center = (defender.col, defender.row)
@@ -594,14 +637,14 @@ def _update_defender(defender, scene, targets, dt, min_atk, proj_speed,
         if defender.get_component(SplashAttacker) is not None:
             _fire_splash(defender, target, scene, crater_life, dmg_bonus,
                         assets, cs, on_splash_impact, on_defender_fire,
-                        lift_frac)
+                        lift_frac, on_damage)
         else:
             _fire(defender, target, scene, proj_speed, dmg_bonus, assets, cs,
-                 on_defender_fire, on_projectile_hit, lift_frac)
+                 on_defender_fire, on_projectile_hit, lift_frac, on_damage)
         attacker.cooldown = attack_interval(defender, min_atk)
 
 
-def _update_beam(defender, targets, dt, dmg_bonus=0):
+def _update_beam(defender, targets, dt, dmg_bonus=0, on_damage=None):
     """The Sun Scorcher beam (prototype ``SunScorcherBuilding.update``): lock the
     highest-HP enemy in range, ramp damage while focused, reset the ramp on any
     target change, and pause re-acquiring for ``target_death_cooldown`` after a
@@ -645,10 +688,16 @@ def _update_beam(defender, targets, dt, dmg_bonus=0):
         beam.ramp = 0.0
         beam._ramp_target = target
     dmg = defender.damage() + int(beam.ramp) + dmg_bonus  # story bonus (10G)
-    target.get_component(Health).damage(dmg)
+    health = target.get_component(Health)
+    health.damage(dmg)
     rs = defender.get_component(RoundStats)
     if rs is not None:
         rs.dmg_dealt_this_round += dmg
+    # debug-mode-telemetry (Phase 3, level 2 only): fired at exactly the
+    # RoundStats credit site above.
+    if on_damage is not None:
+        on_damage(getattr(defender, "building_type", None),
+                  getattr(target, "ETYPE", None), dmg, health.hp)
     attacker.cooldown = max(BEAM_MIN_TICK, defender.attack_speed())
     if not getattr(target, "alive", False):     # killed this tick
         beam.ramp = 0.0
@@ -667,7 +716,7 @@ def _set_defender_anim(defender, name):
 
 def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
          cs=None, on_defender_fire=None, on_projectile_hit=None,
-         lift_frac=0.0):
+         lift_frac=0.0, on_damage=None):
     bx, by = defender.transform.world_pos
     # ESV-1 D4: the spawn point is COSMETIC (the muzzle anchor, art). Flight
     # time is computed by `launch(origin=...)` below from the UNMODIFIED
@@ -689,13 +738,14 @@ def _fire(defender, target, scene, proj_speed, dmg_bonus=0, assets=None,
     hom = proj.get_component(ProjectileHoming)
     hom._assets, hom._cs, hom._on_hit = assets, cs, on_projectile_hit
     hom._lift_frac = lift_frac
+    hom._on_damage = on_damage
     hom.launch(target, defender, scene, origin=(bx, by))
     scene.spawn(proj)
 
 
 def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                  assets=None, cs=None, on_splash_impact=None,
-                 on_defender_fire=None, lift_frac=0.0):
+                 on_defender_fire=None, lift_frac=0.0, on_damage=None):
     """Launch an arcing shell (prototype ``AOEDefenceBuilding._shoot``): aim a
     fixed ground point via predictive lead, load it with the current damage +
     splash radius, and let ``ProjectileArc`` resolve the splash on impact.
@@ -717,6 +767,10 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
     ``on_defender_fire`` (ESV-6, optional): fired immediately with the SAME
     muzzle-anchored ``(bx, by)`` the shell spawns at — never recomputed.
 
+    ``on_damage`` (debug-mode-telemetry, optional): stashed on the shell's
+    ``ProjectileArc`` and fired once per enemy the splash actually damages,
+    at the same site the ``RoundStats`` credit is applied.
+
     ``lift_frac`` (feat-projectile-anchored-flight): the shell spawns through
     the SAME ``projectile_point`` resolver ``_fire`` uses, so an un-anchored
     mortar keeps the screen-space lift that used to be added at DRAW time in
@@ -737,6 +791,7 @@ def _fire_splash(defender, target, scene, crater_life, dmg_bonus=0,
                           defender.splash_radius(), crater_life)
     arc = shell.get_component(ProjectileArc)
     arc._on_impact = on_splash_impact
+    arc._on_damage = on_damage
     arc.launch(gx, gy, defender, scene, AOE_TRAVEL_TIME)
     scene.spawn(shell)
 
