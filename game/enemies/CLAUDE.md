@@ -4,7 +4,9 @@
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
 here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider +
 SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
-`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`). When you
+`ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`); the
+sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
+**dormant** — see its section below. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
 `/add-enemy` skill.**
 
@@ -151,6 +153,43 @@ package (D7).
 - `dmg_bonus` (the 10G optional kwarg on
   `resolve_combat`, default 0) is the boss-bonus story damage crossing the
   boundary as a plain int, added at fire time in all three firing paths.
+
+## Commander (BR-2) — LIVE code, DORMANT data
+The boss's officer. **Nothing spawns it today** and that is the phase's whole
+invariant: BR-3 wires it to the boss's second phase.
+- **The subclass is four class attrs plus an HP-bar width** — `ETYPE
+  "commander"`, `REGISTRY_GROUP "Commander"`, `DEFAULT_SLOT
+  "commander_stage_1"`, `STAT_SUBTREE ("Commander",)`, `HP_BAR_W/H = 24, 2`
+  (siege-sized). No `__init__`, no `on_spawn`, **no `_resolve_stats`**, no
+  `_resolve_era`, no `EXTRA_TAGS` — so no `"boss"` scene tag and therefore no
+  camera shake and no boss HUD bar, both of which key off that tag.
+- **It is a NORMAL era type** (D8): the base `STAT_SUBTREE`-driven resolver
+  reads its own `EnemyTypes.Commander.eras` rows, and `footprint` /
+  `sprite_scale` stay FLAT at its root — the Boss is still the ONE type whose
+  render fit is per-era (BR-1), and `Boss._resolve_stats` is still the ONE
+  surviving override in the module. Do not add one here.
+- **It hunts buildings like the Boss with no boss-specific code**: `hunts:
+  "any_non_base"` is all it takes — the generic `Enemy.on_spawn` runs the
+  goal-set query, arms `PathAgent.repath_on_kill` and calls `adopt_goal`
+  (so `goal_is_base` is False while any non-base building stands). Same
+  collapse that deleted `Boss.on_spawn` in Chunk 4.
+- **Dormancy is DATA, in two independent places**, and both must stay 0 for
+  BR-2 to hold: every `eras[]` row's `count_start`/`count_per_round`
+  (so `Spawner._commander_group` emits nothing and draws no rng), and every
+  `$defs/spawn_counts` row's `commander` (BR-1 added the key at 0 to all 14).
+  Every schedule key exists, so switching it on is a data edit alone.
+- **`_commander_group` is called LAST in `_compose`, after
+  `_formation_group`** — the same rule the Formation follows: an earlier call
+  site shifts every other group's rng draw sequence and moves the
+  deterministic wave fixtures. Measured: rounds 0–60 composed on the real
+  `Spawner` are byte-identical to BR-1 (12,659 queue entries).
+- **`spawn_death_swarm`'s `_SWARM_TYPES` deliberately has no `commander` row
+  yet** — a non-zero `commander` count therefore spawns nothing. That is
+  BR-3's wiring, not an oversight.
+- No manifest rows: its four `data/slots.json` era slots
+  (`commander_stage_1..4`) ship art-less, which is the normal grey-X
+  placeholder state (a slot with no `asset_manifest.json` entry is legal and
+  common). Real art lands via `/replace-visual`.
 
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`

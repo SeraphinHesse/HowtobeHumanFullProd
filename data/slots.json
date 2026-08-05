@@ -502,6 +502,35 @@
             }
           ],
           "label": "Boss"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "commander_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "commander_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "commander_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "commander_stage_4"
+              ]
+            }
+          ],
+          "label": "Commander"
         }
       ],
       "key": "enemies"

@@ -32,8 +32,8 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Boss, Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
-    attack_interval, create_enemy, resolve_combat,
+    Boss, Commander, Enemy, Formation, Projectile, Raider, SiegeCannon,
+    Spawner, attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
 from game.enemies.components import EnemyCombat, PathAgent
@@ -962,6 +962,40 @@ class TestFormationBreak(unittest.TestCase):
                 ENEM["EnemyTypes"][child]["death_spawn"]["at_hp_fraction"])
 
 
+class TestCommander(unittest.TestCase):
+    """BR-2/D8 — the Commander ships DORMANT. Two pins only: it resolves its
+    OWN era rows through the base resolver (no `_resolve_stats` override), and
+    it contributes nothing to any wave at the shipped values."""
+
+    def test_stats_come_from_its_own_block_via_the_base_resolver(self):
+        cmd0 = era_stats("Commander")
+        tm = synth(["bbs"])
+        c = create_enemy("commander", 2, 0, ENEM, tm, 0)
+        self.assertIsInstance(c, Commander)
+        self.assertIsNone(Commander.__dict__.get("_resolve_stats"),
+                          "D8: the Commander must use the BASE per-era "
+                          "resolver — the Boss's is the one override left")
+        self.assertEqual(c.get_component(Health).hp, cmd0["hp"])
+        self.assertEqual(c.dmg, cmd0["dmg"])
+        self.assertAlmostEqual(c.get_component(Movement).speed,
+                               cmd0["move_speed"])
+        self.assertNotEqual(cmd0["hp"], STD0["hp"])      # the fixture is real
+        # A building hunter with a siege-sized bar and no boss tag (D8).
+        self.assertEqual(c.get_component(PathAgent).hunt, "any_non_base")
+        self.assertEqual((Commander.HP_BAR_W, Commander.HP_BAR_H), (24, 2))
+        self.assertNotIn("boss", c.tags)
+
+    def test_contributes_zero_to_every_wave_at_the_shipped_values(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (0, 1, 6, 10, 14, 30, 60):
+            with self.subTest(round=rnd):
+                self.assertEqual(expected_count("Commander", rnd), 0)
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                self.assertEqual(
+                    [e for _, e in sp.pending() if e == "commander"], [])
+
+
 class TestRegistryGroupDrift(unittest.TestCase):
     """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
     required `registry_group` leaf (added so the editor can resolve a slot's
@@ -973,7 +1007,8 @@ class TestRegistryGroupDrift(unittest.TestCase):
     for whichever type moved."""
 
     def test_registry_group_matches_data_for_every_enemy_subclass(self):
-        for cls in (Enemy, Raider, SiegeCannon, Formation, Boss):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Commander,
+                    Boss):
             block = ENEM["EnemyTypes"]
             for seg in cls.STAT_SUBTREE:
                 block = block[seg]

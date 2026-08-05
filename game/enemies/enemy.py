@@ -319,6 +319,35 @@ class Formation(Enemy):
     HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
 
 
+class Commander(Enemy):
+    """The Commander (BR-2, plan D8) — the boss's officer, DORMANT as shipped.
+
+    A building hunter like the Boss (``hunts: "any_non_base"`` routes it
+    through the generic ``Enemy.on_spawn``, which arms
+    ``PathAgent.repath_on_kill`` and calls ``adopt_goal`` — so
+    ``goal_is_base`` is False while any non-base building stands), sized like
+    a walker (``footprint`` 1) with a siege-sized 24×2 overhead bar, and
+    carrying NEITHER camera shake NOR the ``"boss"`` scene tag.
+
+    **Deliberately no ``_resolve_stats`` override** (D8): it is a normal
+    era-shaped type, so the base ``STAT_SUBTREE``-driven resolver reads its own
+    ``EnemyTypes.Commander.eras`` rows. The Boss's is the ONE surviving
+    override in this module; ``game/enemies/CLAUDE.md`` used to document
+    Formation's pre-ES-2 override as mandatory, so a reader may still expect
+    one here — there is none, and there must not be.
+
+    Nothing spawns it yet: every era row ships ``count_start`` /
+    ``count_per_round`` at 0, so ``Spawner._commander_group`` emits zero, and
+    every ``spawn_counts`` row's ``commander`` is 0. BR-3 wires it to the
+    boss's second phase."""
+
+    ETYPE = "commander"
+    REGISTRY_GROUP = "Commander"
+    DEFAULT_SLOT = "commander_stage_1"
+    STAT_SUBTREE = ("Commander",)
+    HP_BAR_W, HP_BAR_H = 24, 2       # siege-sized (D8), no boss 48×4 bar
+
+
 class Boss(Enemy):
     """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
     clock (the spawner passes it like every other type), clamped to its own
@@ -402,6 +431,7 @@ ENEMY_CLASSES = {
     "raider": Raider,
     "siege": SiegeCannon,
     "formation": Formation,
+    "commander": Commander,
     "boss": Boss,
 }
 

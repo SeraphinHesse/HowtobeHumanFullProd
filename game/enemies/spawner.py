@@ -8,7 +8,9 @@ boss round (the era clock's ``boss_round_in_era``) composes ``[boss] + ALL
 siege + shuffle(standard + raiders)`` from the ``round_counts`` table (falling
 back to the normal per-type era-row counts beyond it), and the boss entry's era
 is its own. Formations join since ER-4 (from ``Formation.start_round``, mixed
-into the shuffled body — never leading the queue, never on a boss round).
+into the shuffled body — never leading the queue, never on a boss round). The
+Commander's branch exists since BR-2 but is DORMANT: its era rows carry zero
+counts, so it never enters a normal wave (BR-3 gives it its real entrance).
 
 Since ES-2 every count and the spawn interval come from the ONE era clock in
 ``EnemyScaling`` (``rounds_per_era`` / ``boss_round_in_era``) resolved through
@@ -39,6 +41,10 @@ ENABLE_RAIDERS = True
 ENABLE_SIEGE = True
 ENABLE_BOSS = True
 ENABLE_FORMATION = True
+# BR-2: the Commander branch is LIVE but emits nothing — its era rows ship
+# count_start/count_per_round at 0 (D8), so it never enters a normal wave. BR-3
+# gives it its real entrance, the boss's second phase.
+ENABLE_COMMANDER = True
 
 # spawn_counts key -> the etype it spawns. The iteration ORDER is load-bearing:
 # it fixes how many draws each burst takes from the injected `rng` (variant
@@ -217,9 +223,11 @@ class Spawner:
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
-        ``_formation_group`` is called LAST on purpose: every earlier group's
-        rng draw sequence then stays byte-identical, so the standard/raider/
-        siege counts and picks are unchanged at every round.
+        ``_formation_group`` and then ``_commander_group`` are called LAST on
+        purpose, newest last: every earlier group's rng draw sequence then
+        stays byte-identical, so the standard/raider/siege counts and picks are
+        unchanged at every round. (The Commander draws nothing at all today —
+        its counts are 0 — so BR-2 is provably wave-neutral.)
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
         FIRST, before the boss check (``era_math.is_boss_round`` is already
@@ -247,8 +255,9 @@ class Spawner:
         siege_front, siege_mixed = self._siege_groups(
             round_num, balance, spawn_tiles)
         formations = self._formation_group(round_num, balance, spawn_tiles)
+        commanders = self._commander_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed + formations
+        rest = regular + raiders + siege_mixed + formations + commanders
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -320,6 +329,23 @@ class Spawner:
             return []
         n = self._count_of(balance, "Formation", round_num)
         return [(self._pick_spawn_tile(spawn_tiles, "formation"), "formation")
+                for _ in range(n)]
+
+    def _commander_group(self, round_num, balance, spawn_tiles):
+        """Commanders from the shared count formula — ZERO at the shipped
+        values (BR-2/D8: every era row's ``count_start``/``count_per_round`` is
+        0), so this returns an empty list on every round and consumes no rng.
+
+        It exists so switching the Commander into normal waves is a data edit
+        alone. Called LAST in ``_compose`` (after ``_formation_group``) for the
+        same reason the Formation was: an earlier call site would shift every
+        other group's rng draw sequence and move the deterministic wave
+        fixtures. Its real entrance — the boss's second phase — is BR-3 and
+        does not come through here."""
+        if not ENABLE_COMMANDER:
+            return []
+        n = self._count_of(balance, "Commander", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "commander"), "commander")
                 for _ in range(n)]
 
     def _build_queue(self, combined, scaling):

@@ -209,7 +209,12 @@ validating writer; don't hand-edit the JSON.
   - **`$defs/spawn_counts` gained a required `commander` key (BR-1/D3)** — the
     `$def` is SHARED by every `death_spawn.spawns` row and by
     `Boss.round_counts`, so all 14 committed rows now carry `commander: 0`.
-    Nothing reads it yet (the Commander enemy type arrives in BR-2); widening
+    The Commander enemy type itself landed in **BR-2** —
+    `EnemyTypes.Commander`, a normal era-shaped block (its own `eras[]` rows,
+    `endgame_scaling`, flat `footprint`/`sprite_scale`, `registry_group
+    "Commander"`, four `commander_stage_*` slots in `slots.json`) shipped
+    DORMANT: every era row's `count_start`/`count_per_round` is 0, so it never
+    enters a wave, and every `commander` count above is still 0. Widening
     the shared `$def` was chosen deliberately over a boss-only count table,
     overriding the standing argument against it in `game/enemies/CLAUDE.md`.
 - **The parity gate is GONE, and balancing values are now free.** The migration
