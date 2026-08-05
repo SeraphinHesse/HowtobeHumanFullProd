@@ -35,23 +35,41 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   mutating the shared map doc (a new game builds a fresh TileMap → empty
   overrides → pristine terrain). BUILT/BACKGROUND have no code and never
   write an override.
-- **The designer-painted RESERVE outranks the implicit recede.** There are two
-  ways the spawn band moves, and `do_unlock` runs them in a fixed order. Every
-  successful unlock bumps `_unlock_purchases`, then `_release_spawn_reserve(n)`
-  flips every tile the map painted with `purchase == n` from BACKGROUND to
-  SPAWNING (`spawnable_background`, `data/CLAUDE.md` — an invisible overlay the
-  game never draws). ONLY THEN, and only if `_unlock_purchases >
-  _reserve_max` **and** `map.json` `TileUnlocking.spawn_recede_enabled`, does
-  the old dual-axis recede below fire. Consequences worth knowing: the `>` (not
-  `>=`) keeps the old rule off on the very purchase that releases the LAST
-  batch; a map with no marks has `_reserve_max == 0`, so the guard is true from
-  the first purchase and behaviour is bit-for-bit what it always was; and
-  `spawn_recede_enabled: false` disables the old rule permanently without
-  touching the reserve. `_reserve` is built in `__init__` by ONE pass over the
-  MARKS (never over the map — the O(strip)-never-O(map) rule below). A mark on
-  a tile that is no longer BACKGROUND (the designer repainted over it) is
-  skipped silently but still counts as released, so the reserve always
-  exhausts and can never wedge the old rule off forever.
+- **The designer-painted MARKS outrank the implicit recede, in FOUR ordered
+  stages.** `do_unlock` runs them in a fixed order on every successful unlock,
+  after bumping `_unlock_purchases`:
+  1. `_release_spawn_reserve(n)` flips every tile the map painted with
+     `purchase == n` from BACKGROUND to SPAWNING (`spawnable_background`,
+     `data/CLAUDE.md` — an invisible overlay the game never draws).
+  2. `_despawn_spawn_reserve(n)` flips every tile the map painted with
+     `purchase == n` in the sibling overlay (`despawnable_spawn`) from
+     SPAWNING to COMBAT — the released tiles' scheduled death, and the reason
+     a designer can hand-author the whole band's life cycle.
+  3. Only once `_unlock_purchases > _scripted_max` (`max(_reserve_max,
+     _despawn_max)` — the purchase after which no painted mark of EITHER kind
+     can fire): `_retire_spawn_reserve()` retires ONE `spawnable_background`
+     batch, ascending `n`, per further purchase (`_retire_batches` =
+     `sorted(_reserve)`, `_retire_cursor` = how many are spent), flipping that
+     batch's cells SPAWNING → COMBAT. The tiles the reserve released die in
+     the order they were born. **Only reserve-released cells are eligible** —
+     legend-painted `s` tiles are never touched here; the implicit recede
+     still owns those.
+  4. `elif` the retire batches are spent too **and** `map.json`
+     `TileUnlocking.spawn_recede_enabled`: the old dual-axis recede below.
+  Consequences worth knowing: the `>` (not `>=`) keeps the implicit rule off on
+  the very purchase that fires the LAST painted mark; the `elif` means a
+  purchase that retires a batch is itself the whole move, exactly as a purchase
+  that releases one is; **a map with no marks of EITHER kind has
+  `_scripted_max == 0` and an empty `_retire_batches`, so the guard is true from
+  the first purchase and the `elif` falls straight through — behaviour is
+  bit-for-bit what it always was**; and `spawn_recede_enabled: false` disables
+  the old rule permanently without touching either overlay. `_reserve` and
+  `_despawn` are both built in `__init__` by ONE pass over the MARKS (never
+  over the map — the O(strip)-never-O(map) rule below). A mark whose tile is
+  not in the expected state (the designer repainted over it, an earlier stage
+  claimed it) is skipped silently but still counts as fired, so both mark sets
+  and the retire stage always exhaust and can never wedge the old rule off
+  forever.
 - **Spawn recede is DUAL-AXIS and backfills strictly BEHIND** (the old,
   implicit rule — gated as above): a successful
   unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk

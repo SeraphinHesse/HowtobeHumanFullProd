@@ -54,14 +54,16 @@ REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
 EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial",
-        "spawn_reserve")
-MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve")
+        "spawn_reserve", "despawnable_spawn")
+MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve",
+         "despawnable_spawn")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
     "decoration": "Decoration",
     "tutorial": "Tutorial",
     "spawn_reserve": "Spawnable Background",
+    "despawnable_spawn": "Despawnable Spawn",
 }
 
 
@@ -82,6 +84,8 @@ class PalettePanel(QWidget):
     tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
     spawn_reserve_armed = Signal()      # the spawnable-background brush (no slot)
     reserve_number_changed = Signal(int)  # the purchase number marks carry
+    despawn_armed = Signal()            # the despawnable-spawn brush (no slot)
+    despawn_number_changed = Signal(int)  # the purchase number marks carry
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -221,6 +225,28 @@ class PalettePanel(QWidget):
         self._reserve_spin.valueChanged.connect(self.reserve_number_changed.emit)
         reserve_layout.addWidget(self._reserve_spin)
 
+        # despawnable-spawn page: the exact twin of the page above, over the
+        # despawnable_spawn overlay (SPAWNING -> COMBAT on the nth purchase).
+        despawn_layout = self._pages["despawnable_spawn"][2]
+        self._despawn_btn = QToolButton(self)
+        self._despawn_btn.setText("Spawn Despawn Mark")
+        self._despawn_btn.setToolTip(
+            "Paint invisible despawnable-spawn marks: every mark numbered n "
+            "turns from SPAWNING to COMBAT on the player's nth tile purchase")
+        self._despawn_btn.setCheckable(True)
+        self._despawn_btn.clicked.connect(
+            lambda _=False: self.arm_despawn())
+        self._brush_group.addButton(self._despawn_btn)
+        despawn_layout.addWidget(self._despawn_btn)
+
+        despawn_layout.addWidget(QLabel("Retired on tile purchase #"))
+        lo, hi = self._despawn_number_bounds()
+        self._despawn_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._despawn_spin.setRange(lo, hi)
+        self._despawn_spin.setValue(lo)
+        self._despawn_spin.valueChanged.connect(self.despawn_number_changed.emit)
+        despawn_layout.addWidget(self._despawn_spin)
+
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
@@ -306,6 +332,15 @@ class PalettePanel(QWidget):
         is unrepresentable (ED-30) and the bounds have exactly one home."""
         schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
         purchase = (schema["properties"]["spawnable_background"]
+                    ["items"]["properties"]["purchase"])
+        return purchase["minimum"], purchase["maximum"]
+
+    def _despawn_number_bounds(self):
+        """(minimum, maximum) for the despawn purchase-number spinbox, read
+        straight from map_file.schema.json's despawnable_spawn item — mirrors
+        _reserve_number_bounds (ED-30, one home for the bounds)."""
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        purchase = (schema["properties"]["despawnable_spawn"]
                     ["items"]["properties"]["purchase"])
         return purchase["minimum"], purchase["maximum"]
 
@@ -606,6 +641,8 @@ class PalettePanel(QWidget):
                 self.arm_tutorial_flute(flutes[0])
         elif self._mode == "spawn_reserve":
             self.arm_spawn_reserve()
+        elif self._mode == "despawnable_spawn":
+            self.arm_despawn()
         else:
             decos = self._deco_slots()
             if decos:
@@ -720,6 +757,21 @@ class PalettePanel(QWidget):
         code_picked -> arm_code). Out-of-range values clamp in QSpinBox."""
         self._reserve_spin.setValue(int(n))
 
+    def armed_despawn(self):
+        """True while the Despawnable Spawn brush is armed — the exact twin of
+        armed_spawn_reserve (a bool, not a slot: a mark is an overlay, not a
+        sprite)."""
+        return self._despawn_btn.isChecked()
+
+    def despawn_number(self):
+        """The purchase number newly painted despawn marks carry."""
+        return self._despawn_spin.value()
+
+    def set_despawn_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        set_reserve_number). Out-of-range values clamp in QSpinBox."""
+        self._despawn_spin.setValue(int(n))
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -795,6 +847,13 @@ class PalettePanel(QWidget):
         so this disarms EVERY other brush, tutorial markers included."""
         self._spawn_reserve_btn.setChecked(True)
         self.spawn_reserve_armed.emit()
+
+    def arm_despawn(self):
+        """Arm the Despawnable Spawn brush (paint = mark with the spinbox's
+        number, erase = clear the mark). Shares the one exclusive brush group,
+        so this disarms EVERY other brush, the spawn-reserve mark included."""
+        self._despawn_btn.setChecked(True)
+        self.despawn_armed.emit()
 
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot

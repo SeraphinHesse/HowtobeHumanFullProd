@@ -7,6 +7,7 @@
   "camera_start": null,
   "cols": 512,
   "deco": [],
+  "despawnable_spawn": [],
   "display_name": "Test2",
   "id": "test2",
   "legend": {

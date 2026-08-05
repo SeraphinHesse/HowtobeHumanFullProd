@@ -11,6 +11,7 @@
   },
   "cols": 1024,
   "deco": [],
+  "despawnable_spawn": [],
   "display_name": "Test",
   "id": "test",
   "legend": {

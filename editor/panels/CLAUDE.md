@@ -592,6 +592,33 @@ import list.**
     non-background tiles"` (a mark on a legend code with `checker: true`, i.e.
     a ZONE code — the runtime only flips BACKGROUND tiles, so such a mark is a
     silent no-op).
+- **Despawnable Spawn (1 brush + a number)**: a SIXTH mode page
+  (`palette.MODES`/`EYES` gain `"despawnable_spawn"`, labelled "Despawnable
+  Spawn" via `MODE_LABELS`) — an **exact structural sibling of the spawn-reserve
+  page above**, deliberately copied rather than generalised. It paints
+  `TileMapDoc.despawnable_spawn` (`{(col,row): purchase}`, phase 1); the runtime
+  flips every cell numbered n from SPAWNING to COMBAT on the player's nth 2×2
+  purchase. Everything the reserve bullet says applies verbatim with the names
+  swapped: plain-TEXT brush button in the same exclusive `_brush_group` and
+  deliberately NOT in `self._brush_buttons` (no slot to resolve, so
+  `armed_despawn()` returns a **bool**); a `_NoWheelSpinBox` bounded by
+  `map_file.schema.json`'s own `despawnable_spawn.items.purchase`
+  (`_despawn_number_bounds`); pure ops `set_despawn`/`despawn_line`/
+  `despawn_rect`/`despawn_bucket`/`apply_despawn_changes`/`pick_despawn` with
+  the same `(col,row,old,new)` tuples, `despawn_bucket` flooding the underlying
+  TERRAIN region; `map_session._DespawnStrokeCommand`/`push_despawn_stroke`; a
+  `_tool_press` branch beside the reserve one and likewise BEFORE the
+  terrain-code branches; `_submit_despawn`, a window-culled overlay diamond +
+  `HudText` number.
+  - **Two deliberate divergences from the reserve twin.** (1) The overlay draws
+    in `DESPAWN_COLOR` **magenta** against the reserve's cyan `RESERVE_COLOR`,
+    and its number sits *below* the tile centre rather than above — a cell can
+    legitimately carry BOTH marks and the designer must tell them apart at a
+    glance. (2) The "wrong tile" warning predicate is **narrower**:
+    `map_requirement_warnings` compares against the `tile_spawning` SLOT's
+    legend codes (`"despawnable spawn on non-spawn tiles"`), not the reserve's
+    `checker` zone test — flipping SPAWNING → COMBAT is meaningless anywhere but
+    a spawn tile. The empty-overlay label is `"despawnable spawn tiles"`.
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the

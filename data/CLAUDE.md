@@ -520,6 +520,17 @@ validating writer; don't hand-edit the JSON.
   and is the "no reserve painted" state — existing maps were migrated to
   `"spawnable_background": []`. Runtime precedence → `game/map/CLAUDE.md`;
   the brush → `editor/panels/CLAUDE.md`.
+- **`despawnable_spawn` — the designer-authored despawn schedule.** The exact
+  sibling of `spawnable_background` above, same shape (`{col, row, purchase}`
+  marks, `purchase` 1..1000), same invisibility (no render emitter touches it),
+  same on-disk list sorted by (row, col) / in-memory
+  `{(col, row): purchase}` dict on `TileMapDoc`, same `validate_doc`
+  bounds check. It is painted on SPAWNING tiles and every mark numbered n flips
+  its tile SPAWNING → COMBAT on the player's nth tile purchase. An empty array
+  is the "no despawn schedule painted" state — existing maps were migrated to
+  `"despawnable_spawn": []`. Runtime precedence (including the third,
+  retire-the-reserve stage that runs once BOTH mark sets are exhausted) →
+  `game/map/CLAUDE.md`.
 - **`balancing/map.json` `TileUnlocking.spawn_recede_enabled`** (bool, default
   `true`) is the master switch for the OLD implicit recede rule only — `false`
   and the band never recedes on unlock, whatever the reserve state. It does not
