@@ -26,13 +26,14 @@ Four files beside `balance.py`:
   sweep → duck-typed `upkeep` sweep (clamp 0) → **[slot 6: Painter payout]** →
   revive sweep (`rebuild()` on non-base, base excluded) → round++ → phase=INCOME.
   **Do not reorder without the user.**
-  - **10G filled slot 3** (the last reserved no-op): the Boss1B/3B story
-    payouts via `boss_bonuses.boss1b_income`/`boss3b_income` — AFTER the
-    RoundStats snapshot (Boss3B reads the `dmg_dealt_last_round` it just
-    rolled), BEFORE base income, paid silently (NO floater). The Boss2A/2B
-    per-recipient deltas fold into each `amount` INSIDE the existing step-4
-    income sweep (`defence_count`/`aoe_count` computed once, NO alive filter on
-    the counts), so floaters, totals and the HUD readout stay in lockstep.
+  - **10G filled slot 3** (the last reserved no-op), and the boss-upgrade
+    rework re-pointed it: ONE `boss_bonuses.love_bonus_income(state, tilemap,
+    core_balance)` call — the Boss2A/2B story love — still AFTER the RoundStats
+    snapshot, still BEFORE base income, still paid silently (NO floater). **The
+    slot's ORDINAL POSITION is unchanged.** Step 4's income sweep carries NO
+    boss fold-in any more: the old per-recipient Boss2A/2B deltas (and
+    `defence_count`/`aoe_count`) are DELETED — both income bonuses are
+    whole-board sums now, so nothing folds into per-recipient yields.
   - **10E filled slots 8 + 10**: `_process_wall_teardown` (slot 8, BEFORE revive)
     tears down every DEAD `wall_builder`'s perimeter (`tilemap.remove_walls_for_builder`)
     — seen as `alive == False` at this point, same as painters/boosts; `tilemap.rebuild_walls()`
@@ -52,8 +53,9 @@ Four files beside `balance.py`:
     this round's true `dmg_*_this_round`, and the potential ledger can see
     which occupants died during the wave); `debug.on_payday_story(state)`
     runs immediately AFTER step 3 (story_income is measured as the exact
-    love delta across that one step, since the Boss1B/3B payouts leave no
-    `income_events` trace); `debug.on_payday_end(state, tilemap)` runs
+    love delta across that one step, since the slot-3 payout leaves no
+    `income_events` trace — this stays correct for free across the
+    boss-upgrade rework); `debug.on_payday_end(state, tilemap)` runs
     immediately AFTER step 6 (painters) — BEFORE steps 7-11 — so
     `income_events` holds base + yields + upkeep + painter payouts while
     `round_num` is still pre-increment. `debug=None` (every pre-existing
@@ -259,17 +261,39 @@ in `game/ui/CLAUDE.md`.
   and the `1`/`2`/`3` + `P` keys only, so `toggle_pause` currently has no key bound
   to it.
 
-## Boss cutscene + bonuses (Phase 10G)
-- **`boss_bonuses.py`** (pure) — the prototype's `boss_bonuses.py` WITHOUT its
-  global singleton: the six stack counters live in `RunState.boss_stacks`
-  (fresh run = fresh RunState = the reset). `BOSS_CHOICES`/`choice_desc` carry
-  the exact A/B UI copy; `apply_choice(state, (boss_num-1)%3, option)` stacks;
-  `story_damage_bonus` (Boss1A per-BUILDABLE-tile + Boss3A per-10-love of the
-  End-Turn snapshot) is the flat int the HOST threads into
-  `resolve_combat(dmg_bonus=…)` each frame; `boss1b_income`/`boss3b_income`
-  are payday slot 3; `defence_count`/`aoe_count` the Boss2A/2B counts. **Bonus
-  magnitudes are code constants** (the `COMBAT_SPEEDS` precedent), everything
-  else reads balancing.
+## Boss cutscene + bonuses (Phase 10G; reworked)
+- **`boss_bonuses.py`** (pure) — no global singleton: the six stack counters
+  live in `RunState.boss_stacks` (fresh run = fresh RunState = the reset).
+  `apply_choice(state, (boss_num-1)%3, option)` stacks; picking the same option
+  twice doubles it. The **positional ids `boss1a`…`boss3b` + `BONUS_IDS` are
+  permanent** — they encode set+option, which the cutscene's `WinA`/`WinB`
+  labels, the `(boss_num-1)%3` set cycle and the boss-history popup all key off
+  — so re-designing the EFFECTS never touches `RunState`/`game_state.py`.
+- **The six effects (boss-upgrade rework)**: 1A +dmg per unbuilt (BUILDABLE)
+  tile · 1B +dmg per building placed · 2A +love per building level past
+  `level_past_threshold` · 2B +love per building at `low_level_target` · 3A
+  +dmg per `love_chunk_size` of love held (the End-Turn snapshot) · 3B +dmg
+  per lightning building built.
+- **Magnitudes are BALANCING now, not code constants** (they were in 10G):
+  `data/balancing/core.json`'s `BossBonuses` block, threaded in as
+  `core_balance`. That domain was chosen because `core_balance` already reaches
+  every call site — no function gained a new parameter CHAIN and
+  `run_payday`'s signature is untouched. `choice_desc(effective_idx, option,
+  core_balance)` `.format()`s the live numbers into the two-line UI copy, so
+  the cutscene can never advertise a magnitude the math no longer uses.
+- **Two payout sites**: `story_damage_bonus(state, tilemap, core_balance)` sums
+  1A + 1B + 3A + 3B into the ONE flat int the HOST threads into
+  `resolve_combat(dmg_bonus=…)` each frame; `love_bonus_income(state, tilemap,
+  core_balance)` sums 2A + 2B in one walk and is payday slot 3.
+- **"Buildings" = ALIVE, non-base occupants of built tiles**, in every count —
+  a destroyed building stops counting until payday's revive. This is a
+  deliberate change: 10G's `defence_count`/`aoe_count` had NO alive filter, and
+  both are DELETED (with `boss1b_income`/`boss3b_income`). Levels read
+  `TierState.current_level_in_tier` (a building freshly advanced into a new
+  tier is level 1 again); lightning buildings are duck-typed off the
+  `"lightning_source"` TAG (the `payday._process_boosts` `"boost"` precedent) —
+  this module must NEVER import `game.buildings.registry`, which risks closing
+  an import cycle (`game.core.session` imports `game.debug` at module scope).
 - **Phase flow**: `end_turn` snapshots love EVERY round (Boss3A) and, on a boss
   round, lives + one `boss_events` announce marker. **Both boss-round checks in
   this file (`end_turn`'s announce marker and `_begin_round_end`'s cutscene

@@ -131,7 +131,10 @@ logic is `game/core` — see that doc.)
   (construct→`open(boss_num, outcome)`→layout-on-open→update→hit→submit): opaque
   near-black backdrop, win/loss headline + "How will we react?", two 180×130
   boxes labeled `WinA/WinB` (or `LossA/LossB`) with descs from
-  `game.core.boss_bonuses.BOSS_CHOICES`. `hit` returns `"A"`/`"B"`/None — NO
+  `game.core.boss_bonuses.choice_desc`. Since the boss-upgrade rework those
+  descs quote LIVE `BossBonuses` magnitudes, so the constructor takes a third
+  positional `core_balance` (passed from `build_gameplay()`, where it is
+  already in scope). `hit` returns `"A"`/`"B"`/None — NO
   dismiss path; it sits above `session.frozen` in `main.py`'s click ladder and
   the frozen key-gate swallows keys. Opened by the host on the BOSS_CUTSCENE
   phase edge from `state.pending_boss_cutscene` (the LEVELUP pattern).
@@ -150,9 +153,12 @@ logic is `game/core` — see that doc.)
   NOT drawn here — see the enemy HP bars below, which own every overhead bar in
   the game (the boss is tagged `"enemy"` too, so it comes along for free and can
   never double up).
-- **`hud.py`**: BOSS_CUTSCENE phase label/color entries, and one fenced block
-  in `income_breakdown` adding the boss-bonus story income (slot-3 payouts +
-  Boss2A/2B deltas × alive recipients) so the HUD net keeps matching payday.
+- **`hud.py`**: BOSS_CUTSCENE phase label/color entries, and — in
+  `income_sources` (which `income_breakdown` sums) — ONE
+  `love_bonus_income(st, session.tilemap, session.core_balance)` call for the
+  "Story" row, the exact same whole-board slot-3 sum payday pays, so the HUD
+  net keeps matching payday. (The boss-upgrade rework replaced 10G's fenced
+  block: there are no per-recipient boss deltas any more.)
 - **`building_ui.py`** base_info mode: a "BOSS CHOICES" button (10H's lightning
   section sits ABOVE it) opening a centred history popup — one row per
   `state.boss_choices` entry (`"Boss {n}: {Outcome} {option}"`), the hovered

@@ -8,8 +8,9 @@ slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
 E-*/D-*/G-*/ED-*/T-*).
 
 **Planning:** every plan doc lives in `planning/` (the sources of truth:
-`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`, …; finished plans move to
-`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`).
+`TutorialPLAN.md`, `SoundEditorPLAN.md`, …; finished plans move to
+`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`,
+`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`).
 Root `PLAN.md` is a **generated mirror** of whichever one is currently active
 (its line-1 `<!-- active-plan: … -->` marker names the source). Read `PLAN.md`
 for the current plan; never hand-edit it — edit the source in `planning/` and
@@ -211,7 +212,7 @@ py tools/testgate.py check # the suite. Read the ONE line it prints.
 measure and no "pre-existing failure" to tolerate — if a test is red, you broke
 it. (It was not always so: the suite used to carry 18 permanent failures and the
 gate was a *diff* against a number that lived in prose and had drifted three
-ways. `planning/TestGatePLAN.md` records how that was fixed.)
+ways. `planning/completed plans/TestGatePLAN.md` records how that was fixed.)
 
 - **Never re-run the suite to find out what was already broken.** That waste is
   exactly what `/testgate` deletes.

@@ -68,6 +68,22 @@ class _DespawnStrokeCommand(QUndoCommand):
         tilemap_ops.apply_despawn_changes(self._doc, self._changes, reverse=True)
 
 
+class _StageStrokeCommand(QUndoCommand):
+    """The exact twin of _DespawnStrokeCommand over the stage-zone marks:
+    set-to-value change lists, so pushing after the viewport already painted
+    the marks live is idempotent (QUndoStack calls redo() on push)."""
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc, self._changes = doc, changes
+
+    def redo(self):
+        tilemap_ops.apply_stage_changes(self._doc, self._changes)
+
+    def undo(self):
+        tilemap_ops.apply_stage_changes(self._doc, self._changes, reverse=True)
+
+
 class _BaseSetCommand(QUndoCommand):
     """Place / move / remove the single base (hole). ``old`` and ``new`` are
     full base dicts (``{'col','row','slot'}``) or ``None`` (no hole)."""
@@ -314,6 +330,13 @@ class MapSession(QObject):
         if changes:
             self.undo_stack.push(
                 _DespawnStrokeCommand(self.doc, changes, text))
+
+    def push_stage_stroke(self, changes, text="stage zone"):
+        """ONE undo command per stage-zone stroke — mirrors
+        push_despawn_stroke."""
+        if changes:
+            self.undo_stack.push(
+                _StageStrokeCommand(self.doc, changes, text))
 
     def _base_slot(self):
         schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))

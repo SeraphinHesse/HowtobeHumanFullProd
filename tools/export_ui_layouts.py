@@ -476,9 +476,12 @@ def _build_game_log(view_w, view_h, data_root):
 
 
 def _build_boss_cutscene(view_w, view_h, data_root):
+    from game.core import load_balance
     from game.ui.boss_cutscene import BossCutscene
 
-    screen = BossCutscene(view_w, view_h)
+    # The option descs format live BossBonuses magnitudes in — geometry only
+    # lands in the export, but the screen still needs a real core balance.
+    screen = BossCutscene(view_w, view_h, load_balance(data_root, "core"))
     screen.open(1, "win")  # R3 contract: open(1, "win") + layout(1280, 720)
     return _widgets_from_ids(screen.ids), "open(1, 'win')"
 

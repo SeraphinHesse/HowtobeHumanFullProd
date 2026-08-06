@@ -1,4 +1,15 @@
 {
+  "BossBonuses": {
+    "dmg_per_building": 1,
+    "dmg_per_lightning_building": 2,
+    "dmg_per_love_chunk": 2,
+    "dmg_per_unbuilt_tile": 1,
+    "level_past_threshold": 2,
+    "love_chunk_size": 25,
+    "love_per_level_past": 1,
+    "love_per_low_level_building": 1,
+    "low_level_target": 1
+  },
   "Camera": {
     "default_zoom": 2.0,
     "zoom_levels": [

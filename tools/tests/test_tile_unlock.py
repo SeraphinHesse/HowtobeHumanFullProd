@@ -329,48 +329,55 @@ class TestDualAxisRecede(unittest.TestCase):
 
 class TestSpawnableBackgroundReserve(unittest.TestCase):
     """The designer-painted spawn reserve: mark batch `n` flips BACKGROUND →
-    SPAWNING on the nth successful purchase, and the implicit recede is
-    suppressed until the reserve is exhausted.
+    SPAWNING when the run's STAGE counter reaches n, and the implicit recede is
+    suppressed until the stage has spent the reserve.
 
     Pinned synthetic 8×4 map (never live `data/`): per row
     ``bb cc ss oo`` — buildable pocket, the chunks we buy, the spawn band,
     then background for the marks/backfill. Section grid anchored at (0, 0),
     so the two purchasable chunks are cols2-3 × rows0-1 and cols2-3 × rows2-3.
+
+    The stage only ever moves when a purchase lands on a painted stage zone, so
+    every test here paints one on the chunk it buys.
     """
 
     ROWS = ["bbccssoo"] * 4
 
     @staticmethod
-    def _make(marks, balance=BALANCE):
+    def _make(marks, stages=None, balance=BALANCE):
         doc = tilemap.TileMapDoc(
             map_id="synthreserve", display_name="Synth Reserve",
             cols=8, rows=4, legend={},
             terrain=[list(r) for r in TestSpawnableBackgroundReserve.ROWS],
             base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
             spawnable_background=dict(marks),
+            stage_zones=dict(stages or {}),
             start_area={"col": 0, "row": 0, "slot": "start_area"})
         return TileMap(doc, balance)
 
-    def test_batch_one_releases_on_the_first_purchase_and_not_before(self):
-        tm = self._make({(6, 0): 1, (7, 0): 1, (6, 2): 2})
+    def test_batch_one_releases_on_the_first_stage_and_not_before(self):
+        tm = self._make({(6, 0): 1, (7, 0): 1, (6, 2): 2},
+                        stages={(2, 0): 1, (2, 2): 2})
         for c, r in ((6, 0), (7, 0), (6, 2)):
             self.assertEqual(tm.get(c, r).state, TileState.BACKGROUND)
         self.assertTrue(tm.do_unlock(tm.get(2, 0)))
         for c, r in ((6, 0), (7, 0)):
             self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
-        # batch 2 waits for the second purchase
+        # batch 2 waits for the stage-2 zone
         self.assertEqual(tm.get(6, 2).state, TileState.BACKGROUND)
+        self.assertTrue(tm.do_unlock(tm.get(2, 2)))
+        self.assertEqual(tm.get(6, 2).state, TileState.SPAWNING)
 
     def test_retire_stage_outranks_the_implicit_recede(self):
-        tm = self._make({(6, 0): 1})
-        # purchase 1 releases the LAST batch -> nothing implicit runs: the
-        # painted band (cols4-5 rows0-1) is untouched.
+        tm = self._make({(6, 0): 1}, stages={(2, 0): 1})
+        # purchase 1 advances the stage and releases the LAST batch -> nothing
+        # implicit runs: the painted band (cols4-5 rows0-1) is untouched.
         self.assertTrue(tm.do_unlock(tm.get(2, 0)))
         self.assertEqual(tm.get(6, 0).state, TileState.SPAWNING)
         for c, r in ((4, 0), (5, 0), (4, 1), (5, 1)):
             self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
-        # purchase 2 is past the marks -> the RETIRE stage (despawnable-spawn's
-        # third stage) claims it, not the implicit recede: the released cell
+        # purchase 2 lands on unpainted ground and the stage has already spent
+        # every mark -> the RETIRE stage claims it, not the implicit recede: the released cell
         # dies and the painted band is still exactly where the designer left it.
         self.assertTrue(tm.do_unlock(tm.get(2, 2)))
         self.assertEqual(tm.get(6, 0).state, TileState.COMBAT)
@@ -398,18 +405,21 @@ class TestDespawnableSpawn(unittest.TestCase):
     spawn band, then background for the reserve marks. Section grid anchored at
     (0, 0), so the purchasable chunks are cols2-3/cols4-5 × rows0-1/rows2-3.
 
-    The signed-off timeline (spawn marks n=1,2 + despawn marks n=1,2):
-    purchase 1 releases spawn-bg 1 then despawns 1; purchase 2 the same for 2;
-    purchase 3 retires spawn-bg batch 1; purchase 4 retires batch 2; only after
-    that does the old implicit recede resume.
+    The signed-off timeline (spawn marks n=1,2 + despawn marks n=1,2, with a
+    stage zone on each of the first two chunks): purchase 1 advances the stage
+    to 1, releasing spawn-bg 1 then despawning 1; purchase 2 the same for 2;
+    purchase 3 (unpainted) retires spawn-bg batch 1; purchase 4 retires batch 2;
+    only after that does the old implicit recede resume.
     """
 
     ROWS = ["bbccccssoo"] * 4
     #: buy order that keeps every chunk edge-adjacent to unlocked ground
     BUYS = [(2, 0), (2, 2), (4, 0), (4, 2)]
+    #: the default stage zones — one per buy, so purchase n advances to stage n
+    STAGES = {(2, 0): 1, (2, 2): 2, (4, 0): 3, (4, 2): 4}
 
     @staticmethod
-    def _make(reserve, despawn, balance=BALANCE):
+    def _make(reserve, despawn, stages=None, balance=BALANCE):
         doc = tilemap.TileMapDoc(
             map_id="synthdespawn", display_name="Synth Despawn",
             cols=10, rows=4, legend={},
@@ -417,6 +427,8 @@ class TestDespawnableSpawn(unittest.TestCase):
             base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
             spawnable_background=dict(reserve),
             despawnable_spawn=dict(despawn),
+            stage_zones=dict(TestDespawnableSpawn.STAGES
+                             if stages is None else stages),
             start_area={"col": 0, "row": 0, "slot": "start_area"})
         return TileMap(doc, balance)
 
@@ -424,7 +436,7 @@ class TestDespawnableSpawn(unittest.TestCase):
         c, r = self.BUYS[i]
         self.assertTrue(tm.do_unlock(tm.get(c, r)), f"purchase {i + 1}")
 
-    def test_despawn_batch_fires_on_its_own_purchase(self):
+    def test_despawn_batch_fires_on_its_own_stage(self):
         tm = self._make({}, {(6, 0): 1, (7, 0): 1, (6, 2): 2})
         self._buy(tm, 0)
         for c, r in ((6, 0), (7, 0)):
@@ -435,7 +447,10 @@ class TestDespawnableSpawn(unittest.TestCase):
         self.assertEqual(tm.get(6, 2).state, TileState.COMBAT)
 
     def test_reserve_batches_retire_ascending_once_marks_are_exhausted(self):
-        tm = self._make({(8, 0): 1, (8, 2): 2}, {(6, 0): 1, (6, 2): 2})
+        # stage zones only on the first two chunks, so purchases 3 and 4 land
+        # unpainted and hand the move to the retire stage.
+        tm = self._make({(8, 0): 1, (8, 2): 2}, {(6, 0): 1, (6, 2): 2},
+                        stages={(2, 0): 1, (2, 2): 2})
         self._buy(tm, 0)          # release spawn-bg 1, despawn 1
         self.assertEqual(tm.get(8, 0).state, TileState.SPAWNING)
         self.assertEqual(tm.get(6, 0).state, TileState.COMBAT)
@@ -453,7 +468,8 @@ class TestDespawnableSpawn(unittest.TestCase):
             self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
 
     def test_implicit_recede_resumes_once_the_retire_batches_are_spent(self):
-        tm = self._make({(8, 0): 1}, {})   # one reserve batch, no despawn marks
+        # one reserve batch, no despawn marks, one stage zone on the first buy
+        tm = self._make({(8, 0): 1}, {}, stages={(2, 0): 1})
         self._buy(tm, 0)                   # release it
         self._buy(tm, 1)                   # retire it (still no implicit move)
         self.assertEqual(tm.get(8, 0).state, TileState.COMBAT)
@@ -463,14 +479,73 @@ class TestDespawnableSpawn(unittest.TestCase):
         for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):
             self.assertEqual(tm.get(c, r).state, TileState.COMBAT, (c, r))
 
-    def test_no_marks_of_either_kind_recedes_on_the_first_purchase(self):
-        tm = self._make({}, {})
+    def test_no_marks_of_any_kind_recedes_on_the_first_purchase(self):
+        # THE regression invariant: no reserve marks, no despawn marks and no
+        # stage zones ⇒ `_scripted_max == 0`, empty `_retire_batches`, `advanced`
+        # forever False ⇒ the implicit recede fires from purchase 1, bit for bit
+        # as it did before stage zones existed.
+        tm = self._make({}, {}, stages={})
         self._buy(tm, 0)
         # row-aligned band recedes to COMBAT and backfills strictly behind it
         for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):
             self.assertEqual(tm.get(c, r).state, TileState.COMBAT, (c, r))
         for c, r in ((8, 0), (9, 0), (8, 1), (9, 1)):
             self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+
+
+class TestStageZones(unittest.TestCase):
+    """The stage counter itself: only a stage zone winds it, a jump fires every
+    skipped batch in ascending order (release before despawn within a batch),
+    and a lower-numbered zone never winds it back.
+
+    Reuses `TestDespawnableSpawn`'s pinned synthetic 10×4 map (per row
+    ``bb cccc ss oo``) and its buy order.
+    """
+
+    def _make(self, reserve, despawn, stages):
+        return TestDespawnableSpawn._make(reserve, despawn, stages=stages)
+
+    def _buy(self, tm, i):
+        c, r = TestDespawnableSpawn.BUYS[i]
+        self.assertTrue(tm.do_unlock(tm.get(c, r)), f"purchase {i + 1}")
+
+    def test_one_purchase_fires_every_skipped_batch_in_ascending_order(self):
+        # Cell (8,0) is released by batch 1 and despawned by batch 2: it can
+        # only end COMBAT if the batches ran 1 THEN 2. Cell (9,0) is released
+        # and despawned by the SAME batch 3: it can only end COMBAT if release
+        # ran before despawn within that batch. (9,2) proves batch 2 ran at all.
+        tm = self._make({(8, 0): 1, (9, 2): 2, (9, 0): 3},
+                        {(8, 0): 2, (9, 0): 3},
+                        stages={(2, 0): 3})
+        self._buy(tm, 0)
+        self.assertEqual(tm._stage, 3)
+        self.assertEqual(tm.get(8, 0).state, TileState.COMBAT)
+        self.assertEqual(tm.get(9, 0).state, TileState.COMBAT)
+        self.assertEqual(tm.get(9, 2).state, TileState.SPAWNING)
+
+    def test_buying_outside_every_zone_advances_nothing(self):
+        # The zone is on the SECOND chunk; buying the first one leaves the
+        # stage at 0, so batch 1 never fires and nothing implicit runs either
+        # (the stage has not spent the marks).
+        tm = self._make({(8, 0): 1}, {}, stages={(2, 2): 5})
+        self._buy(tm, 0)
+        self.assertEqual(tm._stage, 0)
+        self.assertEqual(tm.get(8, 0).state, TileState.BACKGROUND)
+        for c, r in ((6, 0), (7, 0), (6, 1), (7, 1)):
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+
+    def test_a_lower_numbered_zone_does_not_move_the_stage_backwards(self):
+        tm = self._make({(8, 0): 1, (8, 2): 3}, {},
+                        stages={(2, 0): 3, (2, 2): 2})
+        self._buy(tm, 0)                        # zone 3 -> stage 3
+        self.assertEqual(tm._stage, 3)
+        for c, r in ((8, 0), (8, 2)):
+            self.assertEqual(tm.get(c, r).state, TileState.SPAWNING, (c, r))
+        self._buy(tm, 1)                        # zone 2 < 3: nothing advances
+        self.assertEqual(tm._stage, 3)
+        # ...so this purchase falls through to the retire stage instead
+        self.assertEqual(tm.get(8, 0).state, TileState.COMBAT)
+        self.assertEqual(tm.get(8, 2).state, TileState.SPAWNING)
 
 
 class TestZoneVisualOverrides(unittest.TestCase):

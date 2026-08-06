@@ -247,6 +247,7 @@
   },
   "rows": 1024,
   "spawnable_background": [],
+  "stage_zones": [],
   "start_area": {
     "col": 512,
     "row": 512,

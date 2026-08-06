@@ -35,18 +35,25 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   mutating the shared map doc (a new game builds a fresh TileMap → empty
   overrides → pristine terrain). BUILT/BACKGROUND have no code and never
   write an override.
-- **The designer-painted MARKS outrank the implicit recede, in FOUR ordered
-  stages.** `do_unlock` runs them in a fixed order on every successful unlock,
-  after bumping `_unlock_purchases`:
-  1. `_release_spawn_reserve(n)` flips every tile the map painted with
-     `purchase == n` from BACKGROUND to SPAWNING (`spawnable_background`,
-     `data/CLAUDE.md` — an invisible overlay the game never draws).
-  2. `_despawn_spawn_reserve(n)` flips every tile the map painted with
-     `purchase == n` in the sibling overlay (`despawnable_spawn`) from
-     SPAWNING to COMBAT — the released tiles' scheduled death, and the reason
-     a designer can hand-author the whole band's life cycle.
-  3. Only once `_unlock_purchases > _scripted_max` (`max(_reserve_max,
-     _despawn_max)` — the purchase after which no painted mark of EITHER kind
+- **A designer-controlled STAGE counter drives everything, and it outranks the
+  implicit recede.** `self._stage` starts at 0 and never decreases. **The only
+  thing that advances it is the third painted overlay, `stage_zones`**
+  (`{(col, row): stage}` marks on COMBAT tiles, `data/CLAUDE.md`) — NOT the
+  number of 2×2s bought. `_unlock_purchases` survives as a raw tally and gates
+  nothing. `do_unlock`'s tail, in precedence order:
+  1. `_advance_stage(chunk)` takes the MAX stage painted under the bought
+     chunk's four tiles; if it exceeds `_stage`, it loops
+     `for k in range(_stage + 1, new + 1)` calling `_release_spawn_reserve(k)`
+     then `_despawn_spawn_reserve(k)`, sets `_stage = new` and returns True.
+     `_release_spawn_reserve(n)` flips every `spawnable_background` mark
+     numbered n BACKGROUND → SPAWNING; `_despawn_spawn_reserve(n)` flips every
+     `despawnable_spawn` mark numbered n SPAWNING → COMBAT (the released tiles'
+     scheduled death, and the reason a designer can hand-author the whole
+     band's life cycle). **The ascending catch-up is load-bearing**: a jump from
+     stage 2 to 5 fires batches 3, 4 and 5 in order, so nothing painted is ever
+     stranded and both mark sets still exhaust on schedule.
+  2. `if not advanced and _stage >= _scripted_max` (`max(_reserve_max,
+     _despawn_max)` — the stage at or past which no painted mark of EITHER kind
      can fire): `_retire_spawn_reserve()` retires ONE `spawnable_background`
      batch, ascending `n`, per further purchase (`_retire_batches` =
      `sorted(_reserve)`, `_retire_cursor` = how many are spent), flipping that
@@ -54,22 +61,23 @@ Conventions that differ from the prototype (deliberate, clean-arch):
      the order they were born. **Only reserve-released cells are eligible** —
      legend-painted `s` tiles are never touched here; the implicit recede
      still owns those.
-  4. `elif` the retire batches are spent too **and** `map.json`
+  3. `elif` the retire batches are spent too **and** `map.json`
      `TileUnlocking.spawn_recede_enabled`: the old dual-axis recede below.
-  Consequences worth knowing: the `>` (not `>=`) keeps the implicit rule off on
-  the very purchase that fires the LAST painted mark; the `elif` means a
-  purchase that retires a batch is itself the whole move, exactly as a purchase
-  that releases one is; **a map with no marks of EITHER kind has
-  `_scripted_max == 0` and an empty `_retire_batches`, so the guard is true from
-  the first purchase and the `elif` falls straight through — behaviour is
-  bit-for-bit what it always was**; and `spawn_recede_enabled: false` disables
-  the old rule permanently without touching either overlay. `_reserve` and
-  `_despawn` are both built in `__init__` by ONE pass over the MARKS (never
-  over the map — the O(strip)-never-O(map) rule below). A mark whose tile is
-  not in the expected state (the designer repainted over it, an earlier stage
-  claimed it) is skipped silently but still counts as fired, so both mark sets
-  and the retire stage always exhaust and can never wedge the old rule off
-  forever.
+  Consequences worth knowing: `not advanced` keeps the implicit stages off on
+  any purchase that moved the designer's stage counter — the designer's
+  placement is the whole move; the `elif` means a purchase that retires a batch
+  is itself the whole move too; **a map with no marks of ANY of the three kinds
+  has `_scripted_max == 0`, an empty `_retire_batches` and `advanced` always
+  False, so the guard is true from the first purchase and the `elif` falls
+  straight through — behaviour is bit-for-bit what it always was**; and
+  `spawn_recede_enabled: false` disables the old rule permanently without
+  touching any overlay. `_reserve`/`_despawn` (inverted `stage -> [cells]`) and
+  `_stage_zones` (kept FLAT, since its lookup is per-tile) are all built in
+  `__init__` by ONE pass over the MARKS (never over the map — the
+  O(strip)-never-O(map) rule below). A mark whose tile is not in the expected
+  state (the designer repainted over it, an earlier stage claimed it) is skipped
+  silently but still counts as fired, so both mark sets and the retire stage
+  always exhaust and can never wedge the old rule off forever.
 - **Spawn recede is DUAL-AXIS and backfills strictly BEHIND** (the old,
   implicit rule — gated as above): a successful
   unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk

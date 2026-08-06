@@ -20,7 +20,6 @@ BEFORE payday step 2 zeroes ``RoundStats``, plus the potential ledger.
 ``round_summary``        -> ``on_payday_end``: the finished flat row.
 """
 from game.buildings.components import RoundStats
-from game.core.boss_bonuses import aoe_count, defence_count
 from game.core.xp import scaled_base_income
 
 #: The round row schema. The CSV header IS this tuple (``test_debug_log`` pins
@@ -104,26 +103,17 @@ def potential_ledger(state, tilemap, core_balance, built):
 
     Mirrors ``run_payday`` steps 4 + 5 with the ``alive`` filter removed — both
     real sweeps ``continue`` on ``not alive``, so a building destroyed during
-    the wave earns nothing AND pays no upkeep. The Boss2A/2B per-recipient
-    deltas are folded in exactly as the real sweep folds them (the two counts
-    have no ``alive`` filter there either), and base income comes from
+    the wave earns nothing AND pays no upkeep. Base income comes from
     ``game.core.xp.scaled_base_income`` — the same single source payday uses, so
-    the two cannot drift.
-
-    The real sweep selects the Boss2B delta by "has ``collect_income``" and the
-    Boss2A delta by "``building_type == 'economic'``"; the Meditator is the only
-    ``collect_income`` holder, so keying both off ``building_type`` here is
-    equivalent — and lets this stay on the pure ``yield_amount()``.
+    the two cannot drift. The boss story love (payday slot 3) is NOT folded in
+    here: since the boss-upgrade rework it is a whole-board sum with no
+    per-recipient component at all, and it is measured separately as the love
+    delta across step 3 (``story_income``).
 
     Returns ``{"base_income", "building_income_potential", "income_potential",
     "upkeep_potential", "income_potential_by_type", "upkeep_potential_by_type"}``.
     """
     base_income = scaled_base_income(state, core_balance)
-    stacks = getattr(state, "boss_stacks", None) or {}
-    boss2a = stacks.get("boss2a", 0)
-    boss2b = stacks.get("boss2b", 0)
-    n_defence = defence_count(tilemap) if boss2a else 0
-    n_aoe = aoe_count(tilemap) if boss2b else 0
 
     building_income = 0
     upkeep = 0
@@ -132,10 +122,6 @@ def potential_ledger(state, tilemap, core_balance, built):
         bt = _btype(b)
         # PURE read — never collect_income(), which advances the streak.
         amount = _amount(b, "yield_amount")
-        if boss2b and bt == "meditator":
-            amount += n_aoe * boss2b
-        elif boss2a and bt == "economic":
-            amount += n_defence * boss2a
         if amount > 0:
             building_income += amount
             _bump(income_by_type, bt, amount)

@@ -593,30 +593,47 @@ validating writer; don't hand-edit the JSON.
   rendered by the game or the editor's normal render pipeline; existing maps
   were migrated to `"tutorial_flute": null, "tutorial_stone": null`.
 - **`spawnable_background` — the designer-authored spawn reserve.** A list of
-  `{col, row, purchase}` marks (`purchase` 1..1000 = the tile-purchase count on
-  which that cell flips BACKGROUND → SPAWNING; every mark numbered n releases
-  together, once). It is an **invisible OVERLAY, not a legend tile code**: the
+  `{col, row, stage}` marks (`stage` 1..1000 = the designer STAGE at which that
+  cell flips BACKGROUND → SPAWNING; every mark numbered n releases together,
+  once). **The field was called `purchase` until stage zones landed** — it is a
+  stage number, never a purchase count, and only `stage_zones` below advances
+  the stage. It is an **invisible OVERLAY, not a legend tile code**: the
   painted forest/cliff/ocean underneath keeps drawing, and like
   `start_area`/`tutorial_*` it is deliberately NOT emitted by any render
   emitter, so the game never draws it. **On disk a list sorted by (row, col)**
-  (D-3 determinism); **in memory a dict `{(col, row): purchase}`** on
+  (D-3 determinism); **in memory a dict `{(col, row): stage}`** on
   `TileMapDoc` — the editor paints O(1) per cell, which the list form cannot.
   `engine.tilemap.validate_doc` bounds-checks every mark (D-2, the `deco`
-  check's twin); `purchase >= 1` is the schema's job. An empty array is legal
+  check's twin); `stage >= 1` is the schema's job. An empty array is legal
   and is the "no reserve painted" state — existing maps were migrated to
   `"spawnable_background": []`. Runtime precedence → `game/map/CLAUDE.md`;
   the brush → `editor/panels/CLAUDE.md`.
 - **`despawnable_spawn` — the designer-authored despawn schedule.** The exact
-  sibling of `spawnable_background` above, same shape (`{col, row, purchase}`
-  marks, `purchase` 1..1000), same invisibility (no render emitter touches it),
+  sibling of `spawnable_background` above, same shape (`{col, row, stage}`
+  marks, `stage` 1..1000), same invisibility (no render emitter touches it),
   same on-disk list sorted by (row, col) / in-memory
-  `{(col, row): purchase}` dict on `TileMapDoc`, same `validate_doc`
+  `{(col, row): stage}` dict on `TileMapDoc`, same `validate_doc`
   bounds check. It is painted on SPAWNING tiles and every mark numbered n flips
-  its tile SPAWNING → COMBAT on the player's nth tile purchase. An empty array
-  is the "no despawn schedule painted" state — existing maps were migrated to
-  `"despawnable_spawn": []`. Runtime precedence (including the third,
-  retire-the-reserve stage that runs once BOTH mark sets are exhausted) →
+  its tile SPAWNING → COMBAT when the run's stage counter reaches n. An empty
+  array is the "no despawn schedule painted" state — existing maps were migrated
+  to `"despawnable_spawn": []`. Runtime precedence (including the
+  retire-the-reserve stage that runs once the stage has spent BOTH mark sets) →
   `game/map/CLAUDE.md`.
+- **`stage_zones` — the designer-authored STAGE counter, and the ONLY thing
+  that advances it.** The THIRD overlay of the same shape (`{col, row, stage}`
+  marks, `stage` 1..1000; same invisibility, same (row, col)-sorted list on
+  disk / `{(col, row): stage}` dict in memory, same `validate_doc` bounds
+  check) — painted on COMBAT tiles. Buying a 2×2 whose four tiles intersect the
+  painted set takes the MAXIMUM stage under those four tiles; if it exceeds the
+  run's current stage (which starts at 0 and never decreases) the stage advances
+  to it, and every release/despawn batch the jump passed over fires in ascending
+  order. Buying anywhere unpainted never advances the stage — **`n` is a
+  designer stage, not a purchase count, which is why the two sibling overlays'
+  `purchase` field was renamed `stage` in the same change.** An empty array is
+  the "no stage zones painted" state (the stage stays 0 forever, and with no
+  marks of any of the three kinds the runtime's implicit recede behaves exactly
+  as it did before this feature) — existing maps were migrated to
+  `"stage_zones": []`. Runtime precedence → `game/map/CLAUDE.md`.
 - **`balancing/map.json` `TileUnlocking.spawn_recede_enabled`** (bool, default
   `true`) is the master switch for the OLD implicit recede rule only — `false`
   and the band never recedes on unlock, whatever the reserve state. It does not

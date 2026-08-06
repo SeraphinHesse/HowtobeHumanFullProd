@@ -429,6 +429,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
+                                          core_balance,
                                           skinning=shell.skinning)
         gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
@@ -991,9 +992,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                         # damage is invisible to `on_damage` — its own seam.
                         set_wall_damage_hook(_debug_on_wall_damage)
                     world.scene.update(sim_dt)
-                    # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
-                    # once per frame and threaded as a plain int.
-                    dmg_bonus = story_damage_bonus(session.state, world.tile_map)
+                    # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
+                    # computed once per frame and threaded as a plain int.
+                    dmg_bonus = story_damage_bonus(session.state, world.tile_map,
+                                                   core_balance)
 
                     # Play the death animation if the dead enemy's sheet has a
                     # `death` row (Art/enemies): the session bookkeeping runs first

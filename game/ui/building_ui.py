@@ -1297,7 +1297,8 @@ class BuildingUI:
                 f"Boss {boss_num}: {outcome.capitalize()} {option}",
                 (px + 14, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
             if hovered:
-                hover_desc = choice_desc((boss_num - 1) % 3, option)
+                hover_desc = choice_desc((boss_num - 1) % 3, option,
+                                         session.core_balance)
             y += 20
         if hover_desc is not None:
             ty = py + ph - 80

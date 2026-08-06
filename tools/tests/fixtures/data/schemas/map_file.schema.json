@@ -107,7 +107,7 @@
       "type": "array"
     },
     "despawnable_spawn": {
-      "description": "Designer-painted SPAWN DESPAWN marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n retires together on the player's nth tile purchase - the whole group of cells carrying that number flips from the SPAWNING zone to the COMBAT zone at once. An empty array means no despawn schedule is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "description": "Designer-painted SPAWN DESPAWN marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n retires together when the run's designer-controlled STAGE counter reaches n - the whole group of cells carrying that number flips from the SPAWNING zone to the COMBAT zone at once. The stage is advanced only by buying into a stage_zones-painted area (see that property); a jump past several numbers fires every skipped batch in ascending order, so no mark is ever stranded. An empty array means no despawn schedule is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
       "items": {
         "additionalProperties": false,
         "properties": {
@@ -116,22 +116,22 @@
             "minimum": 0,
             "type": "integer"
           },
-          "purchase": {
-            "description": "Tile-purchase count (whole tile purchases made by the player, 1-based) on which this cell stops being SPAWNING and becomes COMBAT. 1 = the very first tile purchase.",
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
-          },
           "row": {
             "description": "Marked tile row, 0-based; must be < rows.",
             "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) at which this cell stops being SPAWNING and becomes COMBAT. 1 = the first stage the player can reach. NOT a purchase count: the stage advances only when the player buys a 2x2 intersecting a stage_zones mark.",
+            "maximum": 1000,
+            "minimum": 1,
             "type": "integer"
           }
         },
         "required": [
           "col",
           "row",
-          "purchase"
+          "stage"
         ],
         "type": "object"
       },
@@ -231,7 +231,7 @@
       "type": "integer"
     },
     "spawnable_background": {
-      "description": "Designer-painted SPAWN RESERVE marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n releases together on the player's nth tile purchase - the whole group of cells carrying that number flips to the SPAWNING zone at once. An empty array means no reserve is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "description": "Designer-painted SPAWN RESERVE marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n releases together when the run's designer-controlled STAGE counter reaches n - the whole group of cells carrying that number flips to the SPAWNING zone at once. The stage is advanced only by buying into a stage_zones-painted area (see that property); a jump past several numbers fires every skipped batch in ascending order, so no mark is ever stranded. An empty array means no reserve is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
       "items": {
         "additionalProperties": false,
         "properties": {
@@ -240,22 +240,53 @@
             "minimum": 0,
             "type": "integer"
           },
-          "purchase": {
-            "description": "Tile-purchase count (whole tile purchases made by the player, 1-based) on which this cell becomes SPAWNING. 1 = the very first tile purchase.",
-            "maximum": 1000,
-            "minimum": 1,
-            "type": "integer"
-          },
           "row": {
             "description": "Marked tile row, 0-based; must be < rows.",
             "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) at which this cell becomes SPAWNING. 1 = the first stage the player can reach. NOT a purchase count: the stage advances only when the player buys a 2x2 intersecting a stage_zones mark.",
+            "maximum": 1000,
+            "minimum": 1,
             "type": "integer"
           }
         },
         "required": [
           "col",
           "row",
-          "purchase"
+          "stage"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "stage_zones": {
+      "description": "Designer-painted STAGE ZONE marks, one entry per cell, painted on COMBAT tiles. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. These marks are the ONLY thing that advances the run's stage counter (whole stages, starts at 0, never decreases): when the player buys a 2x2 whose four tiles intersect the painted set, the zone's number is the MAXIMUM stage among those four tiles, and if that exceeds the current stage the stage advances to it. Buying anywhere unpainted never advances the stage. Each advance fires every skipped spawnable_background release batch and despawnable_spawn despawn batch in ascending order (release before despawn within each), so nothing painted is ever stranded. An empty array means no stage zones are painted on this map (the stage stays 0 forever). Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) this zone advances the run's stage counter TO when the player buys a 2x2 intersecting it. A lower number than the current stage never moves it backwards.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "stage"
         ],
         "type": "object"
       },
@@ -381,6 +412,7 @@
     "legend",
     "rows",
     "spawnable_background",
+    "stage_zones",
     "start_area",
     "terrain",
     "tutorial_flute",

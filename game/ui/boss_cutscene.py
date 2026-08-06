@@ -48,8 +48,12 @@ SCREEN_ID = "boss_cutscene"
 
 
 class BossCutscene:
-    def __init__(self, view_w, view_h, skinning=None):
+    def __init__(self, view_w, view_h, core_balance, skinning=None):
         self.screen_id = SCREEN_ID
+        # The option descs quote LIVE balancing magnitudes (BossBonuses), so
+        # this screen needs the core balance — the host has it in scope in
+        # build_gameplay() and passes it straight through.
+        self.core_balance = core_balance
         self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
@@ -164,7 +168,8 @@ class BossCutscene:
             if not is_visible(box):
                 continue
             self._submit_box(renderer, box, prefix + option,
-                             choice_desc(set_idx, option), i == self.hovered, t)
+                             choice_desc(set_idx, option, self.core_balance),
+                             i == self.hovered, t)
 
     @staticmethod
     def _submit_box(renderer, box, label, desc, hovered, anim_ms_):
