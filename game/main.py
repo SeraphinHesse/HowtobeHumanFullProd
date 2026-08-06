@@ -32,6 +32,7 @@ overlays the matching cutscene the first time a round ends.
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
 import gc
+import logging
 import math
 import random
 import sys
@@ -64,6 +65,7 @@ from game.buildings import BaseBuilding, attach_base
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
 from game.core import Session, append_random_name, load_balance
+from game.core import highscores  # player-identity: the run-history document
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
 from game.debug import (  # debug-mode-telemetry
@@ -101,6 +103,8 @@ _DRAG_THRESHOLD_SQ = 4 * 4  # a left-press that moves less than this is a click
 _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
 
+_log = logging.getLogger(__name__)
+
 
 def _key_name(key):
     """Map a pygame keycode to the neutral name game/ui expects (keeps game/ui
@@ -112,6 +116,10 @@ def _key_name(key):
             pygame.K_RETURN: "return",
             pygame.K_KP_ENTER: "return",
             pygame.K_ESCAPE: "escape",
+            # player-identity: the high-score table scrolls on Up/Down. No
+            # gameplay handler binds an arrow key, so nothing is shadowed.
+            pygame.K_UP: "up",
+            pygame.K_DOWN: "down",
         }
     return _KEY_NAMES.get(key)
 
@@ -341,9 +349,20 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     # shell shares it with its five menu screens; build_gameplay threads the
     # SAME instance into the seven gameplay screens it constructs itself).
     skinning = ScreenSkinning(data_dir)
+    # player-identity: `core.json`'s `Debug` group gates the menu's two
+    # launcher rows and the identity prompt. Indexed directly, never `.get` —
+    # the schema requires the key, so missing data must fail LOUD (D-2).
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
-                 skinning=skinning)
+                 skinning=skinning, debug_balance=core_balance["Debug"])
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
+    # player-identity: the run history lives in the gitignored `scores/` dir at
+    # the repo root, NOT in `data/` — it is per-machine play history. Read once
+    # here to seed the high-score table and pre-fill the identity prompt with
+    # whoever played last; re-read on every `open_highscores` intent below.
+    scores_path = highscores.default_path(REPO)
+    hs_doc = highscores.load_highscores(scores_path, data_dir)
+    shell.set_highscores(hs_doc)
+    shell.prefill_identity(*highscores.last_player(hs_doc))
 
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
                                  caption)
@@ -380,7 +399,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
           # -- TU-6: the guided-chain director + its Continue/Skip message box --
           "tutorial": None, "tutorial_message": None}
 
+    # player-identity: the per-run latch that keeps the GAME_OVER transition
+    # from appending a second high-score row every frame the state holds.
+    # Reset for each fresh run in `build_gameplay()`.
+    score_recorded = False
+
     def build_gameplay():
+        nonlocal score_recorded
+        score_recorded = False
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
                              buildings_balance, registry)
         # Ground follows runtime zone changes: unlock/recede invalidates the
@@ -424,7 +450,12 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 dbg.RUN_START, level=recorder.level, run_id=recorder.run_id,
                 map_id=map_doc.map_id, seed=None,
                 love=gp["world"].session.state.love,
-                lives=gp["world"].session.state.base_lives)
+                lives=gp["world"].session.state.base_lives,
+                # player-identity: read off the RECORDER, never the shell, so
+                # the event can never disagree with the run id the four
+                # artifact filenames are stamped with.
+                player_name=recorder.player_name,
+                player_skill=recorder.player_skill)
         gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
@@ -482,9 +513,17 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     def _new_recorder():
         """A fresh recorder from the shell's debug-log settings (level +
         which artifacts) — the ONE construction site the PLAY DEBUG button and
-        the cheat-menu arm toggle share."""
+        the cheat-menu arm toggle share.
+
+        player-identity: the identity comes off the shell too, and stamps the
+        run id (hence all four artifact filenames) + the MD/HTML report
+        headers. The level/outputs reads are unchanged — the Shell already
+        seeds `DebugSettings` from the `Debug` balancing defaults, so those
+        arrive through `shell.debug_settings` and must NOT be re-read here."""
+        name, skill = shell.player_identity
         return DebugRecorder(REPO / "logs", level=shell.debug_settings.level,
-                             outputs=shell.debug_settings.outputs)
+                             outputs=shell.debug_settings.outputs,
+                             player_name=name, player_skill=skill)
 
     def execute(intent):
         nonlocal running, window, recorder
@@ -512,6 +551,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 shell.set_pool_count(
                     len(buildings_balance["BuildingsGlobal"]["random_names"]))
             shell.report_add_name(added, name)
+        elif intent == "open_highscores":
+            # player-identity: RE-READ from disk — the run that just finished
+            # appended its row after this document was last loaded, and the
+            # identity prompt should offer the name it was recorded under.
+            doc = highscores.load_highscores(scores_path, data_dir)
+            shell.set_highscores(doc)
+            shell.prefill_identity(*highscores.last_player(doc))
 
     # -- 10H: lightning + cheat menu --------------------------------------
     def _execute_cheat(action):
@@ -557,7 +603,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 recorder.emit(
                     dbg.RUN_START, level=recorder.level,
                     run_id=recorder.run_id, map_id=map_doc.map_id, seed=None,
-                    love=session.state.love, lives=session.state.base_lives)
+                    love=session.state.love, lives=session.state.base_lives,
+                    # player-identity: off the RECORDER, not the shell (see
+                    # build_gameplay's matching emit).
+                    player_name=recorder.player_name,
+                    player_skill=recorder.player_skill)
                 # THE arm marker: everything before this round is missing.
                 recorder.emit(dbg.CHEAT, action="debug_log_on",
                               round=session.state.round_num)
@@ -803,6 +853,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     execute(shell.handle_key(event.unicode, _key_name(event.key)))
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                     execute(shell.handle_click(*event.pos))
+                elif event.type == pygame.MOUSEWHEEL and event.y:
+                    # player-identity: the high-score table is the only menu
+                    # screen that scrolls (Shell.handle_scroll duck-types on a
+                    # callable `scroll`; every other screen is a no-op). NEGATED
+                    # — pygame's MOUSEWHEEL.y is positive scrolling UP, while
+                    # HighscoresScreen.scroll(+dy) moves DOWN the list.
+                    shell.handle_scroll(-event.y)
                 continue
             # -- TU-5: an in-gameplay cutscene overlay consumes ALL input
             # while active (mirrors the CUTSCENE branch above) --
@@ -1109,6 +1166,28 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     # pygame.quit() below stays a harmless no-op afterward.
                     if session.debug is not None:
                         session.debug.close(outcome="game_over")
+                    # player-identity: record ONE high-score row per run. This
+                    # is INDEPENDENT of the recorder — a regular (uninstrumented)
+                    # run still records a row, with `make_entry` normalising the
+                    # (None, None) identity to Anonymous / unknown. The latch is
+                    # set BEFORE the write so a raising append cannot retry every
+                    # frame; a read-only disk or a full volume must never crash a
+                    # finished run on the game-over screen, so losing the row is
+                    # the correct trade (ONE logged warning).
+                    if not score_recorded:
+                        score_recorded = True
+                        try:
+                            name, skill = shell.player_identity
+                            highscores.append_score(scores_path, highscores.make_entry(
+                                name, skill, session.state.round_num,
+                                session.state.buildings_placed,
+                                session.state.enemies_killed,
+                                run_id=recorder.run_id if recorder is not None else None,
+                                debug=recorder is not None), data_dir)
+                        except Exception as exc:              # noqa: BLE001
+                            _log.warning(
+                                "could not record the high score for this run "
+                                "(%s) — the run itself is unaffected", exc)
                 gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
                 gp["panel"].hover(mx, my, mouse_down=held)
                 gp["panel"].update(dt)
