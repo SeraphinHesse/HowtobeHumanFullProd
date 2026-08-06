@@ -117,7 +117,11 @@ class HighscoresScreen:
     def scroll(self, dy):
         """Move the viewport by ``dy`` ROWS, clamped so the last page can never
         scroll past the end. Fed by the mouse wheel (``Shell.handle_scroll``)
-        and the Up/Down keys."""
+        and the Up/Down keys.
+
+        **Sign**: POSITIVE ``dy`` moves DOWN the list (a larger offset) — the
+        natural row-offset reading. pygame's ``MOUSEWHEEL`` ``event.y`` is
+        positive when scrolling UP, so the host negates it."""
         limit = max(0, len(self.rows) - self.visible_rows)
         self.scroll_offset = max(0, min(limit, self.scroll_offset + dy))
 
