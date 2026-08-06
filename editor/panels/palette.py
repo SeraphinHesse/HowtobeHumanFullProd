@@ -13,10 +13,14 @@ PAINT MODES (user-directed):
   "+ Variant" adds another variant to the current type; "+ Add Prop" adds a
   brand-new type.
 - **Spawnable Background** — ONE brush (plain text, NO sprite: a mark is an
-  invisible overlay, not a tile kind) plus a spinbox for the purchase NUMBER
-  the marks it paints carry. Every mark numbered n releases together on the
-  player's nth tile purchase; the underlying forest/cliff/ocean art keeps
+  invisible overlay, not a tile kind) plus a spinbox for the STAGE NUMBER
+  the marks it paints carry. Every mark numbered n releases together when the
+  run's stage counter reaches n; the underlying forest/cliff/ocean art keeps
   drawing and the game never sees the mark as a legend code.
+- **Stage Zones** — the same one-brush-plus-a-number shape again, painted on
+  COMBAT tiles: buying a 2×2 that intersects the painted set advances the
+  run's stage counter to the highest number among those four tiles, which is
+  the ONLY thing that fires the two batches above.
 
 A single exclusive brush group spans all mode pages, so exactly one brush
 is armed at a time. The tool row (none/paint/erase/line/rect/bucket/picker), the
@@ -54,9 +58,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
 EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial",
-        "spawn_reserve", "despawnable_spawn")
+        "spawn_reserve", "despawnable_spawn", "stage_zones")
 MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve",
-         "despawnable_spawn")
+         "despawnable_spawn", "stage_zones")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
@@ -64,6 +68,7 @@ MODE_LABELS = {
     "tutorial": "Tutorial",
     "spawn_reserve": "Spawnable Background",
     "despawnable_spawn": "Despawnable Spawn",
+    "stage_zones": "Stage Zones",
 }
 
 
@@ -83,9 +88,11 @@ class PalettePanel(QWidget):
     tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
     tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
     spawn_reserve_armed = Signal()      # the spawnable-background brush (no slot)
-    reserve_number_changed = Signal(int)  # the purchase number marks carry
+    reserve_number_changed = Signal(int)  # the stage number marks carry
     despawn_armed = Signal()            # the despawnable-spawn brush (no slot)
-    despawn_number_changed = Signal(int)  # the purchase number marks carry
+    despawn_number_changed = Signal(int)  # the stage number marks carry
+    stage_armed = Signal()              # the stage-zone brush (no slot)
+    stage_number_changed = Signal(int)  # the stage number marks carry
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -204,20 +211,20 @@ class PalettePanel(QWidget):
         # spawnable-background page: ONE plain-text brush (no sprite — the mark
         # is an invisible overlay, like the tutorial markers which also draw as
         # outlines) in the SAME exclusive group as every other brush, with the
-        # purchase-number spinbox directly under it.
+        # stage-number spinbox directly under it.
         reserve_layout = self._pages["spawn_reserve"][2]
         self._spawn_reserve_btn = QToolButton(self)
         self._spawn_reserve_btn.setText("Spawn Reserve Mark")
         self._spawn_reserve_btn.setToolTip(
             "Paint invisible spawnable-background marks: every mark numbered n "
-            "turns SPAWNING on the player's nth tile purchase")
+            "turns SPAWNING when the run reaches stage n")
         self._spawn_reserve_btn.setCheckable(True)
         self._spawn_reserve_btn.clicked.connect(
             lambda _=False: self.arm_spawn_reserve())
         self._brush_group.addButton(self._spawn_reserve_btn)
         reserve_layout.addWidget(self._spawn_reserve_btn)
 
-        reserve_layout.addWidget(QLabel("Released on tile purchase #"))
+        reserve_layout.addWidget(QLabel("Released at stage #"))
         lo, hi = self._reserve_number_bounds()
         self._reserve_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
         self._reserve_spin.setRange(lo, hi)
@@ -226,26 +233,51 @@ class PalettePanel(QWidget):
         reserve_layout.addWidget(self._reserve_spin)
 
         # despawnable-spawn page: the exact twin of the page above, over the
-        # despawnable_spawn overlay (SPAWNING -> COMBAT on the nth purchase).
+        # despawnable_spawn overlay (SPAWNING -> COMBAT at stage n).
         despawn_layout = self._pages["despawnable_spawn"][2]
         self._despawn_btn = QToolButton(self)
         self._despawn_btn.setText("Spawn Despawn Mark")
         self._despawn_btn.setToolTip(
             "Paint invisible despawnable-spawn marks: every mark numbered n "
-            "turns from SPAWNING to COMBAT on the player's nth tile purchase")
+            "turns from SPAWNING to COMBAT when the run reaches stage n")
         self._despawn_btn.setCheckable(True)
         self._despawn_btn.clicked.connect(
             lambda _=False: self.arm_despawn())
         self._brush_group.addButton(self._despawn_btn)
         despawn_layout.addWidget(self._despawn_btn)
 
-        despawn_layout.addWidget(QLabel("Retired on tile purchase #"))
+        despawn_layout.addWidget(QLabel("Retired at stage #"))
         lo, hi = self._despawn_number_bounds()
         self._despawn_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
         self._despawn_spin.setRange(lo, hi)
         self._despawn_spin.setValue(lo)
         self._despawn_spin.valueChanged.connect(self.despawn_number_changed.emit)
         despawn_layout.addWidget(self._despawn_spin)
+
+        # stage-zones page: the third page of exactly this shape, over the
+        # stage_zones overlay. Painted on COMBAT tiles; buying a 2×2 that
+        # intersects the painted set advances the run's stage counter to the
+        # HIGHEST number among those four tiles.
+        stage_layout = self._pages["stage_zones"][2]
+        self._stage_btn = QToolButton(self)
+        self._stage_btn.setText("Stage Zone Mark")
+        self._stage_btn.setToolTip(
+            "Paint invisible stage-zone marks on combat tiles: buying a 2×2 "
+            "that intersects them advances the run to the highest stage among "
+            "the four bought tiles")
+        self._stage_btn.setCheckable(True)
+        self._stage_btn.clicked.connect(
+            lambda _=False: self.arm_stage())
+        self._brush_group.addButton(self._stage_btn)
+        stage_layout.addWidget(self._stage_btn)
+
+        stage_layout.addWidget(QLabel("Advances to stage #"))
+        lo, hi = self._stage_number_bounds()
+        self._stage_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._stage_spin.setRange(lo, hi)
+        self._stage_spin.setValue(lo)
+        self._stage_spin.valueChanged.connect(self.stage_number_changed.emit)
+        stage_layout.addWidget(self._stage_spin)
 
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
@@ -326,23 +358,28 @@ class PalettePanel(QWidget):
         except (KeyError, ValueError):
             return []
 
-    def _reserve_number_bounds(self):
-        """(minimum, maximum) for the purchase-number spinbox, read straight
-        from map_file.schema.json's spawnable_background item — invalid input
-        is unrepresentable (ED-30) and the bounds have exactly one home."""
+    def _stage_bounds(self, property_key):
+        """(minimum, maximum) for one overlay's stage-number spinbox, read
+        straight from map_file.schema.json's own item property — invalid input
+        is unrepresentable (ED-30) and the bounds have exactly one home. The
+        on-disk key is ``stage``, not ``purchase``: the number is a designer
+        STAGE, advanced only by buying into a stage zone."""
         schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
-        purchase = (schema["properties"]["spawnable_background"]
-                    ["items"]["properties"]["purchase"])
-        return purchase["minimum"], purchase["maximum"]
+        stage = (schema["properties"][property_key]
+                 ["items"]["properties"]["stage"])
+        return stage["minimum"], stage["maximum"]
+
+    def _reserve_number_bounds(self):
+        """Bounds for the spawnable-background stage spinbox."""
+        return self._stage_bounds("spawnable_background")
 
     def _despawn_number_bounds(self):
-        """(minimum, maximum) for the despawn purchase-number spinbox, read
-        straight from map_file.schema.json's despawnable_spawn item — mirrors
-        _reserve_number_bounds (ED-30, one home for the bounds)."""
-        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
-        purchase = (schema["properties"]["despawnable_spawn"]
-                    ["items"]["properties"]["purchase"])
-        return purchase["minimum"], purchase["maximum"]
+        """Bounds for the despawnable-spawn stage spinbox."""
+        return self._stage_bounds("despawnable_spawn")
+
+    def _stage_number_bounds(self):
+        """Bounds for the stage-zone spinbox."""
+        return self._stage_bounds("stage_zones")
 
     def _zone_codes(self):
         """Legend codes for the zone (checker) tiles, sorted."""
@@ -643,6 +680,8 @@ class PalettePanel(QWidget):
             self.arm_spawn_reserve()
         elif self._mode == "despawnable_spawn":
             self.arm_despawn()
+        elif self._mode == "stage_zones":
+            self.arm_stage()
         else:
             decos = self._deco_slots()
             if decos:
@@ -749,7 +788,7 @@ class PalettePanel(QWidget):
         return self._spawn_reserve_btn.isChecked()
 
     def reserve_number(self):
-        """The purchase number newly painted marks carry."""
+        """The stage number newly painted marks carry."""
         return self._reserve_spin.value()
 
     def set_reserve_number(self, n):
@@ -764,13 +803,28 @@ class PalettePanel(QWidget):
         return self._despawn_btn.isChecked()
 
     def despawn_number(self):
-        """The purchase number newly painted despawn marks carry."""
+        """The stage number newly painted despawn marks carry."""
         return self._despawn_spin.value()
 
     def set_despawn_number(self, n):
         """Write the spinbox (the viewport's eyedropper return path — mirrors
         set_reserve_number). Out-of-range values clamp in QSpinBox."""
         self._despawn_spin.setValue(int(n))
+
+    def armed_stage(self):
+        """True while the Stage Zones brush is armed — the exact twin of
+        armed_despawn (a bool, not a slot: a mark is an overlay, not a
+        sprite)."""
+        return self._stage_btn.isChecked()
+
+    def stage_number(self):
+        """The stage number newly painted stage-zone marks carry."""
+        return self._stage_spin.value()
+
+    def set_stage_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        set_despawn_number). Out-of-range values clamp in QSpinBox."""
+        self._stage_spin.setValue(int(n))
 
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
@@ -854,6 +908,13 @@ class PalettePanel(QWidget):
         so this disarms EVERY other brush, the spawn-reserve mark included."""
         self._despawn_btn.setChecked(True)
         self.despawn_armed.emit()
+
+    def arm_stage(self):
+        """Arm the Stage Zones brush (paint = mark with the spinbox's number,
+        erase = clear the mark). Shares the one exclusive brush group, so this
+        disarms EVERY other brush, the other two overlay marks included."""
+        self._stage_btn.setChecked(True)
+        self.stage_armed.emit()
 
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot

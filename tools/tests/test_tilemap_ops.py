@@ -148,6 +148,10 @@ class TestRequirementWarnings(unittest.TestCase):
         # marks carries the (non-blocking) empty-despawn warning, which
         # test_empty_despawnable_spawn_warns owns.
         ops.set_despawn(doc, 5, 1, 1)
+        # one stage-zone mark on the COMBAT ("c") cell — a doc with no stage
+        # zones carries the (non-blocking) empty-stage warning, which
+        # test_empty_stage_zones_warns owns.
+        ops.set_stage(doc, 4, 1, 1)
         return doc
 
     def test_missing_start_area_warns(self):
@@ -182,6 +186,13 @@ class TestRequirementWarnings(unittest.TestCase):
         doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
         doc.despawnable_spawn.clear()
         self.assertIn("despawnable spawn tiles",
+                      ops.map_requirement_warnings(doc))
+
+    def test_empty_stage_zones_warns(self):
+        doc = self._playable_doc()
+        doc.start_area = {"col": 1, "row": 1, "slot": "start_area"}
+        doc.stage_zones.clear()
+        self.assertIn("stage zone tiles",
                       ops.map_requirement_warnings(doc))
 
 

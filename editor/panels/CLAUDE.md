@@ -550,10 +550,11 @@ import list.**
   Background" via `MODE_LABELS` — which the layer-eye loop now consults too, so
   a mode and its eye can't be labelled two different ways). **A mark is an
   INVISIBLE OVERLAY, not a legend tile code**: it lives in
-  `TileMapDoc.spawnable_background` (`{(col,row): purchase}`), the underlying
+  `TileMapDoc.spawnable_background` (`{(col,row): stage}`), the underlying
   background art keeps drawing, and the game never sees it as a tile kind — the
-  runtime flips every cell numbered n to SPAWNING on the player's nth tile
-  purchase.
+  runtime flips every cell numbered n to SPAWNING when the run's STAGE counter
+  reaches n (advanced only by the stage-zone brush below — see it for why the
+  on-disk key is `stage`, not the `purchase` this shipped as).
   - The page holds ONE **plain-TEXT** brush button (no sprite, no icon — there
     is nothing to import; like the tutorial markers it draws as an outline) in
     the SAME exclusive `_brush_group`, so arming it disarms every other brush.
@@ -563,13 +564,15 @@ import list.**
     returns a BOOL, not a slot (the one departure from the
     `armed_tutorial_stone` shape).
   - Under it a `_NoWheelSpinBox` (imported from `balancing.py`, ED-30) for the
-    purchase number, ranged from `map_file.schema.json`'s own
-    `spawnable_background.items.purchase` `minimum`/`maximum`
-    (`_reserve_number_bounds`) — the bounds have exactly one home.
+    stage number, ranged from `map_file.schema.json`'s own
+    `spawnable_background.items.stage` `minimum`/`maximum`
+    (`_reserve_number_bounds`) — the bounds have exactly one home. All three
+    overlays' bounds now go through ONE `_stage_bounds(property_key)` helper,
+    because all three read the same `stage` item key from their own property.
   - **Pure ops mirror the terrain ones one-for-one** in `tilemap_ops.py`
     (`set_reserve`/`reserve_line`/`reserve_rect`/`reserve_bucket`/
     `apply_reserve_changes`/`pick_reserve`), same `(col,row,old,new)` change
-    tuple with old/new the purchase number or `None`; `map_session.
+    tuple with old/new the stage number or `None`; `map_session.
     _ReserveStrokeCommand`/`push_reserve_stroke` are the exact twins of
     `_StrokeCommand`/`push_stroke`. **`reserve_bucket` floods the region
     sharing the underlying TERRAIN code, not the region sharing a mark** —
@@ -596,13 +599,13 @@ import list.**
   (`palette.MODES`/`EYES` gain `"despawnable_spawn"`, labelled "Despawnable
   Spawn" via `MODE_LABELS`) — an **exact structural sibling of the spawn-reserve
   page above**, deliberately copied rather than generalised. It paints
-  `TileMapDoc.despawnable_spawn` (`{(col,row): purchase}`, phase 1); the runtime
-  flips every cell numbered n from SPAWNING to COMBAT on the player's nth 2×2
-  purchase. Everything the reserve bullet says applies verbatim with the names
-  swapped: plain-TEXT brush button in the same exclusive `_brush_group` and
-  deliberately NOT in `self._brush_buttons` (no slot to resolve, so
-  `armed_despawn()` returns a **bool**); a `_NoWheelSpinBox` bounded by
-  `map_file.schema.json`'s own `despawnable_spawn.items.purchase`
+  `TileMapDoc.despawnable_spawn` (`{(col,row): stage}`, phase 1); the runtime
+  flips every cell numbered n from SPAWNING to COMBAT when the run's STAGE
+  counter reaches n. Everything the reserve bullet says applies verbatim with
+  the names swapped: plain-TEXT brush button in the same exclusive
+  `_brush_group` and deliberately NOT in `self._brush_buttons` (no slot to
+  resolve, so `armed_despawn()` returns a **bool**); a `_NoWheelSpinBox` bounded
+  by `map_file.schema.json`'s own `despawnable_spawn.items.stage`
   (`_despawn_number_bounds`); pure ops `set_despawn`/`despawn_line`/
   `despawn_rect`/`despawn_bucket`/`apply_despawn_changes`/`pick_despawn` with
   the same `(col,row,old,new)` tuples, `despawn_bucket` flooding the underlying
@@ -619,6 +622,39 @@ import list.**
     legend codes (`"despawnable spawn on non-spawn tiles"`), not the reserve's
     `checker` zone test — flipping SPAWNING → COMBAT is meaningless anywhere but
     a spawn tile. The empty-overlay label is `"despawnable spawn tiles"`.
+- **Stage Zones (1 brush + a number)**: a SEVENTH mode page
+  (`palette.MODES`/`EYES` gain `"stage_zones"`, labelled "Stage Zones" via
+  `MODE_LABELS`) — the **third exact structural sibling** of the two pages
+  above, again deliberately copied rather than generalised. It paints
+  `TileMapDoc.stage_zones` (`{(col,row): stage}`, phase 1) on COMBAT tiles, and
+  it is **the ONLY thing that advances the run's stage counter**: buying a 2×2
+  that intersects the painted set advances the stage to the MAXIMUM number
+  among those four tiles, which in turn is what fires the two batches above.
+  Nothing else moves it — which is why phase 1 renamed the on-disk key of all
+  three overlays from `purchase` to `stage` (`n` is no longer a purchase
+  count), and why the whole editor now says "stage" in every label, signal
+  comment and docstring for this feature.
+  Everything the despawn bullet says applies verbatim with the names swapped:
+  plain-TEXT brush button in the same exclusive `_brush_group` and deliberately
+  NOT in `self._brush_buttons` (no slot to resolve, so `armed_stage()` returns a
+  **bool**); a `_NoWheelSpinBox` bounded by `map_file.schema.json`'s own
+  `stage_zones.items.stage` (`_stage_number_bounds`); pure ops `set_stage`/
+  `stage_line`/`stage_rect`/`stage_bucket`/`apply_stage_changes`/`pick_stage`
+  with the same `(col,row,old,new)` tuples, `stage_bucket` flooding the
+  underlying TERRAIN region; `map_session._StageStrokeCommand`/
+  `push_stage_stroke`; a `_tool_press` branch beside the other two and likewise
+  BEFORE the terrain-code branches; `_submit_stage_zones`, a window-culled
+  overlay diamond + `HudText` number; `stage_number_picked` for the eyedropper.
+  - **Its two divergences, by the same logic as the despawn twin's.** (1)
+    `STAGE_COLOR` is **lime** `(150,255,90)` — a third hue clearly distinct
+    from the reserve's cyan and the despawn's magenta — and its number sits
+    lower still than the despawn's (reserve `sy-6`, despawn `sy+4`, stage
+    `sy+14`), so a cell carrying all THREE marks stays readable. (2) The
+    "wrong tile" warning predicate is the despawn's with the slot swapped:
+    `map_requirement_warnings` compares against the `tile_combat` SLOT's legend
+    codes (`"stage zones on non-combat tiles"`), NOT the reserve's `checker`
+    zone test — the stage only ever advances on a combat-tile purchase. The
+    empty-overlay label is `"stage zone tiles"`.
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the

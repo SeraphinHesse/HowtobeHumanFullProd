@@ -357,6 +357,26 @@ class TestDespawnableSpawn(MapModeCase):
         self.assertEqual(doc.despawnable_spawn, before)
 
 
+class TestStageZones(MapModeCase):
+    """The stage-zone brush: ONE undo command per stroke, and undo restores
+    exactly the marks that were there before."""
+
+    def test_stage_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.stage_zones[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.stage_zones)
+        self.window.palette.set_mode("stage_zones")
+        self.window.palette.set_stage_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.stage_zones[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.stage_zones, before)
+
+
 class TestRenderPath(MapModeCase):
     """ED-22: eyes/tints/grid observed at the engine backend, not via Qt."""
 
