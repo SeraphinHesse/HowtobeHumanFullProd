@@ -153,7 +153,7 @@ def _screen_captures():
     game_log.post("Test message")
     game_log.update(0.0)
 
-    boss = BossCutscene(VIEW_W, VIEW_H)
+    boss = BossCutscene(VIEW_W, VIEW_H, CORE)
     boss.open(1, "win")
     boss.update(0.0, *OFF, False)
 
@@ -185,6 +185,11 @@ def _screen_captures():
 #: gained the Debug Log row (and 30px of panel to hold it), so both screens'
 #: DEFAULT geometry moved on purpose. Every other screen's entry is untouched,
 #: which is what says the change was contained.
+#: Regenerated a SECOND time (boss-upgrade rework): ``boss_cutscene``'s two
+#: option DESCS are new copy for the redesigned set-1 bonuses (and now quote
+#: live ``core.json BossBonuses`` magnitudes). Only those four HudText strings
+#: moved — every rect/pos/colour in the entry is untouched, which is what says
+#: the change was contained.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 1280, 720), color=(18, 30, 20), border_radius=0, width=0),
@@ -421,13 +426,13 @@ _BASELINE = {
         HudRect(rect=(450, 315, 180, 130), color=(42, 34, 68), border_radius=0, width=0),
         HudRect(rect=(450, 315, 180, 130), color=(80, 65, 120), border_radius=0, width=1),
         HudText(text='WinA', pos=(540, 327), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per unbuilt tile, buildings do', pos=(540, 352), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='+1 extra damage', pos=(540, 365), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Per unbuilt tile, buildings', pos=(540, 352), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='deal +1 extra damage', pos=(540, 365), font_key='sm', color=(150, 140, 120), align='center'),
         HudRect(rect=(650, 315, 180, 130), color=(42, 34, 68), border_radius=0, width=0),
         HudRect(rect=(650, 315, 180, 130), color=(80, 65, 120), border_radius=0, width=1),
         HudText(text='WinB', pos=(740, 327), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per building level past 2,', pos=(740, 352), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='generate +1 love per round', pos=(740, 365), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Per building placed, buildings', pos=(740, 352), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='deal +1 extra damage', pos=(740, 365), font_key='sm', color=(150, 140, 120), align='center'),
     ],
 }
 
@@ -677,7 +682,7 @@ class TestReviewFixLabelRects(unittest.TestCase):
     def test_five_label_ids_have_a_real_default_rect(self):
         hud = Hud(VIEW_W, VIEW_H)
         cheat = CheatMenu(VIEW_W, VIEW_H)
-        boss = BossCutscene(VIEW_W, VIEW_H)
+        boss = BossCutscene(VIEW_W, VIEW_H, CORE)
         boss.open(1, "win")
         holders = {
             "hud.phase_label": hud._phase_label,
@@ -726,7 +731,7 @@ class TestReviewFixLabelRects(unittest.TestCase):
         skinning = ScreenSkinning.empty()
         skinning._overrides["boss_cutscene"] = {
             "widgets": {"headline": {"rect": [12, 34, 0, 0]}}}
-        boss = BossCutscene(VIEW_W, VIEW_H, skinning=skinning)
+        boss = BossCutscene(VIEW_W, VIEW_H, CORE, skinning=skinning)
         boss.open(1, "win")
         items = _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H))
         headline = next(i for i in items

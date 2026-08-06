@@ -316,7 +316,8 @@ def run_sim(rounds, strategy, seed, level=LEVEL_BASIC, data_dir=None,
                     on_base_hit=session.on_base_hit,
                     on_enemy_death=session.on_enemy_death,
                     on_kidnap=session.on_kidnap,
-                    dmg_bonus=story_damage_bonus(state, world.tile_map),
+                    dmg_bonus=story_damage_bonus(state, world.tile_map,
+                                                 world.core_bal),
                     on_defender_fire=_on_defender_fire if verbose else None,
                     on_damage=_on_damage if verbose else None)
                 session.post_sim(scene)

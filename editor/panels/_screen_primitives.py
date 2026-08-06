@@ -3,7 +3,7 @@
 (no per-widget override, no kind-matched screen default) still needs SOME
 on-screen representation, so this module re-implements a MINIMAL per-kind
 look WITHOUT importing game/ui — root CLAUDE.md forbids editor/ and game/
-importing each other. This is an accepted drift (planning/UI_EDITOR_PLAN.md):
+importing each other. This is an accepted drift (planning/completed plans/UI_EDITOR_PLAN.md):
 the two must stay visually aligned by eye + the B2 parity pin, not by
 sharing code.
 

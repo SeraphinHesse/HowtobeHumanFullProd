@@ -1,6 +1,6 @@
 """No test reads live ``data/`` unless it is here on purpose — enforced.
 
-Why this test is load-bearing. FP-2 (``planning/TestFixturePinningPLAN.md``)
+Why this test is load-bearing. FP-2 (``planning/completed plans/TestFixturePinningPLAN.md``)
 moved every value-asserting test onto the pinned snapshot in
 ``tools/tests/fixtures/data/`` precisely so a designer editing live data can
 never turn the gate red. That repair holds only while nothing quietly writes

@@ -17,9 +17,7 @@ from types import SimpleNamespace
 
 from engine.render.fonts import layout_h
 
-from game.core.boss_bonuses import (
-    aoe_count, boss1b_income, boss3b_income, defence_count,
-)
+from game.core.boss_bonuses import love_bonus_income
 from game.core.lightning import LightningCaster
 from game.core.phases import GamePhase, GameState
 from game.core.xp import scaled_base_income
@@ -109,26 +107,10 @@ def income_sources(session):
         ufn = getattr(b, "upkeep", None)
         if ufn is not None:
             upkeep += ufn()
-    # -- 10G boss-bonus story income: one bounded block so the HUD net keeps
-    # matching the next payday — the slot-3 payouts (Boss1B/3B) plus the
-    # Boss2A/2B per-recipient deltas the income sweep will fold in (counts have
-    # NO alive filter; recipients must be alive to be paid, like the sweep).
+    # Boss-bonus story income: the SAME whole-board slot-3 sum payday pays
+    # (Boss2A/2B), so the HUD net can't drift from the next payday.
     st = session.state
-    stacks = st.boss_stacks
-    story = boss1b_income(st, session.tilemap) + boss3b_income(st, session.tilemap)
-    if stacks["boss2a"]:
-        n_musicians = sum(
-            1 for t in session.tilemap.built_tiles()
-            if getattr(t.occupant, "building_type", None) == "economic"
-            and getattr(t.occupant, "alive", False))
-        story += defence_count(session.tilemap) * stacks["boss2a"] * n_musicians
-    if stacks["boss2b"]:
-        n_meditators = sum(
-            1 for t in session.tilemap.built_tiles()
-            if getattr(t.occupant, "building_type", None) == "meditator"
-            and getattr(t.occupant, "alive", False))
-        story += aoe_count(session.tilemap) * stacks["boss2b"] * n_meditators
-    # -- /10G --
+    story = love_bonus_income(st, session.tilemap, session.core_balance)
     sources = [(T("hud.income.base"), scaled_base_income(st, session.core_balance))]
     if musicians:
         sources.append((T("hud.income.musicians"), musicians))

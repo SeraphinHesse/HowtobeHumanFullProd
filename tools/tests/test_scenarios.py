@@ -1,6 +1,6 @@
 """Top-down scenario runs: the game, played headlessly, behaves like the game.
 
-FP-5 of ``planning/TestFixturePinningPLAN.md``. Where the unit suites pin one
+FP-5 of ``planning/completed plans/TestFixturePinningPLAN.md``. Where the unit suites pin one
 subsystem each, these boots RUN the product loop end to end — spawner, flow
 field, movement, combat sweep, phase machine, payday — and assert only
 INVARIANTS a designer must be free to retune around: enemies reach an

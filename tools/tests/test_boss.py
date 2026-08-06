@@ -1,5 +1,5 @@
 """Phase 10G: Boss — queue composition, era stats, death swarm, pathing guard,
-A/B bonuses (payday slot 3 + in-sweep deltas + story damage), cutscene flow, XP.
+A/B bonuses (story damage + payday slot 3), cutscene flow, XP.
 
 Pure-Python, headless — the ``test_phase_loop.py`` fixture style: a synth
 ``TileMapDoc`` -> ``TileMap`` board, real balancing via ``load_balance``, and a
@@ -20,7 +20,6 @@ from engine import tilemap
 from engine.core import Health, Movement, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
-from game.buildings.components import RoundStats
 from game.core import RunState, Session, load_balance, run_payday
 from game.core import boss_bonuses as bb
 from game.core.phases import GamePhase, GameState
@@ -339,19 +338,118 @@ class TestBossPathing(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 5. Bonus payout math — pure helpers, dmg_bonus threading, payday slot 3
 # ---------------------------------------------------------------------------
+BB = CORE["BossBonuses"]
+
+
 class TestBossBonuses(unittest.TestCase):
-    def test_story_damage_bonus(self):
-        tm, _scene, _occ = build_board(["bbbb"])
+    """The reworked six. Magnitudes come from ``core.json``'s ``BossBonuses``,
+    so every expectation is ``count * magnitude * stacks`` — never a literal."""
+
+    def _state(self, **stacks):
         st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss1a"] = 2
-        st.boss_stacks["boss3a"] = 1
-        st.boss_love_snapshot = 57
+        for key, value in stacks.items():
+            st.boss_stacks[key] = value
+        return st
+
+    # -- 1A/1B/3A/3B: the four story-damage contributors -------------------
+
+    def test_boss1a_pays_per_unbuilt_tile(self):
+        tm, _scene, _occ = build_board(["bbbb"])
+        st = self._state(boss1a=2)
         n = len(tm.buildable_tiles())
         self.assertGreater(n, 0)
-        self.assertEqual(bb.story_damage_bonus(st, tm), n * 2 + 5)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         n * BB["dmg_per_unbuilt_tile"] * 2)
         st.boss_stacks["boss1a"] = 0
-        st.boss_stacks["boss3a"] = 0
-        self.assertEqual(bb.story_damage_bonus(st, tm), 0)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
+
+    def test_boss1b_pays_per_alive_building(self):
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "defence", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "economic", 9999, BUILD, scene, occ)
+        st = self._state(boss1b=3)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         2 * BB["dmg_per_building"] * 3)
+
+    def test_boss3a_pays_per_love_chunk_of_the_end_turn_snapshot(self):
+        tm, _scene, _occ = build_board(["bbbb"])
+        chunk = BB["love_chunk_size"]
+        st = self._state(boss3a=2)
+        st.boss_love_snapshot = chunk * 3 + 1     # the remainder never pays
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         3 * BB["dmg_per_love_chunk"] * 2)
+
+    def test_boss3b_pays_per_lightning_building(self):
+        tm, scene, occ = build_board(["bbbb"])
+        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                   BUILD, scene, occ)
+        self.assertIn("lightning_source", priest.tags)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = self._state(boss3b=2)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         1 * BB["dmg_per_lightning_building"] * 2)
+
+    # -- 2A/2B: paid through payday slot 3, silently ------------------------
+
+    def test_boss2a_pays_per_level_past_the_threshold_through_payday(self):
+        tm, scene, occ = build_board(["bbb"])
+        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
+                                     BUILD, scene, occ)
+        defender.upgrade()
+        defender.upgrade()          # in-tier level 3
+        levels_past = max(0, 3 - BB["level_past_threshold"])
+        st = self._state(boss2a=2)
+        story = levels_past * BB["love_per_level_past"] * 2
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
+        love0 = st.love
+        run_payday(st, tm, CORE)
+        self.assertEqual(
+            st.love,
+            love0 + story + HOLE["base_income"] - defender.upkeep())
+        # Slot 3 pays SILENTLY — only base income leaves an income floater.
+        self.assertEqual(
+            len([e for e in st.income_events if e[3] == "income"]), 1)
+
+    def test_boss2b_pays_per_low_level_building_through_payday(self):
+        tm, scene, occ = build_board(["bbbb"])
+        low, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
+                                scene, occ)
+        high, _ = place_building(tm, tm.get(2, 0), "defence", 9999, BUILD,
+                                 scene, occ)
+        for _ in range(BB["low_level_target"]):
+            high.upgrade()          # past the target level
+        st = self._state(boss2b=2)
+        story = BB["love_per_low_level_building"] * 2      # exactly one match
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
+        love0 = st.love
+        run_payday(st, tm, CORE)
+        self.assertEqual(
+            st.love,
+            love0 + story + HOLE["base_income"]
+            - low.upkeep() - high.upkeep())
+        self.assertEqual(
+            len([e for e in st.income_events if e[3] == "income"]), 1)
+
+    def test_a_dead_building_drops_out_of_every_count(self):
+        """The rework's deliberate change from 10G's un-filtered counts: a
+        destroyed building stops counting (1B / 2A / 2B / 3B) until revive."""
+        tm, scene, occ = build_board(["bbbb"])
+        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                   BUILD, scene, occ)
+        defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
+                                     BUILD, scene, occ)
+        defender.upgrade()
+        defender.upgrade()          # in-tier level 3, so 2A has something
+        st = self._state(boss1b=1, boss2a=1, boss2b=1, boss3b=1)
+        alive_dmg = bb.story_damage_bonus(st, tm, CORE)
+        alive_love = bb.love_bonus_income(st, tm, CORE)
+        self.assertGreater(alive_dmg, 0)
+        self.assertGreater(alive_love, 0)
+        priest.get_component(Health).damage(10 ** 9)
+        defender.get_component(Health).damage(10 ** 9)
+        self.assertFalse(priest.alive or defender.alive)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), 0)
 
     def _projectile_delta(self, dmg_bonus):
         tm, scene, occ = build_board(["bbs"])
@@ -376,80 +474,20 @@ class TestBossBonuses(unittest.TestCase):
         defender, boosted = self._projectile_delta(7)
         self.assertEqual(boosted, defender.damage() + 7)
 
-    def test_payday_slot3_boss1b_pays_per_level_past_2(self):
-        tm, scene, occ = build_board(["bbb"])
-        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.upgrade()
-        defender.upgrade()                       # in-tier level 3 -> +1/stack
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss1b"] = 1
-        love0 = st.love
-        expected = (bb.boss1b_income(st, tm)
-                    + CORE["TheHole"]["base_income"] - defender.upkeep())
-        self.assertEqual(bb.boss1b_income(st, tm), 1)
-        run_payday(st, tm, CORE)
-        self.assertEqual(st.love, love0 + expected)
-        # Slot 3 pays silently: no floater event beyond base income + upkeep.
-        self.assertEqual(len([e for e in st.income_events
-                              if e[3] == "income"]), 1)
-
-    def test_payday_slot3_boss3b_reads_the_snapshot_just_rolled(self):
-        tm, scene, occ = build_board(["bbb"])
-        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.get_component(RoundStats).dmg_dealt_this_round = 37
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss3b"] = 2
-        love0 = st.love
-        net = HOLE["base_income"] - defender.upkeep() + (37 // 10) * 2
-        run_payday(st, tm, CORE)
-        # Proves slot 3 ran AFTER the snapshot roll (this->last) — it read 37.
-        self.assertEqual(
-            defender.get_component(RoundStats).dmg_dealt_last_round, 37)
-        self.assertEqual(st.love, love0 + net)
-
-    def test_boss2a_musician_delta_counts_dead_defence_too(self):
-        tm, scene, occ = build_board(["bbbb"])
-        musician, _ = place_building(tm, tm.get(1, 0), "economic", 9999,
-                                     BUILD, scene, occ)
-        defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.get_component(Health).hp = 0     # dead — STILL counts
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss2a"] = 1
-        base_yield = musician.yield_amount()
-        run_payday(st, tm, CORE)
-        amounts = {(c, r): a for c, r, a, k in st.income_events
-                   if k == "income"}
-        self.assertEqual(amounts[(1, 0)], base_yield + 1)  # folded into amount
-
-    def test_boss2b_meditator_delta_via_aoe_count(self):
-        tm, scene, occ = build_board(["bbbb"])
-        meditator, _ = place_building(tm, tm.get(1, 0), "meditator", 9999,
-                                      BUILD, scene, occ)
-        place_building(tm, tm.get(2, 0), "aoe_defence", 9999, BUILD, scene,
-                       occ)
-        self.assertEqual(bb.aoe_count(tm), 1)
-        self.assertEqual(bb.defence_count(tm), 0)  # aoe is NOT "defence"
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss2b"] = 1
-        base_payout = meditator.yield_amount()     # pure (streak 0)
-        run_payday(st, tm, CORE)
-        amounts = {(c, r): a for c, r, a, k in st.income_events
-                   if k == "income"}
-        self.assertEqual(amounts[(1, 0)], base_payout + 1)
-
     def test_stacking_and_set_cycling(self):
         st = RunState.from_balance(CORE, BUILD)
         bb.apply_choice(st, 0, "A")
         bb.apply_choice(st, 0, "A")               # same pick twice = doubled
         self.assertEqual(st.boss_stacks["boss1a"], 2)
-        self.assertEqual((4 - 1) % 3, 0)          # boss 4 -> set 0
+        self.assertEqual((4 - 1) % 3, 0)          # boss 4 -> set 0 again
         bb.apply_choice(st, (4 - 1) % 3, "B")
         self.assertEqual(st.boss_stacks["boss1b"], 1)
-        self.assertEqual(bb.choice_desc(2, "A"),
-                         "Per 10 love held, defence\nbuildings deal +1 damage")
+        # The copy quotes the LIVE magnitude, so it can never advertise a
+        # number the math no longer uses.
+        desc = bb.choice_desc(2, "A", CORE)
+        self.assertEqual(len(desc.split("\n")), 2)
+        self.assertIn(str(BB["love_chunk_size"]), desc)
+        self.assertIn(str(BB["dmg_per_love_chunk"]), desc)
 
 
 # ---------------------------------------------------------------------------
