@@ -16,6 +16,10 @@ string** (the established ``hit() -> "end_turn"`` convention):
   ``"quit_app"``          leave the game
   ``"set_display_mode"``  re-create the window       (host applies the mode)
   ``"add_name_commit"``   persist the typed name     (host writes + reports back)
+  ``"open_highscores"``   the table just opened      (host RE-READS the scores
+                                                     file so a just-finished run
+                                                     shows, then calls
+                                                     ``set_highscores``)
 
 GAMEPLAY / GAME_OVER carry no shell screen (the host owns the HUD, building
 panel, and game-over screen, which need the live world); the shell only tracks
