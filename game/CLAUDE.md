@@ -103,6 +103,49 @@ for the full event-kind contract (what an LLM or a human reads) and
      `debug_log_on` marker is where capture STARTS, and it latches the round
      row's `cheated` flag, because a part-way-captured run is not clean
      balance data either.
+- **A FOURTH gate sits in front of all three: `data/balancing/core.json`'s
+  `Debug` group** (player-identity). `main.py` passes it into the `Shell`
+  as `debug_balance=core_balance["Debug"]` — indexed DIRECTLY, never `.get`,
+  because the schema requires the key and missing data must fail loud (D-2);
+  `Shell`/`MainMenu` still default it to `{}` so every bare construction (the
+  exporter, the golden pin, every test) reads each flag as its permissive
+  default. Three flags: `regular_mode_available` / `debug_mode_available`
+  hide either launcher row, and `ask_player_identity` decides whether PLAY
+  DEBUG puts the identity prompt up first (off ⇒ it starts an unstamped debug
+  run immediately). **The availability matrix's fail-safe**: both modes off
+  reverts to regular-only with ONE latched warning — never ship a menu with no
+  way to start a game. Debug-only keeps the START NEW GAME slot (and its
+  `btn_new_game` id) but emits `"play_debug"` from it; the id/action
+  decoupling that makes this possible is `game/ui/CLAUDE.md`.
+- **The run id is player-stamped.** `DebugRecorder(..., player_name=,
+  player_skill=)` folds `slug_player(name, skill)` into an auto-generated run
+  id, so **all four artifact filenames** carry the player, and the MD/HTML
+  reports grow a `Player:` header. `_new_recorder()` reads the pair off
+  `shell.player_identity` (the level/outputs still come from
+  `shell.debug_settings`, which the `Shell` itself seeds from the same `Debug`
+  balancing defaults — ONE source, no drift). **Both `RUN_START` emit sites**
+  (`build_gameplay()` and the cheat menu's `toggle_debug` arm) read
+  `recorder.player_name`/`.player_skill` off the RECORDER, never off the
+  shell, so the event can never disagree with the run id the artifacts are
+  named after. An unnamed/regular run produces exactly the run id it always
+  did.
+- **One high-score row is recorded at the GAME_OVER transition, INDEPENDENTLY
+  of the recorder.** Beside the existing `session.debug.close(outcome=
+  "game_over")` call, `main.py` appends a `game.core.highscores.make_entry(...)`
+  row to `scores/highscores.json` (the gitignored per-machine play history at
+  the repo root — NOT `data/`; it still goes through `write_validated` against
+  `data/schemas/highscores.schema.json`, so the single write path holds). A
+  regular run has no recorder and still records a row — `make_entry`
+  normalises the `(None, None)` identity to `Anonymous` / `unknown`, and
+  `run_id`/`debug` are `None`/`False`. A `main()`-scoped `score_recorded`
+  latch (reset in `build_gameplay()`) makes it fire at most once per run, and
+  is set BEFORE the append so a raising write cannot retry every frame; the
+  append is wrapped in `try/except Exception` with ONE logged warning, because
+  a read-only disk must never crash a finished run on the game-over screen.
+  The host also loads that document at boot (seeding the high-score table and
+  pre-filling the identity prompt via `Shell.set_highscores`/
+  `prefill_identity`) and RE-READS it on the shell's `"open_highscores"`
+  intent, so a run that just finished shows up.
 - **`tools/simrun.py`** is the headless balance-sweep host — real active map,
   real balancing, real `Session`/`resolve_combat`/`place_building`, no
   window, one seeded RNG, writing the same four artifacts to

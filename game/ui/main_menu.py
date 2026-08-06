@@ -67,7 +67,13 @@ _SLOT_IDS = {
 }
 
 _log = logging.getLogger(__name__)
-_BTN_W, _BTN_H, _GAP = 320, 52, 14
+# player-identity: _GAP dropped 14 -> 8 when the HIGHSCORES row landed. Seven
+# rows at the old pitch ran the QUIT button to y=696..748 in the shipped
+# 1280x720 logical surface (data/display.json), i.e. 28px off the bottom of the
+# screen — clipped, and its lower half unclickable. At 8 the full stack spans
+# 300..712 and fits with room to spare; a matrix that HIDES a row only ever
+# makes the stack shorter, so every availability cell fits too.
+_BTN_W, _BTN_H, _GAP = 320, 52, 8
 # debug-mode-telemetry: the small gear sitting beside PLAY DEBUG. It is its
 # own action (``"play_debug_settings"``) rather than a mode of the row above,
 # so a click on it can never start a run by accident.

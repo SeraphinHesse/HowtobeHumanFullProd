@@ -190,6 +190,11 @@ def _screen_captures():
 #: live ``core.json BossBonuses`` magnitudes). Only those four HudText strings
 #: moved — every rect/pos/colour in the entry is untouched, which is what says
 #: the change was contained.
+#: Regenerated a THIRD time (player-identity): ``main_menu`` gained the
+#: HIGHSCORES row, so every row below it in the stack shifts down one slot
+#: (52 + 14 px) and its DEFAULT geometry moved on purpose. Only ``main_menu``
+#: changed — every other screen's entry is byte-identical, which is what says
+#: the change was contained.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 1280, 720), color=(18, 30, 20), border_radius=0, width=0),
@@ -199,24 +204,27 @@ _BASELINE = {
         HudRect(rect=(480, 300, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(480, 300, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='START NEW GAME', pos=(640, 318), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 366, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 366, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='PLAY DEBUG', pos=(640, 384), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 432, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 432, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD A NAME', pos=(640, 450), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 498, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 498, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SETTINGS', pos=(640, 516), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 564, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 564, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CREDITS', pos=(640, 582), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 630, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 630, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT', pos=(640, 648), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(810, 366, 52, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(810, 366, 52, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SET', pos=(836, 384), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 360, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 360, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='PLAY DEBUG', pos=(640, 378), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 420, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 420, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ADD A NAME', pos=(640, 438), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 480, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 480, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='HIGHSCORES', pos=(640, 498), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 540, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 540, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SETTINGS', pos=(640, 558), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 600, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 600, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CREDITS', pos=(640, 618), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(480, 660, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(480, 660, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='QUIT', pos=(640, 678), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(810, 360, 52, 52), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(810, 360, 52, 52), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SET', pos=(836, 378), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "pause": [
         HudRect(rect=(0, 0, 1280, 720), color=(0, 0, 0, 150), border_radius=0, width=0),
