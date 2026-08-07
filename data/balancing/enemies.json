@@ -267,8 +267,8 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
             "dmg": 100,
-            "hp": 2000,
-            "move_speed": 2.7
+            "hp": 1700,
+            "move_speed": 2.0
           }
         },
         {
@@ -509,10 +509,10 @@
           },
           "stats": {
             "attack_range_tiles": 1,
-            "attack_speed": 0.8,
-            "dmg": 20,
+            "attack_speed": 0.7,
+            "dmg": 18,
             "hp": 42,
-            "move_speed": 2.7
+            "move_speed": 2.5
           }
         },
         {
@@ -639,9 +639,9 @@
           },
           "stats": {
             "attack_range_tiles": 2,
-            "attack_speed": 1.9,
-            "dmg": 120,
-            "hp": 365,
+            "attack_speed": 1.5,
+            "dmg": 105,
+            "hp": 350,
             "move_speed": 1.145
           }
         },
@@ -730,8 +730,8 @@
           }
         },
         {
-          "count_per_round": 4.0,
-          "count_start": 15.0,
+          "count_per_round": 3.0,
+          "count_start": 14.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -740,14 +740,14 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 16,
-            "hp": 90,
+            "dmg": 14,
+            "hp": 88,
             "move_speed": 1.26
           }
         },
         {
-          "count_per_round": 5.0,
-          "count_start": 51.0,
+          "count_per_round": 4.0,
+          "count_start": 43.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -756,8 +756,8 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 30,
-            "hp": 140,
+            "dmg": 23,
+            "hp": 120,
             "move_speed": 1.345
           }
         },
