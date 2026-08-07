@@ -402,7 +402,7 @@
           "levels": 1,
           "name": "Storm Priest",
           "range_tiles": 0,
-          "unlock_min_round": 15,
+          "unlock_min_round": 14,
           "upgrade_cost_base": 50,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 3
@@ -419,7 +419,7 @@
           "levels": 1,
           "name": "Storm High Priest",
           "range_tiles": 0,
-          "unlock_min_round": 25,
+          "unlock_min_round": 24,
           "upgrade_cost_base": 130,
           "upgrade_cost_increment": 30,
           "upkeep_per_level": 6
