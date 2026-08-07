@@ -6,7 +6,9 @@ here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider
 SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
 `ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`); the
 sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
-**dormant** — see its section below. When you
+**dormant** — see its section below. The seventh, **`Digger`, is LIVE since
+NE-2** (`ENABLE_DIGGER = True`, from `start_round: 35`) and is the one type
+that adds a genuinely new state machine — see its section below. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
 `/add-enemy` skill.**
 
@@ -357,6 +359,153 @@ invariant: BR-3 wires it to the boss's second phase.
   placeholder state (a slot with no `asset_manifest.json` entry is legal and
   common). Real art lands via `/replace-visual`.
 
+## Digger (NE-2) — the burrow / claim / emerge machine
+The one type that is a genuine NEW state machine rather than data over the
+existing one. `ETYPE "digger"`, `REGISTRY_GROUP "Digger"`, `STAT_SUBTREE
+("Digger",)`, `hunts: "structure"` (NE-0's category, whose first consumer this
+is), `kidnapping: false`, footprint 1, `start_round: 35`,
+`spawner.ENABLE_DIGGER = True`. It walks visibly at a structure it has
+EXCLUSIVELY claimed, submerges untargetable at `dig_range_tiles`, travels
+underground, erupts for ONE large `dmg` hit, then claims the next one.
+
+- **`PathAgent.no_melee` (new, default OFF — every existing type
+  byte-identical) is a DURABLE RULE, not a Digger detail.** When set, `update()`
+  skips the halt-and-attack scan WHOLESALE: no `_wall_edge_ahead`, no
+  `_blocker_ahead`, `blocked` never latches, `_target`/`_wall_target` stay
+  `None`, and `EnemyCombat` (which ticks only while blocked) therefore never
+  runs. **Routing is untouched** — the unit still walks the ordinary weighted
+  path, around or through buildings exactly as before; it just never physically
+  STOPS for one. It exists because a Digger has no attack outside digging: a
+  halt on an incidental blocker would be a **permanent 0-damage soft-lock**,
+  not a slow fight, because the thing it stopped for can never die. Any future
+  type with no melee attack wants this flag, and any type WITH one must not
+  have it.
+- **`BurrowAgent` (`components.py`, beside `PathAgent`/`EnemyCombat`) is the
+  machine**, and carrying one is what MAKES a unit a burrower — the claim scan
+  identifies rivals by "has a `BurrowAgent`", never by class or `ETYPE`, so a
+  second burrower would share the claim pool for free. Declared JSON-safe state
+  only (E-11): `state` (plain strings `BURROW_WALKING`/`_SUBMERGED`/`_EMERGE`),
+  `dig_range_tiles`, `dig_speed`, `dig_timer`, `dig_duration`,
+  `start_wx`/`start_wy`.
+  - **WALKING** — ordinary `PathAgent` movement. Each frame it measures
+    Chebyshev distance from its tile to the target's BLOCK (`block_tiles`, the
+    same reason `_target_alive` scans the block: `target_col/_row` is the goal
+    ANCHOR, not necessarily the body). At `<= dig_range_tiles` it submerges. It
+    ALSO watches the target's liveness itself — see the `repath_on_kill` bullet.
+  - **SUBMERGED** — `PathAgent.frozen = True` (the BR-3/`carrying` precedent:
+    inert agent, inert `EnemyCombat`) **and the waypoints are DROPPED**, not
+    merely `speed = 0`. Load-bearing: the underground lerp writes the transform
+    directly, and a still-loaded waypoint list could let `Movement.advance`
+    cross an arrival threshold and latch `arrived` on a path the unit is no
+    longer walking. Progress is a pure internal lerp from the entry point to
+    the target tile over `dig_range_tiles / dig_speed` seconds — so the body is
+    exactly ON the target when the clock runs out, and "emerge where you are"
+    on an interrupt is free rather than a second position to track. The sprite
+    holds the `dig` frame (`anim_time_ms` re-pinned every frame — the
+    `Kidnap.frozen` finding, since `SpriteAnimator.update` always advances its
+    own clock). **Blanking `slot_key` to hide it would be WRONG**: an unknown
+    key resolves to the grey-X placeholder, which is worse than a held pose.
+  - **EMERGE** — entered by the clock expiring (snap onto the target tile, deal
+    the hit) OR, per D5, the instant the target dies to anything else (surface
+    where we are, deal NOTHING, do not wait out the timer). The re-target
+    happens on the NEXT tick, deliberately: it makes EMERGE an observable state
+    a one-shot emerge animation can play in, and holding the claim one extra
+    frame changes nothing (it is being released either way).
+  - **The eruption hit is `EnemyCombat.update()`'s single-target damage
+    application verbatim** — `_effective_dmg(pa)` (so the 10I terrain bonus
+    still applies) → `Health.damage` → the `RoundStats.dmg_taken_this_round`
+    credit → `_damage_hook` at exactly that credit line. No kidnap arming
+    (Diggers ship `kidnapping: false`).
+- **`Digger.targetable` is overridden off the SUBMERGED state** — the exact
+  duck-typed contract BR-3 built for the boss's second phase, so combat
+  targeting, in-flight projectiles, the lightning storm and BOTH HP bars drop a
+  burrowed Digger with **no per-site change anywhere**.
+- **`repath_on_kill` stays OFF for the Digger, and that is why
+  `Digger.on_spawn` overrides the generic one.** `PathAgent._repath` would
+  re-run `_HUNT_QUERIES["structure"]` with no claim exclusion, and would
+  silently accept the query's empty-goal-set fallback to the hole.
+  `BurrowAgent.retarget` is the ONE re-targeting path — at spawn and after
+  every eruption alike.
+- **`Enemy.nav_components(block)` is the seam** placing `BurrowAgent` between
+  `PathAgent` and `Movement`: after the agent's walk/halt decision for the
+  frame, before the locomotion that would act on it. `()` for every other type.
+  Same shape as `resolve_fit`/`resolve_phase_row` — the component ORDER is the
+  invariant, so it stays at ONE construction site.
+- **`Digger._resolve_stats` substitutes the flat `dig_speed` for the era row's
+  `move_speed`** — the brief's "one speed value for both phases", made provable
+  in code rather than trusted to two authored numbers staying equal. The era
+  rows still carry `move_speed` (`$defs/type_era_row` requires it and the
+  balancing panel renders it); for this type alone it is INERT, and the schema
+  description says so.
+
+### The exclusive claim
+**A claim is nothing but another Digger's `PathAgent.target_col/_row`** — there
+is no registry, and nothing to leak. `BurrowAgent.claimed_tiles` scans
+`scene.by_tag("enemy")` for other live burrowers and passes their committed
+tiles as `exclude` into `find_path_to_nearest_structure`, which threads it into
+`_goal_tiles`' predicate (`game/map/CLAUDE.md`). A claim releases itself when
+its owner re-targets (its own `target_col` moves) or dies (it drops off
+`by_tag("enemy")`, which also excludes retagged kidnappers and corpses).
+- **No target after exclusion ⇒ STAND DOWN**: visible, idle, harmless, no
+  waypoints, `target_col = -1`, and `goal_is_base` forced back OFF (a stale
+  `True` would fire a phantom base breach on the next reported arrival — the
+  `begin_kidnap` finding). Diggers only build towards buildings; they do NOT
+  fall back to attacking the hole. **This branch is detected via
+  `goal_is_base`**, because `_hunt` falls back to the base path for an empty
+  goal set — that fallback is the query's way of saying "nothing left to hunt",
+  and `adopt_goal` is what turns it into a readable flag.
+- **`Enemy._scene` — the new transient seam** (parallel to `_tilemap`,
+  underscore-prefixed and non-authoritative per E-11). A `GameObject` is never
+  handed the scene (`Scene.update` calls `on_spawn()` with no arguments) and a
+  `Component` cannot reach it either, which is why `CorpseFade._scene` and
+  `Kidnap._scene` are both wired externally by their one transition site. The
+  Digger needs the scene for two things `_tilemap` cannot answer — who else is
+  a live Digger, and where to put the dirt pile — so it is cached ONCE on the
+  whole `Enemy` hierarchy rather than threaded through four call signatures.
+  **`Spawner` sets it at BOTH of its construction sites** (the wave pop in
+  `update` and `_spawn_child`), immediately before `scene.spawn`, so it is
+  already there when `on_spawn()` takes the first claim. A hand-built headless
+  enemy leaves it `None`, which every reader treats as "no scene, no rivals" —
+  single-Digger behaviour, never a crash.
+
+### The dirt pile (`dirt_pile.py`)
+`DirtPile`/`DirtPileFade`/`spawn_dirt_pile` — the exact shape of `corpse.py`,
+in **its own module** rather than as a sibling there: a `Corpse` is *the dead
+enemy's own sprite playing its own death row* and is constructed FROM an enemy;
+a dirt pile is a fixed world decal with one shared slot (`vfx_dirt_pile`) and no
+relationship to the unit that made it. Same pattern, different subject, and the
+design pillar is small single-purpose files. Tagged **`"dirt_pile"`, never
+`"enemy"`**, with no `alive`/Health/PathAgent, so it is invisible to every
+gameplay query exactly as a `Corpse` is. Its lifetime is **the dig duration**
+(passed in by `BurrowAgent`, not read from a manifest track), so the mound is on
+the board for precisely as long as the Digger is under it — and the fade clock
+takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. The slot
+ships art-less (grey-X placeholder); real art via `/replace-visual`.
+
+### Digger balancing (`EnemyTypes.Digger`)
+A NORMAL era-shaped type — its own `eras[]` rows through the base
+`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` FLAT at the root. Three
+things are specific to it, all flagged as STARTING VALUES in their schema
+descriptions:
+- **`dig_speed`** (flat, tiles/sec) — burrowed AND overground speed.
+- **`dig_range_tiles`** (flat, default 6) — the submerge trigger distance, and
+  therefore also the underground travel distance and the size of the window
+  defenders get to kill it. Raising it makes the Digger much harder to stop.
+- **`stats.dmg` per era IS the eruption hit**, not a per-swing melee value —
+  seeded 900/1400/2000/2700/3500 against `hp` 900/1300/1800/2400/3100.
+  `attack_speed`/`attack_range_tiles` are decorative for this type (it never
+  uses the cooldown-gated melee path at all), and `stats.move_speed` is inert.
+- Counts start at `start_round: 35` (era 3) and trickle: 1 at round 35, +1 per
+  5 rounds. `_digger_group` is called **LAST** in `_compose`, after
+  `_commander_group` — the same newest-last rng rule the Formation and the
+  Commander follow — and mixed into the shuffled body, never queue-leading.
+- **Diggers never spawn on a boss round**, the same deliberate rule (and the
+  same `$defs/spawn_counts` reason) the Formation section spells out: adding a
+  `digger` key to `Boss.round_counts` would force one into all 14 shared
+  death-spawn rows. One `+ self._digger_group(...)` into `_boss_round`'s `rest`
+  if it is ever wanted. Pinned by
+  `test_enemies.TestDigger.test_no_diggers_on_a_boss_round`.
+
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
 transients set once by `Enemy.__init__` (E-11: a dict/str resolved from
@@ -419,11 +568,13 @@ JSON-safe).
     boss-specific left in it. `Boss` is now `_resolve_era` + `_resolve_stats`
     + `era` only. Fenced by `tools/tests/test_boss.py` (unchanged — the
     generic path reproduces its behaviour exactly).
-  - Seeded values (unchanged since 10F/10G — NE-0 added no `hunts` value to any
-    type, it only changed what `"defence"` MEANS and added an unused category):
+  - Seeded values (NE-0 added no `hunts` value to any type, it only changed
+    what `"defence"` MEANS and added a then-unused category; **NE-2 is what
+    armed `"structure"`, on the new `Digger`** — which does NOT route through
+    the generic `Enemy.on_spawn` branch below, because it needs the claim
+    exclusion; see the Digger section above):
     `Standard`/`Formation` `"base"`, `Raider` `"economic"`, `SiegeCannon`
-    `"defence"`, `Boss`/`Commander` `"any_non_base"`. No shipped type carries
-    `"structure"` yet.
+    `"defence"`, `Boss`/`Commander` `"any_non_base"`, `Digger` `"structure"`.
 - **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,
   pond}`, same bounds as `map.json`'s `Pathfinding.content_weights`) is this
   type's OWN terrain path-cost profile, threaded as `PathAgent._cond_weights`

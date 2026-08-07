@@ -343,6 +343,122 @@
       "sprite_scale": 1.0,
       "start_round": 0
     },
+    "Digger": {
+      "condition_path_weights": {
+        "forest": 1,
+        "mountain": 2,
+        "pond": 9
+      },
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
+      "dig_range_tiles": 6,
+      "dig_speed": 1.0,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 0,
+          "count_start": 0,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 900,
+            "hp": 900,
+            "move_speed": 1.0
+          }
+        },
+        {
+          "count_per_round": 0,
+          "count_start": 0,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 1400,
+            "hp": 1300,
+            "move_speed": 1.0
+          }
+        },
+        {
+          "count_per_round": 0,
+          "count_start": 0,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 2000,
+            "hp": 1800,
+            "move_speed": 1.0
+          }
+        },
+        {
+          "count_per_round": 0.2,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 50,
+            "hp": 50,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 2700,
+            "hp": 2400,
+            "move_speed": 1.0
+          }
+        },
+        {
+          "count_per_round": 0.2,
+          "count_start": 2,
+          "per_round": {
+            "dmg": 50,
+            "hp": 50,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 3500,
+            "hp": 3100,
+            "move_speed": 1.0
+          }
+        }
+      ],
+      "footprint": 1,
+      "hunts": "structure",
+      "kidnapping": false,
+      "registry_group": "Digger",
+      "sprite_scale": 1.0,
+      "start_round": 35
+    },
     "Formation": {
       "condition_path_weights": {
         "forest": 1,

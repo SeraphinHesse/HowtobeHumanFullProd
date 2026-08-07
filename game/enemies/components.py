@@ -28,6 +28,8 @@ from game.map.pathfinder import (
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
+from .dirt_pile import spawn_dirt_pile
+
 # Chunk 4: hunt-string ("EnemyTypes.<type>.hunts") -> the goal-set pathfinder
 # query it dispatches to. "base" is NOT in here — it is handled separately by
 # Enemy.on_spawn, which never routes a base hunt through this dict; every
@@ -162,6 +164,15 @@ class PathAgent(Component):
     ``"base"`` is the default and keeps every type that never opts in
     byte-identical; any other value is looked up in the module-level
     ``_HUNT_QUERIES`` dict by both ``Enemy.on_spawn`` and ``_repath`` below.
+
+    NE-2 adds ``no_melee`` (default off — every existing type byte-identical):
+    the halt-and-attack scan is skipped ENTIRELY. Routing is untouched — the
+    unit still walks the ordinary weighted path, around or through buildings
+    exactly as today — it just never physically STOPS for one. It exists
+    because the Digger has no attack outside digging: a Digger that halted on
+    an incidental blocker en route to its claimed target would stand there
+    forever dealing 0 damage to something that can therefore never die. A
+    permanent soft-lock, not a slow fight.
     """
 
     reached_base: bool = False
@@ -174,6 +185,7 @@ class PathAgent(Component):
     carrying: bool = False        # kidnapping (Art/enemies): inert while True
     frozen: bool = False          # BR-3 second phase: inert, and NOT attacking
     hunt: str = "base"            # what this unit hunts on spawn (Chunk 4)
+    no_melee: bool = False        # NE-2: never HALT to punch a blocker
 
     def on_added(self, owner):
         self._owner = owner
@@ -251,6 +263,19 @@ class PathAgent(Component):
                 if arrived is not None:
                     self._current_condition = arrived.condition
         # -- /10I --
+        # NE-2: `no_melee` skips the halt-and-attack scan WHOLESALE — both the
+        # wall-edge scan and the blocker scan below. It is not "attack for 0
+        # damage": the unit simply never stops, so `blocked` stays False, no
+        # `_target`/`_wall_target` is ever latched and `EnemyCombat` (which
+        # ticks only while blocked) never runs. Routing is untouched above this
+        # line, so a Digger still walks the same weighted path everything else
+        # would. Default-off, hence one bool check for every other type.
+        if self.no_melee:
+            self._wall_target = None
+            self._target = None
+            self.blocked = False
+            mv.speed = self._condition_speed()
+            return
         wp = wps[mv.index]
         tc, tr = round(wp[0]), round(wp[1])
         # A standing wall on the face we're crossing (prev -> next waypoint)
@@ -549,6 +574,290 @@ class EnemyCombat(Component):
                         and not kidnap.pending and not kidnap.active):
                     kidnap.pending = True
                     self._kidnap_victim = target
+
+
+# -- NE-2: the Digger's burrow state machine --------------------------------
+#
+# Plain strings, so `BurrowAgent.state` stays declared JSON-safe component
+# state (E-11) the editor's inspector can read straight out.
+BURROW_WALKING = "walking"      # above ground, walking at the committed target
+BURROW_SUBMERGED = "submerged"  # underground: untargetable, no waypoints
+BURROW_EMERGE = "emerge"        # surfaced this frame; re-targets on the next
+
+#: animation rows the machine plays. Missing manifest rows are graceful by
+#: construction (SpriteAnimator holds a name string and the renderer falls back
+#: to idle) — the BR-3 `endphase` precedent, so no placeholder rows are added.
+DIG_ANIM = "dig"
+EMERGE_ANIM = "emerge"
+
+
+class BurrowAgent(Component):
+    """The Digger's ``WALKING -> SUBMERGED -> EMERGE -> WALKING`` machine (NE-2).
+
+    Only the Digger carries one, and carrying one IS what makes a unit a
+    burrower — the exclusive-claim scan below identifies its rivals by
+    "has a BurrowAgent", not by class or ``ETYPE``, so a future second burrower
+    shares the claim pool for free.
+
+    It is spliced BETWEEN ``PathAgent`` and ``Movement`` in the component list
+    (``Enemy.nav_components``): after the agent has made its walk/halt decision
+    for the frame, before the locomotion that would act on it — so a submerge
+    takes effect the same frame, exactly the reason ``PathAgent`` itself sits
+    ahead of ``Movement``.
+
+    * **WALKING** — ordinary ``PathAgent`` movement toward the committed target
+      (``hunts: "structure"``). Each frame it measures Chebyshev distance from
+      the unit's tile to the target's BLOCK; at ``<= dig_range_tiles`` it
+      submerges. It also watches the target's liveness itself, because the
+      Digger deliberately runs with ``PathAgent.repath_on_kill`` OFF: the
+      agent's generic re-path would re-run the hunt with no claim exclusion and
+      would happily accept the empty-goal-set fallback to the base.
+    * **SUBMERGED** — ``PathAgent.frozen`` (the BR-3/`carrying` precedent:
+      inert agent, inert ``EnemyCombat``) with the waypoints dropped, so
+      ``Movement`` cannot advance an index or fire a phantom arrival. Progress
+      is a pure internal lerp from the entry point to the target tile over
+      ``dig_range_tiles / dig_speed`` seconds — no visible waypoints, and the
+      unit is exactly ON its target when the clock runs out. ``Digger.
+      targetable`` reads this state, so combat, projectiles, the storm and both
+      HP bars drop it at once (the duck-typed contract BR-3 built for the boss).
+    * **EMERGE** — entered by the clock expiring (deal the one big hit, having
+      snapped onto the target tile) OR, per D5, the instant the target dies to
+      anything else (surface where we are, deal NOTHING). Either way the NEXT
+      tick re-targets. Splitting it across two ticks is deliberate: it makes
+      EMERGE an observable state a one-shot emerge animation can play in, and
+      the claim it is about to release is released one frame later, which
+      changes nothing (it is releasing it either way).
+
+    No target after exclusion ⇒ **stand down**: visible, idle, harmless, with
+    no waypoints and no claim. Diggers only build towards buildings; they do
+    NOT fall back to attacking the hole.
+    """
+
+    state: str = BURROW_WALKING
+    dig_range_tiles: int = 6      # submerge trigger distance (Chebyshev tiles)
+    dig_speed: float = 1.0        # tiles/sec while burrowed (== move_speed)
+    dig_timer: float = 0.0        # seconds left underground
+    dig_duration: float = 0.0     # what dig_timer started at (the lerp base)
+    start_wx: float = 0.0         # where we went under (the lerp origin)
+    start_wy: float = 0.0
+
+    def on_added(self, owner):
+        self._owner = owner
+
+    # -- the tick ----------------------------------------------------------
+
+    def update(self, dt):
+        owner = getattr(self, "_owner", None)
+        if owner is None:
+            return
+        pa = owner.get_component(PathAgent)
+        mv = owner.get_component(Movement)
+        if pa is None or mv is None or pa.carrying:
+            return
+        tm = getattr(pa, "_tilemap", None)
+        if tm is None:
+            return
+        if self.state == BURROW_SUBMERGED:
+            self._tick_submerged(dt, owner, pa, mv, tm)
+        elif self.state == BURROW_EMERGE:
+            self.retarget(owner, pa, mv, tm)
+        else:
+            self._tick_walking(owner, pa, mv, tm)
+
+    def _tick_walking(self, owner, pa, mv, tm):
+        if pa.target_col < 0:
+            return                       # stood down: nothing left to claim
+        if not pa._target_alive(tm):
+            self.retarget(owner, pa, mv, tm)
+            return
+        if self.distance_to_target(owner, pa) <= self.dig_range_tiles:
+            self._submerge(owner, pa, mv)
+
+    def _tick_submerged(self, dt, owner, pa, mv, tm):
+        # Pin the sprite clock so the dig pose holds: SpriteAnimator.update
+        # already ran this frame and always advances its own clock, whatever
+        # animation is set (the `Kidnap.frozen` finding).
+        anim = owner.get_component(SpriteAnimator)
+        if anim is not None:
+            anim.anim_time_ms = 0.0
+        # D5 — the target died to someone else while we were under it. Surface
+        # NOW, where we are, dealing nothing. Mirrors PathAgent's own
+        # block-scanning liveness test rather than re-deriving one.
+        if not pa._target_alive(tm):
+            self._emerge(owner, pa, tm, strike=False)
+            return
+        self.dig_timer -= dt
+        self._advance_underground(owner, pa)
+        if self.dig_timer <= 0:
+            self._emerge(owner, pa, tm, strike=True)
+
+    # -- transitions -------------------------------------------------------
+
+    def _submerge(self, owner, pa, mv):
+        self.state = BURROW_SUBMERGED
+        speed = self.dig_speed if self.dig_speed > 0 else 1.0
+        self.dig_duration = max(1e-6, float(self.dig_range_tiles) / speed)
+        self.dig_timer = self.dig_duration
+        self.start_wx = float(owner.transform.wx)
+        self.start_wy = float(owner.transform.wy)
+        pa.frozen = True
+        pa.blocked = False
+        mv.speed = 0.0
+        # Drop the route rather than merely zeroing the speed: the underground
+        # lerp writes the transform directly, and a still-loaded waypoint list
+        # could otherwise let `Movement.advance` cross an arrival threshold and
+        # latch `arrived` on a path we are no longer walking.
+        mv.waypoints = []
+        mv.index = 0
+        mv.arrived = False
+        self._set_anim(owner, DIG_ANIM)
+        spawn_dirt_pile(getattr(owner, "_scene", None),
+                        round(self.start_wx), round(self.start_wy),
+                        self.dig_duration * 1000.0)
+
+    def _advance_underground(self, owner, pa):
+        """Lerp the transform from the entry point to the target tile. The unit
+        is invisible-to-gameplay here (untargetable, no waypoints), so this is
+        the whole of "movement continues internally" — and it lands the body
+        exactly on the target when the clock reaches zero."""
+        if self.dig_duration <= 0:
+            t = 1.0
+        else:
+            t = min(1.0, max(0.0, 1.0 - self.dig_timer / self.dig_duration))
+        owner.transform.wx = self.start_wx + (pa.target_col - self.start_wx) * t
+        owner.transform.wy = self.start_wy + (pa.target_row - self.start_wy) * t
+
+    def _emerge(self, owner, pa, tm, strike):
+        self.state = BURROW_EMERGE
+        self.dig_timer = 0.0
+        pa.frozen = False
+        self._set_anim(owner, EMERGE_ANIM)
+        if not strike:
+            return                       # D5: surfaced where we are, no damage
+        owner.transform.wx = float(pa.target_col)
+        owner.transform.wy = float(pa.target_row)
+        target = self._target_building(tm, pa)
+        if target is not None:
+            self._strike(owner, pa, target)
+
+    def _strike(self, owner, pa, target):
+        """The eruption hit — ``EnemyCombat.update()``'s single-target damage
+        application, verbatim (Health.damage + the RoundStats credit + the
+        level-2 telemetry hook at exactly that credit site), on the Digger's
+        ``dmg`` instead of a cooldown-gated swing. No kidnap arming: Diggers
+        ship ``kidnapping: false`` and do not carry buildings home."""
+        combat = owner.get_component(EnemyCombat)
+        if combat is None:
+            return
+        dmg = combat._effective_dmg(pa)
+        health = target.get_component(Health)
+        if health is None:
+            return
+        health.damage(dmg)
+        rs = target.get_component(RoundStats)
+        if rs is not None:
+            rs.dmg_taken_this_round += dmg
+        if _damage_hook is not None:
+            _damage_hook(getattr(owner, "ETYPE", None),
+                         getattr(target, "building_type", None),
+                         dmg, health.hp)
+
+    # -- re-targeting + the exclusive claim --------------------------------
+
+    def retarget(self, owner, pa, mv, tm):
+        """Claim the nearest unclaimed structure and walk at it; return whether
+        one was found.
+
+        The ONE site that re-runs the hunt for a burrower, so the claim
+        exclusion can never be bypassed. ``PathAgent.adopt_goal`` still owns
+        deriving ``goal_is_base``/``target_col``/``target_row`` from the fresh
+        path — and ``goal_is_base`` True is precisely how the base fallback
+        inside ``find_path_to_nearest_structure`` announces "nothing left to
+        hunt", which is what makes the stand-down branch below correct rather
+        than a guess."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        path = find_path_to_nearest_structure(
+            tm, col, row, footprint=pa.footprint,
+            cond_weights=pa._cond_weights, exclude=self.claimed_tiles(owner))
+        pa.adopt_goal(path, tm)
+        self.state = BURROW_WALKING
+        if not path or pa.goal_is_base:
+            # Stand down (NE-2): every structure is gone or already claimed.
+            # goal_is_base is forced back off — a stale True would fire a
+            # phantom base breach the moment Movement reported an arrival.
+            pa.goal_is_base = False
+            pa.target_col = pa.target_row = -1
+            mv.waypoints = []
+            mv.index = 0
+            mv.arrived = False
+            mv.speed = 0.0
+            self._set_anim(owner, "idle")
+            return False
+        mv.waypoints = [[float(c), float(r)] for c, r in path]
+        # BP-4's no-rewind rule: we are already inside path[0], and path[1] is
+        # 4-adjacent, so heading straight there is always a legal step.
+        mv.index = 1 if len(path) >= 2 else 0
+        mv.arrived = False
+        pa._last_index = mv.index
+        tile = tm.get(col, row)
+        if tile is not None:
+            pa._current_condition = tile.condition
+        mv.speed = pa._condition_speed()
+        self._set_anim(owner, "walk")
+        return True
+
+    def claimed_tiles(self, owner):
+        """``{(col, row)}`` every OTHER live burrower has committed to.
+
+        A claim is nothing but another Digger's ``PathAgent.target_col/_row``,
+        so it is released for free the moment that Digger re-targets (its own
+        target moves) or dies (it drops off ``by_tag("enemy")``, which also
+        excludes retagged kidnappers and corpses). No registry, nothing to leak.
+
+        ``Enemy._scene`` absent (a hand-built headless enemy) reads as "no
+        rivals" — single-Digger behaviour, never a crash."""
+        scene = getattr(owner, "_scene", None)
+        if scene is None:
+            return frozenset()
+        claimed = set()
+        for other in scene.by_tag("enemy"):
+            if other is owner or not getattr(other, "alive", True):
+                continue
+            if other.get_component(BurrowAgent) is None:
+                continue
+            opa = other.get_component(PathAgent)
+            if opa is not None and opa.target_col >= 0:
+                claimed.add((opa.target_col, opa.target_row))
+        return claimed
+
+    # -- helpers -----------------------------------------------------------
+
+    def distance_to_target(self, owner, pa):
+        """Chebyshev tiles from the unit's tile to the NEAREST tile of the
+        target's block (``PathAgent.target_col/_row`` is the goal ANCHOR, which
+        for a footprint-N target can sit up to N-1 tiles off the body — the
+        same reason ``_target_alive`` scans the block instead of the anchor)."""
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        return min(max(abs(c - col), abs(r - row))
+                   for c, r in block_tiles(pa.target_col, pa.target_row,
+                                           pa.footprint))
+
+    @staticmethod
+    def _target_building(tm, pa):
+        for c, r in block_tiles(pa.target_col, pa.target_row, pa.footprint):
+            tile = tm.get(c, r)
+            occ = tile.occupant if tile is not None else None
+            if occ is not None and getattr(occ, "alive", False):
+                return occ
+        return None
+
+    @staticmethod
+    def _set_anim(owner, name):
+        anim = owner.get_component(SpriteAnimator)
+        if anim is not None and anim.animation != name:
+            anim.set_animation(name)
 
 
 class DeathSpawn(Component):

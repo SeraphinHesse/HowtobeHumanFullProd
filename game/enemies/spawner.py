@@ -50,6 +50,8 @@ ENABLE_FORMATION = True
 # count_start/count_per_round at 0 (D8), so it never enters a normal wave. BR-3
 # gives it its real entrance, the boss's second phase.
 ENABLE_COMMANDER = True
+# NE-2: the Digger. LIVE from EnemyTypes.Digger.start_round (35).
+ENABLE_DIGGER = True
 
 # The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
 # delayed second phase lays out its child queue from the SAME table and
@@ -262,8 +264,10 @@ class Spawner:
             round_num, balance, spawn_tiles)
         formations = self._formation_group(round_num, balance, spawn_tiles)
         commanders = self._commander_group(round_num, balance, spawn_tiles)
+        diggers = self._digger_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed + formations + commanders
+        rest = (regular + raiders + siege_mixed + formations + commanders
+                + diggers)
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -379,6 +383,28 @@ class Spawner:
         return [(self._pick_spawn_tile(spawn_tiles, "commander"), "commander")
                 for _ in range(n)]
 
+    def _digger_group(self, round_num, balance, spawn_tiles):
+        """Diggers from ``Digger.start_round`` (35) on, through the shared
+        count formula. Mixed into the shuffled body, never queue-leading:
+        a Digger is a single-target siege unit, not a wave opener.
+
+        Called LAST in ``_compose``, after ``_commander_group`` — the same
+        newest-last rule the Formation and the Commander follow, so every
+        earlier group's rng draw sequence (and therefore every deterministic
+        wave fixture) stays byte-identical. Below round 35 the shared formula
+        returns 0 and this draws no rng at all.
+
+        Diggers never appear on a boss round — the SAME deliberate rule the
+        Formation follows (`_boss_round` composes from `Boss.round_counts`, a
+        `$defs/spawn_counts` table shared with every `death_spawn.spawns` row,
+        so a `digger` key there would land on all 14 committed rows). Pinned by
+        `test_enemies.TestDigger.test_no_diggers_on_a_boss_round`."""
+        if not ENABLE_DIGGER:
+            return []
+        n = self._count_of(balance, "Digger", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "digger"), "digger")
+                for _ in range(n)]
+
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear
         slow→fast interval × ``uniform(0.4, 1.6)`` jitter (prototype
@@ -436,6 +462,7 @@ class Spawner:
             enemy = create_enemy(
                 etype, tile.col, tile.row, self._balance, self._tilemap,
                 era, self._registry, self._rng, self._round_in_era)
+            enemy._scene = scene          # NE-2, see _spawn_child below
             scene.spawn(enemy)
             if delay is None:
                 ramp_off = True
@@ -473,6 +500,13 @@ class Spawner:
         enemy = create_enemy(
             etype, col, row, self._balance, self._tilemap,
             self._era, self._registry, self._rng, self._round_in_era)
+        # NE-2: the `Enemy._scene` transient (enemy.py). Set at BOTH of this
+        # class's construction sites, immediately before the spawn, so it is
+        # already there when `Scene.update` calls `on_spawn()` — which for a
+        # Digger is where the exclusive claim is first taken. A GameObject is
+        # never handed the scene by the engine; this is the `spawn_corpse` /
+        # `begin_kidnap` "the transition site wires it" pattern.
+        enemy._scene = scene
         if frac < 1.0:
             health = enemy.get_component(Health)
             health.hp = max(1, int(health.max_hp * frac))

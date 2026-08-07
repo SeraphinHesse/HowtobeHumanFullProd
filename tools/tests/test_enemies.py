@@ -32,11 +32,14 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Boss, Commander, Enemy, Formation, Projectile, Raider, SiegeCannon,
-    Spawner, attack_interval, create_enemy, resolve_combat,
+    BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss, Commander, Digger,
+    DirtPile, DIRT_PILE_SLOT, Enemy, Formation, Projectile, Raider,
+    SiegeCannon, Spawner, attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
-from game.enemies.components import EnemyCombat, PathAgent
+from game.enemies.components import BurrowAgent, EnemyCombat, Kidnap, PathAgent
+from game.enemies.dirt_pile import DirtPileFade
+from game.enemies.enemy import ENEMY_CLASSES
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
 
@@ -996,6 +999,387 @@ class TestCommander(unittest.TestCase):
                     [e for _, e in sp.pending() if e == "commander"], [])
 
 
+DIGGER = ENEM["EnemyTypes"]["Digger"]
+DIG0 = era_stats("Digger")
+
+
+class TestDigger(unittest.TestCase):
+    """NE-2 — the burrow / claim / emerge machine.
+
+    A ONE-ROW board throughout, deliberately: it makes "the route runs THROUGH
+    that tile" a fact of the board rather than a hope about the cost field,
+    which is exactly what the `no_melee` regression needs to mean anything.
+    Every expectation is hand-computed from the pinned fixture's own JSON.
+    """
+
+    #: cols 0..14 buildable (base at 0), col 15 the spawn band.
+    ROW = "b" * 15 + "s"
+
+    def _board(self):
+        tm = synth([self.ROW])
+        scene, occ = Scene(), TileOccupancy()
+        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE),
+                    scene, occ)
+        return tm, scene, occ
+
+    def _digger(self, scene, tm, col):
+        dig = create_enemy("digger", col, 0, ENEM, tm, 0)
+        dig._scene = scene          # what Spawner does at both spawn sites
+        scene.spawn(dig)
+        return dig
+
+    @staticmethod
+    def _parts(dig):
+        return (dig.get_component(BurrowAgent), dig.get_component(PathAgent),
+                dig.get_component(Movement))
+
+    def _run_until(self, scene, dig, predicate, dt=0.05, limit=2000):
+        for _ in range(limit):
+            scene.update(dt)
+            if predicate():
+                return True
+        return False
+
+    # -- wiring ------------------------------------------------------------
+
+    def test_class_attrs_registration_and_no_melee_wiring(self):
+        tm, scene, _occ = self._board()
+        dig = create_enemy("digger", 10, 0, ENEM, tm, 0)
+        self.assertIsInstance(dig, Digger)
+        self.assertEqual(ENEMY_CLASSES["digger"], Digger)
+        self.assertEqual(Digger.ETYPE, "digger")
+        self.assertEqual(Digger.REGISTRY_GROUP, "Digger")
+        self.assertEqual(Digger.DEFAULT_SLOT, "digger_stage_1")
+        self.assertEqual(Digger.STAT_SUBTREE, ("Digger",))
+        pa = dig.get_component(PathAgent)
+        self.assertEqual(pa.hunt, "structure")
+        self.assertTrue(pa.no_melee)
+        self.assertFalse(dig.get_component(Kidnap).enabled)
+        # dig_speed doubles as move_speed — ONE number for both phases.
+        burrow = dig.get_component(BurrowAgent)
+        self.assertEqual(burrow.dig_speed, DIGGER["dig_speed"])
+        self.assertEqual(burrow.dig_range_tiles, DIGGER["dig_range_tiles"])
+        self.assertAlmostEqual(dig.get_component(Movement).speed,
+                               DIGGER["dig_speed"])
+        self.assertEqual(dig.get_component(Health).hp, DIG0["hp"])
+        self.assertEqual(dig.dmg, DIG0["dmg"])
+        # BurrowAgent must sit BETWEEN PathAgent and Movement.
+        kinds = [type(c).__name__ for c in dig.components]
+        self.assertLess(kinds.index("PathAgent"), kinds.index("BurrowAgent"))
+        self.assertLess(kinds.index("BurrowAgent"), kinds.index("Movement"))
+
+    def test_every_other_type_keeps_no_melee_off(self):
+        tm = synth(["bbs"])
+        for etype in ("standard", "raider", "siege", "formation",
+                      "commander", "boss"):
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 2, 0, ENEM, tm, 0)
+                self.assertFalse(e.get_component(PathAgent).no_melee)
+                self.assertIsNone(e.get_component(BurrowAgent))
+
+    # -- the state machine -------------------------------------------------
+
+    def test_submerges_at_exactly_dig_range_tiles(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)                       # on_spawn takes the claim
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertEqual(burrow.state, BURROW_WALKING)
+
+        dist_before = None
+        for _ in range(2000):
+            dist_before = burrow.distance_to_target(dig, pa)
+            scene.update(0.05)
+            if burrow.state != BURROW_WALKING:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertEqual(dist_before, DIGGER["dig_range_tiles"])
+
+    def test_untargetable_and_undamageable_while_submerged(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        # Placed AFTER the claim so it cannot steal the target; it sits inside
+        # the stretch the Digger travels, so a targetable Digger WOULD be shot.
+        place_building(tm, tm.get(6, 0), "defence", 9999, BUILD, scene, occ)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        self.assertFalse(dig.targetable)
+        # combat.py's one target filter drops it — the Boss `targetable`
+        # contract, reused verbatim.
+        self.assertNotIn(dig, [e for e in scene.by_tag("enemy")
+                               if e.alive and getattr(e, "targetable", True)])
+        hp0 = dig.get_component(Health).hp
+        for _ in range(40):
+            scene.update(0.05)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
+            if burrow.state != BURROW_SUBMERGED:
+                break
+        self.assertEqual(dig.get_component(Health).hp, hp0)
+
+    def test_emerges_on_the_target_and_deals_one_dmg_hit(self):
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+
+        rs = blocker.get_component(RoundStats)
+        self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
+        self.assertEqual(blocker.get_component(Health).hp,
+                         max(0, blocker.get_component(Health).max_hp
+                             - DIG0["dmg"]))
+        # Snapped onto the target's tile, visible and targetable again.
+        self.assertAlmostEqual(dig.transform.wx, 2.0)
+        self.assertAlmostEqual(dig.transform.wy, 0.0)
+        self.assertTrue(dig.targetable)
+        self.assertFalse(dig.get_component(PathAgent).frozen)
+        # Exactly ONE hit — the eruption, not a melee clock.
+        scene.update(0.05)
+        self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
+
+    def test_interrupted_dig_emerges_at_once_deals_nothing_and_retargets(self):
+        """D5 — the target dies to something else mid-dig."""
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        # Placed AFTER the claim: it is the ONLY thing left to re-target to
+        # once the committed victim dies (col 14 is nearer to the spawn than
+        # col 2, so placing it first would simply have been claimed instead).
+        other, _c2 = place_building(tm, tm.get(14, 0), "blocker", 9999,
+                                    BUILD, scene, occ)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        timer_left = burrow.dig_timer
+        self.assertGreater(timer_left, 0.0)     # genuinely mid-dig
+        where = (dig.transform.wx, dig.transform.wy)
+        blocker.get_component(Health).hp = 0    # killed by "something else"
+        taken = blocker.get_component(RoundStats).dmg_taken_this_round
+
+        scene.update(0.05)
+        self.assertEqual(burrow.state, BURROW_EMERGE)          # immediately
+        self.assertLess(burrow.dig_timer, timer_left)
+        self.assertEqual(blocker.get_component(RoundStats).dmg_taken_this_round,
+                         taken)                                # NO damage
+        self.assertNotAlmostEqual(dig.transform.wx, 2.0)       # where it was
+        self.assertAlmostEqual(dig.transform.wx, where[0])
+        self.assertTrue(dig.targetable)
+
+        scene.update(0.05)                                     # re-targets
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (14, 0))
+        self.assertTrue(mv.waypoints)
+        self.assertIs(other.get_component(Health).hp,
+                      other.get_component(Health).hp)          # untouched
+
+    def test_stands_down_when_nothing_is_left_to_claim(self):
+        """No structure after exclusion ⇒ idle and harmless, NEVER a walk at
+        the hole (the base fallback inside the hunt query must not leak)."""
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 10)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        blocker.get_component(Health).hp = 0
+        scene.update(0.05)                      # EMERGE
+        scene.update(0.05)                      # re-target -> nothing left
+
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
+        self.assertEqual(mv.waypoints, [])
+        self.assertFalse(pa.goal_is_base)
+        base_hp = tm.get(0, 0).occupant.get_component(Health).hp
+        for _ in range(200):
+            scene.update(0.05)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
+        self.assertFalse(pa.reached_base)
+        self.assertEqual(tm.get(0, 0).occupant.get_component(Health).hp,
+                         base_hp)
+
+    # -- the exclusive claim ------------------------------------------------
+
+    def test_two_diggers_never_claim_the_same_building(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(4, 0), "blocker", 9999, BUILD, scene, occ)
+        a = self._digger(scene, tm, 12)
+        b = self._digger(scene, tm, 13)
+        scene.update(0.0)                       # both on_spawn, in spawn order
+
+        claims = [(d.get_component(PathAgent).target_col,
+                   d.get_component(PathAgent).target_row) for d in (a, b)]
+        self.assertEqual(sorted(claims), [(2, 0), (4, 0)])
+
+    def test_a_third_digger_with_only_two_buildings_stands_down(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(4, 0), "blocker", 9999, BUILD, scene, occ)
+        diggers = [self._digger(scene, tm, 10 + i) for i in range(3)]
+        scene.update(0.0)
+
+        claims = [(d.get_component(PathAgent).target_col,
+                   d.get_component(PathAgent).target_row) for d in diggers]
+        self.assertEqual(sorted(claims), [(-1, -1), (2, 0), (4, 0)])
+        # No two live claims are ever equal — the whole invariant.
+        live = [c for c in claims if c != (-1, -1)]
+        self.assertEqual(len(live), len(set(live)))
+
+    def test_a_dead_diggers_claim_is_released(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        a = self._digger(scene, tm, 12)
+        scene.update(0.0)
+        self.assertEqual(a.get_component(PathAgent).target_col, 2)
+        scene.despawn(a)
+        scene.update(0.0)
+        b = self._digger(scene, tm, 13)
+        scene.update(0.0)
+        self.assertEqual(b.get_component(PathAgent).target_col, 2)
+
+    def test_the_spawner_wires_the_scene_transient(self):
+        """`Enemy._scene` is what the claim scan and the dirt pile ride on;
+        it exists only because the Spawner sets it at both spawn sites."""
+        tm = synth(["bbs"])
+        scene = Scene()
+        sp = Spawner()
+        sp.begin_round(1, tm, ENEM, rng=FakeRng())
+        for _ in range(400):
+            sp.update(1.0, scene)
+            if scene.queued_by_tag("enemy"):
+                break
+        spawned = scene.queued_by_tag("enemy")
+        self.assertTrue(spawned)
+        for e in spawned:
+            self.assertIs(e._scene, scene)
+
+    # -- no_melee ------------------------------------------------------------
+
+    def test_never_halts_on_an_unrelated_building_en_route(self):
+        """The soft-lock regression: a Digger routed straight THROUGH a
+        non-structure building must walk on past it, dealing it nothing."""
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        bystander, _c = place_building(tm, tm.get(10, 0), "economic", 9999,
+                                       BUILD, scene, occ)
+        dig = self._digger(scene, tm, 14)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        # One row: the route physically runs over the bystander's tile.
+        self.assertIn([10.0, 0.0], dig.get_component(Movement).waypoints)
+
+        ever_blocked = False
+        for _ in range(2000):
+            scene.update(0.05)
+            ever_blocked = ever_blocked or pa.blocked
+            if burrow.state == BURROW_SUBMERGED:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertFalse(ever_blocked)
+        self.assertEqual(
+            bystander.get_component(RoundStats).dmg_taken_this_round, 0)
+        self.assertEqual(bystander.get_component(Health).hp,
+                         bystander.get_component(Health).max_hp)
+
+    def test_a_walker_on_the_same_board_still_halts_and_attacks(self):
+        """The other half of the regression: `no_melee` is DEFAULT-OFF, so the
+        halt-and-attack model is untouched for everything else."""
+        tm, scene, occ = self._board()
+        bystander, _c = place_building(tm, tm.get(10, 0), "economic", 9999,
+                                       BUILD, scene, occ)
+        walker = create_enemy("standard", 12, 0, ENEM, tm, 0)
+        scene.spawn(walker)
+        pa = walker.get_component(PathAgent)
+        self.assertTrue(self._run_until(scene, walker, lambda: pa.blocked))
+        self.assertGreater(
+            bystander.get_component(RoundStats).dmg_taken_this_round, 0)
+
+    # -- the dirt pile -------------------------------------------------------
+
+    def test_submerging_drops_a_dirt_pile_decal_no_gameplay_query_can_see(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        scene.update(0.0)                       # flush the spawn queue
+
+        piles = scene.by_tag("dirt_pile")
+        self.assertEqual(len(piles), 1)
+        pile = piles[0]
+        self.assertIsInstance(pile, DirtPile)
+        self.assertNotIn("enemy", pile.tags)
+        self.assertNotIn(pile, scene.by_tag("enemy"))
+        self.assertIsNone(pile.get_component(Health))
+        self.assertIsNone(pile.get_component(PathAgent))
+        self.assertEqual(pile.get_component(SpriteAnimator).slot_key,
+                         DIRT_PILE_SLOT)
+        # It lives exactly as long as the dig and then removes itself.
+        life = pile.get_component(DirtPileFade).life_ms
+        self.assertAlmostEqual(life, burrow.dig_duration * 1000.0, places=3)
+        for _ in range(int(burrow.dig_duration / 0.05) + 4):
+            scene.update(0.05)
+        self.assertEqual(scene.by_tag("dirt_pile"), [])
+
+    # -- composition ---------------------------------------------------------
+
+    def test_start_round_35_and_the_shared_count_formula(self):
+        """Non-boss rounds only — a boss round composes from
+        `Boss.round_counts`, which carries no digger key (see the next test)."""
+        tm = synth(["bbs"])
+        sp = Spawner()
+        self.assertEqual(DIGGER["start_round"], 35)
+        for rnd in (1, 14, 30, 34, 35, 36, 39, 45, 55):
+            with self.subTest(round=rnd):
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                got = len([e for _, e in sp.pending() if e == "digger"])
+                self.assertEqual(got, expected_count("Digger", rnd))
+        # Round 35 is the first wave that carries one, and it is not empty.
+        self.assertGreaterEqual(expected_count("Digger", 35), 1)
+        self.assertEqual(expected_count("Digger", 34), 0)
+
+    def test_no_diggers_on_a_boss_round(self):
+        """The SAME deliberate rule the Formation follows: `_boss_round`
+        composes from `Boss.round_counts`, a `$defs/spawn_counts` table shared
+        with every `death_spawn.spawns` row, so a `digger` key there would land
+        on all 14 committed rows. One line into `_boss_round`'s `rest` if it is
+        ever wanted — never by accident."""
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (40, 50, 60):
+            with self.subTest(round=rnd):
+                self.assertGreater(expected_count("Digger", rnd), 0)
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                self.assertEqual(
+                    [e for _, e in sp.pending() if e == "digger"], [])
+
+    def test_diggers_are_body_mixed_never_queue_leading(self):
+        tm = TestSpawnTilesAreSpawningOnly._tm()
+        sp = Spawner()
+        sp.begin_round(35, tm, ENEM, rng=random.Random(3))
+        etypes = [e for _, e in sp.pending()]
+        self.assertIn("digger", etypes)
+        self.assertNotEqual(etypes[0], "digger")
+
+
 class TestRegistryGroupDrift(unittest.TestCase):
     """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
     required `registry_group` leaf (added so the editor can resolve a slot's
@@ -1008,7 +1392,7 @@ class TestRegistryGroupDrift(unittest.TestCase):
 
     def test_registry_group_matches_data_for_every_enemy_subclass(self):
         for cls in (Enemy, Raider, SiegeCannon, Formation, Commander,
-                    Boss):
+                    Digger, Boss):
             block = ENEM["EnemyTypes"]
             for seg in cls.STAT_SUBTREE:
                 block = block[seg]

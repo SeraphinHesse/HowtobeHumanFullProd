@@ -324,7 +324,9 @@
         "walk",
         "attack",
         "death",
-        "kidnap"
+        "kidnap",
+        "dig",
+        "emerge"
       ],
       "display_name": "Enemies",
       "frame_h": 96,
@@ -531,6 +533,35 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "digger_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "digger_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "digger_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "digger_stage_4"
+              ]
+            }
+          ],
+          "label": "Digger"
         }
       ],
       "key": "enemies"
@@ -780,7 +811,8 @@
             "vfx_slash",
             "vfx_crater",
             "vfx_projectile",
-            "vfx_shell"
+            "vfx_shell",
+            "vfx_dirt_pile"
           ]
         }
       ],

@@ -480,12 +480,22 @@ def find_path_ignoring_walls(tilemap, start_col, start_row, footprint=1,
                        footprint=footprint, cond_weights=cond_weights)
 
 
-def _goal_tiles(tilemap, predicate):
+def _goal_tiles(tilemap, predicate, exclude=None):
+    """The goal set for a hunt: every built tile whose occupant is alive and
+    satisfies ``predicate``.
+
+    NE-2 adds ``exclude`` — an optional container of ``(col, row)`` tiles to
+    drop from the set BEFORE the predicate runs. It is the seam the Digger's
+    exclusive claim rides on (a tile another live Digger has already committed
+    to is simply not a candidate), and it is deliberately a plain tile filter
+    rather than a second predicate: the caller knows tiles, not occupants, and
+    ``None`` keeps every existing query byte-identical."""
     return {
         (t.col, t.row)
         for t in tilemap.built_tiles()
         if t.occupant is not None
         and getattr(t.occupant, "alive", False)
+        and (exclude is None or (t.col, t.row) not in exclude)
         and predicate(t.occupant)
     }
 
@@ -587,7 +597,7 @@ def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1,
 
 
 def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
-                                   cond_weights=None):
+                                   cond_weights=None, exclude=None):
     """Cheapest path to the nearest alive STRUCTURE — every non-economy,
     non-boost, non-base building (``_STRUCTURE_BUILDING_TYPES``: blocker,
     wall builder, and the four attack-capable types) — by geometric distance,
@@ -597,11 +607,25 @@ def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
     NE-0/D2. The ``"structure"`` hunt category, added for the Digger (NE-2) but
     landed a phase early so it rides the same reviewed helper the other hunts
     do. Blockers and wall builders are the common case in practice; the
-    category is deliberately not restricted to those two."""
+    category is deliberately not restricted to those two.
+
+    NE-2 adds ``exclude``: ``(col, row)`` tiles to drop from the goal set. This
+    is the ONE hunt query that takes it, because the Digger is the one type
+    with an exclusive claim — another live Digger's committed target is not a
+    candidate for this one. ``None`` (every other caller, including
+    ``_HUNT_QUERIES``' generic dispatch) is byte-identical to NE-0.
+
+    **Caution — an empty goal set still falls back to the BASE path** (``_hunt``
+    does, for every hunt). A caller that must never march at the hole when
+    exclusion empties the board — the Digger, which "only builds towards
+    buildings" — has to detect that itself: ``PathAgent.adopt_goal`` flips
+    ``goal_is_base`` True on exactly that path, which is what
+    ``BurrowAgent.retarget`` reads to stand down instead."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(
         tilemap,
         lambda b: getattr(b, "building_type", None) in _STRUCTURE_BUILDING_TYPES,
+        exclude,
     )
     return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
 

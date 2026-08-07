@@ -40,7 +40,10 @@ from game.map.pathfinder import (
     find_path, find_path_ignoring_walls,
     find_path_to_nearest_non_base_building,
 )
-from .components import _HUNT_QUERIES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
+from .components import (
+    _HUNT_QUERIES, BURROW_SUBMERGED, BurrowAgent, DeathSpawn, EnemyCombat,
+    Kidnap, PathAgent,
+)
 
 # spawn_counts key -> the etype it spawns. The ORDER is load-bearing twice
 # over: it fixes how many draws a death burst takes from the injected `rng`
@@ -107,6 +110,12 @@ class Enemy(GameObject):
     # every other type keeps the plain `death_spawn`. ONE class attr rather
     # than a per-type __init__ override — the resolved fields are identical.
     DEATH_SPAWN_KEY = "death_spawn"
+    # NE-2: does this type ever HALT to melee a building blocking its path?
+    # False for the Digger alone — see PathAgent.no_melee for why a 0-damage
+    # halt would be a permanent soft-lock rather than a slow fight. A class
+    # attr, not balancing: it is a property of the type's mechanics (the
+    # EXTRA_TAGS / DEATH_SPAWN_KEY shape), not a number a designer tunes.
+    NO_MELEE = False
     # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
     # prototype-exact. PAD is only the GAP above the sprite's head — how high
     # the bar actually floats is measured off the sprite as the renderer draws
@@ -136,7 +145,13 @@ class Enemy(GameObject):
         footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(footprint=footprint, hunt=block["hunts"]),
+            PathAgent(footprint=footprint, hunt=block["hunts"],
+                      no_melee=self.NO_MELEE),
+            # NE-2: the navigation-adjacent slot — AFTER PathAgent (so it can
+            # act on the walk/halt decision just made) and BEFORE Movement (so
+            # a freeze it applies takes effect the same frame). Empty for every
+            # type but the Digger.
+            *self.nav_components(block),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
@@ -169,6 +184,18 @@ class Enemy(GameObject):
         # Transient caches (E-11 allows underscore attrs; non-authoritative).
         self._balance = enemies_balance
         self._tilemap = tilemap
+        # NE-2 — the SCENE seam, parallel to `_tilemap` above. A GameObject
+        # never receives the scene (`Scene.update` calls `on_spawn()` with no
+        # arguments), and `Component` cannot reach it either, which is why
+        # `CorpseFade._scene`/`Kidnap._scene` are both wired externally by
+        # their one transition site. The Digger needs it for TWO things
+        # `_tilemap` cannot answer — who else is a live Digger (the exclusive
+        # claim) and where to put the dirt pile — so it is cached here once,
+        # for the whole type hierarchy, rather than threaded through four call
+        # signatures. `Spawner` sets it at both of its construction sites
+        # (the wave pop and `_spawn_child`); a hand-built headless enemy leaves
+        # it None, which every reader treats as "no scene, no rivals".
+        self._scene = None
         self._col = col
         self._row = row
         self._enemy_era = era
@@ -195,6 +222,17 @@ class Enemy(GameObject):
         variable per-era. A classmethod, not an instance method: the spawner
         needs the footprint to pick a spawn tile BEFORE the enemy exists."""
         return int(block["footprint"]), float(block["sprite_scale"])
+
+    @classmethod
+    def nav_components(cls, block):
+        """Extra components spliced between ``PathAgent`` and ``Movement``
+        (NE-2). ``()`` for every type but the Digger, whose ``BurrowAgent``
+        must see the agent's decision for the frame and be able to stop the
+        locomotion that would otherwise act on it. A seam rather than an
+        ``__init__`` override, for the ``resolve_fit``/``resolve_phase_row``
+        reason: the component ORDER is the invariant, and keeping ONE
+        construction site is what guarantees it."""
+        return ()
 
     @classmethod
     def resolve_phase_row(cls, ds, era):
@@ -504,6 +542,71 @@ class Commander(Enemy):
     HP_BAR_W, HP_BAR_H = 24, 2       # siege-sized (D8), no boss 48×4 bar
 
 
+class Digger(Enemy):
+    """The Digger (NE-2) — the burrower that erupts under a claimed structure.
+
+    The one type that is a genuine new state machine rather than data over the
+    existing one. It walks visibly at a structure it has EXCLUSIVELY claimed
+    (``hunts: "structure"``), submerges untargetable at ``dig_range_tiles``,
+    travels underground, erupts for one large ``dmg`` hit, then re-claims. The
+    machine itself is ``BurrowAgent``; this class is the four class attrs, the
+    three seams it needs, and nothing else.
+
+    * **``NO_MELEE = True``** — it has no attack outside digging, so a halt on
+      an incidental blocker would be a 0-damage soft-lock (``PathAgent.
+      no_melee``).
+    * **``repath_on_kill`` stays OFF** (hence the ``on_spawn`` override, which
+      does NOT call the generic non-base branch): the agent's generic re-path
+      would re-run the hunt with no claim exclusion, and would silently accept
+      the empty-goal-set fallback to the hole. ``BurrowAgent.retarget`` is the
+      only re-targeting path, at spawn and after every eruption alike.
+    * **``targetable``** is overridden off the SUBMERGED state — the exact
+      duck-typed contract the boss's second phase already uses, so combat
+      targeting, in-flight projectiles, the lightning storm and both HP bars
+      drop a burrowed Digger with no per-site change.
+    * **``kidnapping: false``** in balancing: Diggers do not kidnap.
+    """
+
+    ETYPE = "digger"
+    REGISTRY_GROUP = "Digger"
+    DEFAULT_SLOT = "digger_stage_1"
+    STAT_SUBTREE = ("Digger",)
+    NO_MELEE = True
+
+    @classmethod
+    def nav_components(cls, block):
+        return (BurrowAgent(dig_range_tiles=int(block["dig_range_tiles"]),
+                            dig_speed=float(block["dig_speed"])),)
+
+    def _resolve_stats(self, balance, era, position_in_era=1):
+        """The era row as usual, with ``move_speed`` REPLACED by the flat
+        ``dig_speed`` — the design brief's "one speed value for both phases".
+        Doing it here rather than trusting the two to be authored equal is what
+        makes overground and underground provably the same number; the era
+        rows still carry their own ``move_speed`` because ``$defs/type_era_row``
+        requires it and the balancing panel renders it."""
+        hp, dmg, _speed, attack_speed, attack_range = super()._resolve_stats(
+            balance, era, position_in_era)
+        dig_speed = float(balance["EnemyTypes"]["Digger"]["dig_speed"])
+        return (hp, dmg, dig_speed, attack_speed, attack_range)
+
+    def on_spawn(self):
+        """Claim a structure and walk at it — ``BurrowAgent.retarget``, never
+        the generic hunt branch (see the class docstring). Deliberately leaves
+        ``PathAgent.repath_on_kill`` at False."""
+        burrow = self.get_component(BurrowAgent)
+        burrow.retarget(self, self.get_component(PathAgent),
+                        self.get_component(Movement), self._tilemap)
+
+    @property
+    def targetable(self):
+        """False while burrowed — nothing can shoot a Digger underground."""
+        burrow = self.get_component(BurrowAgent)
+        if burrow is not None and burrow.state == BURROW_SUBMERGED:
+            return False
+        return super().targetable
+
+
 class Boss(Enemy):
     """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
     clock (the spawner passes it like every other type) and resolves its own
@@ -631,6 +734,7 @@ ENEMY_CLASSES = {
     "siege": SiegeCannon,
     "formation": Formation,
     "commander": Commander,
+    "digger": Digger,
     "boss": Boss,
 }
 

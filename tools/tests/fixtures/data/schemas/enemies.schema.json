@@ -618,11 +618,12 @@
               "$ref": "#/$defs/boss_endgame_scaling"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -698,11 +699,12 @@
               "type": "integer"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -743,6 +745,94 @@
           ],
           "type": "object"
         },
+        "Digger": {
+          "additionalProperties": false,
+          "description": "The Digger (NE-2). A burrower that walks visibly at a structure it has EXCLUSIVELY claimed (hunts: \"structure\" - no two live Diggers ever commit to the same building), submerges untargetable once within dig_range_tiles of it, travels underground, and erupts for one large hit before claiming the next one. It has NO attack outside digging and never halts to melee an incidental blocker en route (PathAgent.no_melee) - a 0-damage halt would soft-lock it forever. It does not kidnap. A NORMAL era-shaped type otherwise: hp and the eruption dmg come from its own eras rows through the same base resolver Standard/SiegeCannon use, and footprint/sprite_scale stay FLAT here (only the Boss carries them per-era, BR-1/D10).",
+          "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dig_range_tiles": {
+              "description": "How close (Chebyshev tiles, measured to the nearest tile of the target's block) the Digger gets before it submerges. It is untargetable from that moment until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. It doubles as the underground travel distance - the dig lasts dig_range_tiles / dig_speed seconds regardless of how far the target actually is. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dig_speed": {
+              "description": "Tiles per second while burrowed - and ALSO this type's overground move speed (one speed value for both phases, per the design brief). game/enemies/enemy.py's Digger._resolve_stats substitutes it for the era row's move_speed at construction, so the era rows' own move_speed is inert for this type and the two can never disagree. STARTING VALUE, tune in the editor.",
+              "maximum": 60,
+              "minimum": 0.01,
+              "type": "number"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's stats and count schedule, one row per era, era 0 first. stats.dmg is the ERUPTION hit - the one big blow it deals on surfacing, not a per-swing melee value. stats.move_speed is INERT (dig_speed replaces it, see above), and attack_speed/attack_range_tiles are decorative for this type: it never uses the cooldown-gated melee path at all.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "structure",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round Diggers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "condition_path_weights",
+            "death_spawn",
+            "dig_range_tiles",
+            "dig_speed",
+            "endgame_scaling",
+            "eras",
+            "footprint",
+            "hunts",
+            "kidnapping",
+            "registry_group",
+            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
         "Formation": {
           "additionalProperties": false,
           "description": "A marching column of soldiers that moves as one 2x2 body (ER-4). It breaks at half health - death_spawn.at_hp_fraction 0.5 means it DIES at 50% HP (D4: breaking formation is dying) and scatters its spawns row of regulars at spawn_hp_fraction of their own max HP. Takes the scale-tier bonuses like Standard/SiegeCannon. Never spawns on a boss round (Boss.round_counts carries no formation key, deliberately).",
@@ -771,11 +861,12 @@
               "type": "integer"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -844,11 +935,12 @@
               "type": "integer"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -917,11 +1009,12 @@
               "type": "integer"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -1004,11 +1097,12 @@
               "type": "integer"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -1053,6 +1147,7 @@
       "required": [
         "Boss",
         "Commander",
+        "Digger",
         "Formation",
         "Raider",
         "SiegeCannon",
