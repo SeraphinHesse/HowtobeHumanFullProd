@@ -343,6 +343,126 @@
       "sprite_scale": 1.0,
       "start_round": 0
     },
+    "Drummer": {
+      "attack_speed_increase": 0.1,
+      "condition_path_weights": {
+        "forest": 1,
+        "mountain": 2,
+        "pond": 9
+      },
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
+      "dmg_increase": 0.15,
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 0,
+          "count_start": 0,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.5,
+            "dmg": 5,
+            "hp": 300,
+            "move_speed": 0.9
+          }
+        },
+        {
+          "count_per_round": 0,
+          "count_start": 0,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.5,
+            "dmg": 6,
+            "hp": 340,
+            "move_speed": 0.95
+          }
+        },
+        {
+          "count_per_round": 0.2,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.5,
+            "dmg": 7,
+            "hp": 395,
+            "move_speed": 1.03
+          }
+        },
+        {
+          "count_per_round": 0.2,
+          "count_start": 2,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.5,
+            "dmg": 9,
+            "hp": 485,
+            "move_speed": 1.2
+          }
+        },
+        {
+          "count_per_round": 0.2,
+          "count_start": 3,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.5,
+            "dmg": 12,
+            "hp": 610,
+            "move_speed": 1.4
+          }
+        }
+      ],
+      "footprint": 1,
+      "hp_increase": 0.15,
+      "hunts": "base",
+      "kidnapping": false,
+      "move_speed_increase": 0.15,
+      "registry_group": "Drummer",
+      "sprite_scale": 1.15,
+      "start_round": 25,
+      "support_range": 1,
+      "support_range_increase": 0
+    },
     "Formation": {
       "condition_path_weights": {
         "forest": 1,

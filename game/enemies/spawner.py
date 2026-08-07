@@ -50,6 +50,8 @@ ENABLE_FORMATION = True
 # count_start/count_per_round at 0 (D8), so it never enters a normal wave. BR-3
 # gives it its real entrance, the boss's second phase.
 ENABLE_COMMANDER = True
+# NE-3: the Drummer support unit, live from its own start_round (25).
+ENABLE_DRUMMER = True
 
 # The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
 # delayed second phase lays out its child queue from the SAME table and
@@ -57,6 +59,23 @@ ENABLE_COMMANDER = True
 # BR-3 appended ("commander", "commander") to it LAST: until then a non-zero
 # `commander` count in ANY spawn_counts row silently spawned nothing.
 _SWARM_TYPES = SWARM_TYPES
+
+
+def _attach_scene(enemy, scene):
+    """Cache the scene on a freshly built enemy (NE-3) — ``Enemy._scene``.
+
+    An underscore transient, exactly like ``PathAgent._tilemap`` and
+    ``Kidnap._scene``: non-authoritative, never serialized, and legal past the
+    E-11 ``GameObject.__setattr__`` seal. ``Scene`` hands objects no reference
+    to itself (``on_spawn()`` takes no argument), so a component that has to
+    QUERY the world — today ``DrummerAura``'s ``by_tag("enemy")`` aura scan —
+    needs the host that builds the enemy to give it one.
+
+    Called from BOTH construction sites (the wave pop and ``_spawn_child``),
+    so a death-spawn or second-phase child is as world-aware as a queued one.
+    An enemy built outside the spawner (headless stat tests) simply has no
+    ``_scene``, and every consumer treats that as "inert"."""
+    enemy._scene = scene
 
 
 def _footprint_of(balance, etype, era=0):
@@ -229,11 +248,13 @@ class Spawner:
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
-        ``_formation_group`` and then ``_commander_group`` are called LAST on
+        ``_formation_group``, then ``_commander_group``, then
+        ``_drummer_group`` are called LAST on
         purpose, newest last: every earlier group's rng draw sequence then
         stays byte-identical, so the standard/raider/siege counts and picks are
         unchanged at every round. (The Commander draws nothing at all today —
-        its counts are 0 — so BR-2 is provably wave-neutral.)
+        its counts are 0 — so BR-2 is provably wave-neutral; the Drummer
+        draws nothing before round 25, so NE-3 is wave-neutral up to there.)
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
         FIRST, before the boss check (``era_math.is_boss_round`` is already
@@ -262,8 +283,10 @@ class Spawner:
             round_num, balance, spawn_tiles)
         formations = self._formation_group(round_num, balance, spawn_tiles)
         commanders = self._commander_group(round_num, balance, spawn_tiles)
+        drummers = self._drummer_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed + formations + commanders
+        rest = (regular + raiders + siege_mixed + formations + commanders
+                + drummers)
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -379,6 +402,33 @@ class Spawner:
         return [(self._pick_spawn_tile(spawn_tiles, "commander"), "commander")
                 for _ in range(n)]
 
+    def _drummer_group(self, round_num, balance, spawn_tiles):
+        """Drummers from ``Drummer.start_round`` (25) through the shared count
+        formula — a handful per wave, not a swarm: the support unit is meant
+        to be the thing you go and kill, and every extra one multiplies the
+        whole field's stats.
+
+        Body-mixed like the Formation, never queue-leading: a support unit
+        that arrives ahead of the units it supports buffs nothing. Called
+        LAST in ``_compose`` (after ``_commander_group``) for the usual rng
+        reason — an earlier call site would shift every other group's draw
+        sequence and move every deterministic wave fixture. Below round 25
+        it returns an empty list and consumes no rng, so rounds 0-24 are
+        byte-identical to BR-5.
+
+        Drummers never appear on a boss round, exactly like Formations:
+        ``_boss_round`` composes from ``Boss.round_counts``, a
+        ``$defs/spawn_counts`` table SHARED with every ``death_spawn.spawns``
+        row, and nothing wants a drummer count in a death-spawn row. If
+        drummers on boss rounds are ever wanted it is a one-line
+        ``+ self._drummer_group(...)`` into ``_boss_round``'s ``rest``,
+        computed from the formula and never from the table."""
+        if not ENABLE_DRUMMER:
+            return []
+        n = self._count_of(balance, "Drummer", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "drummer"), "drummer")
+                for _ in range(n)]
+
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear
         slow→fast interval × ``uniform(0.4, 1.6)`` jitter (prototype
@@ -436,6 +486,7 @@ class Spawner:
             enemy = create_enemy(
                 etype, tile.col, tile.row, self._balance, self._tilemap,
                 era, self._registry, self._rng, self._round_in_era)
+            _attach_scene(enemy, scene)     # NE-3
             scene.spawn(enemy)
             if delay is None:
                 ramp_off = True
@@ -476,6 +527,7 @@ class Spawner:
         if frac < 1.0:
             health = enemy.get_component(Health)
             health.hp = max(1, int(health.max_hp * frac))
+        _attach_scene(enemy, scene)     # NE-3
         scene.spawn(enemy)
 
     # -- delayed second phase (BR-3) ---------------------------------------

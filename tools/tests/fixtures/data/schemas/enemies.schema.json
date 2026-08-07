@@ -743,6 +743,121 @@
           ],
           "type": "object"
         },
+        "Drummer": {
+          "additionalProperties": false,
+          "description": "The Drummer (NewEnemyTypesPLAN NE-3) -- the game's first SUPPORT enemy. It marches at the hole like a walker (hunts \"base\") and hits for almost nothing; its contribution is the aura. Every enemy standing within Chebyshev support_range of a live Drummer gets that Drummer's hp/dmg/move_speed/attack_speed increases, stacking ADDITIVELY per Drummer (two Drummers in range is exactly twice one) and fading 4 seconds after leaving the radius. The hp increase is a real heal: it raises current HP by the same amount it raises max HP, and shrinks both back on decay. A NORMAL era-shaped type -- its own hp/dmg/move_speed scale per era like every other type's, while the five increase/support leaves below are FLAT type-level knobs. Every value here is a STARTING value, tunable from the balancing panel with no code change.",
+          "properties": {
+            "attack_speed_increase": {
+              "description": "How much faster each buffed enemy attacks, as a fraction: 0.10 = +10%. The underlying leaf is an INTERVAL in seconds, so the game divides by (1 + the summed bonus) -- a bigger number here always means more swings per second. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg_increase": {
+              "description": "How much extra damage each buffed enemy deals, as a fraction of its own dmg: 0.15 = +15%. Applied before the tile-condition damage bonus, so the two compound. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's OWN stats and count schedule, one row per era, era 0 first. Rows 0-1 are unreachable filler while start_round is 25 (that lands in era 2). Variable length: add a row for another era, and past the last row endgame_scaling compounds.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hp_increase": {
+              "description": "How much max HP each buffed enemy gains, as a fraction of its UNBUFFED max: 0.15 = +15%. It HEALS on apply (current HP rises by the same amount, so it is real survivability, not headroom) and shrinks back -- clamping current HP if needed -- when the contribution decays. Sized off the unbuffed max, so N Drummers give exactly N x this instead of compounding.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn. The Drummer walks straight at the hole (\"base\") like a Standard walker: it has no building-hunting behaviour and never arms PathAgent.repath_on_kill.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on. False for the Drummer: a support unit that walks off the board stops supporting.",
+              "type": "boolean"
+            },
+            "move_speed_increase": {
+              "description": "How much faster each buffed enemy walks, as a fraction of its own move_speed: 0.15 = +15%. Applied to the unit's base speed BEFORE the tile-condition penalty and the min_speed_fraction floor. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link): matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). 1.15 makes the Drummer read as slightly taller than the walkers it is buffing.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "start_round": {
+              "description": "First round drummers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "support_range": {
+              "description": "Aura radius in TILES, measured as Chebyshev distance from the Drummer's own tile (1 = the eight surrounding tiles). The Drummer never buffs itself.",
+              "maximum": 32,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "support_range_increase": {
+              "description": "INERT AS SHIPPED (NE-3): the design's variable list names it, but no code path grows support_range over rounds or eras, so this value is read by nothing today. It exists at 0 so the data shape is ready if range growth is confirmed as wanted; changing it has NO effect until that mechanic is built.",
+              "maximum": 32,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "attack_speed_increase",
+            "condition_path_weights",
+            "death_spawn",
+            "dmg_increase",
+            "endgame_scaling",
+            "eras",
+            "footprint",
+            "hp_increase",
+            "hunts",
+            "kidnapping",
+            "move_speed_increase",
+            "registry_group",
+            "sprite_scale",
+            "start_round",
+            "support_range",
+            "support_range_increase"
+          ],
+          "type": "object"
+        },
         "Formation": {
           "additionalProperties": false,
           "description": "A marching column of soldiers that moves as one 2x2 body (ER-4). It breaks at half health - death_spawn.at_hp_fraction 0.5 means it DIES at 50% HP (D4: breaking formation is dying) and scatters its spawns row of regulars at spawn_hp_fraction of their own max HP. Takes the scale-tier bonuses like Standard/SiegeCannon. Never spawns on a boss round (Boss.round_counts carries no formation key, deliberately).",
@@ -1053,6 +1168,7 @@
       "required": [
         "Boss",
         "Commander",
+        "Drummer",
         "Formation",
         "Raider",
         "SiegeCannon",

@@ -531,6 +531,35 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "drummer_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "drummer_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "drummer_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "drummer_stage_4"
+              ]
+            }
+          ],
+          "label": "Drummer"
         }
       ],
       "key": "enemies"
