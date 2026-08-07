@@ -633,7 +633,7 @@
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 3,
           "wall_hp": 50,
-          "wall_hp_per_level": 0
+          "wall_hp_per_level": 50
         },
         {
           "base_hp": 500,
@@ -647,8 +647,8 @@
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 3,
-          "wall_hp": 120,
-          "wall_hp_per_level": 0
+          "wall_hp": 150,
+          "wall_hp_per_level": 50
         },
         {
           "base_hp": 700,
@@ -663,7 +663,7 @@
           "upgrade_cost_increment": 12,
           "upkeep_per_level": 3,
           "wall_hp": 250,
-          "wall_hp_per_level": 0
+          "wall_hp_per_level": 50
         }
       ]
     }
