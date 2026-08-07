@@ -45,12 +45,13 @@ PW = MAPBAL["TileConditions"]["path_weights"]
 LOVE = 10 ** 9
 
 
-def synth(rows, base=(0, 0), rng=None):
+def synth(rows, base=(0, 0), rng=None, tile_conditions=None):
     doc = tilemap.TileMapDoc(
         map_id="synth", display_name="Synth",
         cols=len(rows[0]), rows=len(rows),
         legend={}, terrain=[list(r) for r in rows],
-        base={"col": base[0], "row": base[1], "slot": "base_hole"}, deco=[])
+        base={"col": base[0], "row": base[1], "slot": "base_hole"}, deco=[],
+        tile_conditions=tile_conditions)
     return TileMap(doc, MAPBAL, rng=rng)
 
 
@@ -110,6 +111,37 @@ class TestConditionRoll(unittest.TestCase):
         tm = synth(self.ROWS)   # rng=None -> the pre-10I neutral grid
         self.assertTrue(all(t.condition == TileCondition.GRASS
                             for t in tm.all_tiles()))
+
+
+class TestPaintedConditions(unittest.TestCase):
+    """The map doc's `tile_conditions` marks: applied unconditionally (even at
+    rng=None), locking their cell out of the roll and overriding EVERY
+    eligibility rule the roll applies (background, starting pocket, base)."""
+
+    ROWS = TestConditionRoll.ROWS
+    PAINT = {(5, 5): "pond",        # eligible combat tile
+             (0, 0): "mountain",    # the base, inside the starting pocket
+             (3, 39): "forest"}     # a BACKGROUND tile
+
+    def test_paint_wins_everywhere_and_locks_the_cell(self):
+        tm = synth(self.ROWS, rng=random.Random(42), tile_conditions=self.PAINT)
+        self.assertEqual(tm.get(5, 5).condition, TileCondition.POND)
+        self.assertEqual(tm.get(0, 0).condition, TileCondition.MOUNTAIN)
+        self.assertEqual(tm.get(3, 39).condition, TileCondition.FOREST)
+        # ... while unpainted eligible tiles still roll.
+        rolled = [t.condition for t in tm.all_tiles()
+                  if t.state == TileState.COMBAT and (t.col, t.row) != (5, 5)]
+        self.assertTrue(any(c != TileCondition.GRASS for c in rolled))
+
+    def test_paint_applies_without_an_rng(self):
+        tm = synth(self.ROWS, tile_conditions=self.PAINT)   # rng=None
+        self.assertEqual(tm.get(5, 5).condition, TileCondition.POND)
+        self.assertEqual(tm.get(0, 0).condition, TileCondition.MOUNTAIN)
+        self.assertEqual(tm.get(3, 39).condition, TileCondition.FOREST)
+        painted = set(self.PAINT)
+        self.assertTrue(all(t.condition == TileCondition.GRASS
+                            for t in tm.all_tiles()
+                            if (t.col, t.row) not in painted))
 
 
 # ---------------------------------------------------------------------------

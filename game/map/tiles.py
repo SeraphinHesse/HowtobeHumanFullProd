@@ -68,6 +68,22 @@ CONDITION_MODIFIER_KEY = {
 }
 # -- /10I --
 
+# -- map-file condition NAME -> TileCondition --------------------------------
+# The one table translating a `tile_conditions` mark's `condition` name (the
+# map-file schema's enum, which is the single source of truth for that
+# vocabulary) into the runtime enum. GRASS IS present: a designer must be able
+# to paint a tile explicitly grass and lock it out of the roll. ONE table, so
+# the name->enum mapping cannot drift — same rationale as CONDITION_LABEL /
+# CONDITION_WEIGHT_KEY / CONDITION_MODIFIER_KEY above. Indexed DIRECTLY by its
+# consumer (`tile_map.py`), never `.get()`: an unknown name is invalid data and
+# must fail loud (D-2).
+CONDITION_BY_MAP_KEY = {
+    "grass": TileCondition.GRASS,
+    "mountain": TileCondition.MOUNTAIN,
+    "pond": TileCondition.POND,
+    "forest": TileCondition.FOREST,
+}
+
 # -- condition ART -----------------------------------------------------------
 # Condition -> its own TOP-LEVEL group label in the `conditions` slot category
 # (``data/slots.json``). GRASS IS present here (unlike the two tables above):

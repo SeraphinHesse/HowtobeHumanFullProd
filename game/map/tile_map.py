@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from game.core.balance import load_balance
 from .spawn_deco import spawn_tree_slots
 from .tiles import (
-    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL,
-    CONDITION_WEIGHT_KEY, Tile, TileCondition, TileState,
+    CONDITION_BY_MAP_KEY, CONDITION_CATEGORY, CONDITION_LABEL,
+    CONDITION_STATE_LABEL, CONDITION_WEIGHT_KEY, Tile, TileCondition, TileState,
 )
 
 
@@ -275,6 +275,27 @@ class TileMap:
         # every pre-10I headless fixture (which asserts exact path costs on
         # all-GRASS grids) byte-stable. One-time O(map) init pass — NOT a
         # per-frame scan (perf invariant).
+        #
+        # PAINTED CONDITIONS come FIRST and are applied UNCONDITIONALLY —
+        # deliberately OUTSIDE the ``rng is not None`` gate below. A painted
+        # mark is deterministic AUTHORING, not a roll, so the all-GRASS
+        # headless-fixture escape hatch (``rng=None``) must not suppress it.
+        # This costs nothing for every existing fixture: a doc with no marks
+        # carries an EMPTY dict (``TileMapDoc.__post_init__``), so the loop
+        # body never runs and those maps stay byte-identical.
+        #
+        # A painted mark WINS EVERYWHERE, with no exceptions: BACKGROUND
+        # tiles and the starting unlocked pocket incl. the base take the
+        # painted condition too, even though the ROLL deliberately skips
+        # both. This is a deliberate, user-chosen rule, NOT an oversight —
+        # the prototype-exact eligibility rules still govern the ROLL; they
+        # simply no longer govern a designer's explicit mark.
+        # ``CONDITION_BY_MAP_KEY`` is indexed DIRECTLY (never ``.get``): an
+        # unknown name is invalid data and must fail loud (D-2). O(marks),
+        # never an O(map) walk (perf invariant, game/map/CLAUDE.md).
+        painted = doc.tile_conditions
+        for (col, row), name in painted.items():
+            self.get(col, row).condition = CONDITION_BY_MAP_KEY[name]
         if rng is not None:
             chances = balance["TileConditions"]["spawn_chances"]
             conds = (TileCondition.GRASS, TileCondition.MOUNTAIN,
@@ -282,8 +303,12 @@ class TileMap:
             weights = [chances["grass"], chances["mountain"],
                        chances["pond"], chances["forest"]]
             for t in self.all_tiles():
+                # A painted cell is never rolled — THAT skip is what "locks
+                # the tile out of the tile generation process": the
+                # designer's mark is final and no draw can overwrite it.
                 if (t.state == TileState.BACKGROUND
-                        or self._is_unlocked_state(t.state)):
+                        or self._is_unlocked_state(t.state)
+                        or (t.col, t.row) in painted):
                     continue
                 t.condition = rng.choices(conds, weights=weights)[0]
         # -- /10I --

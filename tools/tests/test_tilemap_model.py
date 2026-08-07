@@ -502,6 +502,31 @@ class TestStageZones(unittest.TestCase):
             tilemap.validate_doc(doc)
 
 
+class TestTileConditions(unittest.TestCase):
+    """The designer-painted tile conditions: the fourth overlay of the same
+    shape — {(col,row): name} in memory, a list sorted by (row, col) on disk.
+    The value is an opaque NAME here, not a stage number."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.tile_conditions, {})  # empty by default
+        doc.tile_conditions = {(3, 1): "pond", (0, 1): "forest",
+                               (4, 0): "mountain"}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["tile_conditions"], [
+            {"col": 4, "condition": "mountain", "row": 0},
+            {"col": 0, "condition": "forest", "row": 1},
+            {"col": 3, "condition": "pond", "row": 1},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.tile_conditions = {(0, doc.rows): "pond"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only
