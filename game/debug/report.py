@@ -74,16 +74,33 @@ def _share_table(title, totals, unit="dmg"):
     return lines
 
 
-def write_summary(rows, events, path, run_id="", outcome=None):
+def _player_line(player_name, player_skill):
+    """``(name, skill)`` for the report headers, or ``None`` when the run
+    carried no identity at all. One half missing falls back to the same
+    defaults ``highscores.make_entry`` stamps, never prints ``None``."""
+    if not player_name and not player_skill:
+        return None
+    return (player_name or "Anonymous", player_skill or "unknown")
+
+
+def write_summary(rows, events, path, run_id="", outcome=None,
+                  player_name=None, player_skill=None):
     """The markdown digest.
 
     ``events`` is the per-round auxiliary breakdown list the recorder keeps
     parallel to ``rows`` (``metrics.round_breakdown`` records: damage / income /
     upkeep split by building type, plus love spend by reason). It carries the
     detail that deliberately does not fit the flat CSV schema.
+
+    ``player_name``/``player_skill`` are the identity the run was played under
+    (``None``/empty for an unnamed run — the header line is then omitted
+    entirely rather than printed empty).
     """
     breakdowns = events or []
     out = [f"# Debug run summary — {run_id or 'run'}", ""]
+    player = _player_line(player_name, player_skill)
+    if player is not None:
+        out += [f"Player: {player[0]} ({player[1]})", ""]
 
     if not rows:
         out += ["No rounds were recorded (the run ended before the first "
@@ -473,16 +490,33 @@ def _table(rows):
             f'<tbody>{body}</tbody></table></div>')
 
 
-def write_html(rows, path, run_id="", outcome=None):
+def _player_html(player_name, player_skill):
+    """The ``<p class="sub">Player: …</p>`` header line, or ``""`` when the run
+    carried no identity. Both halves are escaped; no link, font or image is
+    introduced (the no-external-URL rule)."""
+    player = _player_line(player_name, player_skill)
+    if player is None:
+        return ""
+    return (f'<p class="sub">Player: <b>{html.escape(str(player[0]))}</b> '
+            f'({html.escape(str(player[1]))})</p>')
+
+
+def write_html(rows, path, run_id="", outcome=None,
+               player_name=None, player_skill=None):
     """ONE self-contained HTML file: inline CSS, inline SVG, no external
-    reference of any kind. Six charts + a stat row + the full data table."""
+    reference of any kind. Six charts + a stat row + the full data table.
+
+    ``player_name``/``player_skill`` are the identity the run was played under
+    (``None``/empty for an unnamed run — the header line is then omitted)."""
     title = f"Debug run report — {run_id or 'run'}"
+    player_html = _player_html(player_name, player_skill)
     if not rows:
         _write_text(path, (
             '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">'
             f'<meta name="viewport" content="width=device-width,initial-scale=1">'
             f'<title>{html.escape(title)}</title><style>{_CSS}</style></head>'
             f'<body class="viz-root"><h1>{html.escape(title)}</h1>'
+            f'{player_html}'
             '<p class="sub">No rounds were recorded (the run ended before the '
             'first payday).</p></body></html>'))
         return path
@@ -547,6 +581,7 @@ def write_html(rows, path, run_id="", outcome=None):
         '<meta name="viewport" content="width=device-width,initial-scale=1">'
         f'<title>{html.escape(title)}</title><style>{_CSS}</style></head>'
         f'<body class="viz-root"><h1>{html.escape(title)}</h1>'
+        f'{player_html}'
         f'<p class="sub">outcome: <b>{html.escape(str(outcome or "unknown"))}'
         f'</b> &middot; rounds {rows[0]["round"]}&ndash;{last["round"]}</p>'
         f'<div class="tiles">{tiles}</div>'

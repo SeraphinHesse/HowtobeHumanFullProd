@@ -235,6 +235,54 @@ logic is `game/core` — see that doc.)
     required regenerating `data/ui/screen_defaults.json` and their two
     `test_ui_skinning.py` golden entries — the sanctioned "a screen's default
     geometry changed on purpose" path, never relaxing the pin.
+- **Player identity + high scores (player-identity)** — two more screens, one
+  more menu state, one more scroll seam:
+  - **Two new CODE-ONLY screens join `debug_settings` in that category**:
+    `game/ui/player_intro.py` (`PlayerIntroScreen`, `add_name.py`'s template
+    verbatim — name field + four RADIO options whose selection is just the
+    selected button's `text_color` set to gold and every other's to `None`,
+    the "`None` means compute" convention, so it invents no draw path) and
+    `game/ui/highscores.py` (`HighscoresScreen`, the `credits.py` shape).
+    Neither has a `data/ui/screens/*.json`, a `screen_defaults.json` entry, or
+    a `tools/export_ui_layouts.py SCREEN_IDS` row — an absent override means
+    "code defaults", so both still carry a full `ids` dict and the panel →
+    button → text submission order and are drop-ins the day someone exports
+    them. **Neither does disk I/O**: the host loads/appends
+    `scores/highscores.json` through `game.core.highscores` and hands the
+    document down via `Shell.set_highscores` → `set_doc`; both modules import
+    that package only for its PURE helpers (`ranked`, `SKILLS`).
+  - **`main_menu`'s id/action decoupling — the pattern for any future
+    availability matrix.** `self.buttons` pairs each `Button` with a STABLE
+    `slot_key` (what `_SLOT_IDS` looks its widget id up by — an id is the
+    on-disk contract in `data/ui/screens/main_menu.json` and must NEVER swap),
+    while `self.actions` (recomputed in `layout()` from `core.json`'s `Debug`
+    flags) maps that slot to the action `hit()` returns. Regular-off therefore
+    keeps the `btn_new_game` id and the START NEW GAME position but emits
+    `"play_debug"` from it; both-off falls back to regular-only with one
+    latched warning. `visible` is set on EVERY row every `layout()` (never only
+    in the hiding branch, so a stale `False` cannot linger) and the stack
+    cursor advances only for a visible row, so a hidden row leaves no gap.
+  - **`GameState.HIGHSCORES` is the first menu state added since 9H.** The two
+    modals that came before it (`debug_settings_open`, `player_intro_open`)
+    stayed plain MAIN_MENU flags because each is an overlay reachable from
+    exactly one place; a full SCREEN off the menu, with its own back
+    navigation and its own place in `in_menu`/`_MENU_STATES`, earns the enum
+    member instead. That is the line: overlay ⇒ flag, full screen ⇒ state.
+  - **`Shell.handle_scroll(dy)` is a duck-typed forwarder, not a generic
+    ScrollView.** It calls the active screen's `scroll` attribute when it is
+    callable (only the high-score table has one), so every other screen and
+    state is a silent no-op, and returns `None` — scrolling is never a host
+    intent. One screen does not justify a widget abstraction; the table's own
+    "scroll" is a clamped integer row offset (`scroll_offset`) with the header
+    pinned above the viewport. **Sign**: positive `dy` moves DOWN the list,
+    and pygame's `MOUSEWHEEL.y` is positive scrolling UP, so `main.py`'s menu
+    wheel arm negates it.
+  - **`data/ui/screen_defaults.json` + `test_ui_skinning.py`'s `main_menu`
+    golden entry were REGENERATED on purpose** (the HIGHSCORES row shifts
+    every row below it down one 52+14px slot) — the sanctioned "a screen's
+    default geometry changed on purpose" path, never relaxing the pin. Only
+    `main_menu` moved; every other screen's entry is byte-identical, which is
+    what says the change was contained.
 - **Deferred**: the settings audio slider is inert (no audio system beyond
   music). (The pause dim landed with 10J's HUD alpha.)
 

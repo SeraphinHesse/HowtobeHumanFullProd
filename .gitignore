@@ -32,3 +32,6 @@ doctor_report.txt
 
 # ── Debug-mode run telemetry (game/debug) — generated per run ──
 logs/
+
+# ── High scores (game/core/highscores.py) — per-machine play history ──
+scores/

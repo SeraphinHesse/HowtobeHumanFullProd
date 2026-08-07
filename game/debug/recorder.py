@@ -43,9 +43,35 @@ _SUFFIX = {
 }
 
 
-def default_run_id(prefix="run"):
-    """A timestamped slug, unique enough for one run per second."""
-    return f"{prefix}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+#: Characters kept verbatim in a run-id name slug; everything else is dropped.
+_SLUG_KEEP = set(
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+
+
+def default_run_id(prefix="run", suffix=""):
+    """A timestamped slug, unique enough for one run per second.
+
+    ``suffix`` (when non-empty) is appended as ``-<suffix>``; it is used
+    VERBATIM — slugging is the caller's job (``slug_player``), so a caller that
+    already has a safe suffix is never double-mangled."""
+    run_id = f"{prefix}-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+    return f"{run_id}-{suffix}" if suffix else run_id
+
+
+def slug_player(name, skill, max_len=16):
+    """The run-id suffix for a player identity: ``"<name>-<skill>"``.
+
+    The name keeps its CASE but loses every character outside ``[A-Za-z0-9_-]``
+    (runs of anything else — spaces included — are dropped, not replaced), then
+    is truncated to ``max_len``. Falls back to just ``skill`` when nothing of
+    the name survives, and to ``""`` when both are empty/None — so a regular,
+    unnamed run produces the same run id it always did.
+    """
+    name_slug = "".join(c for c in (name or "") if c in _SLUG_KEEP)[:max_len]
+    skill = skill or ""
+    if name_slug and skill:
+        return f"{name_slug}-{skill}"
+    return name_slug or skill
 
 
 class DebugRecorder:
@@ -55,11 +81,20 @@ class DebugRecorder:
     ``is None`` instead, which is what keeps debug-off byte-identical.
     """
 
-    def __init__(self, out_dir, level=LEVEL_BASIC, run_id=None, outputs=None):
+    def __init__(self, out_dir, level=LEVEL_BASIC, run_id=None, outputs=None,
+                 player_name=None, player_skill=None):
         if level not in LEVELS:
             raise ValueError(f"debug level must be one of {LEVELS}: {level!r}")
         self.level = int(level)
-        self.run_id = run_id or default_run_id()
+        #: Who played this run (both ``None`` for an unnamed/regular run). They
+        #: stamp the run id — hence all four artifact paths — and the MD/HTML
+        #: report headers.
+        self.player_name = player_name
+        self.player_skill = player_skill
+        # An explicitly-passed run_id is used VERBATIM: the player is only ever
+        # folded into an auto-generated one.
+        self.run_id = run_id or default_run_id(
+            suffix=slug_player(player_name, player_skill))
         self.out_dir = Path(out_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)
         self.outputs = frozenset(ALL_OUTPUTS if outputs is None else outputs)
@@ -259,11 +294,15 @@ class DebugRecorder:
             written["csv"] = self.paths["csv"]
         if "md" in self.outputs:
             report.write_summary(self.rounds, self.breakdowns, self.paths["md"],
-                                 run_id=self.run_id, outcome=outcome)
+                                 run_id=self.run_id, outcome=outcome,
+                                 player_name=self.player_name,
+                                 player_skill=self.player_skill)
             written["md"] = self.paths["md"]
         if "html" in self.outputs:
             report.write_html(self.rounds, self.paths["html"],
-                              run_id=self.run_id, outcome=outcome)
+                              run_id=self.run_id, outcome=outcome,
+                              player_name=self.player_name,
+                              player_skill=self.player_skill)
             written["html"] = self.paths["html"]
         self._written = written
         return written

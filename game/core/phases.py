@@ -30,3 +30,9 @@ class GameState(Enum):
     CREDITS = auto()
     ADD_NAME = auto()
     PAUSED = auto()
+    # Player-identity/high-scores feature. Appended LAST so every ordinal
+    # above is unchanged. Unlike the debug-settings modal (a plain
+    # ``Shell`` flag — one screen reachable from one place), the high-score
+    # table is a real full screen reached from the main menu, so it earns a
+    # ``GameState`` member like CREDITS/ADD_NAME.
+    HIGHSCORES = auto()

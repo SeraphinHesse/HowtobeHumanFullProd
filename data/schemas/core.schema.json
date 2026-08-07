@@ -2,7 +2,7 @@
   "$id": "core.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): camera, general, phase loop, XP, the hole, lightning strike. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, camera zoom factors 0.1-100.",
+  "description": "Core balancing domain (D-10), REPLAN nested tree (Phase 9A): camera, general, phase loop, XP, the hole, lightning strike, debug-mode telemetry. Values are the prototype's live tuning, verbatim. Bounds policy: fractions 0-1, costs/counts 0-10000, rounds/levels 0-1000, seconds 0-60, camera zoom factors 0.1-100.",
   "properties": {
     "BossBonuses": {
       "additionalProperties": false,
@@ -103,6 +103,57 @@
       "required": [
         "default_zoom",
         "zoom_levels"
+      ],
+      "type": "object"
+    },
+    "Debug": {
+      "additionalProperties": false,
+      "description": "Debug-mode run telemetry (game/debug) and the main-menu entry points that arm it. These gate which run modes the menu offers and what a debug run captures by default; they never change gameplay balance.",
+      "properties": {
+        "ask_player_identity": {
+          "description": "Ask for a player name + experience level before a debug run starts; stamps them into the log filenames and reports.",
+          "type": "boolean"
+        },
+        "debug_mode_available": {
+          "description": "Show the PLAY DEBUG row and its SET gear on the main menu.",
+          "type": "boolean"
+        },
+        "default_level": {
+          "description": "Initial debug recorder detail level (1 = causal trace, 2 = + per-tick combat detail).",
+          "maximum": 2,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "default_output_csv": {
+          "description": "Write the per-round .csv table by default.",
+          "type": "boolean"
+        },
+        "default_output_html": {
+          "description": "Write the .html report by default.",
+          "type": "boolean"
+        },
+        "default_output_jsonl": {
+          "description": "Write the .jsonl event stream by default.",
+          "type": "boolean"
+        },
+        "default_output_md": {
+          "description": "Write the .md summary by default.",
+          "type": "boolean"
+        },
+        "regular_mode_available": {
+          "description": "Show START NEW GAME on the main menu as a regular (uninstrumented) run.",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ask_player_identity",
+        "debug_mode_available",
+        "default_level",
+        "default_output_csv",
+        "default_output_html",
+        "default_output_jsonl",
+        "default_output_md",
+        "regular_mode_available"
       ],
       "type": "object"
     },
@@ -363,6 +414,7 @@
   "required": [
     "BossBonuses",
     "Camera",
+    "Debug",
     "General",
     "LightningStrike",
     "PhaseLoop",

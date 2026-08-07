@@ -18,6 +18,16 @@
       4.0
     ]
   },
+  "Debug": {
+    "ask_player_identity": true,
+    "debug_mode_available": true,
+    "default_level": 1,
+    "default_output_csv": true,
+    "default_output_html": true,
+    "default_output_jsonl": true,
+    "default_output_md": true,
+    "regular_mode_available": false
+  },
   "General": {
     "game_scale_rounds": 15,
     "starting_currency": 25

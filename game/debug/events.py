@@ -27,7 +27,16 @@ raises ``ValueError`` on an unknown kind (typo guard).
 Level-1 kinds and their fields
 ------------------------------
 ``run_start``     ``level``, ``run_id``, ``map_id``, ``seed`` (may be null),
-                  ``love``, ``lives``.
+                  ``love``, ``lives``, ``player_name``, ``player_skill``.
+                  The last two are the identity the run was played under and
+                  **may both be null** — a regular/unnamed run, a headless
+                  sim, or a debug run started with the identity prompt turned
+                  off (``core.json`` ``Debug.ask_player_identity``). When they
+                  are set they are also what stamps the RUN ID (hence all four
+                  artifact filenames, via ``recorder.slug_player``) and the
+                  ``Player:`` header of the ``-summary.md`` / ``-report.html``
+                  artifacts, so the stream, the filenames and the reports all
+                  name the same player.
 ``wave_start``    emitted from ``end_turn`` as the wave is queued.
                   ``wave_size`` (queued enemy count), ``enemy_tier``,
                   ``composition`` ({etype: count}), ``love``, ``lives``.

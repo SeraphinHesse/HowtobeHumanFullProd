@@ -10,10 +10,13 @@ validating writer; don't hand-edit the JSON.
 
 ## What lives here
 - `schemas/` — one JSON Schema per file type.
-  `dispatch_handoff.schema.json` is the ONLY schema with no `data/` content file
-  at all (handoffs are written to the gitignored `.claude/dispatch/`, still
-  through `write_validated` — the single write path holds), which is legal:
-  `tools/smoke.py::validate_data` skips `data/schemas/` entirely. Three others
+  `dispatch_handoff.schema.json` and `highscores.schema.json` are the TWO
+  schemas with no `data/` content file at all (handoffs are written to the
+  gitignored `.claude/dispatch/`, high scores to the gitignored `scores/`, both
+  still through `write_validated` — the single write path holds), which is
+  legal: `tools/smoke.py::validate_data` skips `data/schemas/` entirely. When a
+  schema governs per-machine runtime state rather than designer content, this
+  is the shape to copy. Three others
   (`map_file`, `balancing_history`, `agent_form`) pair with a whole **directory**
   rather than a stem-mate — see the directory rule below.
 - `slots.json` — the slot registry (which asset slots exist per category,
