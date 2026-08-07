@@ -34,14 +34,14 @@
   },
   "LightningStrike": {
     "cooldown": [
-      5,
+      4,
       3,
       2
     ],
     "damage": [
-      12,
-      18,
-      38
+      25,
+      42,
+      65
     ],
     "max_level": 3,
     "radius": [
