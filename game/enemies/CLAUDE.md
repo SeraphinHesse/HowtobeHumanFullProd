@@ -366,15 +366,45 @@ inspector can show; `_cond_weights` is a transient because a dict is not
 JSON-safe).
 
 - **`EnemyTypes.<type>.hunts`** (required enum `"base" | "economic" |
-  "defence" | "any_non_base"`) drives `PathAgent.hunt` (declared field,
-  default `"base"`). `Enemy.on_spawn` is now generic over it:
+  "defence" | "structure" | "any_non_base"`) drives `PathAgent.hunt` (declared
+  field, default `"base"`). **A hunt is nothing but a PREDICATE over the
+  occupant's `building_type`** fed through the one shared
+  `_hunt()`/`_goal_tiles()` body in `game/map/pathfinder.py` — adding a
+  category is a new module-level set + a new `find_path_to_nearest_*` wrapper +
+  a `_HUNT_QUERIES` row + the schema enum, never new pathfinding machinery.
+  The four category sets, all in `pathfinder.py`:
+  - `_ECONOMY_BUILDING_TYPES` = `{economic, meditator, painter}`.
+  - **`_ATTACK_BUILDING_TYPES` = `{defence, aoe_defence, storm_priest,
+    sun_scorcher}` — NE-0 WIDENED `"defence"` from the single literal
+    `building_type == "defence"`.** It is a deliberate, user-approved BALANCE
+    change to an existing type, not a refactor: `SiegeCannon` already ships
+    `hunts: "defence"`, so from NE-0 it also paths to mortars, Storm Priests
+    and Sun Scorchers, starting at its unchanged `start_round: 14`.
+  - **`_STRUCTURE_BUILDING_TYPES` = `{blocker, wall_builder, defence,
+    aoe_defence, storm_priest, sun_scorcher}` — the NE-0 `"structure"`
+    category**, i.e. every non-economy, non-boost, non-base building.
+    Blockers/wall builders are the common case but it is deliberately not
+    limited to them. Spelled out literally rather than derived from the attack
+    set: the two answer different questions, so a future attack-capable
+    building must be added to BOTH on purpose. Landed in NE-0 with **no
+    consumer** — the Digger (NE-2) is the first type to carry it — so that a
+    mistake in the predicate shows up against `SiegeCannon`'s existing test
+    coverage first.
+  - `"any_non_base"` stays `building_type != "base"` (no set — the boss's
+    `_non_base_goals`).
+  The roster partitions exactly: structure ∪ economy ∪ the three `boost_*` ∪
+  `base` IS every `BUILDING_TYPE` the game ships, and attack ⊂ structure —
+  asserted, not just documented, by `test_pathfinder.TestHuntCategories`,
+  which runs each predicate against the WHOLE building-type roster so a new
+  type no category claims is visible.
+  `Enemy.on_spawn` is generic over the hunt string:
   - `"base"` (Standard, Formation) keeps the ORIGINAL walk-to-the-hole
     behaviour byte-for-byte — `find_path` with the `find_path_ignoring_walls`
     fallback, `repath_on_kill` never armed, `goal_is_base` stays at its
     default `True`. This is what keeps every pre-Chunk-4 fixture green.
   - Any other value runs the matching goal-set query
     (`game/map/pathfinder.py`'s `find_path_to_nearest_economic` /
-    `_defence` / `_non_base_building`, dispatched through a module-level
+    `_defence` / `_structure` / `_non_base_building`, dispatched through a module-level
     `_HUNT_QUERIES` dict in `components.py` — the ONE place the
     hunt-string → query mapping lives, imported by both `enemy.py` and
     `components.py`'s own `PathAgent._repath`, so the two can never
@@ -389,9 +419,11 @@ JSON-safe).
     boss-specific left in it. `Boss` is now `_resolve_era` + `_resolve_stats`
     + `era` only. Fenced by `tools/tests/test_boss.py` (unchanged — the
     generic path reproduces its behaviour exactly).
-  - Seeded values (byte-identical to 10F/10G, "ships behaviourally neutral"):
+  - Seeded values (unchanged since 10F/10G — NE-0 added no `hunts` value to any
+    type, it only changed what `"defence"` MEANS and added an unused category):
     `Standard`/`Formation` `"base"`, `Raider` `"economic"`, `SiegeCannon`
-    `"defence"`, `Boss` `"any_non_base"`.
+    `"defence"`, `Boss`/`Commander` `"any_non_base"`. No shipped type carries
+    `"structure"` yet.
 - **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,
   pond}`, same bounds as `map.json`'s `Pathfinding.content_weights`) is this
   type's OWN terrain path-cost profile, threaded as `PathAgent._cond_weights`

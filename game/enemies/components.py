@@ -23,7 +23,8 @@ from game.buildings.components import RoundStats
 from game.map.pathfinder import (
     _wall_blocks, block_covers, block_tiles, face_edges,
     find_path_to_nearest_defence, find_path_to_nearest_economic,
-    find_path_to_nearest_non_base_building, internal_edges,
+    find_path_to_nearest_non_base_building, find_path_to_nearest_structure,
+    internal_edges,
 )
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 
@@ -33,9 +34,14 @@ from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition
 # other value re-arms PathAgent.repath_on_kill and is consulted here both by
 # on_spawn's non-base branch and by _repath below, so the two can never
 # disagree about which query a given hunt string means.
+# NE-0: "defence" now means every ATTACK-CAPABLE building (defence,
+# aoe_defence, storm_priest, sun_scorcher) and "structure" is the new category
+# for every non-economy, non-boost, non-base building — both are predicate
+# widenings inside game/map/pathfinder.py, so this table only gained one row.
 _HUNT_QUERIES = {
     "economic": find_path_to_nearest_economic,
     "defence": find_path_to_nearest_defence,
+    "structure": find_path_to_nearest_structure,
     "any_non_base": find_path_to_nearest_non_base_building,
 }
 
