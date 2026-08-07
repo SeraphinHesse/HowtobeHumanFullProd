@@ -1,4 +1,4 @@
-<!-- active-plan: NONE | set: 2026-08-05 -->
+<!-- active-plan: | set: 2026-08-05 -->
 > **No plan is currently active.** This file is a generated mirror of whichever
 > doc in `planning/` is active; right now none is. Do **not** edit this file
 > directly — pick a plan with `/setcurrentplan <name>` (or the editor's Summon a
