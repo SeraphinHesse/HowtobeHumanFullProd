@@ -33,7 +33,7 @@ from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
     Boss, Commander, Enemy, Formation, Projectile, Raider, SiegeCannon,
-    Spawner, attack_interval, create_enemy, resolve_combat,
+    Sniper, Spawner, attack_interval, create_enemy, resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
 from game.enemies.components import EnemyCombat, PathAgent
@@ -996,6 +996,293 @@ class TestCommander(unittest.TestCase):
                     [e for _, e in sp.pending() if e == "commander"], [])
 
 
+SNIPER = ENEM["EnemyTypes"]["Sniper"]
+STAND_OFF = SNIPER["stand_off_range"]
+DT = 0.05
+
+
+class SniperCase(unittest.TestCase):
+    """Shared board for the NE-1 stand-off fixtures.
+
+    One row, base at (0,0), the last two tiles the spawn zone. Defence
+    buildings go where each test wants them; the sniper is created on the far
+    spawn tile and hunts them (`hunts: "defence"`, widened by NE-0).
+    """
+
+    ROW = "bbbbbbbss"      # cols 0..6 buildable, 7..8 spawning
+    SPAWN_COL = 8
+
+    def board(self, *defence_cols):
+        tm = synth([self.ROW])
+        scene, occ = Scene(), TileOccupancy()
+        built = {}
+        for col in defence_cols:
+            b, _c = place_building(tm, tm.get(col, 0), "defence", 999999,
+                                   BUILD, scene, occ)
+            # Keep every target standing for as long as the test wants it:
+            # these fixtures are about the STAND-OFF, not about how many shots
+            # a shipped Defender survives.
+            b.get_component(Health).hp = 10 ** 7
+            b.get_component(Health).max_hp = 10 ** 7
+            built[col] = b
+        return tm, scene, built
+
+    def sniper(self, tm, scene, era=0, col=None):
+        e = create_enemy("sniper", self.SPAWN_COL if col is None else col, 0,
+                         ENEM, tm, era)
+        scene.spawn(e)
+        scene.update(0.0)          # apply the spawn + on_spawn pathing
+        return e
+
+    @staticmethod
+    def pa(enemy):
+        return enemy.get_component(PathAgent)
+
+
+class TestSniper(SniperCase):
+    """NE-1 — the first RANGED enemy: it halts `stand_off_range` tiles short of
+    its committed target and fires from there, never closing to melee."""
+
+    def test_class_attrs_and_registration(self):
+        from game.enemies.enemy import ENEMY_CLASSES
+        self.assertIs(ENEMY_CLASSES["sniper"], Sniper)
+        self.assertEqual(Sniper.ETYPE, "sniper")
+        self.assertEqual(Sniper.REGISTRY_GROUP, "Sniper")
+        self.assertEqual(Sniper.DEFAULT_SLOT, "sniper_stage_1")
+        self.assertEqual(Sniper.STAT_SUBTREE, ("Sniper",))
+        # A normal era-shaped type: the base resolvers do everything but the
+        # ONE new seam (the Boss keeps the only `_resolve_stats` override).
+        for name in ("_resolve_stats", "_resolve_era", "on_spawn",
+                     "resolve_fit", "__init__"):
+            self.assertIsNone(Sniper.__dict__.get(name),
+                              f"Sniper must not override {name}")
+
+    def test_stats_and_stand_off_come_from_its_own_block(self):
+        sn0 = era_stats("Sniper")
+        tm, scene, _ = self.board(2)
+        s = self.sniper(tm, scene)
+        self.assertIsInstance(s, Sniper)
+        self.assertEqual(s.get_component(Health).hp, sn0["hp"])
+        self.assertEqual(s.dmg, sn0["dmg"])
+        self.assertAlmostEqual(s.get_component(Movement).speed,
+                               sn0["move_speed"])
+        self.assertNotEqual(sn0["hp"], STD0["hp"])       # the fixture is real
+        self.assertEqual(self.pa(s).hunt, "defence")
+        self.assertEqual(self.pa(s).stand_off_range, STAND_OFF)
+        # The stand-off leaf reaches PathAgent through the ONE seam, and is
+        # flat/per-type (D10) — never an era row.
+        self.assertEqual(Sniper.resolve_stand_off_range(SNIPER), STAND_OFF)
+        for row in SNIPER["eras"]:
+            self.assertNotIn("stand_off_range", row)
+            self.assertNotIn("stand_off_range", row["stats"])
+
+    def test_halts_at_exactly_chebyshev_stand_off_and_never_blocks(self):
+        tm, scene, _built = self.board(2)
+        s = self.sniper(tm, scene)
+        pa = self.pa(s)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertFalse(pa.in_range)                     # 8 -> 2 is 6 tiles
+        for _ in range(600):
+            scene.update(DT)
+            # THE claim: it never reaches the melee state on the way in.
+            self.assertFalse(pa.blocked,
+                             "a stand-off unit must halt on geometry, never "
+                             "by being physically blocked")
+            if pa.in_range:
+                break
+        else:
+            self.fail("the sniper never came into range")
+        col = round(s.transform.wx)
+        self.assertEqual(col - pa.target_col, STAND_OFF)
+        self.assertEqual(s.get_component(Movement).speed, 0.0)
+        self.assertFalse(s.get_component(Movement).arrived)
+        # And it STAYS there — no creep toward the target once halted.
+        for _ in range(200):
+            scene.update(DT)
+        self.assertEqual(round(s.transform.wx), col)
+        self.assertTrue(pa.in_range)
+        self.assertFalse(pa.blocked)
+
+    def test_fires_on_its_attack_speed_cadence_once_in_range(self):
+        sn0 = era_stats("Sniper")
+        # Spawn already inside the stand-off: target at 6, spawn at 8.
+        tm, scene, built = self.board(6)
+        s = self.sniper(tm, scene)
+        rs = built[6].get_component(RoundStats)
+        # It spawns already in range, and `cooldown` starts at 0 — so the very
+        # first shot lands on the setup frame, exactly as a melee enemy's does
+        # the instant it stops. That IS the "no adjacency requirement" claim.
+        self.assertTrue(self.pa(s).in_range)
+        self.assertEqual(rs.dmg_taken_this_round, sn0["dmg"])
+
+        hits, t, last = [0.0], 0.0, rs.dmg_taken_this_round
+        for _ in range(400):                # 20 s at DT
+            scene.update(DT)
+            t += DT
+            now = rs.dmg_taken_this_round
+            if now > last:
+                self.assertEqual(now - last, sn0["dmg"])   # exact ledger
+                hits.append(t)
+                last = now
+        self.assertTrue(self.pa(s).in_range)
+        self.assertFalse(self.pa(s).blocked)
+        self.assertGreaterEqual(len(hits), 6)
+        for a, b in zip(hits, hits[1:]):
+            self.assertAlmostEqual(b - a, sn0["attack_speed"], delta=DT + 1e-9)
+        self.assertEqual(rs.dmg_taken_this_round, len(hits) * sn0["dmg"])
+
+    def test_retargets_when_its_victim_dies(self):
+        """The existing `repath_on_kill` dead-target watch already covers the
+        in-range case — it is gated on `not blocked`, and a stand-off unit is
+        never blocked. Pinned here because NE-1 relies on that and adds no
+        second watch."""
+        tm, scene, built = self.board(2, 6)
+        s = self.sniper(tm, scene)
+        pa = self.pa(s)
+        scene.update(DT)
+        self.assertTrue(pa.in_range)                       # 8 -> 6 is 2
+        self.assertEqual((pa.target_col, pa.target_row), (6, 0))
+        self.assertTrue(pa.repath_on_kill)
+        far_rs = built[2].get_component(RoundStats)
+        self.assertEqual(far_rs.dmg_taken_this_round, 0)
+
+        built[6].get_component(Health).hp = 0
+        self.assertFalse(built[6].alive)
+        scene.update(DT)
+        # Re-committed to the survivor, and NOT still flagged in-range: the
+        # dead-target watch re-paths and returns, so if `_repath` did not drop
+        # the flag itself the sniper would land one free shot on a building
+        # four tiles outside its stand-off. Regression pin.
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertFalse(pa.in_range)
+        self.assertEqual(far_rs.dmg_taken_this_round, 0)
+        scene.update(DT)                                   # and it walks on
+        self.assertGreater(s.get_component(Movement).speed, 0.0)
+
+        rs = far_rs
+        for _ in range(600):
+            scene.update(DT)
+            if pa.in_range:
+                break
+        else:
+            self.fail("the sniper never re-engaged the surviving building")
+        self.assertEqual(round(s.transform.wx) - 2, STAND_OFF)
+        self.assertFalse(pa.blocked)
+        # The cooldown SURVIVES the walk (EnemyCombat does not tick while out
+        # of range), so re-engaging costs a full `attack_speed` — it does not
+        # refund a shot for having changed target.
+        self.assertEqual(rs.dmg_taken_this_round, 0)
+        for _ in range(int(era_stats("Sniper")["attack_speed"] / DT) + 4):
+            scene.update(DT)
+        self.assertEqual(rs.dmg_taken_this_round, era_stats("Sniper")["dmg"])
+
+    def test_round_26_ledger_on_the_era_2_row(self):
+        """The scripted-round HP ledger: round 26 is the Sniper's first, era 2,
+        and its shots are hand-computable straight out of `data/`."""
+        rnd = SNIPER["start_round"]
+        era = max(0, (rnd - 1) // RPE)
+        self.assertEqual(era, 2)
+        sn = era_stats("Sniper", era)
+
+        tm, scene, built = self.board(6)
+        s = self.sniper(tm, scene, era=era)
+        self.assertEqual(s.get_component(Health).hp, sn["hp"])
+        self.assertEqual(s.dmg, sn["dmg"])
+
+        rs = built[6].get_component(RoundStats)
+        shots, hits, t, last = 5, [0.0], 0.0, rs.dmg_taken_this_round
+        self.assertEqual(last, sn["dmg"])       # shot 1, on the setup frame
+        while len(hits) < shots and t < 60.0:
+            scene.update(DT)
+            t += DT
+            now = rs.dmg_taken_this_round
+            if now > last:
+                self.assertEqual(now - last, sn["dmg"])
+                hits.append(t)
+                last = now
+        self.assertEqual(len(hits), shots)
+        self.assertEqual(rs.dmg_taken_this_round, shots * sn["dmg"])
+        self.assertEqual(built[6].get_component(Health).hp,
+                         10 ** 7 - shots * sn["dmg"])
+        self.assertAlmostEqual(hits[-1], (shots - 1) * sn["attack_speed"],
+                               delta=shots * DT)
+
+    def test_wave_composition_starts_at_its_start_round(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (1, 14, 25, 26, 28, 31, 41):
+            with self.subTest(round=rnd):
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                queued = [e for _t, e in sp.pending() if e == "sniper"]
+                self.assertEqual(len(queued), expected_count("Sniper", rnd))
+        # Below start_round it draws nothing at all, so every pre-NE-1 wave is
+        # byte-identical (the `_commander_group`-is-last rule, again).
+        self.assertEqual(expected_count("Sniper", 25), 0)
+        self.assertEqual(expected_count("Sniper", 26), 1)
+
+    def test_never_leads_the_queue_and_never_joins_a_boss_round(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        sp.begin_round(41, tm, ENEM, rng=random.Random(3))   # era 4, non-boss
+        etypes = [et for _t, et, _d in sp._queue]
+        self.assertGreater(etypes.count("sniper"), 0)
+        self.assertNotEqual(etypes[0], "sniper")             # body-mixed
+        boss_round = SCALE["boss_round_in_era"] + 4 * RPE    # era 4's boss
+        sp.begin_round(boss_round, tm, ENEM, rng=random.Random(3))
+        self.assertNotIn("sniper", [et for _t, et, _d in sp._queue])
+
+
+class TestStandOffIsOffForEveryOtherType(SniperCase):
+    """`PathAgent` is shared by EVERY enemy type, so NE-1's two new fields are
+    pinned default-off here: nothing but the Sniper may change behaviour."""
+
+    OTHERS = ("standard", "raider", "siege", "formation", "commander", "boss")
+
+    def test_every_other_type_ships_stand_off_range_zero(self):
+        tm = synth(["bbbs"])
+        for etype in self.OTHERS:
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 3, 0, ENEM, tm)
+                pa = e.get_component(PathAgent)
+                self.assertEqual(pa.stand_off_range, 0)
+                self.assertFalse(pa.in_range)
+
+    def test_the_seam_returns_zero_for_every_class_but_the_sniper(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Commander, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            with self.subTest(cls=cls.__name__):
+                self.assertEqual(cls.resolve_stand_off_range(block), 0)
+                if cls is not Enemy:      # Enemy DEFINES the seam, at 0
+                    self.assertIsNone(
+                        cls.__dict__.get("resolve_stand_off_range"),
+                        "only Sniper may override the NE-1 seam")
+                # The leaf lives ONLY on blocks that have the mechanic — that
+                # is the whole point of routing it through a classmethod.
+                self.assertNotIn("stand_off_range", block)
+
+    def test_the_melee_block_and_attack_path_is_unchanged(self):
+        """The pre-NE-1 behaviour, re-asserted with the new flag in the frame:
+        a walker still stops ON CONTACT, sets `blocked` (never `in_range`) and
+        damages what blocks it."""
+        tm = synth(["bbs"])
+        scene, occ = Scene(), TileOccupancy()
+        blocker, _c = place_building(tm, tm.get(1, 0), "economic", 9999,
+                                     BUILD, scene, occ)
+        e = create_enemy("standard", 2, 0, ENEM, tm)
+        scene.spawn(e)
+        for _ in range(4):
+            scene.update(0.1)
+        pa = e.get_component(PathAgent)
+        self.assertTrue(pa.blocked)
+        self.assertFalse(pa.in_range)
+        self.assertIs(pa._target, blocker)
+        self.assertFalse(pa.reached_base)
+        self.assertGreaterEqual(
+            blocker.get_component(RoundStats).dmg_taken_this_round, e.dmg)
+
+
 class TestRegistryGroupDrift(unittest.TestCase):
     """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
     required `registry_group` leaf (added so the editor can resolve a slot's
@@ -1007,7 +1294,7 @@ class TestRegistryGroupDrift(unittest.TestCase):
     for whichever type moved."""
 
     def test_registry_group_matches_data_for_every_enemy_subclass(self):
-        for cls in (Enemy, Raider, SiegeCannon, Formation, Commander,
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Sniper, Commander,
                     Boss):
             block = ENEM["EnemyTypes"]
             for seg in cls.STAT_SUBTREE:

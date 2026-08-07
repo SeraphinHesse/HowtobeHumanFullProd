@@ -7,8 +7,8 @@ from .combat import Projectile, ProjectileHoming, attack_interval, resolve_comba
 from .components import CARRY_OFFSET_TILES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
 from .corpse import DEATH_ANIM, Corpse, spawn_corpse
 from .enemy import (
-    Boss, Commander, Enemy, Formation, Raider, SiegeCannon, create_enemy,
-    variant_slot,
+    Boss, Commander, Enemy, Formation, Raider, SiegeCannon, Sniper,
+    create_enemy, variant_slot,
 )
 from .kidnap import KIDNAP_ANIM, begin_kidnap, set_kidnap_pose
 from .spawner import Spawner
@@ -30,6 +30,7 @@ __all__ = [
     "ProjectileHoming",
     "Raider",
     "SiegeCannon",
+    "Sniper",
     "Spawner",
     "attack_interval",
     "begin_kidnap",

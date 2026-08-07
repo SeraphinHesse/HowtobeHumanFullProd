@@ -976,6 +976,86 @@
           ],
           "type": "object"
         },
+        "Sniper": {
+          "additionalProperties": false,
+          "description": "The Sniper (NewEnemyTypesPLAN NE-1) - the first RANGED enemy. It walks at the nearest attack-capable building (hunts \"defence\", widened by NE-0 to mortars/Storm Priests/Sun Scorchers as well as plain defenders), halts stand_off_range tiles short of it and fires on its attack_speed cooldown from there, never closing to melee. Every other type's attack_range_tiles is read only by the DEFENDER range gate; this is the first block whose unit fights at range itself. A NORMAL era-shaped type otherwise: its stats resolve through the same base per-era resolver as Standard/SiegeCannon, and footprint/sprite_scale stay FLAT at this root (only the Boss carries them per-era, BR-1/D10). The shipped numbers are a STARTING point tuned against the SiegeCannon curve (high dmg, long range, slow attack, low HP, below-average speed) and are fully retunable in the editor with no code change.",
+          "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's stats and count schedule, one row per era, era 0 first. Variable length: add a row for another era, and past the last row endgame_scaling compounds.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "footprint": {
+              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
+              "maximum": 8,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "sprite_scale": {
+              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
+              "maximum": 8,
+              "minimum": 0.1,
+              "type": "number"
+            },
+            "stand_off_range": {
+              "description": "NE-1: how many tiles short of its COMMITTED target this type halts and opens fire, instead of walking until something physically blocks it. Chebyshev, measured block-to-block (the same nearest-tile rule the defender range gate uses), re-checked every frame while a non-base target is committed. 0 is the ordinary melee behaviour every other enemy type has, and is why this leaf lives only on the blocks of types that actually have the mechanic. Deliberately FLAT/per-type like footprint and kidnapping, NOT an era-row leaf: standing off is this type's identity, not a number that scales with the round. Keep it at or below attack_range_tiles or the unit halts outside its own reach and plinks at nothing - there is deliberately no runtime guard, the editor bounds are the fence.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_round": {
+              "description": "First round snipers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "condition_path_weights",
+            "death_spawn",
+            "endgame_scaling",
+            "eras",
+            "footprint",
+            "hunts",
+            "kidnapping",
+            "registry_group",
+            "sprite_scale",
+            "stand_off_range",
+            "start_round"
+          ],
+          "type": "object"
+        },
         "Standard": {
           "additionalProperties": false,
           "description": "The standard walker.",
@@ -1056,6 +1136,7 @@
         "Formation",
         "Raider",
         "SiegeCannon",
+        "Sniper",
         "Standard"
       ],
       "type": "object"

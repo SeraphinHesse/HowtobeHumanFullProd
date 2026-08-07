@@ -13,6 +13,8 @@ reverted it), and the boss entry's era is its own. Formations join since ER-4
 into the shuffled body — never leading the queue, never on a boss round). The
 Commander's branch exists since BR-2 but is DORMANT: its era rows AND every
 ``round_counts`` row's ``commander`` count are 0, so it never enters a wave.
+Snipers join since NE-1 (from ``Sniper.start_round``, body-mixed like
+formations — never leading the queue, never on a boss round).
 
 Since ES-2 every count and the spawn interval come from the ONE era clock in
 ``EnemyScaling`` (``rounds_per_era`` / ``boss_round_in_era``) resolved through
@@ -50,6 +52,10 @@ ENABLE_FORMATION = True
 # count_start/count_per_round at 0 (D8), so it never enters a normal wave. BR-3
 # gives it its real entrance, the boss's second phase.
 ENABLE_COMMANDER = True
+# NE-1: the Sniper, the first ranged stand-off type. LIVE from its own
+# `start_round` (26) — before that `_count_of` returns 0 and `_sniper_group`
+# draws no rng, so every wave below round 26 is byte-identical to BR-5.
+ENABLE_SNIPER = True
 
 # The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
 # delayed second phase lays out its child queue from the SAME table and
@@ -229,11 +235,14 @@ class Spawner:
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
-        ``_formation_group`` and then ``_commander_group`` are called LAST on
+        ``_formation_group``, then ``_commander_group``, then
+        ``_sniper_group`` are called LAST on
         purpose, newest last: every earlier group's rng draw sequence then
         stays byte-identical, so the standard/raider/siege counts and picks are
         unchanged at every round. (The Commander draws nothing at all today —
-        its counts are 0 — so BR-2 is provably wave-neutral.)
+        its counts are 0 — so BR-2 is provably wave-neutral. The Sniper draws
+        nothing below its `start_round` 26, so every wave under that round is
+        byte-identical too — from 26 on it is a real, deliberate wave change.)
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
         FIRST, before the boss check (``era_math.is_boss_round`` is already
@@ -262,8 +271,10 @@ class Spawner:
             round_num, balance, spawn_tiles)
         formations = self._formation_group(round_num, balance, spawn_tiles)
         commanders = self._commander_group(round_num, balance, spawn_tiles)
+        snipers = self._sniper_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed + formations + commanders
+        rest = (regular + raiders + siege_mixed + formations + commanders
+                + snipers)
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -377,6 +388,31 @@ class Spawner:
             return []
         n = self._count_of(balance, "Commander", round_num)
         return [(self._pick_spawn_tile(spawn_tiles, "commander"), "commander")
+                for _ in range(n)]
+
+    def _sniper_group(self, round_num, balance, spawn_tiles):
+        """Snipers from ``Sniper.start_round`` (NE-1), through the same shared
+        count formula every other type uses.
+
+        Mixed into the shuffled body, never leading the queue: the Sniper's
+        whole point is that it stops 2 tiles short of an attack building and
+        shoots it, so putting it at the head of the wave would have it
+        out-ranging the player's defences before anything else arrived to draw
+        fire. Same reasoning as the Formation's body-mix, different mechanic.
+
+        Snipers never appear on a boss round — ``_boss_round`` composes from
+        ``Boss.round_counts``, a ``$defs/spawn_counts`` table shared with every
+        ``death_spawn.spawns`` row, and adding a `sniper` key there would force
+        a meaningless sniper count onto all 14 committed rows (the same
+        judgement the Formation section of ``game/enemies/CLAUDE.md`` records;
+        BR-1 overrode it once, for `commander`, deliberately).
+
+        Called LAST in ``_compose``, after ``_commander_group`` — newest last,
+        so every earlier group's rng draw sequence stays byte-identical."""
+        if not ENABLE_SNIPER:
+            return []
+        n = self._count_of(balance, "Sniper", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "sniper"), "sniper")
                 for _ in range(n)]
 
     def _build_queue(self, combined, scaling):

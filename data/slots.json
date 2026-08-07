@@ -531,6 +531,41 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "sniper_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "sniper_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "sniper_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "sniper_stage_4"
+              ]
+            },
+            {
+              "label": "Era 5",
+              "slots": [
+                "sniper_stage_5"
+              ]
+            }
+          ],
+          "label": "Sniper"
         }
       ],
       "key": "enemies"

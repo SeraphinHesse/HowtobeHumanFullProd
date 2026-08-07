@@ -99,6 +99,24 @@ def set_wall_damage_hook(fn):
 CARRY_OFFSET_TILES = 0.25
 
 
+# -- NE-1: block-to-block Chebyshev distance --------------------------------
+
+def block_distance(col, row, footprint, tcol, trow, tfootprint):
+    """Chebyshev distance between two N×N blocks given by their MIN-corner
+    anchors (``game/map/pathfinder.py``'s block convention — the body extends
+    right and down from the anchor).
+
+    A per-axis clamp to each block's span, then Chebyshev across the axes —
+    the same "distance to the NEAREST TILE of the block, not to its centre"
+    rule ``game/enemies/combat.py``'s ``_chebyshev`` uses for the defender
+    range gate. At ``footprint == tfootprint == 1`` it collapses to plain
+    ``max(|dc|, |dr|)`` over the two anchor tiles.
+    """
+    dc = max(tcol - (col + footprint - 1), col - (tcol + tfootprint - 1), 0)
+    dr = max(trow - (row + footprint - 1), row - (trow + tfootprint - 1), 0)
+    return max(dc, dr)
+
+
 # -- 10I: tile-condition modifier lookup (shared by both components) --------
 
 def _condition_mods(tm, condition):
@@ -162,6 +180,18 @@ class PathAgent(Component):
     ``"base"`` is the default and keeps every type that never opts in
     byte-identical; any other value is looked up in the module-level
     ``_HUNT_QUERIES`` dict by both ``Enemy.on_spawn`` and ``_repath`` below.
+
+    NE-1 adds the RANGED STAND-OFF pair, both default-off so every pre-NE-1
+    type keeps the byte-identical melee path:
+
+    * ``stand_off_range`` — halt this many tiles short of the COMMITTED target
+      and open fire from there instead of closing to melee. ``0`` (every type
+      but the Sniper) never runs the check at all.
+    * ``in_range`` — we have halted and are firing. It is the ranged twin of
+      ``blocked``: ``EnemyCombat`` ticks on ``blocked or in_range``, so the
+      attack clock, the damage application and the kidnap arming are ONE code
+      path, not two. A stand-off unit typically never reaches ``blocked`` —
+      it stops before anything can physically block it.
     """
 
     reached_base: bool = False
@@ -174,6 +204,8 @@ class PathAgent(Component):
     carrying: bool = False        # kidnapping (Art/enemies): inert while True
     frozen: bool = False          # BR-3 second phase: inert, and NOT attacking
     hunt: str = "base"            # what this unit hunts on spawn (Chunk 4)
+    stand_off_range: int = 0      # NE-1: halt this far from the target, 0 = off
+    in_range: bool = False        # NE-1: halted at stand-off, firing
 
     def on_added(self, owner):
         self._owner = owner
@@ -236,6 +268,36 @@ class PathAgent(Component):
                 and not self._target_alive(tm)):
             self._repath(owner, tm, mv)
             return
+        # -- NE-1: the ranged stand-off. Measured EVERY frame against the
+        # COMMITTED target's block (BP-3's target_col/target_row), BEFORE the
+        # wall/blocker scan below — so a stand-off unit halts on geometry and
+        # normally never enters `blocked` at all. `stand_off_range == 0` (every
+        # type but the Sniper) short-circuits on the first comparison, which is
+        # what keeps the melee path byte-identical.
+        if self.stand_off_range > 0 and self.target_col >= 0:
+            dist = block_distance(
+                round(owner.transform.wx), round(owner.transform.wy),
+                self.footprint, self.target_col, self.target_row,
+                self.footprint)
+            if dist <= self.stand_off_range:
+                if not self.in_range:
+                    self.in_range = True
+                    # Drop any melee engagement we were mid-way through: from
+                    # here EnemyCombat resolves the victim from the COMMITTED
+                    # target, so a stale `_target`/`_wall_target` would have us
+                    # shooting the last thing that happened to block us.
+                    self.blocked = False
+                    self._target = None
+                    self._wall_target = None
+                    mv.speed = 0.0
+                    self._set_anim(owner, "attack")
+                return
+            # Out of range ⇒ not firing. An unconditional assignment rather
+            # than an edge-triggered branch: `_repath` is the only way a unit
+            # ever LEAVES range (a building target does not move), and it
+            # already clears the flag itself, so a branch here would be dead
+            # code pretending to be a state machine.
+            self.in_range = False
         wps = mv.waypoints
         if not wps or mv.index >= len(wps):
             return
@@ -334,10 +396,9 @@ class PathAgent(Component):
         else:
             self.target_col, self.target_row = int(path[-1][0]), int(path[-1][1])
 
-    def _target_alive(self, tm):
-        """Is the building we committed to still standing? ``target_col < 0``
-        (no target — we are walking at the base) reads as alive, so the
-        dead-target watch in ``update`` never fires on the final approach.
+    def committed_target(self, tm):
+        """The first LIVE occupant standing in the block we committed to hunt
+        (BP-3's ``target_col``/``target_row``), or ``None``.
 
         ``target_col``/``target_row`` are the goal-covering ANCHOR
         (``adopt_goal`` reads them off ``path[-1]``), not necessarily the
@@ -349,23 +410,45 @@ class PathAgent(Component):
         tile over — that false read used to fire the dead-target repath every
         frame, short-circuiting ``update`` before it ever reached
         ``_blocker_ahead`` again, freezing the boss beside a still-alive
-        neighbour it could no longer see."""
+        neighbour it could no longer see.
+
+        NE-1 promoted this out of ``_target_alive`` (which is now one line over
+        it) because a ranged stand-off unit needs the OBJECT, not just the
+        liveness bit: it never touches a blocker, so ``_target`` is never set
+        for it and ``EnemyCombat`` resolves its victim from here instead. Same
+        scan, same dead-occupant safety, one implementation."""
         if self.target_col < 0:
-            return True
+            return None
         for c, r in block_tiles(self.target_col, self.target_row,
                                 self.footprint):
             tile = tm.get(c, r)
             occ = tile.occupant if tile is not None else None
             if occ is not None and getattr(occ, "alive", False):
-                return True
-        return False
+                return occ
+        return None
+
+    def _target_alive(self, tm):
+        """Is the building we committed to still standing? ``target_col < 0``
+        (no target — we are walking at the base) reads as alive, so the
+        dead-target watch in ``update`` never fires on the final approach."""
+        return self.target_col < 0 or self.committed_target(tm) is not None
 
     def _repath(self, owner, tm, mv):
         """Re-route from the current tile to the next victim, reloading
         ``Movement`` and re-deriving the goal (10G / BP-2). No path at all (a
         fully sealed board) leaves the agent standing with NO target — the next
         unblock/arrival retries, and the cleared target is what stops the
-        dead-target watch from re-pathing every frame forever."""
+        dead-target watch from re-pathing every frame forever.
+
+        NE-1: this is also the ONE site that drops ``in_range``. It has to
+        happen HERE and not on the next frame's distance check, because the
+        dead-target watch calls ``_repath`` and RETURNS — so a stand-off unit
+        would spend that frame still flagged in-range while already committed
+        to a target it may be six tiles from, i.e. exactly one free
+        out-of-range shot per re-target."""
+        if self.in_range:
+            self.in_range = False
+            self._set_anim(owner, "walk")
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
         query = _HUNT_QUERIES.get(self.hunt, find_path_to_nearest_non_base_building)
@@ -459,9 +542,21 @@ class PathAgent(Component):
 class EnemyCombat(Component):
     """Enemy attack stats + the attack-a-blocking-building clock. ``cooldown``
     starts at 0 so the first hit lands the instant the enemy stops (prototype
-    ``_atk_timer`` starts at 0). Ticks only while ``PathAgent.blocked``; damage
-    goes through the building's ``Health`` and accrues on its ``RoundStats``
-    (guard-safe — every ``Building`` carries one)."""
+    ``_atk_timer`` starts at 0). Ticks while ``PathAgent.blocked`` **or, since
+    NE-1, ``PathAgent.in_range``** (the ranged stand-off); damage goes through
+    the building's ``Health`` and accrues on its ``RoundStats`` (guard-safe —
+    every ``Building`` carries one).
+
+    NE-1 deliberately added NO second attack path: the gate widened by one
+    ``or``, and the only other change is WHERE the victim comes from. The
+    blocker scan sets ``PathAgent._target``; a stand-off unit never runs that
+    scan, so it resolves the victim from its COMMITTED target instead
+    (``PathAgent.committed_target``) — after which the cooldown tick, the
+    condition-modified damage, the ``RoundStats`` credit, the debug hook and
+    the kidnap arming are all the same lines they always were. There is no
+    "ranged damage" concept: the hit lands instantly on cooldown, exactly like
+    a melee swing, minus the adjacency requirement (a projectile-travel visual
+    is a follow-up art pass, not a mechanic)."""
 
     dmg: int = 0
     attack_speed: float = 1.0
@@ -495,7 +590,7 @@ class EnemyCombat(Component):
         # BR-3: `frozen` (the delayed second phase) disables this component
         # wholesale — the boss keeps whatever `blocked` state it stopped in,
         # so the flag has to be read here and not inferred from PathAgent.
-        if pa is None or pa.frozen or not pa.blocked:
+        if pa is None or pa.frozen or not (pa.blocked or pa.in_range):
             return
         wall = getattr(pa, "_wall_target", None)
         if wall is not None:
@@ -521,6 +616,15 @@ class EnemyCombat(Component):
                 self.cooldown = self.attack_speed
             return
         target = pa._target
+        if target is None and pa.in_range:
+            # NE-1: the stand-off case. `_blocker_ahead` never ran (we halted
+            # on distance, not on contact), so the victim is the committed
+            # target. `committed_target` returns None for a dead/absent
+            # occupant, which the SAME guard below already handles — a ranged
+            # unit can no more hit a corpse than a melee one can.
+            tm = getattr(pa, "_tilemap", None)
+            if tm is not None:
+                target = pa.committed_target(tm)
         if target is None or not getattr(target, "alive", False):
             return
         self.cooldown -= dt
