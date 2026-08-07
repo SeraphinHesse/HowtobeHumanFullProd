@@ -708,6 +708,47 @@ import list.**
     codes (`"stage zones on non-combat tiles"`), NOT the reserve's `checker`
     zone test — the stage only ever advances on a combat-tile purchase. The
     empty-overlay label is `"stage zone tiles"`.
+- **Tile Conditions (4 name brushes)**: an EIGHTH mode page
+  (`palette.MODES`/`EYES` gain `"tile_conditions"`, labelled "Tile Conditions"
+  via `MODE_LABELS`) — the **fourth** per-cell overlay, painting
+  `TileMapDoc.tile_conditions` (`{(col, row): "mountain"}`); the runtime gives
+  a marked cell exactly that condition and excludes it from the random
+  condition roll. Structurally the stage-zones twin, again copied rather than
+  generalised: pure ops `set_condition`/`condition_line`/`condition_rect`/
+  `condition_bucket`/`apply_condition_changes`/`pick_condition` with the same
+  `(col, row, old, new)` tuples, `condition_bucket` flooding the underlying
+  TERRAIN region; `map_session._TileConditionStrokeCommand`/
+  `push_condition_stroke`; a `_tool_press` branch beside the other three and
+  likewise BEFORE the terrain-code branches; `_submit_tile_conditions`, a
+  window-culled overlay diamond + `HudText`; no ghost (the outline IS the
+  ghost).
+  - **It is the FIRST paint mode whose brush value is a NAME, not a number** —
+    so instead of a `_NoWheelSpinBox` the page carries ONE plain-text brush
+    button PER condition, all in the SAME exclusive `_brush_group` (the
+    gametiles/background code-brush idiom), which is what makes the
+    eyedropper's return path (`viewport.condition_picked` →
+    `palette.arm_tile_condition`) a plain re-check of the matching button,
+    exactly like `code_picked` → `arm_code`. `armed_tile_condition()` therefore
+    returns the NAME (or None), not the bool the three number overlays return.
+    The buttons live in their own `self._condition_buttons` dict, NOT in
+    `self._brush_buttons`, for the same reason those three brushes don't: that
+    dict drives `refresh_icons()`/`_armed_slot()`, which need a registry SLOT.
+  - **The four names come from the schema, never from editor code**:
+    `palette._condition_names()` → `engine.tilemap.condition_codes_from_schema`
+    → `map_file.schema.json`'s `tile_conditions.items.condition.enum`, the
+    single source of that vocabulary (the same "schemas over convention"
+    argument as `_stage_bounds`). Adding a fifth condition is a schema edit and
+    nothing else: the brush, its label and its tooltip all follow, and
+    `viewport.CONDITION_COLORS` degrades an unknown name to
+    `CONDITION_DEFAULT_COLOR` rather than raising (E-37).
+  - **Its divergences, by the same logic as the other twins'**: one outline hue
+    per condition (`CONDITION_COLORS` — pale yellow / slate / blue / green
+    against the reserve's cyan, despawn's magenta, stage's lime) and the label
+    sits lower than all three numbers (reserve `sy-6`, despawn `sy+4`, stage
+    `sy+14`, condition `sy+24`) so a cell carrying all four marks stays
+    readable. No `map_requirement_warnings` entry: an unmarked map is the
+    normal case (the runtime rolls conditions randomly), so there is nothing to
+    warn about.
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the
