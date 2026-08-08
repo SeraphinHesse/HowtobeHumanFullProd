@@ -346,8 +346,8 @@
     "Digger": {
       "condition_path_weights": {
         "forest": 1,
-        "mountain": 2,
-        "pond": 9
+        "mountain": 1,
+        "pond": 1
       },
       "death_spawn": {
         "at_hp_fraction": 0.0,
@@ -364,7 +364,7 @@
       },
       "dig_range_tiles": 6,
       "dig_speed": 1.0,
-      "emerge_cooldown": 3.0,
+      "emerge_cooldown": 2.4,
       "endgame_scaling": {
         "count": 1.0,
         "dmg": 1.0,
