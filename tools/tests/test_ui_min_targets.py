@@ -23,14 +23,17 @@ worklist and never fails — do NOT convert it into an assertion without a
 playtest saying a specific control is hard to hit.
 """
 import unittest
-from pathlib import Path
 
 from engine.render.fonts import layout_h
 from game.ui import widgets
 from tools import export_ui_layouts as export
+from tools.tests.fixture_data import FIXTURE_DATA
 
-REPO = Path(__file__).resolve().parents[2]
-DATA = REPO / "data"
+#: The PINNED snapshot, never live ``data/`` — the root CLAUDE.md rule, and
+#: what ``test_fixture_guard.py`` enforces. This test asserts committed
+#: LAYOUT geometry, so it must read the pin: a designer resizing a widget in
+#: live data is their business, not a gate failure.
+DATA = FIXTURE_DATA
 
 #: Hard floor for a click target's smaller dimension, in LOGICAL pixels.
 MIN_HARD = 12
