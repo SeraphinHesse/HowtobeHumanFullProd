@@ -29,7 +29,13 @@ from editor.panels.selector import (
     _VIEW_ROLE,
     SelectorPanel,
 )
-from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
+from editor.panels.viewport import (
+    SCREEN_H,
+    SCREEN_W,
+    ViewportPanel,
+    logical_resolution,
+    surface_to_qimage,
+)
 from editor.ui_screen_session import VIEW_ORDER, UIScreenSession, ordered_views
 from engine import data_io
 from engine.render import HudLines, HudRect, HudSprite, HudText
@@ -548,9 +554,26 @@ class TestOrderedViews(unittest.TestCase):
             ("unlock", "aaa_custom", "zzz_custom"))
 
 
+class TestLogicalResolution(TempDataCase):
+    """UR-1: the screen-mode canvas size comes from data/display.json — the
+    ONE place the logical resolution is stated — not from a literal."""
+
+    def test_screen_constants_match_display_json(self):
+        self.assertEqual((SCREEN_W, SCREEN_H), logical_resolution())
+
+    def test_reads_the_given_data_dir(self):
+        display = data_io.load_validated(
+            self.data_dir / "display.json",
+            self.data_dir / "schemas" / "display.schema.json")
+        self.assertEqual(
+            logical_resolution(self.data_dir),
+            (display["window_w"], display["window_h"]))
+
+
 class TestViewportScreenMode(TempDataCase):
-    """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
-    degrade with no defaults, click/drag/nudge interaction."""
+    """B4 §1c: fixed SCREEN_W x SCREEN_H canvas (data/display.json's
+    resolution) through submit_hud only, graceful degrade with no defaults,
+    click/drag/nudge interaction."""
 
     def setUp(self):
         super().setUp()
