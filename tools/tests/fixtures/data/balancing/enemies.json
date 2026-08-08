@@ -456,6 +456,7 @@
       "footprint": 1,
       "hunts": "structure",
       "kidnapping": false,
+      "min_target_distance_tiles": 3,
       "registry_group": "Digger",
       "sprite_scale": 1.0,
       "start_round": 35

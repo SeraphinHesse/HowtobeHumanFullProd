@@ -805,6 +805,12 @@
               "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
               "type": "boolean"
             },
+            "min_target_distance_tiles": {
+              "description": "The minimum Chebyshev-tile distance the Digger prefers when choosing which structure to hunt (BurrowAgent.retarget). It falls back to the plain nearest unclaimed structure when nothing on the board clears this minimum. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 0,
+              "type": "integer"
+            },
             "registry_group": {
               "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
               "minLength": 1,
@@ -833,6 +839,7 @@
             "footprint",
             "hunts",
             "kidnapping",
+            "min_target_distance_tiles",
             "registry_group",
             "sprite_scale",
             "start_round",

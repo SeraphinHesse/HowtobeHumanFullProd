@@ -363,7 +363,7 @@
         ]
       },
       "dig_range_tiles": 6,
-      "dig_speed": 1.0,
+      "dig_speed": 0.8,
       "emerge_cooldown": 2.4,
       "endgame_scaling": {
         "count": 1.0,
@@ -405,8 +405,8 @@
           }
         },
         {
-          "count_per_round": 0,
-          "count_start": 0,
+          "count_per_round": 0.5,
+          "count_start": 2.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -416,7 +416,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
             "dmg": 2000,
-            "hp": 1800,
+            "hp": 300,
             "move_speed": 1.0
           }
         },
@@ -456,6 +456,7 @@
       "footprint": 1,
       "hunts": "structure",
       "kidnapping": false,
+      "min_target_distance_tiles": 3,
       "registry_group": "Digger",
       "sprite_scale": 1.0,
       "start_round": 32
