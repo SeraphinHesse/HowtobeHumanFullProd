@@ -26,7 +26,7 @@
     "default_output_html": true,
     "default_output_jsonl": true,
     "default_output_md": true,
-    "regular_mode_available": false
+    "regular_mode_available": true
   },
   "General": {
     "game_scale_rounds": 15,

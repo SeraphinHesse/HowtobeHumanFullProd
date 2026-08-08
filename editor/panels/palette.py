@@ -21,6 +21,12 @@ PAINT MODES (user-directed):
   COMBAT tiles: buying a 2×2 that intersects the painted set advances the
   run's stage counter to the highest number among those four tiles, which is
   the ONLY thing that fires the two batches above.
+- **Tile Conditions** — the fourth invisible overlay, and the first whose brush
+  value is a NAME rather than a number: one brush button per condition name,
+  built from `map_file.schema.json`'s own enum via
+  `engine.tilemap.condition_codes_from_schema` (adding a fifth condition is a
+  schema edit and nothing else — the names are never hardcoded here). A marked
+  cell always has that condition and is excluded from the random roll.
 
 A single exclusive brush group spans all mode pages, so exactly one brush
 is armed at a time. The tool row (none/paint/erase/line/rect/bucket/picker), the
@@ -58,9 +64,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
 EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial",
-        "spawn_reserve", "despawnable_spawn", "stage_zones")
+        "spawn_reserve", "despawnable_spawn", "stage_zones", "tile_conditions")
 MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve",
-         "despawnable_spawn", "stage_zones")
+         "despawnable_spawn", "stage_zones", "tile_conditions")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
@@ -69,6 +75,7 @@ MODE_LABELS = {
     "spawn_reserve": "Spawnable Background",
     "despawnable_spawn": "Despawnable Spawn",
     "stage_zones": "Stage Zones",
+    "tile_conditions": "Tile Conditions",
 }
 
 
@@ -93,6 +100,7 @@ class PalettePanel(QWidget):
     despawn_number_changed = Signal(int)  # the stage number marks carry
     stage_armed = Signal()              # the stage-zone brush (no slot)
     stage_number_changed = Signal(int)  # the stage number marks carry
+    tile_condition_armed = Signal(str)  # the condition NAME the brush paints
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -112,6 +120,11 @@ class PalettePanel(QWidget):
         self._mode = "gametiles"
         # ("code"|"deco"|"base", key) -> QToolButton, spanning all mode pages
         self._brush_buttons = {}
+        # condition NAME -> QToolButton (Tile Conditions page). Kept OUT of
+        # _brush_buttons for the same reason the three overlay-mark brushes are
+        # not in it: that dict drives refresh_icons()/_armed_slot(), both of
+        # which need a registry SLOT, and a condition name is not one.
+        self._condition_buttons = {}
         # keybind labels (ED settings panel) — set via set_tool_keybinds /
         # set_brush_keybinds; empty until MainWindow supplies the real values
         self._tool_keybinds = {}
@@ -279,6 +292,26 @@ class PalettePanel(QWidget):
         self._stage_spin.valueChanged.connect(self.stage_number_changed.emit)
         stage_layout.addWidget(self._stage_spin)
 
+        # tile-conditions page: the fourth overlay page, but its brush value is
+        # a NAME, not a number — so instead of a spinbox it carries ONE
+        # plain-text brush per condition, all in the SAME exclusive brush group
+        # (the gametiles/background idiom), which is also what makes the
+        # eyedropper's return path a plain re-check of the matching button.
+        condition_layout = self._pages["tile_conditions"][2]
+        for name in self._condition_names():
+            btn = QToolButton(self)
+            btn.setText(name.title())
+            btn.setToolTip(
+                f"Paint invisible {name} marks: a marked cell ALWAYS has the "
+                f"{name} condition and is excluded from the random condition "
+                "roll")
+            btn.setCheckable(True)
+            btn.clicked.connect(
+                lambda _=False, n=name: self.arm_tile_condition(n))
+            self._brush_group.addButton(btn)
+            self._condition_buttons[name] = btn
+            condition_layout.addWidget(btn)
+
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
@@ -380,6 +413,15 @@ class PalettePanel(QWidget):
     def _stage_number_bounds(self):
         """Bounds for the stage-zone spinbox."""
         return self._stage_bounds("stage_zones")
+
+    def _condition_names(self):
+        """The tile-condition names, in schema order — straight out of
+        map_file.schema.json's own enum (the SINGLE source of that vocabulary,
+        same "schemas over convention" reason the stage bounds come from the
+        schema). Never a hardcoded list: a fifth condition is a schema edit and
+        nothing else."""
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return list(tilemap.condition_codes_from_schema(schema))
 
     def _zone_codes(self):
         """Legend codes for the zone (checker) tiles, sorted."""
@@ -682,6 +724,10 @@ class PalettePanel(QWidget):
             self.arm_despawn()
         elif self._mode == "stage_zones":
             self.arm_stage()
+        elif self._mode == "tile_conditions":
+            names = list(self._condition_buttons)
+            if names:
+                self.arm_tile_condition(names[0])
         else:
             decos = self._deco_slots()
             if decos:
@@ -826,6 +872,16 @@ class PalettePanel(QWidget):
         set_despawn_number). Out-of-range values clamp in QSpinBox."""
         self._stage_spin.setValue(int(n))
 
+    def armed_tile_condition(self):
+        """The condition NAME the armed brush paints, or None. Unlike the three
+        overlay-mark brushes (which answer a bool — one brush each), this page
+        has one button PER name, so the armed brush carries a value again, like
+        armed_code."""
+        for name, btn in self._condition_buttons.items():
+            if btn.isChecked():
+                return name
+        return None
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -915,6 +971,18 @@ class PalettePanel(QWidget):
         disarms EVERY other brush, the other two overlay marks included."""
         self._stage_btn.setChecked(True)
         self.stage_armed.emit()
+
+    def arm_tile_condition(self, name):
+        """Arm ONE tile-condition brush (paint = force that condition on the
+        cell, erase = clear the mark). Shares the one exclusive brush group, so
+        this disarms every other brush including the sibling conditions. Also
+        the viewport's eyedropper return path (condition_picked -> here),
+        mirroring code_picked -> arm_code; an unknown name is a no-op."""
+        btn = self._condition_buttons.get(name)
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tile_condition_armed.emit(name)
 
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot

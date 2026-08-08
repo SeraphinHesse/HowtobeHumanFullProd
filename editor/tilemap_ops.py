@@ -376,6 +376,98 @@ def apply_stage_changes(doc, changes, reverse=False):
             doc.stage_zones[(col, row)] = value
 
 
+# -- tile conditions: the INVISIBLE forced-condition overlay -----------------
+# The FOURTH overlay of the same shape, over doc.tile_conditions
+# ({(col, row): "mountain"}). The ONE structural difference from the three
+# above: the value is a condition NAME string, not a stage number — the
+# vocabulary lives in map_file.schema.json's own enum
+# (engine.tilemap.condition_codes_from_schema), never in this module. A mark
+# is an overlay, never a legend code: the underlying art keeps drawing, and
+# the runtime gives that cell exactly this condition, skipping it in the
+# random condition roll.
+
+def _set_condition(doc, col, row, name, changes):
+    if not _in_bounds(doc, col, row):
+        return
+    old = doc.tile_conditions.get((col, row))
+    if old == name:
+        return
+    if name is None:
+        doc.tile_conditions.pop((col, row), None)
+    else:
+        doc.tile_conditions[(col, row)] = name
+    changes.append((col, row, old, name))
+
+
+def set_condition(doc, col, row, name):
+    """Force the cell's tile condition to ``name``; ``name=None`` erases."""
+    changes = []
+    _set_condition(doc, col, row, name, changes)
+    return changes
+
+
+def condition_line(doc, c0, r0, c1, r1, name):
+    changes = []
+    for col, row in line_cells(c0, r0, c1, r1):
+        _set_condition(doc, col, row, name, changes)
+    return changes
+
+
+def condition_rect(doc, c0, r0, c1, r1, name):
+    changes = []
+    for col, row in rect_cells(c0, r0, c1, r1):
+        _set_condition(doc, col, row, name, changes)
+    return changes
+
+
+def condition_bucket(doc, col, row, name):
+    """4-connected flood fill of the region sharing the start cell's UNDERLYING
+    TERRAIN CODE — not the region sharing a mark; the exact mirror of
+    reserve_bucket / despawn_bucket / stage_bucket (conditioning a whole
+    painted patch in one gesture).
+
+    Unlike bucket_fill, the terrain is never mutated, so the visited set is
+    what terminates the walk."""
+    if not _in_bounds(doc, col, row):
+        return []
+    target = doc.terrain[row][col]
+    changes = []
+    seen = set()
+    stack = [(col, row)]
+    while stack:
+        c, r = stack.pop()
+        if (c, r) in seen or not _in_bounds(doc, c, r) \
+                or doc.terrain[r][c] != target:
+            continue
+        seen.add((c, r))
+        _set_condition(doc, c, r, name, changes)
+        stack.extend(((c + 1, r), (c - 1, r), (c, r + 1), (c, r - 1)))
+    return changes
+
+
+def pick_condition(doc, col, row):
+    """Eyedropper: the condition NAME marked on the cell, or None (no mark /
+    outside the grid)."""
+    return doc.tile_conditions.get((col, row)) if _in_bounds(doc, col, row) \
+        else None
+
+
+def apply_condition_changes(doc, changes, reverse=False):
+    """Re-apply (redo) or roll back (undo) a tile-condition change list —
+    set-to-value writes (None removes the key), so re-applying over
+    live-painted marks is idempotent. Mirrors apply_stage_changes; the values
+    are condition NAMES rather than stage numbers."""
+    if reverse:
+        steps = ((col, row, old) for col, row, old, _new in reversed(changes))
+    else:
+        steps = ((col, row, new) for col, row, _old, new in changes)
+    for col, row, value in steps:
+        if value is None:
+            doc.tile_conditions.pop((col, row), None)
+        else:
+            doc.tile_conditions[(col, row)] = value
+
+
 # -- deco + base (the other undoable map edits, ED-20/ED-24) -----------------
 
 def place_deco(doc, col, row, slot, flip=False):

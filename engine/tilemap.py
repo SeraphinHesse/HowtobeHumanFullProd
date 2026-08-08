@@ -66,6 +66,15 @@ class TileMapDoc:
     # "buying a 2×2 that intersects these cells advances the run's stage counter
     # to the maximum number under the chunk" — the numbers are opaque here.
     stage_zones: dict = None
+    # {(col, row): "mountain"} — the designer-painted TILE CONDITIONS, the
+    # FOURTH never-rendered per-cell overlay: same dict-in-memory (O(1) paint)
+    # / (row, col)-sorted-list-on-disk (D-3) split as the three above, same
+    # `validate_doc` bounds check, and the render emitters stay equally silent
+    # on it. ONE difference: the value is an opaque NAME string, not a stage
+    # number — `tilemap.py` neither knows nor cares what a "pond" is; the name
+    # vocabulary lives in the map schema's enum and the game maps it to its own
+    # runtime condition.
+    tile_conditions: dict = None
     camera_start: dict = None  # {"col": int, "row": int, "slot": str} OR None
     # {"col": int, "row": int, "slot": str} OR None — the 2×2 starting area's
     # MIN corner (spans col..col+1 × row..row+1). Deliberately NOT emitted by
@@ -88,6 +97,8 @@ class TileMapDoc:
             self.despawnable_spawn = {}
         if self.stage_zones is None:
             self.stage_zones = {}
+        if self.tile_conditions is None:
+            self.tile_conditions = {}
 
 
 # -- dict <-> doc (terrain rows are strings on disk, char lists in memory) --
@@ -113,6 +124,10 @@ def from_dict(data):
         stage_zones={
             (m["col"], m["row"]): m["stage"]
             for m in data["stage_zones"]
+        },
+        tile_conditions={
+            (m["col"], m["row"]): m["condition"]
+            for m in data["tile_conditions"]
         },
         camera_start=(dict(data["camera_start"])
                       if data["camera_start"] is not None else None),
@@ -154,6 +169,11 @@ def to_dict(doc):
         "start_area": (dict(doc.start_area)
                        if doc.start_area is not None else None),
         "terrain": ["".join(row) for row in doc.terrain],
+        "tile_conditions": [
+            {"col": c, "condition": name, "row": r}
+            for (c, r), name in sorted(doc.tile_conditions.items(),
+                                       key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
         "tutorial_flute": (dict(doc.tutorial_flute)
                            if doc.tutorial_flute is not None else None),
         "tutorial_stone": (dict(doc.tutorial_stone)
@@ -221,6 +241,11 @@ def validate_doc(doc):
         if not (0 <= col < doc.cols and 0 <= row < doc.rows):
             raise ValueError(
                 f"map {doc.map_id!r}: stage_zones {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
+    for (col, row) in doc.tile_conditions:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: tile_conditions {(col, row)} outside "
                 f"{doc.cols}x{doc.rows}")
 
 
@@ -436,6 +461,22 @@ def defaults_from_schema(schema):
     return legend, _base_slot_from_schema(schema)
 
 
+def condition_codes_from_schema(schema):
+    """The tile-condition NAMES a `tile_conditions` mark may carry, as a tuple,
+    in schema order — dug out of the map schema's own enum
+    (`properties.tile_conditions.items.properties.condition.enum`), which is the
+    SINGLE source of truth for that vocabulary.
+
+    Exists for the same "schemas over convention" reason as
+    `defaults_from_schema` above: the editor builds its condition brushes from
+    `data/` instead of hardcoding game vocabulary, so adding a condition is a
+    schema change and nothing else. `tilemap.py` still attaches no meaning to
+    the names — they are opaque strings here."""
+    return tuple(
+        schema["properties"]["tile_conditions"]["items"]
+        ["properties"]["condition"]["enum"])
+
+
 def default_fill_code(legend):
     """New-map fill / erase target: the first non-checker (background) code
     in sorted order — deterministic and data-driven."""
@@ -457,6 +498,7 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         spawnable_background={},
         despawnable_spawn={},
         stage_zones={},
+        tile_conditions={},
         camera_start=None,
         start_area=None,
         tutorial_flute=None,

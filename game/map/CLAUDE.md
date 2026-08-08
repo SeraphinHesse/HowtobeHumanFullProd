@@ -128,6 +128,24 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
     on. Conditions never change during a run.
+    - **The map doc's painted `tile_conditions` marks outrank the roll
+      entirely** (`data/CLAUDE.md`; the schema's enum is the single source of
+      the four names, `tiles.py`'s `CONDITION_BY_MAP_KEY` the one name→enum
+      table). They are applied FIRST, **unconditionally and independently of
+      `rng`** — a mark is deterministic authoring, not a draw, so `rng=None`
+      does NOT suppress it (an unpainted doc carries an empty dict, so every
+      existing fixture stays byte-identical). A painted cell is then SKIPPED by
+      the roll loop — that skip is what "locks the tile out of the tile
+      generation process". **A mark wins EVERYWHERE, no exceptions**: BACKGROUND
+      tiles and the starting unlocked pocket incl. the base take the painted
+      condition too, even though the roll deliberately skips both — a
+      user-chosen rule, not an oversight. The prototype-exact eligibility rules
+      still govern the ROLL; they simply no longer govern a designer's explicit
+      mark. It is a one-time O(marks) pass (never an O(map) walk) and runs
+      BEFORE the condition-art/variant pass, so painted tiles resolve
+      `condition_slot` with no extra code (a painted BACKGROUND tile still gets
+      no art — unchanged rule — but carries the condition, so it is correct the
+      instant it recedes into play).
   - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
     since the per-state restructuring.** `data/slots.json`'s asset-only
     `conditions` category holds it, restructured so each condition type

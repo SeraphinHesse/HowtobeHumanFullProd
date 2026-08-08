@@ -338,6 +338,41 @@
       "minItems": 4,
       "type": "array"
     },
+    "tile_conditions": {
+      "description": "Designer-painted per-cell TILE CONDITIONS, one entry per cell. Invisible as a doc field: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom - the game draws the condition's own art through its normal condition-art pipeline instead. A painted cell takes that condition at map construction and is EXCLUDED from the random condition roll, overriding every eligibility rule the roll applies - including BACKGROUND tiles and the starting unlocked pocket (both of which the roll deliberately skips). An empty array means nothing is painted and the whole map rolls exactly as before. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "condition": {
+            "description": "The tile condition this cell is painted with. THIS ENUM IS THE SINGLE SOURCE OF TRUTH for the four condition names - no package may hardcode the list; engine.tilemap.condition_codes_from_schema digs it out for the editor's brushes, and game/map/tiles.py's CONDITION_BY_MAP_KEY is the one name -> TileCondition table.",
+            "enum": [
+              "grass",
+              "mountain",
+              "pond",
+              "forest"
+            ],
+            "type": "string"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "condition",
+          "row"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "tutorial_flute": {
       "description": "The tutorial's designer-painted 'first flute' placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like camera_start. The tutorial forces the player's first economy-building placement (the flute player) onto this tile. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
       "oneOf": [
@@ -419,6 +454,7 @@
     "stage_zones",
     "start_area",
     "terrain",
+    "tile_conditions",
     "tutorial_flute",
     "tutorial_stone"
   ],

@@ -637,6 +637,22 @@ validating writer; don't hand-edit the JSON.
   marks of any of the three kinds the runtime's implicit recede behaves exactly
   as it did before this feature) — existing maps were migrated to
   `"stage_zones": []`. Runtime precedence → `game/map/CLAUDE.md`.
+- **`tile_conditions` — the designer-painted TILE-CONDITION overrides.** The
+  FOURTH overlay of the same shape, and the first whose value is a NAME rather
+  than a stage number: `{col, row, condition}` marks, `condition` an **enum of
+  `grass`/`mountain`/`pond`/`forest`**. Same invisibility (no render emitter
+  touches it — the game's own condition-ART emitter draws conditions off the
+  runtime `Tile`, never off this field), same (row, col)-sorted list on disk /
+  `{(col, row): "pond"}` dict in memory on `TileMapDoc`, same `validate_doc`
+  bounds check. **That enum is the SINGLE source of the four names** — the game
+  maps it through `tiles.py`'s `CONDITION_BY_MAP_KEY`, the editor reads it
+  through `engine.tilemap.condition_codes_from_schema`, and neither hardcodes
+  the list. A marked cell takes that condition and is **excluded from the
+  runtime's random condition roll**; a mark wins everywhere, including
+  BACKGROUND tiles and the starting unlocked pocket, which the roll itself
+  skips. An empty array is the "nothing painted, the whole map rolls" state —
+  existing maps were migrated to `"tile_conditions": []`. Runtime precedence →
+  `game/map/CLAUDE.md`; the brush → `editor/panels/CLAUDE.md`.
 - **`balancing/map.json` `TileUnlocking.spawn_recede_enabled`** (bool, default
   `true`) is the master switch for the OLD implicit recede rule only — `false`
   and the band never recedes on unlock, whatever the reserve state. It does not
