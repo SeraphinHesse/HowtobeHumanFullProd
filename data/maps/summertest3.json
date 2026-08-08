@@ -20293,28 +20293,18 @@
   ],
   "tile_conditions": [
     {
-      "col": 512,
-      "condition": "grass",
+      "col": 513,
+      "condition": "mountain",
       "row": 506
     },
     {
-      "col": 513,
-      "condition": "grass",
+      "col": 519,
+      "condition": "mountain",
       "row": 506
     },
     {
       "col": 512,
       "condition": "grass",
-      "row": 507
-    },
-    {
-      "col": 513,
-      "condition": "grass",
-      "row": 507
-    },
-    {
-      "col": 512,
-      "condition": "grass",
       "row": 508
     },
     {
@@ -20350,6 +20340,11 @@
     {
       "col": 515,
       "condition": "grass",
+      "row": 509
+    },
+    {
+      "col": 516,
+      "condition": "pond",
       "row": 509
     },
     {
@@ -20429,17 +20424,12 @@
     },
     {
       "col": 517,
-      "condition": "grass",
-      "row": 512
-    },
-    {
-      "col": 518,
       "condition": "grass",
       "row": 512
     },
     {
       "col": 519,
-      "condition": "grass",
+      "condition": "mountain",
       "row": 512
     },
     {
@@ -20459,16 +20449,6 @@
     },
     {
       "col": 517,
-      "condition": "grass",
-      "row": 513
-    },
-    {
-      "col": 518,
-      "condition": "grass",
-      "row": 513
-    },
-    {
-      "col": 519,
       "condition": "grass",
       "row": 513
     }
