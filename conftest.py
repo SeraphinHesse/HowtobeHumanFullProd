@@ -145,6 +145,7 @@ TIERS = {
     "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
     "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
+    "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
     "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table

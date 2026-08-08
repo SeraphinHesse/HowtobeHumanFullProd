@@ -35,7 +35,46 @@ container that itself halved. What deliberately did **not** halve:
 
 `hud.py`'s `_ICON_SIZE`/`_ICON_GAP` carry an explicit **UR-5 review** note at
 the change site: they were halved against the plan's own worked example,
-because they are sized against the HUD rows they sit inside.
+because they are sized against the HUD rows they sit inside. UR-5 **kept** them
+at 9/2 — measured, an 18px icon does not fit the 17px love pill.
+
+### A text ROW STEP is font-scale — never halve it (UR-5)
+
+The corollary of "fonts.json did not halve", and the single defect class UR-5
+found most of. **The vertical step between two stacked text rows, and the
+height of any box sized to hold text, are 640-scale already** — they are
+functions of `layout_h(font_key)`, not of the surface. UR-2 halved several of
+them with the containers around them, and the rows landed on top of each other:
+`hud.py`'s income/lives/tiles column stepped 8px against a 13px `md` line,
+`game_log.py`'s `_LINE_STEP` 6px against an 11px `sm` line, and `levelup.py`'s
+option box ended up smaller than its own contents (and narrow enough to
+silently truncate 5 of the 41 shipped explanations at `max_lines=4`).
+
+So, when you write one: **derive it from `layout_h`, do not spell it as a
+literal** — `hud._readout_step()` / `_readout_bottom()` are the pattern, and
+anything anchored *below* a text stack (the speed-button row) derives from that
+stack's bottom rather than restating a y. Call it, never a module constant: a
+constant evaluated at import freezes the pre-`configure_fonts` fallback
+metrics. The same rule governs a button's height — `Button.submit` centres its
+label on `layout_h(font_key)`, so a button shorter than that overhangs top and
+bottom.
+
+### Click-target floor + static-label fit (UR-5)
+
+`tools/tests/test_ui_min_targets.py` walks every screen's `ids` (captured from
+`tools/export_ui_layouts.py`'s own builders, so a new screen is covered for
+free) and asserts three things about every `kind == "button"`: its smaller
+dimension is **>= 12 logical px**, its static label fits in `w - 4`, and the
+button is at least `layout_h(font_key)` tall. Filter on the `kind` from the ids
+PAIR, never on `type(widget)` — panels/labels/bars are not click targets.
+
+Controls between 12 and 16px are **printed as a non-blocking lint, never
+asserted.** `SCALED` preserves physical screen area (12 logical px == 24
+physical px at the 2x reference monitor), so a small control does not actually
+shrink under the pointer; the real risk is sub-pixel mouse remapping at
+non-integer monitor scales, which is `planning/UiResolutionPLAN.md` §5's
+acknowledged out-of-scope caveat. **Do not mass-resize controls to silence the
+lint** — it is a playtest worklist.
 
 **Known deferred item — the world renders too close.** The surface halved but
 `data/geometry.json`'s `zoom_levels` and the 64x32 iso tile pitch did not, so

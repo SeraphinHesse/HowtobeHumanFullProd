@@ -32,7 +32,20 @@ from . import widgets
 from .strings import T
 
 _BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
-_BOX_W, _BOX_H, _GAP = 100, 110, 4
+# UR-5 fix (triage Step 1): the option box is a CONTAINER, but everything
+# inside it is font-sized and fonts.json did not halve — so UR-2's 200x220 ->
+# 100x110 left the box smaller than its own contents. Two measurements:
+#   * width — ``wrap_text`` gets ``_BOX_W - 8``; at 92px, 5 of the 41 shipped
+#     explanations wrap past ``max_lines=4`` and were SILENTLY TRUNCATED (at
+#     the pre-UR-2 184px, the worst case was 3 lines). 122px is the measured
+#     minimum that keeps all 41 within 4 lines -> _BOX_W = 130.
+#   * height — the content stack in ``_submit_box`` measures 138px from the
+#     box top (5 pad + 13 prev_name + 5 arrow + 16 title + 38 sprite + 13 cost
+#     + 4x12 explanation), and the tier-progress footer needs another 14 below
+#     it, so the box must be >= 154. At 110 the last two explanation lines and
+#     the footer fell outside the box entirely.
+# Three boxes: 3*130 + 2*4 = 398 of 640 wide, 154 of 360 tall.
+_BOX_W, _BOX_H, _GAP = 130, 154, 4
 # NOT module constants (UH-6): widgets.C_UI_PANEL/C_UI_BTN_HOVER are read at
 # the _submit_box call site instead of copied here — a module-level `= widgets
 # .C_UI_PANEL` would capture today's value at IMPORT time and never see a

@@ -80,7 +80,10 @@ _BTN_W, _BTN_H, _GAP = 160, 26, 4
 # so a click on it can never start a run by accident.
 _GEAR_ACTION = "play_debug_settings"
 _GEAR_ID = "btn_play_debug_settings"
-_GEAR_W, _GEAR_GAP = 26, 5
+# UR-5: the gear widened 26 -> 30. Its "SET" label measures 24px at "lg"
+# (unhalved), leaving 1px of margin a side in a 26px button. 405 + 30 = 435,
+# still well inside the 640px surface.
+_GEAR_W, _GEAR_GAP = 30, 5
 
 SCREEN_ID = "main_menu"
 

@@ -85,9 +85,35 @@ _XP_TRACK = (48, 34, 66)
 # 17px pill. Physically neutral under SDL SCALED (18 logical px at 1x ==
 # 9 logical px at 2x == the same 18 physical px). If the UR-5 eyeball pass
 # disagrees with the bucket call, THIS is the first site it revisits.
+# UR-5 verdict: KEPT at 9. Measured — the love pill is 17px tall and an 18px
+# icon does not fit inside it; 9px clears the 13px "md" rows it sits beside.
 _ICON_SIZE = 9   # fits the ~8-10px HUD rows without crowding the text
 _ICON_GAP = 2
 # -- /10L wave-3 --
+# -- UR-5: the income/lives/tiles readout column. Its ROW STEP is font-scale
+# (see _readout_step) — never halve it with the surface. Both the readout pill
+# and the speed-button row below derive their geometry from these, so the two
+# cannot drift back into the 2px overlap UR-2 left behind. --
+_READOUT_TOP = 25    # first readout row, just under the 17px love pill
+_READOUT_PAD = 2     # readout pill padding above the first / below the last row
+_READOUT_CLEAR = 4   # readout pill bottom -> speed-button row top
+
+
+def _readout_step():
+    """Vertical step between the income / lives / tiles rows — ``layout_h`` of
+    their font plus leading, NOT a pixel literal. A row step is a 640-scale
+    (font) quantity per planning/UiResolutionPLAN.md §2; UR-2 halved it to 8px
+    against a 13px line height and the three rows overlapped. A FUNCTION, not a
+    module constant: a constant evaluated at import would freeze the
+    pre-``configure_fonts`` fallback metrics (the same trap this module's
+    palette/strings notes describe)."""
+    return layout_h("md") + 3
+
+
+def _readout_bottom():
+    """Y one pixel past the readout pill (last row + padding) — the anchor the
+    speed-button row sits below."""
+    return _READOUT_TOP + 2 * _readout_step() + layout_h("md") + _READOUT_PAD
 # -- 10J income tooltip (prototype hud.py:519-554 colours) --
 _TOOLTIP_BG = (20, 15, 35)
 _TOOLTIP_RED = (180, 80, 80)
@@ -243,8 +269,10 @@ class Hud:
         # W/H nominal 0 (a position-only text label, the same convention
         # every other label id in this file already uses).
         self._phase_label.rect = (6, view_h - 13, 0, 0)
-        # -- 10L: speed buttons — a fixed row below the readout column --
-        sy = 55
+        # -- 10L: speed buttons — a fixed row below the readout column.
+        # UR-5: derived from the readout pill's bottom rather than a literal
+        # (UR-2's halved 55 landed 2px INSIDE the pill, which is font-sized). --
+        sy = _readout_bottom() + _READOUT_CLEAR
         sw, sh, gap = 28, 14, 3
         self.speed_1x.rect = (6, sy, sw, sh)
         self.speed_1_5x.rect = (6 + sw + gap, sy, sw, sh)
@@ -291,16 +319,24 @@ class Hud:
         bar_x = lvl_x + _ICON_SIZE + _ICON_GAP
         self._xp_bar.rect = (bar_x, bar_y, 55, 4)
         self._xp_text.rect = (bar_x, bar_y + 4 + 1, 0, 0)
-        self._income_text.rect = (pill[0] + 2, 25, 0, 0)
-        self._icon_lives.rect = (pill[0] + 2, 33, _ICON_SIZE, _ICON_SIZE)
+        # UR-5 fix (triage Step 1, bucket "already 640-scale"): UR-2 halved the
+        # income/lives/tiles row STEP with the container (16/18 -> 8/9), but a
+        # text row step is a FONT-scale quantity and the fonts did not halve.
+        # Measured: layout_h("md") == 13, so the three rows overlapped each
+        # other by 5px and 4px. Derive the step from the font instead of a
+        # literal, so it can never desync from fonts.json again.
+        row0 = _READOUT_TOP
+        step = _readout_step()
+        self._income_text.rect = (pill[0] + 2, row0, 0, 0)
+        self._icon_lives.rect = (pill[0] + 2, row0 + step, _ICON_SIZE, _ICON_SIZE)
         lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
-        self._lives_text.rect = (lives_x, 33, 0, 0)
-        self._tiles_text.rect = (pill[0] + 2, 42, 0, 0)
+        self._lives_text.rect = (lives_x, row0 + step, 0, 0)
+        self._tiles_text.rect = (pill[0] + 2, row0 + 2 * step, 0, 0)
         # The readout pill wraps the three rows above (income / lives / tiles)
         # off their DEFAULT anchors — the "no cascade" convention: a rect
         # override on one of those rows does not retarget this panel.
         # layout_h (never a live measurement): this rect is stored + exported.
-        pad = 2
+        pad = _READOUT_PAD
         panel_top = self._income_text.rect[1] - pad
         panel_bottom = self._tiles_text.rect[1] + layout_h("md") + pad
         self._readout_panel.rect = (pill[0], panel_top, pill[2],
@@ -447,7 +483,11 @@ class Hud:
             submit_text(renderer, T("hud.income_net", sign=sign, net=net),
                        self._income_text.rect[:2], self._income_text.font_key,
                        self._income_text.text_color)
-        income_pill = (pill[0] - 5, 24, 59, 9)  # prototype pill2 hover zone
+        # prototype pill2 hover zone. UR-5: its HEIGHT is font-scale — UR-2
+        # halved 18 -> 9 against a 13px "md" row, so the bottom 4px of the
+        # income line was not hoverable. Derived from layout_h now.
+        income_pill = (pill[0] - 5, _READOUT_TOP - 1, 59,
+                       layout_h("md") + _READOUT_PAD)
         # DEFERRED to the very end of this method on purpose: the tooltip must
         # sit on the highest HUD layer so it stays in front of the readout
         # pill it overlaps (the building_ui terrain-tooltip precedent — an
