@@ -1,4 +1,4 @@
-"""Map overlays (Phase 10I): condition tint, RANGE + HEATMAP toggles.
+"""Map overlays (Phase 10I): condition tint, RANGE + HEATMAP + TIER OVERVIEW.
 
 Pure logic (no pygame — the game/ui purity scan covers this module). One class
 owns every 10I UI surface so ``hud.py`` (edited by 10G/10H) carries no 10I
@@ -16,6 +16,15 @@ diff:
   blue→yellow→red ramp (prototype ``hud.py:432-470`` / ``game.py:1344-1349,
   927-932``). ``track`` accumulates during the ENEMY phase and snapshots on
   the phase edge, so the overlay is empty before the first wave.
+* **TIER OVERVIEW toggle** — a tinted diamond over every PLAYER-BUILT
+  building, so a glance answers "what have I actually upgraded?". The colour
+  is read off the building's own ``TierState.current_level_in_tier`` (the
+  IN-TIER level, 1-indexed) and the 3-colour cycle RESETS at every tier
+  advance — a level-1 building reads identically whether it just got placed
+  (tier 1) or just tier-advanced (tier 2+), by design. The base ("the hole")
+  is excluded — it is not player-built, and it is tag-gated out rather than
+  type-string-gated (G-3): it DOES carry a ``TierState``, so the
+  component-presence check alone would tint it.
 
 Since the 10J FX sweep the overlays are alpha-FILLED diamonds with the
 prototype's exact alphas (tint fill 70 / border 140, RANGE fill 55, heatmap
@@ -25,15 +34,18 @@ prototype drew them.
 Cost profile (large-map invariant): O(viewport) tint + O(defenders·r²)
 coverage + O(visited tiles) heatmap — never a full-map per-frame scan.
 
-10L-B (Phase 3): the two toggle pills are their OWN screen id, ``overlays``
+10L-B (Phase 3): the toggle pills are their OWN screen id, ``overlays``
 (``data/ui/screens/overlays.json``) — the B1 format's "drop in a file + ids"
 extension path, not one of the original 12. ``ids`` names ``btn_range``/
-``btn_heatmap``; since ``view_w``/``view_h`` are fixed for this object's whole
-lifetime (one ``MapOverlays`` per run, like ``BuildingUI``'s mode-independent
-ids), ``apply()`` runs once in ``__init__`` rather than from a per-frame
-``layout()``.
+``btn_heatmap``/``btn_tier_overview``; since ``view_w``/``view_h`` are fixed
+for this object's whole lifetime (one ``MapOverlays`` per run, like
+``BuildingUI``'s mode-independent ids), ``apply()`` runs once in ``__init__``
+rather than from a per-frame ``layout()``. Each pill's label is the code-owned
+default and becomes JSON-overridable for free through that id (the generic
+per-widget ``label`` override).
 """
 from engine.render import HudRect
+from game.buildings.components import TierState
 from game.core.phases import GamePhase
 from game.map.conditions import draws_tint
 from game.map.tiles import TileCondition, TileState
@@ -56,6 +68,39 @@ _COND_TINT = {
 # The boost plus-shape (cardinal neighbours only — prototype hud.py:411-420).
 _PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 
+# TIER OVERVIEW fill alpha (a plain int — safe as a module constant, unlike a
+# colour). Designer-picked yellow/pink/blue (a same-hue purple ramp read as
+# indistinguishable grey in a live playtest, and a second same-family red/
+# gold/green pass still wasn't distinct enough). Neither pink nor blue exists
+# in the shared widgets.C_* palette, so level 2 reuses the house purple
+# (closest to pink) and level 3 reuses the POND condition tint below (the
+# only blue anywhere in this file) rather than inventing new, unreused
+# colours.
+_TIER_OVERVIEW_ALPHA = 110
+
+
+def _level_color(level_in_tier):
+    """The TIER OVERVIEW tint for a 1-indexed IN-TIER level cursor
+    (``TierState.current_level_in_tier``), clamped to the last entry for any
+    future 4th+ level: yellow (``C_GOLD``) at level 1 / pink-ish
+    (``C_PURPLE``) at level 2 / blue (the POND tint, ``_COND_TINT``) at level
+    3+.
+
+    Keyed by the LEVEL WITHIN the current tier, not the tier itself — the
+    3-colour cycle resets at every tier advance, so a freshly-advanced
+    building (level 1 of its new tier) reads identically to a freshly-placed
+    one (level 1 of tier 1): e.g. a level-1 Slinger (tier 2) is the same gold
+    as a level-1 Stone Thrower (tier 1).
+
+    A FUNCTION, not a module-level tuple: every ``widgets.C_*`` must be a
+    fresh attribute read (UH-6/D5 — ``configure_palette`` rebinds those
+    attributes at boot, and a copy taken at import time would go stale).
+    ``_COND_TINT`` is NOT palette-driven (a plain prototype-verbatim module
+    dict, never rebound), so indexing it directly carries no such risk.
+    """
+    colors = (widgets.C_GOLD, widgets.C_PURPLE, _COND_TINT[TileCondition.POND])
+    return colors[min(max(0, level_in_tier - 1), len(colors) - 1)]
+
 
 def heat_color(t):
     """The prototype's blue→yellow→red heat ramp (``hud.py:452-465``) WITH its
@@ -69,10 +114,13 @@ def heat_color(t):
 
 
 class MapOverlays:
-    """The two persistent bottom-left toggle pills + the overlay submit pass.
-    State (``show_range`` / ``show_heatmap`` / ``path_heatmap``) persists
-    across phases and rounds within a run — a fresh run builds a fresh
-    instance (prototype: fields on the HUD object)."""
+    """The three persistent bottom-left toggle pills + the overlay submit pass.
+    State (``show_range`` / ``show_heatmap`` / ``show_tier_overview`` /
+    ``path_heatmap``) persists across phases and rounds within a run — a fresh
+    run builds a fresh instance (prototype: fields on the HUD object). The
+    toggles are fully INDEPENDENT of each other and of every other overlay
+    (selection, drag-select, the upgrade panel): there is no mutual
+    exclusion anywhere in this class."""
 
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
@@ -81,10 +129,14 @@ class MapOverlays:
         self.view_h = view_h
         self.show_range = False
         self.show_heatmap = False
+        self.show_tier_overview = False
         # Left of the phase banner, stacked above it (the banner sits at
-        # view_h-26; hud End Turn owns the bottom-right corner).
+        # view_h-26; hud End Turn owns the bottom-right corner). The row runs
+        # left to right, 74 wide with a 4px gap: 12, 90, 168.
         self.range_btn = Button((12, view_h - 72, 74, 26), "RANGE", "sm")
         self.heatmap_btn = Button((90, view_h - 72, 74, 26), "HEATMAP", "sm")
+        self.tier_overview_btn = Button((168, view_h - 72, 74, 26),
+                                        "TIER OVERVIEW", "sm")
         # Heatmap accumulators: distinct enemy ids per tile while the ENEMY
         # phase runs; snapshot to counts on the phase edge.
         self._current = {}
@@ -100,6 +152,7 @@ class MapOverlays:
         self.ids = {
             "btn_range": ("button", self.range_btn),
             "btn_heatmap": ("button", self.heatmap_btn),
+            "btn_tier_overview": ("button", self.tier_overview_btn),
         }
         self.skinning.apply(self.screen_id, self.ids)
 
@@ -115,13 +168,18 @@ class MapOverlays:
         if is_visible(self.heatmap_btn) and self.heatmap_btn.hit(mx, my):
             self.show_heatmap = not self.show_heatmap
             return True
+        if (is_visible(self.tier_overview_btn)
+                and self.tier_overview_btn.hit(mx, my)):
+            self.show_tier_overview = not self.show_tier_overview
+            return True
         return False
 
     def over(self, mx, my):
         """Pure containment probe for the host's ``over_ui`` check (a press on
         a pill must not arm camera panning)."""
         return (contains(self.range_btn.rect, mx, my)
-                or contains(self.heatmap_btn.rect, mx, my))
+                or contains(self.heatmap_btn.rect, mx, my)
+                or contains(self.tier_overview_btn.rect, mx, my))
 
     def update(self, dt, mx, my, mouse_down=False):
         self._clock += dt
@@ -130,8 +188,12 @@ class MapOverlays:
         self.heatmap_btn.hover(mx, my, mouse_down)
         self.heatmap_btn.hovered = (self.heatmap_btn.hovered
                                     and is_visible(self.heatmap_btn))
+        self.tier_overview_btn.hover(mx, my, mouse_down)
+        self.tier_overview_btn.hovered = (self.tier_overview_btn.hovered
+                                          and is_visible(self.tier_overview_btn))
         self.range_btn.update(dt)
         self.heatmap_btn.update(dt)
+        self.tier_overview_btn.update(dt)
 
     # -- heatmap tracking (prototype game.py:1344-1349 / 927-932) -------------
 
@@ -211,6 +273,20 @@ class MapOverlays:
             for (c, r), count in self.path_heatmap.items():
                 t = min(1.0, count / max_count) if max_count else 0.0
                 submit_tile_diamond_fill(renderer, c, r, heat_color(t))
+        if self.show_tier_overview:
+            # O(built tiles) via the _by_state index — never a full-map scan
+            # (the large-map invariant range_coverage above also honours).
+            for tile in tilemap.built_tiles():
+                b = tile.occupant
+                if b is None or "base" in getattr(b, "tags", ()):
+                    continue        # the hole is not a player-built building
+                ts = b.get_component(TierState)
+                if ts is None:
+                    continue
+                submit_tile_diamond_fill(
+                    renderer, tile.col, tile.row,
+                    _level_color(ts.current_level_in_tier)
+                    + (_TIER_OVERVIEW_ALPHA,))
 
     def submit_buttons(self, renderer):
         """The HUD-pass toggle pills; an active toggle gets a gold rim + gold
@@ -218,7 +294,8 @@ class MapOverlays:
         (10L-B)."""
         t = anim_ms(self._clock)
         for btn, active in ((self.range_btn, self.show_range),
-                            (self.heatmap_btn, self.show_heatmap)):
+                            (self.heatmap_btn, self.show_heatmap),
+                            (self.tier_overview_btn, self.show_tier_overview)):
             if not is_visible(btn):
                 continue
             if active:

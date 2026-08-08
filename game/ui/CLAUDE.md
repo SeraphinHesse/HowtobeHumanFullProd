@@ -428,9 +428,11 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
 ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries
-no 10I diff: two persistent bottom-left toggle pills (`RANGE`/`HEATMAP`, gold
-rim + gold label when active; clicks consumed in `main.py`'s ladder between the
-End-Turn branch and the panel, `over()` feeds the pan-arming `over_ui` check),
+no 10I diff: **three** persistent bottom-left toggle pills
+(`RANGE`/`HEATMAP`/`TIER OVERVIEW` — the third added later, see its own section
+below; gold rim + gold label when active; clicks consumed in `main.py`'s ladder
+between the End-Turn branch and the panel, `over()` feeds the pan-arming
+`over_ui` check),
 the world condition tint (windowed — never a full-grid scan; a **FALLBACK**
 since condition art landed: `MapOverlays.condition_art` is the host's
 `{slot: tint_overlay}` map over the condition slots that have imported art, and
@@ -454,6 +456,65 @@ deliberately unlisted, prototype-exact); the tooltip draws last/on top.
 `base_info` shows NO badge. The panel Range row + selection range highlight use
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
+
+## TIER OVERVIEW pill (`btn_tier_overview`)
+The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE
+(x=12) and HEATMAP (x=90) at **x=168** (74 wide, 4px gap) on the same
+`view_h - 72` row. Active ⇒ every PLAYER-BUILT building's tile gets one
+alpha-filled diamond tinted by its current IN-TIER level.
+- **No mutual exclusion, anywhere.** `show_tier_overview` is a plain third
+  flag beside `show_range`/`show_heatmap`, and `submit()` runs its pass as an
+  independent `if` after the heatmap's. It composes with Heatmap, Range, the
+  selection/drag-select highlights and the Upgrade UI by construction — there
+  is no "active overlay" concept in this class to be exclusive about. Its pass
+  is drawn LAST of the three, so a tier tint reads on top of a range square.
+- **Keyed by LEVEL WITHIN THE CURRENT TIER, not by the tier itself** — a
+  designer decision made after live playtesting (an earlier per-TIER colour
+  design, one colour per `TierState.current_tier`, was rejected: the
+  playtester's expectation was that the 3-colour cycle should RESET at every
+  tier advance, so a level-1 Slinger, tier 2, reads identically to a level-1
+  Stone Thrower, tier 1 — both gold — rather than getting its own "tier 2"
+  colour). Resolved by the module-private `_level_color(level_in_tier)` off
+  `TierState.current_level_in_tier` (1-indexed) — a FUNCTION, not a
+  module-level tuple, because every `widgets.C_*` must be a fresh attribute
+  read (see "Fonts + palette are DATA now"). It clamps to the last entry, so
+  a future 4th level renders rather than raising. **Colours are
+  designer-picked yellow / pink / blue** (level 1/2/3) — two same-hue ramps
+  were tried and rejected first (a purple shade ramp read as
+  indistinguishable grey; a red/gold/green ramp still wasn't distinct
+  enough), so the final trio is three maximally-different hues instead of a
+  ramp. Neither pink nor blue exists in the shared `widgets.C_*` palette:
+  level 1 is `C_GOLD` (a real yellow), level 2 reuses `C_PURPLE` (the closest
+  existing colour to pink), level 3 reuses the POND entry of this same
+  file's `_COND_TINT` dict (the only blue anywhere here) rather than
+  inventing new, unreused colours. `_COND_TINT` is a plain
+  prototype-verbatim module dict, never rebound by `configure_palette` —
+  indexing it directly carries none of the early-binding risk a
+  `widgets.C_*` copy would. `_TIER_OVERVIEW_ALPHA` (110) is a plain int and
+  is therefore safe as a module constant.
+- **The base is tag-gated out, not component-gated out.** `BaseBuilding` DOES
+  carry a `TierState` (`base_building.py`), and its tile is BUILT, so
+  `get_component(TierState) is None` would NOT skip it — the pass skips any
+  occupant carrying the `"base"` tag (G-3 tag discipline, never a
+  `building_type == "base"` string test). The `None`-occupant and
+  `None`-component guards stay as well, so an odd occupant can never raise.
+- **`game.ui -> game.buildings.components` is the sanctioned read**
+  (`building_ui.py`/`effects.py` already import it; `game.buildings` imports
+  no `game.ui`, so there is no cycle).
+- **Cost profile**: `tilemap.built_tiles()` is the `_by_state` index, i.e.
+  O(built tiles) — never a full-map per-frame scan (the large-map invariant).
+- **Label**: `"TIER OVERVIEW"` is the code-owned default exactly like
+  `"RANGE"`/`"HEATMAP"`; giving the button the `btn_tier_overview` id is what
+  makes it JSON-overridable, through the generic per-widget `label` override
+  (no schema change — `ui_screen.schema.json`'s `widgets.<id>.label` is
+  already free-form).
+- **Artifacts**: `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) — ONLY the `overlays` entry moved (a new
+  `btn_tier_overview` row + its `mock_note`), which is what says the change
+  was contained; `data/ui/screens/overlays.json` gained the matching
+  `ui_button_pill` skin. `test_ui_skinning.py`'s golden `_BASELINE` needed NO
+  change — it pins the original 12 screens and has never covered `overlays`.
+  Tests: `tools/tests/test_map_overlays.py`.
 
 ## QOL + FX sweep (10J)
 The engine grew per-pixel alpha (RGBA `HudRect`/`HudText` + the filled
@@ -849,8 +910,9 @@ sets one).
   `.visible` attribute directly (equivalent to `is_visible`) since B2 and
   needed no change.
 - **A 13th screen: `overlays`** (Phase 3) — `game/ui/overlays.py`
-  (`MapOverlays`, the RANGE/HEATMAP toggle pills) gained its own
-  `data/ui/screens/overlays.json` + `ids` (`btn_range`, `btn_heatmap`) the
+  (`MapOverlays`, the toggle pills) gained its own
+  `data/ui/screens/overlays.json` + `ids` (`btn_range`, `btn_heatmap`, and
+  since the tier-overview feature `btn_tier_overview`) the
   sanctioned way this section always supported: "drop in a file + ids", not
   limited to the original 12. Since one `MapOverlays` is built per run and
   never re-laid-out (`view_w`/`view_h` fixed for its whole lifetime),

@@ -109,6 +109,7 @@ TIERS = {
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
+    "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",
