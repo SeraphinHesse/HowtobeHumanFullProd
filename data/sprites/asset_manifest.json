@@ -6879,23 +6879,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
+            3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6913,7 +6910,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6922,14 +6919,11 @@
             4,
             5,
             6,
-            7,
             8,
             9,
+            10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6947,7 +6941,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6957,13 +6951,10 @@
             5,
             6,
             7,
-            8,
             9,
             10,
-            12,
-            13,
-            14,
-            15
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6981,7 +6972,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6992,12 +6983,9 @@
             6,
             7,
             8,
-            9,
             10,
             11,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7015,7 +7003,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7027,11 +7015,8 @@
             7,
             8,
             9,
-            10,
             11,
-            12,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7049,23 +7034,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7083,23 +7065,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7117,9 +7096,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7130,17 +7109,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -7151,9 +7127,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7164,10 +7140,7 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7185,23 +7158,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
+            8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7219,10 +7189,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7232,17 +7202,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -7253,10 +7220,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7266,17 +7233,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_forest": {
       "frame_h": 32,
@@ -7287,23 +7251,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
+            7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7321,23 +7282,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
+            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7355,7 +7313,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7364,14 +7322,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_spawning_b": {
       "frame_h": 32,
@@ -7382,7 +7344,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7391,14 +7353,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "trio_t3_lvl1": {
       "anchors": {
