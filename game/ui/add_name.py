@@ -25,7 +25,7 @@ from . import widgets
 
 _MAX_CHARS = 20
 _BG = (12, 20, 14)
-_PW, _PH = 460, 260
+_PW, _PH = 230, 130
 
 SCREEN_ID = "add_name"
 
@@ -39,8 +39,8 @@ class AddNameScreen:
         self.msg = ""
         self.msg_color = widgets.C_UI_TEXT_DIM
         self.pool_count = 0
-        self.add_btn = Button((0, 0, 160, 40), "ADD NAME")
-        self.back_btn = Button((0, 0, 130, 40), "BACK")
+        self.add_btn = Button((0, 0, 80, 20), "ADD NAME")
+        self.back_btn = Button((0, 0, 65, 20), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
@@ -54,12 +54,12 @@ class AddNameScreen:
         x = view_w // 2 - _PW // 2
         y = view_h // 2 - _PH // 2
         self.rect = (x, y, _PW, _PH)
-        self.name_rect = (x + 24, y + 108, _PW - 48, 36)
-        self.add_btn.rect = (x + 24, y + _PH - 56, 160, 40)
-        self.back_btn.rect = (x + _PW - 24 - 130, y + _PH - 56, 130, 40)
+        self.name_rect = (x + 12, y + 54, _PW - 24, 18)
+        self.add_btn.rect = (x + 12, y + _PH - 28, 80, 20)
+        self.back_btn.rect = (x + _PW - 12 - 65, y + _PH - 28, 65, 20)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._panel.rect = self.rect
-        self._title.rect = (x + _PW // 2, y + 20, 0, 0)
+        self._title.rect = (x + _PW // 2, y + 10, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "panel": ("panel", self._panel),
@@ -140,7 +140,7 @@ class AddNameScreen:
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
         submit_centered(renderer, "Appears on the building-naming dice button.",
-                        cx, y + 62, "sm", widgets.C_UI_TEXT_DIM)
+                        cx, y + 31, "sm", widgets.C_UI_TEXT_DIM)
 
         nx, ny, nw, nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
@@ -152,12 +152,12 @@ class AddNameScreen:
         else:
             shown = "type a name..."
             tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 8, ny + 9), "md", tcol)
+        submit_text(renderer, shown, (nx + 4, ny + 4), "md", tcol)
 
         if self.msg:
-            submit_centered(renderer, self.msg, cx, y + 156, "sm", self.msg_color)
+            submit_centered(renderer, self.msg, cx, y + 78, "sm", self.msg_color)
         submit_text(renderer, f"Names in pool: {self.pool_count}",
-                    (x + 24, y + _PH - 78), "sm", widgets.C_UI_TEXT_DIM)
+                    (x + 12, y + _PH - 39), "sm", widgets.C_UI_TEXT_DIM)
 
         if is_visible(self.add_btn):
             self.add_btn.submit(renderer, anim_ms=t, **button_kwargs(self.add_btn))

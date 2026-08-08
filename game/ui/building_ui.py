@@ -161,18 +161,18 @@ class ConstructPreview:
         self.name = ""
         self.editing = False
 
-        pw, ph = 340, 300
+        pw, ph = 170, 150
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
         # 10J: the name row shrinks to make room for the dice reroll button
         # (prototype building_ui.py:136, 243-247).
-        self.name_rect = (x + 16, y + 96, pw - 32 - 36, 30)
-        self.dice_btn = Button((x + pw - 16 - 30, y + 96, 30, 30),
+        self.name_rect = (x + 8, y + 48, pw - 16 - 18, 15)
+        self.dice_btn = Button((x + pw - 8 - 15, y + 48, 15, 15),
                                _DICE_GLYPH, "md")
-        self.close_btn = Button((x + pw - 26, y + 6, 20, 18), "X", "md")
-        btn_y, bw, bh = y + ph - 48, 140, 34
-        left = Button((x + 16, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 16 - bw, btn_y, bw, bh), "", "lg")
+        self.close_btn = Button((x + pw - 13, y + 3, 10, 9), "X", "md")
+        btn_y, bw, bh = y + ph - 24, 70, 17
+        left = Button((x + 8, btn_y, bw, bh), "", "lg")
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
         confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
         if show_cancel:
@@ -181,7 +181,7 @@ class ConstructPreview:
             self.confirm_btn.label = "CONFIRM"
             self.cancel_btn.label = "CANCEL"
         else:
-            self.confirm_btn = Button((x + 16, btn_y, pw - 32, bh), "CONFIRM",
+            self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh), "CONFIRM",
                                       "lg")
             self.cancel_btn = None
         # 10L-B: geometry is fixed for this instance's whole lifetime (a
@@ -297,24 +297,24 @@ class ConstructPreview:
             self.close_btn.submit(renderer, anim_ms=anim_ms,
                                   **button_kwargs(self.close_btn))
         cx = x + w // 2
-        submit_text(renderer, self.title, (cx, y + 12), "lg", widgets.C_UI_TEXT,
+        submit_text(renderer, self.title, (cx, y + 6), "lg", widgets.C_UI_TEXT,
                     align="center")
-        submit_text(renderer, f"Cost  {self.total_cost}", (cx, y + 44),
+        submit_text(renderer, f"Cost  {self.total_cost}", (cx, y + 22),
                     "md", widgets.C_GOLD, align="center")
-        submit_text(renderer, "Name:", (x + 16, y + 76), "sm", widgets.C_UI_TEXT_DIM)
+        submit_text(renderer, "Name:", (x + 8, y + 38), "sm", widgets.C_UI_TEXT_DIM)
         if self.name or self.editing:
             shown = self.name + ("_" if self.editing else "")
             tcol = widgets.C_UI_TEXT
         else:
             shown = "click to name"
             tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 8, ny + 7), "md", tcol)
-        sy = y + 138
+        submit_text(renderer, shown, (nx + 4, ny + 3), "md", tcol)
+        sy = y + 69
         for label, value in self.stats:
-            submit_text(renderer, label, (x + 16, sy), "sm", widgets.C_UI_TEXT_DIM)
-            submit_text(renderer, str(value), (x + w - 16, sy), "sm", widgets.C_UI_TEXT,
+            submit_text(renderer, label, (x + 8, sy), "sm", widgets.C_UI_TEXT_DIM)
+            submit_text(renderer, str(value), (x + w - 8, sy), "sm", widgets.C_UI_TEXT,
                         align="right")
-            sy += 20
+            sy += 10
 
 
 class MovePreview:
@@ -344,13 +344,13 @@ class MovePreview:
         # nothing to type, so this stays False forever (handle_key is a no-op).
         self.editing = False
 
-        pw, ph = 340, 190
+        pw, ph = 170, 95
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
-        self.close_btn = Button((x + pw - 26, y + 6, 20, 18), "X", "md")
-        btn_y, bw, bh = y + ph - 48, 140, 34
-        left = Button((x + 16, btn_y, bw, bh), "", "lg")
-        right = Button((x + pw - 16 - bw, btn_y, bw, bh), "", "lg")
+        self.close_btn = Button((x + pw - 13, y + 3, 10, 9), "X", "md")
+        btn_y, bw, bh = y + ph - 24, 70, 17
+        left = Button((x + 8, btn_y, bw, bh), "", "lg")
+        right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
         # Same two `ui.Timing` keys ConstructPreview reads — the modal chrome
         # convention is shared, so a designer flipping them moves both modals.
         show_cancel = ui_balance["Timing"]["construct_show_cancel"]
@@ -361,7 +361,7 @@ class MovePreview:
             self.confirm_btn.label = "CONFIRM"
             self.cancel_btn.label = "CANCEL"
         else:
-            self.confirm_btn = Button((x + 16, btn_y, pw - 32, bh), "CONFIRM",
+            self.confirm_btn = Button((x + 8, btn_y, pw - 16, bh), "CONFIRM",
                                       "lg")
             self.cancel_btn = None
         # Geometry is fixed for this instance's whole lifetime (a fresh
@@ -449,17 +449,17 @@ class MovePreview:
             self.close_btn.submit(renderer, anim_ms=anim_ms,
                                   **button_kwargs(self.close_btn))
         cx = x + w // 2
-        submit_text(renderer, "MOVE BUILDING", (cx, y + 12), "lg",
+        submit_text(renderer, "MOVE BUILDING", (cx, y + 6), "lg",
                     widgets.C_UI_TEXT, align="center")
-        submit_text(renderer, self.title, (cx, y + 40), "md",
+        submit_text(renderer, self.title, (cx, y + 20), "md",
                     widgets.C_UI_TEXT_DIM, align="center")
-        submit_text(renderer, self.cost_text, (cx, y + 72), "md",
+        submit_text(renderer, self.cost_text, (cx, y + 36), "md",
                     widgets.C_GOLD, align="center")
-        submit_text(renderer, self.time_text, (cx, y + 96), "md",
+        submit_text(renderer, self.time_text, (cx, y + 48), "md",
                     widgets.C_MOVE_HIGHLIGHT, align="center")
         submit_text(renderer,
                     f"to ({self.dest_tile.col}, {self.dest_tile.row})",
-                    (cx, y + 120), "sm", widgets.C_UI_TEXT_DIM, align="center")
+                    (cx, y + 60), "sm", widgets.C_UI_TEXT_DIM, align="center")
 
 
 class BuildingUI:
@@ -470,10 +470,10 @@ class BuildingUI:
         self.view_h = view_h
         self._ui_balance = ui_balance
         self._flash_dur = ui_balance["Timing"]["not_enough_love_duration"]
-        self.panel_w = 260
+        self.panel_w = 130
         self.panel_x = view_w - self.panel_w
         self.panel_rect = (self.panel_x, 0, self.panel_w, view_h)
-        self._right = self.panel_x + self.panel_w - 14
+        self._right = self.panel_x + self.panel_w - 7
         self.mode = None
         self.tile = None
         self.preview = None
@@ -496,36 +496,36 @@ class BuildingUI:
         # -- 10J: upgrade-panel rename row + dice; host callbacks --
         self._name_editing = False
         self._name_buf = ""
-        self._name_box_rect = (self.panel_x + 14, 40, self.panel_w - 64, 22)
+        self._name_box_rect = (self.panel_x + 7, 20, self.panel_w - 32, 11)
         self._dice_up = Button(
-            (self.panel_x + 14 + self.panel_w - 64 + 6, 40, 24, 22),
+            (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 12, 11),
             _DICE_GLYPH, "md")
         self.log = None               # GameLog, wired by the host
         self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
         # -- /10J --
         self.close_btn = Button(
-            (self.panel_x + self.panel_w - 28, 8, 20, 18), "X", "md")
+            (self.panel_x + self.panel_w - 14, 4, 10, 9), "X", "md")
         self.action_btn = Button(
-            (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
+            (self.panel_x + 6, 0, self.panel_w - 12, 18), "", "lg")
         # Building Movement: the upgrade panel's MOVE BUILDING action. Built
         # once here (the boss_btn/_dice_up mode-independent pattern) and
         # repositioned below action_btn by _build_upgrade; only ever visible in
         # upgrade mode on a SINGLE selection.
         self.move_btn = Button(
-            (self.panel_x + 12, 0, self.panel_w - 24, 30), "MOVE BUILDING",
+            (self.panel_x + 6, 0, self.panel_w - 12, 15), "MOVE BUILDING",
             "md")
         self.move_btn.visible = False
         self.cards = []
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
         self.boss_btn = Button(
-            (self.panel_x + 12, 420, self.panel_w - 24, 32),
+            (self.panel_x + 6, 210, self.panel_w - 12, 16),
             "BOSS CHOICES", "md")
-        pw, ph = 340, 260
+        pw, ph = 170, 130
         self._boss_popup_rect = (view_w // 2 - pw // 2,
                                  view_h // 2 - ph // 2, pw, ph)
         px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
         self._boss_close_btn = Button(
-            (px + pw // 2 - 60, py + ph - 44, 120, 32), "CLOSE", "md")
+            (px + pw // 2 - 30, py + ph - 22, 60, 16), "CLOSE", "md")
         self._boss_popup_open = False
         self._boss_hover_row = -1
         # -- /10G --
@@ -703,7 +703,7 @@ class BuildingUI:
         cost = sum(c for _, c in chunks)
         adjacent = all(tm.can_unlock(t) for t, _ in chunks)
         self._action_cost = cost
-        self.action_btn.rect = (self.panel_x + 12, 150, self.panel_w - 24, 36)
+        self.action_btn.rect = (self.panel_x + 6, 75, self.panel_w - 12, 18)
         self.action_btn.enabled = adjacent
         n = len(chunks)
         if not adjacent:
@@ -722,7 +722,7 @@ class BuildingUI:
 
     def _build_construct(self):
         self.cards = []
-        y = 64
+        y = 32
         state = self._session.state
         # B3: construct cards are dynamic-count (never id'd) and inherit the
         # screen's defaults.button_skin instead — {} (no override) means None,
@@ -744,10 +744,10 @@ class BuildingUI:
             name = BUILDING_CLASSES[btype]._resolve_tiers(
                 self._buildings_balance)[tier_idx]["name"]
             label = f"{name}  {cost}"
-            btn = Button((self.panel_x + 12, y, self.panel_w - 24, 42),
+            btn = Button((self.panel_x + 6, y, self.panel_w - 12, 21),
                          label, "md", skin=skin)
             self.cards.append((btype, btn))
-            y += 50
+            y += 25
         self._highlight_tiles = [(t.col, t.row, widgets.C_HIGHLIGHT)
                                  for t in self.selected_tiles]
 
@@ -772,7 +772,7 @@ class BuildingUI:
             cost = sum(c for _, c in targets)
             label = f"UPGRADE ×{len(targets)}  {cost}"
         self.action_btn.rect = (
-            self.panel_x + 12, self.view_h - 120, self.panel_w - 24, 36)
+            self.panel_x + 6, self.view_h - 60, self.panel_w - 12, 18)
         self.action_btn.enabled = mode in ("in_tier", "tier_upgrade")
         self.action_btn.label = label
         self._action_cost = cost if self.action_btn.enabled else 0
@@ -789,7 +789,7 @@ class BuildingUI:
         mechanism the RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather
         than silently vanishing — the real enforcement is ``start_move``."""
         ax, ay, aw, ah = self.action_btn.rect
-        self.move_btn.rect = (ax, ay + ah + 8, aw, 30)
+        self.move_btn.rect = (ax, ay + ah + 4, aw, 15)
         self.move_btn.visible = len(self.selected_tiles) == 1
         movable = self._selected is not None and is_movable(self._selected)
         self.move_btn.enabled = movable
@@ -892,12 +892,12 @@ class BuildingUI:
 
     def hover(self, mx, my, mouse_down=False):
         self._hover_cost = None
-        # -- 10I: terrain badge hover (rect inflated 4px, prototype
+        # -- 10I: terrain badge hover (rect inflated 2px, prototype
         # building_ui.py:1121-1130); off while the modal preview is open --
         r = self._cond_badge_rect
         self._cond_hover = (
             self.preview is None and r is not None
-            and contains((r[0] - 4, r[1] - 4, r[2] + 8, r[3] + 8), mx, my))
+            and contains((r[0] - 2, r[1] - 2, r[2] + 4, r[3] + 4), mx, my))
         # -- /10I --
         if self.preview is not None:
             self.preview.hover(mx, my, mouse_down)
@@ -952,8 +952,8 @@ class BuildingUI:
                     self._boss_close_btn.hovered
                     and is_visible(self._boss_close_btn))
                 px, py, pw, _ph = self._boss_popup_rect
-                if px + 14 <= mx < px + pw - 14 and my >= py + 48:
-                    self._boss_hover_row = (my - (py + 48)) // 20
+                if px + 7 <= mx < px + pw - 7 and my >= py + 24:
+                    self._boss_hover_row = (my - (py + 24)) // 10
             # -- /10G --
 
     def handle_key(self, char, key):
@@ -1292,28 +1292,28 @@ class BuildingUI:
             self.preview.submit(renderer, anim_ms=t)
 
     def _submit_unlock(self, renderer, session, anim_ms=0):
-        x = self.panel_x + 14
-        submit_text(renderer, "UNLOCK TILE", (x, 16), "lg", widgets.C_UI_TEXT)
-        submit_text(renderer, "Unlocks a 2x2 area", (x, 70), "sm",
+        x = self.panel_x + 7
+        submit_text(renderer, "UNLOCK TILE", (x, 8), "lg", widgets.C_UI_TEXT)
+        submit_text(renderer, "Unlocks a 2x2 area", (x, 35), "sm",
                     widgets.C_UI_TEXT_DIM)
         if not session.tilemap.can_unlock(self.tile):
-            submit_text(renderer, "Must touch your territory", (x, 196), "sm",
+            submit_text(renderer, "Must touch your territory", (x, 98), "sm",
                         widgets.C_UI_TEXT_DIM)
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
-                                self.view_h - 40, above=True)
+                                self.view_h - 20, above=True)
         # -- /10I --
 
     def _submit_construct(self, renderer, anim_ms=0):
-        submit_text(renderer, "BUILD", (self.panel_x + 14, 16), "lg", widgets.C_UI_TEXT)
+        submit_text(renderer, "BUILD", (self.panel_x + 7, 8), "lg", widgets.C_UI_TEXT)
         for _, btn in self.cards:
             btn.submit(renderer, anim_ms=anim_ms)
         # -- 10I: tile terrain footer badge (tooltip above) --
         self._submit_cond_badge(renderer, self.tile.condition,
-                                self.view_h - 40, above=True)
+                                self.view_h - 20, above=True)
         # -- /10I --
 
     def _next_level_rows(self, b):
@@ -1359,11 +1359,11 @@ class BuildingUI:
     def _submit_upgrade(self, renderer, anim_ms=0):
         from engine.render import HudRect, HudSprite
 
-        x, b = self.panel_x + 14, self._selected
+        x, b = self.panel_x + 7, self._selected
         up_mode, _, _, _ = self._upgrade_state(b)
         # 10J: the title is the DISPLAY name — custom names + rebirth ordinals
         # finally show; the tier name moves to the Level row.
-        submit_text(renderer, _display_name(b), (x, 10), "lg", widgets.C_UI_TEXT)
+        submit_text(renderer, _display_name(b), (x, 5), "lg", widgets.C_UI_TEXT)
         # -- 10J rename row: input box + dice --
         nx, ny, nw, nh = self._name_box_rect
         renderer.submit_hud(HudRect(self._name_box_rect, widgets.C_PANEL_STONE))
@@ -1374,26 +1374,26 @@ class BuildingUI:
             shown, tcol = self._name_buf + "_", widgets.C_UI_TEXT
         else:
             shown, tcol = "click here to change name", widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 6, ny + 4), "sm", tcol)
+        submit_text(renderer, shown, (nx + 3, ny + 2), "sm", tcol)
         if is_visible(self._dice_up):
             self._dice_up.submit(renderer, anim_ms=anim_ms,
                                  **button_kwargs(self._dice_up))
         # -- /10J --
-        submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 68),
+        submit_text(renderer, f"{_tier_name(b)} — Level {b.level}", (x, 34),
                     "md", widgets.C_UI_TEXT_DIM)
         # -- 10I: terrain badge (ALWAYS shown incl. Grass), reading the
         # building's placement snapshot; tooltip below the badge --
         self._submit_cond_badge(
             renderer,
             getattr(b, "_tile_condition", None) or TileCondition.GRASS,
-            90, above=False)
+            45, above=False)
         # -- /10I --
         # 10J: hovering an enabled in-tier UPGRADE button previews the next
         # level's stats in green (prototype building_ui.py:1021, 1057-58).
         preview = None
         if up_mode == "in_tier" and self.action_btn.hovered:
             preview = dict(self._next_level_rows(b) or ())
-        y = 116
+        y = 58
         for label, value in _building_stats(b):
             submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
             pv = preview.get(label) if preview else None
@@ -1403,44 +1403,44 @@ class BuildingUI:
             else:
                 submit_text(renderer, str(value), (self._right, y), "md",
                             widgets.C_UI_TEXT, align="right")
-            y += 24
+            y += 12
         rs = b.get_component(RoundStats)
         if rs is not None:
-            y += 10
+            y += 5
             submit_text(renderer, "Damage dealt", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_dealt_last_round), (self._right, y),
                         "sm", widgets.C_UI_TEXT, align="right")
-            y += 18
+            y += 9
             submit_text(renderer, "Damage taken", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_taken_last_round), (self._right, y),
                         "sm", widgets.C_UI_TEXT, align="right")
-            y += 18
+            y += 9
             # -- 10J: a building whose last-round damage covered its full HP
             # died last round (prototype building_ui.py:1083-86) --
             if rs.dmg_taken_last_round >= b.max_hp():
                 submit_text(renderer, "DIED LAST ROUND",
                             (self.panel_x + self.panel_w // 2, y), "sm",
                             widgets.C_RED, align="center")
-                y += 18
+                y += 9
         # -- 10J: next-tier card when a tier advance is on the table
         # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --
         if up_mode in ("tier_upgrade", "tier_locked"):
             card = self._next_tier_card(b)
             if card is not None:
                 slot, header, rows = card
-                y += 8
+                y += 4
                 renderer.submit_hud(HudRect(
-                    (x, y, self.panel_w - 28, 1), widgets.C_UI_BORDER))
-                y += 8
+                    (x, y, self.panel_w - 14, 1), widgets.C_UI_BORDER))
+                y += 4
                 submit_text(renderer, header, (x, y), "md", widgets.C_GREEN_STAT)
-                y += 22
+                y += 11
                 if slot:
-                    renderer.submit_hud(HudSprite(slot, (x, y), (38, 38)))
+                    renderer.submit_hud(HudSprite(slot, (x, y), (19, 19)))
                 ry = y
                 for label, value in rows:
-                    submit_text(renderer, f"{label}  {value}", (x + 46, ry),
+                    submit_text(renderer, f"{label}  {value}", (x + 23, ry),
                                 "sm", widgets.C_UI_TEXT_DIM)
-                    ry += 16
+                    ry += 8
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
@@ -1453,25 +1453,25 @@ class BuildingUI:
             bx, by, bw, bh = self.action_btn.rect
             if is_visible(self.move_btn):
                 bx, by, bw, bh = self.move_btn.rect
-            submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
+            submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 3),
                         "sm", widgets.C_UI_TEXT_DIM, align="center")
 
     def _submit_move_select(self, renderer, anim_ms=0):
         """The destination-picking view (Building Movement): the panel becomes
         a short instruction card while every legal tile is highlighted in the
         world (the `_highlight_tiles` loop in `submit`, above)."""
-        x, b = self.panel_x + 14, self._selected
-        submit_text(renderer, "MOVE BUILDING", (x, 16), "lg", widgets.C_UI_TEXT)
+        x, b = self.panel_x + 7, self._selected
+        submit_text(renderer, "MOVE BUILDING", (x, 8), "lg", widgets.C_UI_TEXT)
         if b is not None:
-            submit_text(renderer, _display_name(b), (x, 52), "md",
+            submit_text(renderer, _display_name(b), (x, 26), "md",
                         widgets.C_UI_TEXT_DIM)
-        submit_text(renderer, "Pick a highlighted tile", (x, 96), "md",
+        submit_text(renderer, "Pick a highlighted tile", (x, 48), "md",
                     widgets.C_MOVE_HIGHLIGHT)
-        submit_text(renderer, "Cost and time grow with", (x, 124), "sm",
+        submit_text(renderer, "Cost and time grow with", (x, 62), "sm",
                     widgets.C_UI_TEXT_DIM)
-        submit_text(renderer, "the distance moved.", (x, 140), "sm",
+        submit_text(renderer, "the distance moved.", (x, 70), "sm",
                     widgets.C_UI_TEXT_DIM)
-        submit_text(renderer, "Click the panel to cancel.", (x, 168), "sm",
+        submit_text(renderer, "Click the panel to cancel.", (x, 84), "sm",
                     widgets.C_UI_TEXT_DIM)
 
     # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
@@ -1513,14 +1513,14 @@ class BuildingUI:
 
         label, color = widgets.cond_label(condition.name)
         text = f"Terrain: {label}"
-        w = text_size(text, "sm")[0] + 16
-        h = text_h("sm") + 8
+        w = text_size(text, "sm")[0] + 8
+        h = text_h("sm") + 4
         x = self.panel_x + (self.panel_w - w) // 2
         rect = (x, y, w, h)
         self._cond_badge_rect = rect
         renderer.submit_hud(HudRect(rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(rect, color, width=1))
-        submit_text(renderer, text, (x + 8, y + 4), "sm", color)
+        submit_text(renderer, text, (x + 4, y + 2), "sm", color)
         self._cond_tooltip = (condition, color, rect, above)
 
     def _submit_cond_tooltip(self, renderer, condition, color, badge_rect,
@@ -1530,25 +1530,25 @@ class BuildingUI:
         from engine.render import HudRect
 
         lines = self._tile_cond_effect_lines(condition)
-        lh = text_h("sm") + 4
-        w = max(text_size(t, "sm")[0] for t in lines) + 16
-        h = lh * len(lines) + 10
+        lh = text_h("sm") + 2
+        w = max(text_size(t, "sm")[0] for t in lines) + 8
+        h = lh * len(lines) + 5
         bx, by, bw, bh = badge_rect
         x = self.panel_x + (self.panel_w - w) // 2
-        y = by - h - 6 if above else by + bh + 6
+        y = by - h - 3 if above else by + bh + 3
         renderer.submit_hud(HudRect((x, y, w, h), _COND_TOOLTIP_BG))
         renderer.submit_hud(HudRect((x, y, w, h), color, width=1))
-        ty = y + 5
+        ty = y + 2
         for t in lines:
-            submit_text(renderer, t, (x + 8, ty), "sm", widgets.C_UI_TEXT)
+            submit_text(renderer, t, (x + 4, ty), "sm", widgets.C_UI_TEXT)
             ty += lh
 
     # -- /10I ---------------------------------------------------------------
 
     def _submit_base_info(self, renderer, session, anim_ms=0):
-        x, st = self.panel_x + 14, session.state
+        x, st = self.panel_x + 7, session.state
         income = scaled_base_income(st, session.core_balance)
-        submit_text(renderer, "THE HOLE", (x, 16), "lg", widgets.C_UI_TEXT)
+        submit_text(renderer, "THE HOLE", (x, 8), "lg", widgets.C_UI_TEXT)
         rows = [
             ("Lives", st.base_lives),
             ("Wave", st.round_num),
@@ -1556,12 +1556,12 @@ class BuildingUI:
             ("Buildings", st.buildings_placed),
             ("Base income", f"{income}/round"),
         ]
-        y = 72
+        y = 36
         for label, value in rows:
             submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(value), (self._right, y), "md", widgets.C_UI_TEXT,
                         align="right")
-            y += 30
+            y += 15
         # -- 10G boss: BOSS CHOICES button + history popup --
         if is_visible(self.boss_btn):
             self.boss_btn.submit(renderer, anim_ms=anim_ms,
@@ -1582,12 +1582,12 @@ class BuildingUI:
         panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         submit_panel(renderer, self._boss_popup_rect, skin=panel_skin,
                     anim_ms=anim_ms)
-        submit_text(renderer, "Boss Choices", (px + pw // 2, py + 14), "lg",
+        submit_text(renderer, "Boss Choices", (px + pw // 2, py + 7), "lg",
                     widgets.C_UI_TEXT, align="center")
         choices = session.state.boss_choices
-        y = py + 48
+        y = py + 24
         if not choices:
-            submit_text(renderer, "None yet", (px + 14, y), "md",
+            submit_text(renderer, "None yet", (px + 7, y), "md",
                         widgets.C_UI_TEXT_DIM)
         hover_desc = None
         for i, (boss_num, option, outcome) in enumerate(choices):
@@ -1595,16 +1595,16 @@ class BuildingUI:
             submit_text(
                 renderer,
                 f"Boss {boss_num}: {outcome.capitalize()} {option}",
-                (px + 14, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
+                (px + 7, y), "md", widgets.C_GOLD if hovered else widgets.C_UI_TEXT)
             if hovered:
                 hover_desc = choice_desc((boss_num - 1) % 3, option,
                                          session.core_balance)
-            y += 20
+            y += 10
         if hover_desc is not None:
-            ty = py + ph - 80
+            ty = py + ph - 40
             for line in hover_desc.split("\n"):
-                submit_text(renderer, line, (px + 14, ty), "sm", widgets.C_UI_TEXT_DIM)
-                ty += 16
+                submit_text(renderer, line, (px + 7, ty), "sm", widgets.C_UI_TEXT_DIM)
+                ty += 8
         if is_visible(self._boss_close_btn):
             self._boss_close_btn.submit(renderer, anim_ms=anim_ms,
                                         **button_kwargs(self._boss_close_btn))

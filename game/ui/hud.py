@@ -77,8 +77,16 @@ _INCOME_PINK = (214, 96, 136)
 _XP_PURPLE = (168, 105, 222)
 _XP_TRACK = (48, 34, 66)
 # -- 10L wave-3 phase 4: baked icon slots beside the readouts --
-_ICON_SIZE = 18   # fits the ~16-20px HUD rows without crowding the text
-_ICON_GAP = 4
+# UR-5 review: UR-2 HALVED these (18 -> 9, 4 -> 2) against
+# planning/UiResolutionPLAN.md §2, which cites the 18x18 icons as its
+# canonical "already 640-scale, LEAVE" example. The override is deliberate:
+# these icons are sized against the HUD rows they sit in (the love pill is
+# 34px tall today and halves to 17), so an unhalved 18px icon overflows a
+# 17px pill. Physically neutral under SDL SCALED (18 logical px at 1x ==
+# 9 logical px at 2x == the same 18 physical px). If the UR-5 eyeball pass
+# disagrees with the bucket call, THIS is the first site it revisits.
+_ICON_SIZE = 9   # fits the ~8-10px HUD rows without crowding the text
+_ICON_GAP = 2
 # -- /10L wave-3 --
 # -- 10J income tooltip (prototype hud.py:519-554 colours) --
 _TOOLTIP_BG = (20, 15, 35)
@@ -148,21 +156,21 @@ class Hud:
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
-        self.end_turn = Button((0, 0, 160, 60), "END TURN", font_key="lg")
-        self.pause = Button((0, 0, 90, 30), "PAUSE", font_key="md")
+        self.end_turn = Button((0, 0, 80, 30), "END TURN", font_key="lg")
+        self.pause = Button((0, 0, 45, 15), "PAUSE", font_key="md")
         # -- 10L: fast-forward combat-speed buttons (top-left, below the
         # love/xp/income/lives/tiles readout column) --
-        self.speed_1x = Button((0, 0, 56, 28), "1×", font_key="sm")
-        self.speed_1_5x = Button((0, 0, 56, 28), "1.5×", font_key="sm")
-        self.speed_2x = Button((0, 0, 56, 28), "2×", font_key="sm")
+        self.speed_1x = Button((0, 0, 28, 14), "1×", font_key="sm")
+        self.speed_1_5x = Button((0, 0, 28, 14), "1.5×", font_key="sm")
+        self.speed_2x = Button((0, 0, 28, 14), "2×", font_key="sm")
         # -- /10L speed --
         # -- drag-select: an always-available toggle sitting directly under the
         # speed row. Wider than a speed button because the label is 8 chars at
-        # font "sm"; the 28px height matches so the two rows read as a stack.
+        # font "sm"; the 14px height matches so the two rows read as a stack.
         # The FLIP itself lives in main.py's handle_world_click (never in
         # hit(), which the host calls twice per click) — this widget only
         # reports the click and draws the active rim off the host's flag. --
-        self.drag_select_btn = Button((0, 0, 90, 28), "DRAG SEL", font_key="sm")
+        self.drag_select_btn = Button((0, 0, 45, 14), "DRAG SEL", font_key="sm")
         # -- /drag-select --
         self._clock = 0.0  # drives the levelup-pending pulse
         # The building panel is a full-height right sidebar and the HUD submits
@@ -173,12 +181,12 @@ class Hud:
         self._mx = self._my = 0  # cursor pos: anchors the cooldown bar
         # -- /10H --
         # -- 10L-B: love panel + phase label (added B2) --
-        self._love_panel = SimpleNamespace(rect=(12, 12, 190, 34), visible=True)
+        self._love_panel = SimpleNamespace(rect=(6, 6, 95, 17), visible=True)
         # The stone pill behind the income / lives / tiles column, drawn
         # exactly like ``love_panel`` (same body + inset border) so those
         # three readouts stay legible over the world. Its rect is finalized
         # in _layout_readouts() — it wraps the three text anchors.
-        self._readout_panel = SimpleNamespace(rect=(12, 44, 190, 60),
+        self._readout_panel = SimpleNamespace(rect=(6, 22, 95, 30),
                                               visible=True)
         self._phase_label = SimpleNamespace(font_key="hud_phase", text_color=None,
                                             visible=True)
@@ -194,7 +202,7 @@ class Hud:
                                           text_color=None, visible=True)
         self._lvl_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="hud_lvl",
                                           text_color=widgets.C_GOLD, visible=True)
-        self._xp_bar = SimpleNamespace(rect=(0, 0, 110, 9), color=_XP_TRACK,
+        self._xp_bar = SimpleNamespace(rect=(0, 0, 55, 4), color=_XP_TRACK,
                                        visible=True)
         self._xp_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
                                         text_color=widgets.C_UI_TEXT_DIM, visible=True)
@@ -226,26 +234,26 @@ class Hud:
 
     def layout(self, view_w, view_h):
         w, h = self.end_turn.rect[2], self.end_turn.rect[3]
-        self.end_turn.rect = (view_w - w - 16, view_h - h - 16, w, h)
+        self.end_turn.rect = (view_w - w - 8, view_h - h - 8, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
-        self.pause.rect = (view_w - pw - 16, 12, pw, ph)
+        self.pause.rect = (view_w - pw - 8, 6, pw, ph)
         # 10L-B review fix: a stored default rect (not just font/text_color)
         # so the exporter reads a real position AND a rect override actually
         # moves the phase banner — the anchor point submit_text draws from,
         # W/H nominal 0 (a position-only text label, the same convention
         # every other label id in this file already uses).
-        self._phase_label.rect = (12, view_h - 26, 0, 0)
+        self._phase_label.rect = (6, view_h - 13, 0, 0)
         # -- 10L: speed buttons — a fixed row below the readout column --
-        sy = 110
-        sw, sh, gap = 56, 28, 6
-        self.speed_1x.rect = (12, sy, sw, sh)
-        self.speed_1_5x.rect = (12 + sw + gap, sy, sw, sh)
-        self.speed_2x.rect = (12 + 2 * (sw + gap), sy, sw, sh)
+        sy = 55
+        sw, sh, gap = 28, 14, 3
+        self.speed_1x.rect = (6, sy, sw, sh)
+        self.speed_1_5x.rect = (6 + sw + gap, sy, sw, sh)
+        self.speed_2x.rect = (6 + 2 * (sw + gap), sy, sw, sh)
         # -- /10L speed --
         # -- drag-select: its own row directly below the speed row --
         sy2 = sy + sh + gap
         sw2 = self.drag_select_btn.rect[2]
-        self.drag_select_btn.rect = (12, sy2, sw2, sh)
+        self.drag_select_btn.rect = (6, sy2, sw2, sh)
         # -- /drag-select --
         self.ids = {
             "btn_end_turn": ("button", self.end_turn),
@@ -265,7 +273,7 @@ class Hud:
         rects (post their own override in ``layout()``), so they cannot join
         the first pass without a chicken-and-egg ordering problem."""
         pill = self._love_panel.rect
-        lvl_x, lvl_y = pill[0] + pill[2] + 12, pill[1]
+        lvl_x, lvl_y = pill[0] + pill[2] + 6, pill[1]
         # layout_h: xp_bar's stored/id'd rect feeds screen_defaults.json.
         bar_y = lvl_y + layout_h("hud_lvl") + 3
         # -- 10L wave-3: icon_love sits inside the pill, left of the love
@@ -274,32 +282,32 @@ class Hud:
         # icon keeps its OLD anchor x, the text/bar it displaces moves right
         # by ICON + GAP. --
         icon_love_y = pill[1] + (pill[3] - _ICON_SIZE) // 2
-        self._icon_love.rect = (pill[0] + 6, icon_love_y, _ICON_SIZE, _ICON_SIZE)
+        self._icon_love.rect = (pill[0] + 3, icon_love_y, _ICON_SIZE, _ICON_SIZE)
         love_x = self._icon_love.rect[0] + _ICON_SIZE + _ICON_GAP
-        self._love_text.rect = (love_x, pill[1] + 7, 0, 0)
+        self._love_text.rect = (love_x, pill[1] + 3, 0, 0)
         self._lvl_label.rect = (lvl_x, lvl_y, 0, 0)
-        icon_xp_y = bar_y - (_ICON_SIZE - 9) // 2
+        icon_xp_y = bar_y - (_ICON_SIZE - 4) // 2
         self._icon_xp.rect = (lvl_x, icon_xp_y, _ICON_SIZE, _ICON_SIZE)
         bar_x = lvl_x + _ICON_SIZE + _ICON_GAP
-        self._xp_bar.rect = (bar_x, bar_y, 110, 9)
-        self._xp_text.rect = (bar_x, bar_y + 9 + 2, 0, 0)
-        self._income_text.rect = (pill[0] + 4, 50, 0, 0)
-        self._icon_lives.rect = (pill[0] + 4, 66, _ICON_SIZE, _ICON_SIZE)
+        self._xp_bar.rect = (bar_x, bar_y, 55, 4)
+        self._xp_text.rect = (bar_x, bar_y + 4 + 1, 0, 0)
+        self._income_text.rect = (pill[0] + 2, 25, 0, 0)
+        self._icon_lives.rect = (pill[0] + 2, 33, _ICON_SIZE, _ICON_SIZE)
         lives_x = self._icon_lives.rect[0] + _ICON_SIZE + _ICON_GAP
-        self._lives_text.rect = (lives_x, 66, 0, 0)
-        self._tiles_text.rect = (pill[0] + 4, 84, 0, 0)
+        self._lives_text.rect = (lives_x, 33, 0, 0)
+        self._tiles_text.rect = (pill[0] + 2, 42, 0, 0)
         # The readout pill wraps the three rows above (income / lives / tiles)
         # off their DEFAULT anchors — the "no cascade" convention: a rect
         # override on one of those rows does not retarget this panel.
         # layout_h (never a live measurement): this rect is stored + exported.
-        pad = 4
+        pad = 2
         panel_top = self._income_text.rect[1] - pad
         panel_bottom = self._tiles_text.rect[1] + layout_h("md") + pad
         self._readout_panel.rect = (pill[0], panel_top, pill[2],
                                     panel_bottom - panel_top)
         bx, by, bw, _bh = self.end_turn.rect
         # layout_h: round_label's stored/id'd rect feeds screen_defaults.json.
-        self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 4, 0, 0)
+        self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 2, 0, 0)
         self.ids.update({
             "readout_panel": ("panel", self._readout_panel),
             "love_text": ("label", self._love_text),
@@ -439,7 +447,7 @@ class Hud:
             submit_text(renderer, T("hud.income_net", sign=sign, net=net),
                        self._income_text.rect[:2], self._income_text.font_key,
                        self._income_text.text_color)
-        income_pill = (pill[0] - 10, 48, 118, 18)  # prototype pill2 hover zone
+        income_pill = (pill[0] - 5, 24, 59, 9)  # prototype pill2 hover zone
         # DEFERRED to the very end of this method on purpose: the tooltip must
         # sit on the highest HUD layer so it stays in front of the readout
         # pill it overlaps (the building_ui terrain-tooltip precedent — an
@@ -562,15 +570,15 @@ class Hud:
                 rows.append((T("hud.tooltip_income", label=label, amount=amount),
                             widgets.C_HP_GREEN))
         lh = text_h("sm") + 3
-        w = max(text_size(t, "sm")[0] for t, _ in rows) + 8
-        h = lh * len(rows) + 8
+        w = max(text_size(t, "sm")[0] for t, _ in rows) + 4
+        h = lh * len(rows) + 4
         x = max(2, anchor[0])
         y = anchor[1] + anchor[3] + 2
         renderer.submit_hud(HudRect((x, y, w, h), _TOOLTIP_BG))
         renderer.submit_hud(HudRect((x, y, w, h), widgets.C_UI_BORDER, width=1))
-        ty = y + 4
+        ty = y + 2
         for text, color in rows:
-            submit_text(renderer, text, (x + 4, ty), "sm", color)
+            submit_text(renderer, text, (x + 2, ty), "sm", color)
             ty += lh
 
     def _submit_xp(self, renderer, st):
@@ -647,12 +655,13 @@ class Hud:
                       seconds=f"{cooldown_left:.1f}")
             color = _LIGHTNING_COOLING
         w, h = text_size(label, "md")
-        x, y = 12, view_h - 26 - h - 12  # just above the phase banner
-        renderer.submit_hud(HudRect((x - 4, y - 3, w + 8, h + 6), (0, 0, 0)))
+        x, y = 6, view_h - 13 - h - 6  # just above the phase banner
+        renderer.submit_hud(HudRect((x - 2, y - 2, w + 4, h + 3), (0, 0, 0)))
         submit_text(renderer, label, (x, y), "md", color)
-        # 22x3 cursor bar: black track, white fill; full = ready.
+        # 11x2 cursor bar: black track, white fill; full = ready.
+        # UR-5 review: halved from 22x3; a 2px-tall bar is at the floor.
         frac = 1.0 - (cooldown_left / tier_cooldown if tier_cooldown else 0.0)
-        submit_bar(renderer, self._mx - 11, self._my + 16, 22, 3, frac,
+        submit_bar(renderer, self._mx - 5, self._my + 8, 11, 2, frac,
                    bg=(0, 0, 0), fill=(255, 255, 255))
 
     # -- /10H ---------------------------------------------------------------

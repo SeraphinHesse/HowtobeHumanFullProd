@@ -82,9 +82,9 @@ class MapOverlays:
         self.show_range = False
         self.show_heatmap = False
         # Left of the phase banner, stacked above it (the banner sits at
-        # view_h-26; hud End Turn owns the bottom-right corner).
-        self.range_btn = Button((12, view_h - 72, 74, 26), "RANGE", "sm")
-        self.heatmap_btn = Button((90, view_h - 72, 74, 26), "HEATMAP", "sm")
+        # view_h-13; hud End Turn owns the bottom-right corner).
+        self.range_btn = Button((6, view_h - 36, 37, 13), "RANGE", "sm")
+        self.heatmap_btn = Button((45, view_h - 36, 37, 13), "HEATMAP", "sm")
         # Heatmap accumulators: distinct enemy ids per tile while the ENEMY
         # phase runs; snapshot to counts on the phase edge.
         self._current = {}

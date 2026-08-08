@@ -797,7 +797,7 @@ class TestLevelupWindow(unittest.TestCase):
 
     def window(self, cards=3):
         from game.ui import LevelupWindow      # local: game.ui pulls in fonts
-        w = LevelupWindow(1280, 720)
+        w = LevelupWindow(640, 360)
         self.assertFalse(w.visible)
         w.open([{"kind": "fallback", "title": f"c{i}", "cost": 0,
                  "explanation": "", "prev_name": None, "sprite_key": None,

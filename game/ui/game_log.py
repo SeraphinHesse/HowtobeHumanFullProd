@@ -3,7 +3,7 @@
 Pure logic: short event messages ("<name> has been killed", unlock refusals,
 painter losses) stack bottom-left just above the phase banner, newest first,
 and fade out. Timings/colour are the prototype's hard-coded constants
-(LIFETIME 4.0 s, fade from 3.0 s, max 5 lines, 12 px step, (220, 200, 155)).
+(LIFETIME 4.0 s, fade from 3.0 s, max 5 lines, 6 px step, (220, 200, 155)).
 The fade uses the 10J RGBA ``HudText`` alpha.
 
 Posts arrive two ways: direct ``post()`` calls from the UI layer, and the
@@ -26,9 +26,9 @@ LIFETIME = 4.0     # seconds a message lives
 FADE_START = 3.0   # age at which the fade begins (linear to LIFETIME)
 MAX_MESSAGES = 5
 _COLOR = (220, 200, 155)
-_LINE_STEP = 12
-_X = 8
-_LIFT = 32         # first line sits view_h - _LIFT (just above the phase label)
+_LINE_STEP = 6
+_X = 4
+_LIFT = 16         # first line sits view_h - _LIFT (just above the phase label)
 
 SCREEN_ID = "game_log"
 

@@ -51,7 +51,7 @@ FIXTURE_DEFAULTS = {
             "panel_a": {"rect": [0, 0, 200, 100], "kind": "panel",
                        "label": ""},
             "field_a": {"rect": [0, 0, 100, 24], "kind": "field", "label": ""},
-            "backdrop_a": {"rect": [0, 0, 1280, 720], "kind": "backdrop",
+            "backdrop_a": {"rect": [0, 0, 640, 360], "kind": "backdrop",
                           "label": ""},
             "bar_a": {"rect": [0, 0, 200, 20], "kind": "bar", "label": ""},
         },

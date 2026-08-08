@@ -2,10 +2,10 @@
   "widgets": {
     "btn_end_turn": {
       "rect": [
-        1104,
-        644,
-        160,
-        60
+        552,
+        322,
+        80,
+        30
       ],
       "skin": "ui_button_end_turn",
       "text_color": [
@@ -16,10 +16,10 @@
     },
     "btn_pause": {
       "rect": [
-        1174,
-        12,
-        90,
-        30
+        587,
+        6,
+        45,
+        15
       ],
       "skin": "ui_button_pause"
     },
@@ -34,19 +34,19 @@
     },
     "love_panel": {
       "rect": [
-        12,
-        12,
-        107,
-        39
+        6,
+        6,
+        53,
+        19
       ],
       "skin": "ui_panel"
     },
     "readout_panel": {
       "rect": [
-        12,
-        46,
-        107,
-        57
+        6,
+        23,
+        53,
+        28
       ]
     },
     "round_label": {
