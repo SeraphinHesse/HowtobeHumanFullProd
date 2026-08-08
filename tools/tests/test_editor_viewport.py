@@ -698,6 +698,42 @@ class TestViewportScreenMode(TempDataCase):
         self.assertEqual(sprites[0].animation, "hover")
 
 
+class TestScreenScaleOffset(TempDataCase):
+    """UR-3: the ONE fit triple every screen-mode consumer reads — hit-test,
+    drag and the scaled blit alike. Below 1.0 it is a fractional downscale
+    that always fits; at or above 1.0 it snaps down to a whole multiple, so
+    the pixel-art preview duplicates every source pixel equally (the game's
+    SCALED upscale is an exact integer too)."""
+
+    def make_viewport(self, w, h):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(w, h)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def test_smaller_widget_downscales_and_centres(self):
+        panel = self.make_viewport(SCREEN_W // 2, SCREEN_H)
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertLess(scale, 1.0)
+        self.assertGreaterEqual(ox, 0)
+        self.assertGreaterEqual(oy, 0)
+        # letterboxed axis: the canvas is centred inside the widget
+        self.assertAlmostEqual(SCREEN_H * scale + 2 * oy, panel.height(), delta=1)
+
+    def test_double_size_widget_snaps_to_an_integer_scale(self):
+        panel = self.make_viewport(SCREEN_W * 2, SCREEN_H * 2)
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+
+    def test_fractional_upscale_snaps_down(self):
+        panel = self.make_viewport(int(SCREEN_W * 2.6), int(SCREEN_H * 2.6))
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+        self.assertLessEqual(SCREEN_W * scale + ox, panel.width())
+        self.assertLessEqual(SCREEN_H * scale + oy, panel.height())
+
+
 class TestViewportScreenModeViews(TempDataCase):
     """UH-2: `_current_screen_defaults` resolves the session's active view —
     against the hand-authored FIXTURE_DEFAULTS_VIEWS (pinned membership),
