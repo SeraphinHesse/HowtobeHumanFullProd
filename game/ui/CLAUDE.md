@@ -56,6 +56,43 @@ a second close path. The host turns a right-press into it (`main.py`
 `handle_world_right_click` — right-click dismisses from ANYWHERE, panel and HUD
 included; a right-DRAG past the 4px threshold pans instead and never dismisses).
 Covered by `tools/tests/test_right_click_dismiss.py`.
+**One conditional exception since the drag-selection toggle** — see the section
+below: while `gp["drag_select_enabled"]` is on AND no construct preview is
+open, a right-click on a tile that is CURRENTLY in the multi-selection peels
+that ONE tile out instead of dismissing. Every other right-click (toggle off,
+tile not selected, preview open, anywhere off a selected tile) still reaches
+this ladder unchanged.
+
+## Drag-selection toggle (`btn_drag_select`)
+A HUD toggle that turns one left-press-drag-release into a rectangle (box)
+selection producing the SAME end state Shift+Click multi-select builds one
+click at a time — same `_SEL_CATEGORY` filter, same batch UI in
+`building_ui.py` (unlock chunks / cost×count construct / summed in-tier
+upgrade), which needed NO change for this.
+- **The button lives in `hud.py` and mirrors the `speed_1x`/`_1_5x`/`_2x` row
+  exactly** (same `widgets.Button`, same construct→layout→ids→update→hit→submit
+  shape, same gold-rim-when-active treatment): `self.drag_select_btn`,
+  90×28, font `sm`, laid out at `(12, sy + sh + gap)` — its own row directly
+  under the speed row — and id'd `btn_drag_select`. Its enable rule is
+  `pause`'s (`GAMEPLAY and not self._panel_open`), with **no unlock/round
+  gate**, so it is clickable from round 0.
+- **`Hud.hit()` stays a PURE READ for it** (returns the string
+  `"drag_select"`; the flip happens in `main.py`'s `handle_world_click`, like
+  `("speed", idx)`). This is load-bearing, not style: `main.py` calls
+  `Hud.hit()` **twice per click** — once from the MOUSEBUTTONDOWN `over_ui`
+  pan-arming probe, once for real from `handle_world_click` on MOUSEBUTTONUP —
+  so `MapOverlays.hit()`'s self-toggling pattern would double-fire and cancel
+  itself here. Do not copy it into `Hud`.
+- **The STATE is the host's, not the widget's**: `gp["drag_select_enabled"]`
+  (`game/main.py`), threaded into `Hud.submit(..., drag_select_enabled=False)`
+  once per frame purely to draw the active rim. It lives in `gp` because the
+  event loop reads it when it decides drag-select vs. camera pan. Host wiring
+  (arming, the live rectangle, `finish_drag_select`, the right-click deselect)
+  → `game/CLAUDE.md`'s matching section.
+- **Golden pin**: `test_ui_skinning.py`'s `hud` baseline gained three appended
+  primitives and `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) — the sanctioned "a screen's default geometry
+  changed on purpose" path. Nothing already in either artifact moved.
 
 ## Overhead HP bars
 `effects.py` draws them in TWO passes, both reading live scene state and both

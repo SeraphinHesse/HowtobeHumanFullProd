@@ -195,6 +195,11 @@ def _screen_captures():
 #: (52 + 14 px) and its DEFAULT geometry moved on purpose. Only ``main_menu``
 #: changed — every other screen's entry is byte-identical, which is what says
 #: the change was contained.
+#: Regenerated a FOURTH time (drag-selection toggle): ``hud`` gained the DRAG
+#: SEL toggle button on its own row under the speed row, so three primitives
+#: are APPENDED to that entry. Nothing already in it moved, and every other
+#: screen's entry is byte-identical — which is what says the change was
+#: contained.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 1280, 720), color=(18, 30, 20), border_radius=0, width=0),
@@ -386,6 +391,9 @@ _BASELINE = {
         HudRect(rect=(136, 110, 56, 28), color=(50, 45, 70), border_radius=3, width=0),
         HudRect(rect=(136, 110, 56, 28), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='2×', pos=(164, 118), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(12, 144, 90, 28), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(12, 144, 90, 28), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='DRAG SEL', pos=(57, 152), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "building_panel": [
     ],
