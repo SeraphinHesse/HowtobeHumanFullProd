@@ -738,7 +738,7 @@
         },
         {
           "count_per_round": 1,
-          "count_start": 7,
+          "count_start": 2.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1083,7 +1083,7 @@
         },
         {
           "count_per_round": 4.0,
-          "count_start": 15.0,
+          "count_start": 6.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
