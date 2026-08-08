@@ -1119,6 +1119,67 @@
       "additionalProperties": false,
       "description": "Cross-line building tunables.",
       "properties": {
+        "Movement": {
+          "additionalProperties": false,
+          "description": "Moving an already-placed building to another unbuilt buildable tile. Cost and duration both scale with the Chebyshev tile distance from the origin: value = base + (distance // increment) * increase, or 0 when the matching *_enabled flag is off.",
+          "properties": {
+            "base_love_cost": {
+              "description": "Love charged for a move of distance 0..(love_cost_increase_increment-1) tiles, before any distance steps are added.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "base_moving_time": {
+              "description": "Rounds a move of distance 0..(moving_time_increase_increment-1) tiles takes, before any distance steps are added. 0 with time_cost_enabled on means every move is instant.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "love_cost_increase": {
+              "description": "Extra love added per completed distance step (one step per love_cost_increase_increment tiles of Chebyshev distance).",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "love_cost_increase_increment": {
+              "description": "Tiles of Chebyshev distance per love-cost step. Minimum 1 - the formula floor-divides by this value.",
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "money_cost_enabled": {
+              "description": "If false, moving a building is free (cost is always 0) and the base/increase love keys are ignored.",
+              "type": "boolean"
+            },
+            "moving_time_increase": {
+              "description": "Extra rounds added per completed distance step (one step per moving_time_increase_increment tiles of Chebyshev distance).",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "moving_time_increase_increment": {
+              "description": "Tiles of Chebyshev distance per moving-time step. Minimum 1 - the formula floor-divides by this value.",
+              "maximum": 10000,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "time_cost_enabled": {
+              "description": "If false, moving a building is instant (0 rounds - the building relocates the moment the move is confirmed) and the base/increase time keys are ignored.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "base_love_cost",
+            "base_moving_time",
+            "love_cost_increase",
+            "love_cost_increase_increment",
+            "money_cost_enabled",
+            "moving_time_increase",
+            "moving_time_increase_increment",
+            "time_cost_enabled"
+          ],
+          "type": "object"
+        },
         "defence_range_pathfinding": {
           "additionalProperties": false,
           "description": "Defence coverage feeding enemy path weights (conceptually map, kept here per REPLAN).",
@@ -1252,6 +1313,7 @@
         }
       },
       "required": [
+        "Movement",
         "defence_range_pathfinding",
         "random_names",
         "xp_on_death"

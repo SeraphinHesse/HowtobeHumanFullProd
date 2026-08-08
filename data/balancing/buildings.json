@@ -153,6 +153,16 @@
     }
   },
   "BuildingsGlobal": {
+    "Movement": {
+      "base_love_cost": 10,
+      "base_moving_time": 1,
+      "love_cost_increase": 10,
+      "love_cost_increase_increment": 2,
+      "money_cost_enabled": true,
+      "moving_time_increase": 1,
+      "moving_time_increase_increment": 2,
+      "time_cost_enabled": true
+    },
     "defence_range_pathfinding": {
       "enabled": true,
       "path_weight_add": 1

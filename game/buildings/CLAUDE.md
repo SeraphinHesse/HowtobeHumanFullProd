@@ -243,6 +243,59 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `tier_unlock_cost_per_tier` were removed from the schema — dead weight once
   `build_cost` covers all three).
 
+## Building Movement (`movement.py`)
+Moving an ALREADY-PLACED building to another unbuilt buildable tile.
+`movement.py` is the pure-logic sibling of `registry.place_building`, and
+`start_move` is the ONE legal way a placed building leaves its tile — the same
+"single legal path" rule `place_building` holds for arrivals.
+- **Cost + duration both scale with CHEBYSHEV distance**, floor-divided into
+  steps: `base + (distance // increment) * increase`, or a flat `0` when the
+  matching `*_enabled` flag is off. Every number is
+  `BuildingsGlobal.Movement` in `data/balancing/buildings.json` (G-7); the
+  caller passes that subtree in, this module never loads it. `move_cost` /
+  `move_time` / `move_distance` are pure and are what the UI quotes.
+- **A move in transit is represented by ABSENCE, and that is the whole
+  design.** `start_move` clears the origin tile to `TileState.BUILDABLE` with
+  no occupant/content key and **despawns the building from the scene**. There
+  is deliberately **NO new `TileState` member**: BUILDABLE already resolves to
+  the `buildable_tile` pathfinding weight (walkable, not blocked) with zero
+  changes to `game/map/tiles.py`, and a new member would have rippled through
+  `_STATE_CONTENT_KEY` / `CONDITION_STATE_LABEL` / `_STATE_CODE` /
+  `Tile.is_unlocked` / `TileMap._is_unlocked_state` / `_is_player_territory` /
+  `main.py`'s `_SEL_CATEGORY` for the same runtime behaviour. Because the
+  building is out of the scene, `scene.by_tag("combat")` (combat sweep),
+  `by_tag("building")` (HP bars), payday's `built_tiles()` occupant sweeps
+  (income/upkeep/boost) and the boss goal set all stop seeing it and pick it
+  back up the instant it lands — **with zero new guards in any of them**.
+  There is no `on_removed` hook and none is needed.
+- **`TileMap.moving_orders` + `is_moving` are what tell an endpoint apart**
+  (see `game/map/CLAUDE.md`) — both endpoints stay BUILDABLE for pathfinding
+  but are barred from hosting a new building. That bar is enforced in
+  **`place_building`**, beside the painter-tile bar, for the same reason: the
+  panel refusing to open construct mode on an endpoint is a convenience, the
+  placement seam is the enforcement.
+- **Arrival re-runs `Building.on_placed(tilemap)`** — the same post-placement
+  family hook a fresh placement fires, so a moved booster re-applies its
+  flat-mode buff to its NEW cardinal neighbours. Its OLD neighbours keep
+  whatever `BoostReceiver` state they already had (never touched), and the
+  moved building's own `BoostReceiver` travels with the Python object: it is
+  the SAME object throughout, only its tile changes. `_complete` also moves
+  `_col`/`_row` (the transient caches `Building.col`/`.row` read) AND the
+  `Transform` — miss either and the building draws/targets from where it used
+  to stand.
+- **A Wall Builder can NEVER be moved** — duck-typed on `hasattr(b,
+  "wall_hp")` (`is_movable`), the same check `game/ui/building_ui.py`'s
+  `_building_stats` already uses; its walls are a frozen perimeter snapshot
+  tied to the tile they were raised from. The UI shows the button DISABLED;
+  `start_move` raises `MoveError` regardless.
+- **`rounds == 0` (time cost off, or tuned to zero) relocates synchronously**
+  and records no order at all — nothing to tick, nothing to sign-post.
+  Otherwise a `types.SimpleNamespace` order is appended and `process_moves`
+  (payday's last step, `game/core/CLAUDE.md`) ticks it down.
+- `MOVING_SIGN_SLOT` (`"moving_sign"`, the flat `core`-category art slot the
+  host draws on both endpoints) lives here, with the feature, so the host has
+  one place to import it from.
+
 ## Research / gating seam (10A, regated in the Joel-Balancing pass)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
   `RESEARCH` table of `ResearchSpec` rows (`gate_kind`/`gate_path`,

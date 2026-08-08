@@ -77,6 +77,7 @@ TIERS = {
     "test_base_building": "core",
     "test_boost": "core",
     "test_boss": "core",
+    "test_building_movement": "core",  # Building Movement: move_cost/start_move
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",

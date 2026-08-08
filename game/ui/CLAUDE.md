@@ -388,6 +388,50 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
 
+## Move Building (Building Movement)
+The upgrade panel's fifth mode + a second preview modal. Rules live in
+`game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
+picker and the confirmation.
+- **`BuildingUI.move_btn`** — a mode-independent `Button` built once in
+  `__init__` (the `boss_btn`/`_dice_up` pattern) with the id `move_btn`, and
+  positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
+  **Visible only on a SINGLE selection** — a move is not batchable, the same
+  "tier advance stays primary-only" precedent. A Wall Builder gets the button
+  DISABLED + relabelled `CANNOT BE MOVED` with an `_upgrade_hint`, the same
+  mechanism `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the
+  real enforcement.
+- **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
+  `_highlight_tiles` with every `buildable_tiles()` tile that is not already
+  `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
+  code constant NOT in `_PALETTE_KEYS`, the `C_TUTORIAL_HIGHLIGHT`
+  precedent). The panel body becomes a short instruction card
+  (`_submit_move_select`). **The panel only ever handles panel-space clicks**,
+  so `_move_select_click` just cancels back to upgrade; the destination TILE
+  pick is `game/main.py`'s (see `game/CLAUDE.md`). `dismiss()` gained one more
+  rung — move_select peels back to upgrade before the bare-panel close.
+- **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
+  the dice and the stat list (nothing about the building changes, it just
+  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
+  destination coords, CONFIRM/CANCEL. It reuses the SAME
+  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
+  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
+  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
+  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
+  `panel.preview is not None` modal branch drives it with **no
+  preview-class-specific code**. `_preview_click` is the one place that
+  branches, on `isinstance(self.preview, MovePreview)`.
+- **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
+  opened), call `start_move` in a `try/except MoveError` (flash
+  `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
+  panel outright (the building has vacated its tile, so there is nothing left
+  to show). **CANCEL leaves `mode == "move_select"`** so the player picks a
+  different tile — nothing has moved yet, the same reading `_construct_click`'s
+  cancel has (back to the card list, not to a closed panel).
+- **`open_for_tile` refuses to open construct mode on a move endpoint** —
+  both endpoints are plain BUILDABLE tiles, so without this the panel would
+  offer cards `place_building` then refuses. Convenience only; the bar itself
+  is in `place_building`.
+
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
 ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries

@@ -758,6 +758,12 @@
           "slots": [
             "tutorial_stone"
           ]
+        },
+        {
+          "label": "Moving Sign",
+          "slots": [
+            "moving_sign"
+          ]
         }
       ],
       "key": "core"

@@ -30,6 +30,7 @@ from types import SimpleNamespace
 from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
 )
+from game.buildings.movement import MoveError, is_movable, start_move
 from game.buildings.registry import (
     BUILDING_CLASSES, LIGHTNING_SOURCE_TAG, PlacementError, build_cost,
     count_tag, create, place_building,
@@ -316,6 +317,151 @@ class ConstructPreview:
             sy += 20
 
 
+class MovePreview:
+    """Centered confirmation modal for MOVING an already-placed building
+    (Building Movement) — the ``ConstructPreview`` sibling, minus the name
+    field, the dice and the stat list (nothing about the building changes, it
+    just relocates).
+
+    It deliberately mirrors ``ConstructPreview``'s public surface —
+    ``hover``/``confirm_hovered``/``update``/``handle_click``/``handle_key``/
+    ``submit`` plus a ``confirm_btn`` — so ``main.py``'s existing
+    ``panel.preview is not None`` modal branch and ``BuildingUI._preview_click``
+    drive it with no preview-class-specific code."""
+
+    def __init__(self, building, dest_tile, cost, rounds, ui_balance,
+                 view_w, view_h, skinning=None):
+        self.screen_id = SCREEN_ID
+        self.skinning = skinning or ScreenSkinning.empty()
+        self.building = building
+        self.dest_tile = dest_tile
+        self.cost = cost
+        self.rounds = rounds
+        self.view_w = view_w
+        self.view_h = view_h
+        self.title = _display_name(building)
+        # `main.py`'s modal branch routes keys at the preview too; a move has
+        # nothing to type, so this stays False forever (handle_key is a no-op).
+        self.editing = False
+
+        pw, ph = 340, 190
+        x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
+        self.rect = (x, y, pw, ph)
+        self.close_btn = Button((x + pw - 26, y + 6, 20, 18), "X", "md")
+        btn_y, bw, bh = y + ph - 48, 140, 34
+        left = Button((x + 16, btn_y, bw, bh), "", "lg")
+        right = Button((x + pw - 16 - bw, btn_y, bw, bh), "", "lg")
+        # Same two `ui.Timing` keys ConstructPreview reads — the modal chrome
+        # convention is shared, so a designer flipping them moves both modals.
+        show_cancel = ui_balance["Timing"]["construct_show_cancel"]
+        confirm_right = ui_balance["Timing"]["confirm_on_right_side"]
+        if show_cancel:
+            self.confirm_btn = right if confirm_right else left
+            self.cancel_btn = left if confirm_right else right
+            self.confirm_btn.label = "CONFIRM"
+            self.cancel_btn.label = "CANCEL"
+        else:
+            self.confirm_btn = Button((x + 16, btn_y, pw - 32, bh), "CONFIRM",
+                                      "lg")
+            self.cancel_btn = None
+        # Geometry is fixed for this instance's whole lifetime (a fresh
+        # MovePreview is built each time the modal opens), so ids/apply run
+        # ONCE here — the ConstructPreview pattern, sharing its id namespace
+        # so an existing `preview_*` skin override styles both modals.
+        self._panel = SimpleNamespace(rect=self.rect, skin=None)
+        self.ids = {"preview_panel": ("panel", self._panel),
+                    "preview_close_btn": ("button", self.close_btn),
+                    "preview_confirm_btn": ("button", self.confirm_btn)}
+        if self.cancel_btn is not None:
+            self.ids["preview_cancel_btn"] = ("button", self.cancel_btn)
+        self.skinning.apply(self.screen_id, self.ids)
+        self.rect = self._panel.rect
+
+    @property
+    def total_cost(self):
+        """The ``ConstructPreview.total_cost`` alias: a single move has no
+        batch to sum, so this is just ``cost`` — but ``BuildingUI.hover``
+        reads ``self.preview.total_cost`` unconditionally on ANY preview
+        whose confirm button is hovered, so every preview class must carry
+        the name."""
+        return self.cost
+
+    @property
+    def cost_text(self):
+        return "Cost  Free" if self.cost == 0 else f"Cost  {self.cost}"
+
+    @property
+    def time_text(self):
+        if self.rounds == 0:
+            return "Time  Instant"
+        unit = "round" if self.rounds == 1 else "rounds"
+        return f"Time  {self.rounds} {unit}"
+
+    def hover(self, mx, my, mouse_down=False):
+        for btn in (self.confirm_btn, self.close_btn):
+            btn.hover(mx, my, mouse_down)
+            btn.hovered = btn.hovered and is_visible(btn)
+        if self.cancel_btn is not None:
+            self.cancel_btn.hover(mx, my, mouse_down)
+            self.cancel_btn.hovered = (self.cancel_btn.hovered
+                                       and is_visible(self.cancel_btn))
+
+    def confirm_hovered(self):
+        return self.confirm_btn.hovered
+
+    def update(self, dt):
+        self.confirm_btn.update(dt)
+        self.close_btn.update(dt)
+        if self.cancel_btn is not None:
+            self.cancel_btn.update(dt)
+
+    def handle_click(self, mx, my):
+        """Return an action string (``confirm`` / ``cancel`` / ``close`` /
+        None) — the ConstructPreview contract ``_preview_click`` reads."""
+        if is_visible(self.close_btn) and self.close_btn.hit(mx, my):
+            return "close"
+        if (self.cancel_btn is not None and is_visible(self.cancel_btn)
+                and self.cancel_btn.hit(mx, my)):
+            return "cancel"
+        if is_visible(self.confirm_btn) and self.confirm_btn.hit(mx, my):
+            return "confirm"
+        return None
+
+    def handle_key(self, char, key):
+        """No text entry on this modal — deliberately inert, so the host's
+        uniform `preview.handle_key(...)` routing needs no branch."""
+
+    def submit(self, renderer, anim_ms=0):
+        x, y, w, h = self.rect
+        # Submission order (game/ui/CLAUDE.md "panel -> button -> text").
+        if is_visible(self._panel):
+            submit_panel(renderer, self.rect, fill=widgets.C_UI_PANEL,
+                        border=widgets.C_UI_BORDER, skin=self._panel.skin,
+                        tint=getattr(self._panel, "tint", None),
+                        anim_ms=anim_ms)
+        if is_visible(self.confirm_btn):
+            self.confirm_btn.submit(renderer, anim_ms=anim_ms,
+                                    **button_kwargs(self.confirm_btn))
+        if self.cancel_btn is not None and is_visible(self.cancel_btn):
+            self.cancel_btn.submit(renderer, anim_ms=anim_ms,
+                                   **button_kwargs(self.cancel_btn))
+        if is_visible(self.close_btn):
+            self.close_btn.submit(renderer, anim_ms=anim_ms,
+                                  **button_kwargs(self.close_btn))
+        cx = x + w // 2
+        submit_text(renderer, "MOVE BUILDING", (cx, y + 12), "lg",
+                    widgets.C_UI_TEXT, align="center")
+        submit_text(renderer, self.title, (cx, y + 40), "md",
+                    widgets.C_UI_TEXT_DIM, align="center")
+        submit_text(renderer, self.cost_text, (cx, y + 72), "md",
+                    widgets.C_GOLD, align="center")
+        submit_text(renderer, self.time_text, (cx, y + 96), "md",
+                    widgets.C_MOVE_HIGHLIGHT, align="center")
+        submit_text(renderer,
+                    f"to ({self.dest_tile.col}, {self.dest_tile.row})",
+                    (cx, y + 120), "sm", widgets.C_UI_TEXT_DIM, align="center")
+
+
 class BuildingUI:
     def __init__(self, view_w, view_h, ui_balance, skinning=None):
         self.screen_id = SCREEN_ID
@@ -361,6 +507,14 @@ class BuildingUI:
             (self.panel_x + self.panel_w - 28, 8, 20, 18), "X", "md")
         self.action_btn = Button(
             (self.panel_x + 12, 0, self.panel_w - 24, 36), "", "lg")
+        # Building Movement: the upgrade panel's MOVE BUILDING action. Built
+        # once here (the boss_btn/_dice_up mode-independent pattern) and
+        # repositioned below action_btn by _build_upgrade; only ever visible in
+        # upgrade mode on a SINGLE selection.
+        self.move_btn = Button(
+            (self.panel_x + 12, 0, self.panel_w - 24, 30), "MOVE BUILDING",
+            "md")
+        self.move_btn.visible = False
         self.cards = []
         # -- 10G boss: base_info "BOSS CHOICES" button + history popup --
         self.boss_btn = Button(
@@ -390,6 +544,7 @@ class BuildingUI:
             "panel": ("panel", self._panel),
             "close_btn": ("button", self.close_btn),
             "action_btn": ("button", self.action_btn),
+            "move_btn": ("button", self.move_btn),
             "boss_btn": ("button", self.boss_btn),
             "rename_dice_btn": ("button", self._dice_up),
             "boss_close_btn": ("button", self._boss_close_btn),
@@ -447,6 +602,11 @@ class BuildingUI:
             self._boss_popup_open = False
             self._boss_hover_row = -1
             return True
+        # Building Movement: destination-picking peels back to the upgrade
+        # panel it was entered from, one more rung on the same ladder.
+        if self.mode == "move_select":
+            self._back_to_upgrade(self._session)
+            return True
         if self.visible:
             self.close()
             return True
@@ -494,6 +654,14 @@ class BuildingUI:
             self.mode, self.tile = "unlock", tile
             self._build_unlock(session)
         elif st == TileState.BUILDABLE:
+            # Building Movement: an endpoint of a move in progress is a plain
+            # BUILDABLE tile (so enemies keep pathing through it) but cannot be
+            # built on — the panel stays closed rather than offering cards that
+            # `place_building` would refuse. That refusal is the enforcement;
+            # this is the convenience, same split as the painter-tile bar.
+            if session.tilemap.is_moving(tile.col, tile.row):
+                self.mode = self.tile = None
+                return
             self.mode, self.tile = "construct", tile
             self._build_construct()
         elif st == TileState.BUILT:
@@ -609,6 +777,37 @@ class BuildingUI:
         self.action_btn.label = label
         self._action_cost = cost if self.action_btn.enabled else 0
         self._upgrade_hint = hint
+        self._build_move_btn()
+
+    def _build_move_btn(self):
+        """Position + gate the MOVE BUILDING button (Building Movement).
+
+        Visible only in upgrade mode on a SINGLE selection — a move is not
+        batchable, the same "tier advance stays primary-only" precedent
+        ``_build_upgrade`` already follows. A Wall Builder can never be moved,
+        so its button is shown DISABLED with a hint (the ``_upgrade_hint``
+        mechanism the RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather
+        than silently vanishing — the real enforcement is ``start_move``."""
+        ax, ay, aw, ah = self.action_btn.rect
+        self.move_btn.rect = (ax, ay + ah + 8, aw, 30)
+        self.move_btn.visible = len(self.selected_tiles) == 1
+        movable = self._selected is not None and is_movable(self._selected)
+        self.move_btn.enabled = movable
+        if not movable and self.move_btn.visible:
+            self.move_btn.label = "CANNOT BE MOVED"
+            if not self._upgrade_hint:
+                self._upgrade_hint = "A wall builder is rooted to its tile"
+        else:
+            self.move_btn.label = "MOVE BUILDING"
+
+    def _build_move_select(self, session):
+        """Highlight every legal move destination: an unbuilt BUILDABLE tile
+        that is not already an endpoint of a move in progress."""
+        self._highlight_edges = []
+        self._highlight_tiles = [
+            (t.col, t.row, widgets.C_MOVE_HIGHLIGHT)
+            for t in session.tilemap.buildable_tiles()
+            if not session.tilemap.is_moving(t.col, t.row)]
 
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
@@ -737,6 +936,11 @@ class BuildingUI:
                 self._dice_up.hover(mx, my, mouse_down)  # 10J rename dice
                 self._dice_up.hovered = (self._dice_up.hovered
                                          and is_visible(self._dice_up))
+                # Building Movement: the MOVE BUILDING button. No hover cost —
+                # the price depends on the destination, which isn't picked yet.
+                self.move_btn.hover(mx, my, mouse_down)
+                self.move_btn.hovered = (self.move_btn.hovered
+                                         and is_visible(self.move_btn))
         elif self.mode == "base_info":
             # -- 10G boss: base_info button + popup row hover (desc tooltip) --
             self.boss_btn.hover(mx, my, mouse_down)
@@ -786,9 +990,31 @@ class BuildingUI:
             return self._construct_click(mx, my, session, buildings_balance)
         if self.mode == "upgrade":
             return self._upgrade_click(mx, my, session)
+        if self.mode == "move_select":
+            return self._move_select_click(mx, my, session)
         if self.mode == "base_info":
             return self._base_info_click(mx, my, session)
         return contains(self.panel_rect, mx, my)  # consume inside the panel
+
+    def _move_select_click(self, mx, my, session):
+        """Building Movement: while picking a destination the panel only has to
+        handle clicks INSIDE itself — a click on the world is the tile pick and
+        is `game/main.py`'s job. Anything inside the panel (the close button
+        already handled above) cancels back to upgrade mode."""
+        if contains(self.panel_rect, mx, my):
+            self._back_to_upgrade(session)
+            return True
+        return False
+
+    def _back_to_upgrade(self, session):
+        """Leave move-select and restore the ordinary upgrade view — the same
+        rebuild + highlight restore ``open_for_tile``'s upgrade branch does."""
+        self.mode = "upgrade"
+        self.preview = None
+        self._build_upgrade()
+        if self._selected is not None and session is not None:
+            self._set_range_highlight(self._selected, session.tilemap)
+            self._set_wall_highlight(self._selected, session.tilemap)
 
     def _unlock_click(self, mx, my, session):
         if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
@@ -868,6 +1094,15 @@ class BuildingUI:
         if self._name_editing:
             self._commit_rename()
         # -- /10J --
+        # Building Movement: enter destination-picking mode. The tile pick
+        # itself happens in `game/main.py` (the panel only ever sees
+        # panel-space clicks); this just arms the mode + the highlight set.
+        if (is_visible(self.move_btn) and self.move_btn.enabled
+                and self.move_btn.hit(mx, my)):
+            self.mode = "move_select"
+            self._upgrade_hint = None
+            self._build_move_select(session)
+            return True
         if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
             if mode not in ("in_tier", "tier_upgrade"):
@@ -915,10 +1150,47 @@ class BuildingUI:
                        occupancy):
         action = self.preview.handle_click(mx, my)
         if action == "confirm":
-            self._do_place(session, buildings_balance, scene, occupancy)
+            if isinstance(self.preview, MovePreview):
+                self._do_move(session, buildings_balance, scene, occupancy)
+            else:
+                self._do_place(session, buildings_balance, scene, occupancy)
         elif action in ("cancel", "close"):
+            # Cancelling a MovePreview leaves `mode == "move_select"` on
+            # purpose: nothing has moved yet, so the player drops straight
+            # back to picking a different destination — the same "cancel undoes
+            # the modal, not the mode" reading `_construct_click`'s cancel has
+            # (it returns to the construct card list, not to a closed panel).
             self.preview = None
         return True  # modal consumes every click
+
+    def _do_move(self, session, buildings_balance, scene, occupancy):
+        """Confirm a MovePreview (Building Movement) — the ``_do_place``
+        shape. ``start_move`` is the enforcement point; everything here is the
+        love spend + the panel reset."""
+        p, st = self.preview, session.state
+        if st.love < p.cost:
+            p.confirm_btn.start_flash(self._flash_dur, "NOT ENOUGH LOVE")
+            return
+        try:
+            cost, rounds = start_move(
+                session.tilemap, self._selected, p.dest_tile,
+                buildings_balance["BuildingsGlobal"]["Movement"], st.love,
+                occupancy, scene)
+        except MoveError:
+            # A race since the modal opened (the destination got built on, or
+            # another move claimed it) — flash and leave the player in
+            # move_select to pick again.
+            p.confirm_btn.start_flash(self._flash_dur, "CANNOT MOVE THERE")
+            return
+        st.spend_love(cost)
+        if self.log is not None:
+            self.log.post("Building moved" if rounds == 0
+                          else f"Building moving — {rounds} rounds")
+        self.preview = None
+        # The building has vacated its tile, so there is nothing left to show
+        # for it here — close outright, exactly as the panel does when a
+        # painter's tile frees itself.
+        self.close()
 
     def _do_place(self, session, buildings_balance, scene, occupancy):
         """Place on every selected tile (10J batch; single tile = a 1-batch).
@@ -964,6 +1236,7 @@ class BuildingUI:
         self._clock += dt
         self.action_btn.update(dt)
         self.close_btn.update(dt)
+        self.move_btn.update(dt)          # Building Movement
         self._dice_up.update(dt)  # 10J rename dice
         self.boss_btn.update(dt)          # -- 10G boss --
         self._boss_close_btn.update(dt)   # -- 10G boss --
@@ -1006,6 +1279,8 @@ class BuildingUI:
             self._submit_construct(renderer, t)
         elif self.mode == "upgrade":
             self._submit_upgrade(renderer, t)
+        elif self.mode == "move_select":
+            self._submit_move_select(renderer, t)
         elif self.mode == "base_info":
             self._submit_base_info(renderer, session, t)
         # -- 10I: the hovered terrain tooltip draws LAST, on top of the panel
@@ -1169,10 +1444,35 @@ class BuildingUI:
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
+        # Building Movement: MOVE BUILDING sits directly under the upgrade
+        # action button (single selection only — see _build_move_btn).
+        if is_visible(self.move_btn):
+            self.move_btn.submit(renderer, anim_ms=anim_ms,
+                                 **button_kwargs(self.move_btn))
         if self._upgrade_hint:
             bx, by, bw, bh = self.action_btn.rect
+            if is_visible(self.move_btn):
+                bx, by, bw, bh = self.move_btn.rect
             submit_text(renderer, self._upgrade_hint, (bx + bw // 2, by + bh + 6),
                         "sm", widgets.C_UI_TEXT_DIM, align="center")
+
+    def _submit_move_select(self, renderer, anim_ms=0):
+        """The destination-picking view (Building Movement): the panel becomes
+        a short instruction card while every legal tile is highlighted in the
+        world (the `_highlight_tiles` loop in `submit`, above)."""
+        x, b = self.panel_x + 14, self._selected
+        submit_text(renderer, "MOVE BUILDING", (x, 16), "lg", widgets.C_UI_TEXT)
+        if b is not None:
+            submit_text(renderer, _display_name(b), (x, 52), "md",
+                        widgets.C_UI_TEXT_DIM)
+        submit_text(renderer, "Pick a highlighted tile", (x, 96), "md",
+                    widgets.C_MOVE_HIGHLIGHT)
+        submit_text(renderer, "Cost and time grow with", (x, 124), "sm",
+                    widgets.C_UI_TEXT_DIM)
+        submit_text(renderer, "the distance moved.", (x, 140), "sm",
+                    widgets.C_UI_TEXT_DIM)
+        submit_text(renderer, "Click the panel to cancel.", (x, 168), "sm",
+                    widgets.C_UI_TEXT_DIM)
 
     # -- 10I: terrain badge + effect tooltip (prototype building_ui.py
     # :998-1014 badge, :1418-1438 effect lines, :1440-1477 chrome/footer) ----

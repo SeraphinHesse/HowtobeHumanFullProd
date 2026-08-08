@@ -321,6 +321,17 @@
               18
             ]
           },
+          "move_btn": {
+            "display_name": "Move building button",
+            "kind": "button",
+            "label": "MOVE BUILDING",
+            "rect": [
+              1032,
+              644,
+              236,
+              30
+            ]
+          },
           "panel": {
             "display_name": "Building panel",
             "kind": "panel",
@@ -389,6 +400,17 @@
           8,
           20,
           18
+        ]
+      },
+      "move_btn": {
+        "display_name": "Move building button",
+        "kind": "button",
+        "label": "MOVE BUILDING",
+        "rect": [
+          1032,
+          644,
+          236,
+          30
         ]
       },
       "panel": {

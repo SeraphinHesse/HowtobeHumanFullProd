@@ -4770,6 +4770,24 @@
       ],
       "sheet": "imported/meditator_t1_lvl1.png"
     },
+    "moving_sign": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/moving_sign.png"
+    },
     "painter_t1_lvl1": {
       "anchors": {
         "floater_origin": [

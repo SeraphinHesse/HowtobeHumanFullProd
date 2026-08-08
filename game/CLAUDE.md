@@ -426,6 +426,29 @@ did change — see the fixed callouts above).
   feed are unaffected, only which literal round they fire on shifted down by
   one.
 
+## Building Movement — host wiring
+The feature's rules are `game/buildings/movement.py`
+(`game/buildings/CLAUDE.md`), its panel/modal `game/ui/building_ui.py`
+(`game/ui/CLAUDE.md`). `main.py` owns exactly two pieces:
+- **The destination click.** `handle_world_click`'s BUILDING branch gained one
+  check immediately after `tile = tile_at_screen(...)`: while
+  `panel.mode == "move_select"`, the click is the destination pick and never a
+  selection change — `_pick_move_destination(tile, session)` then `return`
+  (the phase/mode-conditional shape the ENEMY-phase lightning branch below it
+  already has, not a new subsystem). A click on anything but a legal tile
+  (unbuilt BUILDABLE and not already `tilemap.is_moving`) is a **silent
+  no-op** so the player keeps picking; the panel is the cancel affordance.
+  The helper only OPENS a `MovePreview` — `start_move` (via
+  `BuildingUI._do_move`) stays the single legal seam that moves anything.
+- **The in-transit signpost.** A loop over `world.tile_map.moving_orders` in
+  the world-overlay pass (beside the tutorial tile highlight, before
+  `panel.submit`) draws the `moving_sign` slot as a `HudSprite` at BOTH
+  endpoints plus a `submit_text` round countdown. `moving_sign_art` is a
+  boot-time `manifest.entry(MOVING_SIGN_SLOT) is not None` bool, derived once
+  exactly like `condition_art`/`tree_slots`/`wall_art` — E-37: an unimported
+  slot draws only the countdown, never a grey X. `moving_orders` is empty on
+  effectively every frame, so this costs one list check.
+
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:
 - **Every tile-state write goes through `TileMap.set_tile_state`** (keeps the

@@ -349,6 +349,20 @@ Conventions that differ from the prototype (deliberate, clean-arch):
       `submit_overlay_lines` consumes), COMPUTED from the delta rather than
       from a second lookup table, so it and `SIDE_OF_DELTA` cannot disagree;
       `None` for a non-adjacent pair.
+- **`TileMap.moving_orders` + `is_moving(col, row)` (Building Movement)**: a
+  plain list of buildings currently IN TRANSIT between two tiles. Entries are
+  duck-typed `types.SimpleNamespace`s (`building` / `from_col` / `from_row` /
+  `to_col` / `to_row` / `rounds_left`) built by `game/buildings/movement.py`
+  and ticked down by payday — **this module imports NOTHING from
+  `game.buildings`**, exactly as `wall_edges` duck-types its `owner`.
+  **Both endpoints of a live order stay ordinary `BUILDABLE` tiles with no
+  occupant**, so they resolve to the `buildable_tile` weight and enemies walk
+  straight through them; `is_moving` is the ONLY thing that distinguishes
+  them, and its one consumer-facing job is barring a new building from either
+  (enforced in `game/buildings/registry.py place_building`, not here). A new
+  `TileState` member was deliberately rejected for this — see
+  `game/buildings/CLAUDE.md`'s Building Movement section for why. O(orders),
+  and orders are a handful at most, so this adds nothing to any hot path.
 - **Occupancy is occupant-driven and updated incrementally**: a tile with a
   GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
   impassability is a weight concern, not occupancy). Placement seams
