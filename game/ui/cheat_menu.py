@@ -45,7 +45,12 @@ from .widgets import (
 from . import widgets
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
-_PANEL_W, _PANEL_H = 110, 144
+# UR-5: the panel widened 110 -> 124. Its rows carry unhalved "md" labels, and
+# at 100px of row width "Unlock All Tech" (measured 105px) and "Infinite Money"
+# (98px) no longer fit — the widest label needs 105 + 4px of margin, i.e. a
+# 114px row, i.e. a 124px panel. The row HEIGHT is a separate, deliberate
+# non-fix: 13px == layout_h("md"), legible but under the 16px comfort lint.
+_PANEL_W, _PANEL_H = 124, 144
 _TITLE = "CHEATS"
 _MAX_DIGITS = 4  # prototype round-field cap
 
@@ -134,14 +139,20 @@ class CheatMenu:
         px = view_w // 2 - _PANEL_W // 2
         py = view_h // 2 - _PANEL_H // 2
         self.panel_rect = (px, py, _PANEL_W, _PANEL_H)
-        self.close_btn.rect = (px + _PANEL_W - 13, py + 3, 10, 9)
+        # UR-5: 14x13, not UR-2's halved 10x9 — under the 12px click-target
+        # floor and 4px shorter than its own "md" glyph (layout_h 13).
+        self.close_btn.rect = (px + _PANEL_W - 17, py + 3, 14, 13)
         y = py + 16
         for _action, btn in self.buttons:
             btn.rect = (px + 5, y, _PANEL_W - 10, 13)
             y += 15
         self._divider_y = y + 2
-        self.field_rect = (px + 5, y + 13, 48, 11)
-        self.go_btn.rect = (px + 56, y + 13, _PANEL_W - 61, 11)
+        # UR-5: the round field + GO row is 13 tall, not UR-2's halved 11 —
+        # 11 sat under the 12px click-target floor and clipped the field's own
+        # "sm" text (layout_h 11 with no room for the 1px box border). At the
+        # widened panel the GO button is 63px for a 56px label.
+        self.field_rect = (px + 5, y + 13, 48, 13)
+        self.go_btn.rect = (px + 56, y + 13, _PANEL_W - 61, 13)
         # -- 10L-B: cached-dict setattr loop, zero disk I/O per call (the
         # menu's submit() calls layout() every frame it stays open) --
         self._panel.rect = self.panel_rect

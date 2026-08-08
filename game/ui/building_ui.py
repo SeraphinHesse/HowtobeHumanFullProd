@@ -61,6 +61,11 @@ SCREEN_ID = "building_panel"
 _COND_TOOLTIP_BG = (20, 15, 35)
 # -- 10J: the name-dice glyph (prototype building_ui.py:106) --
 _DICE_GLYPH = "⚄"
+# UR-5: the "X" close button. UR-2's halved 20x18 -> 10x9 sat under the 12px
+# click-target floor AND was 4px shorter than its own "md" label (layout_h 13),
+# which the centred draw then overhung top and bottom. 14x13 is the smallest
+# box that holds the glyph and clears the floor.
+_CLOSE_W, _CLOSE_H = 14, 13
 
 
 def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count):
@@ -169,7 +174,8 @@ class ConstructPreview:
         self.name_rect = (x + 8, y + 48, pw - 16 - 18, 15)
         self.dice_btn = Button((x + pw - 8 - 15, y + 48, 15, 15),
                                _DICE_GLYPH, "md")
-        self.close_btn = Button((x + pw - 13, y + 3, 10, 9), "X", "md")
+        self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
+                                "X", "md")
         btn_y, bw, bh = y + ph - 24, 70, 17
         left = Button((x + 8, btn_y, bw, bh), "", "lg")
         right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
@@ -347,7 +353,8 @@ class MovePreview:
         pw, ph = 170, 95
         x, y = view_w // 2 - pw // 2, view_h // 2 - ph // 2
         self.rect = (x, y, pw, ph)
-        self.close_btn = Button((x + pw - 13, y + 3, 10, 9), "X", "md")
+        self.close_btn = Button((x + pw - 17, y + 3, _CLOSE_W, _CLOSE_H),
+                                "X", "md")
         btn_y, bw, bh = y + ph - 24, 70, 17
         left = Button((x + 8, btn_y, bw, bh), "", "lg")
         right = Button((x + pw - 8 - bw, btn_y, bw, bh), "", "lg")
@@ -496,15 +503,19 @@ class BuildingUI:
         # -- 10J: upgrade-panel rename row + dice; host callbacks --
         self._name_editing = False
         self._name_buf = ""
-        self._name_box_rect = (self.panel_x + 7, 20, self.panel_w - 32, 11)
+        # UR-5: the rename row is 15 tall, not UR-2's halved 11 — the text
+        # inside it is "sm" (layout_h 11) drawn at +2, and the dice glyph is
+        # "md" (layout_h 13); an 11px row clipped both, and the 12x11 dice was
+        # under the 12px click-target floor.
+        self._name_box_rect = (self.panel_x + 7, 20, self.panel_w - 32, 15)
         self._dice_up = Button(
-            (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 12, 11),
+            (self.panel_x + 7 + self.panel_w - 32 + 3, 20, 14, 15),
             _DICE_GLYPH, "md")
         self.log = None               # GameLog, wired by the host
         self.on_build_vfx = None      # (col, row, kind) -> None, wired by host
         # -- /10J --
         self.close_btn = Button(
-            (self.panel_x + self.panel_w - 14, 4, 10, 9), "X", "md")
+            (self.panel_x + self.panel_w - 18, 4, _CLOSE_W, _CLOSE_H), "X", "md")
         self.action_btn = Button(
             (self.panel_x + 6, 0, self.panel_w - 12, 18), "", "lg")
         # Building Movement: the upgrade panel's MOVE BUILDING action. Built
