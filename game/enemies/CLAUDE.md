@@ -1,4 +1,4 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4 + NE-1 + NE-2)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4 + NE-1 + NE-2 + NE-3)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
@@ -10,7 +10,10 @@ sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
 (`ENABLE_SNIPER = True`, `start_round: 26`) and is the first type that fights at
 RANGE — see "Ranged stand-off" below. The eighth, **`Digger`, is LIVE since
 NE-2** (`ENABLE_DIGGER = True`, from `start_round: 35`) and is the one type
-that adds a genuinely new state machine — see its section below. When you
+that adds a genuinely new state machine — see its section below. The ninth,
+**`Drummer`, is LIVE since NE-3** (`ENABLE_DRUMMER = True`, from round 25) and
+brings the game's FIRST buff/aura mechanism with it — read its section before
+adding any status effect. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
 `/add-enemy` skill.**
 
@@ -606,6 +609,119 @@ descriptions:
   if it is ever wanted. Pinned by
   `test_enemies.TestDigger.test_no_diggers_on_a_boss_round`.
 
+## Drummer (NE-3) — the FIRST buff/aura mechanism in the game
+A support unit that marches at the hole like a walker (`hunts: "base"`, so the
+generic `Enemy.on_spawn` takes the original byte-identical branch) and hits for
+almost nothing. Everything it does is the aura. **Read this before adding any
+status effect, buff, debuff or aura to anything** — the per-source model below
+is the pattern, and a second one would be a second state machine for the same
+question.
+
+- **The subclass is four class attrs plus ONE extra component.** `ETYPE
+  "drummer"`, `REGISTRY_GROUP "Drummer"`, `DEFAULT_SLOT "drummer_stage_1"`,
+  `STAT_SUBTREE ("Drummer",)`. No `__init__`, no `on_spawn`, no
+  `_resolve_stats` (the Commander's D8 rule holds: the base `STAT_SUBTREE`
+  resolver reads its own `EnemyTypes.Drummer.eras` rows; the Boss's is still
+  the ONE override in the module), no `_resolve_era`, no `EXTRA_TAGS`, default
+  14×2 HP bar. `sprite_scale` 1.15 is the "slightly taller" cosmetic ask and is
+  pure data.
+- **`Enemy.extra_components(block)` is the seam for "this type needs a
+  mechanism nothing else has"** — a classmethod beside `resolve_fit` /
+  `resolve_phase_row` / `endgame_factors`, returning components appended after
+  the shared list. Base returns `()`, so every stock type is byte-identical.
+  It exists so a subclass never has to reimplement `__init__` (and re-derive
+  the era/stat/fit resolution it would have to copy to do that) just to add
+  one component. It is called BEFORE `GameObject.__init__` has run, so it must
+  read only the resolved balancing block, never instance state.
+- **Two components, split by capability — the `DeathSpawn`/`advance_second_
+  phase` rule again.** `BuffState` is the passive LEDGER and owns every
+  consequence; `DrummerAura` is the SCANNER and owns nothing.
+  - **`BuffState` is on EVERY enemy type's component list** (second, right
+    after `Health`), the `Kidnap` "declared field, usually inert" shape: empty
+    it costs one dict-truthiness test per frame. It is second on purpose — a
+    contribution that expires this frame is undone before `PathAgent` reads
+    the buffed move speed and `EnemyCombat` reads the buffed damage/clock in
+    the same frame. **Nothing pins any type's component list or count**
+    (checked: `test_core.py`'s `len(go2.components)` is a generic GameObject,
+    not an enemy), which is what made adding it to all seven types safe.
+  - **`DrummerAura` lives only on Drummer instances** and does one thing per
+    frame: scan `scene.by_tag("enemy")` and re-apply THIS drummer's
+    contribution to everything within Chebyshev `support_range`. It keeps no
+    list of who it has buffed, so it can die at any moment without leaking a
+    buff. It never buffs itself. Cost is `drummers × enemies` tile tests per
+    frame; drummers are 1–4 per wave by design.
+- **The ledger is keyed by SOURCE, and that one decision buys both D6 and
+  D7.** `BuffState.sources` maps the buffing `GameObject.id` (a uuid hex —
+  which is what keeps the whole thing JSON-safe, E-11) to
+  `{"hp": int, "dmg": float, "move_speed": float, "attack_speed": float,
+  "decay": float}`. `hp` is an ABSOLUTE amount; the other three are FRACTIONS.
+  - **Stacking is additive** (D7): `total(key)` sums every live contribution,
+    so two Drummers are exactly twice one. Each grant is sized off
+    `base_max_hp` (`Health.max_hp` minus every live hp grant), **never off the
+    already-buffed max** — that is the difference between additive and
+    compounding, and it is why `hp` is stored as an amount and not a fraction.
+  - **Decay is per source and needs no "left the radius" event** (D7):
+    `apply` re-pins that ONE source's `decay` to `BUFF_DECAY_SECONDS` (4.0, a
+    module constant — the `CARRY_OFFSET_TILES` precedent, deliberately NOT a
+    balancing leaf) every frame it is sustained. "Four seconds after leaving"
+    is simply the fourth second after the last frame anything re-pinned it.
+  - **The clock lives on `BuffState`, not on the aura** — load-bearing: a
+    Drummer that DIES stops re-pinning, and its buff then fades on the same 4s
+    clock with no component of its own left to run. Put the timer on the
+    source and a killed Drummer's buff would either hang forever or vanish
+    instantly.
+- **`_grant_hp(delta)` is the ONE place `Health` is touched**, both
+  directions, which is what makes grant and un-grant provably symmetric (D6):
+  a positive delta raises `max_hp` AND `hp` by the same amount (a real heal,
+  not headroom); a negative one shrinks `max_hp` and clamps `hp` **only if it
+  is now above the new max** (a unit already damaged below it keeps what it
+  has). Re-applying an UNCHANGED amount touches `Health` not at all — that is
+  what stops a parked Drummer from healing a wounded unit to full every frame.
+- **The other three stats are READ-SITE multipliers, never written into the
+  component field.** `buff_total(owner, key)` is the guarded front door (0.0
+  for a building/stub/no-contributions owner). Three sites, one per stat, and
+  each is the *only* place its stat is resolved:
+  - `EnemyCombat.buffed_dmg` — read by `Enemy.dmg` (base hits + the combat
+    sweep's telemetry) AND by `_effective_dmg` (blocking-building and wall
+    attacks, which layer the tile-condition bonus **on top** of it, so the two
+    compound). One property, so an aura can never reach one and miss the other.
+  - `EnemyCombat.buffed_attack_speed` — the leaf is an INTERVAL, so a bonus
+    **divides**: `attack_speed / (1 + bonus)`. +10% means 10% more swings, not
+    10% slower. Both `self.cooldown = …` resets read it.
+  - `PathAgent._condition_speed()` — scales `_real_speed` **before** the
+    terrain penalty and the `min_speed_fraction` floor. This has to be the
+    site: writing a bonus into `Movement.speed` directly is overwritten by
+    this method on the very next walking frame.
+- **`Enemy._scene` — the scene transient, set by `Spawner._attach_scene`.**
+  `Scene` hands objects no reference to itself (`on_spawn()` takes no
+  argument), so a component that must QUERY the world needs the host that
+  builds the enemy to give it one. An underscore transient exactly like
+  `PathAgent._tilemap` / `Kidnap._scene` (legal past the E-11 setattr seal),
+  set at BOTH spawner construction sites — the wave pop and `_spawn_child`, so
+  a death-spawn or second-phase child is as world-aware as a queued one. An
+  enemy built outside the spawner simply has no `_scene`, and every consumer
+  treats that as inert. **This is also the seam NE-2's Digger claim wants** —
+  do not invent a second one.
+- **Composition**: `_drummer_group` is called LAST in `_compose`, after
+  `_commander_group` — the same rng rule every newer group follows (an earlier
+  call site moves every deterministic wave fixture). Body-mixed, never
+  queue-leading: a support unit ahead of the units it supports buffs nothing.
+  Zero before round 25, so rounds 0–24 are byte-identical to BR-5. **Drummers
+  never spawn on a boss round**, exactly like Formations and for exactly the
+  same reason (`Boss.round_counts` is `$defs/spawn_counts`, shared with every
+  `death_spawn.spawns` row); it is a one-line `+ self._drummer_group(...)`
+  into `_boss_round`'s `rest` if that is ever wanted.
+- **OPEN ITEM, flagged not resolved — `attack_speed_increase` and
+  `support_range_increase`.** The design's prose says the Drummer buffs
+  "dmg/hp/movement speed"; its own variable list also names those two. NE-3
+  implemented the more specific list, so the data shape is future-proof:
+  `attack_speed_increase` IS wired and live (0.10), and
+  **`support_range_increase` is a deliberately INERT leaf at 0 — nothing reads
+  it and there is no era-growth mechanic behind it.** Do not "finish" either
+  one on your own initiative; the scope question is the user's to answer.
+  Pinned by `test_enemies.TestDrummer.test_support_range_increase_is_inert_
+  as_shipped`, which goes red the moment someone wires it up.
+
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
 transients set once by `Enemy.__init__` (E-11: a dict/str resolved from
@@ -674,7 +790,7 @@ JSON-safe).
     what armed `"structure"`, on the new `Digger`** — which does NOT route
     through the generic `Enemy.on_spawn` branch below, because it needs the
     claim exclusion; see the Digger section above):
-    `Standard`/`Formation` `"base"`, `Raider` `"economic"`,
+    `Standard`/`Formation`/`Drummer` `"base"`, `Raider` `"economic"`,
     `SiegeCannon`/`Sniper` `"defence"`, `Boss`/`Commander` `"any_non_base"`,
     `Digger` `"structure"`.
 - **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,

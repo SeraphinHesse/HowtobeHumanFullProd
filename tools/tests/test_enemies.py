@@ -33,12 +33,15 @@ from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
     BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss, Commander, Digger,
-    DirtPile, DIRT_PILE_SLOT, Enemy, Formation, Projectile, Raider,
+    DirtPile, DIRT_PILE_SLOT, Drummer, Enemy, Formation, Projectile, Raider,
     SiegeCannon, Sniper, Spawner, attack_interval, create_enemy,
     resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
-from game.enemies.components import BurrowAgent, EnemyCombat, Kidnap, PathAgent
+from game.enemies.components import (
+    BUFF_DECAY_SECONDS, BuffState, BurrowAgent, DrummerAura, EnemyCombat,
+    Kidnap, PathAgent,
+)
 from game.enemies.dirt_pile import DirtPileFade
 from game.enemies.enemy import ENEMY_CLASSES
 from game.map.tile_map import TileMap
@@ -1668,6 +1671,331 @@ class TestStandOffIsOffForEveryOtherType(SniperCase):
             blocker.get_component(RoundStats).dmg_taken_this_round, e.dmg)
 
 
+DRUM = ENEM["EnemyTypes"]["Drummer"]
+
+
+class TestDrummer(unittest.TestCase):
+    """NE-3 — the game's FIRST buff/aura mechanism, so these pin the model
+    itself and not just one enemy type: additive per-source stacking, the
+    D6 heal-on-apply / shrink-and-clamp-on-decay hp rule, and the per-source
+    4-second decay clock that starts the frame a Drummer stops sustaining.
+
+    Board is one row, base at (0, 0): b b c c c c s s."""
+
+    ROWS = ["bbccccss"]
+
+    def _board(self):
+        return synth(self.ROWS), Scene()
+
+    def _spawn(self, scene, tm, etype, col, row, era=0, pos=1):
+        """Construct + spawn ONE enemy, wiring the scene by hand exactly the
+        way ``Spawner._attach_scene`` does for a real wave."""
+        e = create_enemy(etype, col, row, ENEM, tm, era, None, None, pos)
+        e._scene = scene
+        scene.spawn(e)
+        return e
+
+    @staticmethod
+    def _settle(scene, times=2):
+        """Two zero-dt frames. Objects update in SPAWN order, so a Drummer
+        spawned after the unit it buffs applies its aura only AFTER that
+        unit's own PathAgent has already written this frame's move speed —
+        the second frame is what makes the speed observable. Zero dt so
+        nothing walks and no decay clock moves."""
+        for _ in range(times):
+            scene.update(0.0)
+
+    @staticmethod
+    def _freeze(*enemies):
+        """Drop the waypoints so nothing walks while the decay clock runs:
+        ``PathAgent.update`` returns early with no path, so tiles stay put
+        and only ``BuffState``/``DrummerAura`` are exercised."""
+        for e in enemies:
+            mv = e.get_component(Movement)
+            mv.waypoints = []
+            mv.speed = 0.0
+
+    @staticmethod
+    def _step(scene, seconds, dt=0.25):
+        """``seconds`` of scene time in exact-binary 0.25s frames — the decay
+        boundary has to land on a frame edge, not inside float drift."""
+        for _ in range(round(seconds / dt)):
+            scene.update(dt)
+
+    # -- the type itself ---------------------------------------------------
+
+    def test_class_attrs_and_registration(self):
+        self.assertEqual(Drummer.ETYPE, "drummer")
+        self.assertEqual(Drummer.REGISTRY_GROUP, "Drummer")
+        self.assertEqual(Drummer.DEFAULT_SLOT, "drummer_stage_1")
+        self.assertEqual(Drummer.STAT_SUBTREE, ("Drummer",))
+        self.assertIs(ENEMY_CLASSES["drummer"], Drummer)
+        # A walker's march, not a hunter's: no repath_on_kill, no goal set.
+        self.assertEqual(DRUM["hunts"], "base")
+        self.assertEqual(DRUM["footprint"], 1)
+        self.assertGreater(DRUM["sprite_scale"], 1.0)   # "slightly taller"
+        # No stat override (the Commander's D8 rule): the base
+        # STAT_SUBTREE-driven resolver must read the Drummer's own era rows.
+        self.assertIsNone(Drummer.__dict__.get("_resolve_stats"))
+        tm, _scene = self._board()
+        d = create_enemy("drummer", 3, 0, ENEM, tm)
+        drum0 = era_stats("Drummer")
+        self.assertEqual(d.get_component(Health).hp, drum0["hp"])
+        self.assertEqual(d.get_component(EnemyCombat).dmg, drum0["dmg"])
+        self.assertNotEqual(drum0["hp"], STD0["hp"])    # the fixture is real
+        self.assertEqual(d.get_component(PathAgent).hunt, "base")
+        aura = d.get_component(DrummerAura)
+        self.assertEqual(aura.support_range, DRUM["support_range"])
+        self.assertEqual(aura.hp_increase, DRUM["hp_increase"])
+
+    def test_every_enemy_type_carries_the_inert_buff_ledger(self):
+        """`BuffState` is on EVERY type, not just the Drummer's targets —
+        that is what lets a future buff source aim at anything."""
+        tm, _scene = self._board()
+        for etype in ENEMY_CLASSES:
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 3, 0, ENEM, tm)
+                buffs = e.get_component(BuffState)
+                self.assertIsNotNone(buffs)
+                self.assertEqual(buffs.sources, {})    # inert as constructed
+        # And only the Drummer carries the aura.
+        self.assertIsNone(
+            create_enemy("standard", 3, 0, ENEM, tm).get_component(DrummerAura))
+
+    # -- one Drummer -------------------------------------------------------
+
+    def test_one_drummer_buffs_hp_dmg_move_speed_and_attack_speed(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._settle(scene)
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        base_max, base_dmg = health.max_hp, combat.dmg
+        base_interval = combat.attack_speed
+        base_speed = walker.get_component(Movement).speed
+        self.assertEqual(base_max, STD0["hp"])
+        self.assertAlmostEqual(base_speed, STD0["move_speed"])
+
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)   # Chebyshev 1
+        self._settle(scene)
+
+        grant = int(round(base_max * DRUM["hp_increase"]))
+        self.assertGreater(grant, 0)
+        # D6: max HP rises AND current HP rises with it — a real heal.
+        self.assertEqual(health.max_hp, base_max + grant)
+        self.assertEqual(health.hp, base_max + grant)
+        self.assertEqual(
+            walker.dmg, int(base_dmg * (1.0 + DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            base_speed * (1.0 + DRUM["move_speed_increase"]))
+        # attack_speed is an INTERVAL, so a bonus DIVIDES: more swings/sec.
+        self.assertAlmostEqual(
+            combat.buffed_attack_speed,
+            base_interval / (1.0 + DRUM["attack_speed_increase"]))
+        self.assertLess(combat.buffed_attack_speed, base_interval)
+        # Keyed by the contributing Drummer, and the Drummer never buffs
+        # itself.
+        self.assertEqual(list(walker.get_component(BuffState).sources),
+                         [drummer.id])
+        self.assertEqual(drummer.get_component(BuffState).sources, {})
+
+    def test_sustaining_a_buff_does_not_re_heal_every_frame(self):
+        """The heal is applied on the transition only — a Drummer parked next
+        to a damaged unit must not top it up frame after frame."""
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        health = walker.get_component(Health)
+        health.damage(20)
+        wounded = health.hp
+        self._settle(scene, times=10)
+        self.assertEqual(health.hp, wounded)
+
+    # -- decay -------------------------------------------------------------
+
+    def test_the_buff_decays_exactly_four_seconds_after_leaving_range(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        self._freeze(walker, drummer)
+        health = walker.get_component(Health)
+        buffs = walker.get_component(BuffState)
+        grant = int(round(STD0["hp"] * DRUM["hp_increase"]))
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+        self.assertEqual(health.hp, STD0["hp"] + grant)   # at the buffed cap
+
+        drummer.transform.wx = 7.0                        # out of range
+        self._step(scene, BUFF_DECAY_SECONDS - 0.25)
+        self.assertEqual(list(buffs.sources), [drummer.id],
+                         "the contribution must survive its whole countdown")
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+
+        self._step(scene, 0.25)                           # exactly 4.0s
+        self.assertEqual(buffs.sources, {})
+        self.assertEqual(health.max_hp, STD0["hp"])       # ceiling shrinks
+        self.assertEqual(health.hp, STD0["hp"])           # D6 clamp down
+        self.assertEqual(walker.dmg, walker.get_component(EnemyCombat).dmg)
+
+    def test_a_unit_already_below_the_new_max_keeps_its_hp_on_decay(self):
+        """The clamp only clamps: losing the ceiling must not also drain HP
+        the unit still legitimately has."""
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        self._freeze(walker, drummer)
+        health = walker.get_component(Health)
+        health.hp = 10
+        drummer.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(health.max_hp, STD0["hp"])
+        self.assertEqual(health.hp, 10)
+
+    # -- two Drummers ------------------------------------------------------
+
+    def test_two_drummers_stack_additively_and_decay_independently(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._settle(scene)
+        base_speed = walker.get_component(Movement).speed
+        d1 = self._spawn(scene, tm, "drummer", 2, 0)
+        d2 = self._spawn(scene, tm, "drummer", 4, 0)
+        self._settle(scene)
+
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        buffs = walker.get_component(BuffState)
+        grant = int(round(STD0["hp"] * DRUM["hp_increase"]))
+        # D7: exactly TWICE one Drummer — each grant is sized off the
+        # UNBUFFED max, so they add instead of compounding.
+        self.assertEqual(sorted(buffs.sources), sorted([d1.id, d2.id]))
+        self.assertEqual(health.max_hp, STD0["hp"] + 2 * grant)
+        self.assertEqual(health.hp, STD0["hp"] + 2 * grant)
+        self.assertEqual(
+            walker.dmg, int(STD0["dmg"] * (1.0 + 2 * DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            base_speed * (1.0 + 2 * DRUM["move_speed_increase"]))
+        self.assertAlmostEqual(
+            combat.buffed_attack_speed,
+            combat.attack_speed / (1.0 + 2 * DRUM["attack_speed_increase"]))
+
+        # ONE Drummer walks off. Only ITS contribution decays.
+        self._freeze(walker, d1, d2)
+        d1.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(list(buffs.sources), [d2.id])
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+        self.assertEqual(
+            walker.dmg, int(STD0["dmg"] * (1.0 + DRUM["dmg_increase"])))
+
+        # Its clock kept running for four MORE seconds and nothing else fell
+        # off — d2 is still sustaining.
+        self._step(scene, BUFF_DECAY_SECONDS * 2)
+        self.assertEqual(list(buffs.sources), [d2.id])
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+
+        # Now d2 leaves too.
+        d2.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(buffs.sources, {})
+        self.assertEqual(health.max_hp, STD0["hp"])
+
+    # -- out of range ------------------------------------------------------
+
+    def test_an_enemy_outside_every_radius_is_completely_unaffected(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 2, 0)
+        self._settle(scene)
+        base_speed = walker.get_component(Movement).speed
+        self._spawn(scene, tm, "drummer", 5, 0)     # Chebyshev 3 > range 1
+        self._settle(scene, times=6)
+
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        self.assertEqual(walker.get_component(BuffState).sources, {})
+        self.assertEqual((health.max_hp, health.hp), (STD0["hp"], STD0["hp"]))
+        self.assertEqual(walker.dmg, combat.dmg)
+        self.assertEqual(combat.buffed_attack_speed, combat.attack_speed)
+        self.assertAlmostEqual(walker.get_component(Movement).speed,
+                               base_speed)
+
+    # -- the wave ----------------------------------------------------------
+
+    def test_round_25_is_the_first_wave_that_carries_drummers(self):
+        tm = synth(self.ROWS)
+        self.assertEqual(DRUM["start_round"], 25)
+        for rnd in (0, 1, 14, 24):
+            with self.subTest(round=rnd):
+                self.assertEqual(expected_count("Drummer", rnd), 0)
+                sp = Spawner()
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(3))
+                self.assertEqual(
+                    [e for _t, e in sp.pending() if e == "drummer"], [])
+        wanted = expected_count("Drummer", 25)
+        self.assertGreaterEqual(wanted, 1)
+        sp = Spawner()
+        sp.begin_round(25, tm, ENEM, rng=random.Random(3))
+        drummers = [e for _t, e in sp.pending() if e == "drummer"]
+        self.assertEqual(len(drummers), wanted)
+        # Body-mixed, never queue-leading (a support unit ahead of the units
+        # it supports buffs nothing).
+        self.assertNotEqual(sp.pending()[0][1], "drummer")
+
+    def test_round_25_ledger_a_live_wave_buffs_through_the_spawner(self):
+        """The scripted round-25 HP ledger, hand-computed off era 2 (round 25
+        is era (25-1)//10 == 2, position 5 — every type's `per_round` deltas
+        are 0, so position does not move the numbers).
+
+        It also proves the ONE piece of wiring a unit test could otherwise
+        miss: the spawner hands each enemy the scene (`_attach_scene`), which
+        is the only reason a real wave's aura can see anything at all."""
+        era, pos = 2, 5
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0, era, pos)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0, era, pos)
+        self._settle(scene)
+
+        std2, drum2 = era_stats("Standard", era), era_stats("Drummer", era)
+        grant = int(round(std2["hp"] * DRUM["hp_increase"]))
+        health = walker.get_component(Health)
+        self.assertEqual(health.max_hp, std2["hp"] + grant)
+        self.assertEqual(health.hp, std2["hp"] + grant)
+        self.assertEqual(drummer.get_component(Health).hp, drum2["hp"])
+        self.assertEqual(drummer.get_component(EnemyCombat).dmg, drum2["dmg"])
+        self.assertEqual(
+            walker.dmg, int(std2["dmg"] * (1.0 + DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            std2["move_speed"] * (1.0 + DRUM["move_speed_increase"]))
+
+        # And the real spawner path wires the scene onto every enemy it makes.
+        live = Scene()
+        sp = Spawner()
+        sp.begin_round(25, tm, ENEM, rng=random.Random(3))
+        for _ in range(4000):
+            if sp.done:
+                break
+            sp.update(0.1, live)
+        live.update(0.0)
+        spawned = live.by_tag("enemy")
+        self.assertTrue(spawned)
+        self.assertTrue(all(getattr(e, "_scene", None) is live
+                            for e in spawned))
+        self.assertTrue(any(e.ETYPE == "drummer" for e in spawned))
+
+    def test_support_range_increase_is_inert_as_shipped(self):
+        """Flagged open item (NE-3): the leaf exists so the data shape is
+        future-proof, but NOTHING reads it — there is deliberately no
+        era-growth mechanic behind it. If this ever fails, someone wired it
+        up and the plan's open question needs answering first."""
+        self.assertEqual(DRUM["support_range_increase"], 0)
+        self.assertNotIn("support_range_increase", DrummerAura._fields)
+
+
 class TestRegistryGroupDrift(unittest.TestCase):
     """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
     required `registry_group` leaf (added so the editor can resolve a slot's
@@ -1680,7 +2008,7 @@ class TestRegistryGroupDrift(unittest.TestCase):
 
     def test_registry_group_matches_data_for_every_enemy_subclass(self):
         for cls in (Enemy, Raider, SiegeCannon, Formation, Sniper, Commander,
-                    Digger, Boss):
+                    Digger, Drummer, Boss):
             block = ENEM["EnemyTypes"]
             for seg in cls.STAT_SUBTREE:
                 block = block[seg]

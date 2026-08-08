@@ -58,6 +58,8 @@ ENABLE_COMMANDER = True
 ENABLE_SNIPER = True
 # NE-2: the Digger. LIVE from EnemyTypes.Digger.start_round (35).
 ENABLE_DIGGER = True
+# NE-3: the Drummer support unit, live from its own start_round (25).
+ENABLE_DRUMMER = True
 
 # The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
 # delayed second phase lays out its child queue from the SAME table and
@@ -237,14 +239,15 @@ class Spawner:
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
-        ``_formation_group``, then ``_commander_group``, then
-        ``_sniper_group`` are called LAST on
+        ``_formation_group``, then ``_commander_group``, then ``_sniper_group``,
+        ``_digger_group`` and ``_drummer_group`` are called LAST on
         purpose, newest last: every earlier group's rng draw sequence then
         stays byte-identical, so the standard/raider/siege counts and picks are
         unchanged at every round. (The Commander draws nothing at all today —
         its counts are 0 — so BR-2 is provably wave-neutral. The Sniper draws
-        nothing below its `start_round` 26, so every wave under that round is
-        byte-identical too — from 26 on it is a real, deliberate wave change.)
+        nothing below its `start_round` 26 and the Digger nothing below 35, so
+        every wave under those rounds is byte-identical too; the Drummer draws
+        nothing before round 25, so NE-3 is wave-neutral up to there.)
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
         FIRST, before the boss check (``era_math.is_boss_round`` is already
@@ -275,9 +278,10 @@ class Spawner:
         commanders = self._commander_group(round_num, balance, spawn_tiles)
         snipers = self._sniper_group(round_num, balance, spawn_tiles)
         diggers = self._digger_group(round_num, balance, spawn_tiles)
+        drummers = self._drummer_group(round_num, balance, spawn_tiles)
 
         rest = (regular + raiders + siege_mixed + formations + commanders
-                + snipers + diggers)
+                + snipers + diggers + drummers)
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -440,6 +444,33 @@ class Spawner:
         return [(self._pick_spawn_tile(spawn_tiles, "digger"), "digger")
                 for _ in range(n)]
 
+    def _drummer_group(self, round_num, balance, spawn_tiles):
+        """Drummers from ``Drummer.start_round`` (25) through the shared count
+        formula — a handful per wave, not a swarm: the support unit is meant
+        to be the thing you go and kill, and every extra one multiplies the
+        whole field's stats.
+
+        Body-mixed like the Formation, never queue-leading: a support unit
+        that arrives ahead of the units it supports buffs nothing. Called
+        LAST in ``_compose`` (after ``_digger_group``) for the usual rng
+        reason — an earlier call site would shift every other group's draw
+        sequence and move every deterministic wave fixture. Below round 25
+        it returns an empty list and consumes no rng, so rounds 0-24 are
+        byte-identical to BR-5.
+
+        Drummers never appear on a boss round, exactly like Formations:
+        ``_boss_round`` composes from ``Boss.round_counts``, a
+        ``$defs/spawn_counts`` table SHARED with every ``death_spawn.spawns``
+        row, and nothing wants a drummer count in a death-spawn row. If
+        drummers on boss rounds are ever wanted it is a one-line
+        ``+ self._drummer_group(...)`` into ``_boss_round``'s ``rest``,
+        computed from the formula and never from the table."""
+        if not ENABLE_DRUMMER:
+            return []
+        n = self._count_of(balance, "Drummer", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "drummer"), "drummer")
+                for _ in range(n)]
+
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear
         slow→fast interval × ``uniform(0.4, 1.6)`` jitter (prototype
@@ -536,7 +567,9 @@ class Spawner:
         ``scene.spawn``, so the reference is already there when
         ``Scene.update`` calls ``on_spawn()``. That ordering is load-bearing
         for the Digger: its ``on_spawn`` is where the exclusive claim is first
-        taken, and taking it needs to see the other live Diggers.
+        taken, and taking it needs to see the other live Diggers. NE-3's
+        ``DrummerAura`` is the other consumer — its per-frame ``by_tag
+        ("enemy")`` aura scan needs the same world reference.
 
         A ``GameObject`` is never handed the scene by the engine
         (``on_spawn()`` takes no arguments) and a ``Component`` cannot reach it

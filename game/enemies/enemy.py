@@ -44,8 +44,8 @@ from game.map.pathfinder import (
     find_path_to_nearest_non_base_building,
 )
 from .components import (
-    _HUNT_QUERIES, BURROW_SUBMERGED, BurrowAgent, DeathSpawn, EnemyCombat,
-    Kidnap, PathAgent,
+    _HUNT_QUERIES, BURROW_SUBMERGED, BuffState, BurrowAgent, DeathSpawn,
+    DrummerAura, EnemyCombat, Kidnap, PathAgent,
 )
 
 # spawn_counts key -> the etype it spawns. The ORDER is load-bearing twice
@@ -148,6 +148,13 @@ class Enemy(GameObject):
         footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
             Health(max_hp=hp, hp=hp),
+            # NE-3: the buff ledger every enemy carries. FIRST after Health so
+            # a contribution that expires this frame has already been undone
+            # before PathAgent reads the buffed move speed and EnemyCombat
+            # reads the buffed damage/attack clock below. Inert (and near
+            # free) on every unit no Drummer has ever reached — the `Kidnap`
+            # "declared field, usually inert" shape.
+            BuffState(),
             PathAgent(footprint=footprint, hunt=block["hunts"],
                       no_melee=self.NO_MELEE,
                       stand_off_range=self.resolve_stand_off_range(block)),
@@ -179,6 +186,7 @@ class Enemy(GameObject):
             # per-frame clock re-pin wins).
             Kidnap(enabled=bool(block["kidnapping"])),
         ]
+        components.extend(self.extra_components(block))
         super().__init__(
             name=self.ETYPE,
             tags=("enemy",) + self.EXTRA_TAGS,
@@ -211,6 +219,24 @@ class Enemy(GameObject):
         # (not aliased) so a caller can never mutate the balancing doc's own
         # dict through it.
         pa._cond_weights = dict(block["condition_path_weights"])
+
+    # -- per-type extra components (NE-3 seam) -----------------------------
+
+    @classmethod
+    def extra_components(cls, block):
+        """Components only THIS type carries, appended after the shared list.
+
+        The ONE seam for "a type needs a mechanism nothing else has", so a
+        subclass never has to reimplement ``__init__`` just to add one
+        component (and never has to re-derive the era/stat/fit resolution it
+        would have to copy to do that). Base: nothing — every stock type is
+        exactly the shared list.
+
+        Kept a ``classmethod`` beside ``resolve_fit``/``endgame_factors``: it
+        reads only the already-resolved balancing ``block``, and it is called
+        BEFORE ``GameObject.__init__`` has run, so it must not touch instance
+        state."""
+        return ()
 
     # -- render fit / footprint (BR-1 seam) --------------------------------
 
@@ -394,7 +420,11 @@ class Enemy(GameObject):
 
     @property
     def dmg(self):
-        return self.get_component(EnemyCombat).dmg
+        """What this enemy hits for RIGHT NOW — the raw stat plus any live
+        Drummer buff (NE-3, ``EnemyCombat.buffed_dmg``). Unbuffed it returns
+        the raw field unchanged, so every pre-NE-3 reader (the base-hit
+        branch of the combat sweep, its telemetry) is byte-identical."""
+        return self.get_component(EnemyCombat).buffed_dmg
 
     # -- the delayed second phase (BR-3) -----------------------------------
 
@@ -667,6 +697,46 @@ class Digger(Enemy):
         return super().targetable
 
 
+class Drummer(Enemy):
+    """The Drummer (NE-3) — the game's first SUPPORT enemy.
+
+    It marches at the hole like a walker (``hunts: "base"``, so the generic
+    ``Enemy.on_spawn`` takes the original byte-identical walk-to-the-base
+    branch: no ``repath_on_kill``, no building hunting) and hits for almost
+    nothing. Its whole contribution is the aura: every enemy standing within
+    Chebyshev ``support_range`` of it gets a share of its
+    ``hp``/``dmg``/``move_speed``/``attack_speed`` increases, stacking
+    additively per Drummer and fading 4 seconds after leaving the radius.
+
+    The ONLY thing that makes it different from a walker is one extra
+    component (``DrummerAura``) through the ``extra_components`` seam — no
+    ``__init__``, no ``on_spawn``, no ``_resolve_stats`` (D8's rule for the
+    Commander applies here too: the base ``STAT_SUBTREE`` resolver reads its
+    own ``EnemyTypes.Drummer.eras`` rows), no ``_resolve_era``, no
+    ``EXTRA_TAGS``. ``sprite_scale`` 1.15 is the brief's "slightly taller"
+    cosmetic ask and is pure data.
+
+    Note the ``support_range_increase`` leaf is deliberately NOT read here —
+    see ``game/enemies/CLAUDE.md``; it ships as an inert 0 so the data shape
+    is future-proof, pending a user decision on whether support range is
+    meant to grow at all."""
+
+    ETYPE = "drummer"
+    REGISTRY_GROUP = "Drummer"
+    DEFAULT_SLOT = "drummer_stage_1"
+    STAT_SUBTREE = ("Drummer",)
+
+    @classmethod
+    def extra_components(cls, block):
+        return (DrummerAura(
+            support_range=int(block["support_range"]),
+            hp_increase=float(block["hp_increase"]),
+            dmg_increase=float(block["dmg_increase"]),
+            move_speed_increase=float(block["move_speed_increase"]),
+            attack_speed_increase=float(block["attack_speed_increase"]),
+        ),)
+
+
 class Boss(Enemy):
     """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
     clock (the spawner passes it like every other type) and resolves its own
@@ -796,6 +866,7 @@ ENEMY_CLASSES = {
     "sniper": Sniper,
     "commander": Commander,
     "digger": Digger,
+    "drummer": Drummer,
     "boss": Boss,
 }
 

@@ -90,6 +90,31 @@ def set_wall_damage_hook(fn):
     _wall_damage_hook = fn
 
 
+# NE-3 (Drummer): how long ONE source's contribution survives after the
+# Drummer stops sustaining it — the D7 "4 seconds after leaving the radius"
+# decay. A cosmetic-tier module constant (the CARRY_OFFSET_TILES /
+# AOE_TRAVEL_TIME precedent), deliberately NOT a balancing leaf: the design's
+# own variable list names nine Drummer knobs and this is not one of them.
+BUFF_DECAY_SECONDS = 4.0
+
+
+def buff_total(owner, key):
+    """The summed ACTIVE buff bonus ``key`` on ``owner`` (NE-3).
+
+    THE single read path for a buffed stat. ``0.0`` for an owner with no
+    ``BuffState`` (a building, a stub, a headless component-only test) and for
+    the overwhelmingly common no-contributions case, so every read site costs
+    one component scan plus one dict-truthiness test when nothing is buffing
+    anything.
+    """
+    if owner is None:
+        return 0.0
+    bs = owner.get_component(BuffState)
+    if bs is None or not bs.sources:
+        return 0.0
+    return bs.total(key)
+
+
 # Kidnapping (Art/enemies): the carried-sprite world offset. Pure iso
 # arithmetic, no engine change — world_to_screen is
 # ix = (wx-wy)*half_w, iy = (wx+wy)*half_h and depth_key = (layer, wx+wy, wy)
@@ -522,12 +547,23 @@ class PathAgent(Component):
         four normal types are byte-identical (their ``real − 0.4`` still wins —
         walker 0.8, raider 2.3, siege 0.6, formation 0.5), and only the boss
         moves, off 0.0 and onto 0.15–0.225. Pinned by
-        ``test_boss.TestConditionSpeedFloor``."""
+        ``test_boss.TestConditionSpeedFloor``.
+
+        NE-3: this is also THE read site for a ``move_speed`` buff. The
+        Drummer's aura raises the unit's OWN base speed
+        (``_real_speed * (1 + bonus)``) BEFORE the terrain penalty and the
+        floor are applied, so a buffed unit keeps the same relationship to
+        both. Writing a bonus into ``Movement.speed`` directly would be
+        overwritten by this method on the very next walking frame — this is
+        the only durable place to put it."""
+        real = self._real_speed
+        bonus = buff_total(getattr(self, "_owner", None), "move_speed")
+        if bonus:
+            real *= (1.0 + bonus)
         mods = _condition_mods(getattr(self, "_tilemap", None),
                                self._current_condition)
-        penalised = self._real_speed - mods.get("enemy_speed_penalty", 0)
-        floor = self._real_speed * _min_speed_fraction(
-            getattr(self, "_tilemap", None))
+        penalised = real - mods.get("enemy_speed_penalty", 0)
+        floor = real * _min_speed_fraction(getattr(self, "_tilemap", None))
         return max(floor, penalised)
 
     # -- /10I --
@@ -591,19 +627,54 @@ class EnemyCombat(Component):
         self._owner = owner
         self._kidnap_victim = None  # transient stash for a pending kidnap
 
+    # -- NE-3: buffed stats (the Drummer aura's read sites) ------------------
+
+    @property
+    def buffed_dmg(self):
+        """``dmg`` scaled by the summed ``BuffState`` ``dmg`` contributions.
+
+        THE one place a buff touches outgoing damage: ``Enemy.dmg`` (base
+        hits + the combat sweep's telemetry) and ``_effective_dmg`` (the
+        blocking-building and edge-wall attacks, which layer the tile
+        condition's own bonus on top of this) both read it, so an aura can
+        never reach one and miss the other. With no contributions it returns
+        ``self.dmg`` unchanged — byte-identical to pre-NE-3."""
+        bonus = buff_total(getattr(self, "_owner", None), "dmg")
+        if not bonus:
+            return self.dmg
+        return max(1, int(self.dmg * (1.0 + bonus)))
+
+    @property
+    def buffed_attack_speed(self):
+        """Seconds between attacks, shortened by the summed ``BuffState``
+        ``attack_speed`` contributions: ``attack_speed / (1 + bonus)``.
+
+        The leaf is an INTERVAL, so a positive bonus has to DIVIDE — +10%
+        attack speed means the same unit swings 10% more often, not 10%
+        slower. THE one place the attack clock is reset from, both in the
+        wall branch and in the building branch below."""
+        bonus = buff_total(getattr(self, "_owner", None), "attack_speed")
+        if not bonus:
+            return self.attack_speed
+        return self.attack_speed / (1.0 + bonus)
+
     # -- 10I: condition-modified attack damage -------------------------------
 
     def _effective_dmg(self, pa):
         """``max(1, int(dmg × (1 + enemy_dmg_bonus)))`` for the owner's current
         tile condition (prototype ``enemy.py:356-365``). Applied to BOTH the
         blocking-building and edge-wall attacks — never to base hits (lives
-        mode costs one life flat)."""
+        mode costs one life flat).
+
+        NE-3: it starts from ``buffed_dmg``, not the raw field, so a Drummer's
+        aura and a mountain tile compound the way a designer would expect."""
+        base = self.buffed_dmg
         mods = _condition_mods(getattr(pa, "_tilemap", None),
                                getattr(pa, "_current_condition", None))
         bonus = mods.get("enemy_dmg_bonus", 0)
         if bonus:
-            return max(1, int(self.dmg * (1.0 + bonus)))
-        return self.dmg
+            return max(1, int(base * (1.0 + bonus)))
+        return base
 
     # -- /10I --
 
@@ -638,7 +709,7 @@ class EnemyCombat(Component):
                         _wall_damage_hook(getattr(owner, "ETYPE", None), wall,
                                          dmg, 0 if edge is None else edge.hp,
                                          bool(broke))
-                self.cooldown = self.attack_speed
+                self.cooldown = self.buffed_attack_speed   # NE-3
             return
         target = pa._target
         if target is None and pa.in_range:
@@ -666,7 +737,7 @@ class EnemyCombat(Component):
                 _damage_hook(getattr(owner, "ETYPE", None),
                             getattr(target, "building_type", None),
                             dmg, health.hp)
-            self.cooldown = self.attack_speed
+            self.cooldown = self.buffed_attack_speed   # NE-3
             # Kidnapping (Art/enemies): a killing blow on a kidnap-capable
             # type ARMS the transition here; this component never touches the
             # scene — the combat sweep's kidnap pass (combat.py) owns the
@@ -1086,3 +1157,196 @@ class Kidnap(Component):
             fit_tiles=self.fit_tiles,
             scale=self.scale,
         )
+
+
+class BuffState(Component):
+    """The PASSIVE buff ledger every enemy carries (NE-3) — the game's first
+    status-effect mechanism.
+
+    It is on EVERY enemy type's component list, the ``Kidnap`` shape: a
+    declared field that is usually inert. Empty it costs one dict-truthiness
+    test per frame in ``update`` and one in ``buff_total``.
+
+    **It never scans the scene and never decides who to buff.** A source
+    (today only ``DrummerAura``) calls ``apply``; this component owns
+    everything after that: the per-source bookkeeping, the decay clock, and —
+    critically — BOTH halves of the HP grant, so the shrink can never disagree
+    with the grow.
+
+    ``sources`` maps a SOURCE ID (the buffing ``GameObject.id`` — a uuid hex,
+    which is why the whole ledger stays JSON-safe, E-11) to one contribution::
+
+        {"hp": int,            # ABSOLUTE hp points this source granted
+         "dmg": float,         # FRACTION, e.g. 0.15 = +15%
+         "move_speed": float,  # FRACTION
+         "attack_speed": float,# FRACTION (a bonus SHORTENS the interval)
+         "decay": float}       # seconds left before this source is dropped
+
+    Two rules follow from keying by source (D7):
+
+    * **Stacking is additive.** ``total(key)`` sums every live contribution,
+      so two Drummers in range are exactly twice one Drummer.
+    * **Decay is per source.** ``apply`` re-pins that ONE source's ``decay``
+      to ``BUFF_DECAY_SECONDS`` every frame it is sustained, so "start a 4s
+      countdown when the unit leaves the radius" needs no leave event at all:
+      it is simply the frame nothing re-pinned it. A Drummer that DIES stops
+      re-pinning too, and its buff fades on the same 4s clock — which is why
+      the clock lives here and not on the aura.
+
+    ``hp`` is stored as an ABSOLUTE amount, not a fraction, because it is the
+    one stat that is applied to the ledger (``Health``) rather than read
+    through at use time: the exact number granted is the exact number that
+    must come back off.
+    """
+
+    sources: dict = {}
+
+    def on_added(self, owner):
+        self._owner = owner
+
+    # -- read side ---------------------------------------------------------
+
+    def total(self, key):
+        """The summed live contribution for ``key`` (see ``buff_total``, the
+        guarded module-level front door every read site actually uses)."""
+        if not self.sources:
+            return 0.0
+        return sum(c[key] for c in self.sources.values())
+
+    @property
+    def base_max_hp(self):
+        """This unit's UNBUFFED max HP — ``Health.max_hp`` minus every live
+        hp grant. Every source sizes its own grant off this, never off the
+        already-buffed max, so N Drummers give exactly N x the fraction
+        instead of compounding into each other."""
+        h = self._health()
+        if h is None:
+            return 0
+        return h.max_hp - int(self.total("hp"))
+
+    # -- write side (called by DrummerAura) --------------------------------
+
+    def apply(self, source, hp_fraction, dmg, move_speed, attack_speed,
+              decay=BUFF_DECAY_SECONDS):
+        """Install or REFRESH ``source``'s contribution and re-pin its decay.
+
+        D6 — the hp grant heals: a NEW contribution (or a changed amount)
+        raises ``Health.max_hp`` AND ``Health.hp`` by the same delta, so the
+        buff is real survivability, not headroom. Refreshing an UNCHANGED
+        amount touches ``Health`` not at all — which is what stops a Drummer
+        standing next to a unit from healing it to full every frame."""
+        amount = int(round(self.base_max_hp * hp_fraction))
+        cur = self.sources.get(source)
+        if cur is None:
+            self.sources[source] = {"hp": amount, "dmg": dmg,
+                                    "move_speed": move_speed,
+                                    "attack_speed": attack_speed,
+                                    "decay": decay}
+            self._grant_hp(amount)
+            return
+        if cur["hp"] != amount:
+            self._grant_hp(amount - cur["hp"])
+            cur["hp"] = amount
+        cur["dmg"] = dmg
+        cur["move_speed"] = move_speed
+        cur["attack_speed"] = attack_speed
+        cur["decay"] = decay
+
+    def update(self, dt):
+        """Tick every contribution's decay clock and drop the expired ones.
+
+        A source is dropped exactly ``BUFF_DECAY_SECONDS`` after the last
+        frame that re-pinned it (D7). Dropping it un-applies its hp grant:
+        max HP shrinks by that source's own amount and current HP clamps down
+        if it now sits above the new max (D6)."""
+        if not self.sources:
+            return
+        expired = []
+        for source, contribution in self.sources.items():
+            contribution["decay"] -= dt
+            if contribution["decay"] <= 0:
+                expired.append(source)
+        for source in expired:
+            self._grant_hp(-self.sources.pop(source)["hp"])
+
+    # -- the ONE place Health is touched -----------------------------------
+
+    def _grant_hp(self, delta):
+        """Move max HP by ``delta`` and carry current HP with it (D6). The
+        single site for both directions, so grant and un-grant are provably
+        symmetric: a positive delta heals by the same amount it adds, a
+        negative one shrinks the ceiling and clamps only if we are now over
+        it (a unit already damaged below the new max keeps its HP)."""
+        if not delta:
+            return
+        h = self._health()
+        if h is None:
+            return
+        h.max_hp = max(1, h.max_hp + delta)
+        if delta > 0:
+            h.hp += delta
+        elif h.hp > h.max_hp:
+            h.hp = h.max_hp
+
+    def _health(self):
+        owner = getattr(self, "_owner", None)
+        return None if owner is None else owner.get_component(Health)
+
+
+class DrummerAura(Component):
+    """The Drummer's support aura (NE-3) — the only thing that writes into a
+    ``BuffState`` today. Lives ONLY on ``Drummer`` instances.
+
+    Every frame it scans ``scene.by_tag("enemy")`` and re-applies THIS
+    drummer's contribution (keyed by its own ``GameObject.id``) to every unit
+    whose tile is within Chebyshev ``support_range``. It does no bookkeeping
+    of its own: "who is buffed", "how long since they left" and "give the HP
+    back" all belong to ``BuffState``, which is what makes a dead Drummer's
+    buff fade correctly on its own 4s clock.
+
+    Cost is ``drummers x enemies`` tile tests per frame; drummers are a
+    handful per wave by design (``count_start`` 1-3), so this stays well under
+    the per-frame path queries the same wave already pays.
+
+    The scene comes from ``Enemy._scene``, a transient the ``Spawner`` sets
+    just before ``scene.spawn`` (E-11 allows underscore attrs past the
+    GameObject seal). With no scene — a headless construction test — the aura
+    is simply inert.
+    """
+
+    support_range: int = 1
+    hp_increase: float = 0.0
+    dmg_increase: float = 0.0
+    move_speed_increase: float = 0.0
+    attack_speed_increase: float = 0.0
+
+    def on_added(self, owner):
+        self._owner = owner
+
+    def update(self, dt):
+        owner = getattr(self, "_owner", None)
+        if owner is None:
+            return
+        scene = getattr(owner, "_scene", None)
+        if scene is None:
+            return
+        # A drummer that has been killed this frame (or is mid-second-phase)
+        # stops sustaining: its contributions then age out on the normal 4s
+        # clock instead of being re-pinned by a corpse.
+        if not getattr(owner, "alive", True):
+            return
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        reach = self.support_range
+        source = owner.id
+        for other in scene.by_tag("enemy"):
+            if other is owner:
+                continue           # a Drummer supports OTHERS, never itself
+            if (abs(round(other.transform.wx) - col) > reach
+                    or abs(round(other.transform.wy) - row) > reach):
+                continue
+            buffs = other.get_component(BuffState)
+            if buffs is None:
+                continue
+            buffs.apply(source, self.hp_increase, self.dmg_increase,
+                        self.move_speed_increase, self.attack_speed_increase)
