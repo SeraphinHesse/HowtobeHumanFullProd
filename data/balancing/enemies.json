@@ -803,6 +803,121 @@
       "sprite_scale": 1.0,
       "start_round": 14
     },
+    "Sniper": {
+      "condition_path_weights": {
+        "forest": 1,
+        "mountain": 2,
+        "pond": 9
+      },
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 0.25,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 2.6,
+            "dmg": 140,
+            "hp": 150,
+            "move_speed": 0.85
+          }
+        },
+        {
+          "count_per_round": 0.34,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 2.6,
+            "dmg": 150,
+            "hp": 170,
+            "move_speed": 0.9
+          }
+        },
+        {
+          "count_per_round": 0.5,
+          "count_start": 1,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 2.6,
+            "dmg": 168,
+            "hp": 195,
+            "move_speed": 0.97
+          }
+        },
+        {
+          "count_per_round": 0.5,
+          "count_start": 4,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 2.6,
+            "dmg": 205,
+            "hp": 240,
+            "move_speed": 1.14
+          }
+        },
+        {
+          "count_per_round": 0.5,
+          "count_start": 9,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 2,
+            "attack_speed": 2.6,
+            "dmg": 270,
+            "hp": 300,
+            "move_speed": 1.34
+          }
+        }
+      ],
+      "footprint": 1,
+      "hunts": "defence",
+      "kidnapping": false,
+      "registry_group": "Sniper",
+      "sprite_scale": 1.0,
+      "stand_off_range": 2,
+      "start_round": 26
+    },
     "Standard": {
       "condition_path_weights": {
         "forest": 1,

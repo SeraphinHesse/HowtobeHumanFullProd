@@ -11,7 +11,7 @@ from .components import (
 from .corpse import DEATH_ANIM, Corpse, spawn_corpse
 from .dirt_pile import DIRT_PILE_SLOT, DirtPile, spawn_dirt_pile
 from .enemy import (
-    Boss, Commander, Digger, Enemy, Formation, Raider, SiegeCannon,
+    Boss, Commander, Digger, Enemy, Formation, Raider, SiegeCannon, Sniper,
     create_enemy, variant_slot,
 )
 from .kidnap import KIDNAP_ANIM, begin_kidnap, set_kidnap_pose
@@ -41,6 +41,7 @@ __all__ = [
     "ProjectileHoming",
     "Raider",
     "SiegeCannon",
+    "Sniper",
     "Spawner",
     "attack_interval",
     "begin_kidnap",

@@ -1,4 +1,4 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4 + NE-1 + NE-2)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
@@ -6,7 +6,9 @@ here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider
 SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
 `ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`); the
 sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
-**dormant** — see its section below. The seventh, **`Digger`, is LIVE since
+**dormant** — see its section below. The seventh, **`Sniper`, is LIVE since NE-1**
+(`ENABLE_SNIPER = True`, `start_round: 26`) and is the first type that fights at
+RANGE — see "Ranged stand-off" below. The eighth, **`Digger`, is LIVE since
 NE-2** (`ENABLE_DIGGER = True`, from `start_round: 35`) and is the one type
 that adds a genuinely new state machine — see its section below. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
@@ -359,6 +361,101 @@ invariant: BR-3 wires it to the boss's second phase.
   placeholder state (a slot with no `asset_manifest.json` entry is legal and
   common). Real art lands via `/replace-visual`.
 
+## Ranged stand-off (NE-1) — `PathAgent.stand_off_range` / `in_range`
+**Until NE-1 every enemy in the game was a melee unit.** `attack_range_tiles`
+and `RangeSensor` exist on all of them and are read by the DEFENDER range gate
+(`combat.py`) only — *nothing* consulted them for an enemy's own attack, so
+every type walked until something physically blocked it and then punched that.
+The Sniper is the first exception, and it is built out of one flag pair, not a
+second combat system.
+- **`PathAgent.stand_off_range: int = 0` and `PathAgent.in_range: bool =
+  False`, both default-off** — the `goal_is_base`/`repath_on_kill` precedent
+  exactly. At `stand_off_range == 0` the check short-circuits on its first
+  comparison, so **every other type's `update()` is byte-identical** (pinned by
+  `test_enemies.TestStandOffIsOffForEveryOtherType`, which also asserts the
+  melee block-and-attack path still sets `blocked` and never `in_range`).
+- **`in_range` is the RANGED TWIN OF `blocked`.** `EnemyCombat.update()`'s gate
+  widened from `pa.blocked` to `pa.blocked or pa.in_range` — that `or` is the
+  entire combat change. The cooldown tick, the condition-modified damage, the
+  `RoundStats` credit, the debug hook and the kidnap arming are the same lines
+  they always were. **Do not add a second attack path**; if a ranged mechanic
+  cannot be expressed as "halt, then run the existing clock", it wants its own
+  component, not a fork of this one.
+- **The check runs EVERY frame, BEFORE the wall/blocker scan**, against the
+  COMMITTED target (BP-3's `target_col`/`target_row`) — so a stand-off unit
+  halts on geometry and **normally never reaches `blocked` at all**. Distance
+  is `components.block_distance`, a block-to-block Chebyshev (per-axis clamp,
+  then max) — the same "nearest tile of the block, not its centre" rule
+  `combat.py`'s `_chebyshev` uses, so a footprint-N body measures the way the
+  rest of the game measures.
+- **Crossing into range CLEARS `blocked`/`_target`/`_wall_target`.** From that
+  point the victim is resolved from the committed target, so a stale melee
+  engagement would otherwise have the unit shooting whatever last blocked it
+  instead of its actual prey. Leaving range (only ever via `_repath`) clears
+  `in_range` and restores the walk animation; `mv.speed` comes back through the
+  normal `_condition_speed()` write at the bottom of `update()`.
+- **`PathAgent.committed_target(tm)` is the ONE resolver for "who am I
+  shooting".** `_target_alive` is now one line over it — the block-wide,
+  dead-occupant-safe scan is written once. `EnemyCombat` calls it only when
+  `_target is None and in_range` (the blocker scan never ran), and the existing
+  `target is None or not alive` guard below covers a corpse, so a ranged unit
+  can no more hit a dead building than a melee one can.
+- **Re-targeting needed NO new code.** The BP-3 dead-target watch is gated on
+  `not blocked`, and a stand-off unit is never blocked — so the frame its
+  victim dies it re-paths through the ordinary `_repath`. Verified, not
+  assumed: `TestSniper.test_retargets_when_its_victim_dies`.
+- **`begin_kidnap` clears `in_range` beside `blocked`** (`kidnap.py`). No
+  shipped type is both a kidnapper and a stand-off unit (Sniper is
+  `kidnapping: false`), but the two flags feed one gate and must be cleared
+  together or a carrier would keep firing all the way home.
+- **The balancing leaf lives ONLY on blocks that have the mechanic**, reached
+  through `Enemy.resolve_stand_off_range(block)` — a classmethod seam of the
+  exact shape as `resolve_fit`/`resolve_phase_row`/`endgame_factors`, returning
+  `0` for every class and overridden only by `Sniper`. That `0` is not a G-7
+  code-side default for an authored value; it is the statement "this type has
+  no stand-off", which is what lets the six other `EnemyTypes` blocks stay free
+  of a `stand_off_range: 0` they would never use.
+
+## Sniper (NE-1)
+The ranged stand-off type. **Four class attrs plus the one seam override** — no
+`__init__`, no `on_spawn`, no `_resolve_stats` (the base `STAT_SUBTREE`
+resolver reads its own `EnemyTypes.Sniper.eras` rows), no `_resolve_era`, no
+`EXTRA_TAGS`, no `resolve_fit`.
+- **It hunts `"defence"`, which NE-0 WIDENED** to every attack-capable building
+  (`_ATTACK_BUILDING_TYPES` — defence, aoe_defence, storm_priest,
+  sun_scorcher), so it stands off from mortars and Storm Priests too, not just
+  plain Defenders. That widening is a prerequisite, not an implementation
+  detail: with the old single-literal predicate the Sniper would walk past
+  three quarters of the player's guns.
+- **`stand_off_range` is FLAT at the type root, like `footprint`/`kidnapping`
+  (D10)** — standing off at 2 tiles is the type's identity, not a number that
+  scales with the round. Keep it at or below `attack_range_tiles` or the unit
+  halts outside its own reach; there is deliberately no runtime guard (the
+  editor bounds are the fence), same policy as `death_spawn`'s
+  `spawn_hp_fraction` footgun.
+- **Seed stats are a STARTING POINT, fully retunable in the editor with no code
+  change.** Era 0 ships `hp 150 / dmg 140 / move_speed 0.85 / attack_speed 2.6
+  / attack_range_tiles 2`, `stand_off_range 2`, `start_round 26` — the
+  qualitative brief (high damage, long range, slow attack, low HP, below-average
+  speed) grounded against SiegeCannon era 0 (280/100/1.0/1.9/range 2). Eras 1–4
+  follow the SiegeCannon growth-curve shape; `attack_speed` and
+  `attack_range_tiles` stay flat between eras, as they do for every other type.
+- **Composition: body-mixed, LAST in `_compose`, never on a boss round.**
+  `_sniper_group` is called after `_commander_group` for the standing rng
+  reason (an earlier call site shifts every other group's draw sequence and
+  moves the deterministic wave fixtures). It draws nothing below round 26, so
+  every wave under that round is byte-identical to BR-5; from 26 on it is a
+  real, deliberate wave change. It does not lead the queue — a sniper at the
+  head of the wave would out-range the player's defences before anything
+  arrived to draw fire — and it is absent from boss rounds for the same
+  `$defs/spawn_counts`-is-shared reason the Formation is (see that section).
+- **No projectile visual in v1**: the hit applies instantly on cooldown, the
+  same tick model as a melee swing minus the adjacency requirement. A
+  muzzle-flash/arrow pass is a follow-up `/replace-visual`, and building an
+  enemy projectile-travel system was explicitly out of NE-1's scope.
+- Its five `data/slots.json` era slots (`sniper_stage_1..5`) ship art-less —
+  the normal grey-X placeholder state, exactly like the Commander's.
+
 ## Digger (NE-2) — the burrow / claim / emerge machine
 The one type that is a genuine NEW state machine rather than data over the
 existing one. `ETYPE "digger"`, `REGISTRY_GROUP "Digger"`, `STAT_SUBTREE
@@ -572,12 +669,14 @@ JSON-safe).
     + `era` only. Fenced by `tools/tests/test_boss.py` (unchanged — the
     generic path reproduces its behaviour exactly).
   - Seeded values (NE-0 added no `hunts` value to any type, it only changed
-    what `"defence"` MEANS and added a then-unused category; **NE-2 is what
-    armed `"structure"`, on the new `Digger`** — which does NOT route through
-    the generic `Enemy.on_spawn` branch below, because it needs the claim
-    exclusion; see the Digger section above):
-    `Standard`/`Formation` `"base"`, `Raider` `"economic"`, `SiegeCannon`
-    `"defence"`, `Boss`/`Commander` `"any_non_base"`, `Digger` `"structure"`.
+    what `"defence"` MEANS and added a then-unused category; **NE-1's
+    `Sniper` is the first NEW consumer of the widened `"defence"`; NE-2 is
+    what armed `"structure"`, on the new `Digger`** — which does NOT route
+    through the generic `Enemy.on_spawn` branch below, because it needs the
+    claim exclusion; see the Digger section above):
+    `Standard`/`Formation` `"base"`, `Raider` `"economic"`,
+    `SiegeCannon`/`Sniper` `"defence"`, `Boss`/`Commander` `"any_non_base"`,
+    `Digger` `"structure"`.
 - **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,
   pond}`, same bounds as `map.json`'s `Pathfinding.content_weights`) is this
   type's OWN terrain path-cost profile, threaded as `PathAgent._cond_weights`

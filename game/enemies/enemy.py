@@ -10,7 +10,10 @@ the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-saf
 since 10G (nearest-building hunting with re-path-on-kill, the ``"boss"`` scene
 tag), ``Formation`` since ER-4 (the 2×2 marching column that dies at half HP and
 scatters regulars — pure data over the ER-1/ER-2/ER-3 mechanics, no new code
-path). Each subclass resolves its own stat subtree + slot prefix and little else.
+path), ``Sniper`` since NE-1 (the first RANGED type: it halts at
+``PathAgent.stand_off_range`` tiles from its committed target and fires there,
+never closing to melee). Each subclass resolves its own stat subtree + slot
+prefix and little else.
 
 Stats are resolved at CONSTRUCTION into component fields, since ES-2 from the
 type's OWN per-era rows (``EnemyTypes.<type>.eras[era]``): fully manual absolute
@@ -146,7 +149,8 @@ class Enemy(GameObject):
         components = [
             Health(max_hp=hp, hp=hp),
             PathAgent(footprint=footprint, hunt=block["hunts"],
-                      no_melee=self.NO_MELEE),
+                      no_melee=self.NO_MELEE,
+                      stand_off_range=self.resolve_stand_off_range(block)),
             # NE-2: the navigation-adjacent slot — AFTER PathAgent (so it can
             # act on the walk/halt decision just made) and BEFORE Movement (so
             # a freeze it applies takes effect the same frame). Empty for every
@@ -246,6 +250,21 @@ class Enemy(GameObject):
         row, because D5 wants the era-0 boss to stage at half health while
         eras 1-4 keep firing at actual death."""
         return ds
+
+    @classmethod
+    def resolve_stand_off_range(cls, block):
+        """How many tiles short of its committed target this type halts and
+        opens fire (NE-1) — ``PathAgent.stand_off_range``.
+
+        The same shape as ``resolve_fit``/``endgame_factors``: a SEAM, so the
+        `stand_off_range` balancing leaf lives only on the block of a type that
+        actually has the mechanic, instead of being forced onto all six other
+        `EnemyTypes` entries at 0 just to keep a flat read honest. ``0`` here is
+        NOT a code-side default for an authored value (G-7) — it is the
+        statement "this type has no stand-off", the exact counterpart of
+        ``endgame_factors`` returning ``None`` for everything but the Boss.
+        ``Sniper`` is the one override."""
+        return 0
 
     @classmethod
     def endgame_factors(cls, block):
@@ -513,6 +532,47 @@ class Formation(Enemy):
     HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
 
 
+class Sniper(Enemy):
+    """The Sniper (NE-1) — the first enemy that fights at RANGE.
+
+    Every other type is a melee unit: `attack_range_tiles` exists on all of
+    them and is read by nothing on the enemy's own attack path, so they all
+    walk until something physically blocks them and then punch it. The Sniper
+    walks at the nearest ATTACK-CAPABLE building (`hunts: "defence"` — NE-0
+    widened that category from the single `defence` type to mortars, Storm
+    Priests and Sun Scorchers too), halts at `stand_off_range` tiles from it,
+    and fires on its `attack_speed` cooldown from there. It never closes.
+
+    **It adds no attack code.** The stand-off halt is `PathAgent`'s
+    `stand_off_range`/`in_range` pair (both default-off, so the melee path is
+    byte-identical for every other type) and the firing is the SAME
+    `EnemyCombat.update()` clock, whose gate widened from `blocked` to
+    `blocked or in_range`. Re-targeting when its victim dies is likewise the
+    existing `repath_on_kill` dead-target watch, which is gated on `not
+    blocked` — and a stand-off unit is never blocked, so it fires unchanged.
+
+    **The ranged hit lands instantly on cooldown** (v1): there is no
+    projectile-travel system for enemies, and building one was deliberately
+    NOT part of this phase. A muzzle/arrow visual is a `/replace-visual` pass.
+
+    Four class attrs plus the one seam override — no `__init__`, no
+    `on_spawn`, no `_resolve_stats` (the base `STAT_SUBTREE` resolver reads its
+    own `EnemyTypes.Sniper.eras` rows), no `_resolve_era`, no `EXTRA_TAGS`."""
+
+    ETYPE = "sniper"
+    REGISTRY_GROUP = "Sniper"
+    DEFAULT_SLOT = "sniper_stage_1"
+    STAT_SUBTREE = ("Sniper",)
+
+    @classmethod
+    def resolve_stand_off_range(cls, block):
+        # The ONE override of the NE-1 seam. Flat at the type root like
+        # `footprint`/`kidnapping` (D10): standing off at 2 tiles is this
+        # type's IDENTITY, not a number that scales with the round, so it is
+        # deliberately not an era-row leaf.
+        return int(block["stand_off_range"])
+
+
 class Commander(Enemy):
     """The Commander (BR-2, plan D8) — the boss's officer, DORMANT as shipped.
 
@@ -733,6 +793,7 @@ ENEMY_CLASSES = {
     "raider": Raider,
     "siege": SiegeCannon,
     "formation": Formation,
+    "sniper": Sniper,
     "commander": Commander,
     "digger": Digger,
     "boss": Boss,
