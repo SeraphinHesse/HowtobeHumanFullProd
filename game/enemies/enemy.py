@@ -504,6 +504,23 @@ class Commander(Enemy):
     HP_BAR_W, HP_BAR_H = 24, 2       # siege-sized (D8), no boss 48×4 bar
 
 
+class Tutorial(Enemy):
+    """Round 0's forced enemy (add-enemy dispatch, user decision) — split off
+    Standard so the tutorial's scripted spawn can be tuned independently of
+    the real Walker. It reuses the Walker's registry group/slots (no new art)
+    and Standard's era-0 stats verbatim, but ``EnemyTypes.Tutorial.hunts`` is
+    ``"any_non_base"`` (Boss/Commander's value) rather than ``"base"``, so it
+    targets buildings instead of walking straight at the hole. No override
+    needed for that: the generic ``Enemy.on_spawn`` already dispatches on the
+    data block's ``hunts`` value (see game/enemies/CLAUDE.md's "Prey hunting"
+    section)."""
+
+    ETYPE = "tutorial"
+    REGISTRY_GROUP = "Walker"
+    DEFAULT_SLOT = "enemy_stage_1_v1"
+    STAT_SUBTREE = ("Tutorial",)
+
+
 class Boss(Enemy):
     """The boss (LIVE since 10G). It reads the GLOBAL era straight off the
     clock (the spawner passes it like every other type) and resolves its own
@@ -632,6 +649,7 @@ ENEMY_CLASSES = {
     "formation": Formation,
     "commander": Commander,
     "boss": Boss,
+    "tutorial": Tutorial,
 }
 
 

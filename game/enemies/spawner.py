@@ -240,13 +240,16 @@ class Spawner:
         False at round 0 for every configuration, D11, but the round-0 branch
         is a COMPOSITION rule and stays ahead of it). It always composes
         exactly
-        ``EnemyScaling.tutorial_round_enemy_count`` Standard walkers,
-        ignoring every other composition rule."""
+        ``EnemyScaling.tutorial_round_enemy_count`` ``"tutorial"`` enemies
+        (add-enemy dispatch, user decision — split off the real ``"standard"``
+        Walker so this round's spawn can be tuned independently; it hunts
+        buildings rather than the hole), ignoring every other composition
+        rule."""
         if not spawn_tiles:
             return []
         if round_num == 0:
             n = balance["EnemyScaling"]["tutorial_round_enemy_count"]
-            return [(self._pick_spawn_tile(spawn_tiles, "standard"), "standard")
+            return [(self._pick_spawn_tile(spawn_tiles, "tutorial"), "tutorial")
                     for _ in range(n)]
         scaling = balance["EnemyScaling"]
         if ENABLE_BOSS and era_math.is_boss_round(

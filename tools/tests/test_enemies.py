@@ -519,7 +519,7 @@ class TestSpawnComposition(unittest.TestCase):
     def test_round_zero_composes_exactly_the_tutorial_count(self):
         sp, etypes = self._counts(0)
         self.assertEqual(len(etypes), SCALE["tutorial_round_enemy_count"])
-        self.assertTrue(all(e == "standard" for e in etypes))
+        self.assertTrue(all(e == "tutorial" for e in etypes))
 
     def test_round_zero_tunable_changes_the_count(self):
         enem = copy.deepcopy(ENEM)
@@ -527,7 +527,7 @@ class TestSpawnComposition(unittest.TestCase):
         sp = Spawner()
         sp.begin_round(0, self.tm, enem, rng=FakeRng())
         etypes = [et for _tile, et, _d in sp._queue]
-        self.assertEqual(etypes, ["standard"] * 3)
+        self.assertEqual(etypes, ["tutorial"] * 3)
 
     def test_round_zero_never_produces_a_boss_at_any_interval(self):
         # (0 - 1) // n goes negative for every n, and a naive `0 % n == 0`

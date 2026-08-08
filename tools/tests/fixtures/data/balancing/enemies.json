@@ -800,6 +800,56 @@
       "registry_group": "Walker",
       "sprite_scale": 1.0,
       "start_round": 1
+    },
+    "Tutorial": {
+      "condition_path_weights": {
+        "forest": 1,
+        "mountain": 2,
+        "pond": 9
+      },
+      "death_spawn": {
+        "at_hp_fraction": 0.0,
+        "enabled": false,
+        "spawn_hp_fraction": 1.0,
+        "spawns": [
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 0,
+            "siege": 0
+          }
+        ]
+      },
+      "endgame_scaling": {
+        "count": 1.0,
+        "dmg": 1.0,
+        "hp": 1.0,
+        "move_speed": 1.0
+      },
+      "eras": [
+        {
+          "count_per_round": 2,
+          "count_start": 4,
+          "per_round": {
+            "dmg": 0,
+            "hp": 0,
+            "move_speed": 0
+          },
+          "stats": {
+            "attack_range_tiles": 1,
+            "attack_speed": 1.0,
+            "dmg": 10,
+            "hp": 55,
+            "move_speed": 1.2
+          }
+        }
+      ],
+      "footprint": 1,
+      "hunts": "any_non_base",
+      "kidnapping": true,
+      "registry_group": "Walker",
+      "sprite_scale": 1.0,
+      "start_round": 0
     }
   },
   "MortarTargeting": {
