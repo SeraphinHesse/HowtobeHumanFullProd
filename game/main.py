@@ -1435,19 +1435,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # -- /TU-6 --
             # -- drag-select: the live rectangle, same world-overlay slot as
             # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
-            # finish_drag_select does, so a tile shown here is exactly a tile
-            # that will be selected on release. --
+            # AND the same tutorial.allows(("tile", ...)) gate finish_drag_select
+            # does (review fix: a preview that skipped the gate could show a
+            # tile during the round-0 tutorial that release would then refuse
+            # to select), so a tile shown here is exactly a tile that will be
+            # selected on release. --
             if gp["drag_select_enabled"] and drag_select_from is not None:
                 cur = drag_select_current or drag_select_from
                 sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
-                if sel_cat is not None:
+                tutorial = gp["tutorial"]
+                if sel_cat is not None and tutorial.allows(
+                        ("tile", drag_select_from.col, drag_select_from.row)):
                     c0, c1 = sorted((drag_select_from.col, cur.col))
                     r0, r1 = sorted((drag_select_from.row, cur.row))
                     for row in range(r0, r1 + 1):
                         for col in range(c0, c1 + 1):
                             t = world.tile_map.get(col, row)
                             if (t is not None
-                                    and _SEL_CATEGORY.get(t.state) == sel_cat):
+                                    and _SEL_CATEGORY.get(t.state) == sel_cat
+                                    and tutorial.allows(("tile", col, row))):
                                 widgets.submit_tile_diamond_fill(
                                     renderer, col, row,
                                     widgets.C_HIGHLIGHT + (70,))
