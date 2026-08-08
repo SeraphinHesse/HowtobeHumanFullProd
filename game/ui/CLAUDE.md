@@ -94,6 +94,36 @@ upgrade), which needed NO change for this.
   tools/export_ui_layouts.py`) — the sanctioned "a screen's default geometry
   changed on purpose" path. Nothing already in either artifact moved.
 
+## Phase readout (`phase_label`) — bottom-RIGHT, two states
+The phase banner is no longer the bottom-left six-way phase name. Same holder,
+same `phase_label` id, same `label` kind, same `hud_phase` font and same
+`_phase_color(phase, …)` tint — three things changed:
+- **Position**: it moved out of `layout()`'s fixed `(12, view_h - 26)` into
+  `_layout_readouts()`, stacked one `layout_h("hud_phase") + 4` above
+  `round_label` and left-aligned on the End Turn button's own left edge (i.e.
+  the bottom-right cluster). It HAD to move passes: the anchor is now relative
+  to the post-override `end_turn` rect, exactly like `round_label` — which is
+  also why `__init__` seeds it with a `(0, 0, 0, 0)` placeholder rect and
+  `tools/export_ui_layouts.py`'s `_build_hud` (which already calls
+  `_layout_readouts()`) still exports a real position.
+- **Copy**: `_phase_panel_text(phase)` — `"Building Phase"` for
+  `GamePhase.BUILDING`, `"Defending Phase"` for every other phase. The six-way
+  `_PHASE_LABEL_ID` map and `_phase_label_text` are DELETED; the two strings
+  are code constants (the `effects.py` `_ANNOUNCE_L*` precedent) rather than
+  new string-table ids, because `configure_strings` fails loud on a key-set
+  mismatch and two literals do not justify a coupled `strings.json` +
+  `strings.py` + `test_strings_data.py` change. **The six `hud.phase.*` ids
+  are therefore live in the string table but referenced by no code** — a
+  string-table follow-up pass owns cleaning that up.
+- **It is drawn inside the `if not self._panel_open` right-edge cluster**, not
+  unconditionally: the building panel is a full-height 260px right sidebar and
+  the HUD submits AFTER it, so an unconditional draw at this position would
+  paint over an open panel. Same rule and same reason as `round_label`.
+- **Golden pin**: exactly one primitive in `test_ui_skinning.py`'s `hud`
+  baseline changed (text + pos, same index) and `data/ui/screen_defaults.json`'s
+  `hud.phase_label.rect` was patched to match — the sanctioned "a screen's
+  default geometry changed on purpose" path.
+
 ## Overhead HP bars
 `effects.py` draws them in TWO passes, both reading live scene state and both
 hiding the bar at full HP (the prototype rule):
@@ -184,6 +214,23 @@ logic is `game/core` — see that doc.)
   `data/balancing/vfx.json procedural.announce`, read off
   `FloaterManager._vfx_params.announce` — the two copy strings and the
   timings stay put, screen-skinning/`ui.json` territory respectively);
+  **The "YOU / LOST 1 LIFE" banner rides both of those two members** (added
+  after ESV-6): `spawn_life_lost_events(state)` drains the new
+  `RunState.life_lost_events` ledger (`Session.on_base_hit` appends the round
+  number inside its `charge` branch, so a TU-7 waived tutorial loss announces
+  nothing) into its own independent clock, `self._life_lost_age`, and
+  `submit_announce` draws it as a second centred two-line banner beneath the
+  boss one, in `widgets.C_HP_RED` (attribute-read, never import-bound). It
+  SHARES the `ui.FX.boss_announce` fade/hold/fade timings (factored out into
+  `_announce_k(age)`) but deliberately NOT the `enabled` flag — that is a
+  boss-FX toggle, and a lost life must always be signposted. **Neither the
+  drain nor the draw needed a new host wiring line**: `spawn_boss_events` is
+  already the frame's "drain the announce ledgers" hook and calls
+  `spawn_life_lost_events` itself, and `submit_announce` is already the
+  frame's announce draw. No coalescing exists or is needed — `_wipe_pending`/
+  `_wipe_round` end the round on the first base hit, so the ledger can hold
+  at most one entry per round by construction. Covered by
+  `tools/tests/test_10j_qol.py::TestLifeLostBanner`.
   `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
@@ -790,7 +837,7 @@ sets one).
   `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
   widget, the schema's `color` key maps to the track color; the fill ratio +
   levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
-  `lives_text`, `tiles_text`, `phase_label`, `round_label`, `btn_end_turn`,
+  `lives_text`, `tiles_text`, `phase_label` (see below), `round_label`, `btn_end_turn`,
   `btn_pause` — plus (wave-3 phase 4) three baked icon slots, `icon_love`,
   `icon_xp`, `icon_lives`: `panel`-kind holders (`rect`/`skin`/`visible`)
   routed through the skinned `submit_panel()` path with a CODE-default skin

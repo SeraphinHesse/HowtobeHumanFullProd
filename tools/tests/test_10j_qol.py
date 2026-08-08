@@ -374,5 +374,61 @@ class TestStormPriestLightningSeam(unittest.TestCase):
         self.assertEqual(st.lightning_level, 0)         # non-source: still locked
 
 
+class TestLifeLostBanner(unittest.TestCase):
+    """The "YOU / LOST 1 LIFE" centre-screen banner: ``Session.on_base_hit``
+    fills the ``life_lost_events`` ledger, ``FloaterManager`` drains it (off
+    the same per-frame ``spawn_boss_events`` call the boss announcement uses)
+    and ``submit_announce`` draws it on the boss-announce timings."""
+
+    class _Recorder:
+        def __init__(self):
+            self.items = []
+
+        def submit_hud(self, item):
+            self.items.append(item)
+
+    def test_base_hit_appends_one_marker_per_charged_life(self):
+        tm, scene, occupancy, session = make_world()
+        st = session.state
+        lives = st.base_lives
+
+        class _Enemy:
+            ETYPE = "standard"
+
+        session.on_base_hit(_Enemy())
+        self.assertEqual(st.base_lives, lives - 1)
+        self.assertEqual(st.life_lost_events, [st.round_num])
+
+    def test_drain_arms_the_banner_and_submit_draws_two_lines(self):
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
+
+        class _S:
+            boss_events = []
+            life_lost_events = [3]
+
+        fm.spawn_boss_events(_S)             # the shared per-frame drain hook
+        self.assertEqual(_S.life_lost_events, [])
+        self.assertIsNotNone(fm._life_lost_age)
+        rec = self._Recorder()
+        fm.submit_announce(rec, VIEW_W, VIEW_H)
+        texts = [i.text for i in rec.items if hasattr(i, "text")]
+        self.assertEqual(texts, ["YOU", "LOST 1 LIFE"])   # no boss banner
+        fm.update(10.0)                                   # ages out
+        self.assertIsNone(fm._life_lost_age)
+        rec2 = self._Recorder()
+        fm.submit_announce(rec2, VIEW_W, VIEW_H)
+        self.assertEqual(rec2.items, [])
+
+    def test_empty_ledger_never_arms_the_banner(self):
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
+
+        class _S:
+            boss_events = []
+            life_lost_events = []
+
+        fm.spawn_boss_events(_S)
+        self.assertIsNone(fm._life_lost_age)
+
+
 if __name__ == "__main__":
     unittest.main()
