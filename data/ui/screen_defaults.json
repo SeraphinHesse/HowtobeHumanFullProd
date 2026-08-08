@@ -1215,6 +1215,16 @@
           40
         ]
       },
+      "btn_set_default": {
+        "kind": "button",
+        "label": "SET DEFAULT",
+        "rect": [
+          810,
+          244,
+          170,
+          40
+        ]
+      },
       "btn_toggle_bg_art": {
         "display_name": "Background Art toggle",
         "kind": "button",

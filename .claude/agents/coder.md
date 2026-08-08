@@ -42,21 +42,22 @@ You are a coder: you implement ONE scoped task and verify it.
 - Never publish artifacts — report upward; the orchestrator publishes.
 
 ## Exit gate (before reporting done)
-- **Umbrella workflow — run the MINIMAL gate only.** While this branch is
-  feeding an umbrella branch, do the least test needed to prove your diff:
-  `py tools/smoke.py` green + `py tools/testgate.py check --affected` — **0
-  failures, 0 errors.** Nothing wider. **Never run the full suite** — the full
-  run happens exactly once, after the work is merged into the umbrella branch,
-  and is owned by whoever does that merge. Not you.
-  The suite is green; there is no baseline and no tolerated failure. If a red
+- **Run the MINIMAL gate. You NEVER run the full suite.** Do the least test that
+  proves your diff: `py tools/smoke.py` green + `py tools/testgate.py check
+  --affected` — **0 failures, 0 errors.** Nothing wider. The single full run is
+  owned by the orchestrator, once, after your work lands. Not you. See
+  §"Test Suite Policy" in the root CLAUDE.md.
+- **Read the `GATE INFO` line `--affected` prints.** It tells you what was
+  actually selected. It now narrows to the affected modules plus the core tier,
+  and only widens to everything when `conftest.py` / `pytest.ini` /
+  `qt_harness` changed. If it says it is running everything and your dispatch
+  says the orchestrator owns the gate, kill it and run `py tools/smoke.py` ONLY.
+- **Never start a second test run while one is in flight** — duplicate runs
+  exhaust memory.
+- The suite is green; there is no baseline and no tolerated failure. If a red
   test is inside your blast radius, you broke it — fix it. Before you may call
   one "outside your diff", you must clear the falsification bar in Hard rules
   above; having cleared it, note it in your report and stop, don't investigate.
-- **`--affected` is not a guarantee of a narrow run.** When Graphify cannot
-  compute the blast radius it prints `GATE INFO --affected could not narrow the
-  set; running everything` and runs the FULL suite anyway. If your dispatch says
-  the orchestrator owns the gate, run `py tools/smoke.py` ONLY and do not invoke
-  `tools/testgate.py` at all.
 
 ## Report format
 Changed files; what the exit gate showed; anything architectural that required

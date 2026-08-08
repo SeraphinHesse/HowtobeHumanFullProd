@@ -36,8 +36,9 @@ with what you checked and how. No findings → say so plainly.
 Bash is for `git diff`/`git log`, graphify, and read-only checks only. Never
 edit. Never publish artifacts — report upward; the orchestrator publishes.
 
-## Test scope (umbrella workflow)
+## Test scope
 If you run tests at all, run **at most** `py tools/testgate.py check --affected`
-— never the full suite. The full run happens once, after the work is merged
-into the umbrella branch, owned by whoever does that merge. Your job is diff
-review, not the full gate.
+— never the full suite (§"Test Suite Policy" in the root CLAUDE.md). The full
+run happens once, owned by the orchestrator. Your job is diff review, not the
+full gate. **Do not ask for more test coverage than the change needs** — a test
+that would fail without the change is the bar; a matrix is not.

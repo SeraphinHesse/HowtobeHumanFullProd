@@ -1,0 +1,2 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 1182, "level": 1, "run_id": "run-20260806-165312-Sara-never", "map_id": "summertest3", "seed": null, "love": 25, "lives": 3, "player_name": "Sara", "player_skill": "never"}
+{"t": "run_end", "round": 0, "phase": "BUILDING", "frame": 59678, "wall_ms": 11270, "outcome": "quit", "rounds": 0}

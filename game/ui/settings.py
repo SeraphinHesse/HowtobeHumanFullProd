@@ -9,8 +9,15 @@ ON/OFF toggles (income floaters / background art / gore), an inert audio slider
 the pause-menu entry points; the shell tracks which caller BACK returns to.
 
 10L-B: ``ids`` names ``backdrop``, ``title`` ("SETTINGS") + every button (the
-display-mode cycler arrows, the three FX toggles, BACK). An invisible button
-is neither drawn nor hit-tested.
+display-mode cycler arrows, SET DEFAULT, the three FX toggles, BACK). An
+invisible button is neither drawn nor hit-tested.
+
+**SET DEFAULT** persists the currently-selected display mode as the BOOT mode.
+This screen stays pure: the button only returns the ``"save_display_default"``
+action, and the host writes ``data/display.json`` (the same "anything touching
+disk is an intent" rule the rest of the shell follows). ``saved_default`` is
+the host-set string of what is on disk today (``None`` = unknown, e.g. a bare
+test/exporter construction — then no line is drawn).
 """
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -43,7 +50,10 @@ SCREEN_ID = "settings"
 
 @dataclass
 class SessionSettings:
-    display_mode: str = "windowed"       # one of DISPLAY_MODES
+    # Fullscreen is the shipped default (data/display.json's `display_mode`
+    # is what the host actually seeds this from at boot; this literal is the
+    # bare-construction fallback and matches it).
+    display_mode: str = "fullscreen"     # one of DISPLAY_MODES
     income_floaters: bool = True
     bg_art: bool = True
     gore: bool = True
@@ -67,6 +77,9 @@ class SettingsScreen:
         self.settings = settings
         self.dm_left = Button((0, 0, 40, 40), "<")
         self.dm_right = Button((0, 0, 40, 40), ">")
+        self.default_btn = Button((0, 0, 170, 40), "SET DEFAULT", font_key="md")
+        # What data/display.json currently boots into; host-set, None = unknown.
+        self.saved_default = None
         self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
                         for attr, label in _TOGGLES]
         self.back_btn = Button((0, 0, 200, 46), "BACK")
@@ -85,6 +98,8 @@ class SettingsScreen:
         self._dm_y = self._top + 70                 # display-mode value row
         self.dm_left.rect = (cx - 150, self._dm_y - 6, 40, 40)
         self.dm_right.rect = (cx + 110, self._dm_y - 6, 40, 40)
+        # Right of the ">" arrow, clear of the FX toggle column below.
+        self.default_btn.rect = (cx + 170, self._dm_y - 6, 170, 40)
         y = self._dm_y + 70
         self._row_y = []
         for _attr, _label, btn in self.toggles:
@@ -101,6 +116,7 @@ class SettingsScreen:
             "title": ("label", self._title),
             "btn_dm_left": ("button", self.dm_left),
             "btn_dm_right": ("button", self.dm_right),
+            "btn_set_default": ("button", self.default_btn),
             "btn_back": ("button", self.back_btn),
         }
         for attr, _label, btn in self.toggles:
@@ -110,6 +126,7 @@ class SettingsScreen:
     def _buttons(self):
         yield self.dm_left
         yield self.dm_right
+        yield self.default_btn
         for _a, _l, btn in self.toggles:
             yield btn
         yield self.back_btn

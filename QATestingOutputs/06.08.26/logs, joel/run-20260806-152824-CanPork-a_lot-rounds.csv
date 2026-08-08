@@ -1,0 +1,10 @@
+round,love_start,love_end,income_actual,income_potential,income_lost_to_damage,base_income,building_income_actual,building_income_potential,painter_income,story_income,upkeep_actual,upkeep_potential,upkeep_unpaid_from_deaths,net_actual,net_potential,dmg_dealt,dmg_dealt_lightning,lightning_hits,dmg_taken_buildings,lives_lost,lives_end,enemies_spawned,kills,leaks,kidnaps,buildings_built,buildings_dead_at_payday,buildings_placed,love_spent_buildings,village_level,player_xp,wave_size,enemy_tier,cheated
+1,5,15,10,10,0,5,5,5,0,0,0,0,0,10,10,56,0,0,0,0,3,1,1,0,0,2,0,2,20,1,1,1,0,0
+2,5,20,15,15,0,5,10,10,0,0,0,0,0,15,15,168,0,0,40,0,3,3,3,0,0,3,0,1,10,1,4,3,0,0
+3,3,23,20,20,0,5,15,15,0,0,0,0,0,20,20,280,0,0,80,0,3,5,5,0,0,4,0,1,10,1,9,5,0,0
+4,3,31,28,33,5,5,23,28,0,0,0,0,0,28,33,336,0,0,150,0,3,7,6,0,1,4,1,0,0,1,17,7,0,0
+5,4,37,33,33,0,5,28,28,0,0,0,0,0,33,33,560,0,0,160,0,3,10,10,0,0,6,0,2,20,1,27,10,0,0
+6,6,25,19,33,14,5,14,28,0,0,0,0,0,19,33,728,0,0,260,0,3,13,12,0,1,7,1,1,10,1,41,13,0,0
+7,0,16,16,35,19,7,9,28,0,0,0,0,0,16,35,861,0,0,280,0,3,16,14,0,2,7,2,0,0,2,7,16,0,0
+8,1,17,16,43,27,7,9,36,0,0,0,0,0,16,43,882,0,0,320,1,2,19,12,1,2,7,2,0,0,2,22,19,0,0
+9,7,23,16,43,27,7,9,36,0,0,0,0,0,16,43,1295,0,0,320,1,1,22,17,1,2,7,2,0,0,2,42,22,0,0

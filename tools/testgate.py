@@ -170,16 +170,26 @@ def cmd_check(args) -> int:
     extra = list(args.pytest_args)
 
     if args.affected:
-        selected = affected_modules(args.base_ref)
-        if selected is None:
-            print("GATE INFO  --affected could not narrow the set; "
-                  "running everything")
+        selected, safety, note = affected_modules(args.base_ref)
+        print(f"GATE INFO  --affected: {note}")
+        if not selected:
+            # Either "no .py changed" (safety == core tier) or "scaffolding
+            # changed" (safety == [], i.e. everything). One pass either way.
+            results, total = run_suite(extra + safety)
         else:
-            extra += selected
-            print(f"GATE INFO  --affected selected {len(selected)} module(s) "
-                  f"(+ the core tier)")
-
-    results, total = run_suite(extra)
+            # Pass 1: the affected modules IN FULL — no marker filter, so an
+            # `editor`-marked test in an affected file is not silently dropped.
+            results, total = run_suite(extra + selected)
+            # Pass 2: the core tier, as the insurance the docstring always
+            # promised and the single-invocation form could never deliver.
+            core_results, core_total = run_suite(extra + safety)
+            results.update(core_results)
+            # Tests in BOTH passes are counted twice here. The number is a
+            # progress read-out, never a gate input — the verdict below keys on
+            # node-ids (design rule 1), which de-duplicate correctly.
+            total += core_total
+    else:
+        results, total = run_suite(extra)
 
     known = set(base["failures"])
     expected_skips = set(base["skips"])
@@ -219,41 +229,83 @@ def cmd_check(args) -> int:
     return 1
 
 
-def affected_modules(base_ref: str) -> list[str] | None:
+def changed_py_files(base_ref: str) -> list[str]:
+    """Every .py the working tree differs by — committed AND uncommitted.
+
+    Committed-only (`git diff base...HEAD`) was the original bug and it was a
+    silent one: on `Development` itself, or on any branch whose work is not
+    committed yet, that range is EMPTY, `--affected` concluded it could not
+    narrow, and ran all ~1088 tests while printing that it was being selective.
+    Agents then paid a full-suite wall-clock on every iteration. `base_ref` is
+    resolved through merge-base so a stale `Development` does not drag in
+    everything that landed on it since you branched.
+    """
+    ranges = []
+    # git() swallows failure and returns "" — an unknown base_ref simply means
+    # no committed range, and the working-tree ranges below still apply.
+    merge_base = git("merge-base", "HEAD", base_ref)
+    if merge_base:
+        ranges.append(git("diff", "--name-only", merge_base, "HEAD"))
+    ranges.append(git("diff", "--name-only", "HEAD"))          # unstaged
+    ranges.append(git("diff", "--name-only", "--cached"))      # staged
+    ranges.append(git("ls-files", "--others", "--exclude-standard"))  # untracked
+
+    out: set[str] = set()
+    for blob in ranges:
+        out.update(f.strip() for f in blob.splitlines() if f.strip().endswith(".py"))
+    return sorted(out)
+
+
+def affected_modules(base_ref: str) -> tuple[list[str], list[str], str]:
     """Changed files -> Graphify blast radius -> the test modules in it.
 
-    Always UNION'd with the core tier, which costs ~40s and is cheap insurance
-    against a blast radius that missed something. If anything about the
-    selection is uncertain, we return None and the caller runs everything —
-    a gate that under-selects is worse than a slow one.
-    """
-    changed = [f for f in git("diff", "--name-only", f"{base_ref}...HEAD").splitlines()
-               if f.endswith(".py")]
-    if not changed:
-        return None
+    Returns (affected test files, extra pytest args for the safety tier, note).
+    The caller runs the affected files IN FULL and the core tier as a SECOND
+    pass, then merges — see cmd_check. Two passes because the union cannot be
+    expressed in one pytest invocation: naming files on the command line
+    overrides `testpaths`, so the old `["-m", "core", *tests]` collected ONLY
+    those files and then DESELECTED every non-core test inside them. It never
+    ran the core tier it documented, and it silently skipped the `editor`-marked
+    tests of the very files it had selected. Under-selection is the failure mode
+    this module's four design rules exist to prevent, so the union is now real.
 
-    # A change to the test scaffolding itself invalidates any narrowing.
+    Nothing here returns "run everything" except a change to the test
+    scaffolding, which genuinely can break any module.
+    """
+    changed = changed_py_files(base_ref)
+    if not changed:
+        return [], ["-m", "core"], "no .py changes; core tier only"
+
+    # A change to the test scaffolding itself invalidates any narrowing: it can
+    # alter collection or fixtures for every module in the suite.
     if any(f in ("conftest.py", "pytest.ini") or f.startswith("tools/tests/qt_harness")
            for f in changed):
-        return None
+        return [], [], "test scaffolding changed; running everything"
 
     tests = {f for f in changed if f.startswith("tools/tests/")}
     sources = [f for f in changed if not f.startswith("tools/tests/")]
 
+    unresolved: list[str] = []
     for src in sources:
         stem = Path(src).stem
         out = subprocess.run(["graphify", "affected", stem],
                              cwd=REPO, capture_output=True, text=True)
         if out.returncode != 0:
-            return None   # graph unavailable or stale -> do not narrow
+            # Graph stale or unavailable for THIS file. Previously that meant
+            # the whole suite; now the core tier below carries the insurance and
+            # we say out loud which file we could not resolve.
+            unresolved.append(src)
+            continue
         for line in out.stdout.splitlines():
             m = re.search(r"(tools/tests/test_\w+\.py)", line)
             if m:
                 tests.add(m.group(1))
 
-    if not tests:
-        return None
-    return ["-m", "core", *sorted(tests)]
+    selected = sorted(t for t in tests if (REPO / t).exists())
+    note = f"{len(selected)} test module(s) + the core tier"
+    if unresolved:
+        note += f"; graph miss on {', '.join(unresolved)} (core tier covers it)"
+    return selected, ["-m", "core"], note
 
 
 def main(argv: list[str]) -> int:

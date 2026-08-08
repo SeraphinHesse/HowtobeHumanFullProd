@@ -123,6 +123,7 @@ TIERS = {
     "test_player_identity": "core",  # player-identity: scores + menu matrix
     "test_prey_hunting": "core",  # Chunk 3/4 prey-hunting + weight profiles
     "test_projectile_anchored_flight": "core",  # feat-projectile-anchored-flight
+    "test_qa_triage": "core",  # /datatriage: playtest-session coalescer
     "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
     "test_render": "core",
