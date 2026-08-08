@@ -89,11 +89,56 @@ change and does not fix it**. Consequences, stated plainly:
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| UR-1  | De-hardcode the resolution (game + editor + tools) | not started |
-| UR-2  | Flip the surface to 640×360 + convert UI layout constants | not started |
-| UR-3  | Editor screen-preview parity at 640×360 | not started |
-| UR-4  | Full-screen art recut 480×270 → 640×360 and wire it in | not started |
-| UR-5  | Eyeball / playtest polish pass | not started |
+| UR-1  | De-hardcode the resolution (game + editor + tools) | **done** |
+| UR-2  | Flip the surface to 640×360 + convert UI layout constants | **done** |
+| UR-3  | Editor screen-preview parity at 640×360 | **done** |
+| UR-4  | Full-screen art recut 480×270 → 640×360 and wire it in | **deferred — blocked on art** |
+| UR-5  | Eyeball / playtest polish pass | **mechanical half done; awaiting user sign-off** |
+
+Landed on `phase-UR1-UR5-umbrella`. Notes on the two phases that did not close
+as written:
+
+- **UR-4 is deferred, not done.** No 640×360 source image exists anywhere in
+  the repo, and an agent must not upscale or synthesise the painting, so the
+  phase's exit criterion ("crisp at 2×, no resampling artefacts") is
+  unreachable. Its brief (`docs/briefs/phase-UR-4-fullscreen-art.md`) is
+  written and ready; it needs a supplied 640×360 painting imported through the
+  editor. Two findings from it are worth carrying regardless: the plan's claim
+  that `main_menu_bg` is unreferenced is **wrong** (it is drawn every frame at
+  `game/ui/main_menu.py:45,210` — the unreferenced slot is `ui_bg_main_menu`),
+  and `tools/bake_ui_sheets.py:282` hardcodes `480, 270`, which the phase's
+  file list misses.
+- **UR-5 cannot be closed by an agent** — its exit criterion is a human eye.
+  The mechanical checks and the fixes they proved have landed; the numbered
+  playtest script in `docs/briefs/phase-UR-5-eyeball-polish.md` §4 is what
+  closes it.
+
+### What UR-5 found: a gap in §2's conversion rule
+
+§2 sorts every constant into HALVE (1280-scale) or LEAVE (already 640-scale).
+That is right as far as it goes, but it has no bucket for the case that
+actually bit: **a text row step, and any box sized to hold text, is
+*font*-scale, not surface-scale.** Because the plan deliberately leaves
+`fonts.json` alone, halving a row step while the glyphs stay put makes lines
+collide. Measured instances after UR-2, all now fixed: the game log's five
+lines overlapped by 5px each (`_LINE_STEP` 6 vs `layout_h("sm")` 11); the HUD
+readout column overlapped by 4–5px; the level-up option box held 138px of
+content in a 110px box, with 5 of 41 shipped explanations silently truncated
+past `max_lines=4`; and five close/dice/GO buttons were shorter than their own
+line height.
+
+The rule should read: **halve it if it positions something against the
+surface; leave it if it sizes something against the text.** A constant that
+does both — a row of text positioned relative to `view_h` — halves its
+*position* and keeps its *step*.
+
+This also closes §5's "fonts may need re-tuning after all" as **no change**:
+every defect found was a container that ended up smaller than its unhalved
+text, never text that was too small to read. That is the signature of "the
+presets were already 640-scale and the containers caught up late" — the
+opposite of the signature that would justify a font bump. The one thing that
+could still overturn it is legibility at physical pixel size (`sm 9` renders at
+18 physical px at 2×), which needs the live playtest.
 
 UR-1 is pure prep and lands green with **zero visual change** — it is what makes
 UR-2 a one-file flip instead of a hunt. UR-3 and UR-4 are independent of each
