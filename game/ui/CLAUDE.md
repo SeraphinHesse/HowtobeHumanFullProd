@@ -432,11 +432,12 @@ picker and the confirmation.
 - **`BuildingUI.move_btn`** — a mode-independent `Button` built once in
   `__init__` (the `boss_btn`/`_dice_up` pattern) with the id `move_btn`, and
   positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
-  **Visible only on a SINGLE selection** — a move is not batchable, the same
-  "tier advance stays primary-only" precedent. A Wall Builder gets the button
-  DISABLED + relabelled `CANNOT BE MOVED` with an `_upgrade_hint`, the same
-  mechanism `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the
-  real enforcement.
+  **Visible only on a SINGLE selection** — a move is not batchable (unlike
+  UPGRADE/ADVANCE, which do batch — see the fix/batch-tier-advance note
+  below). A Wall Builder gets the button DISABLED + relabelled
+  `CANNOT BE MOVED` with an `_upgrade_hint`, the same mechanism
+  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the real
+  enforcement.
 - **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
   `_highlight_tiles` with every `buildable_tiles()` tile that is not already
   `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
@@ -512,9 +513,26 @@ imports:
   .open_for_tile(..., selected_tiles=[primary, …])` batches: **unlock**
   dedups 2×2 chunks (`_unlock_chunks` frozenset key, summed cost, "UNLOCK n
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
-  only, **in-tier upgrade** sums `_batch_upgrade_targets`; tier ADVANCE stays
-  primary-only. Range diamond only when the selection is a single tile. The
-  base never batches.
+  only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
+  when the selection is a single tile. The base never batches.
+  **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
+  path from the plain in-tier batch above.** `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
+  every building whose next tier is reachable right now — regardless of its
+  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
+  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
+  UPGRADE batch. Clicking it, for each target: pays and applies any
+  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
+  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
+  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
+  LOVE" flash the in-tier batch uses). A building that can never reach its
+  next tier right now (already at the final tier, next tier unresearched,
+  or round-gated) is excluded from the batch/cost entirely — left for the
+  player to handle separately once it qualifies. **A single selection is
+  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
+  tiles) <= 1`, so one selected building still upgrades one in-tier level
+  per click and advances tier separately, via the original primary-only
+  branch in `_upgrade_click`, byte-identical to before this fix.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
