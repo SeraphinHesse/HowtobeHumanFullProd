@@ -321,6 +321,17 @@
               18
             ]
           },
+          "move_btn": {
+            "display_name": "Move building button",
+            "kind": "button",
+            "label": "MOVE BUILDING",
+            "rect": [
+              1032,
+              644,
+              236,
+              30
+            ]
+          },
           "panel": {
             "display_name": "Building panel",
             "kind": "panel",
@@ -389,6 +400,17 @@
           8,
           20,
           18
+        ]
+      },
+      "move_btn": {
+        "display_name": "Move building button",
+        "kind": "button",
+        "label": "MOVE BUILDING",
+        "rect": [
+          1032,
+          644,
+          236,
+          30
         ]
       },
       "panel": {
@@ -701,6 +723,16 @@
   "hud": {
     "mock_note": "love=123, round=7 (layout() + the _layout_readouts() second pass)",
     "widgets": {
+      "btn_drag_select": {
+        "kind": "button",
+        "label": "DRAG SEL",
+        "rect": [
+          12,
+          144,
+          90,
+          28
+        ]
+      },
       "btn_end_turn": {
         "display_name": "End Turn button",
         "kind": "button",

@@ -60,6 +60,28 @@ import heapq
 # Occupant building_type values counted as "economy" (prototype pathfinder.py:36).
 _ECONOMY_BUILDING_TYPES = {"economic", "meditator", "painter"}
 
+# NE-0/D1: every ATTACK-CAPABLE building — the "defence" hunt category. It used
+# to be the single literal ``building_type == "defence"``, i.e. the Defender
+# only, which left the three later attack buildings (mortar, Storm Priest, Sun
+# Scorcher) invisible to a hunter sent to kill defences. Widening it is a
+# DELIBERATE, user-approved balance change and it is SHARED: SiegeCannon already
+# ships ``hunts: "defence"``, so from NE-0 it hunts these four from its existing
+# ``start_round: 14`` onward.
+_ATTACK_BUILDING_TYPES = {"defence", "aoe_defence", "storm_priest",
+                          "sun_scorcher"}
+
+# NE-0/D2: every NON-economy, NON-boost, NON-base building — the "structure"
+# hunt category (the attack set above plus the two structure buildings). Named
+# for the thing a hunter wants to knock down to open a route: blockers and wall
+# builders are the common case, but the category is deliberately not limited to
+# them. Keep it in sync with game/buildings' BUILDING_TYPE constants: the whole
+# roster is this set + _ECONOMY_BUILDING_TYPES + the three boost_* types + base.
+# Spelled out literally rather than derived from the set above: the two
+# categories answer different questions and one is not defined as the other
+# plus two, so a future attack-capable type must be added to BOTH on purpose.
+_STRUCTURE_BUILDING_TYPES = {"blocker", "wall_builder", "defence",
+                             "aoe_defence", "storm_priest", "sun_scorcher"}
+
 
 def _pre_query_refresh(tilemap):
     """Refresh damage-weight reductions, defence-range coverage (when core has
@@ -458,12 +480,22 @@ def find_path_ignoring_walls(tilemap, start_col, start_row, footprint=1,
                        footprint=footprint, cond_weights=cond_weights)
 
 
-def _goal_tiles(tilemap, predicate):
+def _goal_tiles(tilemap, predicate, exclude=None):
+    """The goal set for a hunt: every built tile whose occupant is alive and
+    satisfies ``predicate``.
+
+    NE-2 adds ``exclude`` — an optional container of ``(col, row)`` tiles to
+    drop from the set BEFORE the predicate runs. It is the seam the Digger's
+    exclusive claim rides on (a tile another live Digger has already committed
+    to is simply not a candidate), and it is deliberately a plain tile filter
+    rather than a second predicate: the caller knows tiles, not occupants, and
+    ``None`` keeps every existing query byte-identical."""
     return {
         (t.col, t.row)
         for t in tilemap.built_tiles()
         if t.occupant is not None
         and getattr(t.occupant, "alive", False)
+        and (exclude is None or (t.col, t.row) not in exclude)
         and predicate(t.occupant)
     }
 
@@ -546,13 +578,55 @@ def find_path_to_nearest_economic(tilemap, start_col, start_row, footprint=1,
 
 def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1,
                                  cond_weights=None):
-    """Cheapest path to the nearest alive defence building, by geometric
+    """Cheapest path to the nearest alive ATTACK-CAPABLE building, by geometric
     distance (Chunk 4, same distance-choice fix as the economic variant
     above; dormant until SiegeCannon.hunts == "defence" armed it). Falls back
-    to the base path if none exist."""
+    to the base path if none exist.
+
+    NE-0/D1: the goal predicate is ``_ATTACK_BUILDING_TYPES`` — Defender,
+    mortar (``aoe_defence``), Storm Priest and Sun Scorcher — not the single
+    literal ``"defence"`` it shipped with. A deliberate, user-approved balance
+    change to an EXISTING type: SiegeCannon (``hunts: "defence"``) hunts all
+    four from its existing ``start_round: 14`` onward."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(
-        tilemap, lambda b: getattr(b, "building_type", None) == "defence")
+        tilemap,
+        lambda b: getattr(b, "building_type", None) in _ATTACK_BUILDING_TYPES,
+    )
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
+
+
+def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
+                                   cond_weights=None, exclude=None):
+    """Cheapest path to the nearest alive STRUCTURE — every non-economy,
+    non-boost, non-base building (``_STRUCTURE_BUILDING_TYPES``: blocker,
+    wall builder, and the four attack-capable types) — by geometric distance,
+    routed by weighted cost through the shared ``_hunt`` body like every other
+    prey query. Falls back to the base path if none exist.
+
+    NE-0/D2. The ``"structure"`` hunt category, added for the Digger (NE-2) but
+    landed a phase early so it rides the same reviewed helper the other hunts
+    do. Blockers and wall builders are the common case in practice; the
+    category is deliberately not restricted to those two.
+
+    NE-2 adds ``exclude``: ``(col, row)`` tiles to drop from the goal set. This
+    is the ONE hunt query that takes it, because the Digger is the one type
+    with an exclusive claim — another live Digger's committed target is not a
+    candidate for this one. ``None`` (every other caller, including
+    ``_HUNT_QUERIES``' generic dispatch) is byte-identical to NE-0.
+
+    **Caution — an empty goal set still falls back to the BASE path** (``_hunt``
+    does, for every hunt). A caller that must never march at the hole when
+    exclusion empties the board — the Digger, which "only builds towards
+    buildings" — has to detect that itself: ``PathAgent.adopt_goal`` flips
+    ``goal_is_base`` True on exactly that path, which is what
+    ``BurrowAgent.retarget`` reads to stand down instead."""
+    _pre_query_refresh(tilemap)
+    goals = _goal_tiles(
+        tilemap,
+        lambda b: getattr(b, "building_type", None) in _STRUCTURE_BUILDING_TYPES,
+        exclude,
+    )
     return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
 
 

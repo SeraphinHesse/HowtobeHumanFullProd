@@ -66,7 +66,7 @@ _MOCK_BUILDING_TYPE = "defence"
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
 # contract everywhere; this mapping only feeds an OPTIONAL `display_name` that
 # the editor prefers and falls back from). {screen_id: {widget_id:
-# display_name}}. `building_panel` is the gated, complete mapping (all 12
+# display_name}}. `building_panel` is the gated, complete mapping (all 13
 # ids, plan's motivating screen); the other 12 screens are mapped on a
 # best-effort basis — any id absent here simply gets no `display_name` key
 # and the editor falls back to the raw id (harmless, D4).
@@ -78,6 +78,7 @@ _DISPLAY_NAMES = {
         "boss_btn": "Boss history button",
         "boss_close_btn": "Boss history close button",
         "rename_dice_btn": "Rename dice button",
+        "move_btn": "Move building button",
         "preview_panel": "Construct preview window",
         "preview_confirm_btn": "Construct confirm button",
         "preview_cancel_btn": "Construct cancel button",
@@ -312,7 +313,8 @@ _BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
 # ConstructPreview modal's own disjoint "preview_*" namespace).
 _BP_UNLOCK_IDS = ("panel", "close_btn", "action_btn")
 _BP_CONSTRUCT_IDS = ("panel", "close_btn")
-_BP_UPGRADE_IDS = ("panel", "close_btn", "action_btn", "rename_dice_btn")
+_BP_UPGRADE_IDS = ("panel", "close_btn", "action_btn", "rename_dice_btn",
+                   "move_btn")
 _BP_BASE_INFO_IDS = ("panel", "close_btn", "boss_btn", "boss_close_btn")
 
 # Fixed unlock-cost mock (view §2: "mock values go in the view's mock_note") —

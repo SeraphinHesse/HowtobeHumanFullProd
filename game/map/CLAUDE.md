@@ -128,6 +128,24 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
     on. Conditions never change during a run.
+    - **The map doc's painted `tile_conditions` marks outrank the roll
+      entirely** (`data/CLAUDE.md`; the schema's enum is the single source of
+      the four names, `tiles.py`'s `CONDITION_BY_MAP_KEY` the one name→enum
+      table). They are applied FIRST, **unconditionally and independently of
+      `rng`** — a mark is deterministic authoring, not a draw, so `rng=None`
+      does NOT suppress it (an unpainted doc carries an empty dict, so every
+      existing fixture stays byte-identical). A painted cell is then SKIPPED by
+      the roll loop — that skip is what "locks the tile out of the tile
+      generation process". **A mark wins EVERYWHERE, no exceptions**: BACKGROUND
+      tiles and the starting unlocked pocket incl. the base take the painted
+      condition too, even though the roll deliberately skips both — a
+      user-chosen rule, not an oversight. The prototype-exact eligibility rules
+      still govern the ROLL; they simply no longer govern a designer's explicit
+      mark. It is a one-time O(marks) pass (never an O(map) walk) and runs
+      BEFORE the condition-art/variant pass, so painted tiles resolve
+      `condition_slot` with no extra code (a painted BACKGROUND tile still gets
+      no art — unchanged rule — but carries the condition, so it is correct the
+      instant it recedes into play).
   - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
     since the per-state restructuring.** `data/slots.json`'s asset-only
     `conditions` category holds it, restructured so each condition type
@@ -262,10 +280,39 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `test_pathfinder.TestDijkstraReturnsTheRouteItCosted`, which compares the
   returned path's cost against an independent settle-only Dijkstra over 40 random
   pond boards.
+- **A HUNT IS A PREDICATE OVER `building_type`, nothing more** — the goal set
+  is `_goal_tiles(tilemap, predicate)` and the search is the shared `_hunt`
+  body below. Every category is ONE module-level frozen-vocabulary set at the
+  top of `pathfinder.py`, and a new category is a set + a
+  `find_path_to_nearest_*` wrapper + a `_HUNT_QUERIES` row + the `hunts` schema
+  enum — **never new pathfinding machinery** (NE-0 is the worked example).
+  - `_ECONOMY_BUILDING_TYPES` = `{economic, meditator, painter}`.
+  - **`_ATTACK_BUILDING_TYPES` = `{defence, aoe_defence, storm_priest,
+    sun_scorcher}`. NE-0/D1 WIDENED `find_path_to_nearest_defence` to this**
+    from the single literal `building_type == "defence"`, which had left the
+    three later attack buildings invisible to a defence hunter. It is a
+    **deliberate, user-approved gameplay change to a LIVE type**, not a
+    refactor: `SiegeCannon` ships `hunts: "defence"`, so it hunts all four from
+    its unchanged `start_round: 14` onward.
+  - **`_STRUCTURE_BUILDING_TYPES` = `{blocker, wall_builder, defence,
+    aoe_defence, storm_priest, sun_scorcher}` — the NE-0/D2 `"structure"`
+    category** behind the new `find_path_to_nearest_structure` (same shape as
+    the defence variant, same `_hunt` body): every non-economy, non-boost,
+    non-base building. Written out literally rather than derived from the
+    attack set, so a future attack-capable type must be added to BOTH
+    deliberately. It ships with **no consumer** (the Digger, NE-2, is the
+    first) — landed early on purpose so a predicate mistake surfaces against
+    `SiegeCannon`'s existing coverage rather than a brand-new type's.
+  - The sets partition the roster exactly: structure ∪ economy ∪ the three
+    `boost_*` ∪ `base` is every `BUILDING_TYPE` in `game/buildings`, and
+    attack ⊂ structure. `test_pathfinder.TestHuntCategories` asserts both, and
+    runs each predicate against the WHOLE roster — so a building type no
+    category claims shows up as a failing subtest, not as silent drift.
 - **`find_path_to_nearest_economic` / `_defence` are LIVE (Chunk 4 — was
   "dormant, queried by nothing")** — armed via `EnemyTypes.<type>.hunts`
   (`Raider` → `"economic"`, `SiegeCannon` → `"defence"`), dispatched by
-  `game/enemies/components.py`'s `_HUNT_QUERIES`. Both now share the same
+  `game/enemies/components.py`'s `_HUNT_QUERIES` (which gained a `"structure"`
+  row in NE-0). All three now share the same
   `_hunt` helper `find_path_to_nearest_non_base_building` uses — choose the
   nearest goal by geometric distance, route by weighted cost, multi-goal
   fallback if the chosen one is unreachable, base path if no goal exists at
@@ -331,6 +378,20 @@ Conventions that differ from the prototype (deliberate, clean-arch):
       `submit_overlay_lines` consumes), COMPUTED from the delta rather than
       from a second lookup table, so it and `SIDE_OF_DELTA` cannot disagree;
       `None` for a non-adjacent pair.
+- **`TileMap.moving_orders` + `is_moving(col, row)` (Building Movement)**: a
+  plain list of buildings currently IN TRANSIT between two tiles. Entries are
+  duck-typed `types.SimpleNamespace`s (`building` / `from_col` / `from_row` /
+  `to_col` / `to_row` / `rounds_left`) built by `game/buildings/movement.py`
+  and ticked down by payday — **this module imports NOTHING from
+  `game.buildings`**, exactly as `wall_edges` duck-types its `owner`.
+  **Both endpoints of a live order stay ordinary `BUILDABLE` tiles with no
+  occupant**, so they resolve to the `buildable_tile` weight and enemies walk
+  straight through them; `is_moving` is the ONLY thing that distinguishes
+  them, and its one consumer-facing job is barring a new building from either
+  (enforced in `game/buildings/registry.py place_building`, not here). A new
+  `TileState` member was deliberately rejected for this — see
+  `game/buildings/CLAUDE.md`'s Building Movement section for why. O(orders),
+  and orders are a handful at most, so this adds nothing to any hot path.
 - **Occupancy is occupant-driven and updated incrementally**: a tile with a
   GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
   impassability is a weight concern, not occupancy). Placement seams

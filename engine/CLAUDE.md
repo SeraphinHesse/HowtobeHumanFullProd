@@ -60,7 +60,14 @@ engine task; if an engine change forces a caller change, tell the user
   them as "flip this cell out of spawning at stage n" and "buying a 2×2 over
   these cells advances the run's stage counter to the max number under it". The
   item field on all three is `stage`; it was `purchase` on the first two until
-  the stage counter stopped being a purchase count.
+  the stage counter stopped being a purchase count. **`tile_conditions` is the
+  FOURTH never-rendered per-cell overlay** — same dict-in-memory /
+  (row, col)-sorted-list-on-disk split and same `validate_doc` bounds check, with
+  ONE difference: its item field is `condition`, an opaque NAME string rather
+  than a stage NUMBER (`tilemap.py` never learns what a "pond" is; the map
+  schema's own enum is the single source of that vocabulary, and
+  `condition_codes_from_schema` digs it out for the editor's brushes the way
+  `defaults_from_schema` digs the legend consts).
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never

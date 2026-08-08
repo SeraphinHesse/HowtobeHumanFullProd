@@ -81,6 +81,19 @@ DESPAWN_COLOR = (245, 110, 210)
 # the reserve's cyan and the despawn's magenta; one cell can legitimately carry
 # all three marks, so each number is also drawn at its own y offset
 STAGE_COLOR = (150, 255, 90)
+# tile-condition mark outlines — ONE hue per condition NAME (the fourth
+# overlay's brush value is a name, not a number), each chosen to stay legible
+# against the reserve's cyan, the despawn's magenta and the stage's lime, and
+# against each other. A name with no entry here falls back to
+# CONDITION_DEFAULT_COLOR, so a fifth condition added to the schema still
+# draws (E-37) — it just shares the fallback hue until a colour is chosen.
+CONDITION_COLORS = {
+    "grass": (255, 235, 120),    # pale yellow
+    "mountain": (170, 170, 185),  # slate grey
+    "pond": (80, 140, 255),      # deep blue (vs the reserve's turquoise)
+    "forest": (0, 170, 95),      # deep green (vs the stage's lime)
+}
+CONDITION_DEFAULT_COLOR = (255, 255, 255)
 
 # ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
 # regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
@@ -121,6 +134,7 @@ class ViewportPanel(QWidget):
     reserve_number_picked = Signal(int)   # picker on a mark → palette spinbox
     despawn_number_picked = Signal(int)   # picker on a despawn mark → spinbox
     stage_number_picked = Signal(int)     # picker on a stage-zone mark → spinbox
+    condition_picked = Signal(str)        # picker on a condition mark → brush
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
     anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
     anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
@@ -179,10 +193,14 @@ class ViewportPanel(QWidget):
         # the Stage Zones brush: True when armed (same shape again)
         self._armed_stage = None
         self._stage_number = 1     # stage number newly painted marks carry
+        # the Tile Conditions brush: the armed condition NAME when armed (the
+        # same shape again, except the brush carries a value — one button per
+        # condition, so the value is the name, never a number)
+        self._armed_condition = None
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
                       "camera": True, "start_area": True, "tutorial": True,
                       "spawn_reserve": True, "despawnable_spawn": True,
-                      "stage_zones": True}
+                      "stage_zones": True, "tile_conditions": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
@@ -197,6 +215,10 @@ class ViewportPanel(QWidget):
         # stage-zone stroke accumulator + the value it writes (None = erase)
         self._stage_stroke = None
         self._stage_stroke_value = None
+        # tile-condition stroke accumulator + the condition NAME it writes
+        # (None = erase)
+        self._condition_stroke = None
+        self._condition_stroke_value = None
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
         self._camera_drag = False
@@ -385,6 +407,7 @@ class ViewportPanel(QWidget):
         self._reserve_stroke = None
         self._despawn_stroke = None
         self._stage_stroke = None
+        self._condition_stroke = None
         self._anchor = None
         self._base_drag = False
         self._start_area_drag = False
@@ -681,6 +704,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
@@ -693,6 +717,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -707,6 +732,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_camera(self, slot):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
@@ -721,6 +747,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
@@ -735,6 +762,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_tutorial_flute(self, slot):
         """Arm the First Flute brush (paint = place/move the single "first
@@ -750,6 +778,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_tutorial_stone(self, slot):
         """Arm the First Stone brush (paint = place/move the single "first
@@ -765,6 +794,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_spawn_reserve(self):
         """Arm the Spawnable Background brush (paint = mark the cell with the
@@ -781,6 +811,7 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def set_reserve_number(self, n):
         """The stage number newly painted marks carry (palette spinbox)."""
@@ -800,6 +831,7 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def set_despawn_number(self, n):
         """The stage number newly painted despawn marks carry (palette
@@ -820,11 +852,30 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
+        self._armed_condition = None
 
     def set_stage_number(self, n):
         """The stage number newly painted stage-zone marks carry (palette
         spinbox)."""
         self._stage_number = int(n)
+
+    def arm_tile_condition(self, name):
+        """Arm ONE tile-condition brush (paint = force that condition on the
+        cell, erase = clear the mark). The fourth overlay brush, and the only
+        one that carries a VALUE rather than a bool: the palette has one button
+        per condition NAME, so arming names the condition. Clears every other
+        armed brush."""
+        self._armed_condition = name
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
 
     def set_deco_flip(self, on):
         """Mirror-flip toggle for the armed deco brush — an orthogonal
@@ -985,6 +1036,29 @@ class ViewportPanel(QWidget):
                     tilemap_ops.stage_bucket(doc, *cell, self._stage_number),
                     "stage zone bucket fill")
             return
+        if self._armed_condition is not None:
+            # the tile-condition mark is an INVISIBLE OVERLAY too — its own ops
+            # over doc.tile_conditions, likewise BEFORE the terrain-code
+            # branches. The only difference from the three above: the painted
+            # value is the armed condition NAME, not a spinbox number.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_condition(doc, *cell)
+                if picked is not None:
+                    self.condition_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._armed_condition if self._tool == "paint" else None
+                self._condition_stroke_value = value
+                self._condition_stroke = tilemap_ops.set_condition(
+                    doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_condition_stroke(
+                    tilemap_ops.condition_bucket(
+                        doc, *cell, self._armed_condition),
+                    "tile condition bucket fill")
+            return
         if self._tool == "picker":
             code = tilemap_ops.pick(doc, *cell)
             if code is not None:
@@ -1035,6 +1109,14 @@ class ViewportPanel(QWidget):
                 self._stage_stroke_value))
             self._stroke_last = cell
             return
+        if self._condition_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the stage stroke above
+            self._condition_stroke.extend(tilemap_ops.condition_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._condition_stroke_value))
+            self._stroke_last = cell
+            return
         if self._stroke is not None and cell is not None \
                 and cell != self._stroke_last:
             # Bresenham-interpolate between events so fast drags don't gap
@@ -1082,6 +1164,11 @@ class ViewportPanel(QWidget):
                 self._stage_stroke, "stage zone stroke")
             self._stage_stroke = None
             self._stroke_last = None
+        elif self._condition_stroke is not None:
+            self._map_session.push_condition_stroke(
+                self._condition_stroke, "tile condition stroke")
+            self._condition_stroke = None
+            self._stroke_last = None
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
@@ -1106,6 +1193,12 @@ class ViewportPanel(QWidget):
                     self._map_session.push_stage_stroke(
                         op(doc, *self._anchor, *cell, self._stage_number),
                         f"stage zone {self._tool}")
+                elif self._armed_condition is not None:
+                    op = (tilemap_ops.condition_line if self._tool == "line"
+                          else tilemap_ops.condition_rect)
+                    self._map_session.push_condition_stroke(
+                        op(doc, *self._anchor, *cell, self._armed_condition),
+                        f"tile condition {self._tool}")
                 else:
                     op = (tilemap_ops.line if self._tool == "line"
                           else tilemap_ops.rect_fill)
@@ -1140,6 +1233,8 @@ class ViewportPanel(QWidget):
             return   # its ghost is the OUTLINE drawn by the despawn overlay
         if self._armed_stage is not None:
             return   # its ghost is the OUTLINE drawn by the stage-zone overlay
+        if self._armed_condition is not None:
+            return   # its ghost is the OUTLINE drawn by the condition overlay
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
         if self._armed_base is not None:
@@ -1461,6 +1556,7 @@ class ViewportPanel(QWidget):
         self._submit_spawn_reserve(doc, cmin, cmax, rmin, rmax)
         self._submit_despawn(doc, cmin, cmax, rmin, rmax)
         self._submit_stage_zones(doc, cmin, cmax, rmin, rmax)
+        self._submit_tile_conditions(doc, cmin, cmax, rmin, rmax)
         if self._grid_lines:
             # bound the grid to the visible window too (a 1024-line full grid
             # would swamp the overlay pass)
@@ -1596,6 +1692,31 @@ class ViewportPanel(QWidget):
             sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
             self._renderer.submit_hud(HudText(
                 str(number), (sx, sy + 14), "sm", STAGE_COLOR, align="center"))
+
+    def _submit_tile_conditions(self, doc, cmin, cmax, rmin, rmax):
+        """The tile-condition marks: the FOURTH twin of _submit_spawn_reserve —
+        a single-tile closed diamond OUTLINE through the E-24 overlay primitive
+        plus a `HudText` label, one hue per condition NAME (CONDITION_COLORS)
+        so the four are tellable apart from each other and from the reserve
+        (cyan) / despawn (magenta) / stage (lime) marks. Its label sits BELOW
+        all three of their numbers (reserve sy-6, despawn sy+4, stage sy+14,
+        condition sy+24) so a cell carrying all four marks stays readable.
+        Editor-only chrome; the game draws nothing for the mark itself.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the other three overlays are."""
+        if not self._eyes["tile_conditions"]:
+            return
+        for (col, row), name in doc.tile_conditions.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            color = CONDITION_COLORS.get(name, CONDITION_DEFAULT_COLOR)
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                name.upper(), (sx, sy + 24), "sm", color, align="center"))
 
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 

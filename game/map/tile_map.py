@@ -17,8 +17,8 @@ from dataclasses import dataclass
 from game.core.balance import load_balance
 from .spawn_deco import spawn_tree_slots
 from .tiles import (
-    CONDITION_CATEGORY, CONDITION_LABEL, CONDITION_STATE_LABEL,
-    CONDITION_WEIGHT_KEY, Tile, TileCondition, TileState,
+    CONDITION_BY_MAP_KEY, CONDITION_CATEGORY, CONDITION_LABEL,
+    CONDITION_STATE_LABEL, CONDITION_WEIGHT_KEY, Tile, TileCondition, TileState,
 )
 
 
@@ -216,6 +216,17 @@ class TileMap:
         # edge the later placement overwrites (last-placed owns it); documented
         # as acceptable in the prototype.
         self.wall_edges = {}
+        # Buildings currently IN TRANSIT between two tiles (Building Movement).
+        # A plain list of duck-typed order objects — `types.SimpleNamespace`s
+        # carrying `building` / `from_col` / `from_row` / `to_col` / `to_row` /
+        # `rounds_left`, built by `game/buildings/movement.py` and ticked down
+        # by payday. Deliberately NOT a game.buildings import: the map layer
+        # duck-types the order exactly like `wall_edges` duck-types its
+        # `owner`. Both endpoints of a live order sit at BUILDABLE with no
+        # occupant (enemies still path through them at the ordinary
+        # `buildable_tile` weight); `is_moving` is what bars them from hosting
+        # a new building while the move runs.
+        self.moving_orders = []
         # DEFENCE_RANGE_PATH_WEIGHT_ADD lives in the buildings domain and is
         # wired in 10I; 0 keeps the coverage add inert in 9C (and coverage is
         # empty anyway, so it never fires).
@@ -275,6 +286,36 @@ class TileMap:
         # every pre-10I headless fixture (which asserts exact path costs on
         # all-GRASS grids) byte-stable. One-time O(map) init pass — NOT a
         # per-frame scan (perf invariant).
+        #
+        # PAINTED CONDITIONS come FIRST and are applied UNCONDITIONALLY —
+        # deliberately OUTSIDE the ``rng is not None`` gate below. A painted
+        # mark is deterministic AUTHORING, not a roll, so the all-GRASS
+        # headless-fixture escape hatch (``rng=None``) must not suppress it.
+        # This costs nothing for every existing fixture: a doc with no marks
+        # carries an EMPTY dict (``TileMapDoc.__post_init__``), so the loop
+        # body never runs and those maps stay byte-identical.
+        #
+        # A painted mark WINS EVERYWHERE, with no exceptions: BACKGROUND
+        # tiles and the starting unlocked pocket incl. the base take the
+        # painted condition too, even though the ROLL deliberately skips
+        # both. This is a deliberate, user-chosen rule, NOT an oversight —
+        # the prototype-exact eligibility rules still govern the ROLL; they
+        # simply no longer govern a designer's explicit mark.
+        # ``CONDITION_BY_MAP_KEY`` is indexed DIRECTLY (never ``.get``): an
+        # unknown name is invalid data and must fail loud (D-2). O(marks),
+        # never an O(map) walk (perf invariant, game/map/CLAUDE.md).
+        # The `None` guard is the same defence-in-depth every other painted
+        # overlay's consumer carries (`_release_spawn_reserve` /
+        # `_despawn_spawn_reserve`): `validate_doc` already bounds-checks every
+        # mark at load, but a `TileMap` built DIRECTLY from a hand-made doc
+        # (the headless-fixture pattern) never passes through it, and `Tile`
+        # uses `__slots__` — so an out-of-bounds mark would raise a bare
+        # AttributeError on `None` instead of being skipped.
+        painted = doc.tile_conditions
+        for (col, row), name in painted.items():
+            t = self.get(col, row)
+            if t is not None:
+                t.condition = CONDITION_BY_MAP_KEY[name]
         if rng is not None:
             chances = balance["TileConditions"]["spawn_chances"]
             conds = (TileCondition.GRASS, TileCondition.MOUNTAIN,
@@ -282,8 +323,12 @@ class TileMap:
             weights = [chances["grass"], chances["mountain"],
                        chances["pond"], chances["forest"]]
             for t in self.all_tiles():
+                # A painted cell is never rolled — THAT skip is what "locks
+                # the tile out of the tile generation process": the
+                # designer's mark is final and no draw can overwrite it.
                 if (t.state == TileState.BACKGROUND
-                        or self._is_unlocked_state(t.state)):
+                        or self._is_unlocked_state(t.state)
+                        or (t.col, t.row) in painted):
                     continue
                 t.condition = rng.choices(conds, weights=weights)[0]
         # -- /10I --
@@ -436,6 +481,18 @@ class TileMap:
 
     def buildable_tiles(self):
         return list(self._by_state[TileState.BUILDABLE])
+
+    def is_moving(self, col, row):
+        """True if ``(col, row)`` is either endpoint of a live move order.
+
+        Both the origin a moving building vacated and the destination it is
+        headed for are ordinary BUILDABLE tiles for pathfinding purposes — an
+        enemy walks through them at the normal weight — but neither may host a
+        new building until the move lands. O(orders), and orders are a handful
+        at most."""
+        return any((o.from_col, o.from_row) == (col, row)
+                   or (o.to_col, o.to_row) == (col, row)
+                   for o in self.moving_orders)
 
     # -- tile unlocking (prototype tile_map.py:298-374) -------------------
 

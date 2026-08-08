@@ -156,6 +156,14 @@ class Hud:
         self.speed_1_5x = Button((0, 0, 56, 28), "1.5×", font_key="sm")
         self.speed_2x = Button((0, 0, 56, 28), "2×", font_key="sm")
         # -- /10L speed --
+        # -- drag-select: an always-available toggle sitting directly under the
+        # speed row. Wider than a speed button because the label is 8 chars at
+        # font "sm"; the 28px height matches so the two rows read as a stack.
+        # The FLIP itself lives in main.py's handle_world_click (never in
+        # hit(), which the host calls twice per click) — this widget only
+        # reports the click and draws the active rim off the host's flag. --
+        self.drag_select_btn = Button((0, 0, 90, 28), "DRAG SEL", font_key="sm")
+        # -- /drag-select --
         self._clock = 0.0  # drives the levelup-pending pulse
         # The building panel is a full-height right sidebar and the HUD submits
         # AFTER it, so both right-edge buttons would paint on top of it. While
@@ -234,6 +242,11 @@ class Hud:
         self.speed_1_5x.rect = (12 + sw + gap, sy, sw, sh)
         self.speed_2x.rect = (12 + 2 * (sw + gap), sy, sw, sh)
         # -- /10L speed --
+        # -- drag-select: its own row directly below the speed row --
+        sy2 = sy + sh + gap
+        sw2 = self.drag_select_btn.rect[2]
+        self.drag_select_btn.rect = (12, sy2, sw2, sh)
+        # -- /drag-select --
         self.ids = {
             "btn_end_turn": ("button", self.end_turn),
             "btn_pause": ("button", self.pause),
@@ -242,6 +255,7 @@ class Hud:
             "btn_speed_1x": ("button", self.speed_1x),
             "btn_speed_1_5x": ("button", self.speed_1_5x),
             "btn_speed_2x": ("button", self.speed_2x),
+            "btn_drag_select": ("button", self.drag_select_btn),
         }
         self.skinning.apply(self.screen_id, self.ids)
 
@@ -334,6 +348,15 @@ class Hud:
             btn.hovered = btn.hovered and is_visible(btn)
             btn.update(dt)
         # -- /10L speed --
+        # -- drag-select: same enable rule as `pause` — NO unlock/round gate,
+        # so the toggle is clickable from round 0 on. --
+        self.drag_select_btn.enabled = (st.state == GameState.GAMEPLAY
+                                        and not self._panel_open)
+        self.drag_select_btn.hover(mx, my, mouse_down)
+        self.drag_select_btn.hovered = (self.drag_select_btn.hovered
+                                        and is_visible(self.drag_select_btn))
+        self.drag_select_btn.update(dt)
+        # -- /drag-select --
 
     def hit(self, mx, my):
         if self._panel_open:
@@ -348,11 +371,20 @@ class Hud:
         if is_visible(self.speed_2x) and self.speed_2x.hit(mx, my):
             return ("speed", 2)
         # -- /10L speed --
+        # -- drag-select: a PURE READ. main.py calls Hud.hit() twice per click
+        # (the MOUSEBUTTONDOWN `over_ui` pan-arming probe, then for real from
+        # handle_world_click on MOUSEBUTTONUP), so a self-toggling hit() —
+        # MapOverlays.hit()'s pattern — would double-fire and cancel itself.
+        # The host owns the flip, exactly like ("speed", idx). --
+        if (is_visible(self.drag_select_btn)
+                and self.drag_select_btn.hit(mx, my)):
+            return "drag_select"
+        # -- /drag-select --
         return ("end_turn" if is_visible(self.end_turn)
                and self.end_turn.hit(mx, my) else None)
 
     def submit(self, renderer, session, view_w, view_h, hover_cost=None,
-              scene=None):
+              scene=None, drag_select_enabled=False):
         from engine.render import HudRect  # local: keep module import list lean
 
         st = session.state
@@ -483,6 +515,23 @@ class Hud:
                 else:
                     btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
             # -- /10L speed --
+            # -- drag-select toggle: same gold-rim-when-active treatment as
+            # the speed buttons; the state itself is the host's (gp[
+            # "drag_select_enabled"]), threaded in per frame. --
+            if is_visible(self.drag_select_btn):
+                if drag_select_enabled:
+                    self.drag_select_btn.submit(renderer,
+                                                color=widgets.C_UI_BTN,
+                                                text_color=widgets.C_GOLD,
+                                                anim_ms=t)
+                    renderer.submit_hud(HudRect(self.drag_select_btn.rect,
+                                                widgets.C_GOLD, width=2,
+                                                border_radius=3))
+                else:
+                    self.drag_select_btn.submit(
+                        renderer, anim_ms=t,
+                        **button_kwargs(self.drag_select_btn))
+            # -- /drag-select --
 
         # -- lightning readout (10H; feature-storm-acolyte-multi-build reads
         # the scene's placed casters now, not a single RunState field) ------

@@ -1,10 +1,3 @@
-<!-- active-plan: NewEnemyTypesPLAN.md | set: 2026-08-08 -->
-> **Active plan:** NewEnemyTypesPLAN.md (mirror). Source of truth:
-> `planning/NewEnemyTypesPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 # NewEnemyTypesPLAN.md — Sniper, Digger, Drummer enemy types
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
@@ -79,7 +72,7 @@ machinery, not new pathfinding architecture.
 
 | Phase | Scope | Status |
 |-------|-------|--------|
-| NE-0  | Shared pathfinder foundation (widen `defence` hunt, add `structure` hunt) | not started |
+| NE-0  | Shared pathfinder foundation (widen `defence`, add `structure` hunt) | not started |
 | NE-1  | Sniper — new ranged stand-off combat mechanic | not started |
 | NE-2  | Digger — burrow / claim / emerge state machine | not started |
 | NE-3  | Drummer — new buff/aura component | not started |

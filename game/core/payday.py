@@ -33,6 +33,7 @@ just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
 docstring for what each hook captures and why it must sit exactly there.
 """
 from game.buildings.components import BoostEmitter, PainterProgress, RoundStats
+from game.buildings.movement import process_moves
 from game.map.tiles import TileState
 from .boss_bonuses import love_bonus_income
 from .phases import GamePhase
@@ -262,6 +263,15 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
     #     perimeter to full HP — walls damaged during the round regenerate, and a
     #     builder revived at step 9 gets the walls torn down at step 8 back.
     tilemap.rebuild_walls()
+
+    # 10b. Building Movement: tick every in-transit building down one round and
+    #      land the ones that arrive. A pure APPEND at the tail of the existing
+    #      order — nothing above it moved. It sits AFTER revive on purpose: an
+    #      arriving building is spawned back into the scene here, so it was
+    #      never a candidate for steps 7-9's sweeps this payday (it holds no
+    #      tile while in transit), and it starts its first round on the new tile
+    #      fully healed like any other building at this point.
+    process_moves(tilemap, occupancy, scene)
 
     # 11. round++
     state.round_num += 1

@@ -324,7 +324,9 @@
         "walk",
         "attack",
         "death",
-        "kidnap"
+        "kidnap",
+        "dig",
+        "emerge"
       ],
       "display_name": "Enemies",
       "frame_h": 96,
@@ -531,6 +533,99 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "digger_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "digger_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "digger_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "digger_stage_4"
+              ]
+            }
+          ],
+          "label": "Digger"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "sniper_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "sniper_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "sniper_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "sniper_stage_4"
+              ]
+            },
+            {
+              "label": "Era 5",
+              "slots": [
+                "sniper_stage_5"
+              ]
+            }
+          ],
+          "label": "Sniper"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "drummer_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "drummer_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "drummer_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "drummer_stage_4"
+              ]
+            }
+          ],
+          "label": "Drummer"
         }
       ],
       "key": "enemies"
@@ -758,6 +853,12 @@
           "slots": [
             "tutorial_stone"
           ]
+        },
+        {
+          "label": "Moving Sign",
+          "slots": [
+            "moving_sign"
+          ]
         }
       ],
       "key": "core"
@@ -780,7 +881,8 @@
             "vfx_slash",
             "vfx_crater",
             "vfx_projectile",
-            "vfx_shell"
+            "vfx_shell",
+            "vfx_dirt_pile"
           ]
         }
       ],

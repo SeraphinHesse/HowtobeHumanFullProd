@@ -56,6 +56,43 @@ a second close path. The host turns a right-press into it (`main.py`
 `handle_world_right_click` — right-click dismisses from ANYWHERE, panel and HUD
 included; a right-DRAG past the 4px threshold pans instead and never dismisses).
 Covered by `tools/tests/test_right_click_dismiss.py`.
+**One conditional exception since the drag-selection toggle** — see the section
+below: while `gp["drag_select_enabled"]` is on AND no construct preview is
+open, a right-click on a tile that is CURRENTLY in the multi-selection peels
+that ONE tile out instead of dismissing. Every other right-click (toggle off,
+tile not selected, preview open, anywhere off a selected tile) still reaches
+this ladder unchanged.
+
+## Drag-selection toggle (`btn_drag_select`)
+A HUD toggle that turns one left-press-drag-release into a rectangle (box)
+selection producing the SAME end state Shift+Click multi-select builds one
+click at a time — same `_SEL_CATEGORY` filter, same batch UI in
+`building_ui.py` (unlock chunks / cost×count construct / summed in-tier
+upgrade), which needed NO change for this.
+- **The button lives in `hud.py` and mirrors the `speed_1x`/`_1_5x`/`_2x` row
+  exactly** (same `widgets.Button`, same construct→layout→ids→update→hit→submit
+  shape, same gold-rim-when-active treatment): `self.drag_select_btn`,
+  90×28, font `sm`, laid out at `(12, sy + sh + gap)` — its own row directly
+  under the speed row — and id'd `btn_drag_select`. Its enable rule is
+  `pause`'s (`GAMEPLAY and not self._panel_open`), with **no unlock/round
+  gate**, so it is clickable from round 0.
+- **`Hud.hit()` stays a PURE READ for it** (returns the string
+  `"drag_select"`; the flip happens in `main.py`'s `handle_world_click`, like
+  `("speed", idx)`). This is load-bearing, not style: `main.py` calls
+  `Hud.hit()` **twice per click** — once from the MOUSEBUTTONDOWN `over_ui`
+  pan-arming probe, once for real from `handle_world_click` on MOUSEBUTTONUP —
+  so `MapOverlays.hit()`'s self-toggling pattern would double-fire and cancel
+  itself here. Do not copy it into `Hud`.
+- **The STATE is the host's, not the widget's**: `gp["drag_select_enabled"]`
+  (`game/main.py`), threaded into `Hud.submit(..., drag_select_enabled=False)`
+  once per frame purely to draw the active rim. It lives in `gp` because the
+  event loop reads it when it decides drag-select vs. camera pan. Host wiring
+  (arming, the live rectangle, `finish_drag_select`, the right-click deselect)
+  → `game/CLAUDE.md`'s matching section.
+- **Golden pin**: `test_ui_skinning.py`'s `hud` baseline gained three appended
+  primitives and `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) — the sanctioned "a screen's default geometry
+  changed on purpose" path. Nothing already in either artifact moved.
 
 ## Overhead HP bars
 `effects.py` draws them in TWO passes, both reading live scene state and both
@@ -387,6 +424,50 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   (`_CHARGE_BAR_*`, `game/ui/effects.py`). Wired in `main.py` beside
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
+
+## Move Building (Building Movement)
+The upgrade panel's fifth mode + a second preview modal. Rules live in
+`game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
+picker and the confirmation.
+- **`BuildingUI.move_btn`** — a mode-independent `Button` built once in
+  `__init__` (the `boss_btn`/`_dice_up` pattern) with the id `move_btn`, and
+  positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
+  **Visible only on a SINGLE selection** — a move is not batchable, the same
+  "tier advance stays primary-only" precedent. A Wall Builder gets the button
+  DISABLED + relabelled `CANNOT BE MOVED` with an `_upgrade_hint`, the same
+  mechanism `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the
+  real enforcement.
+- **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
+  `_highlight_tiles` with every `buildable_tiles()` tile that is not already
+  `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
+  code constant NOT in `_PALETTE_KEYS`, the `C_TUTORIAL_HIGHLIGHT`
+  precedent). The panel body becomes a short instruction card
+  (`_submit_move_select`). **The panel only ever handles panel-space clicks**,
+  so `_move_select_click` just cancels back to upgrade; the destination TILE
+  pick is `game/main.py`'s (see `game/CLAUDE.md`). `dismiss()` gained one more
+  rung — move_select peels back to upgrade before the bare-panel close.
+- **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
+  the dice and the stat list (nothing about the building changes, it just
+  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
+  destination coords, CONFIRM/CANCEL. It reuses the SAME
+  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
+  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
+  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
+  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
+  `panel.preview is not None` modal branch drives it with **no
+  preview-class-specific code**. `_preview_click` is the one place that
+  branches, on `isinstance(self.preview, MovePreview)`.
+- **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
+  opened), call `start_move` in a `try/except MoveError` (flash
+  `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
+  panel outright (the building has vacated its tile, so there is nothing left
+  to show). **CANCEL leaves `mode == "move_select"`** so the player picks a
+  different tile — nothing has moved yet, the same reading `_construct_click`'s
+  cancel has (back to the card list, not to a closed panel).
+- **`open_for_tile` refuses to open construct mode on a move endpoint** —
+  both endpoints are plain BUILDABLE tiles, so without this the panel would
+  offer cards `place_building` then refuses. Convenience only; the bar itself
+  is in `place_building`.
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns

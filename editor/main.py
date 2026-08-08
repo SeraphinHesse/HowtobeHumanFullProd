@@ -186,6 +186,8 @@ class MainWindow(QMainWindow):
         self.palette.stage_armed.connect(self.viewport.arm_stage)
         self.palette.stage_number_changed.connect(
             self.viewport.set_stage_number)
+        self.palette.tile_condition_armed.connect(
+            self.viewport.arm_tile_condition)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
@@ -203,6 +205,8 @@ class MainWindow(QMainWindow):
             self.palette.set_despawn_number)
         self.viewport.stage_number_picked.connect(
             self.palette.set_stage_number)
+        self.viewport.condition_picked.connect(
+            self.palette.arm_tile_condition)
         self.viewport.cursor_world.connect(self._on_cursor_world)
         self.map_session.map_opened.connect(self._on_session_map_opened)
         self.map_session.active_changed.connect(

@@ -13,6 +13,8 @@ reverted it), and the boss entry's era is its own. Formations join since ER-4
 into the shuffled body — never leading the queue, never on a boss round). The
 Commander's branch exists since BR-2 but is DORMANT: its era rows AND every
 ``round_counts`` row's ``commander`` count are 0, so it never enters a wave.
+Snipers join since NE-1 (from ``Sniper.start_round``, body-mixed like
+formations — never leading the queue, never on a boss round).
 
 Since ES-2 every count and the spawn interval come from the ONE era clock in
 ``EnemyScaling`` (``rounds_per_era`` / ``boss_round_in_era``) resolved through
@@ -50,6 +52,14 @@ ENABLE_FORMATION = True
 # count_start/count_per_round at 0 (D8), so it never enters a normal wave. BR-3
 # gives it its real entrance, the boss's second phase.
 ENABLE_COMMANDER = True
+# NE-1: the Sniper, the first ranged stand-off type. LIVE from its own
+# `start_round` (26) — before that `_count_of` returns 0 and `_sniper_group`
+# draws no rng, so every wave below round 26 is byte-identical to BR-5.
+ENABLE_SNIPER = True
+# NE-2: the Digger. LIVE from EnemyTypes.Digger.start_round (35).
+ENABLE_DIGGER = True
+# NE-3: the Drummer support unit, live from its own start_round (25).
+ENABLE_DRUMMER = True
 
 # The burst order now lives beside ENEMY_CLASSES in enemy.py, because BR-3's
 # delayed second phase lays out its child queue from the SAME table and
@@ -229,11 +239,15 @@ class Spawner:
         to NON-boss rounds only, and formations do not appear at all (see
         ``_formation_group``).
 
-        ``_formation_group`` and then ``_commander_group`` are called LAST on
+        ``_formation_group``, then ``_commander_group``, then ``_sniper_group``,
+        ``_digger_group`` and ``_drummer_group`` are called LAST on
         purpose, newest last: every earlier group's rng draw sequence then
         stays byte-identical, so the standard/raider/siege counts and picks are
         unchanged at every round. (The Commander draws nothing at all today —
-        its counts are 0 — so BR-2 is provably wave-neutral.)
+        its counts are 0 — so BR-2 is provably wave-neutral. The Sniper draws
+        nothing below its `start_round` 26 and the Digger nothing below 35, so
+        every wave under those rounds is byte-identical too; the Drummer draws
+        nothing before round 25, so NE-3 is wave-neutral up to there.)
 
         TU-9: round 0 is the tutorial's forced-composition round — checked
         FIRST, before the boss check (``era_math.is_boss_round`` is already
@@ -265,8 +279,12 @@ class Spawner:
             round_num, balance, spawn_tiles)
         formations = self._formation_group(round_num, balance, spawn_tiles)
         commanders = self._commander_group(round_num, balance, spawn_tiles)
+        snipers = self._sniper_group(round_num, balance, spawn_tiles)
+        diggers = self._digger_group(round_num, balance, spawn_tiles)
+        drummers = self._drummer_group(round_num, balance, spawn_tiles)
 
-        rest = regular + raiders + siege_mixed + formations + commanders
+        rest = (regular + raiders + siege_mixed + formations + commanders
+                + snipers + diggers + drummers)
         self._rng.shuffle(rest)
         return siege_front + rest
 
@@ -382,6 +400,80 @@ class Spawner:
         return [(self._pick_spawn_tile(spawn_tiles, "commander"), "commander")
                 for _ in range(n)]
 
+    def _sniper_group(self, round_num, balance, spawn_tiles):
+        """Snipers from ``Sniper.start_round`` (NE-1), through the same shared
+        count formula every other type uses.
+
+        Mixed into the shuffled body, never leading the queue: the Sniper's
+        whole point is that it stops 2 tiles short of an attack building and
+        shoots it, so putting it at the head of the wave would have it
+        out-ranging the player's defences before anything else arrived to draw
+        fire. Same reasoning as the Formation's body-mix, different mechanic.
+
+        Snipers never appear on a boss round — ``_boss_round`` composes from
+        ``Boss.round_counts``, a ``$defs/spawn_counts`` table shared with every
+        ``death_spawn.spawns`` row, and adding a `sniper` key there would force
+        a meaningless sniper count onto all 14 committed rows (the same
+        judgement the Formation section of ``game/enemies/CLAUDE.md`` records;
+        BR-1 overrode it once, for `commander`, deliberately).
+
+        Called after ``_commander_group`` — newest last, so every earlier
+        group's rng draw sequence stays byte-identical."""
+        if not ENABLE_SNIPER:
+            return []
+        n = self._count_of(balance, "Sniper", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "sniper"), "sniper")
+                for _ in range(n)]
+
+    def _digger_group(self, round_num, balance, spawn_tiles):
+        """Diggers from ``Digger.start_round`` (35) on, through the shared
+        count formula. Mixed into the shuffled body, never queue-leading:
+        a Digger is a single-target siege unit, not a wave opener.
+
+        Called LAST in ``_compose``, after ``_sniper_group`` — the same
+        newest-last rule the Formation/Commander/Sniper follow, so every
+        earlier group's rng draw sequence (and therefore every deterministic
+        wave fixture) stays byte-identical. Below round 35 the shared formula
+        returns 0 and this draws no rng at all.
+
+        Diggers never appear on a boss round — the SAME deliberate rule the
+        Formation follows (`_boss_round` composes from `Boss.round_counts`, a
+        `$defs/spawn_counts` table shared with every `death_spawn.spawns` row,
+        so a `digger` key there would land on all 14 committed rows). Pinned by
+        `test_enemies.TestDigger.test_no_diggers_on_a_boss_round`."""
+        if not ENABLE_DIGGER:
+            return []
+        n = self._count_of(balance, "Digger", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "digger"), "digger")
+                for _ in range(n)]
+
+    def _drummer_group(self, round_num, balance, spawn_tiles):
+        """Drummers from ``Drummer.start_round`` (25) through the shared count
+        formula — a handful per wave, not a swarm: the support unit is meant
+        to be the thing you go and kill, and every extra one multiplies the
+        whole field's stats.
+
+        Body-mixed like the Formation, never queue-leading: a support unit
+        that arrives ahead of the units it supports buffs nothing. Called
+        LAST in ``_compose`` (after ``_digger_group``) for the usual rng
+        reason — an earlier call site would shift every other group's draw
+        sequence and move every deterministic wave fixture. Below round 25
+        it returns an empty list and consumes no rng, so rounds 0-24 are
+        byte-identical to BR-5.
+
+        Drummers never appear on a boss round, exactly like Formations:
+        ``_boss_round`` composes from ``Boss.round_counts``, a
+        ``$defs/spawn_counts`` table SHARED with every ``death_spawn.spawns``
+        row, and nothing wants a drummer count in a death-spawn row. If
+        drummers on boss rounds are ever wanted it is a one-line
+        ``+ self._drummer_group(...)`` into ``_boss_round``'s ``rest``,
+        computed from the formula and never from the table."""
+        if not ENABLE_DRUMMER:
+            return []
+        n = self._count_of(balance, "Drummer", round_num)
+        return [(self._pick_spawn_tile(spawn_tiles, "drummer"), "drummer")
+                for _ in range(n)]
+
     def _build_queue(self, combined, scaling):
         """Attach a spawn delay to each (tile, etype). Ramp-on: a linear
         slow→fast interval × ``uniform(0.4, 1.6)`` jitter (prototype
@@ -439,6 +531,7 @@ class Spawner:
             enemy = create_enemy(
                 etype, tile.col, tile.row, self._balance, self._tilemap,
                 era, self._registry, self._rng, self._round_in_era)
+            self._attach_scene(enemy, scene)
             scene.spawn(enemy)
             if delay is None:
                 ramp_off = True
@@ -468,6 +561,26 @@ class Spawner:
             for _ in range(counts[key]):
                 self._spawn_child(scene, etype, col, row, frac)
 
+    @staticmethod
+    def _attach_scene(enemy, scene):
+        """Wire the ``Enemy._scene`` transient (NE-2, ``enemy.py``).
+
+        Called at BOTH of this class's construction sites — the wave pop in
+        ``update`` and ``_spawn_child`` below — immediately BEFORE
+        ``scene.spawn``, so the reference is already there when
+        ``Scene.update`` calls ``on_spawn()``. That ordering is load-bearing
+        for the Digger: its ``on_spawn`` is where the exclusive claim is first
+        taken, and taking it needs to see the other live Diggers. NE-3's
+        ``DrummerAura`` is the other consumer — its per-frame ``by_tag
+        ("enemy")`` aura scan needs the same world reference.
+
+        A ``GameObject`` is never handed the scene by the engine
+        (``on_spawn()`` takes no arguments) and a ``Component`` cannot reach it
+        either — this is the ``spawn_corpse`` / ``begin_kidnap`` "the
+        transition site wires it" pattern, hoisted into a named helper so the
+        two sites (and any future third) can never drift apart."""
+        enemy._scene = scene
+
     def _spawn_child(self, scene, etype, col, row, frac):
         """Construct ONE death-spawn / second-phase child at ``(col, row)``.
         The single per-child path both the one-frame burst above and BR-3's
@@ -476,6 +589,7 @@ class Spawner:
         enemy = create_enemy(
             etype, col, row, self._balance, self._tilemap,
             self._era, self._registry, self._rng, self._round_in_era)
+        self._attach_scene(enemy, scene)
         if frac < 1.0:
             health = enemy.get_component(Health)
             health.hp = max(1, int(health.max_hp * frac))

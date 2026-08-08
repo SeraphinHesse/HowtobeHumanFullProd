@@ -62,6 +62,12 @@ def begin_kidnap(scene, tilemap, enemy, building):
     kidnap._scene = scene
 
     pa.blocked = False
+    # NE-1: `in_range` is the ranged twin of `blocked` and EnemyCombat reads
+    # `blocked or in_range`, so it has to be cleared here too — otherwise a
+    # kidnap-capable stand-off type would keep firing all the way home. No
+    # shipped type is both today (Sniper is `kidnapping: false`); this is the
+    # flag pair staying honest, not a live bug fix.
+    pa.in_range = False
     pa.carrying = True
     pa._target = None
     pa._wall_target = None
