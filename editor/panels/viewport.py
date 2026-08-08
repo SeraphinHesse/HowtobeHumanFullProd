@@ -8,8 +8,9 @@ map node is selected): the open MapSession's doc rendered with layer eyes +
 zone tints, ghost previews on the overlay layer, grid lines through the
 engine's E-24 overlay primitive, and mouse tools whose cell picking goes
 through engine.coords.screen_to_world ONLY (E-3 — no iso math here); and
-SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed 1280x720
-logical canvas scaled-to-fit the widget, submitted entirely through
+SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed logical
+canvas at data/display.json's resolution (UR-1: that file is the ONE place
+the resolution is stated) scaled-to-fit the widget, submitted entirely through
 Renderer.submit_hud (HudSprite for skinned widgets, editor.panels.
 _screen_primitives' flat-rect fallback for unskinned ones — E-37 degrade,
 never a game/ui import). In map mode the LEFT button drives the armed tool
@@ -22,7 +23,7 @@ SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
 real SDL window. The surface is converted to a QImage and painted in
 paintEvent — the sanctioned QImage-copy fallback (PLAN §7), >=60fps at
-1280x720 (numbers in editor/CLAUDE.md).
+editor-window size (numbers in editor/CLAUDE.md).
 """
 import math
 import os
@@ -106,13 +107,35 @@ HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
-# -- screen mode (B4, R3): fixed 1280x720 logical canvas, scaled-to-fit -----
-SCREEN_W, SCREEN_H = 1280, 720   # data/display.json's canonical resolution
+# -- screen mode (B4, R3): fixed logical canvas, scaled-to-fit --------------
+
+
+def logical_resolution(data_dir=None):
+    """The logical screen-canvas size, read from ``data/display.json``.
+
+    UR-1: that file is the ONE place in the repo that states the logical
+    resolution — nothing here carries a literal fallback, because a fallback
+    would be exactly the second source of truth this helper deletes. A missing
+    or invalid display.json therefore raises rather than silently drawing at
+    the wrong size.
+
+    ``data_dir`` defaults to the repo's ``data/`` (the same root the rest of
+    the editor's module-level loads use). The parameter exists so a caller
+    with its own data root can ask; making the panel itself per-instance
+    data-root aware is UR-3's job, not this helper's.
+    """
+    root = Path(data_dir) if data_dir is not None else REPO / "data"
+    display = data_io.load_validated(
+        root / "display.json", root / "schemas" / "display.schema.json")
+    return display["window_w"], display["window_h"]
+
+
+SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
-NUDGE_STEP = 1         # arrow-key nudge, in LOGICAL (1280x720) pixels
+NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -234,8 +257,9 @@ class ViewportPanel(QWidget):
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
 
         # -- screen mode state (B4, R3): all mutation goes through the open
-        # UIScreenSession's undo stack; all rect math in LOGICAL (1280x720)
-        # pixels, converted to SCREEN pixels only at submission/hit-test time
+        # UIScreenSession's undo stack; all rect math in LOGICAL canvas
+        # (SCREEN_W x SCREEN_H) pixels, converted to SCREEN pixels only at
+        # submission/hit-test time
         self._screen_session = None
         self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
         self._selected_widget = None
@@ -434,7 +458,8 @@ class ViewportPanel(QWidget):
 
     def set_screen_mode(self, session, defaults=None):
         """A UIScreenSession with an open doc → screen mode: a FIXED
-        1280x720 logical canvas, scaled-to-fit the viewport widget (no
+        SCREEN_W x SCREEN_H logical canvas (data/display.json's resolution),
+        scaled-to-fit the viewport widget (no
         viewport-driven zoom like map mode — the whole canvas is always
         visible at one computed scale, like the entity preview's parked
         camera). None → leaves screen mode.
@@ -535,8 +560,9 @@ class ViewportPanel(QWidget):
         return entry
 
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the 1280x720 logical
-        canvas inside the current widget size (screen mode never zooms)."""
+        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size (screen mode never
+        zooms)."""
         w, h = max(1, self.width()), max(1, self.height())
         scale = min(w / SCREEN_W, h / SCREEN_H)
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale

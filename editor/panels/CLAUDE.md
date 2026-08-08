@@ -774,8 +774,12 @@ import list.**
   `refresh_screens()` mirror `map_ids()`/`select_map()`/`refresh_maps()`
   exactly (selection-preserving rebuild).
 - **`ViewportPanel.set_screen_mode(session, defaults)`** (mirrors
-  `set_map_mode`): a FIXED 1280×720 logical canvas (`data/display.json`'s
-  canonical resolution) scaled-to-fit the widget (`_screen_scale_offset`) —
+  `set_map_mode`): a FIXED logical canvas at **`data/display.json`'s
+  resolution** — never a literal size. `viewport.logical_resolution(data_dir=
+  None)` loads it at import and fills `SCREEN_W`/`SCREEN_H`; there is
+  deliberately **no numeric fallback** (a fallback would be a second source of
+  truth, so a missing/invalid `display.json` raises). The canvas is
+  scaled-to-fit the widget (`_screen_scale_offset`) —
   no viewport-driven zoom, the whole canvas is always visible, like the
   entity preview's parked camera. `defaults` is the FULL loaded
   `data/ui/screen_defaults.json` mapping (`{screen_id: {widgets, mock_note}}`),
