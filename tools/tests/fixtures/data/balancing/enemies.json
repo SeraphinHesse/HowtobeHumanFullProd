@@ -364,6 +364,7 @@
       },
       "dig_range_tiles": 6,
       "dig_speed": 1.0,
+      "emerge_cooldown": 3.0,
       "endgame_scaling": {
         "count": 1.0,
         "dmg": 1.0,

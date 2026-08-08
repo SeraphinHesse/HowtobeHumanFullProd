@@ -23,9 +23,10 @@ speed-scaled ``sim_dt`` the rest of the scene does, so that stays true at
 """
 from engine.core import Component, GameObject, SpriteAnimator, Transform
 
-#: the data/slots.json vfx slot the mound draws (grey-X placeholder until real
-#: art lands via /replace-visual — a slot with no asset_manifest entry is legal
-#: and common, see game/enemies/CLAUDE.md's Commander section).
+#: the data/slots.json vfx slot the mound draws. Real art since
+#: tools/gen_dirt_pile_sheet.py — a simplified, scaled-up crop of base_hole
+#: (the map's own "hole"), reused per the user's own framing: "the hole the
+#: Digger makes when digging in".
 DIRT_PILE_SLOT = "vfx_dirt_pile"
 
 

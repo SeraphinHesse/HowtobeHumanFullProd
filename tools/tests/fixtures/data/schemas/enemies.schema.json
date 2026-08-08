@@ -767,6 +767,12 @@
               "minimum": 0.01,
               "type": "number"
             },
+            "emerge_cooldown": {
+              "description": "Minimum seconds the Digger must stay on the surface after emerging before it is allowed to submerge and dig back in again - counted from the moment it emerges to the moment it may next dig in. 0 never delays it (byte-identical to before this leaf existed). STARTING VALUE, tune in the editor.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
             "endgame_scaling": {
               "$ref": "#/$defs/type_endgame_scaling"
             },
@@ -829,7 +835,8 @@
             "kidnapping",
             "registry_group",
             "sprite_scale",
-            "start_round"
+            "start_round",
+            "emerge_cooldown"
           ],
           "type": "object"
         },

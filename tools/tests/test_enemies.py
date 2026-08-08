@@ -1343,6 +1343,69 @@ class TestDigger(unittest.TestCase):
             scene.update(0.05)
         self.assertEqual(scene.by_tag("dirt_pile"), [])
 
+    # -- visibility while submerged ------------------------------------------
+
+    def test_hidden_while_submerged_visible_otherwise(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        anim = dig.get_component(SpriteAnimator)
+        scene.update(0.0)
+        self.assertTrue(anim.visible)                    # walking: visible
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        self.assertFalse(anim.visible)                    # submerged: hidden
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+        self.assertTrue(anim.visible)                     # emerged: visible
+
+    # -- the emerge cooldown --------------------------------------------------
+
+    def test_emerge_cooldown_delays_resubmerging_at_a_new_in_range_target(self):
+        """The Digger (spawned at col 12) claims the NEARER building first -
+        col 6, not col 2 - which dies to the eruption (500 hp vs 900 dmg at
+        this fixture). It then re-targets the survivor at col 2, already
+        within `dig_range_tiles` of where it stands (|6-2|=4 <= 6), which
+        would resubmerge on the very next tick with no cooldown.
+        `emerge_cooldown` holds it off instead."""
+        tm, scene, occ = self._board()
+        far_building, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                          BUILD, scene, occ)
+        near_building, _c2 = place_building(tm, tm.get(6, 0), "blocker", 9999,
+                                            BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        self.assertEqual(burrow.emerge_cooldown, DIGGER["emerge_cooldown"])
+        self.assertGreater(burrow.emerge_cooldown, 0.0)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (6, 0))   # nearer
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+        self.assertLessEqual(near_building.get_component(Health).hp, 0)
+
+        scene.update(0.05)                      # re-targets: the survivor
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertGreater(far_building.get_component(Health).hp, 0)
+        self.assertLessEqual(burrow.distance_to_target(dig, pa),
+                             burrow.dig_range_tiles)
+        self.assertGreater(burrow.cooldown_remaining, 0.0)
+
+        for _ in range(int(burrow.emerge_cooldown / 0.05) - 1):
+            scene.update(0.05)
+            self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED, limit=5))
+
+    def test_emerge_cooldown_zero_is_a_noop(self):
+        """Every OTHER type's BurrowAgent-less path is untouched, and a
+        hand-built BurrowAgent with no balancing behind it defaults to 0 -
+        byte-identical to submerging the instant it is back in range."""
+        burrow = BurrowAgent()
+        self.assertEqual(burrow.emerge_cooldown, 0.0)
+        self.assertEqual(burrow.cooldown_remaining, 0.0)
+
     # -- composition ---------------------------------------------------------
 
     def test_start_round_35_and_the_shared_count_formula(self):

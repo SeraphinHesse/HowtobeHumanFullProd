@@ -364,6 +364,7 @@
       },
       "dig_range_tiles": 6,
       "dig_speed": 1.0,
+      "emerge_cooldown": 3.0,
       "endgame_scaling": {
         "count": 1.0,
         "dmg": 1.0,
@@ -457,7 +458,7 @@
       "kidnapping": false,
       "registry_group": "Digger",
       "sprite_scale": 1.0,
-      "start_round": 35
+      "start_round": 32
     },
     "Drummer": {
       "attack_speed_increase": 0.1,
@@ -575,7 +576,7 @@
       "move_speed_increase": 0.15,
       "registry_group": "Drummer",
       "sprite_scale": 1.15,
-      "start_round": 25,
+      "start_round": 22,
       "support_range": 1,
       "support_range_increase": 0
     },
@@ -691,7 +692,7 @@
       "kidnapping": false,
       "registry_group": "Formation",
       "sprite_scale": 1.0,
-      "start_round": 16
+      "start_round": 18
     },
     "Raider": {
       "condition_path_weights": {

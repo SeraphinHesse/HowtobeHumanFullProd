@@ -795,13 +795,30 @@ class BurrowAgent(Component):
       unit is exactly ON its target when the clock runs out. ``Digger.
       targetable`` reads this state, so combat, projectiles, the storm and both
       HP bars drop it at once (the duck-typed contract BR-3 built for the boss).
+      **The Digger's own ``SpriteAnimator`` is also hidden entirely** (``visible
+      = False``, ``engine.core.SpriteAnimator``) rather than merely held on its
+      dig pose — only the dirt-pile decal marks the spot. Blanking ``slot_key``
+      instead would be WRONG (it resolves to the grey-X placeholder); the
+      generic ``visible`` flag is the seam this needed.
     * **EMERGE** — entered by the clock expiring (deal the one big hit, having
       snapped onto the target tile) OR, per D5, the instant the target dies to
       anything else (surface where we are, deal NOTHING). Either way the NEXT
       tick re-targets. Splitting it across two ticks is deliberate: it makes
       EMERGE an observable state a one-shot emerge animation can play in, and
       the claim it is about to release is released one frame later, which
-      changes nothing (it is releasing it either way).
+      changes nothing (it is releasing it either way). The sprite becomes
+      ``visible`` again immediately.
+
+    **``emerge_cooldown`` (config) / ``cooldown_remaining`` (runtime) — a
+    minimum surface timer**, counted from the moment it comes up (a strike OR
+    a D5 no-damage interrupt both count) to the moment it is next ALLOWED to
+    dig back in. It does **not** change anything else about the cycle: on
+    emerging the Digger still immediately releases its claim and walks toward
+    its next target exactly as before — the cooldown only holds off the
+    ``_tick_walking`` submerge check (even once already standing on a new,
+    in-range target) until ``cooldown_remaining`` drains to zero. ``0.0``
+    (the default) is a no-op, so a hand-built headless Digger with no balancing
+    behind it stays byte-identical to before this existed.
 
     No target after exclusion ⇒ **stand down**: visible, idle, harmless, with
     no waypoints and no claim. Diggers only build towards buildings; they do
@@ -815,6 +832,8 @@ class BurrowAgent(Component):
     dig_duration: float = 0.0     # what dig_timer started at (the lerp base)
     start_wx: float = 0.0         # where we went under (the lerp origin)
     start_wy: float = 0.0
+    emerge_cooldown: float = 0.0     # min seconds on the surface before re-digging
+    cooldown_remaining: float = 0.0  # counts down from emerge_cooldown on emerge
 
     def on_added(self, owner):
         self._owner = owner
@@ -837,15 +856,21 @@ class BurrowAgent(Component):
         elif self.state == BURROW_EMERGE:
             self.retarget(owner, pa, mv, tm)
         else:
-            self._tick_walking(owner, pa, mv, tm)
+            self._tick_walking(dt, owner, pa, mv, tm)
 
-    def _tick_walking(self, owner, pa, mv, tm):
+    def _tick_walking(self, dt, owner, pa, mv, tm):
+        # The minimum-surface-time gate: ticks down every frame it's above
+        # ground, regardless of target state, so it also drains while stood
+        # down with nothing to claim.
+        if self.cooldown_remaining > 0:
+            self.cooldown_remaining = max(0.0, self.cooldown_remaining - dt)
         if pa.target_col < 0:
             return                       # stood down: nothing left to claim
         if not pa._target_alive(tm):
             self.retarget(owner, pa, mv, tm)
             return
-        if self.distance_to_target(owner, pa) <= self.dig_range_tiles:
+        if (self.cooldown_remaining <= 0
+                and self.distance_to_target(owner, pa) <= self.dig_range_tiles):
             self._submerge(owner, pa, mv)
 
     def _tick_submerged(self, dt, owner, pa, mv, tm):
@@ -886,6 +911,12 @@ class BurrowAgent(Component):
         mv.index = 0
         mv.arrived = False
         self._set_anim(owner, DIG_ANIM)
+        # Not just held on the dig pose — fully hidden. Only the dirt pile
+        # decal marks the spot while burrowed, restored the instant it
+        # emerges (see `_emerge`).
+        anim = owner.get_component(SpriteAnimator)
+        if anim is not None:
+            anim.visible = False
         spawn_dirt_pile(getattr(owner, "_scene", None),
                         round(self.start_wx), round(self.start_wy),
                         self.dig_duration * 1000.0)
@@ -905,7 +936,14 @@ class BurrowAgent(Component):
     def _emerge(self, owner, pa, tm, strike):
         self.state = BURROW_EMERGE
         self.dig_timer = 0.0
+        # The cooldown counts from the moment it comes up (both a strike and
+        # a D5 no-damage interrupt count as "coming up") to the moment it is
+        # allowed to dig back in — enforced by `_tick_walking`'s gate above.
+        self.cooldown_remaining = self.emerge_cooldown
         pa.frozen = False
+        anim = owner.get_component(SpriteAnimator)
+        if anim is not None:
+            anim.visible = True
         self._set_anim(owner, EMERGE_ANIM)
         if not strike:
             return                       # D5: surfaced where we are, no damage

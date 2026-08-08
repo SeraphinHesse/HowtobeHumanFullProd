@@ -666,7 +666,8 @@ class Digger(Enemy):
     @classmethod
     def nav_components(cls, block):
         return (BurrowAgent(dig_range_tiles=int(block["dig_range_tiles"]),
-                            dig_speed=float(block["dig_speed"])),)
+                            dig_speed=float(block["dig_speed"]),
+                            emerge_cooldown=float(block["emerge_cooldown"])),)
 
     def _resolve_stats(self, balance, era, position_in_era=1):
         """The era row as usual, with ``move_speed`` REPLACED by the flat

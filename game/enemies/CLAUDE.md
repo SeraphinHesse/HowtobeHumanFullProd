@@ -486,7 +486,7 @@ underground, erupts for ONE large `dmg` hit, then claims the next one.
   second burrower would share the claim pool for free. Declared JSON-safe state
   only (E-11): `state` (plain strings `BURROW_WALKING`/`_SUBMERGED`/`_EMERGE`),
   `dig_range_tiles`, `dig_speed`, `dig_timer`, `dig_duration`,
-  `start_wx`/`start_wy`.
+  `start_wx`/`start_wy`, `emerge_cooldown`/`cooldown_remaining` (below).
   - **WALKING** — ordinary `PathAgent` movement. Each frame it measures
     Chebyshev distance from its tile to the target's BLOCK (`block_tiles`, the
     same reason `_target_alive` scans the block: `target_col/_row` is the goal
@@ -503,19 +503,39 @@ underground, erupts for ONE large `dmg` hit, then claims the next one.
     on an interrupt is free rather than a second position to track. The sprite
     holds the `dig` frame (`anim_time_ms` re-pinned every frame — the
     `Kidnap.frozen` finding, since `SpriteAnimator.update` always advances its
-    own clock). **Blanking `slot_key` to hide it would be WRONG**: an unknown
-    key resolves to the grey-X placeholder, which is worse than a held pose.
+    own clock) AND is fully **hidden** (`SpriteAnimator.visible = False`,
+    `engine/core/CLAUDE.md`) — a NEW generic engine field added specifically for
+    this, default `True` so every other sprite in the game is byte-identical.
+    **Blanking `slot_key` to hide it would still be WRONG**: an unknown key
+    resolves to the grey-X placeholder, which is worse than nothing — `visible`
+    is the real seam. Only the dirt pile (below) marks the spot while burrowed.
   - **EMERGE** — entered by the clock expiring (snap onto the target tile, deal
     the hit) OR, per D5, the instant the target dies to anything else (surface
     where we are, deal NOTHING, do not wait out the timer). The re-target
     happens on the NEXT tick, deliberately: it makes EMERGE an observable state
     a one-shot emerge animation can play in, and holding the claim one extra
-    frame changes nothing (it is being released either way).
+    frame changes nothing (it is being released either way). `visible` flips
+    back to `True` immediately, and `cooldown_remaining` is armed to
+    `emerge_cooldown` — see the surface-cooldown bullet below.
   - **The eruption hit is `EnemyCombat.update()`'s single-target damage
     application verbatim** — `_effective_dmg(pa)` (so the 10I terrain bonus
     still applies) → `Health.damage` → the `RoundStats.dmg_taken_this_round`
     credit → `_damage_hook` at exactly that credit line. No kidnap arming
     (Diggers ship `kidnapping: false`).
+- **`emerge_cooldown` (balancing) / `cooldown_remaining` (runtime) — a minimum
+  surface timer, user-requested follow-up to NE-2.** Counted from the moment
+  the Digger comes UP (a strike or a D5 no-damage interrupt both arm it — see
+  `_emerge`) to the moment it is next allowed to dig back IN. It changes
+  nothing else about the cycle: the Digger still releases its claim and walks
+  toward its next target immediately on emerging, exactly as before: the
+  cooldown only holds off `_tick_walking`'s submerge check — even once already
+  standing on a brand new, in-range target — until `cooldown_remaining` drains
+  to zero (ticked down every WALKING frame, including while stood down with
+  nothing claimed). `0.0` is a no-op (a hand-built headless Digger with no
+  balancing behind it is byte-identical to before this existed); the shipped
+  `EnemyTypes.Digger.emerge_cooldown` is `3.0` seconds, a flat type-root leaf
+  like `dig_speed`/`dig_range_tiles` (D10 — a starting value, tune in the
+  editor).
 - **`Digger.targetable` is overridden off the SUBMERGED state** — the exact
   duck-typed contract BR-3 built for the boss's second phase, so combat
   targeting, in-flight projectiles, the lightning storm and BOTH HP bars drop a
@@ -582,18 +602,28 @@ design pillar is small single-purpose files. Tagged **`"dirt_pile"`, never
 gameplay query exactly as a `Corpse` is. Its lifetime is **the dig duration**
 (passed in by `BurrowAgent`, not read from a manifest track), so the mound is on
 the board for precisely as long as the Digger is under it — and the fade clock
-takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. The slot
-ships art-less (grey-X placeholder); real art via `/replace-visual`.
+takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. **Real art
+since `tools/gen_dirt_pile_sheet.py`** — a one-shot generator that crops
+`base_hole` (the map's own "hole" — the thing the whole game protects) to its
+opaque content via `Surface.get_bounding_rect`, scales it up, and centres it on
+a fresh 64×64 `vfx`-category canvas; re-runnable and idempotent, the
+`tools/gen_wall_sheets.py` shape applied to a DERIVED sprite instead of a drawn
+one. Repaint `data/sprites/imported/vfx_dirt_pile.png` freely — the script is
+only how it was seeded.
 
 ### Digger balancing (`EnemyTypes.Digger`)
 A NORMAL era-shaped type — its own `eras[]` rows through the base
-`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` FLAT at the root. Three
+`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` FLAT at the root. Four
 things are specific to it, all flagged as STARTING VALUES in their schema
 descriptions:
 - **`dig_speed`** (flat, tiles/sec) — burrowed AND overground speed.
 - **`dig_range_tiles`** (flat, default 6) — the submerge trigger distance, and
   therefore also the underground travel distance and the size of the window
   defenders get to kill it. Raising it makes the Digger much harder to stop.
+- **`emerge_cooldown`** (flat, seconds, default 3.0) — the minimum time it
+  must stand on the surface after emerging before it may submerge again (see
+  the `BurrowAgent` bullet above). `0` restores the pre-cooldown behaviour
+  exactly (submerge the instant it is back in range of a claimed target).
 - **`stats.dmg` per era IS the eruption hit**, not a per-swing melee value —
   seeded 900/1400/2000/2700/3500 against `hp` 900/1300/1800/2400/3100.
   `attack_speed`/`attack_range_tiles` are decorative for this type (it never
