@@ -2,6 +2,6 @@
   "caption": "How To Be Human",
   "display_mode": "fullscreen",
   "fps": 60,
-  "window_h": 720,
-  "window_w": 1280
+  "window_h": 360,
+  "window_w": 640
 }

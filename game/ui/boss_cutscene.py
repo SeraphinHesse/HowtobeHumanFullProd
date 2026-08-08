@@ -41,8 +41,8 @@ from .strings import T
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
 _LOSS_RED = (220, 100, 100)
-_BOX_W, _BOX_H, _GAP = 180, 130, 20
-_DOWN_SHIFT = 20               # boxes sit 20 px below true centre (prototype)
+_BOX_W, _BOX_H, _GAP = 90, 65, 10
+_DOWN_SHIFT = 10               # boxes sit 10 px below true centre (prototype)
 
 SCREEN_ID = "boss_cutscene"
 
@@ -113,8 +113,8 @@ class BossCutscene:
         # json + the golden parity stream).
         self._headline.rect = (
             cx, top - layout_h(self._headline.font_key)
-            - layout_h(self._subtitle.font_key) - 28, 0, 0)
-        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 12,
+            - layout_h(self._subtitle.font_key) - 14, 0, 0)
+        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 6,
                               0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
@@ -188,13 +188,13 @@ class BossCutscene:
             renderer.submit_hud(HudRect(
                 rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2
-        cursor = y + 12
+        cursor = y + 6
         label_color = (box.text_color if box.text_color is not None
                        else (widgets.C_GOLD if hovered else widgets.C_UI_TEXT))
         submit_centered(renderer, label, cx, cursor, box.font_key, label_color)
         # layout_h: this cursor position lands directly in HudText.pos
         # entries the golden parity stream captures.
-        cursor += layout_h(box.font_key) + 10
+        cursor += layout_h(box.font_key) + 5
         for line in desc.split("\n"):
             submit_centered(renderer, line, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 2

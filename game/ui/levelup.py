@@ -32,7 +32,7 @@ from . import widgets
 from .strings import T
 
 _BG = (0, 0, 0, 185)  # prototype levelup_window.py alpha dim (10J)
-_BOX_W, _BOX_H, _GAP = 200, 220, 8
+_BOX_W, _BOX_H, _GAP = 100, 110, 4
 # NOT module constants (UH-6): widgets.C_UI_PANEL/C_UI_BTN_HOVER are read at
 # the _submit_box call site instead of copied here — a module-level `= widgets
 # .C_UI_PANEL` would capture today's value at IMPORT time and never see a
@@ -40,7 +40,7 @@ _BOX_W, _BOX_H, _GAP = 200, 220, 8
 # module docstring calls out, just at module scope instead of a def line).
 # Same reasoning applies to the heading below (Phase C): read via T() at the
 # submit() call site, never cached into a module constant.
-_SPRITE_PX = 72
+_SPRITE_PX = 36
 
 SCREEN_ID = "levelup"
 
@@ -113,7 +113,7 @@ class LevelupWindow:
         top = self.rects[0][1] if self.rects else view_h // 2
         # layout_h: the heading position lands in the golden parity stream.
         submit_centered(renderer, T("levelup.heading"), view_w // 2,
-                        top - layout_h("xxl") - 16, "xxl", widgets.C_GOLD)
+                        top - layout_h("xxl") - 8, "xxl", widgets.C_GOLD)
         panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
             self._submit_box(renderer, self.rects[i], option, i == self.hovered,
@@ -135,7 +135,7 @@ class LevelupWindow:
             renderer.submit_hud(
                 HudRect(rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2
-        cursor = y + 10
+        cursor = y + 5
 
         # layout_h throughout _submit_box: every cursor position below lands
         # directly in the golden parity stream's HudText.pos entries.
@@ -144,15 +144,15 @@ class LevelupWindow:
             submit_centered(renderer, prev_name, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 2
             self._submit_up_arrow(renderer, cx, cursor)
-            cursor += 10
+            cursor += 5
         submit_centered(renderer, option["title"], cx, cursor, "md", widgets.C_UI_TEXT)
-        cursor += layout_h("md") + 6
+        cursor += layout_h("md") + 3
 
         slot = option.get("sprite_key")
         if slot:
             renderer.submit_hud(HudSprite(
                 slot, (cx - _SPRITE_PX // 2, cursor), (_SPRITE_PX, _SPRITE_PX)))
-        cursor += _SPRITE_PX + 4
+        cursor += _SPRITE_PX + 2
 
         cost = option.get("display_cost", option["cost"])
         label = option.get("cost_label")
@@ -160,9 +160,9 @@ class LevelupWindow:
             text = (T("levelup.cost_free") if cost <= 0
                     else T("levelup.cost_paid", label=label, cost=cost))
             submit_centered(renderer, text, cx, cursor, "sm", widgets.C_GOLD)
-        cursor += layout_h("sm") + 4
+        cursor += layout_h("sm") + 2
 
-        for line in wrap_text(option["explanation"], "sm", w - 16, max_lines=4):
+        for line in wrap_text(option["explanation"], "sm", w - 8, max_lines=4):
             submit_centered(renderer, line, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 1
 
@@ -170,10 +170,10 @@ class LevelupWindow:
             submit_centered(
                 renderer, T("levelup.tier_progress", tier_no=option["tier_no"],
                            tier_max=option["tier_max"]),
-                cx, y + h - layout_h("sm") - 6, "sm", widgets.C_UI_TEXT_DIM)
+                cx, y + h - layout_h("sm") - 3, "sm", widgets.C_UI_TEXT_DIM)
 
     @staticmethod
     def _submit_up_arrow(renderer, cx, y):
         """A small green chevron between the previous tier's name and this one."""
         renderer.submit_hud(HudLines(
-            ((cx - 5, y + 6), (cx, y), (cx + 5, y + 6)), widgets.C_GREEN_STAT, width=2))
+            ((cx - 2, y + 3), (cx, y), (cx + 2, y + 3)), widgets.C_GREEN_STAT, width=2))

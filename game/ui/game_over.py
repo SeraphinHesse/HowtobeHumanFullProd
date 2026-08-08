@@ -28,7 +28,7 @@ class GameOverScreen:
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
-        self.button = Button((0, 0, 240, 46), "RETURN TO MENU", font_key="lg")
+        self.button = Button((0, 0, 120, 23), "RETURN TO MENU", font_key="lg")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_RED, label=_TITLE,
@@ -39,9 +39,9 @@ class GameOverScreen:
 
     def layout(self, view_w, view_h):
         w, h = self.button.rect[2], self.button.rect[3]
-        self.button.rect = (view_w // 2 - w // 2, view_h // 2 + 110, w, h)
+        self.button.rect = (view_w // 2 - w // 2, view_h // 2 + 55, w, h)
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, view_h // 2 - 120, 0, 0)
+        self._title.rect = (view_w // 2, view_h // 2 - 60, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),
@@ -75,9 +75,9 @@ class GameOverScreen:
             f"Buildings Placed: {state.buildings_placed}",
             f"Enemies Killed: {state.enemies_killed}",
         ]
-        y = view_h // 2 - 30
+        y = view_h // 2 - 15
         for line in lines:
             submit_centered(renderer, line, cx, y, "md", widgets.C_UI_TEXT)
-            y += 28
+            y += 14
         if is_visible(self.button):
             self.button.submit(renderer, anim_ms=t, **button_kwargs(self.button))

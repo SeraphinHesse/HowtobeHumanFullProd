@@ -75,14 +75,14 @@ class SettingsScreen:
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.settings = settings
-        self.dm_left = Button((0, 0, 40, 40), "<")
-        self.dm_right = Button((0, 0, 40, 40), ">")
-        self.default_btn = Button((0, 0, 170, 40), "SET DEFAULT", font_key="md")
+        self.dm_left = Button((0, 0, 20, 20), "<")
+        self.dm_right = Button((0, 0, 20, 20), ">")
+        self.default_btn = Button((0, 0, 85, 20), "SET DEFAULT", font_key="md")
         # What data/display.json currently boots into; host-set, None = unknown.
         self.saved_default = None
-        self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
+        self.toggles = [(attr, label, Button((0, 0, 45, 20), "ON"))
                         for attr, label in _TOGGLES]
-        self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self.back_btn = Button((0, 0, 100, 23), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_GOLD, label="SETTINGS",
@@ -94,21 +94,21 @@ class SettingsScreen:
     def layout(self, view_w, view_h):
         cx = view_w // 2
         self._cx = cx
-        self._top = view_h // 2 - 180
-        self._dm_y = self._top + 70                 # display-mode value row
-        self.dm_left.rect = (cx - 150, self._dm_y - 6, 40, 40)
-        self.dm_right.rect = (cx + 110, self._dm_y - 6, 40, 40)
+        self._top = view_h // 2 - 90
+        self._dm_y = self._top + 35                 # display-mode value row
+        self.dm_left.rect = (cx - 75, self._dm_y - 3, 20, 20)
+        self.dm_right.rect = (cx + 55, self._dm_y - 3, 20, 20)
         # Right of the ">" arrow, clear of the FX toggle column below.
-        self.default_btn.rect = (cx + 170, self._dm_y - 6, 170, 40)
-        y = self._dm_y + 70
+        self.default_btn.rect = (cx + 85, self._dm_y - 3, 85, 20)
+        y = self._dm_y + 35
         self._row_y = []
         for _attr, _label, btn in self.toggles:
             self._row_y.append(y)
-            btn.rect = (cx + 60, y - 8, 90, 40)
-            y += 56
-        self._slider_y = y + 10
-        self._slider_rect = (cx - 90, self._slider_y, 180, 12)
-        self.back_btn.rect = (cx - 100, y + 70, 200, 46)
+            btn.rect = (cx + 30, y - 4, 45, 20)
+            y += 28
+        self._slider_y = y + 5
+        self._slider_rect = (cx - 45, self._slider_y, 90, 6)
+        self.back_btn.rect = (cx - 50, y + 35, 100, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (cx, self._top, 0, 0)
         self.ids = {
@@ -171,7 +171,7 @@ class SettingsScreen:
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
 
-        submit_centered(renderer, "Display Mode", cx, self._dm_y - 34, "md",
+        submit_centered(renderer, "Display Mode", cx, self._dm_y - 17, "md",
                         widgets.C_UI_TEXT)
         submit_centered(renderer, self.settings.display_mode.upper(), cx,
                         self._dm_y, "lg", widgets.C_GOLD)
@@ -182,17 +182,17 @@ class SettingsScreen:
                                  **button_kwargs(self.dm_right))
 
         for (attr, label, btn), y in zip(self.toggles, self._row_y):
-            submit_text(renderer, label, (cx - 150, y), "md", widgets.C_UI_TEXT)
+            submit_text(renderer, label, (cx - 75, y), "md", widgets.C_UI_TEXT)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 
         # inert audio slider (no audio system) — drawn only
         sx, sy, sw, sh = self._slider_rect
-        submit_text(renderer, "Master Audio", (cx - 150, sy - 24), "md", widgets.C_UI_TEXT)
+        submit_text(renderer, "Master Audio", (cx - 75, sy - 12), "md", widgets.C_UI_TEXT)
         renderer.submit_hud(HudRect(self._slider_rect, widgets.C_UI_BORDER))
         renderer.submit_hud(HudRect(
             (sx, sy, int(sw * self.settings.volume), sh), widgets.C_UI_BTN))
-        submit_centered(renderer, "(no audio yet)", cx, sy + 20, "sm",
+        submit_centered(renderer, "(no audio yet)", cx, sy + 10, "sm",
                         widgets.C_UI_TEXT_DIM)
 
         if is_visible(self.back_btn):

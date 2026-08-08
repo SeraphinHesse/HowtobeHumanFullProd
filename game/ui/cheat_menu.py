@@ -45,7 +45,7 @@ from .widgets import (
 from . import widgets
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
-_PANEL_W, _PANEL_H = 220, 288
+_PANEL_W, _PANEL_H = 110, 144
 _TITLE = "CHEATS"
 _MAX_DIGITS = 4  # prototype round-field cap
 
@@ -80,7 +80,7 @@ class CheatMenu:
         self.visible = False
         self.round_text = ""
         self.field_focused = False
-        self.close_btn = Button((0, 0, 20, 18), "X", "md")
+        self.close_btn = Button((0, 0, 10, 9), "X", "md")
         self.buttons = [(action, Button((0, 0, 0, 0), label, "md"))
                         for action, label in _BUTTONS]
         self.go_btn = Button((0, 0, 0, 0), "Go to Round", "sm")
@@ -134,19 +134,19 @@ class CheatMenu:
         px = view_w // 2 - _PANEL_W // 2
         py = view_h // 2 - _PANEL_H // 2
         self.panel_rect = (px, py, _PANEL_W, _PANEL_H)
-        self.close_btn.rect = (px + _PANEL_W - 26, py + 6, 20, 18)
-        y = py + 32
+        self.close_btn.rect = (px + _PANEL_W - 13, py + 3, 10, 9)
+        y = py + 16
         for _action, btn in self.buttons:
-            btn.rect = (px + 10, y, _PANEL_W - 20, 26)
-            y += 30
+            btn.rect = (px + 5, y, _PANEL_W - 10, 13)
+            y += 15
         self._divider_y = y + 2
-        self.field_rect = (px + 10, y + 26, 96, 22)
-        self.go_btn.rect = (px + 112, y + 26, _PANEL_W - 122, 22)
+        self.field_rect = (px + 5, y + 13, 48, 11)
+        self.go_btn.rect = (px + 56, y + 13, _PANEL_W - 61, 11)
         # -- 10L-B: cached-dict setattr loop, zero disk I/O per call (the
         # menu's submit() calls layout() every frame it stays open) --
         self._panel.rect = self.panel_rect
-        self._title.rect = (px + _PANEL_W // 2, py + 8, 0, 0)
-        self._jump_label.rect = (px + 10, y + 8, 0, 0)
+        self._title.rect = (px + _PANEL_W // 2, py + 4, 0, 0)
+        self._jump_label.rect = (px + 5, y + 4, 0, 0)
         self._round_field.rect = self.field_rect
         self.ids = {
             "panel": ("panel", self._panel),
@@ -237,7 +237,7 @@ class CheatMenu:
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
-            HudRect((px + 10, self._divider_y, pw - 20, 1), widgets.C_UI_BORDER))
+            HudRect((px + 5, self._divider_y, pw - 10, 1), widgets.C_UI_BORDER))
         submit_text(renderer, self._jump_label.label, self._jump_label.rect[:2],
                    self._jump_label.font_key, self._jump_label.text_color)
         renderer.submit_hud(HudRect(self.field_rect, widgets.C_PANEL_STONE))
@@ -251,7 +251,7 @@ class CheatMenu:
         else:
             shown = "round"
             tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (fx + 6, fy + 4), self._round_field.font_key,
+        submit_text(renderer, shown, (fx + 3, fy + 2), self._round_field.font_key,
                    tcol)
         if is_visible(self.go_btn):
             self.go_btn.submit(renderer, anim_ms=t, **button_kwargs(self.go_btn))

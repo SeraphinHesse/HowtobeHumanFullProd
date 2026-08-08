@@ -84,11 +84,11 @@ class DebugSettingsScreen:
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.settings = settings
-        self.level_left = Button((0, 0, 40, 40), "<")
-        self.level_right = Button((0, 0, 40, 40), ">")
-        self.toggles = [(attr, label, Button((0, 0, 90, 40), "ON"))
+        self.level_left = Button((0, 0, 20, 20), "<")
+        self.level_right = Button((0, 0, 20, 20), ">")
+        self.toggles = [(attr, label, Button((0, 0, 45, 20), "ON"))
                         for attr, label in _TOGGLES]
-        self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self.back_btn = Button((0, 0, 100, 23), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_GOLD,
@@ -102,17 +102,17 @@ class DebugSettingsScreen:
     def layout(self, view_w, view_h):
         cx = view_w // 2
         self._cx = cx
-        self._top = view_h // 2 - 200
-        self._level_y = self._top + 70
-        self.level_left.rect = (cx - 210, self._level_y - 6, 40, 40)
-        self.level_right.rect = (cx + 170, self._level_y - 6, 40, 40)
-        y = self._level_y + 70
+        self._top = view_h // 2 - 100
+        self._level_y = self._top + 35
+        self.level_left.rect = (cx - 105, self._level_y - 3, 20, 20)
+        self.level_right.rect = (cx + 85, self._level_y - 3, 20, 20)
+        y = self._level_y + 35
         self._row_y = []
         for _attr, _label, btn in self.toggles:
             self._row_y.append(y)
-            btn.rect = (cx + 100, y - 8, 90, 40)
-            y += 56
-        self.back_btn.rect = (cx - 100, y + 30, 200, 46)
+            btn.rect = (cx + 50, y - 4, 45, 20)
+            y += 28
+        self.back_btn.rect = (cx - 50, y + 15, 100, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._title.rect = (cx, self._top, 0, 0)
         self.ids = {
@@ -175,7 +175,7 @@ class DebugSettingsScreen:
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
 
-        submit_centered(renderer, "Detail Level", cx, self._level_y - 34, "md",
+        submit_centered(renderer, "Detail Level", cx, self._level_y - 17, "md",
                         widgets.C_UI_TEXT)
         submit_centered(renderer,
                         _LEVEL_LABEL.get(self.settings.level, "1"), cx,
@@ -188,12 +188,12 @@ class DebugSettingsScreen:
                                     **button_kwargs(self.level_right))
 
         for (_attr, label, btn), y in zip(self.toggles, self._row_y):
-            submit_text(renderer, label, (cx - 210, y), "md", widgets.C_UI_TEXT)
+            submit_text(renderer, label, (cx - 105, y), "md", widgets.C_UI_TEXT)
             if is_visible(btn):
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
 
         submit_centered(renderer, "Written to logs/ at the end of the run.", cx,
-                        self.back_btn.rect[1] - 26, "sm",
+                        self.back_btn.rect[1] - 13, "sm",
                         widgets.C_UI_TEXT_DIM)
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t,

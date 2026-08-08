@@ -16,7 +16,7 @@ from . import widgets
 
 SCREEN_ID = "tutorial_message"
 _BG = (10, 5, 20, 200)
-_PANEL_W, _PANEL_H = 520, 260
+_PANEL_W, _PANEL_H = 260, 130
 
 
 class TutorialMessageScreen:
@@ -24,8 +24,8 @@ class TutorialMessageScreen:
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
         self.skippable = skippable
-        self.continue_btn = Button((0, 0, 200, 46), "CONTINUE", font_key="lg")
-        self.skip_btn = Button((0, 0, 180, 40), "SKIP TUTORIAL", font_key="md")
+        self.continue_btn = Button((0, 0, 100, 23), "CONTINUE", font_key="lg")
+        self.skip_btn = Button((0, 0, 90, 20), "SKIP TUTORIAL", font_key="md")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG,
                                          visible=True)
         self._panel = SimpleNamespace(rect=(0, 0, _PANEL_W, _PANEL_H), skin=None)
@@ -46,12 +46,12 @@ class TutorialMessageScreen:
         y = view_h // 2 - _PANEL_H // 2
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._panel.rect = (x, y, _PANEL_W, _PANEL_H)
-        self._message_text.rect = (x + 20, y + 24, 0, 0)
+        self._message_text.rect = (x + 10, y + 12, 0, 0)
         cbw, cbh = self.continue_btn.rect[2], self.continue_btn.rect[3]
         self.continue_btn.rect = (
-            x + _PANEL_W - 16 - cbw, y + _PANEL_H - 16 - cbh, cbw, cbh)
+            x + _PANEL_W - 8 - cbw, y + _PANEL_H - 8 - cbh, cbw, cbh)
         sbw, sbh = self.skip_btn.rect[2], self.skip_btn.rect[3]
-        self.skip_btn.rect = (x + 16, y + _PANEL_H - 16 - sbh, sbw, sbh)
+        self.skip_btn.rect = (x + 8, y + _PANEL_H - 8 - sbh, sbw, sbh)
         # D7: the Skip button only shows when the script says `skippable` —
         # a screen-JSON override (if any) still wins, since apply() runs after.
         self.skip_btn.visible = self.skippable
@@ -91,10 +91,10 @@ class TutorialMessageScreen:
         if is_visible(self._message_text) and text:
             tx, ty = self._message_text.rect[0], self._message_text.rect[1]
             for line in wrap_text(text, self._message_text.font_key,
-                                  _PANEL_W - 40, max_lines=6):
+                                  _PANEL_W - 20, max_lines=6):
                 submit_text(renderer, line, (tx, ty), self._message_text.font_key,
                            self._message_text.text_color)
-                ty += 22
+                ty += 11
         if is_visible(self.continue_btn):
             self.continue_btn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.continue_btn))

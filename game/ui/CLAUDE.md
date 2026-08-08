@@ -11,6 +11,39 @@ module, so it imports pygame only *transitively*); visuals go out as the engine
 HUD layer (G-6). The shell therefore lives in **`game/ui/shell.py`**, NOT
 `game/core` (that would be circular).
 
+## The logical surface is 640x360 (UR-2)
+
+Every pixel constant in `game/ui` is authored against a **640x360 logical
+surface** — `data/display.json`'s `window_w`/`window_h`, the ONE place the
+resolution is stated. SDL `SCALED` upscales it to the monitor and remaps mouse
+coordinates back down, so hit-testing and every widget rect work unchanged;
+nothing in `game/ui` should ever restate the resolution as a literal.
+
+Phase UR-2 halved every 1280-scale constant here: positions, container
+dimensions (panel/button/popup/modal), and the paddings/gaps internal to a
+container that itself halved. What deliberately did **not** halve:
+
+- **`data/ui/fonts.json`'s seven presets.** They were always the prototype's
+  640-scale values and became correct the moment the surface flipped —
+  halving them is precisely the double-scale bug UR-2 existed to delete. Zero
+  edits to that file or `engine/render/fonts.py`. If a screen's text now
+  overflows a halved container, the fix is the container, not the preset.
+- **Colours, alphas, `border_radius`, `width=` line widths, `max_lines`
+  counts, and timings** — all scale-free.
+- **Sub-4px nudges** (`+3`, `+2`, 1px hairlines) — halving them rounds to
+  invisible.
+
+`hud.py`'s `_ICON_SIZE`/`_ICON_GAP` carry an explicit **UR-5 review** note at
+the change site: they were halved against the plan's own worked example,
+because they are sized against the HUD rows they sit inside.
+
+**Known deferred item — the world renders too close.** The surface halved but
+`data/geometry.json`'s `zoom_levels` and the 64x32 iso tile pitch did not, so
+less of the board is visible at a given zoom step. That is deliberate and out
+of `game/ui`'s hands (`planning/UiResolutionPLAN.md` §3, a separate future
+plan covering `zoom_levels`, the camera clamp and `visible_tile_window`
+culling). **Never compensate for it from a UI file.**
+
 ## In-round UI (9G)
 `game/ui/{widgets,hud,building_ui,effects,game_over}.py`: HUD (love panel, round,
 base HP, End Turn, phase banner), unlock/construct/upgrade/base-info panel modes,

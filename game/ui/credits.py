@@ -38,8 +38,8 @@ _CREDITS = [
     ("Programmer", "Pantelis Charalambous"),
     ("Programmer", "Alfons Kavalic"),
 ]
-_LINE_H = 30
-_SPACER_H = 14
+_LINE_H = 15
+_SPACER_H = 7
 
 SCREEN_ID = "credits"
 
@@ -48,7 +48,7 @@ class CreditsScreen:
     def __init__(self, view_w, view_h, skinning=None):
         self.screen_id = SCREEN_ID
         self.skinning = skinning or ScreenSkinning.empty()
-        self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self.back_btn = Button((0, 0, 100, 23), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_GOLD, label="CREDITS",
@@ -58,9 +58,9 @@ class CreditsScreen:
         self.layout(view_w, view_h)
 
     def layout(self, view_w, view_h):
-        self.back_btn.rect = (view_w // 2 - 100, view_h - 90, 200, 46)
+        self.back_btn.rect = (view_w // 2 - 50, view_h - 45, 100, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, 70, 0, 0)
+        self._title.rect = (view_w // 2, 35, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),
@@ -89,14 +89,14 @@ class CreditsScreen:
             submit_centered(renderer, self._title.label, self._title.rect[0],
                             self._title.rect[1], self._title.font_key,
                             self._title.text_color)
-        y = 150
+        y = 75
         for role, name in _CREDITS:
             if not role and not name:
                 y += _SPACER_H
                 continue
-            submit_text(renderer, role, (cx - 40, y), "sm", widgets.C_UI_TEXT_DIM,
+            submit_text(renderer, role, (cx - 20, y), "sm", widgets.C_UI_TEXT_DIM,
                         align="right")
-            submit_text(renderer, name, (cx + 40, y), "md", widgets.C_UI_TEXT)
+            submit_text(renderer, name, (cx + 20, y), "md", widgets.C_UI_TEXT)
             y += _LINE_H
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

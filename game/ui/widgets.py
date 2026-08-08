@@ -240,7 +240,7 @@ def submit_ui_box_highlight(renderer, rect, color=None, width=3):
     renderer.submit_hud(HudRect(rect, color, width=width))
 
 
-def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=24,
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=12,
                             font_key="lg"):
     """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
     ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
