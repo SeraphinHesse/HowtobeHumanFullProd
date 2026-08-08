@@ -72,21 +72,14 @@ class TempDataCase(QtCase):
             shutil.rmtree(history_dir)
 
     def unassign_slot(self, *slot_keys):
-        """Guarantee each `slot_key` has NO ART in the temp copy.
+        """Guarantee each `slot_key` has NO manifest entry in the temp copy.
 
         Never assume a slot is unassigned just because it is TODAY. Art lands
         on slots over time, and a test that picks today's empty slot as its
         "no art here" fixture is a time bomb: commit 2512a84 gave
         painter_t1_lvl1 an `idle` row and silently broke five tests that had
         done exactly that. Pin the fixture instead of inheriting it from
-        whatever the artists last imported.
-
-        Dropping the manifest entry is NOT enough on its own: DetailsPanel
-        falls back to `imported/<slot>.png` for a slot with no entry, so an
-        artist merely dropping a PNG next to the key re-arms the slot. 8e0e7d3
-        added cond_mountain_buildable.png and reddened the tint test that way,
-        with no code change anywhere. `_rewrite_manifest` deletes the fallback
-        sheet too."""
+        whatever the artists last imported."""
         self._rewrite_manifest(lambda k: k in slot_keys)
 
     def unassign_family(self, *prefixes):
@@ -141,32 +134,11 @@ class TempDataCase(QtCase):
     def _rewrite_manifest(self, should_drop):
         path = self.data_dir / "sprites" / "asset_manifest.json"
         doc = data_io.load_json(path)
-        dropped = [k for k in doc["entries"] if should_drop(k)]
         doc["entries"] = {k: v for k, v in doc["entries"].items()
                           if not should_drop(k)}
         data_io.write_validated(
             doc, path,
             self.data_dir / "schemas" / "asset_manifest.schema.json")
-        # A slot with no entry still resolves art from imported/<slot>.png, so
-        # an entryless key is only genuinely empty once that file is gone. Drop
-        # the fallback for every key the caller asked for — dropped-or-not, the
-        # filter is the caller's statement of intent — but never a sheet a
-        # SURVIVING entry links to, which would empty an unrelated slot.
-        kept_refs = {e.get("sheet") for e in doc["entries"].values()}
-        for key in {*dropped, *(k for k in self._fallback_keys(should_drop))}:
-            ref = f"imported/{key}.png"
-            if ref in kept_refs:
-                continue
-            png = self.data_dir / "sprites" / ref
-            if png.exists():
-                png.unlink()
-
-    def _fallback_keys(self, should_drop):
-        """Every slot key in the registry the caller's filter selects — the
-        manifest's own keys are not enough, since the whole point is that a
-        slot can carry art with no entry at all."""
-        return [k for k in load_registry(self.data_dir).slot_keys()
-                if should_drop(k)]
 
     def drop_slot_variants(self, *stems):
         """Strip generated `<stem>_v<N>` variants from the temp slots.json.
