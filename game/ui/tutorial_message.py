@@ -9,6 +9,7 @@ else can happen until the player dismisses or skips it.
 from types import SimpleNamespace
 
 from engine.render import HudRect
+from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import Button, anim_ms, submit_panel, submit_text, wrap_text
@@ -90,11 +91,23 @@ class TutorialMessageScreen:
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
         if is_visible(self._message_text) and text:
             tx, ty = self._message_text.rect[0], self._message_text.rect[1]
+            # UR-5 follow-up: a text ROW STEP is font-scale, not surface-scale
+            # (planning/UiResolutionPLAN.md's conversion rule; game/ui/
+            # CLAUDE.md "A text ROW STEP is font-scale"). UR-2 halved this
+            # 22 -> 11 with the panel while data/ui/fonts.json deliberately
+            # stayed put, and at layout_h("md") == 13 every wrapped line of
+            # the shipped `lives_intro` message overlapped the next by 2px.
+            # Derived, never a literal — and off the HOLDER's font_key, so a
+            # screen-JSON font override moves the step with it.
+            # Fit: 6 wrapped lines (max_lines) from rect y = +12 end at
+            # 12 + 5*14 + 13 = 95, and the CONTINUE button's top is
+            # _PANEL_H - 8 - 23 = 99 — 4px clear, panel unchanged at 130.
+            step = layout_h(self._message_text.font_key) + 1
             for line in wrap_text(text, self._message_text.font_key,
                                   _PANEL_W - 20, max_lines=6):
                 submit_text(renderer, line, (tx, ty), self._message_text.font_key,
                            self._message_text.text_color)
-                ty += 11
+                ty += step
         if is_visible(self.continue_btn):
             self.continue_btn.submit(renderer, anim_ms=t,
                                      **button_kwargs(self.continue_btn))

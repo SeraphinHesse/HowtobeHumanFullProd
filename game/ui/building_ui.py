@@ -43,6 +43,8 @@ from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
 from game.map.tiles import CONDITION_MODIFIER_KEY, TileCondition, TileState
 
+from engine.render.fonts import layout_h
+
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
     Button, anim_ms, contains, submit_panel,
@@ -66,6 +68,26 @@ _DICE_GLYPH = "⚄"
 # which the centred draw then overhung top and bottom. 14x13 is the smallest
 # box that holds the glyph and clears the floor.
 _CLOSE_W, _CLOSE_H = 14, 13
+
+
+def _row_step(font_key, leading=1):
+    """Vertical step between two stacked text rows in this panel — ``layout_h``
+    of the row's font plus ``leading``, never a pixel literal.
+
+    A row step is a FONT-scale quantity, not a surface-scale one
+    (``planning/UiResolutionPLAN.md``'s conversion rule; ``game/ui/CLAUDE.md``
+    "A text ROW STEP is font-scale"): UR-2 halved every step in this module
+    along with the panel while ``data/ui/fonts.json`` deliberately stayed put,
+    so rows landed 1-3px on top of each other. ``hud._readout_step()`` is the
+    pattern this copies — a FUNCTION, not a module constant, because a
+    constant evaluated at import would freeze the pre-``configure_fonts``
+    fallback metrics.
+
+    ``leading=0`` is for the two height-constrained stacks whose fit
+    arithmetic leaves no room for a leading pixel; each such call site states
+    that arithmetic inline.
+    """
+    return layout_h(font_key) + leading
 
 
 def _batch_cost(building_type, buildings_balance, tier_idx, repeat_count, count):
@@ -316,11 +338,22 @@ class ConstructPreview:
             tcol = widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (nx + 4, ny + 3), "md", tcol)
         sy = y + 69
+        # Font-scale row step (see _row_step). leading=0 here, deliberately:
+        # this modal is height-constrained. The widest stat list a FRESH
+        # `create()` can produce is the defence family's 5 rows (HP / Damage /
+        # Range / Atk speed / Upkeep — `boosted_stats` is always empty on a
+        # temp building), so the block runs y+69 .. y+69+4*11+layout_h("sm")
+        # = y+124 against a CONFIRM/CANCEL row whose top is y+ph-24 = y+126.
+        # A leading pixel per row would push it to y+128 and overlap the
+        # buttons, which would mean growing the 170x150 panel; 11 clears them
+        # by 2px and leaves every preview_* rect (and screen_defaults.json)
+        # untouched.
+        step = _row_step("sm", leading=0)
         for label, value in self.stats:
             submit_text(renderer, label, (x + 8, sy), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(value), (x + w - 8, sy), "sm", widgets.C_UI_TEXT,
                         align="right")
-            sy += 10
+            sy += step
 
 
 class MovePreview:
@@ -531,7 +564,22 @@ class BuildingUI:
         self.boss_btn = Button(
             (self.panel_x + 6, 210, self.panel_w - 12, 16),
             "BOSS CHOICES", "md")
-        pw, ph = 170, 130
+        # UR-5 follow-up: the popup body is a stack of "md" choice rows over a
+        # 2-line "sm" hover tooltip, and BOTH steps are font-scale (see
+        # _row_step) — 10 and 8 overlapped their 13px/11px lines by 3px each.
+        # Correcting them to 14/12 costs height, so the popup GROWS 130 -> 158
+        # rather than losing rows or clipping the tooltip. ph = 158 is the
+        # smallest height that keeps the SIX choice rows the old 130/step-10
+        # layout held:
+        #   rows      first at py+24, sixth ends py+24+5*14+13 = py+107,
+        #             against a tooltip top of py+ph-50 = py+108
+        #   tooltip   2 lines at 12 from py+108 -> bottom py+131
+        #   CLOSE     top py+ph-22 = py+136 (5px clear), popup bottom py+158
+        # Centred on a 360-tall surface that is y 101..259 — 101px of margin
+        # top and bottom. (The old 130 already overhung the CLOSE button with
+        # its tooltip by 1px at step 8, and would have overhung by 5px at the
+        # correct 12.)
+        pw, ph = 170, 158
         self._boss_popup_rect = (view_w // 2 - pw // 2,
                                  view_h // 2 - ph // 2, pw, ph)
         px, py = self._boss_popup_rect[0], self._boss_popup_rect[1]
@@ -964,7 +1012,9 @@ class BuildingUI:
                     and is_visible(self._boss_close_btn))
                 px, py, pw, _ph = self._boss_popup_rect
                 if px + 7 <= mx < px + pw - 7 and my >= py + 24:
-                    self._boss_hover_row = (my - (py + 24)) // 10
+                    # SAME step _submit_boss_popup draws with — the hit test
+                    # and the draw must never disagree about a row's height.
+                    self._boss_hover_row = (my - (py + 24)) // _row_step("md")
             # -- /10G --
 
     def handle_key(self, char, key):
@@ -1404,6 +1454,17 @@ class BuildingUI:
         preview = None
         if up_mode == "in_tier" and self.action_btn.hovered:
             preview = dict(self._next_level_rows(b) or ())
+        # Every row step below is font-scale (see _row_step): "md" -> 14,
+        # "sm" -> 12. Worst-case fit for this whole column, against the
+        # upgrade action button whose top is view_h - 60 = 300:
+        #   stats     58 + 8*14                        = 170  (8 = the widest
+        #             list, defence's 5 rows + 3 boosted-stat rows)
+        #   round      +5, +12, +12, +12 (DIED tag)    = 211
+        #   next tier  +4 divider, +4, header +14      = 233
+        #   3 card rows at 12 (beside a 19px thumb)    -> bottom 268
+        # 268 < 300, so nothing here needs the panel (which is view_h tall
+        # anyway) to grow.
+        md_step, sm_step = _row_step("md"), _row_step("sm")
         y = 58
         for label, value in _building_stats(b):
             submit_text(renderer, label, (x, y), "md", widgets.C_UI_TEXT_DIM)
@@ -1414,25 +1475,25 @@ class BuildingUI:
             else:
                 submit_text(renderer, str(value), (self._right, y), "md",
                             widgets.C_UI_TEXT, align="right")
-            y += 12
+            y += md_step
         rs = b.get_component(RoundStats)
         if rs is not None:
             y += 5
             submit_text(renderer, "Damage dealt", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_dealt_last_round), (self._right, y),
                         "sm", widgets.C_UI_TEXT, align="right")
-            y += 9
+            y += sm_step
             submit_text(renderer, "Damage taken", (x, y), "sm", widgets.C_UI_TEXT_DIM)
             submit_text(renderer, str(rs.dmg_taken_last_round), (self._right, y),
                         "sm", widgets.C_UI_TEXT, align="right")
-            y += 9
+            y += sm_step
             # -- 10J: a building whose last-round damage covered its full HP
             # died last round (prototype building_ui.py:1083-86) --
             if rs.dmg_taken_last_round >= b.max_hp():
                 submit_text(renderer, "DIED LAST ROUND",
                             (self.panel_x + self.panel_w // 2, y), "sm",
                             widgets.C_RED, align="center")
-                y += 9
+                y += sm_step
         # -- 10J: next-tier card when a tier advance is on the table
         # (prototype ``_draw_next_tier_preview``; hidden while round-gated) --
         if up_mode in ("tier_upgrade", "tier_locked"):
@@ -1444,14 +1505,14 @@ class BuildingUI:
                     (x, y, self.panel_w - 14, 1), widgets.C_UI_BORDER))
                 y += 4
                 submit_text(renderer, header, (x, y), "md", widgets.C_GREEN_STAT)
-                y += 11
+                y += md_step
                 if slot:
                     renderer.submit_hud(HudSprite(slot, (x, y), (19, 19)))
                 ry = y
                 for label, value in rows:
                     submit_text(renderer, f"{label}  {value}", (x + 23, ry),
                                 "sm", widgets.C_UI_TEXT_DIM)
-                    ry += 8
+                    ry += sm_step
         if is_visible(self.action_btn):
             self.action_btn.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(self.action_btn))
@@ -1610,12 +1671,19 @@ class BuildingUI:
             if hovered:
                 hover_desc = choice_desc((boss_num - 1) % 3, option,
                                          session.core_balance)
-            y += 10
+            # Font-scale (see _row_step) and the SAME expression `hover`'s
+            # row hit test divides by.
+            y += _row_step("md")
         if hover_desc is not None:
-            ty = py + ph - 40
+            # `choice_desc` is always 2 lines: anchor the block so its last
+            # line clears the CLOSE button (top py + ph - 22) instead of
+            # restating a literal offset — at "sm" this is py + ph - 50
+            # (py + 108 at the popup's 158px height).
+            tip_step = _row_step("sm")
+            ty = py + ph - 26 - 2 * tip_step
             for line in hover_desc.split("\n"):
                 submit_text(renderer, line, (px + 7, ty), "sm", widgets.C_UI_TEXT_DIM)
-                ty += 8
+                ty += tip_step
         if is_visible(self._boss_close_btn):
             self._boss_close_btn.submit(renderer, anim_ms=anim_ms,
                                         **button_kwargs(self._boss_close_btn))

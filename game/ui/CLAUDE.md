@@ -59,6 +59,28 @@ metrics. The same rule governs a button's height — `Button.submit` centres its
 label on `layout_h(font_key)`, so a button shorter than that overhangs top and
 bottom.
 
+**The follow-up sweep** caught the sites UR-5 itself missed:
+`tutorial_message.py`'s wrapped message lines (11 vs `md` 13 — the shipped
+`lives_intro` modal every new player sees) and seven steps in
+`building_ui.py`, which now derives all of them through one local
+**`_row_step(font_key, leading=1)`** (the `hud._readout_step()` shape). Two
+things that sweep established and the next one should keep:
+- **`leading=0` is a real answer for a height-constrained stack.** The
+  `ConstructPreview` stat list uses it because a leading pixel per row would
+  push its 5-row worst case onto the CONFIRM/CANCEL row of a 170×150 modal.
+  Each such call site states the fit arithmetic inline; every other step takes
+  the default 1px.
+- **A step and the hit test that divides by it are ONE number.** The boss
+  history popup's row step is read by `_submit_boss_popup` *and* by `hover()`'s
+  `(my - top) // step` row probe — they call the same `_row_step("md")`.
+- The boss popup **grew 130 → 158px** so the corrected 14/12 steps keep the six
+  choice rows the old layout held and stop the 2-line hover tooltip overhanging
+  CLOSE. That moved `boss_close_btn`, so `data/ui/screen_defaults.json` was
+  regenerated (`py tools/export_ui_layouts.py`) — one rect, `building_panel`
+  only. `test_ui_skinning.py`'s `building_panel` baseline is `[]` (the harness
+  never selects a building), so **the pin does not protect this module** —
+  arithmetic in the call-site comments is the check.
+
 ### Click-target floor + static-label fit (UR-5)
 
 `tools/tests/test_ui_min_targets.py` walks every screen's `ids` (captured from
