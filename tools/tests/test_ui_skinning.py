@@ -774,25 +774,25 @@ class TestLogicalSurface(unittest.TestCase):
     """UR-2: the shipped logical surface is 640x360, and the layout exporter
     reads THAT number rather than one of its own.
 
-    Reads the live ``data/display.json`` READ-ONLY and asserts nothing else
-    about ``data/`` — the two window scalars are this phase's whole subject,
-    and a fixture copy could not catch the drift the test exists to catch
-    (an exporter that hardcodes a resolution the shipped surface no longer
-    has). ``test_ui_layout_export.py`` already reads live ``data/`` the same
-    read-only way."""
+    Reads the PINNED snapshot (``FIXTURE_DATA``), never live ``data/`` — the
+    root CLAUDE.md rule, so a designer editing live data can never turn the
+    gate red. The drift this pair catches is an exporter that derives a
+    resolution of its own instead of reading the surface it is handed, which
+    is a same-tree question and needs no live read: point the exporter at the
+    pin and it must agree with the pin."""
 
     def test_shipped_surface_is_640x360(self):
         display = data_io.load_validated(
-            REPO / "data" / "display.json",
-            REPO / "data" / "schemas" / "display.schema.json")
+            FIXTURE_DATA / "display.json",
+            FIXTURE_DATA / "schemas" / "display.schema.json")
         self.assertEqual((display["window_w"], display["window_h"]), (640, 360))
 
     def test_exporter_resolution_cannot_drift_from_the_surface(self):
         from tools.export_ui_layouts import _logical_resolution
         display = data_io.load_validated(
-            REPO / "data" / "display.json",
-            REPO / "data" / "schemas" / "display.schema.json")
-        self.assertEqual(_logical_resolution(REPO / "data"),
+            FIXTURE_DATA / "display.json",
+            FIXTURE_DATA / "schemas" / "display.schema.json")
+        self.assertEqual(_logical_resolution(FIXTURE_DATA),
                          (display["window_w"], display["window_h"]))
 
 

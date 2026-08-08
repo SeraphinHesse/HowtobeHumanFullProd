@@ -23,7 +23,11 @@ SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
 real SDL window. The surface is converted to a QImage and painted in
 paintEvent — the sanctioned QImage-copy fallback (PLAN §7), >=60fps at
-editor-window size (numbers in editor/CLAUDE.md).
+1280x720 (numbers in editor/CLAUDE.md). That literal is a RECORD of the
+editor-window size the measurement was taken at, not the logical screen
+canvas — the canvas is data/display.json's resolution (see
+logical_resolution below). Do not de-literalise it; it would falsify the
+measurement.
 """
 import math
 import os
