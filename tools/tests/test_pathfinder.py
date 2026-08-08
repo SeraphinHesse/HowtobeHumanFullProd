@@ -21,6 +21,7 @@ from game.map import (
     find_path_to_nearest_building,
     find_path_to_nearest_defence,
     find_path_to_nearest_economic,
+    find_path_to_nearest_structure,
     load_map_balance,
 )
 from game.map.pathfinder import _dijkstra
@@ -122,12 +123,47 @@ class TestObstacleRouting(unittest.TestCase):
         self.assertEqual(find_path(tm, 3, 3), [])
 
 
+#: every occupant ``building_type`` the game ships (game/buildings/*.py's
+#: BUILDING_TYPE constants). The hunt-category matrix below asserts against the
+#: WHOLE roster, so a new building type that no category claims is visible.
+ALL_BUILDING_TYPES = (
+    "defence", "aoe_defence", "storm_priest", "sun_scorcher",   # attack-capable
+    "blocker", "wall_builder",                                  # structures
+    "economic", "meditator", "painter",                         # economy
+    "boost_speed", "boost_damage", "boost_hp",                  # boosts
+    "base",                                                     # the hole
+)
+
+#: NE-0/D1 — what ``find_path_to_nearest_defence`` hunts since the widening.
+ATTACK_TYPES = {"defence", "aoe_defence", "storm_priest", "sun_scorcher"}
+#: NE-0/D2 — what ``find_path_to_nearest_structure`` hunts.
+STRUCTURE_TYPES = ATTACK_TYPES | {"blocker", "wall_builder"}
+#: unchanged, kept here so the matrix covers all three hunt predicates at once.
+ECONOMY_TYPES = {"economic", "meditator", "painter"}
+
+
+def occupy(tm, col, row, building_type):
+    """Put a live duck-typed occupant of ``building_type`` on (col, row), the
+    way ``game/buildings/registry.py`` does: BUILT state, the matching
+    ``<type>_building`` content key, through the ONE ``set_tile_content``
+    seam (so the flow-field cache invalidates)."""
+    tile = tm.get(col, row)
+    tm.set_tile_state(tile, TileState.BUILT)
+    tm.set_tile_content(
+        tile,
+        types.SimpleNamespace(building_type=building_type, alive=True),
+        f"{building_type}_building",
+    )
+    return tile
+
+
 class TestVariants(unittest.TestCase):
     def test_no_buildings_all_variants_fall_back_to_base(self):
         tm = synth(OPEN_5x5)
         base_path = find_path(tm, 3, 3)
         for fn in (find_path_to_nearest_economic,
                    find_path_to_nearest_defence,
+                   find_path_to_nearest_structure,
                    find_path_to_nearest_building):
             with self.subTest(fn=fn.__name__):
                 self.assertEqual(fn(tm, 3, 3), base_path)
@@ -156,6 +192,90 @@ class TestVariants(unittest.TestCase):
         # dead → falls back to the base path
         self.assertEqual(
             find_path_to_nearest_defence(tm, 3, 3), find_path(tm, 3, 3))
+
+
+class TestHuntCategories(unittest.TestCase):
+    """NE-0 — the two hunt-predicate changes, asserted as a full matrix over
+    every ``building_type`` the game ships.
+
+    D1: ``find_path_to_nearest_defence`` widened from the single literal
+    ``"defence"`` to every ATTACK-CAPABLE building. D2: the new
+    ``find_path_to_nearest_structure`` covers every non-economy, non-boost,
+    non-base building. Both ride the existing ``_hunt``/``_goal_tiles``
+    helpers, so what is under test here is ONLY the predicate — a match must
+    end the path on the occupied tile, a non-match must fall through to the
+    base path (``_hunt``'s no-goals branch)."""
+
+    #: (query, the building_type set it must claim)
+    QUERIES = (
+        (find_path_to_nearest_defence, ATTACK_TYPES),
+        (find_path_to_nearest_structure, STRUCTURE_TYPES),
+        (find_path_to_nearest_economic, ECONOMY_TYPES),
+    )
+
+    def _assert_matrix(self, query, claimed):
+        for btype in ALL_BUILDING_TYPES:
+            with self.subTest(query=query.__name__, building_type=btype):
+                tm = synth(OPEN_5x5)
+                occupy(tm, 3, 1, btype)
+                path = query(tm, 3, 3)
+                if btype in claimed:
+                    self.assertEqual(path[0], (3, 3))
+                    self.assertEqual(path[-1], (3, 1))
+                    self.assertTrue(is_contiguous(path))
+                else:
+                    # no goal in the set → _hunt falls back to the base path
+                    self.assertEqual(path, find_path(tm, 3, 3))
+                    self.assertEqual(path[-1], (1, 1))
+
+    def test_defence_hunt_claims_exactly_the_attack_capable_buildings(self):
+        """Widened (D1): aoe_defence / storm_priest / sun_scorcher are goals
+        now, alongside the original defence. Everything else — economy,
+        boosts, blocker, wall_builder, base — still is not."""
+        self._assert_matrix(find_path_to_nearest_defence, ATTACK_TYPES)
+
+    def test_structure_hunt_claims_every_non_economy_non_boost_non_base(self):
+        """New (D2): blocker + wall_builder + the four attack types; never
+        economic / meditator / painter / boost_* / base."""
+        self._assert_matrix(find_path_to_nearest_structure, STRUCTURE_TYPES)
+
+    def test_economy_hunt_is_unchanged_by_NE0(self):
+        """The third predicate, pinned in the same matrix so a future widening
+        of one category cannot silently leak into another."""
+        self._assert_matrix(find_path_to_nearest_economic, ECONOMY_TYPES)
+
+    def test_the_three_categories_partition_the_roster_as_documented(self):
+        """The prose invariant in ``pathfinder.py``'s comments, as an
+        assertion: structure ∪ economy ∪ boosts ∪ base IS the whole roster, and
+        attack ⊂ structure."""
+        boosts = {"boost_speed", "boost_damage", "boost_hp"}
+        self.assertTrue(ATTACK_TYPES < STRUCTURE_TYPES)
+        self.assertEqual(
+            STRUCTURE_TYPES | ECONOMY_TYPES | boosts | {"base"},
+            set(ALL_BUILDING_TYPES))
+        self.assertEqual(STRUCTURE_TYPES & ECONOMY_TYPES, set())
+
+    def test_structure_hunt_picks_the_geometrically_nearest_of_two_kinds(self):
+        """A blocker and a mortar both qualify — the NEARER one wins, so the
+        widened set really is one goal set and not a priority order."""
+        tm = synth(["ccccccc"] * 5, base=(0, 0))
+        occupy(tm, 4, 2, "blocker")          # 2 tiles from the spawn
+        occupy(tm, 1, 2, "aoe_defence")      # 5 tiles from the spawn
+        self.assertEqual(find_path_to_nearest_structure(tm, 6, 2)[-1], (4, 2))
+        # ... and with only the far mortar standing, it is still a goal.
+        tm2 = synth(["ccccccc"] * 5, base=(0, 0))
+        occupy(tm2, 1, 2, "aoe_defence")
+        self.assertEqual(find_path_to_nearest_structure(tm2, 6, 2)[-1], (1, 2))
+
+    def test_a_dead_attack_building_is_not_a_goal(self):
+        """The widened predicate still runs through ``_goal_tiles``' alive
+        filter — a dead mortar falls back to the base path."""
+        tm = synth(OPEN_5x5)
+        tile = occupy(tm, 3, 1, "aoe_defence")
+        tile.occupant.alive = False
+        for fn in (find_path_to_nearest_defence, find_path_to_nearest_structure):
+            with self.subTest(fn=fn.__name__):
+                self.assertEqual(fn(tm, 3, 3), find_path(tm, 3, 3))
 
 
 class TestShippedMap(unittest.TestCase):

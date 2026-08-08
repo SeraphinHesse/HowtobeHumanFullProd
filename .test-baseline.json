@@ -1,7 +1,9 @@
 {
-  "sha": "798c6bb5ae1d9a3bcbf112177895500130cfb1d1",
+  "sha": "dfc5c8bcf38631484744a03267c2ad25c5492468",
   "worktree": false,
-  "failures": [],
+  "failures": [
+    "tools/tests/test_editor_map_mode.py::TestKeybindShortcuts::test_tool_action_switches_tool"
+  ],
   "skips": [
     "tools/tests/test_editor_run_controls.py: a build already exists in this repo"
   ]

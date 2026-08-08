@@ -280,10 +280,39 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `test_pathfinder.TestDijkstraReturnsTheRouteItCosted`, which compares the
   returned path's cost against an independent settle-only Dijkstra over 40 random
   pond boards.
+- **A HUNT IS A PREDICATE OVER `building_type`, nothing more** — the goal set
+  is `_goal_tiles(tilemap, predicate)` and the search is the shared `_hunt`
+  body below. Every category is ONE module-level frozen-vocabulary set at the
+  top of `pathfinder.py`, and a new category is a set + a
+  `find_path_to_nearest_*` wrapper + a `_HUNT_QUERIES` row + the `hunts` schema
+  enum — **never new pathfinding machinery** (NE-0 is the worked example).
+  - `_ECONOMY_BUILDING_TYPES` = `{economic, meditator, painter}`.
+  - **`_ATTACK_BUILDING_TYPES` = `{defence, aoe_defence, storm_priest,
+    sun_scorcher}`. NE-0/D1 WIDENED `find_path_to_nearest_defence` to this**
+    from the single literal `building_type == "defence"`, which had left the
+    three later attack buildings invisible to a defence hunter. It is a
+    **deliberate, user-approved gameplay change to a LIVE type**, not a
+    refactor: `SiegeCannon` ships `hunts: "defence"`, so it hunts all four from
+    its unchanged `start_round: 14` onward.
+  - **`_STRUCTURE_BUILDING_TYPES` = `{blocker, wall_builder, defence,
+    aoe_defence, storm_priest, sun_scorcher}` — the NE-0/D2 `"structure"`
+    category** behind the new `find_path_to_nearest_structure` (same shape as
+    the defence variant, same `_hunt` body): every non-economy, non-boost,
+    non-base building. Written out literally rather than derived from the
+    attack set, so a future attack-capable type must be added to BOTH
+    deliberately. It ships with **no consumer** (the Digger, NE-2, is the
+    first) — landed early on purpose so a predicate mistake surfaces against
+    `SiegeCannon`'s existing coverage rather than a brand-new type's.
+  - The sets partition the roster exactly: structure ∪ economy ∪ the three
+    `boost_*` ∪ `base` is every `BUILDING_TYPE` in `game/buildings`, and
+    attack ⊂ structure. `test_pathfinder.TestHuntCategories` asserts both, and
+    runs each predicate against the WHOLE roster — so a building type no
+    category claims shows up as a failing subtest, not as silent drift.
 - **`find_path_to_nearest_economic` / `_defence` are LIVE (Chunk 4 — was
   "dormant, queried by nothing")** — armed via `EnemyTypes.<type>.hunts`
   (`Raider` → `"economic"`, `SiegeCannon` → `"defence"`), dispatched by
-  `game/enemies/components.py`'s `_HUNT_QUERIES`. Both now share the same
+  `game/enemies/components.py`'s `_HUNT_QUERIES` (which gained a `"structure"`
+  row in NE-0). All three now share the same
   `_hunt` helper `find_path_to_nearest_non_base_building` uses — choose the
   nearest goal by geometric distance, route by weighted cost, multi-goal
   fallback if the chosen one is unreachable, base path if no goal exists at

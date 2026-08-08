@@ -52,6 +52,15 @@ class TestSpriteAnimator(unittest.TestCase):
             ],
         )
 
+    def test_invisible_yields_no_render_item(self):
+        """`visible = False` (game/enemies's Digger, NE-2 follow-up) skips
+        rendering entirely - the seam for "fully hidden", never a blanked
+        `slot_key` (which would resolve to the grey-X placeholder instead)."""
+        anim = SpriteAnimator(slot_key="slot_a", visible=False)
+        self.assertEqual(list(anim.render_items(Transform())), [])
+        anim.visible = True
+        self.assertEqual(len(list(anim.render_items(Transform()))), 1)
+
     def test_update_advances_time_and_phase_offsets(self):
         anim = SpriteAnimator(slot_key="s", phase_ms=250)
         t = Transform()
