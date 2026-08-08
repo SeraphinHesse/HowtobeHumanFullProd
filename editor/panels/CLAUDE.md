@@ -781,7 +781,28 @@ import list.**
   truth, so a missing/invalid `display.json` raises). The canvas is
   scaled-to-fit the widget (`_screen_scale_offset`) —
   no viewport-driven zoom, the whole canvas is always visible, like the
-  entity preview's parked camera. `defaults` is the FULL loaded
+  entity preview's parked camera.
+  - **UR-3 — the preview renders through the canvas, not through scaled
+    geometry** (`_render_screen_frame`): the screen's CONTENT is submitted at
+    the identity triple `(1.0, 0, 0)` into a cached `SCREEN_W x SCREEN_H`
+    `pygame.Surface`, flushed into it, then blitted to the widget surface with
+    ONE `pygame.transform.scale` (never `smoothscale` — pixel art) at
+    `_screen_scale_offset`'s letterbox offset. This mirrors the game's own
+    `pygame.SCALED` pipeline, and it is the only parity-true option: `HudText`
+    carries a font key and no scale, so the old scale-the-geometry path drew
+    labels at absolute pixel size inside scaled boxes and the label/box ratio
+    was wrong by exactly `1/scale`. **Editor chrome is deliberately NOT
+    scaled** — selection outline/handles/caption, the E-37 placeholder and the
+    canvas-edge frame (`_submit_screen_chrome`) are submitted in SCREEN pixels
+    after the blit and ride `render_frame`'s own flush. Two flushes, one
+    `Renderer` (ED-22): `flush` clears the queue.
+  - **The fit scale snaps to a whole multiple at or above 1.0**
+    (`math.floor` inside `_screen_scale_offset`; offsets floored too). Below
+    1.0 the fractional downscale is unchanged. The snap lives in that ONE
+    helper, never at the blit, so hit-testing, dragging and the drawn image
+    cannot disagree. `NUDGE_STEP` stays 1 LOGICAL px.
+
+  `defaults` is the FULL loaded
   `data/ui/screen_defaults.json` mapping (`{screen_id: {widgets, mock_note}}`),
   not a single screen's sub-dict — `_current_screen_defaults()` is the ONE
   place that indexes it by the open session's `screen_id`.
