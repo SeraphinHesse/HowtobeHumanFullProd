@@ -89,6 +89,15 @@ class RunState:
     log_events: list = field(default_factory=list)
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
+    # -- "Lost 1 life" announcement ledger -----------------------------------
+    # The ``boss_events`` contract exactly: a drained-by-UI marker list, never
+    # serialized. One entry (the round number) is appended by
+    # ``Session.on_base_hit`` at the moment a life is actually CHARGED — a
+    # tutorial free-loss waiver appends nothing, because no life was lost.
+    # No coalescing is needed: ``_wipe_pending``/``_wipe_round`` despawn every
+    # enemy and end the round on the first hit, so at most one entry per round
+    # can ever exist by construction.
+    life_lost_events: list = field(default_factory=list)
     # -- TU-5: registry-driven cutscene request -----------------------------
     # {"id": <registry key>} queued by Session.end_turn() on the FIRST End
     # Turn of the run (round 0's tutorial round, or round 1 on a skipped

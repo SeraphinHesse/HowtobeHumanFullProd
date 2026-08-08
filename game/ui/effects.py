@@ -178,6 +178,12 @@ from . import widgets
 # -- 10G boss: announcement + HP-bar constants ------------------------------
 _ANNOUNCE_L1 = "SOMETHING BIG"
 _ANNOUNCE_L2 = "IS APPROACHING!"
+# The "lost a life" banner reuses the boss announce's fade/hold/fade timings
+# and its centred two-line layout, with its own independent clock and its own
+# colour (the HP red — this is a loss, not a warning). Copy stays a code
+# constant here, exactly like the two above.
+_LIFE_LOST_L1 = "YOU"
+_LIFE_LOST_L2 = "LOST 1 LIFE"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
 _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 # Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`. Width
@@ -425,6 +431,11 @@ class FloaterManager:
         # clock is None while no announcement runs.
         self._announce = ui_balance["FX"]["boss_announce"]
         self._announce_age = None
+        # The "LOST 1 LIFE" banner's own clock, independent of the boss one
+        # (both can legitimately be up at once) — same timings, no `enabled`
+        # gate: `boss_announce.enabled` is a boss-FX toggle, and a life loss
+        # must always be signposted.
+        self._life_lost_age = None
         # -- 10J FX state --
         self._gore_enabled = ui_balance["FX"]["gore_enabled"]
         self._building_alive = {} # id(building) -> alive (death watcher)
@@ -715,18 +726,25 @@ class FloaterManager:
     def clear(self):
         self._floaters.clear()
         self._announce_age = None
+        self._life_lost_age = None
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
 
     def update(self, dt):
         for f in self._floaters:
             f.age += dt
         self._floaters = [f for f in self._floaters if f.age < f.life]
-        # -- 10G boss: advance the announcement clock --
+        # -- 10G boss: advance the announcement clock (and the life-lost
+        # banner's own, which shares the same timings) --
+        a = self._announce
+        total = a["fade_in"] + a["hold"] + a["fade_out"]
         if self._announce_age is not None:
             self._announce_age += dt
-            a = self._announce
-            if self._announce_age >= a["fade_in"] + a["hold"] + a["fade_out"]:
+            if self._announce_age >= total:
                 self._announce_age = None
+        if self._life_lost_age is not None:
+            self._life_lost_age += dt
+            if self._life_lost_age >= total:
+                self._life_lost_age = None
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
 
     @property
@@ -1088,12 +1106,43 @@ class FloaterManager:
         queued by ``Session.end_turn``) into the two-line announcement. The
         enabled gate is ``ui.FX.boss_announce.enabled`` — it lives HERE, not in
         the session, so core stays free of ui balance."""
+        # The life-lost banner shares this per-frame drain call rather than
+        # getting a second host wiring line — `spawn_boss_events(state)` is
+        # already the frame's "drain the announce-banner ledgers" hook and is
+        # called once per frame from game/main.py with the live RunState.
+        self.spawn_life_lost_events(state)
         if not state.boss_events:
             return
         state.boss_events.clear()
         if not self._announce["enabled"]:
             return
         self._announce_age = 0.0
+
+    def spawn_life_lost_events(self, state):
+        """Drain ``state.life_lost_events`` (one marker per CHARGED base hit,
+        appended by ``Session.on_base_hit``) into the "YOU / LOST 1 LIFE"
+        banner. Unlike the boss announcement there is no ``enabled`` gate —
+        ``ui.FX.boss_announce.enabled`` is a boss-FX toggle and losing a life
+        must always be signposted; only its TIMINGS are shared. Re-arming
+        restarts the fade from 0 (the ledger can carry at most one entry per
+        round by construction — see ``RunState.life_lost_events``)."""
+        if not state.life_lost_events:
+            return
+        state.life_lost_events.clear()
+        self._life_lost_age = 0.0
+
+    def _announce_k(self, age):
+        """The shared fade-in -> hold -> fade-out ramp (0..1) for an
+        announcement clock, on the ``ui.FX.boss_announce`` timings."""
+        a = self._announce
+        if age < a["fade_in"]:
+            k = age / a["fade_in"] if a["fade_in"] > 0 else 1.0
+        elif age < a["fade_in"] + a["hold"]:
+            k = 1.0
+        else:
+            out = age - a["fade_in"] - a["hold"]
+            k = 1.0 - out / a["fade_out"] if a["fade_out"] > 0 else 0.0
+        return max(0.0, min(1.0, k))
 
     def submit_announce(self, renderer, view_w, view_h):
         """The screen-centred "SOMETHING BIG / IS APPROACHING!" banner
@@ -1102,27 +1151,31 @@ class FloaterManager:
         concern). Since 10J the fade is a real text alpha (RGBA ``HudText``);
         the colour + alpha ceiling are ``self._vfx_params.announce`` (ESV-3b).
         Ignores the camera; drawn over the game surface. Draws no random
-        numbers."""
-        if self._announce_age is None:
-            return
-        a = self._announce
-        t = self._announce_age
-        if t < a["fade_in"]:
-            k = t / a["fade_in"] if a["fade_in"] > 0 else 1.0
-        elif t < a["fade_in"] + a["hold"]:
-            k = 1.0
-        else:
-            out = t - a["fade_in"] - a["hold"]
-            k = 1.0 - out / a["fade_out"] if a["fade_out"] > 0 else 0.0
-        k = max(0.0, min(1.0, k))
+        numbers.
+
+        Also draws the "YOU / LOST 1 LIFE" banner off its own independent
+        clock, in the same centred two-line style and on the same timings —
+        one submit call site for both, so the host needs no second wiring
+        line. Both can be up at once; the life-lost banner is drawn second
+        (on top) because it is the more urgent of the two."""
         ap = self._vfx_params.announce
-        color = ap.color + (int(ap.max_alpha * k),)
         cx = view_w // 2
         # layout_h: a screen-centred layout position (engine/render/fonts.py).
         cy = view_h // 2 - layout_h("xl") - 6
-        submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)
-        submit_centered(renderer, _ANNOUNCE_L2, cx, cy + layout_h("xl") + 8,
-                        "xl", color)
+        if self._announce_age is not None:
+            color = ap.color + (int(ap.max_alpha * self._announce_k(
+                self._announce_age)),)
+            submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)
+            submit_centered(renderer, _ANNOUNCE_L2, cx, cy + layout_h("xl") + 8,
+                            "xl", color)
+        if self._life_lost_age is not None:
+            # widgets.C_HP_RED is read as an ATTRIBUTE at call time, never
+            # import-bound — configure_palette() rebinds it (game/ui/CLAUDE.md).
+            color = tuple(widgets.C_HP_RED[:3]) + (
+                int(ap.max_alpha * self._announce_k(self._life_lost_age)),)
+            submit_centered(renderer, _LIFE_LOST_L1, cx, cy, "xl", color)
+            submit_centered(renderer, _LIFE_LOST_L2, cx, cy + layout_h("xl") + 8,
+                            "xl", color)
 
     def submit_boss_bars(self, renderer, cs, scene, phase, view_w, view_h):
         """The bottom-centre boss HUD bar while a live boss walks (prototype

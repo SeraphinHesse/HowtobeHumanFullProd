@@ -1,5 +1,5 @@
-"""Main HUD (Phase 9G): love/income panel, XP bar, lives, tile counter, phase
-banner, End Turn button.
+"""Main HUD (Phase 9G): love/income panel, XP bar, lives, tile counter, the
+bottom-right Building/Defending phase readout, End Turn button.
 
 Pure logic (no pygame): reads the ``Session``/``RunState`` and the tile grid,
 emits screen-space HUD primitives via ``renderer.submit_hud``. Ports the
@@ -35,28 +35,29 @@ _LIGHTNING_READY = (255, 240, 80)    # prototype ready-label colour
 _LIGHTNING_COOLING = (120, 120, 140)
 # -- /10H --
 
-# Phase C: the string ids per GamePhase, keyed the same shape _PHASE_LABEL
-# used to be. A FUNCTION, not a dict of resolved text (same reasoning as
-# _phase_color below) — the ids themselves never change, but a dict of
-# T()-resolved TEXT built at import time would freeze the pre-configure
-# fallback and never see a later configure_strings rebind.
-_PHASE_LABEL_ID = {
-    GamePhase.BUILDING: "hud.phase.building",
-    GamePhase.ENEMY: "hud.phase.enemy",
-    GamePhase.ROUND_END: "hud.phase.round_end",
-    GamePhase.LEVELUP: "hud.phase.levelup",
-    GamePhase.INCOME: "hud.phase.income",
-    GamePhase.BOSS_CUTSCENE: "hud.phase.boss_cutscene",  # -- 10G boss --
-}
+# The phase readout's two-state copy. It used to be a six-way GamePhase ->
+# string-id map (``_PHASE_LABEL_ID``) resolved through the Phase C string
+# table; the readout moved bottom-right (above End Turn) and now says only
+# which HALF of the round the player is in, so the map is gone. These two are
+# CODE-OWNED module constants (the ``effects.py`` ``_ANNOUNCE_L1``/
+# ``_ANNOUNCE_L2`` precedent), deliberately NOT new `strings.json` ids:
+# `configure_strings` fails loud on a key-set mismatch, so adding ids would be
+# a coupled `data/ui/strings.json` + `game/ui/strings.py` +
+# `test_strings_data.py` change for two literals. A follow-up string-table
+# pass is the place to migrate them (game/ui/CLAUDE.md "Not yet migrated").
+# The six `hud.phase.*` ids stay in the string table, currently unreferenced.
+_PHASE_PANEL_BUILDING = "Building Phase"
+_PHASE_PANEL_DEFENDING = "Defending Phase"
 
 
-def _phase_label_text(phase):
-    """The phase banner's TEXT, keyed by GamePhase (Phase C — mirrors
-    _phase_color's "function, not a frozen dict" reasoning, one call site
-    down). Falls back to the raw enum name for a phase with no string-table
-    entry, same as the old dict's ``.get(phase, st.phase.name)`` default."""
-    string_id = _PHASE_LABEL_ID.get(phase)
-    return T(string_id) if string_id is not None else phase.name
+def _phase_panel_text(phase):
+    """The phase readout's TEXT: the player is either building or defending.
+    A FUNCTION, not a dict of resolved text, for the same reason
+    ``_phase_color`` below is one. Every phase that is not BUILDING (ENEMY /
+    ROUND_END / INCOME / LEVELUP / BOSS_CUTSCENE) is the defending half of
+    the round."""
+    return (_PHASE_PANEL_BUILDING if phase == GamePhase.BUILDING
+            else _PHASE_PANEL_DEFENDING)
 
 
 def _phase_color(phase, default):
@@ -180,8 +181,11 @@ class Hud:
         # in _layout_readouts() — it wraps the three text anchors.
         self._readout_panel = SimpleNamespace(rect=(12, 44, 190, 60),
                                               visible=True)
-        self._phase_label = SimpleNamespace(font_key="hud_phase", text_color=None,
-                                            visible=True)
+        # Its real (End-Turn-relative) rect is computed in _layout_readouts(),
+        # the round_label precedent — hence the (0, 0, 0, 0) placeholder here.
+        self._phase_label = SimpleNamespace(rect=(0, 0, 0, 0),
+                                            font_key="hud_phase",
+                                            text_color=None, visible=True)
         # -- 10L-B review fix (HIGH 1): the ~10 stable readouts around the
         # love panel. TEXT stays game-state/code-owned for every one of these
         # (love count, level, xp fraction, income delta, lives, tile count,
@@ -229,12 +233,8 @@ class Hud:
         self.end_turn.rect = (view_w - w - 16, view_h - h - 16, w, h)
         pw, ph = self.pause.rect[2], self.pause.rect[3]
         self.pause.rect = (view_w - pw - 16, 12, pw, ph)
-        # 10L-B review fix: a stored default rect (not just font/text_color)
-        # so the exporter reads a real position AND a rect override actually
-        # moves the phase banner — the anchor point submit_text draws from,
-        # W/H nominal 0 (a position-only text label, the same convention
-        # every other label id in this file already uses).
-        self._phase_label.rect = (12, view_h - 26, 0, 0)
+        # (phase_label's rect is END-TURN-relative since it moved bottom-right,
+        # so it is computed in _layout_readouts() — the round_label precedent.)
         # -- 10L: speed buttons — a fixed row below the readout column --
         sy = 110
         sw, sh, gap = 56, 28, 6
@@ -251,7 +251,6 @@ class Hud:
             "btn_end_turn": ("button", self.end_turn),
             "btn_pause": ("button", self.pause),
             "love_panel": ("panel", self._love_panel),
-            "phase_label": ("label", self._phase_label),
             "btn_speed_1x": ("button", self.speed_1x),
             "btn_speed_1_5x": ("button", self.speed_1_5x),
             "btn_speed_2x": ("button", self.speed_2x),
@@ -300,6 +299,14 @@ class Hud:
         bx, by, bw, _bh = self.end_turn.rect
         # layout_h: round_label's stored/id'd rect feeds screen_defaults.json.
         self._round_label.rect = (bx + bw // 2, by - layout_h("md") - 4, 0, 0)
+        # The phase readout stacks directly above the round label, i.e. the
+        # bottom-right cluster over the End Turn button (it used to sit
+        # bottom-left at a fixed (12, view_h - 26)). Left-aligned on the
+        # button's own left edge; "Defending Phase" at font hud_phase is
+        # narrower than the 160px button, so it cannot run off the right edge.
+        # layout_h (never a live measurement): this rect is stored + exported.
+        self._phase_label.rect = (
+            bx, self._round_label.rect[1] - layout_h("hud_phase") - 4, 0, 0)
         self.ids.update({
             "readout_panel": ("panel", self._readout_panel),
             "love_text": ("label", self._love_text),
@@ -310,6 +317,7 @@ class Hud:
             "lives_text": ("label", self._lives_text),
             "tiles_text": ("label", self._tiles_text),
             "round_label": ("label", self._round_label),
+            "phase_label": ("label", self._phase_label),
             "icon_love": ("panel", self._icon_love),
             "icon_xp": ("panel", self._icon_xp),
             "icon_lives": ("panel", self._icon_lives),
@@ -462,21 +470,25 @@ class Hud:
                        self._tiles_text.rect[:2], self._tiles_text.font_key,
                        self._tiles_text.text_color)
 
-        # -- phase banner (bottom-left) -----------------------------------
-        if self._phase_label.visible:
-            label = _phase_label_text(st.phase)
-            color = (self._phase_label.text_color
-                    if self._phase_label.text_color is not None
-                    else _phase_color(st.phase, widgets.C_UI_TEXT_DIM))
-            submit_text(renderer, label, self._phase_label.rect[:2],
-                       self._phase_label.font_key, color)
-
-        # -- right-edge cluster: pause (top), round + End Turn (bottom) ----
+        # -- right-edge cluster: pause (top), phase + round + End Turn ------
         # The whole column lives under the building panel, so it is skipped
         # wholesale while that panel is open — drawing only part of it would
         # leave the round label floating over the panel.
         if not self._panel_open:
             bx, by, bw, bh = self.end_turn.rect
+            # -- phase readout (bottom-right, directly above the round label).
+            # Unclickable: a plain label holder, never hit-tested. It joins the
+            # right-edge cluster's _panel_open gate rather than drawing
+            # unconditionally, because the building panel is a full-height
+            # 260px right sidebar and the HUD submits AFTER it — an
+            # unconditional draw here would paint over the open panel. --
+            if self._phase_label.visible:
+                phase_color = (self._phase_label.text_color
+                              if self._phase_label.text_color is not None
+                              else _phase_color(st.phase, widgets.C_UI_TEXT_DIM))
+                submit_text(renderer, _phase_panel_text(st.phase),
+                           self._phase_label.rect[:2],
+                           self._phase_label.font_key, phase_color)
             if self._round_label.visible:
                 # TU-9: round 0 is the tutorial's own scripted round — shown
                 # as the word "Tutorial" rather than "ROUND 0"; every round
@@ -647,7 +659,10 @@ class Hud:
                       seconds=f"{cooldown_left:.1f}")
             color = _LIGHTNING_COOLING
         w, h = text_size(label, "md")
-        x, y = 12, view_h - 26 - h - 12  # just above the phase banner
+        # Bottom-left, at the height the phase banner used to sit at (the
+        # banner moved to the bottom-right cluster; this readout kept its own
+        # prototype-derived position rather than sliding down into the corner).
+        x, y = 12, view_h - 26 - h - 12
         renderer.submit_hud(HudRect((x - 4, y - 3, w + 8, h + 6), (0, 0, 0)))
         submit_text(renderer, label, (x, y), "md", color)
         # 22x3 cursor bar: black track, white fill; full = ready.
