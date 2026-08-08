@@ -828,7 +828,7 @@
       },
       "eras": [
         {
-          "count_per_round": 2,
+          "count_per_round": 0.0,
           "count_start": 1,
           "per_round": {
             "dmg": 0,
@@ -838,9 +838,9 @@
           "stats": {
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
-            "dmg": 10,
+            "dmg": 40,
             "hp": 55,
-            "move_speed": 1.2
+            "move_speed": 1.6
           }
         }
       ],
