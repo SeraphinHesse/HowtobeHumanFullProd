@@ -394,6 +394,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
           "cheat": None, "overlays": None, "prev_phase": None,
           # -- 10J: game log + shift multi-select state --
           "game_log": None, "sel": [], "sel_cat": None,
+          # -- drag-select: the HUD toggle's state (box-select vs. camera pan) --
+          "drag_select_enabled": False,
           # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
           "cutscene": None,
           # -- TU-6: the guided-chain director + its Continue/Skip message box --
@@ -472,6 +474,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
         gp["game_log"] = GameLog(skinning=shell.skinning)
         gp["sel"], gp["sel_cat"] = [], None
+        # drag-select: the HUD toggle's state lives HERE, not on the Hud, so
+        # the event loop can read it when it decides drag-select vs. camera pan.
+        gp["drag_select_enabled"] = False
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
@@ -507,6 +512,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                   "tutorial", "tutorial_message"):
             gp[k] = None
         gp["sel"], gp["sel_cat"] = [], None  # 10J
+        gp["drag_select_enabled"] = False    # drag-select
         if tune_gc:
             gc.collect()
 
@@ -717,6 +723,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             session.set_combat_speed(hud_action[1])
             return
         # -- /10L speed --
+        # -- drag-select: the ONE place the toggle flips. Hud.hit() stays a
+        # pure read precisely because it is also called by the pan-arming
+        # over_ui probe on MOUSEBUTTONDOWN. --
+        if hud_action == "drag_select":
+            gp["drag_select_enabled"] = not gp["drag_select_enabled"]
+            return
+        # -- /drag-select --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
@@ -761,8 +774,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         one stage off whatever is open, wherever the cursor is. A right-DRAG
         still pans; the _DRAG_THRESHOLD_SQ gate in the event loop is what keeps
         the two apart. Mirrors handle_world_click's precedence so the two
-        ladders cannot drift."""
+        ladders cannot drift.
+
+        ONE exception, and only while the DRAG SEL toggle is on: right-clicking
+        a tile that is CURRENTLY in the multi-selection peels that single tile
+        out of it instead of dismissing. Anything else — the toggle off, a tile
+        that isn't selected, an open construct preview — falls through to the
+        universal dismiss unchanged."""
         session = gp["world"].session
+        panel = gp["panel"]
         if session.state.state == GameState.GAME_OVER:
             return
         if gp["cheat"].visible:
@@ -770,10 +790,26 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             return
         if session.frozen or session.state.phase == GamePhase.BOSS_CUTSCENE:
             return  # LEVELUP / boss cutscene: a choice, not a dismiss
+        # -- drag-select: single-tile deselect. Gated on `panel.preview is
+        # None` so a right-click over an open construct preview still peels
+        # the preview (Shift+Click never reaches the world there either —
+        # handle_world_click's preview branch swallows it first). --
+        if gp["drag_select_enabled"] and panel.preview is None:
+            tile = tile_at_screen(gp["world"].tile_map, cs, mx, my)
+            if tile is not None and tile in gp["sel"]:
+                gp["sel"].remove(tile)
+                if not gp["sel"]:
+                    gp["sel_cat"] = None
+                    panel.close()
+                else:
+                    panel.open_for_tile(gp["sel"][0], session,
+                                        buildings_balance,
+                                        selected_tiles=gp["sel"])
+                return
+        # -- /drag-select --
         # -- TU-8: dismiss() never places, so a preview it peels or a bare
         # panel it closes both fire panel_closed (Fix 1); peeling only the
         # boss popup (panel stays visible, preview stays None) does not --
-        panel = gp["panel"]
         had_preview = panel.preview is not None
         was_visible = panel.visible
         panel.dismiss()
@@ -816,6 +852,43 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                             selected_tiles=gp["sel"])
     # -- /10J --
 
+    # -- drag-select: one press-drag-release == the batch Shift+Click builds
+    # one click at a time. Same _SEL_CATEGORY table, same same-category-only
+    # filter, same "primary tile first" convention open_for_tile documents;
+    # locked/unowned tiles inside the rectangle carry no category and are
+    # silently skipped, mirroring today's "a click can't hit them" rule. --
+    def finish_drag_select(start_tile, end_tile):
+        world = gp["world"]
+        session = world.session
+        panel = gp["panel"]
+        tutorial = gp["tutorial"]
+        cat = _SEL_CATEGORY.get(start_tile.state) if start_tile is not None else None
+        # The same D6 zero-overhead tutorial gate every other tile click goes
+        # through: outside the guided chain it fast-paths to "always allowed",
+        # and during it a drag collapses to at most the one highlighted tile
+        # rather than bypassing the whitelist.
+        if cat is None or not tutorial.allows(
+                ("tile", start_tile.col, start_tile.row)):
+            gp["sel"], gp["sel_cat"] = [], None
+            panel.close()
+            return
+        end_tile = end_tile if end_tile is not None else start_tile
+        c0, c1 = sorted((start_tile.col, end_tile.col))
+        r0, r1 = sorted((start_tile.row, end_tile.row))
+        picked = [start_tile]
+        for row in range(r0, r1 + 1):
+            for col in range(c0, c1 + 1):
+                t = world.tile_map.get(col, row)
+                if (t is not None and t is not start_tile
+                        and _SEL_CATEGORY.get(t.state) == cat
+                        and tutorial.allows(("tile", t.col, t.row))):
+                    picked.append(t)
+        gp["sel"], gp["sel_cat"] = picked, cat
+        tutorial.on_tile_clicked(start_tile.col, start_tile.row)
+        panel.open_for_tile(picked[0], session, buildings_balance,
+                            selected_tiles=picked)
+    # -- /drag-select --
+
     if autostart:
         build_gameplay()  # headless seam: bypass cutscene/menu -> GAMEPLAY
 
@@ -830,6 +903,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     mouse_down = None
     rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
+    # drag-select: the armed box selection's two corners, held as Tiles (not
+    # screen coords) so the live preview survives a camera nudge. Mutually
+    # exclusive with `pan_from` — arming one clears the other.
+    drag_select_from = None
+    drag_select_current = None
     deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
     running = True
     while running:
@@ -936,14 +1014,38 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     or gp["overlays"].over(px, py)   # 10I: toggle pills
                 )
                 pan_from = None if over_ui else event.pos
+                # -- drag-select: `pan_from is not None` IS the "this press
+                # began over the world, not a UI element" signal (the new
+                # toggle button is part of Hud.hit(), so over_ui already
+                # covers it). When the toggle is on in the BUILDING phase the
+                # gesture belongs to box-select and never to camera pan. --
+                if (gp["drag_select_enabled"] and pan_from is not None
+                        and session.state.phase == GamePhase.BUILDING):
+                    drag_select_from = tile_at_screen(world.tile_map, cs,
+                                                      *event.pos)
+                    drag_select_current = drag_select_from
+                    pan_from = None
+                else:
+                    drag_select_from = None
+                    drag_select_current = None
+                # -- /drag-select --
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _LEFT:
                 if mouse_down is not None:
                     dx = event.pos[0] - mouse_down[0]
                     dy = event.pos[1] - mouse_down[1]
                     if dx * dx + dy * dy <= _DRAG_THRESHOLD_SQ:
                         handle_world_click(*event.pos)
+                    elif drag_select_from is not None:
+                        # drag-select: a real drag past the threshold — the
+                        # short-press path above is untouched, so a plain
+                        # click still selects one tile the ordinary way.
+                        finish_drag_select(
+                            drag_select_from,
+                            tile_at_screen(world.tile_map, cs, *event.pos))
                 mouse_down = None
                 pan_from = None
+                drag_select_from = None
+                drag_select_current = None
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _RIGHT:
                 rmouse_down = event.pos
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _RIGHT:
@@ -961,6 +1063,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     continue
                 cs.pan(-event.rel[0], -event.rel[1])  # left/right-drag: map follows
                 cs.clamp(view_w, view_h)
+            # -- drag-select: the live preview's far corner. A sibling of the
+            # camera-pan arm above and mutually exclusive with it — `pan_from`
+            # is None whenever `drag_select_from` is armed. --
+            elif (event.type == pygame.MOUSEMOTION and event.buttons[0]
+                  and drag_select_from is not None):
+                drag_select_current = tile_at_screen(world.tile_map, cs,
+                                                     *event.pos)
+            # -- /drag-select --
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
                     continue
@@ -1323,6 +1433,25 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 widgets.submit_tile_diamond(renderer, col, row,
                                             widgets.C_TUTORIAL_HIGHLIGHT)
             # -- /TU-6 --
+            # -- drag-select: the live rectangle, same world-overlay slot as
+            # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
+            # finish_drag_select does, so a tile shown here is exactly a tile
+            # that will be selected on release. --
+            if gp["drag_select_enabled"] and drag_select_from is not None:
+                cur = drag_select_current or drag_select_from
+                sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
+                if sel_cat is not None:
+                    c0, c1 = sorted((drag_select_from.col, cur.col))
+                    r0, r1 = sorted((drag_select_from.row, cur.row))
+                    for row in range(r0, r1 + 1):
+                        for col in range(c0, c1 + 1):
+                            t = world.tile_map.get(col, row)
+                            if (t is not None
+                                    and _SEL_CATEGORY.get(t.state) == sel_cat):
+                                widgets.submit_tile_diamond_fill(
+                                    renderer, col, row,
+                                    widgets.C_HIGHLIGHT + (70,))
+            # -- /drag-select --
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
@@ -1335,7 +1464,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
                              hover_cost=gp["panel"].hover_cost,
-                             scene=world.scene)
+                             scene=world.scene,
+                             drag_select_enabled=gp["drag_select_enabled"])
             # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
             # message box, over the HUD --
             for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
