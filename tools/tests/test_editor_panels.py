@@ -72,14 +72,21 @@ class TempDataCase(QtCase):
             shutil.rmtree(history_dir)
 
     def unassign_slot(self, *slot_keys):
-        """Guarantee each `slot_key` has NO manifest entry in the temp copy.
+        """Guarantee each `slot_key` has NO ART AT ALL in the temp copy.
 
         Never assume a slot is unassigned just because it is TODAY. Art lands
         on slots over time, and a test that picks today's empty slot as its
         "no art here" fixture is a time bomb: commit 2512a84 gave
         painter_t1_lvl1 an `idle` row and silently broke five tests that had
         done exactly that. Pin the fixture instead of inheriting it from
-        whatever the artists last imported."""
+        whatever the artists last imported.
+
+        Dropping the manifest ENTRY is not enough on its own: a slot with no
+        entry still resolves art from `imported/<slot>.png`
+        (`details.py:_sheet_ref`), so an artist merely dropping a PNG next to
+        the key re-arms the slot. 8e0e7d3 added cond_mountain_buildable.png and
+        reddened the tint test that way, with no code change anywhere.
+        `_rewrite_manifest` deletes the fallback sheet too."""
         self._rewrite_manifest(lambda k: k in slot_keys)
 
     def unassign_family(self, *prefixes):
@@ -139,6 +146,27 @@ class TempDataCase(QtCase):
         data_io.write_validated(
             doc, path,
             self.data_dir / "schemas" / "asset_manifest.schema.json")
+        self._drop_fallback_sheets(doc, should_drop)
+
+    def _drop_fallback_sheets(self, doc, should_drop):
+        """Delete `imported/<key>.png` for every selected slot — an entryless
+        key is only genuinely empty once its fallback sheet is gone too.
+
+        Selection is over the REGISTRY's slot keys, not the manifest's: the
+        whole point is that a slot can carry art with no entry at all. Never
+        touches a sheet a SURVIVING entry links to — one PNG can back many
+        slots (`editor/panels/CLAUDE.md`, "Use Spritesheet…"), and deleting a
+        shared file would silently empty an unrelated slot."""
+        kept_refs = {e.get("sheet") for e in doc["entries"].values()}
+        for key in load_registry(self.data_dir).slot_keys():
+            if not should_drop(key):
+                continue
+            ref = f"imported/{key}.png"
+            if ref in kept_refs:
+                continue
+            png = self.data_dir / "sprites" / ref
+            if png.exists():
+                png.unlink()
 
     def drop_slot_variants(self, *stems):
         """Strip generated `<stem>_v<N>` variants from the temp slots.json.

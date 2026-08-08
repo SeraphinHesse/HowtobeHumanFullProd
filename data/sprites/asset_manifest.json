@@ -1169,7 +1169,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1178,16 +1178,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1205,7 +1199,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1214,16 +1208,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1241,7 +1229,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1251,15 +1239,9 @@
             5,
             6,
             7,
-            9,
+            8,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1277,7 +1259,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1288,14 +1270,8 @@
             6,
             7,
             8,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            9,
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1313,7 +1289,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1325,13 +1301,7 @@
             7,
             8,
             9,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            10
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1349,25 +1319,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1385,7 +1349,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1394,16 +1358,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1421,25 +1379,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1457,25 +1409,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1493,25 +1439,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1529,25 +1469,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1565,7 +1499,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1573,17 +1507,11 @@
             3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1601,7 +1529,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1610,16 +1538,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1673,10 +1595,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
+            2,
             3,
             4,
             5,
@@ -1685,13 +1607,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1709,11 +1625,11 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
             2,
+            3,
             4,
             5,
             6,
@@ -1721,13 +1637,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1745,7 +1655,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             1,
             2,
@@ -1757,13 +1667,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1781,25 +1685,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
-            1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1817,25 +1715,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
-            2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1853,25 +1745,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
+            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3541,14 +3427,7 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6
-          ],
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -5203,7 +5082,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5212,7 +5091,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5222,7 +5101,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5231,7 +5111,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5240,7 +5120,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5250,7 +5130,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5259,7 +5140,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5268,7 +5149,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5278,7 +5159,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5306,7 +5188,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5315,7 +5197,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5325,7 +5207,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5334,7 +5217,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5343,7 +5226,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5353,7 +5236,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5362,7 +5246,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5371,7 +5255,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5381,7 +5265,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5409,7 +5294,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5418,7 +5303,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5428,7 +5313,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5437,7 +5323,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5446,7 +5332,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5456,7 +5342,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5465,7 +5352,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5474,7 +5361,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5484,7 +5371,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6531,8 +6419,8 @@
             13,
             14
           ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 6,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -6645,8 +6533,8 @@
             13,
             14
           ],
-          "loop_count": 7,
-          "loop_end": 3,
+          "loop_count": 5,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -7131,23 +7019,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
+            3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7165,7 +7050,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7174,14 +7059,11 @@
             4,
             5,
             6,
-            7,
             8,
             9,
+            10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7199,7 +7081,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7209,13 +7091,10 @@
             5,
             6,
             7,
-            8,
             9,
             10,
-            12,
-            13,
-            14,
-            15
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7233,7 +7112,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7244,12 +7123,9 @@
             6,
             7,
             8,
-            9,
             10,
             11,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7267,7 +7143,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7279,11 +7155,8 @@
             7,
             8,
             9,
-            10,
             11,
-            12,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7301,23 +7174,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7335,23 +7205,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7369,9 +7236,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7382,17 +7249,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -7403,9 +7267,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7416,10 +7280,7 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7437,23 +7298,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
+            8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7471,10 +7329,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7484,17 +7342,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -7505,10 +7360,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7518,17 +7373,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_forest": {
       "frame_h": 32,
@@ -7539,23 +7391,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
+            7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7573,23 +7422,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
+            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7607,7 +7453,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7616,14 +7462,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_spawning_b": {
       "frame_h": 32,
@@ -7634,7 +7484,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7643,14 +7493,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "trio_t3_lvl1": {
       "anchors": {
