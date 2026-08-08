@@ -60,6 +60,11 @@ C_UI_TEXT_DIM = (150, 140, 120)
 C_HIGHLIGHT = (255, 230, 60)         # selected tile
 C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
 C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
+# Building Movement: the "you can move the selected building here" tiles. A
+# plain code constant, NOT palette-data-backed — the same deliberate exception
+# `C_TUTORIAL_HIGHLIGHT` above is (see `_PALETTE_KEYS`, which both are absent
+# from, and game/ui/CLAUDE.md's palette section).
+C_MOVE_HIGHLIGHT = (80, 200, 255)    # move-destination tiles (cyan)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)

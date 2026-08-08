@@ -134,6 +134,7 @@ class TestWidgetDisplayNames(unittest.TestCase):
         "boss_btn": "Boss history button",
         "boss_close_btn": "Boss history close button",
         "rename_dice_btn": "Rename dice button",
+        "move_btn": "Move building button",
         "preview_panel": "Construct preview window",
         "preview_confirm_btn": "Construct confirm button",
         "preview_cancel_btn": "Construct cancel button",

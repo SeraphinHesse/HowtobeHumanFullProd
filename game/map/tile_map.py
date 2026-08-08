@@ -216,6 +216,17 @@ class TileMap:
         # edge the later placement overwrites (last-placed owns it); documented
         # as acceptable in the prototype.
         self.wall_edges = {}
+        # Buildings currently IN TRANSIT between two tiles (Building Movement).
+        # A plain list of duck-typed order objects — `types.SimpleNamespace`s
+        # carrying `building` / `from_col` / `from_row` / `to_col` / `to_row` /
+        # `rounds_left`, built by `game/buildings/movement.py` and ticked down
+        # by payday. Deliberately NOT a game.buildings import: the map layer
+        # duck-types the order exactly like `wall_edges` duck-types its
+        # `owner`. Both endpoints of a live order sit at BUILDABLE with no
+        # occupant (enemies still path through them at the ordinary
+        # `buildable_tile` weight); `is_moving` is what bars them from hosting
+        # a new building while the move runs.
+        self.moving_orders = []
         # DEFENCE_RANGE_PATH_WEIGHT_ADD lives in the buildings domain and is
         # wired in 10I; 0 keeps the coverage add inert in 9C (and coverage is
         # empty anyway, so it never fires).
@@ -436,6 +447,18 @@ class TileMap:
 
     def buildable_tiles(self):
         return list(self._by_state[TileState.BUILDABLE])
+
+    def is_moving(self, col, row):
+        """True if ``(col, row)`` is either endpoint of a live move order.
+
+        Both the origin a moving building vacated and the destination it is
+        headed for are ordinary BUILDABLE tiles for pathfinding purposes — an
+        enemy walks through them at the normal weight — but neither may host a
+        new building until the move lands. O(orders), and orders are a handful
+        at most."""
+        return any((o.from_col, o.from_row) == (col, row)
+                   or (o.to_col, o.to_row) == (col, row)
+                   for o in self.moving_orders)
 
     # -- tile unlocking (prototype tile_map.py:298-374) -------------------
 

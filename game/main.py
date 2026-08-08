@@ -57,13 +57,18 @@ from engine.audio import play_music
 from engine.coords import load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
-from engine.render import HudText, Renderer
+from engine.render import HudSprite, HudText, Renderer
 from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
 from game.buildings import BaseBuilding, attach_base
 # -- 10I: defence-range coverage producer (injected into the tilemap) --
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
+# -- Building Movement: the in-transit sign slot + the cost/time formulas the
+# destination-pick preview quotes --
+from game.buildings.movement import (
+    MOVING_SIGN_SLOT, move_cost, move_distance, move_time,
+)
 from game.core import Session, append_random_name, load_balance
 from game.core import highscores  # player-identity: the run-history document
 from game.core.boss_bonuses import story_damage_bonus
@@ -93,6 +98,7 @@ from game.ui import (
     TutorialMessageScreen,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
+from game.ui.building_ui import MovePreview  # Building Movement confirm modal
 from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
 from game.ui.strings import configure_strings  # Phase C: global string table
@@ -276,6 +282,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     wall_art = frozenset(
         s for s in registry.group_slots(WALL_CATEGORY)
         if manifest.entry(s) is not None)
+    # Building Movement: the in-transit signpost. Manifest-filtered exactly
+    # like the three above (art cannot change mid-run, so it is derived once
+    # here) — False means the slot has no imported sheet and the overlay draws
+    # only its round countdown, never the grey-X placeholder (E-37).
+    moving_sign_art = manifest.entry(MOVING_SIGN_SLOT) is not None
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -738,6 +749,14 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             return
         if session.state.phase == GamePhase.BUILDING:
             tile = tile_at_screen(world.tile_map, cs, mx, my)
+            # -- Building Movement: while the panel is picking a destination,
+            # a world click is that pick, never a selection change. A click on
+            # anything but a highlighted tile is a silent no-op so the player
+            # keeps picking (the panel is the cancel affordance). --
+            if gp["panel"].mode == "move_select":
+                _pick_move_destination(tile, session)
+                return
+            # -- /Building Movement --
             # -- TU-6: reject every tile but the one the guided chain allows --
             if tile is not None and not gp["tutorial"].allows(
                     ("tile", tile.col, tile.row)):
@@ -755,6 +774,29 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             wx, wy = cs.screen_to_world(mx, my)
             session.lightning_strike(world.scene, cs, wx, wy, vfx_balance)
         # -- /10H --
+
+    def _pick_move_destination(tile, session):
+        """Building Movement: the world half of destination-picking.
+
+        A legal destination is an unbuilt BUILDABLE tile that is not already an
+        endpoint of a move in progress — exactly the set
+        ``BuildingUI._build_move_select`` highlighted. Anything else is a silent
+        no-op (the player keeps picking). On a legal pick this only OPENS the
+        confirmation modal; ``start_move`` (via ``BuildingUI._do_move``) stays
+        the single legal seam that actually moves anything."""
+        panel = gp["panel"]
+        building = panel._selected
+        if (tile is None or building is None
+                or tile.state != TileState.BUILDABLE
+                or session.tilemap.is_moving(tile.col, tile.row)):
+            return
+        movement = buildings_balance["BuildingsGlobal"]["Movement"]
+        distance = move_distance(building.col, building.row,
+                                 tile.col, tile.row)
+        panel.preview = MovePreview(
+            building, tile, move_cost(distance, movement),
+            move_time(distance, movement), ui_balance, view_w, view_h,
+            skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
         """Right-click is a universal DISMISS, never a world action — it peels
@@ -1317,6 +1359,36 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # feature-storm-acolyte-multi-build: per-acolyte charge bars
             gp["floaters"].submit_lightning_charge_bars(
                 renderer, cs, world.scene)
+            # -- Building Movement: the in-transit signpost + round countdown
+            # on BOTH endpoints of every live move. `moving_orders` holds at
+            # most a handful of entries, so this is a per-frame no-op in the
+            # overwhelmingly common empty case. E-37: with no imported sheet
+            # the sign is skipped and only the countdown draws — never a
+            # grey X. --
+            for order in world.tile_map.moving_orders:
+                for ocol, orow in ((order.from_col, order.from_row),
+                                   (order.to_col, order.to_row)):
+                    scx, scy = cs.world_to_screen(ocol + 0.5, orow + 0.5)
+                    sw = max(8, int(cs.geometry.tile_w * cs.camera.zoom * 0.7))
+                    sh = sw * 3 // 2          # the 64x96 core frame ratio
+                    # `tools/gen_moving_sign_sheet.py` draws the frame CENTRED
+                    # on the tile diamond's centre (local (32, 48) of the
+                    # 64x96 frame — the frame's own vertical MIDPOINT, not its
+                    # bottom), so the frame's top-left is half a frame above
+                    # the anchor point, not a whole frame above it.
+                    if moving_sign_art:
+                        renderer.submit_hud(HudSprite(
+                            MOVING_SIGN_SLOT,
+                            (int(scx - sw / 2), int(scy - sh / 2)), (sw, sh)))
+                    # The board sits at local y 14-40 of the 96-tall frame,
+                    # 21px above the local tile-centre row (48) — i.e. 21/96
+                    # of `sh` above `scy` — so the countdown reads on the
+                    # board face regardless of the sign's own art/zoom scale.
+                    widgets.submit_text(
+                        renderer, str(order.rounds_left),
+                        (int(scx), int(scy - sh * 21 // 96)), "md",
+                        widgets.C_MOVE_HIGHLIGHT, align="center")
+            # -- /Building Movement --
             # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
             # overlay, before the panel's own selection highlights --
             for col, row in gp["tutorial"].tile_highlight_targets():

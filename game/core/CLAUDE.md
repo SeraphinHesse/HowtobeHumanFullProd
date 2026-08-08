@@ -40,6 +40,18 @@ Four files beside `balance.py`:
     (slot 10, AFTER revive) restores every ALIVE builder's frozen snapshot to full HP
     (walls regenerate each payday; a revived builder's torn-down walls come back, and
     only a builder that STAYS dead — revive off — loses its walls for good).
+  - **Building Movement appended slot 10b, the new LAST step** — one
+    `game.buildings.movement.process_moves(tilemap, occupancy, scene)` call
+    directly after `tilemap.rebuild_walls()`. A **pure APPEND: nothing above
+    it moved**, so the sacrosanct ordering is untouched. It ticks every
+    in-transit building's `rounds_left` down one and lands the ones that
+    arrive. AFTER revive on purpose: an in-transit building holds no tile, so
+    it was never a candidate for slots 7-9 this payday, and it starts its
+    first round on the new tile in the same fully-healed state as everything
+    else at this point. `occupancy`/`scene` thread through unchanged —
+    `run_payday`'s signature did NOT grow (the module-level
+    `from game.buildings.movement import process_moves` is as safe as the
+    `game.buildings.components` import already beside it; verified no cycle).
   - **10D filled slot 7**: `_process_boosts` sweeps every `"boost"`-tagged building
     on a built tile BEFORE revive. Alive boosters (ramp mode) accumulate their
     per-turn `boost_value` onto cardinal-adjacent combat neighbours' `BoostReceiver`
