@@ -200,6 +200,14 @@ def _screen_captures():
 #: are APPENDED to that entry. Nothing already in it moved, and every other
 #: screen's entry is byte-identical — which is what says the change was
 #: contained.
+#: Regenerated a FIFTH time (persist-boot-display-mode): ``SessionSettings``'s
+#: shipped default flipped from ``windowed`` to ``fullscreen`` on purpose, to
+#: match ``data/display.json``, so the settings screen's DEFAULT value row now
+#: reads FULLSCREEN. Exactly ONE HudText changed — same item count, same rects,
+#: same colours, every other screen byte-identical — which is what says the
+#: change was contained. Note the new SET DEFAULT button does NOT appear here:
+#: the capture builds the screen bare, and ``saved_default`` is then ``None``,
+#: which by design draws no line.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 1280, 720), color=(18, 30, 20), border_radius=0, width=0),
@@ -253,7 +261,7 @@ _BASELINE = {
         HudRect(rect=(0, 0, 1280, 720), color=(12, 20, 14), border_radius=0, width=0),
         HudText(text='SETTINGS', pos=(640, 180), font_key='xxl', color=(255, 200, 50), align='center'),
         HudText(text='Display Mode', pos=(640, 216), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='WINDOWED', pos=(640, 250), font_key='lg', color=(255, 200, 50), align='center'),
+        HudText(text='FULLSCREEN', pos=(640, 250), font_key='lg', color=(255, 200, 50), align='center'),
         HudRect(rect=(490, 244, 40, 40), color=(75, 60, 115), border_radius=3, width=0),
         HudRect(rect=(490, 244, 40, 40), color=(80, 65, 120), border_radius=3, width=1),
         HudText(text='<', pos=(510, 256), font_key='lg', color=(235, 225, 195), align='center'),
