@@ -462,7 +462,7 @@ class Spawner:
             enemy = create_enemy(
                 etype, tile.col, tile.row, self._balance, self._tilemap,
                 era, self._registry, self._rng, self._round_in_era)
-            enemy._scene = scene          # NE-2, see _spawn_child below
+            self._attach_scene(enemy, scene)
             scene.spawn(enemy)
             if delay is None:
                 ramp_off = True
@@ -492,6 +492,24 @@ class Spawner:
             for _ in range(counts[key]):
                 self._spawn_child(scene, etype, col, row, frac)
 
+    @staticmethod
+    def _attach_scene(enemy, scene):
+        """Wire the ``Enemy._scene`` transient (NE-2, ``enemy.py``).
+
+        Called at BOTH of this class's construction sites — the wave pop in
+        ``update`` and ``_spawn_child`` below — immediately BEFORE
+        ``scene.spawn``, so the reference is already there when
+        ``Scene.update`` calls ``on_spawn()``. That ordering is load-bearing
+        for the Digger: its ``on_spawn`` is where the exclusive claim is first
+        taken, and taking it needs to see the other live Diggers.
+
+        A ``GameObject`` is never handed the scene by the engine
+        (``on_spawn()`` takes no arguments) and a ``Component`` cannot reach it
+        either — this is the ``spawn_corpse`` / ``begin_kidnap`` "the
+        transition site wires it" pattern, hoisted into a named helper so the
+        two sites (and any future third) can never drift apart."""
+        enemy._scene = scene
+
     def _spawn_child(self, scene, etype, col, row, frac):
         """Construct ONE death-spawn / second-phase child at ``(col, row)``.
         The single per-child path both the one-frame burst above and BR-3's
@@ -500,13 +518,7 @@ class Spawner:
         enemy = create_enemy(
             etype, col, row, self._balance, self._tilemap,
             self._era, self._registry, self._rng, self._round_in_era)
-        # NE-2: the `Enemy._scene` transient (enemy.py). Set at BOTH of this
-        # class's construction sites, immediately before the spawn, so it is
-        # already there when `Scene.update` calls `on_spawn()` — which for a
-        # Digger is where the exclusive claim is first taken. A GameObject is
-        # never handed the scene by the engine; this is the `spawn_corpse` /
-        # `begin_kidnap` "the transition site wires it" pattern.
-        enemy._scene = scene
+        self._attach_scene(enemy, scene)
         if frac < 1.0:
             health = enemy.get_component(Health)
             health.hp = max(1, int(health.max_hp * frac))

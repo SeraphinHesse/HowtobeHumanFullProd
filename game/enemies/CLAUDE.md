@@ -462,9 +462,12 @@ its owner re-targets (its own `target_col` moves) or dies (it drops off
   Digger needs the scene for two things `_tilemap` cannot answer — who else is
   a live Digger, and where to put the dirt pile — so it is cached ONCE on the
   whole `Enemy` hierarchy rather than threaded through four call signatures.
-  **`Spawner` sets it at BOTH of its construction sites** (the wave pop in
-  `update` and `_spawn_child`), immediately before `scene.spawn`, so it is
-  already there when `on_spawn()` takes the first claim. A hand-built headless
+  **`Spawner._attach_scene(enemy, scene)` sets it at BOTH of the spawner's
+  construction sites** (the wave pop in `update` and `_spawn_child`),
+  immediately before `scene.spawn`, so it is already there when `on_spawn()`
+  takes the first claim. A named helper rather than two inline assignments so
+  the sites cannot drift — and because NE-3's Drummer needs the identical seam
+  and must share it, not clone it. A hand-built headless
   enemy leaves it `None`, which every reader treats as "no scene, no rivals" —
   single-Digger behaviour, never a crash.
 
