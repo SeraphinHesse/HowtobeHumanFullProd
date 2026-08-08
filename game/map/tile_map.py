@@ -293,9 +293,18 @@ class TileMap:
         # ``CONDITION_BY_MAP_KEY`` is indexed DIRECTLY (never ``.get``): an
         # unknown name is invalid data and must fail loud (D-2). O(marks),
         # never an O(map) walk (perf invariant, game/map/CLAUDE.md).
+        # The `None` guard is the same defence-in-depth every other painted
+        # overlay's consumer carries (`_release_spawn_reserve` /
+        # `_despawn_spawn_reserve`): `validate_doc` already bounds-checks every
+        # mark at load, but a `TileMap` built DIRECTLY from a hand-made doc
+        # (the headless-fixture pattern) never passes through it, and `Tile`
+        # uses `__slots__` — so an out-of-bounds mark would raise a bare
+        # AttributeError on `None` instead of being skipped.
         painted = doc.tile_conditions
         for (col, row), name in painted.items():
-            self.get(col, row).condition = CONDITION_BY_MAP_KEY[name]
+            t = self.get(col, row)
+            if t is not None:
+                t.condition = CONDITION_BY_MAP_KEY[name]
         if rng is not None:
             chances = balance["TileConditions"]["spawn_chances"]
             conds = (TileCondition.GRASS, TileCondition.MOUNTAIN,
