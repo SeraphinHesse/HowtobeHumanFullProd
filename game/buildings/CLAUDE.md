@@ -103,6 +103,33 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `BoostBuildings.globals.starts_unlocked` (data-driven — see the Research/gating
   seam section); the roll offers ONE unlock card (the lead `boost_speed`), then
   each type researches its own tiers (see `game/core`).
+  - **Wall-hp-boost feature: the HP line (`boost_hp`) ALSO reaches nearby
+    WallBuilders' walls**, via a SECOND, parallel adjacency scan
+    (`_adjacent_structures`, same `range_shape.offsets(...)` geometry as
+    `_adjacent_combat`, but duck-typed on `hasattr(b, "wall_hp")` — the
+    `movement.py` `is_movable` precedent — rather than the `"combat"` tag,
+    since `"structure"` also covers `Blocker`, which has no walls). It pushes
+    into a DEDICATED `WallBuilderState.wall_hp_pct` accumulator via a new
+    `_apply_wall_delta`, never `BoostReceiver` — a WallBuilder never carries
+    one, so its own body HP (`Building.max_hp()`) is provably unaffected;
+    only `wall_hp()` (`structure.py`) reads `wall_hp_pct`. The RATE is its
+    own dedicated pair, `BoostBuildings.HP.tiers[].wall_boost_per_turn`/
+    `wall_boost_increase_per_level` (`$defs/boost_hp_tier` in the schema,
+    HP-line-only — Speed/Damage keep the shared `$defs/boost_tier`),
+    independent of `boost_per_turn`/`boost_increase_per_level`, which only
+    ever affects adjacent combat buildings. Every method that already loops
+    `_adjacent_combat` for the `"hp"` stat (`apply_per_turn`/`apply_flat`/
+    `remove_flat`/`apply_explosion_debuff`) gained an additive, HP-gated
+    block that also loops `_adjacent_structures` — same ramp/flat modes,
+    same halve-on-booster-death/restore-on-replacement lifecycle, mirrored
+    via `WallBuilderState.wall_hp_debuffs` (`BoostReceiver.explosion_debuffs`'
+    shape, minus the unneeded `"stat"` key). `clear_explosion_debuff_from`
+    checks both receiver kinds unconditionally (any booster replacing any
+    previous occupant must clear whatever that occupant left, regardless of
+    either one's own stat). A boosted wall resyncs via `WallBuilder
+    .resync_wall_hp(full_heal=False)` — heal-by-delta/clamp-on-decrease,
+    the `_refresh_max_hp` shape — never the full-heal `_on_apply_stats` uses
+    for a real upgrade.
 - **10E structure line** (`structure.py`: `StructureBuilding` family + thin `Blocker`
   / `WallBuilder` leaves) subclasses `Building` directly (passive — no attack, no
   yield); each leaf carries its OWN `CONTENT_KEY` (`blocker_building`/
@@ -131,13 +158,34 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   upgrade-heals-you contract the builder itself has.
   - **The WALLS have their own art family, separate from the builder's flat
     `SLOT`**: `WallBuilder.wall_slot()` → `wall_t{tier}_lvl{level}` (both
-    1-based — the 9 keys in `data/slots.json`'s `walls` category), reading the
+    1-based — the 9 `Base` keys in `data/slots.json`'s `walls` category), reading the
     same `TierState` cursor `Building.slot_key` does. It lives HERE, beside
     `slot_key()`, because the slot-key convention is a building concern;
     `game/map/wall_render.py` reaches it **duck-typed** as
     `edge.owner.wall_slot()`, so the map layer keeps importing NOTHING from
     `game.buildings` — the same rule `wall_hp()` / `wall_snapshot()` /
-    `building_type` already follow. Research: both
+    `building_type` already follow.
+  - **Wall-era-art feature: each tier group also carries optional `Era N`
+    sibling children** (`wall_t{tier}_lvl{level}_era{n}`, open-ended — however
+    many a designer imports; `data/slots.json`'s `walls` category ships
+    `Era 1`..`Era 5` per tier today, matching the Boss's 5-row era table, all
+    art-less until imported). `WallBuilder.wall_era_slot()` resolves it off a
+    FROZEN `WallBuilderState.art_era` stamp (0 = unstamped/Base). **The stamp
+    changes ONLY when the WallBuilder is placed or upgraded — never live off
+    the round clock** (a deliberate design decision distinct from how enemies
+    re-skin per era): `game/core/wall_era.py`'s `sync_wall_art_era(state,
+    building, enemies_balance)` reads the CURRENT global era
+    (`engine.era_math.era_of_round`, off the SAME `EnemyScaling.
+    rounds_per_era` clock enemies use — one era definition for the whole
+    game, not a parallel buildings-side config) and calls
+    `WallBuilder.stamp_era(era)`. It is duck-typed (`hasattr(building,
+    "stamp_era")`, no type-string check — G-3) and called from
+    `game/ui/building_ui.py` at exactly the placement and upgrade/tier-advance
+    call sites the Storm Priest's `lightning.sync_level_from_tier` already
+    hooks into — a no-op for every other building type.
+    `game/map/wall_render.py`'s `wall_render_items()` tries `wall_era_slot()`
+    first and falls back to `wall_slot()` whenever the era slot has no
+    imported art (E-37 — never a grey X). Research: both
   `blocker` and `wall_builder` are bare `ResearchSpec()` rows — each type's
   UNLOCK card is gated by whether its own tier 0 has a Timeline placement
   (TimelinePLAN T4), and unlocking either makes its tier 1 immediately

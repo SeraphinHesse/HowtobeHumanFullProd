@@ -191,9 +191,50 @@ class WallBuilderState(Component):
     Component can't hold the prototype's tuple-keyed dict). Empty until the
     builder is placed. No ``walls_need_removal`` flag is needed — the payday
     wall-teardown slot sweeps dead builders directly, exactly like the painter /
-    boost slots see a building that died this round as ``alive == False``."""
+    boost slots see a building that died this round as ``alive == False``.
+
+    ``art_era`` (wall-era-art feature) is the FROZEN 1-indexed era the walls'
+    art last resolved against (0 = unstamped, i.e. draw the Base tier/level
+    art with no era override) — stamped only at placement and at
+    upgrade/tier-advance time (``game/core/wall_era.py``), never live off the
+    round clock, per the design decision that a wall's look changes only when
+    the WallBuilder itself is upgraded.
+
+    ``wall_hp_pct`` (wall-hp-boost feature) is a DEDICATED accumulator for the
+    fraction an adjacent HP booster has added to ``wall_hp()`` — deliberately
+    separate from ``BoostReceiver.hp_pct`` (which only combat buildings carry)
+    so a WallBuilder's own body HP is never affected, only the walls it owns.
+
+    ``wall_hp_debuffs`` mirrors ``BoostReceiver.explosion_debuffs`` (same
+    JSON-safe ``{"col", "row", "amount"}`` shape, no ``"stat"`` key needed —
+    this list only ever holds HP penalties) for the SAME "a dead HP booster
+    stamps a penalty on its neighbours until a new one is placed on that
+    tile" rule, kept as its own list rather than reusing ``BoostReceiver``'s
+    (this builder never carries a ``BoostReceiver``)."""
 
     wall_snapshot: list = []
+    art_era: int = 0
+    wall_hp_pct: float = 0.0
+    wall_hp_debuffs: list = []
+
+    def wall_hp_penalty(self):
+        """Total wall-HP removed by active debuffs (mirrors
+        ``BoostReceiver.hp_penalty``)."""
+        return sum(e["amount"] for e in self.wall_hp_debuffs)
+
+    def set_wall_hp_explosion(self, col, row, amount):
+        """Stamp (or overwrite) the debuff from booster ``(col, row)``
+        (mirrors ``BoostReceiver.set_explosion``)."""
+        self.pop_wall_hp_explosion(col, row)
+        self.wall_hp_debuffs.append({"col": col, "row": row, "amount": amount})
+
+    def pop_wall_hp_explosion(self, col, row):
+        """Remove + return the debuff stamped by booster ``(col, row)`` (or
+        ``None``) — mirrors ``BoostReceiver.pop_explosion``."""
+        for i, e in enumerate(self.wall_hp_debuffs):
+            if e["col"] == col and e["row"] == row:
+                return self.wall_hp_debuffs.pop(i)
+        return None
 
 
 class BeamAttacker(Component):

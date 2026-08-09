@@ -48,6 +48,7 @@ from game.buildings.registry import (
 from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
 from game.core.levelup import advance_batch_plan, upgrade_gate
+from game.core.wall_era import sync_wall_art_era  # wall-era-art feature
 from game.core.xp import scaled_base_income
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
@@ -1175,6 +1176,7 @@ class BuildingUI:
                         tb.upgrade()
                     tb.advance_tier()
                     lightning.sync_level_from_tier(st, tb)  # Storm Priest wiring
+                    sync_wall_art_era(st, tb, session.enemies_balance)  # wall-era-art
                     if session.debug is not None:
                         session.debug.note_love_spent(c, dbg.SPEND_RESEARCH)
                         session.debug.emit(
@@ -1195,6 +1197,7 @@ class BuildingUI:
                 st.spend_love(cost)
                 b.advance_tier()
                 lightning.sync_level_from_tier(st, b)  # Storm Priest wiring
+                sync_wall_art_era(st, b, session.enemies_balance)  # wall-era-art
                 if session.debug is not None:
                     session.debug.note_love_spent(cost, dbg.SPEND_RESEARCH)
                     session.debug.emit(
@@ -1213,6 +1216,7 @@ class BuildingUI:
                 st.spend_love(total)
                 for tb, _c in targets:
                     tb.upgrade()
+                    sync_wall_art_era(st, tb, session.enemies_balance)  # wall-era-art
                     if self.on_build_vfx is not None:
                         lvl = tb.get_component(TierState).current_level_in_tier
                         self.on_build_vfx(tb.col, tb.row,
@@ -1290,6 +1294,7 @@ class BuildingUI:
             st.buildings_placed += 1
             placed_any = True
             lightning.unlock_from_placement(st, building)  # Storm Priest wiring
+            sync_wall_art_era(st, building, session.enemies_balance)  # wall-era-art
             if session.debug is not None:
                 session.debug.note_love_spent(cost, dbg.SPEND_PLACE)
                 session.debug.emit(

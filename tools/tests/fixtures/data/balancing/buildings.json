@@ -72,7 +72,9 @@
           "name": "Health Booster",
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
-          "upkeep_per_level": 2
+          "upkeep_per_level": 2,
+          "wall_boost_increase_per_level": 0.03,
+          "wall_boost_per_turn": 0.03
         },
         {
           "base_hp": 150,
@@ -86,7 +88,9 @@
           "name": "Comforting Motivator",
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
-          "upkeep_per_level": 2
+          "upkeep_per_level": 2,
+          "wall_boost_increase_per_level": 0.03,
+          "wall_boost_per_turn": 0.09
         },
         {
           "base_hp": 250,
@@ -100,7 +104,9 @@
           "name": "Therapist",
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
-          "upkeep_per_level": 2
+          "upkeep_per_level": 2,
+          "wall_boost_increase_per_level": 0.03,
+          "wall_boost_per_turn": 0.15
         }
       ]
     },
