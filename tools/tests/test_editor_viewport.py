@@ -1437,9 +1437,12 @@ class TestPurity(unittest.TestCase):
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
             "editor.thats_my_producer, "
+            "editor.timeline_curve, "
             # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
             # module must stay pure of game/ for that import to be legal.
-            "engine.era_math; "
+            # TimelinePLAN T3: editor.timeline_curve also consumes
+            # engine.xp_curve for the same reason (D7).
+            "engine.era_math, engine.xp_curve; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

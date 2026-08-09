@@ -100,6 +100,20 @@ engine task; if an engine change forces a caller change, tell the user
   the package's no-game-vocabulary rule: it knows "eras", "rows", "stats" and
   "counts", never a raider or a boss — callers pass already-loaded dicts,
   nothing here opens a file or names a JSON path. In `TestPurity`.
+- **`xp_curve.py`** (pure, stdlib-only — TimelinePLAN T3/D7) — the best-case
+  (upper-bound) XP-curve calculator's vocabulary-free core, built on
+  `era_math.py`: `type_count_for_round`/`enemy_counts_for_round` (one type's
+  or every type's spawn count for a round, via `era_math`),
+  `cumulative_best_case_xp` (sums `count × xp_per_type` per round, assuming
+  every spawn is killed that round — an explicit upper bound, never a real
+  playthrough's curve), `threshold_crossing_rounds` (first round a cumulative
+  XP sequence crosses each of an ordered list of thresholds). Deliberately
+  does not decide what a "boss round" or "round 0" means — the CALLER's own
+  injected `counts_for_round(round_num)` composes each round, so this module
+  never learns those concepts. Two vocabulary adapters carry that knowledge:
+  `game/core/xp_curve.py` and its deliberately duplicated twin
+  `editor/timeline_curve.py` (D7 — `editor/` may never import `game/`),
+  pinned equal by a cross-package drift test. In `TestPurity`.
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).

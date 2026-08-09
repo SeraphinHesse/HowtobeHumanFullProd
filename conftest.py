@@ -151,6 +151,7 @@ TIERS = {
     "test_video_playback": "core",
     "test_video_source": "core",
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
+    "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
 
 

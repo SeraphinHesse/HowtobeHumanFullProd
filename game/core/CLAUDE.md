@@ -187,11 +187,29 @@ love store, ready to feed `place_building`.
 ## XP / village level-up / research (Phase 10A)
 Enemies and buildings drop XP, XP fills a village level, and each level opens a
 modal LEVELUP window whose reward researches the next building tier (or pays love).
-- **`game/core/xp.py`** (pure) — `xp_for_etype` (keyed on `Enemy.ETYPE`),
-  `award_xp` (arms `levelup_pending`; queues an `xp_events` floater),
-  `advance_village_level` (the 50→65→85→110→140 threshold walk; surplus carries
-  forward, one level per resolve), and **`scaled_base_income`** — the ONE source
-  for payday, the HUD income line and the base-info panel, so they can't drift.
+- **`game/core/xp.py`** (pure) — `xp_for_etype` (keyed on `Enemy.ETYPE`, via
+  the now-public `XP_KEY_FOR_ETYPE` table — TimelinePLAN T3 promoted it from
+  module-private so `game/core/xp_curve.py` can import rather than
+  re-declare it), `award_xp` (arms `levelup_pending`; queues an `xp_events`
+  floater), `advance_village_level` (the 50→65→85→110→140 threshold walk;
+  surplus carries forward, one level per resolve), and
+  **`scaled_base_income`** — the ONE source for payday, the HUD income line
+  and the base-info panel, so they can't drift.
+- **`game/core/xp_curve.py`** (pure, TimelinePLAN T3/D7) — the game-side
+  vocabulary adapter for `engine/xp_curve.py`'s vocabulary-free best-case
+  calculator: `threshold_sequence` (read-only reproduction of
+  `advance_village_level`'s threshold walk, as cumulative XP requirements),
+  `best_case_curve` (the full upper-bound curve + level-crossing rounds,
+  reproducing `game/enemies/spawner.py::_compose`'s exact per-round
+  composition — round-0 tutorial override, `Boss.round_counts` with its
+  past-the-table fallback, Formation/Sniper/Digger/Drummer excluded on a
+  boss round). Carries a small, deliberately duplicated ETYPE/block-key
+  mapping (the `registry_group` precedent) — its second, Qt-free home is
+  `editor/timeline_curve.py` (editor/ may never import game/), pinned equal
+  by `tools/tests/test_xp_curve.py::TestDrift`. Feeds the Timeline editor
+  panel's graph; **never assert this curve equals a real playthrough** — it
+  is an explicit upper bound, since real XP depends on the player's kill
+  rate.
 - **`game/core/levelup.py`** (pure) — the option roll + `apply_levelup_option` +
   **`upgrade_gate`**, the FIVE-mode upgrade classifier the panel renders (`in_tier`
   / `tier_upgrade` / `tier_locked` / `tier_hidden` / `max_tier`). A tier can no
