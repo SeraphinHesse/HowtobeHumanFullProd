@@ -5,8 +5,10 @@ owns every 10I UI surface so ``hud.py`` (edited by 10G/10H) carries no 10I
 diff:
 
 * **World condition tint** — a coloured diamond on every non-GRASS,
-  non-BACKGROUND tile inside the visible window (prototype ``tile.py:25-30,
-  166-173``), drawn under buildings/highlights.
+  non-BACKGROUND, non-SPAWNING tile inside the visible window (prototype
+  ``tile.py:25-30, 166-173``), drawn under buildings/highlights. A tile keeps
+  its rolled condition while SPAWNING — only the draw is skipped, so the
+  diamond reappears once the tile converts to COMBAT (spawn recede).
 * **RANGE toggle** — red diamonds over the union of every alive defender's
   range footprint, using RAW ``range_tiles()`` (prototype ``hud.py:399-430``
   / ``game.py:2012-2019``), shaped per an optional duck-typed
@@ -189,7 +191,8 @@ class MapOverlays:
         for r in range(max(0, rmin), min(tilemap.rows - 1, rmax) + 1):
             for c in range(max(0, cmin), min(tilemap.cols - 1, cmax) + 1):
                 t = tilemap.get(c, r)
-                if t is None or t.state == TileState.BACKGROUND:
+                if t is None or t.state in (TileState.BACKGROUND,
+                                             TileState.SPAWNING):
                     continue
                 tint = _COND_TINT.get(t.condition)
                 # The diamond is a FALLBACK now: a tile whose condition art is
