@@ -632,6 +632,23 @@ class Commander(Enemy):
     HP_BAR_W, HP_BAR_H = 24, 2       # siege-sized (D8), no boss 48×4 bar
 
 
+class Tutorial(Enemy):
+    """Round 0's forced enemy (add-enemy dispatch, user decision) — split off
+    Standard so the tutorial's scripted spawn can be tuned independently of
+    the real Walker. It reuses the Walker's registry group/slots (no new art)
+    and Standard's era-0 stats verbatim, but ``EnemyTypes.Tutorial.hunts`` is
+    ``"any_non_base"`` (Boss/Commander's value) rather than ``"base"``, so it
+    targets buildings instead of walking straight at the hole. No override
+    needed for that: the generic ``Enemy.on_spawn`` already dispatches on the
+    data block's ``hunts`` value (see game/enemies/CLAUDE.md's "Prey hunting"
+    section)."""
+
+    ETYPE = "tutorial"
+    REGISTRY_GROUP = "Walker"
+    DEFAULT_SLOT = "enemy_stage_1_v1"
+    STAT_SUBTREE = ("Tutorial",)
+
+
 class Digger(Enemy):
     """The Digger (NE-2) — the burrower that erupts under a claimed structure.
 
@@ -869,6 +886,7 @@ ENEMY_CLASSES = {
     "digger": Digger,
     "drummer": Drummer,
     "boss": Boss,
+    "tutorial": Tutorial,
 }
 
 
