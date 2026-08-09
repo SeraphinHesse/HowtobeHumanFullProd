@@ -1034,6 +1034,22 @@
           "additionalProperties": false,
           "description": "Damage boost line (red).",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "tiers": {
               "description": "Damage boost tiers in advance order.",
               "items": {
@@ -1045,6 +1061,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "tiers"
           ],
           "type": "object"
@@ -1053,6 +1071,22 @@
           "additionalProperties": false,
           "description": "Max-HP boost line (pink).",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "tiers": {
               "description": "HP boost tiers in advance order.",
               "items": {
@@ -1064,6 +1098,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "tiers"
           ],
           "type": "object"
@@ -1072,6 +1108,22 @@
           "additionalProperties": false,
           "description": "Attack-speed boost line (blue).",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "tiers": {
               "description": "Speed boost tiers in advance order.",
               "items": {
@@ -1083,6 +1135,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "tiers"
           ],
           "type": "object"
@@ -1328,6 +1382,22 @@
           "additionalProperties": false,
           "description": "The splash-damage mortar line (initially locked).",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1349,6 +1419,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers",
             "unlock_min_village_level"
@@ -1359,6 +1431,22 @@
           "additionalProperties": false,
           "description": "The single-target defender line.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1374,6 +1462,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers"
           ],
@@ -1383,6 +1473,22 @@
           "additionalProperties": false,
           "description": "The ramping beam line.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1404,6 +1510,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "target_death_cooldown",
             "tiers"
@@ -1414,6 +1522,22 @@
           "additionalProperties": false,
           "description": "The lightning-unlocking defender line (initially locked); placing one raises the run's lightning_level to 1.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "repeat_cost_multiplier": {
               "description": "Escalating price multiplier for the Storm Acolyte multi-build: the Nth fresh lightning_source-tagged placement (N = count of already-placed acolytes, alive or dead) costs build_cost * this ** N.",
               "maximum": 10.0,
@@ -1435,6 +1559,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "repeat_cost_multiplier",
             "starts_unlocked",
             "tiers"
@@ -1482,6 +1608,22 @@
           "additionalProperties": false,
           "description": "The Meditator line - compounding streak economy.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1497,6 +1639,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers"
           ],
@@ -1506,6 +1650,22 @@
           "additionalProperties": false,
           "description": "The Musician line - the basic economy building.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1521,6 +1681,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers"
           ],
@@ -1530,6 +1692,22 @@
           "additionalProperties": false,
           "description": "The Painter line - risky delayed-payout economy (initially locked).",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1551,6 +1729,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers",
             "unlock_min_village_level"
@@ -1573,6 +1753,22 @@
           "additionalProperties": false,
           "description": "The Blocker line - high-HP path obstruction.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1588,6 +1784,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers"
           ],
@@ -1597,6 +1795,22 @@
           "additionalProperties": false,
           "description": "The Wall Builder line - raises perimeter walls around unlocked tiles.",
           "properties": {
+            "building_type": {
+              "description": "The building-type key this group's line is known by in code and in run state (game/buildings/research.py's RESEARCH/LEAF_CLASSES table, RunState.tiers_unlocked / unlocked_buildings). Identity, not a tunable - renaming it detaches the group from its leaf class.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "card_slots": {
+              "description": "One data/slots.json asset-slot key per tier, in advance order (exactly 3) - the art a level-up unlock/research card shows for that tier. Tiered lines use '<tier sprite>_t<n>_lvl1'; flat-art lines (Blocker, Wall Builder) repeat their single slot key three times.",
+              "items": {
+                "description": "One data/slots.json asset-slot key: the card art for this tier.",
+                "minLength": 1,
+                "type": "string"
+              },
+              "maxItems": 3,
+              "minItems": 3,
+              "type": "array"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1612,6 +1826,8 @@
             }
           },
           "required": [
+            "building_type",
+            "card_slots",
             "starts_unlocked",
             "tiers"
           ],

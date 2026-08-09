@@ -125,6 +125,24 @@ validating writer; don't hand-edit the JSON.
   runtime. Shipped defaults (10 / 2 / 10 / 1 / 2 / 1) make a 3-tile move cost
   20 love and take 2 rounds. Read by `game/buildings/movement.py`, which is
   handed the subtree and never opens a file.
+- **`building_type` + `card_slots` (TimelinePLAN T1/D3)**: each of the TWELVE
+  building-type groups in `buildings.json` (`DefenceBuildings.{BasicDefence,
+  AOEDefence,BeamDefence,StormPriest}`, `EconomyBuildings.{Musicians,Painters,
+  Meditators}`, `BoostBuildings.{Speed,Damage,HP}`, `StructureBuildings.
+  {Blocker,WallBuilder}`) carries two REQUIRED fields exposing what only
+  `game/buildings/*.py` class attributes said before. `building_type` (string)
+  is the `game/buildings/research.py` `RESEARCH`/`LEAF_CLASSES` key —
+  identity, not a tunable (`"defence"`, `"economic"`, `"sun_scorcher"`, … —
+  three of them do NOT match their group name). `card_slots` (exactly 3
+  strings) is one `slots.json` asset-slot key per tier, computed the way
+  `game/core/levelup.py::_tier_option` does: a flat `SLOT` wins for the
+  structure lines (`["blocker","blocker","blocker"]`), otherwise
+  `f"{TIER_SPRITES[idx]}_t{idx+1}_lvl1"`. Same **`registry_group` precedent**
+  as the enemy blocks above: the editor may never import `game/`, so a link
+  that existed only as a Python constant becomes real data, and the Python
+  constants stay as an UN-refactored second home pinned against drift by
+  `tools/tests/test_balancing_data.py::TestBuildingTypeAndCardSlots`. T1 is
+  pure exposure — **nothing reads either field yet**.
 - **`slots.json`'s `core` category gained a `"Moving Sign"` one-slot group**
   (`moving_sign`, 64×96, `["idle"]`) — the signpost the game draws on both
   endpoints of a move in progress. `core` is the right home: it already holds

@@ -16,6 +16,7 @@ from pathlib import Path
 import jsonschema
 
 from engine import data_io
+from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 DOMAINS = ("buildings", "enemies", "map", "ui", "core")  # canonical D-10 order
@@ -168,6 +169,75 @@ class TestSchemaRejections(unittest.TestCase):
             with self.assertRaises(jsonschema.ValidationError):
                 data_io.write_validated(data, target, schema_path)
             self.assertFalse(target.exists())
+
+
+class TestBuildingTypeAndCardSlots(unittest.TestCase):
+    """TimelinePLAN T1/D3: every building-type group in buildings.json carries
+    a `building_type` (the RESEARCH / RunState.tiers_unlocked key) and
+    `card_slots` (one real data/slots.json slot key per tier).
+
+    Both are a SECOND home for what `game/buildings/*.py`'s `BUILDING_TYPE` /
+    `TIER_SPRITES` / `SLOT` class attributes already say — the editor may not
+    import `game/`, so it needs them in data. Nothing wires the two together
+    (the `registry_group` precedent in `test_enemies.TestRegistryGroupDrift`),
+    so this pins them: a drift turns red instead of silently pointing the
+    Timeline panel at art or a type key that does not exist.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        data_path, schema_path = paths("buildings")
+        cls.doc = data_io.load_validated(data_path, schema_path)
+        cls.slot_keys = set(load_registry(REPO / "data").slot_keys())
+
+    def groups(self):
+        """(path, node) for every group node carrying a building_type."""
+        for parent in sorted(self.doc):
+            block = self.doc[parent]
+            if not isinstance(block, dict):
+                continue
+            for key in sorted(block):
+                node = block[key]
+                if isinstance(node, dict) and "building_type" in node:
+                    yield (parent, key), node
+
+    def test_all_twelve_leaf_groups_carry_the_fields(self):
+        from game.buildings.research import LEAF_CLASSES
+
+        found = {path: node["building_type"] for path, node in self.groups()}
+        expected = {tuple(cls.SUBTREE): btype
+                    for btype, cls in LEAF_CLASSES.items()}
+        self.assertEqual(found, expected)
+
+    def test_building_type_is_a_real_research_key(self):
+        from game.buildings.research import LEAF_CLASSES, RESEARCH
+
+        for path, node in self.groups():
+            with self.subTest(group="/".join(path)):
+                self.assertIn(node["building_type"], LEAF_CLASSES)
+                self.assertIn(node["building_type"], RESEARCH)
+
+    def test_card_slots_resolve_to_real_slot_registry_keys(self):
+        for path, node in self.groups():
+            slots = node["card_slots"]
+            self.assertEqual(len(slots), 3, msg="/".join(path))
+            for idx, key in enumerate(slots):
+                with self.subTest(group="/".join(path), tier=idx + 1):
+                    self.assertIn(key, self.slot_keys)
+
+    def test_card_slots_match_the_leaf_classes_card_art(self):
+        """The same formula `game/core/levelup.py::_tier_option` computes: a
+        flat `SLOT` wins for structure lines, else
+        f"{TIER_SPRITES[idx]}_t{idx+1}_lvl1"."""
+        from game.buildings.research import LEAF_CLASSES
+
+        for path, node in self.groups():
+            leaf = LEAF_CLASSES[node["building_type"]]
+            flat = getattr(leaf, "SLOT", "")
+            expected = [flat or f"{leaf.TIER_SPRITES[i]}_t{i + 1}_lvl1"
+                        for i in range(3)]
+            with self.subTest(group="/".join(path)):
+                self.assertEqual(node["card_slots"], expected)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,12 @@
 {
   "BoostBuildings": {
     "Damage": {
+      "building_type": "boost_damage",
+      "card_slots": [
+        "boost_damage_t1_lvl1",
+        "boost_damage_t2_lvl1",
+        "boost_damage_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -50,6 +56,12 @@
       ]
     },
     "HP": {
+      "building_type": "boost_hp",
+      "card_slots": [
+        "boost_hp_t1_lvl1",
+        "boost_hp_t2_lvl1",
+        "boost_hp_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -99,6 +111,12 @@
       ]
     },
     "Speed": {
+      "building_type": "boost_speed",
+      "card_slots": [
+        "boost_speed_t1_lvl1",
+        "boost_speed_t2_lvl1",
+        "boost_speed_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -198,6 +216,12 @@
   },
   "DefenceBuildings": {
     "AOEDefence": {
+      "building_type": "aoe_defence",
+      "card_slots": [
+        "maw_mortar_t1_lvl1",
+        "maw_mortar_t2_lvl1",
+        "maw_mortar_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -261,6 +285,12 @@
       "unlock_min_village_level": 1
     },
     "BasicDefence": {
+      "building_type": "defence",
+      "card_slots": [
+        "stone_thrower_t1_lvl1",
+        "slinger_t2_lvl1",
+        "pistoleer_t3_lvl1"
+      ],
       "starts_unlocked": true,
       "tiers": [
         {
@@ -317,6 +347,12 @@
       ]
     },
     "BeamDefence": {
+      "building_type": "sun_scorcher",
+      "card_slots": [
+        "sun_scorcher_t1_lvl1",
+        "radiant_beam_t2_lvl1",
+        "laser_beam_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "target_death_cooldown": 1.4,
       "tiers": [
@@ -380,6 +416,12 @@
       ]
     },
     "StormPriest": {
+      "building_type": "storm_priest",
+      "card_slots": [
+        "storm_priest_i_t1_lvl1",
+        "storm_priest_ii_t2_lvl1",
+        "storm_priest_iii_t3_lvl1"
+      ],
       "repeat_cost_multiplier": 1.8,
       "starts_unlocked": false,
       "tiers": [
@@ -443,6 +485,12 @@
   },
   "EconomyBuildings": {
     "Meditators": {
+      "building_type": "meditator",
+      "card_slots": [
+        "meditator_t1_lvl1",
+        "shaman_t2_lvl1",
+        "sun_priest_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -493,6 +541,12 @@
       ]
     },
     "Musicians": {
+      "building_type": "economic",
+      "card_slots": [
+        "flute_player_t1_lvl1",
+        "harp_player_t2_lvl1",
+        "trio_t3_lvl1"
+      ],
       "starts_unlocked": true,
       "tiers": [
         {
@@ -537,6 +591,12 @@
       ]
     },
     "Painters": {
+      "building_type": "painter",
+      "card_slots": [
+        "painter_t1_lvl1",
+        "painter_t2_lvl1",
+        "painter_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -590,6 +650,12 @@
   },
   "StructureBuildings": {
     "Blocker": {
+      "building_type": "blocker",
+      "card_slots": [
+        "blocker",
+        "blocker",
+        "blocker"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -628,6 +694,12 @@
       ]
     },
     "WallBuilder": {
+      "building_type": "wall_builder",
+      "card_slots": [
+        "wall_builder",
+        "wall_builder",
+        "wall_builder"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
