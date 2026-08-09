@@ -1,0 +1,7 @@
+{
+  "widgets": {
+    "btn_back": {
+      "skin": "ui_button_panel"
+    }
+  }
+}

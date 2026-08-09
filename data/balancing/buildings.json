@@ -18,7 +18,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Attack Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -33,7 +32,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Raging Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 2
@@ -48,7 +46,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Drill Sergeant",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 2
@@ -73,7 +70,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Health Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 2
@@ -88,7 +84,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Comforting Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 2
@@ -103,7 +98,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Therapist",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 2
@@ -128,7 +122,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Speed Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -143,7 +136,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Energetic Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 1
@@ -158,7 +150,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Personal Trainer",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 1
@@ -238,7 +229,6 @@
           "name": "Maw Mortar",
           "radius_per_level": 0.125,
           "range_tiles": 3,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -257,7 +247,6 @@
           "name": "Maw Catapult",
           "radius_per_level": 0.2,
           "range_tiles": 4,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 35,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 3
@@ -276,7 +265,6 @@
           "name": "Maw Cannon",
           "radius_per_level": 0.25,
           "range_tiles": 5,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 45,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 8
@@ -305,7 +293,6 @@
           "levels": 3,
           "name": "Stone Thrower",
           "range_tiles": 1,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -322,7 +309,6 @@
           "levels": 3,
           "name": "Slinger",
           "range_tiles": 1,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -339,7 +325,6 @@
           "levels": 3,
           "name": "Pistoleer",
           "range_tiles": 2,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 100,
           "upgrade_cost_increment": 25,
           "upkeep_per_level": 5
@@ -370,7 +355,6 @@
           "levels": 3,
           "name": "Sun Scorcher",
           "range_tiles": 2,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 1
@@ -389,7 +373,6 @@
           "levels": 3,
           "name": "Radiant Beam",
           "range_tiles": 2,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 7,
           "upkeep_per_level": 2
@@ -408,7 +391,6 @@
           "levels": 3,
           "name": "Laser Beam",
           "range_tiles": 3,
-          "unlock_min_round": 40,
           "upgrade_cost_base": 27,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 3
@@ -437,7 +419,6 @@
           "levels": 3,
           "name": "Storm Acolyte",
           "range_tiles": 0,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -454,7 +435,6 @@
           "levels": 3,
           "name": "Storm Priest",
           "range_tiles": 0,
-          "unlock_min_round": 15,
           "upgrade_cost_base": 50,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 3
@@ -471,7 +451,6 @@
           "levels": 3,
           "name": "Storm High Priest",
           "range_tiles": 0,
-          "unlock_min_round": 25,
           "upgrade_cost_base": 130,
           "upgrade_cost_increment": 30,
           "upkeep_per_level": 6
@@ -503,7 +482,6 @@
           "name": "Meditator",
           "streak_growth": 1.25,
           "streak_max": 5,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 5,
           "yield_per_level": 2
@@ -518,7 +496,6 @@
           "name": "Shaman",
           "streak_growth": 1.3,
           "streak_max": 6,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 22,
           "upgrade_cost_increment": 8,
           "yield_per_level": 4
@@ -533,7 +510,6 @@
           "name": "Sun Priest",
           "streak_growth": 1.35,
           "streak_max": 7,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 34,
           "upgrade_cost_increment": 12,
           "yield_per_level": 6
@@ -557,7 +533,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Flute Player",
-          "unlock_min_round": 0,
           "upgrade_cost_base": 5,
           "upgrade_cost_increment": 5,
           "yield_per_level": 4
@@ -570,7 +545,6 @@
           "hp_per_level": 30,
           "levels": 3,
           "name": "Harp Player",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 25,
           "upgrade_cost_increment": 10,
           "yield_per_level": 5
@@ -583,7 +557,6 @@
           "hp_per_level": 50,
           "levels": 3,
           "name": "Trio",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 70,
           "upgrade_cost_increment": 5,
           "yield_per_level": 10
@@ -610,7 +583,6 @@
           "name": "Cave Painter",
           "payout_per_level": 5,
           "rounds_to_payout": 3,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 2,
           "upgrade_cost_increment": 0
         },
@@ -625,7 +597,6 @@
           "name": "Maestro",
           "payout_per_level": 12,
           "rounds_to_payout": 4,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 5,
           "upgrade_cost_increment": 0
         },
@@ -640,7 +611,6 @@
           "name": "Art Factory",
           "payout_per_level": 25,
           "rounds_to_payout": 6,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 0
         }
@@ -665,7 +635,6 @@
           "hp_per_level": 150,
           "levels": 3,
           "name": "Blocker",
-          "unlock_min_round": 5,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 4
         },
@@ -676,7 +645,6 @@
           "hp_per_level": 200,
           "levels": 3,
           "name": "Bulwark",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 7
         },
@@ -687,7 +655,6 @@
           "hp_per_level": 300,
           "levels": 3,
           "name": "Bastion",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 25,
           "upgrade_cost_increment": 10
         }
@@ -710,7 +677,6 @@
           "hp_per_level": 100,
           "levels": 3,
           "name": "Bush Wall Builder",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 12,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 3,
@@ -725,7 +691,6 @@
           "hp_per_level": 100,
           "levels": 3,
           "name": "Wooden Wall Builder",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 3,
@@ -740,7 +705,6 @@
           "hp_per_level": 150,
           "levels": 3,
           "name": "Stone Wall Builder",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 12,
           "upkeep_per_level": 3,

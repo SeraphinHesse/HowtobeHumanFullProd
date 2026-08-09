@@ -11,9 +11,10 @@ Carries its OWN art slots (``meditator_``/``shaman_``/``sun_priest_``) — the
 line used to point at the musician's `flute_player`/`harp_player`/`trio` keys,
 and that link is deliberately severed: nothing visual is shared between the two
 economy lines any more. The type
-is locked until earned via a level-up unlock card, gated by
-``Meditators.tiers[0].unlock_min_round`` (10); unlocking it makes tier 1
-immediately placeable — no separate "research tier 1" step
+is locked until earned via a level-up unlock card, gated by whether its
+tier 0 has a Timeline placement (``data/balancing/progression.json``,
+TimelinePLAN T4 — ``unlock_min_round`` no longer exists); unlocking it makes
+tier 1 immediately placeable — no separate "research tier 1" step
 (``research.py``'s bare ``ResearchSpec()`` row).
 
 The streak lives on the shared ``YieldEconomy.streak`` component. The prototype

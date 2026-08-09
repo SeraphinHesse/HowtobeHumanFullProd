@@ -128,6 +128,10 @@ class SimWorld:
         self.core_bal = load_balance(data_dir, "core")
         self.enemies_bal = load_balance(data_dir, "enemies")
         self.vfx_bal = load_balance(data_dir, "vfx")
+        # TimelinePLAN T4: the sole source of unlock timing — without this a
+        # simulated run's level-up roll would offer nothing but the love
+        # fallback, defeating the point of a balance-sweep host.
+        self.progression_bal = load_balance(data_dir, "progression")
         self.map_doc = tilemap.load_active_map(data_dir)
         # `registry=None`: slot art is display-only. `rng` is what rolls the
         # tile conditions, which DO change balance (speed/damage/yield mods).
@@ -144,7 +148,7 @@ class SimWorld:
         self.session = Session.create(
             self.spawner, self.tile_map, self.enemies_bal, self.core_bal,
             self.buildings_bal, registry=None, rng=rng,
-            occupancy=self.occupancy)
+            occupancy=self.occupancy, progression_balance=self.progression_bal)
         wire_defence_coverage(self.tile_map, self.buildings_bal)
 
 

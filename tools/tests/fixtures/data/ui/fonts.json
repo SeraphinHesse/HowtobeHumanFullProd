@@ -1,0 +1,30 @@
+{
+  "hud_lvl": {
+    "bold": false,
+    "size": 12
+  },
+  "hud_phase": {
+    "bold": false,
+    "size": 14
+  },
+  "lg": {
+    "bold": true,
+    "size": 13
+  },
+  "md": {
+    "bold": false,
+    "size": 11
+  },
+  "sm": {
+    "bold": false,
+    "size": 9
+  },
+  "xl": {
+    "bold": true,
+    "size": 18
+  },
+  "xxl": {
+    "bold": true,
+    "size": 26
+  }
+}

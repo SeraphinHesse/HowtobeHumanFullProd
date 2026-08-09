@@ -18,6 +18,16 @@
       4.0
     ]
   },
+  "Debug": {
+    "ask_player_identity": true,
+    "debug_mode_available": true,
+    "default_level": 1,
+    "default_output_csv": true,
+    "default_output_html": true,
+    "default_output_jsonl": true,
+    "default_output_md": true,
+    "regular_mode_available": true
+  },
   "General": {
     "game_scale_rounds": 15,
     "starting_currency": 25
@@ -66,7 +76,7 @@
     "xp_on_base_damage_kill": true,
     "xp_per_boss": 150,
     "xp_per_raider": 1,
-    "xp_per_siege_enemy": 3,
+    "xp_per_siege_enemy": 5,
     "xp_per_standard_enemy": 1
   }
 }

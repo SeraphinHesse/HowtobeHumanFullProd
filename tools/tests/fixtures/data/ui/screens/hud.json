@@ -1,0 +1,60 @@
+{
+  "widgets": {
+    "btn_end_turn": {
+      "rect": [
+        1104,
+        644,
+        160,
+        60
+      ],
+      "skin": "ui_button_end_turn",
+      "text_color": [
+        255,
+        255,
+        0
+      ]
+    },
+    "btn_pause": {
+      "rect": [
+        1174,
+        12,
+        90,
+        30
+      ],
+      "skin": "ui_button_pause"
+    },
+    "btn_speed_1_5x": {
+      "skin": "ui_button_pill"
+    },
+    "btn_speed_1x": {
+      "skin": "ui_button_pill"
+    },
+    "btn_speed_2x": {
+      "skin": "ui_button_pill"
+    },
+    "love_panel": {
+      "rect": [
+        12,
+        12,
+        107,
+        39
+      ],
+      "skin": "ui_panel"
+    },
+    "readout_panel": {
+      "rect": [
+        12,
+        46,
+        107,
+        57
+      ]
+    },
+    "round_label": {
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    }
+  }
+}

@@ -1,19 +1,27 @@
-"""Level-up option roll + research gates (Phase 10A).
+"""Level-up option roll + research gates (Phase 10A; TimelinePLAN T4).
 
 Pure logic (no pygame). Ports the prototype's ``_roll_levelup_options`` /
 ``_apply_levelup_option`` / ``_tier_option`` / ``tiers_unlocked_for`` /
 ``_tier_offerable`` (``src/core/game.py:1444-1790``) and the five-mode upgrade
 classifier from ``src/ui/building_ui.py:1327-1355``.
 
-TWO gates stack, both read live from ``data/balancing/buildings.json``:
+TWO gates stack:
 
 1. **type unlock** — is the building type earned at all
    (``RunState.unlocked_buildings``, seeded from ``RESEARCH``)? A locked
-   type's UNLOCK card is itself gated by its own ``tiers[0].unlock_min_round``
-   (via ``tier_offerable(state, btype, 0, ...)``) — tier 0's round gate
-   doubles as the type's era gate, so there is no separate group-level key.
-2. **per-tier round gate** — ``tiers[idx].unlock_min_round``: a tier can't be
-   researched, previewed or named before that round.
+   type's UNLOCK card is itself gated by whether it has a Timeline placement
+   at ``tier_index=0`` (via ``tier_offerable(state, btype, 0, ...)``) — its
+   placement doubles as the type's era gate, so there is no separate
+   group-level key.
+2. **per-tier eligibility gate** — is ``(btype, tier_index)`` placed on the
+   Timeline (``data/balancing/progression.json``, TimelinePLAN)? A tier
+   can't be researched, previewed or named until the player's
+   ``village_level`` reaches its placed ``village_level`` —
+   ``timeline_level_for`` is the ONE place this is resolved, and it is the
+   SOLE source of unlock timing (``unlock_min_round`` no longer exists —
+   deleted from ``buildings.json`` schema+content in this same change,
+   TimelinePLAN D4/D6). A tier never placed on the Timeline is never
+   offerable at all.
 
 Only the SINGLE next locked tier of a type is ever offerable
 (``idx == tiers_unlocked``), so Pistoleer stays hidden until Slinger is bought.
@@ -45,15 +53,29 @@ def tiers_for(btype, buildings_balance):
     return _group(btype, buildings_balance)["tiers"]
 
 
-def tier_unlock_min_round(btype, idx, buildings_balance):
-    tiers = tiers_for(btype, buildings_balance)
-    if 0 <= idx < len(tiers):
-        return tiers[idx].get("unlock_min_round", 0)
-    return 0
+def timeline_level_for(btype, idx, progression_balance):
+    """The ``village_level`` at which ``(btype, idx)`` first becomes
+    offerable, per the Timeline's authored schedule — the SOLE source of
+    unlock timing (TimelinePLAN D4/D6). ``None`` when never placed on the
+    Timeline (never offerable), including when ``progression_balance`` is
+    ``None`` itself (a bare ``Session`` a logic test builds that never wired
+    one up — the ``tutorial_gate``/``debug`` "host-set, safe when absent"
+    pattern)."""
+    if progression_balance is None:
+        return None
+    for level in progression_balance["Timeline"]["levels"]:
+        for slot in level["offer_slots"]:
+            assignment = slot["assignment"]
+            if (assignment is not None
+                    and assignment["building_type"] == btype
+                    and assignment["tier_index"] == idx):
+                return level["village_level"]
+    return None
 
 
-def tier_offerable(state, btype, idx, buildings_balance):
-    return state.round_num >= tier_unlock_min_round(btype, idx, buildings_balance)
+def tier_offerable(state, btype, idx, progression_balance):
+    level = timeline_level_for(btype, idx, progression_balance)
+    return level is not None and state.village_level >= level
 
 
 # -- run-state gates --------------------------------------------------------
@@ -148,9 +170,14 @@ def _love_fallback(core_balance):
 
 # -- the roll ---------------------------------------------------------------
 
-def roll_levelup_options(state, buildings_balance, core_balance, rng):
+def roll_levelup_options(state, buildings_balance, core_balance, rng,
+                          progression_balance):
     """Three option dicts: a unique shuffled draw from the eligible pool, padded
-    with repeatable love fallbacks (prototype ``_roll_levelup_options``)."""
+    with repeatable love fallbacks (prototype ``_roll_levelup_options``).
+    ``progression_balance`` (TimelinePLAN) is the sole source of WHICH
+    tiers/unlocks are eligible; the shuffle/take-3/fallback-pad logic below
+    is otherwise byte-identical to before that change — only pool
+    membership was repointed."""
     pool = []
     for btype, spec in RESEARCH.items():
         if btype not in LEAF_CLASSES:
@@ -160,10 +187,10 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng):
             idx = tiers_unlocked_for(state, btype)
             tiers = tiers_for(btype, buildings_balance)
             if idx < len(tiers) and tier_offerable(state, btype, idx,
-                                                   buildings_balance):
+                                                   progression_balance):
                 pool.append(_tier_option(btype, idx, buildings_balance))
         elif (_gate_met(state, spec, buildings_balance)
-              and tier_offerable(state, btype, 0, buildings_balance)):
+              and tier_offerable(state, btype, 0, progression_balance)):
             # Grouped unlock (the boost trio): all members are seeded locked so
             # each offers its own tier cards after unlocking, but only the LEAD
             # type offers the shared "unlock all three" card — skip the rest so
@@ -199,14 +226,17 @@ def apply_levelup_option(state, option, core_balance):
 
 # -- the upgrade-panel classifier -------------------------------------------
 
-def upgrade_gate(state, building, buildings_balance):
+def upgrade_gate(state, building, buildings_balance, progression_balance):
     """Classify a building's upgrade button -> ``(mode, next_name, cost)``:
 
     ``in_tier``      normal level-up inside the current tier
     ``tier_upgrade`` at tier max, next tier researched -> advance
     ``tier_locked``  at tier max, next tier offerable but not researched
-    ``tier_hidden``  at tier max, next tier round-gated. Name/preview hidden;
-                     ``cost`` carries the round it unlocks at.
+    ``tier_hidden``  at tier max, next tier not yet offerable. Name/preview
+                     hidden; ``cost`` carries the village_level it unlocks at
+                     (TimelinePLAN D5 — always exactly true, unlike showing
+                     the best-case-curve's approximate round would be), or
+                     ``None`` if it has no Timeline placement at all.
     ``max_tier``     at tier max, no higher tier exists
     """
     if not building.at_tier_max():
@@ -215,9 +245,9 @@ def upgrade_gate(state, building, buildings_balance):
         return ("max_tier", None, 0)
     btype = building.building_type
     next_idx = building.get_component(TierState).current_tier + 1
-    if not tier_offerable(state, btype, next_idx, buildings_balance):
+    if not tier_offerable(state, btype, next_idx, progression_balance):
         return ("tier_hidden", None,
-                tier_unlock_min_round(btype, next_idx, buildings_balance))
+                timeline_level_for(btype, next_idx, progression_balance))
     tier = tiers_for(btype, buildings_balance)[next_idx]
     cost = tier.get("build_cost", 0)
     if tiers_unlocked_for(state, btype) > next_idx:

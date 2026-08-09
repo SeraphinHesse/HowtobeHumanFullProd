@@ -59,10 +59,15 @@ validating writer; don't hand-edit the JSON.
   **not** a `data/slots.json` category (that registry is unrelated
   sprite-slot vocabulary — see the Asset data section below), so it does not
   auto-render as a generic recursive form in the editor's balancing panel —
-  it gets its own bespoke drag-and-drop panel instead (later Timeline
-  phases). T2 shipped only the schema + an empty seed
-  (`{"Timeline": {"levels": []}}`); nothing reads or writes it yet. **`vfx`
-  was the previous newest (ESV-3a)**:
+  it gets its own bespoke drag-and-drop panel instead (`editor/panels/
+  timeline.py`, T5). T2 shipped only the schema + an empty seed
+  (`{"Timeline": {"levels": []}}`); T6's migration
+  (`tools/migrate_timeline_from_unlock_min_round.py`) then populated it from
+  every building tier's then-existing `unlock_min_round`, and T4 made it the
+  SOLE source of unlock-timing eligibility at runtime
+  (`game/core/levelup.py::timeline_level_for`, threaded onto `Session.
+  progression_balance`) — `unlock_min_round` itself is deleted from
+  `buildings.json`. **`vfx` was the previous newest (ESV-3a)**:
   it promoted `vfx` from an asset-only `slots.json` category to a full
   balancing domain (`editor/domains.py::domains()` derives the domain list,
   so this needed zero editor edits — see `/add-category`). Its `procedural`
@@ -154,8 +159,12 @@ validating writer; don't hand-edit the JSON.
   as the enemy blocks above: the editor may never import `game/`, so a link
   that existed only as a Python constant becomes real data, and the Python
   constants stay as an UN-refactored second home pinned against drift by
-  `tools/tests/test_balancing_data.py::TestBuildingTypeAndCardSlots`. T1 is
-  pure exposure — **nothing reads either field yet**.
+  `tools/tests/test_balancing_data.py::TestBuildingTypeAndCardSlots`. T1
+  shipped as pure exposure (nothing read either field yet); both are read
+  now — `editor/timeline_ops.py::load_building_catalog` (the Timeline
+  panel's browse-list source, T5) and `tools/migrate_timeline_from_
+  unlock_min_round.py` (T6) both walk `building_type`/`card_slots` for
+  every group.
 - **`slots.json`'s `core` category gained a `"Moving Sign"` one-slot group**
   (`moving_sign`, 64×96, `["idle"]`) — the signpost the game draws on both
   endpoints of a move in progress. `core` is the right home: it already holds
@@ -303,13 +312,17 @@ validating writer; don't hand-edit the JSON.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
-  forbidden). Every object level in all five balancing domains keeps
+  forbidden). Every object level in all seven balancing domains keeps
   `additionalProperties:false` + full `required`, no exceptions (the former
-  `era_unlock_round` group-level key was the last one read as optional by
-  convention anywhere near buildings — it never actually was schema-optional,
-  and it is deleted now that the meditator/beam/wall-builder round gate is a
-  single `tiers[0].unlock_min_round`, no separate era key). No `allOf`
-  composition (it breaks `additionalProperties:false`).
+  `era_unlock_round` group-level key was read as optional by convention
+  anywhere near buildings — it never actually was schema-optional, and was
+  deleted once the meditator/beam/wall-builder round gate became a single
+  per-tier `unlock_min_round`, no separate era key. **TimelinePLAN T4 went
+  further and deleted `unlock_min_round` itself** — every tier `$def`'s
+  eligibility gate is now `data/balancing/progression.json`'s Timeline
+  placement, not a `buildings.json` round value at all; see that domain's
+  entry above and `game/buildings/CLAUDE.md`'s "Research / gating seam"
+  section). No `allOf` composition (it breaks `additionalProperties:false`).
   `random_names` has `minItems:1` and NO `maxItems` (the 9H add-name menu
   appends). Bounds policy, documented per-domain in the schema description:
   fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,

@@ -296,7 +296,7 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   host draws on both endpoints) lives here, with the feature, so the host has
   one place to import it from.
 
-## Research / gating seam (10A, regated in the Joel-Balancing pass)
+## Research / gating seam (10A, regated in the Joel-Balancing pass; TimelinePLAN T4)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
   `RESEARCH` table of `ResearchSpec` rows (`gate_kind`/`gate_path`,
   `starts_unlocked_path`, `unlock_group`, UI copy). A spec never stores a gate
@@ -319,18 +319,31 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   start unlocked; every other type is locked from round 1**, including
   `blocker`/`meditator`/`wall_builder`, which used to default unlocked — a
   deliberate balance change, not a bug.
-- **There is exactly ONE round gate per type: `tiers[0].unlock_min_round`.**
-  It gates the type's UNLOCK card (via `tier_offerable(state, btype, 0,
-  buildings_balance)` in `game/core/levelup.py`'s roll) — a locked type never
-  shows a tier card, only its unlock card, so tier 0's own round doubles as
-  the type's era gate; no separate `<group>.era_unlock_round` key exists
-  anymore. **Unlocking a type makes its tier 1 immediately placeable** —
+- **There is exactly ONE eligibility gate per tier, and since TimelinePLAN T4
+  it is a Timeline placement, not a round.** `unlock_min_round` is DELETED
+  from `buildings.json`'s schema and content entirely — the sole source of
+  "when does `(btype, tier_index)` become offerable" is now
+  `data/balancing/progression.json`, resolved via
+  `game/core/levelup.py::timeline_level_for(btype, idx, progression_balance)
+  -> village_level | None`, gated on `state.village_level` (not
+  `state.round_num`) via `tier_offerable`. It gates the type's UNLOCK card
+  the same way (`tier_offerable(state, btype, 0, progression_balance)` in
+  `game/core/levelup.py`'s roll) — a locked type never shows a tier card,
+  only its unlock card, so tier 0's own Timeline placement doubles as the
+  type's era gate; no separate `<group>.era_unlock_round` key exists.
+  **Unlocking a type makes its tier 1 immediately placeable** —
   `ResearchSpec.starts_with_tier` was deleted along with it, closing off the
   double-unlock-card bug (Meditator/WallBuilder used to need a free unlock
   card AND a same-named "research tier 1" card before they were placeable).
   Only the SINGLE next locked tier (`idx == tiers_unlocked`) is ever offerable
-  for research past tier 1, gated by that tier's own `tiers[idx].unlock_min_round`.
-  Research is GLOBAL per type.
+  for research past tier 1, gated by that tier's own Timeline placement.
+  Research is GLOBAL per type. A tier with NO Timeline placement is simply
+  never offerable — the editor's Timeline panel (`editor/panels/timeline.py`)
+  is where a designer authors these placements now, not a `buildings.json`
+  round value. The `gate_kind="min_village_level"` stacked gate (Maw Mortar's
+  `AOEDefence.unlock_min_village_level`, Painter's
+  `Painters.unlock_min_village_level`) is a SEPARATE, orthogonal gate,
+  untouched by this change (TimelinePLAN D6).
 - **10B rows** (`aoe_defence`, `sun_scorcher`) both start locked (earned via a
   level-up unlock card). Maw Mortar uses
   `gate_kind="min_village_level"` reading a NEW `AOEDefence.unlock_min_village_level`

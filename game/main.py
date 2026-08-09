@@ -151,7 +151,7 @@ class _World:
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
-                 registry):
+                 registry, progression_bal=None):
         # -- 10I: the live run rolls tile conditions (rng=None would keep the
         # all-GRASS fixture mode the headless tests rely on). `registry` also
         # rolls each tile's condition ART slot (the `terrain` draw layer). --
@@ -168,7 +168,8 @@ class _World:
         self.spawner = Spawner()
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
-                                      occupancy=self.occupancy)
+                                      occupancy=self.occupancy,
+                                      progression_balance=progression_bal)
         # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
         # in the pathfinder reads the injected callable) --
         wire_defence_coverage(self.tile_map, buildings_bal)
@@ -341,6 +342,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
     vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
+    progression_balance = load_balance(data_dir, "progression")
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
@@ -421,7 +424,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         nonlocal score_recorded
         score_recorded = False
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             buildings_balance, registry)
+                             buildings_balance, registry, progression_balance)
         # Ground follows runtime zone changes: unlock/recede invalidates the
         # cached ground surface (repainted next ensure). Fresh game -> fresh
         # TileMap with empty overrides; invalidate drops the previous run's

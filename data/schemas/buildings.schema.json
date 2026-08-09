@@ -80,12 +80,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -119,7 +113,6 @@
         "name",
         "radius_per_level",
         "range_tiles",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level"
@@ -206,12 +199,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -245,7 +232,6 @@
         "levels",
         "name",
         "range_tiles",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level"
@@ -290,12 +276,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -316,7 +296,6 @@
         "hp_per_level",
         "levels",
         "name",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment"
       ],
@@ -378,12 +357,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -413,7 +386,6 @@
         "hp_per_level",
         "levels",
         "name",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level"
@@ -488,12 +460,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -525,7 +491,6 @@
         "levels",
         "name",
         "range_tiles",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level"
@@ -588,12 +553,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -623,7 +582,6 @@
         "name",
         "streak_growth",
         "streak_max",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "yield_per_level"
@@ -674,12 +632,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -707,7 +659,6 @@
         "hp_per_level",
         "levels",
         "name",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "yield_per_level"
@@ -774,12 +725,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -804,7 +749,6 @@
         "name",
         "payout_per_level",
         "rounds_to_payout",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment"
       ],
@@ -878,12 +822,6 @@
           "minimum": 0,
           "type": "integer"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -915,7 +853,6 @@
         "levels",
         "name",
         "range_tiles",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level"
@@ -966,12 +903,6 @@
           "minLength": 1,
           "type": "string"
         },
-        "unlock_min_round": {
-          "description": "Earliest round this tier can be researched (levelup option gate).",
-          "maximum": 1000,
-          "minimum": 0,
-          "type": "integer"
-        },
         "upgrade_cost_base": {
           "description": "Love cost of the first in-tier level upgrade.",
           "maximum": 10000,
@@ -1011,7 +942,6 @@
         "hp_per_level",
         "levels",
         "name",
-        "unlock_min_round",
         "upgrade_cost_base",
         "upgrade_cost_increment",
         "upkeep_per_level",

@@ -812,9 +812,12 @@ class BuildingUI:
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
         (``game.core.levelup.upgrade_gate``). ``cost`` is only a love price for
-        the two enabled modes; for ``tier_hidden`` it carries the unlock round."""
+        the two enabled modes; for ``tier_hidden`` it carries the village_level
+        it unlocks at (TimelinePLAN D5 — always exactly true), or ``None`` if
+        it has no Timeline placement at all."""
         mode, next_name, cost = upgrade_gate(
-            self._session.state, b, self._buildings_balance)
+            self._session.state, b, self._buildings_balance,
+            self._session.progression_balance)
         if mode == "in_tier":
             return mode, cost, f"UPGRADE  {cost}", None
         if mode == "tier_upgrade":
@@ -822,7 +825,9 @@ class BuildingUI:
         if mode == "tier_locked":
             return mode, cost, "RESEARCH REQUIRED", "Research it on levelup"
         if mode == "tier_hidden":
-            return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
+            hint = (f"Unlocks at level {cost}" if cost is not None
+                    else "Not yet offered")
+            return mode, cost, "NEXT TIER LOCKED", hint
         return mode, 0, "MAX TIER", None
 
     def _base_info_click(self, mx, my, session):
