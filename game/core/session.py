@@ -46,13 +46,19 @@ PAUSE_SPEED_IDX = 3
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
-                 buildings_balance, registry=None, rng=None, occupancy=None):
+                 buildings_balance, registry=None, rng=None, occupancy=None,
+                 progression_balance=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
         self.enemies_balance = enemies_balance
         self.core_balance = core_balance
         self.buildings_balance = buildings_balance
+        # TimelinePLAN T4: the sole source of unlock timing (tier_offerable/
+        # upgrade_gate). Optional, host-set, None-safe — the tutorial_gate/
+        # debug pattern: a bare Session a logic test builds is untouched (its
+        # level-up roll simply offers nothing beyond the love fallback).
+        self.progression_balance = progression_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -99,11 +105,13 @@ class Session:
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
-               buildings_balance, registry=None, rng=None, occupancy=None):
+               buildings_balance, registry=None, rng=None, occupancy=None,
+               progression_balance=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance, buildings_balance),
                    spawner, tilemap, enemies_balance, core_balance,
-                   buildings_balance, registry, rng, occupancy)
+                   buildings_balance, registry, rng, occupancy,
+                   progression_balance)
 
     @property
     def frozen(self):
@@ -451,7 +459,8 @@ class Session:
         self._levelup_return_phase = return_phase
         # -- /10H --
         st.levelup_options = lv.roll_levelup_options(
-            st, self.buildings_balance, self.core_balance, self.rng)
+            st, self.buildings_balance, self.core_balance, self.rng,
+            self.progression_balance)
         st.phase = GamePhase.LEVELUP
 
     def resolve_levelup(self, option, scene=None):

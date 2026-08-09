@@ -86,6 +86,10 @@
             "minimum": 0,
             "type": "number"
           },
+          "flip": {
+            "description": "Mirror the prop horizontally when rendered. Optional; omitted means false (byte-identical to a map with no flipped decos).",
+            "type": "boolean"
+          },
           "row": {
             "description": "World-space row position; must be < rows.",
             "minimum": 0,

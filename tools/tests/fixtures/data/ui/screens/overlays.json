@@ -1,0 +1,10 @@
+{
+  "widgets": {
+    "btn_heatmap": {
+      "skin": "ui_button_pill"
+    },
+    "btn_range": {
+      "skin": "ui_button_pill"
+    }
+  }
+}

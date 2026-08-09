@@ -121,13 +121,29 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `TileMap(doc, balance)` still takes the dict so tests can inject fixtures.
 - **The 10C-era dormant weight hooks are LIVE since 10I**:
   - **Tile conditions roll ONCE at `TileMap.__init__(doc, balance, rng=…)`** per
-    `TileConditions.spawn_chances` — every tile EXCEPT BACKGROUND-at-init and the
-    starting unlocked pocket incl. the base (both stay GRASS; a receded-into-play
-    tile stays GRASS forever, prototype-exact). `rng` is BOTH the on-switch and
+    `TileConditions.spawn_chances` — but ONLY for tiles that are IN PLAY at
+    construction, i.e. COMBAT. `rng` is BOTH the on-switch and
     the determinism seam: the host passes module `random` (live) or
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
-    on. Conditions never change during a run.
+    on. A tile's condition never changes once decided.
+    - **A tile that enters play LATER decides its condition then, not at init**
+      (the deferred roll). SPAWNING and BACKGROUND tiles start condition-free —
+      the spawn band is a staging area and reads as plain ground plus trees —
+      and `TileMap._roll_condition`, called from `set_tile_state` on the
+      `→ COMBAT` transition, fires the same weighted draw (plus the variant
+      index) at that moment. So `s → c` AND `f → s → c` both land a real rolled
+      condition. **This REPLACES the old prototype-exact quirk** where a
+      receded-into-play tile stayed GRASS forever. One seam covers every
+      conversion path (designer despawn schedule, retire stage, implicit
+      dual-axis recede) because all of them already route through
+      `set_tile_state`; none of them has its own hook.
+      `Tile.condition_rolled` is the idempotency flag — True once the init roll,
+      a painted mark, or the deferred roll decided the tile, and also for the
+      starting unlocked pocket incl. the base, which is EXEMPT (stays GRASS
+      forever, "so the base is always reachable") rather than pending. It is
+      False for exactly one set: unpainted BACKGROUND/SPAWNING tiles. `rng=None`
+      skips the deferred roll exactly as it skips the init one.
     - **The map doc's painted `tile_conditions` marks outrank the roll
       entirely** (`data/CLAUDE.md`; the schema's enum is the single source of
       the four names, `tiles.py`'s `CONDITION_BY_MAP_KEY` the one name→enum
@@ -136,16 +152,21 @@ Conventions that differ from the prototype (deliberate, clean-arch):
       does NOT suppress it (an unpainted doc carries an empty dict, so every
       existing fixture stays byte-identical). A painted cell is then SKIPPED by
       the roll loop — that skip is what "locks the tile out of the tile
-      generation process". **A mark wins EVERYWHERE, no exceptions**: BACKGROUND
-      tiles and the starting unlocked pocket incl. the base take the painted
-      condition too, even though the roll deliberately skips both — a
-      user-chosen rule, not an oversight. The prototype-exact eligibility rules
-      still govern the ROLL; they simply no longer govern a designer's explicit
-      mark. It is a one-time O(marks) pass (never an O(map) walk) and runs
+      generation process". **A mark wins EVERYWHERE, no exceptions**:
+      BACKGROUND and SPAWNING tiles and the starting unlocked pocket incl. the
+      base take the painted condition too, even though the roll skips all of
+      them — a user-chosen rule, not an oversight. The eligibility rules govern
+      the ROLL; they never governed a designer's explicit mark. A marked cell is
+      `condition_rolled` from the start, so the **deferred** roll cannot
+      overwrite it either: a painted spawn tile carries its condition (weight,
+      modifiers) while it is spawning and keeps exactly that condition after it
+      converts. It is a one-time O(marks) pass (never an O(map) walk) and runs
       BEFORE the condition-art/variant pass, so painted tiles resolve
-      `condition_slot` with no extra code (a painted BACKGROUND tile still gets
-      no art — unchanged rule — but carries the condition, so it is correct the
-      instant it recedes into play).
+      `condition_slot` with no extra code (a painted BACKGROUND or SPAWNING tile
+      still gets no condition ART — unchanged rule — but carries the condition,
+      so it is correct the instant it converts. It does still draw the
+      `MapOverlays` tint diamond, which keys on `condition`, not on the slot —
+      the designer's mark is visible in the band, the ROLLED band is not).
   - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
     since the per-state restructuring.** `data/slots.json`'s asset-only
     `conditions` category holds it, restructured so each condition type
@@ -154,30 +175,41 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `Spawning`, 64×96) — `cond_mountain_buildable`, `cond_mountain_built`, …,
     16 slots total. `tiles.py` holds the TWO enum→registry tables this depends
     on: `CONDITION_LABEL` (condition → its top-level group label) and
-    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT/SPAWNING` →
-    their group labels; `BACKGROUND` stays absent — background tiles never get
-    condition art, unchanged rule). `Tile.condition_variant_idx` is the stable
-    index into whichever state-family is currently active.
+    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT` → their group
+    labels). **`BACKGROUND` and `SPAWNING` are both ABSENT from that table, and
+    that absence IS the "no condition art" rule** — `_resolve_condition_slot`
+    returns `None` on a missing state label, so one table edit covers the init
+    pass and the live re-resolve alike. For BACKGROUND that is the original
+    rule; for SPAWNING it came with the deferred roll (the band draws plain
+    ground + trees). The four `cond_*_spawning` slots stay first-class editor
+    slots in `data/slots.json`; nothing resolves them at runtime any more.
+    `Tile.condition_variant_idx` is the stable index into whichever
+    state-family is currently active.
     `TileMap.__init__` takes a `registry=` beside `rng=` and stores it
     (`self._registry`) for later: a SECOND pass after the condition roll picks
-    each non-BACKGROUND tile's `condition_variant_idx` (sized against its OWN
+    each in-play tile's `condition_variant_idx` (sized against its OWN
     INITIAL state's family) and resolves `Tile.condition_slot` from
     `(condition, state, variant_idx)` via the pure `_resolve_condition_slot`
-    (`tile_map.py`) — `variant_idx % len(variants)` keeps the index
-    well-defined even when a state's pool is smaller (e.g. Spawning starts with
-    fewer/no imported variants). **`set_tile_state` re-resolves `condition_slot`
+    (`tile_map.py`) — both it and the roll go through the shared
+    `_condition_family(registry, condition, state)`, so the pool an index is
+    SIZED against can never disagree with the pool it is READ from.
+    `variant_idx % len(variants)` keeps the index
+    well-defined even when a state's pool is smaller (e.g. Built carries fewer
+    imported variants than Combat). **`set_tile_state` re-resolves
+    `condition_slot`
     on EVERY transition** (after its existing zone/terrain-override bookkeeping,
     gated on `self._registry is not None and new_state != BACKGROUND`) at that
     SAME variant index against the new state's family — so a tile's art
-    switches LIVE between buildable/built/combat/spawning looks as its zone
+    switches LIVE between buildable/built/combat looks as its zone
     actually changes (a building placed → BUILT, a wave arriving → COMBAT, …),
-    never re-rolling which variant, only which state's slot. One accepted side
-    effect: a tile that starts `BACKGROUND` (skipped by the initial art roll)
-    and later recedes into play via the spawn-band backfill now picks up
-    condition art for the first time when `set_tile_state` fires — previously
-    such tiles stayed slotless forever. **That second init pass is deliberately
-    separate from the roll**: the roll's eligibility rules are prototype-exact
-    gameplay every path-cost fixture depends on, whereas ART covers the
+    never re-rolling which variant, only which state's slot. A tile that starts
+    BACKGROUND or SPAWNING (skipped by the initial art roll) picks up its
+    variant index and its art together with its CONDITION, from
+    `_roll_condition`, on the `→ COMBAT` transition — which runs immediately
+    BEFORE that re-resolve, so the re-resolve sees both.
+    **That second init pass is deliberately
+    separate from the roll**: the roll's eligibility rules are gameplay every
+    path-cost fixture depends on, whereas ART covers the
     starting pocket too (so imported grass art has no hole where the base
     sits). `registry=None` or `rng=None` ⇒ every slot stays `None` ⇒ nothing
     draws, which is the state every headless
@@ -205,8 +237,10 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     on purpose — a third O(map) walk is the explicit perf invariant this
     avoids). `SpawnDeco.tree_chance` (balancing `map` domain) is rolled once
     per tile — including BACKGROUND tiles, since those are exactly what later
-    backfills into SPAWNING via spawn recede and nothing re-rolls them at that
-    point — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
+    joins the band (a designer-painted `spawnable_background` reserve release,
+    or an implicit backfill behind a recede) and nothing re-rolls them at that
+    point; the roll deliberately sits ABOVE the pass's state `continue`, so do
+    not "tidy" it below — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
     `variant_idx * 2 + flip_bit`; no resolved-slot string field, same
     8-bytes-per-tile rationale as `condition_variant_idx`).
     **`spawn_deco.spawn_tree_slots(registry)` is the ONE family definition**,

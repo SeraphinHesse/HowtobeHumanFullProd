@@ -75,6 +75,79 @@
           "additionalProperties": false,
           "description": "One imported sheet: where it lives, its frame grid size, placement offset, and its animation rows.",
           "properties": {
+            "anchors": {
+              "additionalProperties": false,
+              "description": "Optional named handle points on the sheet frame (ESV-1) — art metadata, not frame geometry, so it never changes how a frame is cut, scaled or blitted. All six declared names are optional; a missing name or a missing anchors block resolves to no offset.",
+              "properties": {
+                "beam_endpoint": {
+                  "description": "Beam terminus on the shooter. Declared for a future read-site; inert today. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "floater_origin": {
+                  "description": "Damage/income floater spawn point. Declared for a future read-site; inert today. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "hp_bar": {
+                  "description": "Overhead HP-bar position offset (game/ui/effects.py). Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "impact": {
+                  "description": "Where a hit VFX draws on the target. Parsed and exposed; no draw site wired yet. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "muzzle": {
+                  "description": "Where a projectile visually emits from (game/enemies/combat.py). Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "status_icon": {
+                  "description": "Status-badge attach point. Declared for a future read-site; inert today. Frame-px point relative to the sprite anchor, same convention as offset_x/offset_y and slice (+x = right, -y = up), measured on the sheet frame at frame resolution, never at draw resolution or a zoom. [x, y].",
+                  "items": {
+                    "maximum": 4096,
+                    "minimum": -4096,
+                    "type": "integer"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                }
+              },
+              "type": "object"
+            },
             "frame_h": {
               "description": "Frame height in pixels this sheet is sliced at.",
               "maximum": 1024,
@@ -138,6 +211,10 @@
               "maxItems": 4,
               "minItems": 4,
               "type": "array"
+            },
+            "tint_overlay": {
+              "description": "Optional render hint: keep drawing the consumer's own flat colour overlay UNDER this art instead of letting the sprite stand alone. Read today only by the game's tile-condition art (data/slots.json 'conditions' category) — a condition slot with no entry at all always draws the overlay, since there is no sprite. Omit for sprite-only.",
+              "type": "boolean"
             }
           },
           "required": [

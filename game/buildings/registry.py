@@ -110,7 +110,10 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             f"tile ({tile.col},{tile.row}) is part of a move in progress")
     # 10D: boosters may not be placed cardinally adjacent to another booster
     # (prototype ``Game.place_building`` 'boost_adjacent' — cardinal-4, diagonals
-    # allowed). Enforced HERE, the single legal placement path.
+    # allowed). Enforced HERE, the single legal placement path. Deliberately a
+    # FIXED cardinal-4 check, independent of `BoostBuildings.globals.range_tiles`/
+    # `.range_shape` (the configurable buff/curse range, `game/buildings/boost.py`)
+    # — a designer widening the buff range does not change this placement rule.
     if building_type.startswith("boost_"):
         for dc, dr in ((0, -1), (0, 1), (-1, 0), (1, 0)):
             adj = tilemap.get(tile.col + dc, tile.row + dr)

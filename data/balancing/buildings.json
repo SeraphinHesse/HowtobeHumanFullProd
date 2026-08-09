@@ -1,6 +1,12 @@
 {
   "BoostBuildings": {
     "Damage": {
+      "building_type": "boost_damage",
+      "card_slots": [
+        "boost_damage_t1_lvl1",
+        "boost_damage_t2_lvl1",
+        "boost_damage_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -12,7 +18,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Attack Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -27,7 +32,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Raging Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 2
@@ -42,7 +46,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Drill Sergeant",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 2
@@ -50,6 +53,12 @@
       ]
     },
     "HP": {
+      "building_type": "boost_hp",
+      "card_slots": [
+        "boost_hp_t1_lvl1",
+        "boost_hp_t2_lvl1",
+        "boost_hp_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -61,7 +70,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Health Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 2
@@ -76,7 +84,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Comforting Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 2
@@ -91,7 +98,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Therapist",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 2
@@ -99,6 +105,12 @@
       ]
     },
     "Speed": {
+      "building_type": "boost_speed",
+      "card_slots": [
+        "boost_speed_t1_lvl1",
+        "boost_speed_t2_lvl1",
+        "boost_speed_t3_lvl1"
+      ],
       "tiers": [
         {
           "base_hp": 80,
@@ -110,7 +122,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Speed Booster",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -125,7 +136,6 @@
           "hp_per_level": 40,
           "levels": 3,
           "name": "Energetic Motivator",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 6,
           "upkeep_per_level": 1
@@ -140,7 +150,6 @@
           "hp_per_level": 60,
           "levels": 3,
           "name": "Personal Trainer",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 1
@@ -149,6 +158,8 @@
     },
     "globals": {
       "flat_mode": false,
+      "range_shape": "plus",
+      "range_tiles": 1,
       "starts_unlocked": false
     }
   },
@@ -198,6 +209,12 @@
   },
   "DefenceBuildings": {
     "AOEDefence": {
+      "building_type": "aoe_defence",
+      "card_slots": [
+        "maw_mortar_t1_lvl1",
+        "maw_mortar_t2_lvl1",
+        "maw_mortar_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -214,7 +231,6 @@
           "name": "Maw Mortar",
           "radius_per_level": 0.125,
           "range_tiles": 3,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -233,7 +249,6 @@
           "name": "Maw Catapult",
           "radius_per_level": 0.2,
           "range_tiles": 4,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 35,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 3
@@ -252,7 +267,6 @@
           "name": "Maw Cannon",
           "radius_per_level": 0.25,
           "range_tiles": 5,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 45,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 8
@@ -261,6 +275,12 @@
       "unlock_min_village_level": 1
     },
     "BasicDefence": {
+      "building_type": "defence",
+      "card_slots": [
+        "stone_thrower_t1_lvl1",
+        "slinger_t2_lvl1",
+        "pistoleer_t3_lvl1"
+      ],
       "starts_unlocked": true,
       "tiers": [
         {
@@ -275,7 +295,6 @@
           "levels": 3,
           "name": "Stone Thrower",
           "range_tiles": 1,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 0
@@ -292,7 +311,6 @@
           "levels": 3,
           "name": "Slinger",
           "range_tiles": 1,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -309,7 +327,6 @@
           "levels": 3,
           "name": "Pistoleer",
           "range_tiles": 2,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 100,
           "upgrade_cost_increment": 25,
           "upkeep_per_level": 5
@@ -317,6 +334,12 @@
       ]
     },
     "BeamDefence": {
+      "building_type": "sun_scorcher",
+      "card_slots": [
+        "sun_scorcher_t1_lvl1",
+        "radiant_beam_t2_lvl1",
+        "laser_beam_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "target_death_cooldown": 1.4,
       "tiers": [
@@ -334,7 +357,6 @@
           "levels": 3,
           "name": "Sun Scorcher",
           "range_tiles": 2,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 1
@@ -353,7 +375,6 @@
           "levels": 3,
           "name": "Radiant Beam",
           "range_tiles": 2,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 7,
           "upkeep_per_level": 2
@@ -372,7 +393,6 @@
           "levels": 3,
           "name": "Laser Beam",
           "range_tiles": 3,
-          "unlock_min_round": 40,
           "upgrade_cost_base": 27,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 3
@@ -380,6 +400,12 @@
       ]
     },
     "StormPriest": {
+      "building_type": "storm_priest",
+      "card_slots": [
+        "storm_priest_i_t1_lvl1",
+        "storm_priest_ii_t2_lvl1",
+        "storm_priest_iii_t3_lvl1"
+      ],
       "repeat_cost_multiplier": 1.8,
       "starts_unlocked": false,
       "tiers": [
@@ -395,7 +421,6 @@
           "levels": 3,
           "name": "Storm Acolyte",
           "range_tiles": 0,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 10,
           "upkeep_per_level": 2
@@ -412,7 +437,6 @@
           "levels": 3,
           "name": "Storm Priest",
           "range_tiles": 0,
-          "unlock_min_round": 15,
           "upgrade_cost_base": 50,
           "upgrade_cost_increment": 15,
           "upkeep_per_level": 3
@@ -429,7 +453,6 @@
           "levels": 3,
           "name": "Storm High Priest",
           "range_tiles": 0,
-          "unlock_min_round": 25,
           "upgrade_cost_base": 130,
           "upgrade_cost_increment": 30,
           "upkeep_per_level": 6
@@ -443,6 +466,12 @@
   },
   "EconomyBuildings": {
     "Meditators": {
+      "building_type": "meditator",
+      "card_slots": [
+        "meditator_t1_lvl1",
+        "shaman_t2_lvl1",
+        "sun_priest_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -455,7 +484,6 @@
           "name": "Meditator",
           "streak_growth": 1.25,
           "streak_max": 5,
-          "unlock_min_round": 10,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 5,
           "yield_per_level": 2
@@ -470,7 +498,6 @@
           "name": "Shaman",
           "streak_growth": 1.3,
           "streak_max": 6,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 22,
           "upgrade_cost_increment": 8,
           "yield_per_level": 4
@@ -485,7 +512,6 @@
           "name": "Sun Priest",
           "streak_growth": 1.35,
           "streak_max": 7,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 34,
           "upgrade_cost_increment": 12,
           "yield_per_level": 6
@@ -493,6 +519,12 @@
       ]
     },
     "Musicians": {
+      "building_type": "economic",
+      "card_slots": [
+        "flute_player_t1_lvl1",
+        "harp_player_t2_lvl1",
+        "trio_t3_lvl1"
+      ],
       "starts_unlocked": true,
       "tiers": [
         {
@@ -503,7 +535,6 @@
           "hp_per_level": 20,
           "levels": 3,
           "name": "Flute Player",
-          "unlock_min_round": 0,
           "upgrade_cost_base": 5,
           "upgrade_cost_increment": 5,
           "yield_per_level": 4
@@ -516,7 +547,6 @@
           "hp_per_level": 30,
           "levels": 3,
           "name": "Harp Player",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 25,
           "upgrade_cost_increment": 10,
           "yield_per_level": 5
@@ -529,7 +559,6 @@
           "hp_per_level": 50,
           "levels": 3,
           "name": "Trio",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 70,
           "upgrade_cost_increment": 5,
           "yield_per_level": 10
@@ -537,6 +566,12 @@
       ]
     },
     "Painters": {
+      "building_type": "painter",
+      "card_slots": [
+        "painter_t1_lvl1",
+        "painter_t2_lvl1",
+        "painter_t3_lvl1"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -550,7 +585,6 @@
           "name": "Cave Painter",
           "payout_per_level": 5,
           "rounds_to_payout": 3,
-          "unlock_min_round": 0,
           "upgrade_cost_base": 2,
           "upgrade_cost_increment": 0
         },
@@ -565,7 +599,6 @@
           "name": "Maestro",
           "payout_per_level": 12,
           "rounds_to_payout": 4,
-          "unlock_min_round": 20,
           "upgrade_cost_base": 5,
           "upgrade_cost_increment": 0
         },
@@ -580,7 +613,6 @@
           "name": "Art Factory",
           "payout_per_level": 25,
           "rounds_to_payout": 6,
-          "unlock_min_round": 30,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 0
         }
@@ -590,6 +622,12 @@
   },
   "StructureBuildings": {
     "Blocker": {
+      "building_type": "blocker",
+      "card_slots": [
+        "blocker",
+        "blocker",
+        "blocker"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -599,7 +637,6 @@
           "hp_per_level": 150,
           "levels": 3,
           "name": "Blocker",
-          "unlock_min_round": 5,
           "upgrade_cost_base": 10,
           "upgrade_cost_increment": 4
         },
@@ -610,7 +647,6 @@
           "hp_per_level": 200,
           "levels": 3,
           "name": "Bulwark",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 15,
           "upgrade_cost_increment": 7
         },
@@ -621,13 +657,18 @@
           "hp_per_level": 300,
           "levels": 3,
           "name": "Bastion",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 25,
           "upgrade_cost_increment": 10
         }
       ]
     },
     "WallBuilder": {
+      "building_type": "wall_builder",
+      "card_slots": [
+        "wall_builder",
+        "wall_builder",
+        "wall_builder"
+      ],
       "starts_unlocked": false,
       "tiers": [
         {
@@ -638,7 +679,6 @@
           "hp_per_level": 100,
           "levels": 3,
           "name": "Bush Wall Builder",
-          "unlock_min_round": 10,
           "upgrade_cost_base": 12,
           "upgrade_cost_increment": 5,
           "upkeep_per_level": 3,
@@ -653,7 +693,6 @@
           "hp_per_level": 100,
           "levels": 3,
           "name": "Wooden Wall Builder",
-          "unlock_min_round": 20,
           "upgrade_cost_base": 20,
           "upgrade_cost_increment": 8,
           "upkeep_per_level": 3,
@@ -668,7 +707,6 @@
           "hp_per_level": 150,
           "levels": 3,
           "name": "Stone Wall Builder",
-          "unlock_min_round": 30,
           "upgrade_cost_base": 30,
           "upgrade_cost_increment": 12,
           "upkeep_per_level": 3,

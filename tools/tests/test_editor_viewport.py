@@ -1261,9 +1261,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # details_pane (0) + map_details (1) + screen_details (2) +
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
-        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C). The point
-        # of the pin is that the vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 7)
+        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
+        # timeline (7, TimelinePLAN T5). The point of the pin is that the
+        # vfx preview is NOT a stack page of its own.
+        self.assertEqual(window.right_stack.count(), 8)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1435,13 +1436,17 @@ class TestPurity(unittest.TestCase):
             "editor.panels.game_theme, editor.theme_ops, "
             "editor.panels.cutscenes, "
             "editor.panels.tutorial_panel, editor.tutorial_ops, "
+            "editor.panels.timeline, "
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
             "editor.thats_my_producer, "
+            "editor.timeline_curve, editor.timeline_ops, "
             # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
             # module must stay pure of game/ for that import to be legal.
-            "engine.era_math; "
+            # TimelinePLAN T3: editor.timeline_curve also consumes
+            # engine.xp_curve for the same reason (D7).
+            "engine.era_math, engine.xp_curve; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

@@ -1,312 +1,433 @@
-<!-- active-plan: NewEnemyTypesPLAN.md | set: 2026-08-08 -->
-> **Active plan:** NewEnemyTypesPLAN.md (mirror). Source of truth:
-> `planning/NewEnemyTypesPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: TimelinePLAN.md | set: 2026-08-09 -->
+> **Active plan:** TimelinePLAN.md (mirror). Source of truth:
+> `planning/TimelinePLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-# NewEnemyTypesPLAN.md — Sniper, Digger, Drummer enemy types
+<!-- status: IN PROGRESS — all T1-T7 phases implemented; full testgate check pending before merge -->
+
+# TimelinePLAN.md — authored building unlock scheduling
 
 Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
-`MIGRATION_PLAN.md`). Base branch: `Development`. Runnable via
-`/execute-plan-phases planning/NewEnemyTypesPLAN.md NE-0-NE-3` or phase-by-phase.
+`MIGRATION_PLAN.md`). Base branch: `Development`. This work happens on
+`feature/timeline-unlock-scheduling` (already branched off `origin/Development`)
+to avoid conflicting with unrelated in-flight branches.
 
 ## 1. Vision
 
-Add three new enemy types that each break the existing "walk until blocked,
-then melee" model in a different, deliberate way, so players can't defend
-with one building archetype:
+Today, "when a building becomes available to research" lives as a scattered
+per-tier `unlock_min_round` field across 12 building-type groups in
+`data/balancing/buildings.json` (36 tier objects total). To find or change
+when any given building unlocks, a developer opens the editor's balancing
+form and scrolls through a deep per-building schema tree — there is no
+single place that shows the whole unlock schedule at a glance, and no way to
+see how one edit reshapes the overall pacing.
 
-- **Sniper** (`start_round: 26`) — stands off at 2 tiles and snipes
-  attack-capable buildings; forces longer-range defenses, not just melee
-  towers.
-- **Digger** (`start_round: 35`) — burrows underground untargetable, erupts
-  under a claimed blocker/structure for one huge hit, then re-targets; a wall
-  of blockers alone isn't a complete defense.
-- **Drummer** (`start_round: 25`) — a support unit that buffs nearby enemies'
-  hp/dmg/speed (and, per its own variable list, their attack speed) while they
-  stay within 1 tile, adding a "kill the support unit first" layer.
+Separately, the level-up mechanic that surfaces these unlocks to the player
+(`game/core/levelup.py::roll_levelup_options`) is a live stochastic roll: it
+walks every building type, collects whatever currently passes its
+round/village-level gate, shuffles, and shows exactly 3 cards (padding with
+"+Love" filler if fewer qualify). There's no way to *see*, as a designer,
+what that pool looks like at a given point in the game, or to deliberately
+curate "this level-up should be able to offer these three specific things."
 
-All six existing enemy types (`game/enemies/enemy.py`) share one model:
-`PathAgent` walks toward a target and only attacks once physically blocked
-adjacent to a building; `attack_range_tiles`/`RangeSensor` are **decorative**
-today — nothing reads them for an enemy's own attack (confirmed: no enemy
-currently fires from range, only when blocked). No buff/aura/status-effect
-system exists anywhere in the game. The existing `hunts` system
-(`game/enemies/components.py`'s `_HUNT_QUERIES`, backed by
-`game/map/pathfinder.py`'s shared `_hunt()`/`_goal_tiles()` helper) is a clean,
-reusable seam — a hunt is just "a predicate over `building_type` fed through
-the existing distance-choose/cost-route/base-fallback search" — so both
-Sniper's and Digger's target sets are new *predicates* through **existing**
-machinery, not new pathfinding architecture.
+**Timeline** fixes both: one visual, horizontal editor panel (round 0 →
+round 50, scrollable/zoomable beyond that) where every building's
+unlock/tier-upgrade card is drag-and-drop placed into an "offer slot"
+attached to a specific player level-up (identified by `village_level`, the
+existing 1/2/3/… counter). Placing a card there is what makes it *eligible*
+to be rolled at that level-up onward — replacing `unlock_min_round` as the
+single source of truth for unlock timing, while leaving the random
+roll-of-3 mechanic untouched. A computed graph overlay shows, for each
+level-up, the best-case (upper-bound) round at which it would occur,
+computed live from the game's real enemy-count formulas and XP values — not
+a hand-placed guess.
 
-## 2. Decisions (with rationale)
+### Confirmed design decisions (do not re-litigate)
 
-- **D1 — the `defence` hunt category widens** from `building_type ==
-  "defence"` to "every attack-capable building" (`defence`, `aoe_defence`,
-  `storm_priest`, `sun_scorcher`), and this is a **shared, intentional**
-  change: `SiegeCannon` (already `hunts: "defence"`) will also path to
-  mortars/Storm Priest/Sun Scorcher from NE-0 onward, per explicit user
-  decision — not scoped to Sniper alone.
-- **D2 — a new `"structure"` hunt category** covers "every non-economy,
-  non-boost, non-base building" (`blocker`, `wall_builder`, `defence`,
-  `aoe_defence`, `storm_priest`, `sun_scorcher`) for Digger. `blocker`/
-  `wall_builder` are the common case in practice, but the category is not
-  restricted to just those two.
-- **D3 — Sniper's range is a real new combat mode**, not a cosmetic stat:
-  `PathAgent` grows `stand_off_range`/`in_range` (both default-off, so every
-  existing type stays byte-identical), and `EnemyCombat.update()`'s one gate
-  becomes `pa.blocked or pa.in_range` — no duplicate damage-application path.
-- **D4 — Digger's building claim releases** as soon as that digger moves on
-  (destroys its target and re-targets) or dies. Not permanent for the match.
-- **D5 — Digger interrupted mid-dig** (target destroyed by something else
-  while underground) emerges immediately at the empty tile and re-targets
-  right away, rather than waiting out its timer.
-- **D6 — Drummer's HP buff heals on apply** (current HP rises by the granted
-  amount, not just headroom) **and un-heals/clamps on decay** (losing a
-  source's contribution shrinks max HP back down, clamping current HP if it's
-  now above the new max).
-- **D7 — Drummer buffs stack additively** per source — 2 Drummers in range is
-  2× the bonus of 1, and each source's contribution decays independently 4s
-  after that enemy leaves that Drummer's radius.
-- **D8 — no engine changes are expected.** All three types are buildable
-  entirely inside `game/enemies/`, `game/map/pathfinder.py`, and `data/` —
-  confirmed against `engine/core/CLAUDE.md` (`RangeSensor` is already a pure
-  candidate-query primitive; no new engine Component is needed, only new
-  `game/`-side components following the `PathAgent`/`EnemyCombat` precedent).
+1. **Architecture split**: `editor/` owns the new drag-and-drop authoring UI
+   and writes new schema-validated `data/` JSON; `game/`/`engine/` read it
+   at runtime.
+2. **Tiers are real and placeable**: both a building type's initial *unlock*
+   card and each subsequent *tier-upgrade* card (e.g. Stone Thrower →
+   Slinger) are placeable — matching the existing two-offer-kind model in
+   `game/buildings/research.py`/`game/core/levelup.py`.
+3. **Level-ups stay XP/kill-triggered.** `game/core/xp.py`'s trigger is
+   untouched. The timeline's round-axis position for a level-up is a
+   *computed reference*, never a hard schedule.
+4. **The graph is a deterministic best-case formula**: assume every enemy
+   spawned in a round is killed (enemy counts per round are already a
+   closed-form, non-random formula in `engine/era_math.py`). Must be clearly
+   labeled as a best-case/upper-bound curve in the UI.
+5. **The random roll-of-3 stays exactly as-is** — Timeline slots only
+   curate the *eligible pool*; no change to `OPTION_COUNT`, the shuffle, or
+   the "+Love" fallback padding.
+6. **Timeline data replaces `unlock_min_round`** as the sole source of
+   unlock timing — deleted from schema and content once the runtime read
+   path is repointed, after a reviewed migration seeds the new data.
+7. **Slots are indexed by `village_level`** (`RunState.village_level`) — not
+   by round.
+8. **Terminology**: `data/slots.json` is the unrelated sprite/asset slot
+   registry. This feature's "slot" uses different vocabulary ("offer slot")
+   and does not touch `data/slots.json`.
+9. Slot cardinality per level-up is dynamic/editable directly in the
+   Timeline UI, not fixed.
+
+All of the above, plus every file/line reference below, was verified against
+the current repository state — `game/core/levelup.py`,
+`game/buildings/research.py`, `engine/era_math.py`, `game/core/xp.py`,
+`data/schemas/{core,buildings}.schema.json`, `editor/domains.py`,
+`game/core/balance.py`, `tools/smoke.py`, and `game/buildings/defender.py`
+were all directly read to confirm exact current shapes before this plan was
+written.
+
+## 2. Architecture / decisions (with rationale)
+
+- **D1 — New standalone balancing domain, `progression`.**
+  `data/balancing/progression.json` + `data/schemas/progression.schema.json`,
+  added to `game/core/balance.py::DOMAINS` (currently `("buildings",
+  "enemies","map","ui","core","vfx")`) for runtime loading. **Deliberately
+  NOT added as a `data/slots.json` category** — `editor/domains.py::
+  domains()` derives its auto-rendered selector/balancing-panel list as
+  *slots.json categories ∩ balancing files*; Timeline needs a bespoke
+  drag-and-drop widget, never a generic recursive form, so it must not also
+  auto-render as one. `tools/smoke.py`'s generic stem-pairing walk
+  (`data/foo.json` ↔ `schemas/foo.schema.json`, `tools/smoke.py:25-61`)
+  picks the new pair up for free — `progression` is not one of its four
+  named stem-pairing exceptions (map / balancing_history / agent_forms /
+  screen overrides).
+- **D2 — The Timeline panel is a selector-tree leaf under "buildings"**
+  (corrected mid-T5, user-confirmed — originally planned as a toolbar
+  button; see the note under the build-order table). Edit model mirrors
+  `editor/panels/balancing.py`'s staged-dict + dirty-dot + explicit Save
+  pattern (no `QUndoStack`).
+- **D3 — `buildings.json` gains two new required fields per building-type
+  group**: `building_type` (the `RESEARCH`/`tiers_unlocked` key, e.g.
+  `"defence"`) and `card_slots` (array of exactly 3 asset-slot keys, one per
+  tier). These exist ONLY in Python today (`BUILDING_TYPE`/`TIER_SPRITES`
+  class attributes, confirmed in `game/buildings/defender.py:11,13` and all
+  12 leaf classes) with no JSON equivalent — the editor may never import
+  `game/`, so it cannot enumerate building types or resolve card art
+  without this addition. Mirrors the existing `registry_group` precedent.
+  Seeding is mechanical transcription from the 12 leaf files.
+- **D4 — `unlock_min_round` is deleted from schema + content**, not merely
+  ignored — confirmed required in all 10 tier `$defs` in
+  `data/schemas/buildings.schema.json` and present on all 36 tier objects in
+  `data/balancing/buildings.json`.
+- **D5 — `upgrade_gate`'s second consumer is re-keyed to a village_level,
+  not a round.** `game/core/levelup.py::upgrade_gate`'s `tier_hidden` mode
+  is read by `game/ui/building_ui.py`'s `_upgrade_state` to format
+  `"Unlocks at round {cost}"` in the live in-game upgrade panel. Instead:
+  `game/buildings/research.py` gains `timeline_level_for(btype, idx,
+  progression_balance) -> int | None`; `upgrade_gate`'s `tier_hidden` branch
+  returns that village_level directly; the one `building_ui.py` f-string
+  becomes `"Unlocks at level {cost}"` (or "Not yet offered" when `None`).
+  Only `game/ui` text change this plan requires.
+- **D6 — The `gate_kind="min_village_level"` stacked gate** (Maw Mortar,
+  Cave Painter's `unlock_min_village_level`) is untouched — a different,
+  orthogonal gate from the round gate this plan replaces.
+- **D7 — The best-case curve calculator is vocabulary-free in `engine/`**,
+  with a small duplicated vocabulary adapter in `game/core/` and `editor/` —
+  mirroring `engine/era_math.py`'s own discipline and the two
+  already-precedented duplication cases in this repo (`editor/vfx_params.py`
+  ↔ `game/ui/effects.py`; `editor/panels/_screen_primitives.py` ↔ `game/ui`'s
+  widget look). A cross-package drift test pins the two vocabulary tables
+  together (the `TestRegistryGroupDrift` pattern).
+- **D8 — Boost-trio grouping is untouched** — only the lead type's Timeline
+  placement is consulted for the shared "unlock all three" card; the UI
+  should visually pin the two non-lead members when the lead is placed
+  (should-have UX affordance, not a new mechanism).
+
+### Data model
+
+`data/balancing/progression.json` / `data/schemas/progression.schema.json`.
+Top-level `Timeline.levels`: a sparse array of per-`village_level` records,
+house schema style (`additionalProperties:false`, full `required`, bounded
+numerics, no `oneOf`):
+
+```json
+{
+  "Timeline": {
+    "levels": [
+      {
+        "village_level": 1,
+        "offer_slots": [
+          {"assignment": {"kind": "unlock", "building_type": "storm_priest", "tier_index": 0}},
+          {"assignment": {"kind": "unlock", "building_type": "wall_builder", "tier_index": 0}},
+          {"assignment": {"kind": "unlock", "building_type": "blocker", "tier_index": 0}}
+        ]
+      },
+      {
+        "village_level": 4,
+        "offer_slots": [
+          {"assignment": {"kind": "tier", "building_type": "defence", "tier_index": 1}},
+          {"assignment": null}
+        ]
+      }
+    ]
+  }
+}
+```
+
+- `village_level`: integer [1,1000] (repo's existing bounds policy; 50 is
+  only the UI's initial view range, never a data cap).
+- `offer_slots`: `minItems:0`, no `maxItems` (dynamic cardinality) — an
+  empty, persisted slot (`assignment: null`) is a legitimate saved state.
+- `assignment` (nullable object): `{kind: enum["unlock","tier"],
+  building_type: string, tier_index: integer[0,2]}` — all three keys always
+  present even when unused. No `oneOf`.
+- `village_level` uniqueness across `levels`, and `(building_type,
+  tier_index)` uniqueness across the whole Timeline, are beyond JSON Schema
+  — enforced by the editor's pure ops helper before every write, and by a
+  runtime loader cross-check that fails loud on violation.
+
+### Runtime read path
+
+- `game/buildings/research.py`: delete `tier_unlock_min_round`; add
+  `timeline_level_for(btype, idx, progression_balance) -> int | None`.
+- `game/core/levelup.py`: `tier_offerable`, `roll_levelup_options`,
+  `upgrade_gate` all gain/thread a `progression_balance` parameter; the
+  shuffle/take-3/fallback-pad logic in `roll_levelup_options` stays
+  byte-identical — only pool membership changes.
+- Call-site ripple: `game/core/session.py` (`Session.__init__`/
+  `resolve_levelup` thread `progression_balance`, loaded in `game/main.py`'s
+  boot sequence via `game.core.balance.load_all`); `game/ui/building_ui.py`'s
+  `upgrade_gate(...)` call + its one f-string; `tools/tests/test_levelup.py`,
+  `tools/tests/test_boost.py` fixtures.
+
+### Best-case XP-curve calculator
+
+- `engine/xp_curve.py` (new, pure, stdlib-only, built on `engine.era_math`):
+  `enemy_counts_for_round`, `boss_round_counts` (mirrors
+  `game/enemies/spawner.py::_boss_round`'s fallback-past-era-4 behavior),
+  `cumulative_best_case_xp(round_range,...) -> dict[round,cum_xp]`,
+  `threshold_crossing_rounds(...) -> dict[village_level, round|None]`. Type
+  keys are opaque.
+- `game/core/xp_curve.py` (new, vocabulary adapter): `threshold_sequence`
+  reproduces `xp.py::advance_village_level`'s threshold walk read-only
+  (ships the documented 50/65/85/110/140… curve); `best_case_curve` builds
+  the vocabulary from `enemies_balance["EnemyTypes"]` + `core_balance["XP"]`
+  (promote `xp.py`'s private `_XP_KEY` to `XP_KEY_FOR_ETYPE`) and calls into
+  `engine.xp_curve`.
+- `editor/timeline_curve.py` (new, pure, Qt-free, the deliberately
+  duplicated adapter — reads `data/balancing/{core,enemies}.json` directly,
+  never imports `game/`). Registered in `TestPurity`. A cross-package test
+  asserts byte-identical output vs. `game/core/xp_curve.py` on the same
+  fixture.
+
+### The editor panel
+
+`editor/panels/timeline.py` (`TimelinePanel`, new):
+- **Graph strip**: round axis with tick marks at each `village_level`'s
+  computed best-case round, labeled `"Lv N ~round R"`, an always-visible
+  "best-case / upper bound" legend, the raw cumulative-XP curve line.
+- **Offer-slot rows**: one per `village_level` record, square drop-target
+  buttons per `offer_slots[i]` plus `+`/`−` to append/remove a trailing
+  empty square, an "Add level" affordance. Filled squares render via the
+  SAME injected icon-provider pattern `editor/panels/palette.py` uses
+  (`viewport.slot_qimage(slot_key)`), resolving `card_slots[idx]`.
+- **Browse list**: one row per `building_type` (enumerated live, never
+  hardcoded), expandable to its up to 3 cards, draggable via the same
+  `slot_qimage` provider, greyed once placed.
+- **Drag-and-drop — genuinely new ground** (zero existing `QDrag`/
+  `QMimeData` usage anywhere in `editor/`). Custom-MIME payload
+  `(kind, building_type, tier_index)`; dropping onto an occupied slot
+  replaces it unconditionally (no confirm dialog). All gesture-recognition
+  code stays Qt-boundary-only; every mutation goes through:
+- **`editor/timeline_ops.py`** (new, pure, `engine.data_io`-only, in
+  `TestPurity`): `load_progression`, `assign_slot`, `clear_slot`,
+  `add_slot`, `remove_slot`, `add_level`, `remove_level`,
+  `save_progression` (the one `write_validated` call, cross-checking both
+  uniqueness invariants before writing).
+- Wiring: `editor/main.py` — a selector-tree leaf (D2, corrected from a
+  toolbar button); `self.timeline.set_icon_provider(self.viewport.slot_qimage)`.
+
+### Migration
+
+`tools/migrate_timeline_from_unlock_min_round.py` (kept, not throwaway,
+reviewable and re-runnable):
+1. For every `(building_type, tier_index)`, read current `unlock_min_round`.
+2. Run `game/core/xp_curve.best_case_curve` over the full round range
+   against current, unmigrated data to get `round → cumulative_xp` and
+   `village_level → round`.
+3. Bucket each tier/unlock into the smallest `village_level` whose computed
+   round is `>= R`.
+4. Write through `editor.timeline_ops.save_progression`.
+5. Print a diff table (`old unlock_min_round → computed village_level →
+   curve round`) as a **required human review gate** before the phase that
+   deletes `unlock_min_round` runs.
 
 ## 3. Build order
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| NE-0  | Shared pathfinder foundation (widen `defence` hunt, add `structure` hunt) | not started |
-| NE-1  | Sniper — new ranged stand-off combat mechanic | not started |
-| NE-2  | Digger — burrow / claim / emerge state machine | not started |
-| NE-3  | Drummer — new buff/aura component | not started |
+| Phase | Goal | Status |
+|-------|------|--------|
+| T1 | `buildings.json` art/type exposure (`building_type`/`card_slots`) | done |
+| T2 | `progression` balancing domain (schema + empty seed) | done |
+| T3 | Best-case XP-curve calculator (`engine`/`game.core`/`editor`) | done |
+| T5 | Editor Timeline panel + `timeline_ops` (drag-and-drop) | done |
+| T6 | Migration from `unlock_min_round` → Timeline data | done |
+| T4 | Runtime read path switch; delete `unlock_min_round` | done |
+| T7 | Docs | done |
 
-### Phase NE-0 — Shared pathfinder foundation
+**D2 correction (made during T5, user-confirmed):** the Timeline panel is a
+**selector-tree leaf under "buildings"** (the Theme/Cutscenes/Tutorial/
+Strings single-document-panel pattern), not a toolbar button as originally
+planned — see `editor/panels/CLAUDE.md`'s Timeline panel section for the
+full reasoning.
 
-**Goal**: both new hunt predicates exist and are exercised by an existing
-type (SiegeCannon) before any new enemy class depends on them, so a mistake
-here shows up against a type with existing test coverage first.
+Execution order is **T1 → T2 → T3 → T5 → T6 → T4 → T7** (kept as T1–T7 to
+match the design doc's numbering; T4 intentionally runs after T6 so the
+destructive schema change has a reviewed replacement dataset first).
 
-**Files** — modified: `game/map/pathfinder.py` (widen
-`find_path_to_nearest_defence`'s predicate to `_ATTACK_BUILDING_TYPES =
-{"defence", "aoe_defence", "storm_priest", "sun_scorcher"}`, mirroring the
-existing `_ECONOMY_BUILDING_TYPES` pattern; add `find_path_to_nearest_
-structure` with `_STRUCTURE_BUILDING_TYPES = {"blocker", "wall_builder",
-"defence", "aoe_defence", "storm_priest", "sun_scorcher"}`, same shape as
-`find_path_to_nearest_defence`), `game/enemies/components.py` (register
-`"structure"` in `_HUNT_QUERIES`), `data/schemas/enemies.schema.json`
-(`hunts` enum gains `"structure"`), `game/enemies/CLAUDE.md` /
-`game/map/CLAUDE.md` (durable-rule update: the widened `defence` semantics +
-the new `structure` category, in the "Prey hunting" sections both docs
-already carry).
+### T1 — `buildings.json` art/type exposure
+**Goal.** Add `building_type` + `card_slots` to all 12 groups; no behavior
+change anywhere yet.
+**Files.** `data/schemas/buildings.schema.json` (12 group blocks);
+`data/balancing/buildings.json` (12 groups, transcribed from
+`game/buildings/*.py` leaf classes), through `write_validated`.
+**Tests.** `tools/tests/test_balancing_data.py` (D-12 bounds/description walk
+picks the fields up automatically); a new pinning test asserting every
+`card_slots[idx]` resolves to a real `data/slots.json` slot key.
+**Exit gate.** `py tools/smoke.py` + `py tools/testgate.py check --affected`.
 
-**Tests**: extend `tools/tests/test_pathfinder.py` — `find_path_to_nearest_
-defence` now matches `aoe_defence`/`storm_priest`/`sun_scorcher` occupants,
-not just `defence`; a new `find_path_to_nearest_structure` test matrix
-(matches `blocker`/`wall_builder` + the attack types, excludes `economic`/
-`meditator`/`painter`/`boost_*`/`base`); extend `tools/tests/test_enemies.py`
-if a SiegeCannon-targeting fixture asserts the old narrower building set.
+### T2 — `progression` domain
+**Goal.** Schema + empty-but-valid seed file exist; nothing reads/writes it.
+**Files — new.** `data/schemas/progression.schema.json`,
+`data/balancing/progression.json` (`{"Timeline": {"levels": []}}`).
+**Files — modified.** `game/core/balance.py::DOMAINS` (append
+`"progression"`).
+**Deviation from original file list (user-confirmed during execution):**
+`tools/tests/test_balancing_data.py::DOMAINS` is **NOT** updated in T2.
+That test's `test_out_of_range_numeric_rejected` requires every listed
+domain to have at least one populated numeric leaf to violate; the T2 seed
+is genuinely empty (`levels: []`), so it would fail for a reason unrelated
+to a real bug. Add `"progression"` to that `DOMAINS` tuple in **T6**
+instead, once the migration gives the file real content to test against.
+**Tests.** `py tools/smoke.py` validates the new pair automatically (schema
+validity / canonical formatting / description+bounds checks all still apply
+via smoke's generic stem-pairing walk, independent of the DOMAINS tuple
+above).
+**Exit gate.** GATE PASS.
 
-**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check --affected`.
+### T3 — Calculator
+**Goal.** `engine/xp_curve.py`, `game/core/xp_curve.py`,
+`editor/timeline_curve.py` — pure, headlessly testable, no readers changed.
+**Files — new.** The three modules above.
+**Files — modified.** `game/core/xp.py` (promote `_XP_KEY` →
+`XP_KEY_FOR_ETYPE`); `tools/tests/test_editor_viewport.py::TestPurity` (add
+`editor.timeline_curve`).
+**Tests.** `tools/tests/test_xp_curve.py`: boundary rounds, boss-round
+replacement, endgame-scaling pass-through, `threshold_sequence` reproduces
+50/65/85/110/140; cross-package drift test (`editor.timeline_curve` vs.
+`game.core.xp_curve`).
+**Exit gate.** `py tools/testgate.py check --affected`.
 
-### Phase NE-1 — Sniper
+### T5 — Editor panel
+**Goal.** `editor/panels/timeline.py` + `editor/timeline_ops.py`, a
+selector-tree leaf (D2, corrected from toolbar during execution), graph +
+drag-and-drop authoring, writes validated `progression.json`.
+**Files.** `editor/panels/timeline.py` (new), `editor/timeline_ops.py`
+(new), `editor/panels/selector.py` (new `_TIMELINE_ROLE` leaf under
+"buildings"), `editor/main.py` (panel construction, `right_stack` wiring,
+`set_icon_provider`), `test_editor_viewport.py::TestPurity` (both new
+modules) + one pre-existing pinned `right_stack.count()` test updated for
+the new 8th page.
+**Tests.** `tools/tests/test_timeline_ops.py` (pure, 16 tests): assign/
+clear/add/remove round-trips; uniqueness cross-checks raise before writing
+invalid data. `tools/tests/test_timeline_panel.py` (Qt tier, 10 tests):
+add/remove level/slot, assign/replace/clear via panel methods, ONE synthetic
+`QDropEvent` exercising the real drop path, Save round-trip, graph
+tick-round values vs. `editor.timeline_curve` directly.
+**Exit gate.** `py tools/smoke.py` green; targeted pytest files green;
+headless `MainWindow` construction + Timeline-leaf-selection smoke check
+(no real display available this session — real mouse-driven GUI interaction
+not exercised). Full editor regression suite (`test_editor_panels.py`) and
+the full/`--affected` testgate **deferred to final handoff** per user
+request during this session (testgate's `--affected` falls back to the full
+suite whenever `conftest.py` is touched, which every phase's new test file
+does).
 
-**Goal**: a live, ranged enemy that stands off at 2 tiles from an
-attack-capable building and fires on cooldown without ever closing to melee.
+### T6 — Migration
+**Goal.** Reviewable, re-runnable migration producing the initial
+`progression.json` from today's `unlock_min_round` content.
+**Files.** `tools/migrate_timeline_from_unlock_min_round.py` (new), run once,
+its output committed as the seed `data/balancing/progression.json`; also add
+`"progression"` to `tools/tests/test_balancing_data.py::DOMAINS` now that the
+file has real numeric content (see T2's deferral note above).
+**Tests.** `tools/tests/test_migration_timeline.py`: bucketing preserves the
+relative order of `unlock_min_round` values.
+**Exit gate.** Human review of the printed diff table; `py tools/smoke.py`
+on the committed output.
 
-**Files** — new: none beyond balancing/slots entries. Modified:
-`game/enemies/components.py` (`PathAgent` gains `stand_off_range: int = 0` +
-`in_range: bool = False`, both default-off; `update()` grows the
-Chebyshev-distance-to-committed-target check that halts movement and sets
-`in_range` once `<= stand_off_range`, without requiring the existing
-blocker/wall scan to fire first; `EnemyCombat.update()`'s gate becomes
-`pa.blocked or pa.in_range`), `game/enemies/enemy.py` (new `Sniper(Enemy)`
-subclass: `ETYPE "sniper"`, `REGISTRY_GROUP "Sniper"`, `STAT_SUBTREE
-("Sniper",)`, wires `stand_off_range` from balancing; registered in
-`ENEMY_CLASSES`), `game/enemies/spawner.py` (new `ENABLE_SNIPER` branch +
-composition wiring, the `/add-enemy` pattern), `data/balancing/enemies.json`
-+ `data/schemas/enemies.schema.json` (new `EnemyTypes.Sniper` block,
-`hunts: "defence"`, `start_round: 26`, `footprint: 1`; era-0 seed grounded
-against the existing curve — SiegeCannon era 0 is hp 280/dmg 100/speed
-1.0/range 2/atk_speed 1.9, Raider era 0 is hp 440/dmg 30/speed 0.9 — per the
-user's qualitative spec (high dmg, high range, low attack speed, low hp,
-low/avg move speed): `hp: 150, dmg: 140, move_speed: 0.85, attack_speed: 2.6,
-attack_range_tiles: 2`, `stand_off_range: 2`; fully retunable afterward with
-no code change), `data/slots.json` (new `Sniper` registry group, grey-X
-placeholder eras).
+### T4 — Runtime read path
+**Goal.** `game/core/levelup.py`/`game/buildings/research.py` read Timeline
+data; `unlock_min_round` is gone. Runs after T6 is committed and reviewed.
+**Files.** `game/buildings/research.py`, `game/core/levelup.py`,
+`game/core/session.py`, `game/ui/building_ui.py`, `game/main.py`;
+`data/schemas/buildings.schema.json` + `data/balancing/buildings.json`
+(delete `unlock_min_round`); `tools/tests/test_levelup.py`,
+`tools/tests/test_boost.py`; `game/buildings/CLAUDE.md`.
+**Tests.** Extend `test_levelup.py`: unplaced tier never offered; placed tier
+offered starting exactly at `village_level >= N`; roll-of-3 regression pin;
+`upgrade_gate`'s `tier_hidden` returns a village_level.
+**Exit gate.** Full `py tools/testgate.py check` (spans `game/core` +
+`game/buildings` + `game/ui`); live `py game/main.py` through a level-up.
 
-**Visual note**: v1 ships with no new projectile-travel system — the ranged
-hit applies instantly on cooldown (same tick model as today's melee, just
-without the adjacency requirement). A muzzle-flash/arrow visual is a
-follow-up `/replace-visual` pass, not part of this phase's exit gate.
+### T7 — Docs
+**Goal.** Durable-doc updates land where the code changed.
+**Files.** `game/buildings/CLAUDE.md`, `game/core/CLAUDE.md` (XP section),
+`editor/CLAUDE.md`/`editor/panels/CLAUDE.md` (new Timeline section),
+`data/CLAUDE.md` (new `progression` domain + the two new `buildings.json`
+fields).
+**Exit gate.** Full `py tools/testgate.py check`.
 
-**Tests**: a new `TestSniper` in `tools/tests/test_enemies.py` mirroring the
-existing per-type HP-ledger/hunt fixtures — asserts a Sniper halts at exactly
-Chebyshev 2 from its committed target (never reaches `blocked`), fires on its
-`attack_speed` cadence, and that every OTHER type's `stand_off_range`
-defaults to 0 (byte-identical `update()` path — pin this explicitly, since
-`PathAgent` is shared by every type). Headless HP-ledger round scripted to
-round 26.
+## 4. Test coverage summary
 
-**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check --affected`;
-live `py game/main.py`, debug-skip to round 26, confirm a Sniper stops short
-of its target building and fires without ever closing to melee.
-
-### Phase NE-2 — Digger
-
-**Goal**: a live enemy that walks visibly, submerges untargetable at 6 tiles
-from its claimed target, erupts for one large hit, and exclusively claims one
-target building at a time across all live Diggers.
-
-**Files** — new: a "dirt pile" decal object (mirrors `game/enemies/
-corpse.py`'s `Corpse`/`CorpseFade`/`spawn_corpse` shape exactly — a
-`SpriteAnimator` + a fade/persist component, tagged e.g. `"dirt_pile"`, never
-`"enemy"`); may live in `game/enemies/corpse.py` as a sibling or its own
-small module — decide against that file's existing shape at implementation
-time. Modified: `game/enemies/components.py` (`PathAgent` gains `no_melee:
-bool = False`, default off, skipping `_blocker_ahead`/`_wall_edge_ahead`
-entirely when set — a Digger must never soft-lock punching an incidental
-building at 0 damage en route to its real target; new `BurrowAgent`
-component driving `WALKING -> SUBMERGED -> EMERGE -> WALKING` per the design
-in the approved plan file — the exact seam for a scene reference at repath
-time (a new `Enemy._scene` transient, parallel to the existing `_tilemap`
-cache) is an implementation decision for this phase, following `game/
-enemies/CLAUDE.md`'s E-11 conventions), `game/enemies/enemy.py` (new
-`Digger(Enemy)`: `ETYPE "digger"`, `hunts: "structure"`, `kidnapping: false`,
-`Enemy.targetable` override keyed off the `BurrowAgent` SUBMERGED state — the
-same duck-typed contract the Boss's second phase already uses), `game/
-enemies/spawner.py` (`ENABLE_DIGGER` branch), `data/balancing/enemies.json` +
-schema (new `EnemyTypes.Digger` block, `start_round: 35`, three new leaves —
-`dig_speed` tiles/sec while burrowed, doubling as overground `move_speed` per
-the user's own phrasing; `dmg` the emerge hit; `dig_range_tiles` default 6,
-the submerge trigger distance; seed `hp: 900, dmg: 900, move_speed: 1.0,
-dig_range_tiles: 6`), `data/slots.json` (new `Digger` registry group — walk +
-a one-shot dig/emerge animation state; the dirt-pile decal's own slot may
-ship grey-X, real art via `/replace-visual` later).
-
-**Exclusive claim mechanism**: on re-target, scan `scene.by_tag("enemy")` for
-other live Diggers' committed `target_col`/`target_row` and exclude those
-tiles from the goal set passed into `find_path_to_nearest_structure` (a new
-optional `exclude` parameter on that function, threaded through `_goal_tiles`
-predicate). No target found after exclusion → the Digger stands down
-(visible, idle, harmless) rather than falling back to attacking the base —
-Diggers "only build towards buildings" per the brief.
-
-**Interrupt handling** (D5): the `BurrowAgent`'s SUBMERGED tick checks
-target liveness each frame (mirrors `PathAgent._target_alive`'s existing
-block-scan pattern); on death mid-dig it transitions straight to EMERGE at
-the current internal position, deals no damage, and immediately re-targets.
-
-**Tests**: a new `TestDigger` in `tools/tests/test_enemies.py` — submerges at
-exactly `dig_range_tiles`, is excluded from `scene.by_tag("enemy")`
-targeting/damage while submerged (reuse the Boss `targetable=False` test
-pattern), emerges and deals `dmg` to a still-alive target, emerges harmlessly
-and re-targets on an interrupted target, and two Diggers never commit to the
-same building simultaneously (the claim-exclusion test). A `no_melee`
-regression test confirms a Digger routed adjacent to an unrelated building
-never halts/attacks it. Headless HP-ledger round scripted to round 35.
-
-**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check --affected`;
-live `py game/main.py`, debug-skip to round 35, confirm a Digger walks,
-submerges (dirt pile appears, HP bar/targeting disappears), erupts under its
-target for a large hit, and a second Digger picks a different building.
-
-### Phase NE-3 — Drummer
-
-**Goal**: a live support enemy whose aura measurably buffs (and un-buffs)
-nearby enemies' hp/dmg/move_speed (+ the variable list's attack_speed), with
-additive multi-source stacking and 4s decay-on-leaving-radius.
-
-**Files** — new: none beyond balancing/slots entries (the two components
-below land in `game/enemies/components.py`, matching every other enemy
-component). Modified: `game/enemies/components.py` (new `BuffState`
-component — declared JSON-safe per-source contribution tracking + decay
-timers, added to `Enemy.__init__`'s component list for every type as an
-always-present, near-zero-cost component when idle, mirroring `Kidnap`'s
-"declared, usually inert" shape; new `DrummerAura` component — each frame
-scans `scene.by_tag("enemy")` within Chebyshev `support_range`, applies/
-refreshes this Drummer's own contribution on each target's `BuffState`,
-including the D6 heal-on-apply; contributions past `support_range` start
-their independent 4s decay countdown and un-apply with the D6 shrink+clamp
-when it expires), `game/enemies/enemy.py` (new `Drummer(Enemy)`: `ETYPE
-"drummer"`, `hunts: "base"` — marches at the hole like a Walker per the
-brief — footprint 1, `sprite_scale` slightly above 1.0 for the "slightly
-taller" cosmetic ask), `game/enemies/spawner.py` (`ENABLE_DRUMMER` branch),
-`data/balancing/enemies.json` + schema (new `EnemyTypes.Drummer` block,
-`start_round: 25`; nine leaves per the user's own variable list: `hp`,
-`move_speed`, `dmg` self stats — "very low attack damage" — `support_range`
-Chebyshev tiles default 1, `hp_increase`, `move_speed_increase`,
-`dmg_increase`, `attack_speed_increase`, `support_range_increase`; seed `hp:
-300, dmg: 5, move_speed: 0.9, support_range: 1, hp_increase: 0.15,
-dmg_increase: 0.15, move_speed_increase: 0.15, attack_speed_increase: 0.10,
-support_range_increase: 0`), `data/slots.json` (new `Drummer` registry
-group).
-
-**Open item carried into this phase's kickoff** (flag, do not silently
-resolve): the user's prose ("increases dmg/hp/movement speed") and their
-explicit variable list (which also names `attack_speed_increase` and
-`support_range_increase`) don't fully agree on whether attack-speed is
-buffed too and whether support range itself grows over eras. This phase
-implements the more specific variable list (both fields present) and should
-confirm with the user during kickoff if the prose was the intended narrower
-scope instead.
-
-**Tests**: a new `TestDrummer` in `tools/tests/test_enemies.py` — a single
-Drummer buffs an enemy's hp (with heal-on-apply)/dmg/move_speed/attack_speed
-within range 1; the buff decays exactly 4s after the enemy leaves range,
-shrinking max HP and clamping current HP down if needed; two Drummers in
-range stack additively and decay independently per source; an enemy outside
-every Drummer's range is unaffected. Headless HP-ledger round scripted to
-round 25.
-
-**Exit gate**: `py tools/smoke.py` + `py tools/testgate.py check --affected`;
-live `py game/main.py`, debug-skip to round 25, confirm visibly buffed
-enemies (HP bar/stats) clustered near a Drummer, decaying ~4s after moving
-away, and additive stacking near two Drummers.
-
-## 4. Cross-phase verification (once, at the end)
-
-- `py tools/smoke.py` + the **full** `py tools/testgate.py check` (zero
-  failures — no affected-tier shortcut on the final handoff).
-- Live `py game/main.py` covering all three debug-skip scenarios above in one
-  session.
-- `game/enemies/CLAUDE.md` durable-rule update covering: the widened
-  `defence` hunt semantics, the new `structure` hunt, `PathAgent.
-  stand_off_range`/`in_range`/`no_melee`, the `BurrowAgent` state machine, and
-  the new `BuffState`/`DrummerAura` components — each is exactly the kind of
-  "when you change enemy conventions, update this doc" change that file calls
-  out. `game/map/CLAUDE.md`'s "Prey hunting" section gets the D1/D2 hunt
-  additions.
+- **Pure logic**: `engine/xp_curve.py`, `game/core/xp_curve.py`, the
+  editor/game curve drift pin, `research.py::timeline_level_for`,
+  `levelup.py`'s eligibility + roll-of-3/shuffle/fallback regression pin,
+  `editor/timeline_ops.py` round-trips + uniqueness cross-checks, migration
+  order-preservation.
+- **Editor Qt tier**: drag-assign, drag-replace, add/remove slot, graph
+  rendering vs. a pinned fixture, icon-provider grey-X fallback,
+  `TestPurity` membership.
+- **Integration**: write a `progression.json` fixture via
+  `editor.timeline_ops`, boot a `Session` with matching balance data, drive
+  `roll_levelup_options` across increasing `village_level`, assert the
+  offered pool matches exactly what was placed; a live `py game/main.py` run
+  exercising a real level-up end to end.
 
 ## 5. Risks / open items
 
-- **NE-0 is a live balance change to an existing type.** Widening
-  `SiegeCannon`'s target set is intentional and user-approved, but it changes
-  existing gameplay from round 14 onward — flag it in the phase's PR
-  description as a deliberate behavior change, not a side effect to discover
-  later.
-- **NE-2's exclusive-claim mechanism needs a scene reference `PathAgent`/
-  `Enemy` don't currently cache** (only `_tilemap` is cached today). The
-  `Enemy._scene` transient is the proposed seam; confirm against `game/
-  enemies/CLAUDE.md`'s E-11 conventions before landing — this is the single
-  piece of NE-2 most likely to need a design adjustment during execution.
-- **NE-2's `no_melee` flag must ship correct from the start.** Without it, a
-  Digger routed adjacent to an unrelated building before reaching its own
-  `dig_range_tiles` trigger would soft-lock (0-damage melee against something
-  it can never kill, since it has no real attack outside digging). The NE-2
-  regression test above exists specifically to catch this before live testing.
-- **NE-3 is the only phase adding an always-present component
-  (`BuffState`) to every enemy type**, not just the new one — verify its
-  inert-state cost is negligible (the `Kidnap` precedent) and that it doesn't
-  change any existing type's serialized component list in a way a test pins
-  against.
-- **Drummer's variable-list vs. prose discrepancy** (attack_speed buff +
-  support-range growth) is called out in NE-3 above; resolve it with the user
-  at that phase's kickoff rather than guessing silently.
-- **Numeric seed values throughout are starting points**, deliberately
-  grounded against the existing SiegeCannon/Raider era-0 curve but not
-  independently balance-tested — retune via the editor's balancing panel
-  post-launch with no code change, per this repo's normal workflow.
+- The best-case curve is explicitly an upper bound — real playthroughs will
+  cross thresholds later. This is intentional (confirmed with the user) but
+  worth re-confirming with a designer once the panel is live, in case the
+  gap between best-case and real pacing feels misleading in practice.
+- T4's deletion of `unlock_min_round` is destructive; it must not run until
+  T6's migration diff has been human-reviewed (see T6's exit gate — not a
+  machine gate).
+- `game/ui`'s `_upgrade_state` wording changes ("round" → "level") is a
+  small but visible in-game text change; worth a screenshot in the T4 PR
+  description.
+- Boost-trio visual pinning in the Timeline UI (D8) is a should-have, not
+  required for T5's exit gate — flag if descoped.
+- **Full-suite verification is deferred to final handoff** (user request
+  during this session): T2/T3/T5 each ran only targeted pytest files +
+  `py tools/smoke.py`, not the full/`--affected` testgate. One full
+  `py tools/testgate.py check` is still owed before this branch is
+  considered done — do not skip it at handoff.
+
+## Critical files
+
+- `data/schemas/buildings.schema.json`, `data/balancing/buildings.json`
+- `data/schemas/progression.schema.json` (new), `data/balancing/progression.json` (new)
+- `game/core/levelup.py`, `game/buildings/research.py`, `game/core/xp.py`,
+  `game/core/session.py`, `game/ui/building_ui.py`
+- `engine/era_math.py`, `engine/xp_curve.py` (new)
+- `game/core/xp_curve.py` (new), `editor/timeline_curve.py` (new)
+- `editor/panels/timeline.py` (new), `editor/timeline_ops.py` (new)
+- `editor/panels/palette.py`, `editor/panels/viewport.py` (icon-provider pattern)
+- `editor/domains.py`, `game/core/balance.py`
+- `tools/tests/test_editor_viewport.py` (`TestPurity`)
+- `tools/migrate_timeline_from_unlock_min_round.py` (new)

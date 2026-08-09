@@ -5,12 +5,21 @@ modal.
 Pure logic. Ports the prototype's ``src/ui/building_ui.py``: panel modes +
 terrain badges (10I), the boss-history section (10G), and the 10J
 depth — shift multi-select batches (unlock chunk-dedup / construct ×count /
-in-tier upgrade sums; tier advance stays primary-only), the name dice, the
-upgrade-panel rename row (custom names + rebirth ordinals finally render),
-the hover-gated green in-tier stat preview + next-tier card, and the DIED
-LAST ROUND tag. Costs are gated against ``session.state.love`` here and spent
-by this module (the 9D/9F split: ``place_building`` / ``upgrade`` never touch
-RunState).
+in-tier upgrade sums), the name dice, the upgrade-panel rename row (custom
+names + rebirth ordinals finally render), the hover-gated green in-tier stat
+preview + next-tier card, and the DIED LAST ROUND tag. Costs are gated
+against ``session.state.love`` here and spent by this module (the 9D/9F
+split: ``place_building`` / ``upgrade`` never touch RunState).
+
+**fix/batch-tier-advance**: tier ADVANCE now batches too —
+``_batch_advance_targets`` (``game.core.levelup.advance_batch_plan``) sweeps
+a multi-selection for every building whose next tier is reachable right now,
+catching each one up through any remaining in-tier levels before advancing
+it, one combined all-or-nothing cost. A building that can never reach its
+next tier yet (already at the final tier, next tier unresearched, or
+round-gated) is excluded from the batch and left untouched. A single
+selection is unaffected — it still upgrades/advances one step at a time via
+the primary-only path.
 
 10A wired the research gates: the construct list only offers types the run has
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
@@ -27,6 +36,7 @@ of the rework.
 import random  # 10J: the name-dice reroll (stdlib — pure)
 from types import SimpleNamespace
 
+from game.buildings import range_shape
 from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
 )
@@ -37,7 +47,7 @@ from game.buildings.registry import (
 )
 from game.buildings.research import buildable, tiers_unlocked_for
 from game.core import lightning  # 10H (sanctioned ui -> core direction)
-from game.core.levelup import upgrade_gate
+from game.core.levelup import advance_batch_plan, upgrade_gate
 from game.core.xp import scaled_base_income
 from game.debug import events as dbg  # debug-mode-telemetry Phase 2
 from game.map import edge_world_points  # wall-edge selection highlight
@@ -108,6 +118,7 @@ def _building_stats(b):
         for label, base in b.boosted_stats().items():
             rows.append((f"{label} base", base))
     if hasattr(b, "boost_value"):       # boost building (10D) — buffs neighbours
+        rows.append(("Range", b.range_tiles()))
         rows.append((b._boost_label, f"{b.boost_value() * 100:.1f}%"))
         rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "wall_hp"):           # wall builder (10E) — raises edge walls
@@ -641,7 +652,8 @@ class BuildingUI:
                       selected_tiles=None):
         """Open for the PRIMARY tile; ``selected_tiles`` (10J shift
         multi-select, primary first, same category) batches the unlock /
-        construct / in-tier-upgrade actions. The base never batches."""
+        construct / in-tier-upgrade / tier-advance actions. The base never
+        batches."""
         self.close()
         if tile is None:
             return
@@ -754,7 +766,7 @@ class BuildingUI:
     def _batch_upgrade_targets(self):
         """``[(building, cost)]`` across the selection whose upgrade state is
         ``in_tier`` (prototype building_ui.py:767-791). A single selection is
-        a 1-batch; tier ADVANCE never batches (primary only)."""
+        a 1-batch."""
         out = []
         for t in self.selected_tiles:
             b = t.occupant
@@ -765,9 +777,42 @@ class BuildingUI:
                 out.append((b, cost))
         return out
 
+    def _batch_advance_targets(self):
+        """``[(building, cost, levels_needed)]`` across a multi-selection
+        whose next tier is reachable right now (``game.core.levelup.
+        advance_batch_plan``) — a building that can never get there no
+        matter how much love is spent (already at the final tier, next tier
+        unresearched, or round-gated) is excluded. Empty for a single
+        selection: ``_upgrade_click``'s primary-only ADVANCE path covers
+        that case unchanged."""
+        if len(self.selected_tiles) <= 1:
+            return []
+        out = []
+        for t in self.selected_tiles:
+            b = t.occupant
+            if b is None or getattr(b, "building_type", None) == "base":
+                continue
+            eligible, cost, levels_needed = advance_batch_plan(
+                self._session.state, b, self._buildings_balance,
+                self._session.progression_balance)
+            if eligible:
+                out.append((b, cost, levels_needed))
+        return out
+
     def _build_upgrade(self):
         mode, cost, label, hint = self._upgrade_state(self._selected)
-        if mode == "in_tier" and len(self.selected_tiles) > 1:
+        advance_targets = self._batch_advance_targets()
+        if advance_targets:
+            # A multi-selection where at least one building can reach its
+            # next tier (possibly after catching up on remaining in-tier
+            # levels first) shows ONE combined ADVANCE action — buildings
+            # that can't get there yet are left out of it (see
+            # `_batch_advance_targets`).
+            cost = sum(c for _, c, _ in advance_targets)
+            mode = "tier_upgrade"
+            label = f"ADVANCE ×{len(advance_targets)}  {cost}"
+            hint = None
+        elif mode == "in_tier" and len(self.selected_tiles) > 1:
             targets = self._batch_upgrade_targets()
             cost = sum(c for _, c in targets)
             label = f"UPGRADE ×{len(targets)}  {cost}"
@@ -783,11 +828,11 @@ class BuildingUI:
         """Position + gate the MOVE BUILDING button (Building Movement).
 
         Visible only in upgrade mode on a SINGLE selection — a move is not
-        batchable, the same "tier advance stays primary-only" precedent
-        ``_build_upgrade`` already follows. A Wall Builder can never be moved,
-        so its button is shown DISABLED with a hint (the ``_upgrade_hint``
-        mechanism the RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather
-        than silently vanishing — the real enforcement is ``start_move``."""
+        batchable (unlike UPGRADE/ADVANCE, which do batch — see
+        ``_build_upgrade``). A Wall Builder can never be moved, so its button
+        is shown DISABLED with a hint (the ``_upgrade_hint`` mechanism the
+        RESEARCH REQUIRED / NEXT TIER LOCKED states use) rather than
+        silently vanishing — the real enforcement is ``start_move``."""
         ax, ay, aw, ah = self.action_btn.rect
         self.move_btn.rect = (ax, ay + ah + 8, aw, 30)
         self.move_btn.visible = len(self.selected_tiles) == 1
@@ -812,9 +857,12 @@ class BuildingUI:
     def _upgrade_state(self, b):
         """``(mode, cost, button_label, hint)`` — the five-mode research gate
         (``game.core.levelup.upgrade_gate``). ``cost`` is only a love price for
-        the two enabled modes; for ``tier_hidden`` it carries the unlock round."""
+        the two enabled modes; for ``tier_hidden`` it carries the village_level
+        it unlocks at (TimelinePLAN D5 — always exactly true), or ``None`` if
+        it has no Timeline placement at all."""
         mode, next_name, cost = upgrade_gate(
-            self._session.state, b, self._buildings_balance)
+            self._session.state, b, self._buildings_balance,
+            self._session.progression_balance)
         if mode == "in_tier":
             return mode, cost, f"UPGRADE  {cost}", None
         if mode == "tier_upgrade":
@@ -822,7 +870,9 @@ class BuildingUI:
         if mode == "tier_locked":
             return mode, cost, "RESEARCH REQUIRED", "Research it on levelup"
         if mode == "tier_hidden":
-            return mode, cost, "NEXT TIER LOCKED", f"Unlocks at round {cost}"
+            hint = (f"Unlocks at level {cost}" if cost is not None
+                    else "Not yet offered")
+            return mode, cost, "NEXT TIER LOCKED", hint
         return mode, 0, "MAX TIER", None
 
     def _base_info_click(self, mx, my, session):
@@ -849,16 +899,17 @@ class BuildingUI:
         # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
         # range — a consumption site of the effective value (prototype
         # game.py:578-581); pathfinding coverage stays on the raw range.
+        # `range_shape()` picks the tile-offset geometry (defaults to the
+        # Chebyshev square when absent — every defence building; a booster
+        # defines it, `game/buildings/boost.py`).
         rfn = getattr(b, "effective_range_tiles",
                       getattr(b, "range_tiles", None))
         if rfn is not None:
             r = int(rfn())
-            for dc in range(-r, r + 1):
-                for dr in range(-r, r + 1):
-                    if dc == 0 and dr == 0:
-                        continue
-                    if tilemap.get(b.col + dc, b.row + dr) is not None:
-                        hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
+            shape = getattr(b, "range_shape", lambda: "square")()
+            for dc, dr in range_shape.offsets(r, shape):
+                if tilemap.get(b.col + dc, b.row + dr) is not None:
+                    hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
         self._highlight_tiles = hl
 
     def _set_wall_highlight(self, b, tilemap):
@@ -1105,11 +1156,38 @@ class BuildingUI:
             return True
         if is_visible(self.action_btn) and self.action_btn.hit(mx, my):
             mode, cost, _, _ = self._upgrade_state(b)
-            if mode not in ("in_tier", "tier_upgrade"):
+            advance_targets = self._batch_advance_targets()
+            if advance_targets:
+                # Multi-selection where at least one building can reach its
+                # next tier now (batch ADVANCE) — catch each up through any
+                # remaining in-tier levels, then advance it, one combined
+                # all-or-nothing cost. Buildings that can't get there yet
+                # (max tier / unresearched / round-gated) are excluded by
+                # `_batch_advance_targets` and untouched here.
+                total = sum(c for _, c, _ in advance_targets)
+                if st.love < total:
+                    self.action_btn.start_flash(self._flash_dur,
+                                                "NOT ENOUGH LOVE")
+                    return True
+                st.spend_love(total)
+                for tb, c, levels_needed in advance_targets:
+                    for _ in range(levels_needed):
+                        tb.upgrade()
+                    tb.advance_tier()
+                    lightning.sync_level_from_tier(st, tb)  # Storm Priest wiring
+                    if session.debug is not None:
+                        session.debug.note_love_spent(c, dbg.SPEND_RESEARCH)
+                        session.debug.emit(
+                            dbg.RESEARCH, building_type=tb.building_type,
+                            tier=tb.get_component(TierState).current_tier,
+                            cost=c)
+                    if self.on_build_vfx is not None:
+                        self.on_build_vfx(tb.col, tb.row, "tier")
+            elif mode not in ("in_tier", "tier_upgrade"):
                 return True  # max / not researched / round-gated: inert
-            if mode == "tier_upgrade":
-                # Tier research advances ONE building only (prototype
-                # building_ui.py:757-766) — never the batch.
+            elif mode == "tier_upgrade":
+                # Single-selection tier advance (a multi-select with an
+                # eligible building is handled by `advance_targets` above).
                 if st.love < cost:
                     self.action_btn.start_flash(self._flash_dur,
                                                 "NOT ENOUGH LOVE")

@@ -44,9 +44,9 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     derives `disturbed` from `RoundStats.dmg_taken_last_round`. Do NOT move the
     side-effect back into `yield_amount()`.
   Both add one `research.py` row (Painter: locked type, `min_village_level` gate;
-  Meditator: bare `ResearchSpec()` — its unlock card is gated by
-  `Meditators.tiers[0].unlock_min_round`, and unlocking it makes tier 1
-  immediately placeable).
+  Meditator: bare `ResearchSpec()` — its unlock card is gated by whether its
+  tier 0 has a Timeline placement (TimelinePLAN T4), and unlocking it makes
+  tier 1 immediately placeable).
 - **10B defence lines** (`aoe_defence.py` Maw Mortar, `sun_scorcher.py` Sun
   Scorcher) subclass `DefenceBuilding` and add ONE extra capability component +
   a couple computed methods each: AOE adds `SplashAttacker` (marker) +
@@ -66,6 +66,26 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   **seeded to 1, the economy weight they used to share**, so the prototype's
   boost pathfinding-weight fallback is preserved by the VALUE, not by a shared
   key, and a designer can now diverge them per type. Tag `"boost"`.
+  **The buff/curse range is configurable** (booster-range-config feature):
+  `BoostBuildings.globals.range_tiles`/`.range_shape` — ONE shared magnitude +
+  shape for all three lines and every tier (not per-tier, a deliberate design
+  choice — a designer wanting per-tier growth would need a schema change).
+  `range_shape` is `"plus"` (the shipped default, magnitude 1 = the original
+  cardinal-4 behaviour) or `"square"` (a full Chebyshev square — e.g. every
+  one of the 8 surrounding tiles at magnitude 1). `game/buildings/
+  range_shape.py`'s pure `offsets(n, shape)` computes the tile deltas and is
+  shared by `_adjacent_combat`/`clear_explosion_debuff_from` here AND by the
+  RANGE overlay (`game/ui/overlays.py`) and the panel's selection highlight +
+  its own new Range row (`game/ui/building_ui.py`) — both duck-type an
+  optional `range_shape()` alongside `range_tiles()`, defaulting to
+  `"square"` when absent (every defence building, unchanged), so those two
+  visually reflect a booster's configured shape. Defence-range pathfinding
+  coverage (`coverage.py`, below) is the ONE exception: it deliberately does
+  NOT consult `range_shape()` and always treats a booster's footprint as a
+  square, at the configured magnitude — the visual buff shape and the
+  pathfinding-penalty shape are independent knobs. `BoostBuilding
+  .range_tiles()`/`.range_shape()` read the balance directly; there is no
+  per-instance override.
   All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
   (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
   to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
@@ -77,8 +97,9 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `rebuild()`) + `flat_applied` guards. Both modes exist: ramp (default) accumulates
   each income phase, flat (`BoostBuildings.globals.flat_mode`) applies 10× once on
   placement / reverses on death. Research: three rows sharing `unlock_group=(the
-  trio)` (no `gate_kind` — each line's own `tiers[0].unlock_min_round` is 10,
-  read via `tier_offerable`) + a shared `starts_unlocked_path` pointing at
+  trio)` (no `gate_kind` — only the LEAD's tier-0 Timeline placement is ever
+  consulted, read via `tier_offerable`, TimelinePLAN D8) + a shared
+  `starts_unlocked_path` pointing at
   `BoostBuildings.globals.starts_unlocked` (data-driven — see the Research/gating
   seam section); the roll offers ONE unlock card (the lead `boost_speed`), then
   each type researches its own tiers (see `game/core`).
@@ -118,10 +139,10 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     `game.buildings` — the same rule `wall_hp()` / `wall_snapshot()` /
     `building_type` already follow. Research: both
   `blocker` and `wall_builder` are bare `ResearchSpec()` rows — each type's
-  UNLOCK card is gated by its own `tiers[0].unlock_min_round` (Blocker 5,
-  WallBuilder 10), and unlocking either makes its tier 1 immediately placeable
-  (no separate "research tier 1" step). **Both start LOCKED as a type** (a
-  deliberate balance change from the prototype's
+  UNLOCK card is gated by whether its own tier 0 has a Timeline placement
+  (TimelinePLAN T4), and unlocking either makes its tier 1 immediately
+  placeable (no separate "research tier 1" step). **Both start LOCKED as a
+  type** (a deliberate balance change from the prototype's
   `blocker_tiers_unlocked = 1`): `starts_unlocked` is now a `buildings.json` flag
   per type (see the Research/gating seam section) — only `defence`/Stone Thrower and
   `economic`/Flute Player start unlocked; every other type, blocker and wall_builder
@@ -182,11 +203,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     for a shift-multi-select placement, not a flat `cost * count`) all read
     off this same count so the label, the hover figure and the actual charge
     can never disagree.
-  - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; its
-    `tiers[0].unlock_min_round` is 0) with `starts_unlocked: false` in
-    `buildings.json` — offered in the level-up unlock pool from round 1 but
-    not unlocked at the start. (Lightning itself boots LOCKED — see
-    `game/core/CLAUDE.md`.)
+  - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; offerable as
+    soon as its tier 0 has a Timeline placement, TimelinePLAN T4) with
+    `starts_unlocked: false` in `buildings.json` — offered in the level-up
+    unlock pool once placed but not unlocked at the start. (Lightning itself
+    boots LOCKED — see `game/core/CLAUDE.md`.)
 - **10I tile conditions** — snapshot at placement, computed on read:
   - `registry.place_building` stamps two E-11 transients after
     `tile.occupant = building`: `_tile_condition` (the tile's rolled condition)
@@ -217,15 +238,23 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     panel all see it). Meditator + Painter override `yield_amount` and take NO
     condition modifier (prototype-exact).
   - **`coverage.py`** is the defence-range pathfinding producer:
-    `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range,
+    `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range —
+    `game/buildings/range_shape.py`'s `offsets(r, "square")`, ALWAYS square —
     `building_type == "aoe_defence"` EXCLUDED — pathfinding-only; the RANGE
-    overlay still shows the mortar; every alive `"boost"`-tagged occupant adds
-    an r=1 square — prototype boosters carry `range_tiles = 1`, but the repo
-    booster keeps NO `range_tiles()` method so the selection highlight stays a
-    plus-shape; empty set when
+    overlay still shows the mortar; empty set when
     `BuildingsGlobal.defence_range_pathfinding.enabled` is off) +
     `wire_defence_coverage` (injects callable + weight add into the tilemap —
-    the host calls it once per run; the map layer never imports this package).
+    the host calls it once per run; the map layer never imports this
+    package). **Boosters carry a real `range_tiles()` now** (booster-range-
+    config feature, `BoostBuildings.globals.range_tiles`, configurable per
+    the 10D boost-line section above) — the old special-cased "every alive
+    `"boost"`-tagged occupant adds a fixed r=1 square" branch is gone,
+    boosters are picked up by the SAME duck-typed `range_tiles()` read every
+    other occupant here uses — but this producer deliberately does NOT
+    consult a booster's `range_shape()`: pathfinding coverage stays a square
+    at the configured MAGNITUDE regardless of whether the visual buff/curse
+    itself is `"plus"` or `"square"` (the RANGE overlay and the selection
+    highlight DO respect `range_shape()` — see `game/ui/CLAUDE.md`).
 - **`registry.py` is the factory + placement seam**: `create(building_type,…,
   tier_idx=0)` (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability
@@ -296,7 +325,7 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   host draws on both endpoints) lives here, with the feature, so the host has
   one place to import it from.
 
-## Research / gating seam (10A, regated in the Joel-Balancing pass)
+## Research / gating seam (10A, regated in the Joel-Balancing pass; TimelinePLAN T4)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
   `RESEARCH` table of `ResearchSpec` rows (`gate_kind`/`gate_path`,
   `starts_unlocked_path`, `unlock_group`, UI copy). A spec never stores a gate
@@ -319,27 +348,42 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   start unlocked; every other type is locked from round 1**, including
   `blocker`/`meditator`/`wall_builder`, which used to default unlocked — a
   deliberate balance change, not a bug.
-- **There is exactly ONE round gate per type: `tiers[0].unlock_min_round`.**
-  It gates the type's UNLOCK card (via `tier_offerable(state, btype, 0,
-  buildings_balance)` in `game/core/levelup.py`'s roll) — a locked type never
-  shows a tier card, only its unlock card, so tier 0's own round doubles as
-  the type's era gate; no separate `<group>.era_unlock_round` key exists
-  anymore. **Unlocking a type makes its tier 1 immediately placeable** —
+- **There is exactly ONE eligibility gate per tier, and since TimelinePLAN T4
+  it is a Timeline placement, not a round.** `unlock_min_round` is DELETED
+  from `buildings.json`'s schema and content entirely — the sole source of
+  "when does `(btype, tier_index)` become offerable" is now
+  `data/balancing/progression.json`, resolved via
+  `game/core/levelup.py::timeline_level_for(btype, idx, progression_balance)
+  -> village_level | None`, gated on `state.village_level` (not
+  `state.round_num`) via `tier_offerable`. It gates the type's UNLOCK card
+  the same way (`tier_offerable(state, btype, 0, progression_balance)` in
+  `game/core/levelup.py`'s roll) — a locked type never shows a tier card,
+  only its unlock card, so tier 0's own Timeline placement doubles as the
+  type's era gate; no separate `<group>.era_unlock_round` key exists.
+  **Unlocking a type makes its tier 1 immediately placeable** —
   `ResearchSpec.starts_with_tier` was deleted along with it, closing off the
   double-unlock-card bug (Meditator/WallBuilder used to need a free unlock
   card AND a same-named "research tier 1" card before they were placeable).
   Only the SINGLE next locked tier (`idx == tiers_unlocked`) is ever offerable
-  for research past tier 1, gated by that tier's own `tiers[idx].unlock_min_round`.
-  Research is GLOBAL per type.
+  for research past tier 1, gated by that tier's own Timeline placement.
+  Research is GLOBAL per type. A tier with NO Timeline placement is simply
+  never offerable — the editor's Timeline panel (`editor/panels/timeline.py`)
+  is where a designer authors these placements now, not a `buildings.json`
+  round value. The `gate_kind="min_village_level"` stacked gate (Maw Mortar's
+  `AOEDefence.unlock_min_village_level`, Painter's
+  `Painters.unlock_min_village_level`) is a SEPARATE, orthogonal gate,
+  untouched by this change (TimelinePLAN D6).
 - **10B rows** (`aoe_defence`, `sun_scorcher`) both start locked (earned via a
   level-up unlock card). Maw Mortar uses
   `gate_kind="min_village_level"` reading a NEW `AOEDefence.unlock_min_village_level`
   key (value 1 — offered from the first level-up; the prototype had it only as a
   `.py` constant, absent from the live JSON 9A migrated, so 10B added it to
   data+schema). Sun Scorcher needs NO `gate_kind`: its unlock card is gated by
-  `BeamDefence.tiers[0].unlock_min_round = 10` (was era-gated to 14 before the
-  `era_unlock_round` key was deleted — an approved balance shift, not a
-  migration of the old number).
+  whether `BeamDefence`'s tier 0 has a Timeline placement (was era-gated to
+  14, then a flat `tiers[0].unlock_min_round = 10`, before TimelinePLAN T4
+  deleted that field entirely in favor of `data/balancing/progression.json`
+  — each step an approved balance/architecture shift, not a migration of the
+  old number).
 
 ## Perf invariant that lives here
 Placement occupancy is incremental (`occupancy.set` per placed tile, not a

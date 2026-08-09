@@ -51,6 +51,8 @@ ALLOWED = {
                           "(regenerates committed screen_defaults.json under a "
                           "font-size change) plus validates UH-6's own "
                           "ui_screen.schema.json tint property",
+    "test_timeline_ops.py": "TempDataCase-style copy of the real tree, same "
+                            "reason as test_editor_map_mode.py",
     "test_ui_layout_export.py": "diffs the committed screen_defaults.json "
                                 "against a fresh regeneration (staleness gate)",
     "test_video_source.py": "plays a shipped binary (mp4) — not in the fixture",

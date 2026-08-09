@@ -136,6 +136,17 @@ love store, ready to feed `place_building`.
   `end_turn()` whether that round is 0 (tutorial) or 1 (a skipped run). Full
   detail → `game/CLAUDE.md`'s "The tutorial is round 0 (Phase TU-9)" section.
 
+- **`Session.progression_balance` (TimelinePLAN T4)**: an optional
+  `data/balancing/progression.json` dict, `None` by default — the SAME
+  `tutorial_director` shape (host-set — `game/main.py`'s boot sequence loads
+  it via `load_balance(data_dir, "progression")` and threads it into
+  `Session.create`; `tools/simrun.py` does the same). A bare `Session` a
+  logic test builds is untouched: `game/core/levelup.py::
+  timeline_level_for` treats `None` as "never placed," so its level-up roll
+  simply offers nothing beyond the repeatable love fallback rather than
+  crashing. It is the SOLE source of tier/unlock eligibility
+  (`tier_offerable`/`upgrade_gate`) — `unlock_min_round` no longer exists.
+
 - **`Session.debug` (debug-mode-telemetry)**: an optional `game.debug.
   DebugRecorder` reference, `None` by default — the SAME shape as
   `tutorial_director` above (host-set, `build_gameplay()` assigns it, a bare
@@ -184,23 +195,43 @@ love store, ready to feed `place_building`.
 > in-process `game.main` boots the tests/smoke do). Pure engine robustness fix, no
 > API change. (Detail now in `engine/render/CLAUDE.md`.)
 
-## XP / village level-up / research (Phase 10A)
+## XP / village level-up / research (Phase 10A; TimelinePLAN T4)
 Enemies and buildings drop XP, XP fills a village level, and each level opens a
 modal LEVELUP window whose reward researches the next building tier (or pays love).
-- **`game/core/xp.py`** (pure) — `xp_for_etype` (keyed on `Enemy.ETYPE`),
-  `award_xp` (arms `levelup_pending`; queues an `xp_events` floater),
-  `advance_village_level` (the 50→65→85→110→140 threshold walk; surplus carries
-  forward, one level per resolve), and **`scaled_base_income`** — the ONE source
-  for payday, the HUD income line and the base-info panel, so they can't drift.
+- **`game/core/xp.py`** (pure) — `xp_for_etype` (keyed on `Enemy.ETYPE`, via
+  the now-public `XP_KEY_FOR_ETYPE` table — TimelinePLAN T3 promoted it from
+  module-private so `game/core/xp_curve.py` can import rather than
+  re-declare it), `award_xp` (arms `levelup_pending`; queues an `xp_events`
+  floater), `advance_village_level` (the 50→65→85→110→140 threshold walk;
+  surplus carries forward, one level per resolve), and
+  **`scaled_base_income`** — the ONE source for payday, the HUD income line
+  and the base-info panel, so they can't drift.
+- **`game/core/xp_curve.py`** (pure, TimelinePLAN T3/D7) — the game-side
+  vocabulary adapter for `engine/xp_curve.py`'s vocabulary-free best-case
+  calculator: `threshold_sequence` (read-only reproduction of
+  `advance_village_level`'s threshold walk, as cumulative XP requirements),
+  `best_case_curve` (the full upper-bound curve + level-crossing rounds,
+  reproducing `game/enemies/spawner.py::_compose`'s exact per-round
+  composition — round-0 tutorial override, `Boss.round_counts` with its
+  past-the-table fallback, Formation/Sniper/Digger/Drummer excluded on a
+  boss round). Carries a small, deliberately duplicated ETYPE/block-key
+  mapping (the `registry_group` precedent) — its second, Qt-free home is
+  `editor/timeline_curve.py` (editor/ may never import game/), pinned equal
+  by `tools/tests/test_xp_curve.py::TestDrift`. Feeds the Timeline editor
+  panel's graph; **never assert this curve equals a real playthrough** — it
+  is an explicit upper bound, since real XP depends on the player's kill
+  rate.
 - **`game/core/levelup.py`** (pure) — the option roll + `apply_levelup_option` +
   **`upgrade_gate`**, the FIVE-mode upgrade classifier the panel renders (`in_tier`
   / `tier_upgrade` / `tier_locked` / `tier_hidden` / `max_tier`). A tier can no
   longer be advanced into for free: it must be **researched on a level-up** first,
-  and stays unnamed until its `unlock_min_round`. A locked TYPE's own unlock
-  card is gated the same way, by its `tiers[0].unlock_min_round` — the single
-  round gate per type (no separate era key); unlocking a type makes tier 1
-  immediately placeable. The gate table + stacking rules live in
-  `game/buildings/research.py` (see that doc).
+  and stays unnamed until it has a Timeline placement (`timeline_level_for`,
+  below — `unlock_min_round` is DELETED, replaced entirely by
+  `data/balancing/progression.json`, TimelinePLAN T4). A locked TYPE's own unlock
+  card is gated the same way, by its own Timeline placement at
+  `tier_index=0` — the single eligibility gate per type (no separate era
+  key); unlocking a type makes tier 1 immediately placeable. The gate table +
+  stacking rules live in `game/buildings/research.py` (see that doc).
 - **Phase machine**: at ROUND_END's expiry a pending level-up enters
   `GamePhase.LEVELUP` **instead of** running payday; `Session.resolve_levelup`
   applies the reward, advances the level, then runs payday (the prototype's
@@ -230,14 +261,19 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   only for the LEAD member of a spec's `unlock_group` (`btype == unlock_group[0]`),
   skipping the other locked members — so the three boosters surface as ONE "Unlock
   Boost Buildings" card whose `apply_levelup_option` unlocks all three, gated by
-  the lead's own `tiers[0].unlock_min_round` (10 — each boost line carries its
-  own copy of that value, no shared `gate_kind`/globals key needed). All three
-  still carry a `RESEARCH` row so each researches its own tiers after unlocking.
-- **Empty pool is expected before round 10**: only `defence` + `economic` exist,
-  both start unlocked at tier 1, their tier-2s are round-gated to 10, and the hole
-  is lives-based so the prototype's `+1 Base HP` fallback doesn't apply — so early
-  level-ups show three identical `+25 Love` cards (the prototype's pad-to-3). The
-  pool fills as 10B–10E land their families.
+  the lead's own Timeline placement at `tier_index=0` (TimelinePLAN — each boost
+  line still carries its own `RESEARCH` row, no shared `gate_kind`/globals key
+  needed, only the LEAD's placement is ever consulted by the roll, D8). All
+  three still carry a `RESEARCH` row so each researches its own tiers after
+  unlocking.
+- **Empty pool is possible whenever a village_level has no Timeline
+  placements** (TimelinePLAN — was "before round 10" when eligibility was
+  round-gated; now purely a function of what a designer has placed on the
+  Timeline for that village_level): the hole is lives-based so the
+  prototype's `+1 Base HP` fallback doesn't apply — an under-populated
+  village_level's level-up shows one or more `+N Love` fallback cards
+  padding the pool to 3 (the prototype's pad-to-3, `game/core/levelup.py`'s
+  `_love_fallback`).
 
 The UI half of level-up (`game/ui/levelup.py`, XP bar, gated construct list) lives
 in `game/ui/CLAUDE.md`.

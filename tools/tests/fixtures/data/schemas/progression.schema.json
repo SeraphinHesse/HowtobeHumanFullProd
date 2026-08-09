@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "assignment": {
+      "additionalProperties": false,
+      "description": "A building-unlock or tier-upgrade card placed into an offer slot. All three keys are always present even when tier_index is semantically unused (kind: unlock always keys off tier 0s card art).",
+      "properties": {
+        "building_type": {
+          "description": "The RESEARCH/tiers_unlocked key from buildings.json building_type (TimelinePLAN D3) e.g. \"defence\".",
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "description": "unlock = this building types initial research card (game/buildings/research.py unlock_group semantics); tier = a tier-upgrade card for an already-unlocked type.",
+          "enum": [
+            "unlock",
+            "tier"
+          ],
+          "type": "string"
+        },
+        "tier_index": {
+          "description": "0-2, indexing into that building types 3 tiers. Semantically unused (always 0) when kind is unlock.",
+          "maximum": 2,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "kind",
+        "building_type",
+        "tier_index"
+      ],
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "level": {
+      "additionalProperties": false,
+      "description": "One player village_level and the offer slots authored for the level-up at that level.",
+      "properties": {
+        "offer_slots": {
+          "description": "The offer slots for this level-up. An empty, still-persisted slot (assignment: null) is a legitimate saved state, not just a transient UI affordance. Cardinality is dynamic per level-up, editable directly in the Timeline UI.",
+          "items": {
+            "$ref": "#/$defs/offer_slot"
+          },
+          "type": "array"
+        },
+        "village_level": {
+          "description": "The RunState.village_level this level-up fires at (1-based, incremented once per level-up).",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "village_level",
+        "offer_slots"
+      ],
+      "type": "object"
+    },
+    "offer_slot": {
+      "additionalProperties": false,
+      "description": "One drag-and-drop target square on the Timeline. Wraps a nullable assignment object (rather than making the array item itself nullable) so a future per-slot metadata field has somewhere to land without reshaping the array.",
+      "properties": {
+        "assignment": {
+          "$ref": "#/$defs/assignment",
+          "description": "The building/tier card placed in this slot, or null for an empty slot."
+        }
+      },
+      "required": [
+        "assignment"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "progression.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Progression balancing domain (TimelinePLAN D1): the Timeline editor authors which building unlock/tier-upgrade cards are eligible offer-slot choices at each player village_level level-up. This is the sole source of unlock-timing eligibility (replaces buildings.json unlock_min_round, TimelinePLAN D4/T4). Bounds policy: village_level 1-1000 (matches the repo rounds/levels bounds policy), tier_index 0-2 (one of a building type's 3 tiers).",
+  "properties": {
+    "Timeline": {
+      "additionalProperties": false,
+      "description": "The whole authored unlock schedule.",
+      "properties": {
+        "levels": {
+          "description": "Sparse, one entry per player village_level that has at least one authored offer slot. A village_level with no entry has no manually curated slots.",
+          "items": {
+            "$ref": "#/$defs/level"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "levels"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "Timeline"
+  ],
+  "title": "progression",
+  "type": "object"
+}

@@ -172,27 +172,30 @@ class TestStateKeyedResolution(unittest.TestCase):
 
     def test_resolver_picks_the_state_specific_family_not_another_states(self):
         """A tile in BUILDABLE state resolves to a slot from the Buildable
-        family, never Built/Combat/Spawning — and vice versa for each state."""
+        family, never Built/Combat — and vice versa for each state."""
         for state, expected in (
                 (TileState.BUILDABLE, "cond_mountain_buildable"),
                 (TileState.BUILT, "cond_mountain_built"),
-                (TileState.COMBAT, "cond_mountain_combat"),
-                (TileState.SPAWNING, "cond_mountain_spawning")):
+                (TileState.COMBAT, "cond_mountain_combat")):
             with self.subTest(state=state):
                 slot = _resolve_condition_slot(
                     REGISTRY, TileCondition.MOUNTAIN, state, 0)
                 self.assertEqual(slot, expected)
 
-    def test_resolver_returns_none_for_background(self):
-        """BACKGROUND has no entry in CONDITION_STATE_LABEL — mirrors the
-        'background tiles never get condition art' rule."""
-        self.assertIsNone(_resolve_condition_slot(
-            REGISTRY, TileCondition.MOUNTAIN, TileState.BACKGROUND, 0))
+    def test_resolver_returns_none_for_background_and_spawning(self):
+        """Neither has an entry in CONDITION_STATE_LABEL, and that absence IS
+        the rule: background tiles never get condition art, and the spawn band
+        is deliberately condition-free (plain ground plus trees) until a tile
+        converts to combat."""
+        for state in (TileState.BACKGROUND, TileState.SPAWNING):
+            with self.subTest(state=state):
+                self.assertIsNone(_resolve_condition_slot(
+                    REGISTRY, TileCondition.MOUNTAIN, state, 0))
 
     def test_variant_index_is_stable_across_a_state_transition(self):
         """A tile that rolled variant #1 of one state's family keeps index #1
         when it transitions to ANOTHER state whose family is the same size
-        (Combat and Spawning both carry 2 Mountain variants here)."""
+        (Combat and Buildable both carry 2 Mountain variants here)."""
         tm = synth(["c" * 4], rng=random.Random(1), registry=REGISTRY)
         tile = tm.get(1, 0)
         tile.condition = TileCondition.MOUNTAIN
@@ -201,9 +204,9 @@ class TestStateKeyedResolution(unittest.TestCase):
             REGISTRY, TileCondition.MOUNTAIN, tile.state, 1)
         self.assertEqual(tile.condition_slot, "cond_mountain_combat_v2")
 
-        tm.set_tile_state(tile, TileState.SPAWNING)
+        tm.set_tile_state(tile, TileState.BUILDABLE)
         self.assertEqual(tile.condition_variant_idx, 1)   # never re-rolled
-        self.assertEqual(tile.condition_slot, "cond_mountain_spawning_v2")
+        self.assertEqual(tile.condition_slot, "cond_mountain_buildable_v2")
 
     def test_variant_index_wraps_modulo_into_a_smaller_family(self):
         """The SAME tile transitioning into Built (Mountain's Built family has
