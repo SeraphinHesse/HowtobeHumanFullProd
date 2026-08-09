@@ -81,9 +81,14 @@ class AssetStore:
             return (0, 0)
         return (entry.offset_x, entry.offset_y)
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
-        """Never raises on missing/corrupt art: falls back to the grey X."""
-        ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+        """Never raises on missing/corrupt art: falls back to the grey X.
+
+        `extra_hidden` (optional): passed straight through to
+        `Manifest.current_frame` — a caller-side frame-column narrowing on
+        top of whatever the manifest row already hides."""
+        ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms),
+                                            extra_hidden=extra_hidden)
         if ref is PLACEHOLDER:
             return self._placeholder(slot_key)
         entry = self._manifest.entry(slot_key)

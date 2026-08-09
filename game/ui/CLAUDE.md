@@ -206,6 +206,48 @@ logic is `game/core` — see that doc.)
   parameters from `Boss.shake.{interval,strength}`, active only while ENEMY
   phase + a live `"boss"` in the scene.
 
+## Enemy intro dialogue sprite/animation controls (feature-enemy-intro-dialogue)
+`game/ui/enemy_intro.py`'s `EnemyIntroWindow` (session/phase wiring →
+`game/core/CLAUDE.md`'s matching section) plays its sprite as a LOOPING
+spritesheet animation, not a static frame, with per-entry crop/offset/flip/
+tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
+`EnemyIntro.entries[i]` beyond `sprite_w`/`sprite_h`.
+- **One continuous clock, not the world's `SpriteAnimator` clock.** The
+  window owns `self._clock` (float seconds, reset to `0.0` in `open()`,
+  incremented by `dt` in `update()` for as long as `visible`) — the
+  `boss_cutscene.py` pattern for a UI screen's own independent animation
+  time. `submit()` converts it once via `widgets.anim_ms(self._clock *
+  entry["anim_speed"])` into the `HudSprite`'s `anim_time_ms`; the animation
+  loops for the ENTIRE open+hold+close lifetime (a deliberate simplification
+  — no per-entry "loop vs. play-once-then-freeze" mode).
+- **`sprite_slot` may be ANY imported sprite**, any category — `game/core/
+  CLAUDE.md`'s section covers the generated enum. `animation` names one of
+  that slot's manifest rows; a mismatch (e.g. an `enemies`-vocabulary name on
+  a `ui` slot) degrades to idle rather than erroring, the manifest's own
+  tolerance.
+- **`crop_x/y/w/h`**: a source sub-rect (frame-px) drawn instead of the whole
+  frame, still stretched to `sprite_w`×`sprite_h` — `crop_w == 0 and crop_h
+  == 0` means no crop (the `fit_tiles == 0` sentinel convention). Composed
+  into a `HudSprite.crop` tuple; the actual crop-then-scale work is
+  `engine/render/backend.py`'s `_cropped` (`engine/render/CLAUDE.md`).
+- **`sprite_offset_x/y`** nudge the sprite's dest box off its default
+  horizontally-centered position — added directly into the `(cx - sw//2,
+  cursor)` dest computation; they do NOT move the panel's text cursor, only
+  the sprite's own draw box.
+- **`sprite_flip_h`** wires straight to `HudSprite.flip` (a pre-existing
+  field — no engine work needed).
+- **`background_tint` `[r, g, b, a]`** draws a `HudRect` behind the sprite,
+  sized to match its box, submitted immediately before the sprite's
+  `HudSprite` (the house "panel/background first" HUD-submission-order rule,
+  above). Its alpha COMPOSES with the window's own open/close fade
+  (`round(bg_a * window_alpha / 255)`) rather than fighting it. `a == 0`
+  (the shipped default) is invisible, so an un-tinted entry looks identical
+  to before this feature.
+- **`hidden_frames`**: extra frame-column indices to skip for THIS entry,
+  passed as `HudSprite.hidden_frames` → `Manifest.current_frame`'s
+  `extra_hidden` (`engine/assets/CLAUDE.md`) — UNIONS with, never overrides,
+  whatever the manifest row's own `hidden` list already drops.
+
 ## Shell + menus (9H)
 `game/ui/shell.py` wraps a run — ports the prototype's `GameState` shell
 (`src/core/game.py` dispatch):

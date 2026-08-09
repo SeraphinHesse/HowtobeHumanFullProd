@@ -188,6 +188,12 @@ class TestPhaseMachine(unittest.TestCase):
         session, scene, tm, _ = self._session(["bb"])
         self.assertEqual(session.state.phase, GamePhase.BUILDING)
         session.end_turn()
+        # A designer-authored enemy-intro entry may queue on round 1
+        # (feature-enemy-intro-dialogue) — drain it exactly like the host
+        # does once a window's close animation finishes, before the round's
+        # own ENEMY phase begins.
+        while session.state.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(session.state.phase, GamePhase.ENEMY)
         # Empty wave -> clears on the first post_sim.
         frame(session, scene, tm, 0.1)
@@ -213,6 +219,8 @@ class TestPhaseMachine(unittest.TestCase):
             session.end_turn()
             for _ in range(80):  # >> round_end_delay + income_phase_duration
                 frame(session, scene, tm, 0.1)
+                if session.state.phase == GamePhase.ENEMY_INTRO:
+                    session.resolve_enemy_intro()
                 if (session.state.phase == GamePhase.BUILDING
                         and session.state.round_num == expected_round):
                     break

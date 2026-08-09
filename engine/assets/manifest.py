@@ -247,10 +247,18 @@ class Manifest:
         track = entry.animations.get(name)
         return track.total_ms if track is not None else None
 
-    def current_frame(self, slot_key, animation, time_ms, phase_ms=0):
+    def current_frame(self, slot_key, animation, time_ms, phase_ms=0,
+                       extra_hidden=None):
         """(sheet_row, sheet_col) for a slot/animation at a time — pure
         function of time (E-36). Missing animation falls back to idle;
-        missing slot (or no usable idle) returns PLACEHOLDER."""
+        missing slot (or no usable idle) returns PLACEHOLDER.
+
+        `extra_hidden` (optional, a caller-supplied set/iterable of frame
+        COLUMN indices) filters the track's own already-baked timeline
+        further — a per-CALLER narrowing, never a widening: a column the
+        manifest row already hid stays hidden regardless. If filtering would
+        drop every frame, the unfiltered timeline is used instead (never
+        draws nothing)."""
         entry = self._entries.get(slot_key)
         if entry is None:
             return PLACEHOLDER
@@ -259,15 +267,23 @@ class Manifest:
             track = entry.animations.get(IDLE)
         if track is None:
             return PLACEHOLDER
-        if len(track.timeline) == 1:
-            return (track.row, track.timeline[0][0])
-        elapsed = (int(time_ms) + int(phase_ms)) % track.total_ms
+        timeline, total_ms = track.timeline, track.total_ms
+        if extra_hidden:
+            hidden = set(extra_hidden)
+            filtered = tuple((col, dur) for col, dur in timeline
+                             if col not in hidden)
+            if filtered:
+                timeline = filtered
+                total_ms = sum(dur for _col, dur in filtered)
+        if len(timeline) == 1:
+            return (track.row, timeline[0][0])
+        elapsed = (int(time_ms) + int(phase_ms)) % total_ms
         acc = 0
-        for col, dur in track.timeline:
+        for col, dur in timeline:
             acc += dur
             if elapsed < acc:
                 return (track.row, col)
-        return (track.row, track.timeline[-1][0])
+        return (track.row, timeline[-1][0])
 
 
 def load_manifest(path):

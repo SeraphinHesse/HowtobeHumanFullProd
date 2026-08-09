@@ -225,8 +225,9 @@ def _expand_territory(world):
 
 
 def _resolve_modal(session, scene):
-    """Answer the two phases that freeze the world waiting on a click. Returns
-    True when one was answered (the caller re-reads the phase and loops)."""
+    """Answer the phases that freeze the world waiting on a click/window.
+    Returns True when one was answered (the caller re-reads the phase and
+    loops)."""
     st = session.state
     if st.phase == GamePhase.LEVELUP:
         options = st.levelup_options
@@ -236,6 +237,13 @@ def _resolve_modal(session, scene):
         return True
     if st.phase == GamePhase.BOSS_CUTSCENE:
         session.resolve_boss_cutscene("A", scene)
+        return True
+    if st.phase == GamePhase.ENEMY_INTRO:
+        # feature-enemy-intro-dialogue: a designer-authored enemy-intro entry
+        # queued on this round — a headless run has no window to show it, so
+        # drain the queue immediately (the same "resolve, don't wait" answer
+        # this function already gives LEVELUP/BOSS_CUTSCENE).
+        session.resolve_enemy_intro()
         return True
     return False
 

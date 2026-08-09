@@ -15,13 +15,30 @@ CLOSED. ``open(entry)`` restarts the clock into OPENING for a new entry;
 timer's own expiry both funnel through, so a timed and a manual close look
 identical. ``entry`` is one raw ``core.json`` ``EnemyIntro.entries[i]`` dict
 (``enemy_label``/``round``/``title``/``body``/``sprite_slot``/``sprite_w``/
-``sprite_h``) — read-only, never mutated. ``window_balance`` is
-``core.json``'s ``EnemyIntro.window`` dict, read fresh every layout/submit
+``sprite_h``, plus the sprite's view controls — ``animation``/``anim_speed``/
+``hidden_frames``/``crop_x``/``crop_y``/``crop_w``/``crop_h``/
+``sprite_offset_x``/``sprite_offset_y``/``sprite_flip_h``/
+``background_tint``, see below) — read-only, never mutated. ``window_balance``
+is ``core.json``'s ``EnemyIntro.window`` dict, read fresh every layout/submit
 call rather than snapshotted, so every knob stays live-tunable.
+
+The sprite plays as a looping spritesheet animation for the whole time the
+window is visible (open+hold+close), driven by its own ``self._clock`` (a
+plain float-seconds accumulator, the ``boss_cutscene.py`` pattern — an
+independent clock from the world/tilemap's ``SpriteAnimator``), scaled by the
+entry's ``anim_speed`` and converted via ``widgets.anim_ms``. ``sprite_slot``
+may reference ANY slot in ``data/slots.json`` (not only ``enemies`` art —
+regenerate the schema's enum with ``tools/gen_sprite_slot_enum.py`` after
+adding a slot); ``animation`` names one of that slot's manifest rows, falling
+back to idle at runtime if absent. ``crop_w``/``crop_h`` of ``0`` means no
+crop (draw the whole frame); ``hidden_frames`` narrows playback further than
+whatever the manifest row's own ``hidden`` list already drops, never widens it
+back. ``background_tint``'s alpha channel composes with the window's own
+fade.
 """
 from types import SimpleNamespace
 
-from engine.render import HudSprite
+from engine.render import HudRect, HudSprite
 from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning, is_visible
@@ -50,6 +67,9 @@ class EnemyIntroWindow:
         self.entry = None
         self._phase = _CLOSED
         self._t = 0.0  # seconds elapsed in the current phase
+        self._clock = 0.0  # seconds elapsed since open() — the sprite's own
+        # animation clock, running continuously across open+hold+close
+        # (feature-enemy-intro-dialogue), the boss_cutscene.py precedent.
         self._close_btn = Button((0, 0, _CLOSE_BTN_W, _CLOSE_BTN_H), "X", "md")
         self._panel = SimpleNamespace(rect=(view_w, 0, 0, 0), skin=None)
         self.ids = {}
@@ -65,6 +85,7 @@ class EnemyIntroWindow:
         the previous one finishes closing)."""
         self.entry = entry
         self._phase, self._t = _OPENING, 0.0
+        self._clock = 0.0
         self.layout(self.view_w, self.view_h)
 
     def request_close(self):
@@ -118,6 +139,7 @@ class EnemyIntroWindow:
         if self._phase == _CLOSED:
             return
         self._t += dt
+        self._clock += dt
         if (self._phase == _OPENING
                 and self._t >= self.window_balance["open_seconds"]):
             self._phase, self._t = _HOLD, 0.0
@@ -157,10 +179,26 @@ class EnemyIntroWindow:
                                    text_color=(*widgets.C_UI_TEXT, alpha))
         cx = x + w // 2
         cursor = y + _CLOSE_BTN_MARGIN + _CLOSE_BTN_H + 12
-        sw, sh = self.entry["sprite_w"], self.entry["sprite_h"]
+        entry = self.entry
+        sw, sh = entry["sprite_w"], entry["sprite_h"]
+        sprite_x = cx - sw // 2 + entry["sprite_offset_x"]
+        sprite_y = cursor + entry["sprite_offset_y"]
+
+        bg_r, bg_g, bg_b, bg_a = entry["background_tint"]
+        if bg_a > 0:
+            renderer.submit_hud(HudRect(
+                (sprite_x, sprite_y, sw, sh),
+                (bg_r, bg_g, bg_b, round(bg_a * alpha / 255))))
+
+        crop_w, crop_h = entry["crop_w"], entry["crop_h"]
+        crop = (entry["crop_x"], entry["crop_y"], crop_w, crop_h) \
+            if (crop_w or crop_h) else None
+        anim_time_ms = widgets.anim_ms(self._clock * entry["anim_speed"])
         renderer.submit_hud(HudSprite(
-            self.entry["sprite_slot"], (cx - sw // 2, cursor), (sw, sh),
-            tint=(255, 255, 255, alpha)))
+            entry["sprite_slot"], (sprite_x, sprite_y), (sw, sh),
+            tint=(255, 255, 255, alpha), flip=entry["sprite_flip_h"],
+            animation=entry["animation"], anim_time_ms=anim_time_ms,
+            crop=crop, hidden_frames=tuple(entry["hidden_frames"])))
         cursor += sh + 12
         submit_centered(renderer, self.entry["title"], cx, cursor, "lg",
                         (*widgets.C_GOLD, alpha))

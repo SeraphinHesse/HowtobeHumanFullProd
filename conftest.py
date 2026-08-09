@@ -131,6 +131,7 @@ TIERS = {
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",
+    "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
     "test_shell": "core",
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",

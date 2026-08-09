@@ -186,7 +186,8 @@ class Renderer:
         for hud in self._hud:
             if isinstance(hud, HudSprite):
                 frame = self._assets.frame(
-                    hud.slot_key, hud.animation, hud.anim_time_ms)
+                    hud.slot_key, hud.animation, hud.anim_time_ms,
+                    extra_hidden=hud.hidden_frames or None)
                 draw_calls.append(DrawCall(
                     surface=frame.surface,
                     dest=hud.dest,
@@ -194,6 +195,7 @@ class Renderer:
                     tint=hud.tint,
                     flip=hud.flip,
                     slice=frame.slice,
+                    crop_rect=hud.crop,
                 ))
             else:
                 draw_calls.append(hud)

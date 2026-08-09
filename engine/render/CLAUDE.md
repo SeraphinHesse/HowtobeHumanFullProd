@@ -174,6 +174,28 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   Revisit by eye if real UI art turns out to be high-res: only the 4 edges + the
   centre are ever resampled, so it is a one-line swap. Tests: `test_nine_slice.py`.
 
+## Crop (`DrawCall.crop_rect`), HUD only (feature-enemy-intro-dialogue)
+A `HudSprite` may carry `crop = (x, y, w, h)` (frame-px, resolved by
+`renderer.py` onto `DrawCall.crop_rect`) — a source SUB-RECT drawn instead of
+the whole resolved frame, stretched to `size` exactly like the whole-frame
+case. `None` (default) is a no-op; the grey-X placeholder never carries one.
+- **`backend.py`'s `_cropped(surface, rect)`** clamps the rect into the
+  surface's own bounds (never raises — E-37, the `_nine_patch`/`_clamp_pair`
+  tolerance style) and memoizes the resulting subsurface in the SAME weak
+  `_scale_cache`, under a `("crop", (x, y, w, h))` key — distinct from
+  `_nine_patch`'s `("9p", size, margins)` key, so the two kinds can't collide.
+  `draw()` resolves the crop FIRST, then feeds the cropped surface into the
+  existing `_scaled`/`_nine_patch` step in its place — the cropped surface is
+  itself a valid, stable cache key, so "crop, then stretch to dest size"
+  needs no new scaling code.
+- **Incoherent combined with `slice` on the same entry, by design, not
+  guarded**: nine-slice margins are authored against the FULL frame, not a
+  crop sub-rect. No shipped manifest entry combines the two; a future one
+  that does gets an unspecified (not a crash) composite.
+- World sprites (`RenderItem`/`SpriteAnimator`) do not carry a crop — HUD
+  only, same scope as `slice`/`tint`. `game/ui/enemy_intro.py`'s enlarged
+  enemy-art dialogue is the first (and so far only) consumer.
+
 ## HUD pass + fonts (Phase 9B)
 - **`render/hud.py`** (E-12) — four frozen, pure, screen-space dataclasses:
   `HudRect`, `HudText`, `HudSprite`, `HudLines`. The host calls
@@ -189,6 +211,14 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   keyword). Same slot/animation/time contract as `RenderItem`: a missing animation
   row falls back to idle, a single-frame track is time-invariant, and the defaults
   make the resolved `DrawCall` byte-identical to the pre-A1 one.
+- **`HudSprite.hidden_frames` (feature-enemy-intro-dialogue)** — an optional
+  tuple of frame-COLUMN indices, appended after `crop` (see above), threaded
+  by `renderer.py` into `assets.frame(..., extra_hidden=hud.hidden_frames or
+  None)`. `Manifest.current_frame`'s `extra_hidden` (`engine/assets/
+  CLAUDE.md`) UNIONS it with whatever the manifest row's own `hidden` list
+  already drops for that animation — a per-caller narrowing, never a
+  widening. Deliberately HUD-only: `RenderItem`/`SpriteAnimator` gained no
+  matching field, since no world-sprite consumer needs one yet.
 - **`render/backend.py` HUD pass** — dispatch is `isinstance`: `HudRect`
   (`pygame.draw.rect` with `border_radius`/`width`), `HudLines`
   (`pygame.draw.lines`), `HudText` (rendered via the fonts cache, blitted at

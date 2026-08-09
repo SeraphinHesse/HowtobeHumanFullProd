@@ -911,6 +911,85 @@ class TestBalancingPanel(TempDataCase):
         self.assertIn("path_weights", titles)
 
 
+class TestScalarArrayRowButtons(TempDataCase):
+    """feature-enemy-intro-dialogue: ER-5's + / - Row gate generalized to
+    arrays of SCALARS. ``EnemyIntro.entries[i].hidden_frames`` (minItems 0, no
+    maxItems) is the first such array, and every seeded entry ships it EMPTY —
+    the case the object-array version of this gate never had to handle."""
+
+    def make_panel(self, domain):
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
+        panel.set_domain(domain)
+        return panel
+
+    def _row_buttons(self, panel, prefix, key):
+        return [
+            b for b in panel.findChildren(QPushButton)
+            if b.objectName() == f"{prefix}{key}"
+        ]
+
+    def test_empty_scalar_array_offers_add_but_not_remove(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        self.assertEqual(panel._value_at(key), [])
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
+
+    def test_add_on_empty_array_synthesizes_a_schema_valid_default(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [0])   # item schema minimum: 0
+        self.assertTrue(panel._save_btn.isEnabled())
+        self.assertIn(key, panel._dirty)
+
+    def test_add_then_save_round_trips_through_schema_validation(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(3)
+        panel.save_changes("Test session")
+        on_disk = read_domain(self.data_dir, "core")
+        self.assertEqual(
+            on_disk["EnemyIntro"]["entries"][0]["hidden_frames"], [3])
+
+    def test_after_one_add_both_buttons_render(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 1)
+
+    def test_add_then_remove_on_an_empty_array_is_clean_again(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._remove_array_row(key)
+        self.assertEqual(panel._value_at(key), [])
+        self.assertNotIn(key, panel._dirty)
+        self.assertFalse(panel._save_btn.isEnabled())
+
+    def test_add_copies_the_last_row_once_non_empty(self):
+        """Once an array of scalars is non-empty, Add still COPIES the last
+        row (the ER-5 object-array rule) rather than resynthesizing a
+        default — only a genuinely EMPTY scalar array needs the schema-derived
+        default path at all."""
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(5)
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [5, 5])
+
+    def test_fixed_length_scalar_array_still_offers_no_buttons(self):
+        """Camera.zoom_levels (minItems == maxItems == 3) is the pre-existing
+        fixed-length scalar array this change must leave untouched."""
+        panel = self.make_panel("core")
+        key = "Camera/zoom_levels"
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 0)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
+
+
 class TestBalancingHistory(TempDataCase):
     """Pure I/O (editor.balancing_history) + panel wiring (Save/Load/Delete)."""
 

@@ -33,6 +33,10 @@ _MOCK_ENTRY = {
     "enemy_label": "Test Enemy", "round": 1, "title": "Test title",
     "body": "Test body.", "sprite_slot": "enemy_stage_1_v1",
     "sprite_w": 96, "sprite_h": 96,
+    "animation": "idle", "anim_speed": 1.0, "hidden_frames": [],
+    "crop_x": 0, "crop_y": 0, "crop_w": 0, "crop_h": 0,
+    "sprite_offset_x": 0, "sprite_offset_y": 0, "sprite_flip_h": False,
+    "background_tint": [0, 0, 0, 0],
 }
 
 
@@ -154,6 +158,118 @@ class TestNonMatchingRound(unittest.TestCase):
         session.end_turn()
         self.assertEqual(session.state.phase, GamePhase.ENEMY)
         self.assertEqual(session.state.pending_enemy_intros, [])
+
+
+class _RecordingRenderer:
+    def __init__(self):
+        self.hud = []
+
+    def submit_hud(self, item):
+        self.hud.append(item)
+
+
+class TestWindowSpriteFields(unittest.TestCase):
+    """feature-enemy-intro-dialogue's sprite/animation controls: every new
+    entry field's effect on the emitted HudSprite/HudRect."""
+
+    WINDOW_BALANCE = {"width": 320, "height": 420, "open_seconds": 0.3,
+                      "hold_seconds": 3.0, "close_seconds": 0.3}
+
+    def window(self):
+        from game.ui.enemy_intro import EnemyIntroWindow
+        return EnemyIntroWindow(1280, 720, self.WINDOW_BALANCE)
+
+    def submitted_sprite(self, entry, elapsed=0.5):
+        from engine.render import HudSprite
+
+        w = self.window()
+        w.open({**_MOCK_ENTRY, **entry})
+        w.update(elapsed, 0, 0, False)
+        r = _RecordingRenderer()
+        w.submit(r, 1280, 720)
+        return next(i for i in r.hud if isinstance(i, HudSprite))
+
+    def submitted_rects(self, entry, elapsed=0.5):
+        from engine.render import HudRect
+
+        w = self.window()
+        w.open({**_MOCK_ENTRY, **entry})
+        w.update(elapsed, 0, 0, False)
+        r = _RecordingRenderer()
+        w.submit(r, 1280, 720)
+        return [i for i in r.hud if isinstance(i, HudRect)]
+
+    def test_default_entry_carries_no_crop_or_hidden_frames(self):
+        sprite = self.submitted_sprite({})
+        self.assertIsNone(sprite.crop)
+        self.assertEqual(sprite.hidden_frames, ())
+
+    def test_crop_composes_into_a_four_tuple(self):
+        sprite = self.submitted_sprite(
+            {"crop_x": 4, "crop_y": 8, "crop_w": 16, "crop_h": 24})
+        self.assertEqual(sprite.crop, (4, 8, 16, 24))
+
+    def test_zero_crop_w_and_h_means_no_crop(self):
+        sprite = self.submitted_sprite(
+            {"crop_x": 4, "crop_y": 8, "crop_w": 0, "crop_h": 0})
+        self.assertIsNone(sprite.crop)
+
+    def test_hidden_frames_pass_through_as_a_tuple(self):
+        sprite = self.submitted_sprite({"hidden_frames": [1, 3]})
+        self.assertEqual(sprite.hidden_frames, (1, 3))
+
+    def test_sprite_flip_h_wires_to_hud_sprite_flip(self):
+        self.assertFalse(self.submitted_sprite({"sprite_flip_h": False}).flip)
+        self.assertTrue(self.submitted_sprite({"sprite_flip_h": True}).flip)
+
+    def test_animation_field_wires_to_hud_sprite_animation(self):
+        sprite = self.submitted_sprite({"animation": "walk"})
+        self.assertEqual(sprite.animation, "walk")
+
+    def test_sprite_offset_nudges_the_dest_box(self):
+        base = self.submitted_sprite({})
+        offset = self.submitted_sprite(
+            {"sprite_offset_x": 5, "sprite_offset_y": -3})
+        self.assertEqual(offset.dest, (base.dest[0] + 5, base.dest[1] - 3))
+
+    def test_anim_speed_scales_the_window_clock(self):
+        normal = self.submitted_sprite({"anim_speed": 1.0}, elapsed=1.0)
+        doubled = self.submitted_sprite({"anim_speed": 2.0}, elapsed=1.0)
+        # anim_speed only scales the clock fed into widgets.anim_ms — a
+        # bigger multiplier must never produce a SMALLER resolved time.
+        self.assertGreaterEqual(doubled.anim_time_ms, normal.anim_time_ms)
+
+    def test_zero_alpha_background_tint_emits_no_rect(self):
+        rects = self.submitted_rects({"background_tint": [10, 20, 30, 0]})
+        self.assertFalse(any(r.color[:3] == (10, 20, 30) for r in rects))
+
+    def test_nonzero_alpha_background_tint_emits_a_rect_behind_the_sprite(self):
+        sprite = self.submitted_sprite({"background_tint": [10, 20, 30, 200]})
+        rects = self.submitted_rects({"background_tint": [10, 20, 30, 200]})
+        tint_rects = [r for r in rects if r.color[:3] == (10, 20, 30)]
+        self.assertEqual(len(tint_rects), 1)
+        rect = tint_rects[0]
+        self.assertEqual(rect.rect, (*sprite.dest, *sprite.size))
+
+    def test_background_tint_alpha_composes_with_window_fade(self):
+        # Mid-open (not yet HOLD), the window's own alpha is < 255 — the
+        # rect's alpha must be scaled down from the entry's authored value,
+        # not the raw 200.
+        w = self.window()
+        w.open({**_MOCK_ENTRY, "background_tint": [1, 2, 3, 200]})
+        w.update(0.05, 0, 0, False)   # still OPENING (open_seconds=0.3)
+        r = _RecordingRenderer()
+        w.submit(r, 1280, 720)
+        from engine.render import HudRect
+        rect = next(i for i in r.hud
+                    if isinstance(i, HudRect) and i.color[:3] == (1, 2, 3))
+        self.assertLess(rect.color[3], 200)
+
+    def test_widened_sprite_slot_from_a_non_enemy_category_still_submits(self):
+        # ui_button lives under the "ui" category, not "enemies" -- the
+        # user-confirmed "any category" requirement.
+        sprite = self.submitted_sprite({"sprite_slot": "ui_button"})
+        self.assertEqual(sprite.slot_key, "ui_button")
 
 
 if __name__ == "__main__":
