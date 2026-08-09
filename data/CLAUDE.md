@@ -48,8 +48,21 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
-  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression}.json`, each with `schemas/<domain>.schema.json`.
+  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+  feature's authored building-unlock schedule — `Timeline.levels[]`, one
+  sparse entry per player `village_level` that has offer slots authored,
+  each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,
+  `tier_index`) or `null` for an empty, still-persisted slot. It is registered
+  in `game/core/balance.py::DOMAINS` for runtime loading; it is deliberately
+  **not** a `data/slots.json` category (that registry is unrelated
+  sprite-slot vocabulary — see the Asset data section below), so it does not
+  auto-render as a generic recursive form in the editor's balancing panel —
+  it gets its own bespoke drag-and-drop panel instead (later Timeline
+  phases). T2 shipped only the schema + an empty seed
+  (`{"Timeline": {"levels": []}}`); nothing reads or writes it yet. **`vfx`
+  was the previous newest (ESV-3a)**:
   it promoted `vfx` from an asset-only `slots.json` category to a full
   balancing domain (`editor/domains.py::domains()` derives the domain list,
   so this needed zero editor edits — see `/add-category`). Its `procedural`

@@ -1,10 +1,3 @@
-<!-- active-plan: TimelinePLAN.md | set: 2026-08-09 -->
-> **Active plan:** TimelinePLAN.md (mirror). Source of truth:
-> `planning/TimelinePLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 <!-- status: IN PROGRESS — phase T1 next -->
 
 # TimelinePLAN.md — authored building unlock scheduling
