@@ -29,7 +29,10 @@
         "building_type",
         "tier_index"
       ],
-      "type": "object"
+      "type": [
+        "object",
+        "null"
+      ]
     },
     "level": {
       "additionalProperties": false,
@@ -60,14 +63,7 @@
       "description": "One drag-and-drop target square on the Timeline. Wraps a nullable assignment object (rather than making the array item itself nullable) so a future per-slot metadata field has somewhere to land without reshaping the array.",
       "properties": {
         "assignment": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/assignment"
-            },
-            {
-              "type": "null"
-            }
-          ],
+          "$ref": "#/$defs/assignment",
           "description": "The building/tier card placed in this slot, or null for an empty slot."
         }
       },

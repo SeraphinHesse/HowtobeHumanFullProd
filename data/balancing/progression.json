@@ -1,5 +1,293 @@
 {
   "Timeline": {
-    "levels": []
+    "levels": [
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "aoe_defence",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "defence",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "storm_priest",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "economic",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "painter",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "blocker",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          }
+        ],
+        "village_level": 1
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "boost_damage",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_hp",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_speed",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "defence",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "sun_scorcher",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "meditator",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "economic",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "wall_builder",
+              "kind": "unlock",
+              "tier_index": 0
+            }
+          }
+        ],
+        "village_level": 2
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "storm_priest",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          }
+        ],
+        "village_level": 5
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "boost_damage",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_hp",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_speed",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "aoe_defence",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "meditator",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "painter",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "blocker",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "wall_builder",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          }
+        ],
+        "village_level": 7
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "storm_priest",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          }
+        ],
+        "village_level": 9
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "boost_damage",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_hp",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "boost_speed",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "aoe_defence",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "defence",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "sun_scorcher",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "meditator",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "economic",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "painter",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "blocker",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          },
+          {
+            "assignment": {
+              "building_type": "wall_builder",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          }
+        ],
+        "village_level": 12
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
+              "building_type": "sun_scorcher",
+              "kind": "tier",
+              "tier_index": 2
+            }
+          }
+        ],
+        "village_level": 17
+      }
+    ]
   }
 }

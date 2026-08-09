@@ -151,6 +151,7 @@ TIERS = {
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration
     "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
     "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
