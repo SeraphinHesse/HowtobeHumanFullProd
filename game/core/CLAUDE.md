@@ -347,6 +347,48 @@ in `game/ui/CLAUDE.md`.
     just the death-burst instance. It was a real bug for the 10G boss from the
     start and would have been a common one for ER-4's Formations.
 
+## Enemy intro dialogue (feature-enemy-intro-dialogue)
+A new `GamePhase.ENEMY_INTRO`, appended LAST in `phases.py` (no existing
+ordinal moved), holds the round at BUILDING-equivalent stillness for a
+designer-authored "story beat" window BEFORE the wave actually spawns —
+unlike LEVELUP/BOSS_CUTSCENE, which both sit AFTER ROUND_END.
+- **Data**: `data/balancing/core.json`'s `EnemyIntro` block —
+  `window` (global defaults: `width`/`height`/`open_seconds`/`hold_seconds`/
+  `close_seconds`, shared by every entry) and `entries` (a
+  designer-authored list, each `{enemy_label, round, title, body,
+  sprite_slot, sprite_w, sprite_h}` — `round` is fully independent of that
+  enemy's own `start_round` in `enemies.json`, `sprite_slot` an enum of the
+  `enemies`-category slot keys in `data/slots.json`). Ships with
+  `entries: []` — nothing pops up until the user authors rows through the
+  editor's generic balancing panel (array-of-object blocks render/edit for
+  free, the `eras[]`/`death_spawn.spawns[]` precedent — zero editor code
+  needed).
+- **`Session.end_turn()`** queues any entries whose `round == round_num`
+  into `RunState.pending_enemy_intros` (a transient list, never serialized —
+  the `pending_boss_cutscene` precedent) and enters `ENEMY_INTRO` instead of
+  `ENEMY` when the list is non-empty; `spawner.begin_round(...)` still runs
+  unconditionally at its existing call site since `pre_sim` never drains the
+  wave queue outside `GamePhase.ENEMY` — nothing spawns while frozen. No
+  match (true on a fresh `entries: []`) is byte-identical to before this
+  feature.
+- **`Session.frozen`** covers `ENEMY_INTRO` alongside LEVELUP/BOSS_CUTSCENE —
+  `pre_sim` skips the whole sim (no combat, no movement, no spawns) for as
+  long as any queued dialogue is showing.
+- **`Session.resolve_enemy_intro()`** pops the entry the host just finished
+  showing (close animation ended, whether via the hold timer or a manual
+  close); the host re-opens the new `pending_enemy_intros[0]` while the list
+  stays non-empty (each queued entry gets its own full open→hold→close
+  cycle), and the phase returns to `ENEMY` — the round actually starts — the
+  moment the queue drains.
+- **UI**: `game/ui/enemy_intro.py` (`EnemyIntroWindow`) is the right-docked,
+  vertically-centered panel (the `BuildingUI` panel-geometry precedent, not
+  Levelup/Boss's centered full-dim modal — no backdrop) with a slide-from-
+  the-right + RGBA-fade open/close animation (`open_seconds`/`close_seconds`)
+  and a `hold_seconds` auto-close, closable early via its own close-X button,
+  Esc, or a right-click anywhere — the one place besides the cheat menu that
+  carves an exception into `main.py`'s frozen-swallows-everything convention.
+  Detail → `game/ui/CLAUDE.md`.
+
 ## Lightning strike + cheat menu (Phase 10H; Storm Priest rework; feature-storm-acolyte-multi-build)
 `game/core/lightning.py` (pure; imports `engine.core` only) owns the ability:
 - **State on `RunState`**: `lightning_level` (**seeded 0** — every run boots

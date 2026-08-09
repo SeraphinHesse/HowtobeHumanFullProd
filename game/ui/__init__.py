@@ -16,6 +16,7 @@ from .building_ui import BuildingUI, ConstructPreview
 from .cheat_menu import CheatMenu  # 10H
 from .credits import CreditsScreen
 from .effects import FloaterManager
+from .enemy_intro import EnemyIntroWindow  # feature-enemy-intro-dialogue
 from .game_log import GameLog  # 10J
 from .game_over import GameOverScreen
 from .hud import Hud
@@ -33,6 +34,7 @@ __all__ = [
     "BuildingUI",
     "CheatMenu",
     "ConstructPreview",
+    "EnemyIntroWindow",
     "FloaterManager",
     "GameLog",
     "GameOverScreen",

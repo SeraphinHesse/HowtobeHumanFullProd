@@ -93,8 +93,8 @@ from game.map.tiles import TileState  # 10J: multi-select category
 from game.map.wall_render import WALL_CATEGORY
 from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
-    BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
-    GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
+    BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
+    GameLog, GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
     TutorialMessageScreen,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
@@ -475,6 +475,10 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
                                           core_balance,
                                           skinning=shell.skinning)
+        # feature-enemy-intro-dialogue
+        gp["enemy_intro"] = EnemyIntroWindow(
+            view_w, view_h, core_balance["EnemyIntro"]["window"],
+            skinning=shell.skinning)
         gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
@@ -519,8 +523,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
-                  "boss_cutscene", "cheat", "overlays", "game_log", "cutscene",
-                  "tutorial", "tutorial_message"):
+                  "boss_cutscene", "enemy_intro", "cheat", "overlays",
+                  "game_log", "cutscene", "tutorial", "tutorial_message"):
             gp[k] = None
         gp["sel"], gp["sel_cat"] = [], None  # 10J
         gp["drag_select_enabled"] = False    # drag-select
@@ -701,6 +705,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 session.resolve_boss_cutscene(choice, world.scene)
             return
         # -- /10G --
+        # -- feature-enemy-intro-dialogue: a close-X hit closes early (its own
+        # slide+fade-out, the SAME path the hold timer uses); any other click
+        # is swallowed — the Levelup/Boss "modal swallows clicks" convention,
+        # just with one working close affordance. --
+        if session.state.phase == GamePhase.ENEMY_INTRO:
+            if gp["enemy_intro"].hit(mx, my):
+                gp["enemy_intro"].request_close()
+            return
+        # -- /feature-enemy-intro-dialogue --
         if session.frozen:                                 # LEVELUP: fully modal
             option = gp["levelup"].hit(mx, my)
             if option is not None:
@@ -830,6 +843,13 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
         if gp["cheat"].visible:
             gp["cheat"].close()
             return
+        # -- feature-enemy-intro-dialogue: right-click-anywhere is a manual
+        # close (unlike LEVELUP/BOSS_CUTSCENE below, which are choice-only
+        # and treat it as a no-op) --
+        if session.state.phase == GamePhase.ENEMY_INTRO:
+            gp["enemy_intro"].request_close()
+            return
+        # -- /feature-enemy-intro-dialogue --
         if session.frozen or session.state.phase == GamePhase.BOSS_CUTSCENE:
             return  # LEVELUP / boss cutscene: a choice, not a dismiss
         # -- drag-select: single-tile deselect. Gated on `panel.preview is
@@ -1012,6 +1032,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                             event.unicode, _key_name(event.key)))
                         continue
                 # -- /10H --
+                # -- feature-enemy-intro-dialogue: Esc closes early — BEFORE
+                # the frozen guard (the cheat-menu carve-out above), since
+                # unlike LEVELUP/BOSS_CUTSCENE this modal DOES have a
+                # dismiss. --
+                if (session.state.state == GameState.GAMEPLAY
+                        and session.state.phase == GamePhase.ENEMY_INTRO
+                        and event.key == pygame.K_ESCAPE):
+                    gp["enemy_intro"].request_close()
+                    continue
+                # -- /feature-enemy-intro-dialogue --
                 if session.state.state != GameState.GAMEPLAY or session.frozen:
                     continue  # the LEVELUP window owns all input
                 if panel.preview is not None:
@@ -1299,6 +1329,15 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     gp["boss_cutscene"].open(pending.get("boss_num", 1),
                                              pending.get("outcome", "win"))
                 # -- /10G --
+                # -- feature-enemy-intro-dialogue: open the first queued entry
+                # on ITS phase edge (same pattern). Subsequent queued entries
+                # are opened later, in the update block below, once the
+                # previous one finishes closing. --
+                if (session.state.phase == GamePhase.ENEMY_INTRO
+                        and gp["prev_phase"] != GamePhase.ENEMY_INTRO):
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["enemy_intro"].open(session.state.pending_enemy_intros[0])
+                # -- /feature-enemy-intro-dialogue --
                 # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
                 # snapshots the round's counts on the ENEMY->anything edge) --
                 gp["overlays"].track(session.state.phase, gp["prev_phase"],
@@ -1363,6 +1402,19 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 if session.frozen:
                     gp["levelup"].update(dt, mx, my, mouse_down=held)
                     gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
+                    # feature-enemy-intro-dialogue: the window drives its own
+                    # open/hold/close clock; once its close animation ends
+                    # (timer or a manual close) pop the shown entry and open
+                    # the next queued one, or let resolve_enemy_intro() start
+                    # the round (it flips the phase to ENEMY once the queue
+                    # drains).
+                    gp["enemy_intro"].update(dt, mx, my, mouse_down=held)
+                    if (session.state.phase == GamePhase.ENEMY_INTRO
+                            and not gp["enemy_intro"].visible):
+                        session.resolve_enemy_intro()
+                        if session.state.phase == GamePhase.ENEMY_INTRO:
+                            gp["enemy_intro"].open(
+                                session.state.pending_enemy_intros[0])
                 if session.state.state == GameState.GAME_OVER:
                     gp["game_over"].update(dt, mx, my, mouse_down=held)
         else:  # menu states + PAUSED
@@ -1566,6 +1618,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             if session.state.phase == GamePhase.BOSS_CUTSCENE:
                 gp["boss_cutscene"].submit(renderer, view_w, view_h)
             # -- /10G --
+            if gp["enemy_intro"].visible:  # feature-enemy-intro-dialogue
+                gp["enemy_intro"].submit(renderer, view_w, view_h)
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].submit(renderer, session.state, view_w, view_h)
             if st == GameState.PAUSED:

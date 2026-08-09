@@ -1,4 +1,104 @@
 {
+  "$defs": {
+    "enemy_intro_entry": {
+      "additionalProperties": false,
+      "description": "One designer-authored enemy/boss introduction dialogue: which round it pops up on, what it says, and which existing enemy sprite slot it shows enlarged. Two entries may share the same round (they queue and show one after another).",
+      "properties": {
+        "body": {
+          "description": "The flavor/stat text shown below the title, word-wrapped in the panel. Free text, not auto-generated from live enemy stats.",
+          "maxLength": 2000,
+          "minLength": 0,
+          "type": "string"
+        },
+        "enemy_label": {
+          "description": "Designer-facing label for this entry (e.g. 'Raider' or 'Boss (Era 2)') — for your own bookkeeping in the editor only, never cross-checked against enemies.json's EnemyTypes keys.",
+          "maxLength": 80,
+          "minLength": 0,
+          "type": "string"
+        },
+        "round": {
+          "description": "The round number this dialogue pops up on, at the very start of the attacking (ENEMY) phase. Independent of the enemy's own start_round in enemies.json — set it to whatever round you want the story beat to land on.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "sprite_h": {
+          "description": "Height in pixels of the sprite box drawn inside the panel.",
+          "maximum": 2048,
+          "minimum": 8,
+          "type": "integer"
+        },
+        "sprite_slot": {
+          "description": "Which existing enemy sprite slot (data/slots.json, 'enemies' category) to draw enlarged in this panel. Adding a brand new enemy sprite slot later needs a matching addition to this enum.",
+          "enum": [
+            "boss_era_0",
+            "boss_era_1",
+            "boss_era_2",
+            "boss_era_3",
+            "boss_era_4",
+            "commander_stage_1",
+            "commander_stage_2",
+            "commander_stage_3",
+            "commander_stage_4",
+            "digger_stage_1",
+            "digger_stage_2",
+            "digger_stage_3",
+            "digger_stage_4",
+            "drummer_stage_1",
+            "drummer_stage_2",
+            "drummer_stage_3",
+            "drummer_stage_4",
+            "enemy_stage_1_v1",
+            "enemy_stage_1_v2",
+            "enemy_stage_2",
+            "enemy_stage_3",
+            "enemy_stage_4_v1",
+            "enemy_stage_4_v2",
+            "formation_stage_1",
+            "formation_stage_2",
+            "formation_stage_3",
+            "formation_stage_4",
+            "raider_stage_1",
+            "raider_stage_2",
+            "raider_stage_3",
+            "raider_stage_4",
+            "siege_cannon",
+            "siege_cannon_t2",
+            "siege_cannon_t3",
+            "siege_cannon_t4",
+            "sniper_stage_1",
+            "sniper_stage_2",
+            "sniper_stage_3",
+            "sniper_stage_4",
+            "sniper_stage_5"
+          ],
+          "type": "string"
+        },
+        "sprite_w": {
+          "description": "Width in pixels of the sprite box drawn inside the panel.",
+          "maximum": 2048,
+          "minimum": 8,
+          "type": "integer"
+        },
+        "title": {
+          "description": "The header line shown at the top of the panel body, above the sprite.",
+          "maxLength": 200,
+          "minLength": 0,
+          "type": "string"
+        }
+      },
+      "required": [
+        "body",
+        "enemy_label",
+        "round",
+        "sprite_h",
+        "sprite_slot",
+        "sprite_w",
+        "title"
+      ],
+      "type": "object"
+    }
+  },
   "$id": "core.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -154,6 +254,69 @@
         "default_output_jsonl",
         "default_output_md",
         "regular_mode_available"
+      ],
+      "type": "object"
+    },
+    "EnemyIntro": {
+      "additionalProperties": false,
+      "description": "Designer-authored enemy/boss introduction dialogue windows (feature-enemy-intro-dialogue). Pops up on the right side of the screen at the start of the attacking phase of a chosen round, freezing the world like Levelup/Boss-cutscene, showing an enlarged enemy sprite plus free text. Ships with an empty entries list — nothing shows until entries are authored.",
+      "properties": {
+        "entries": {
+          "description": "Every authored intro dialogue. Two entries sharing the same round both fire, one after another (queued).",
+          "items": {
+            "$ref": "#/$defs/enemy_intro_entry"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "window": {
+          "additionalProperties": false,
+          "description": "Global defaults shared by every entry — the window's own size and timing (per-entry only the sprite size is tunable, see enemy_intro_entry).",
+          "properties": {
+            "close_seconds": {
+              "description": "Duration of the slide+fade-out animation, whether triggered by the hold timer expiring or by a manual close (X / Esc / right-click).",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "height": {
+              "description": "Window height in pixels, vertically centered on screen.",
+              "maximum": 2048,
+              "minimum": 100,
+              "type": "integer"
+            },
+            "hold_seconds": {
+              "description": "How long the window stays fully open before auto-closing, once the open animation finishes.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "open_seconds": {
+              "description": "Duration of the slide+fade-in animation from the right edge of the screen.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "width": {
+              "description": "Window width in pixels, docked to the right edge of the screen when fully open.",
+              "maximum": 2048,
+              "minimum": 100,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "close_seconds",
+            "height",
+            "hold_seconds",
+            "open_seconds",
+            "width"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "entries",
+        "window"
       ],
       "type": "object"
     },
@@ -415,6 +578,7 @@
     "BossBonuses",
     "Camera",
     "Debug",
+    "EnemyIntro",
     "General",
     "LightningStrike",
     "PhaseLoop",

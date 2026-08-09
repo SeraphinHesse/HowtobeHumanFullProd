@@ -96,6 +96,7 @@ TIERS = {
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
+    "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
