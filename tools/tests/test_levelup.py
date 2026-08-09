@@ -570,9 +570,10 @@ class TestAdvanceBatchPlan(unittest.TestCase):
     def test_eligible_at_tier_max_needs_no_catchup(self):
         st, b = self.defender()
         b.upgrade(); b.upgrade()                       # level 3 of tier 1
-        st.round_num = 10
+        st.village_level = DEF_T2_LEVEL
         st.tiers_unlocked["defence"] = 2
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertTrue(eligible)
         self.assertEqual(levels_needed, 0)
         self.assertEqual(cost, DEF_T2["build_cost"])
@@ -581,9 +582,10 @@ class TestAdvanceBatchPlan(unittest.TestCase):
         """Not yet at the tier cap -- the batch action still counts it in,
         bundling the remaining in-tier level-up(s) into the total."""
         st, b = self.defender()                        # level 1 of tier 1
-        st.round_num = 10
+        st.village_level = DEF_T2_LEVEL
         st.tiers_unlocked["defence"] = 2
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertTrue(eligible)
         self.assertEqual(levels_needed, 2)              # level 1 -> 3
         self.assertEqual(cost,
@@ -594,18 +596,20 @@ class TestAdvanceBatchPlan(unittest.TestCase):
         amount of love reaches it via this action, so it's excluded."""
         st, b = self.defender()
         b.upgrade(); b.upgrade()
-        st.round_num = 10                               # offerable...
+        st.village_level = DEF_T2_LEVEL                 # offerable...
         # ...but st.tiers_unlocked["defence"] stays at its default (1)
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertFalse(eligible)
         self.assertEqual((cost, levels_needed), (0, 0))
 
-    def test_ineligible_when_next_tier_round_gated(self):
+    def test_ineligible_when_next_tier_level_gated(self):
         st, b = self.defender()
         b.upgrade(); b.upgrade()
         st.tiers_unlocked["defence"] = 2
-        # st.round_num stays at its default (1), below DEF_T2's unlock round
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        # st.village_level stays at its default (1), below DEF_T2_LEVEL
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertFalse(eligible)
         self.assertEqual((cost, levels_needed), (0, 0))
 
@@ -614,20 +618,22 @@ class TestAdvanceBatchPlan(unittest.TestCase):
         researched -- excluded either way; the plain in-tier UPGRADE batch
         is what the player wants here, not ADVANCE."""
         st, b = self.defender()                         # level 1 of tier 1
-        st.round_num = 10
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        st.village_level = DEF_T2_LEVEL
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertFalse(eligible)
         self.assertEqual((cost, levels_needed), (0, 0))
 
     def test_ineligible_at_max_tier(self):
         st, b = self.defender()
-        st.round_num = 30
+        st.village_level = lv.timeline_level_for("defence", 2, PROGRESSION)
         st.tiers_unlocked["defence"] = 3
         for _ in range(2):
             b.upgrade(); b.upgrade()
             self.assertTrue(b.advance_tier())
         b.upgrade(); b.upgrade()                        # top of tier 3
-        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        eligible, cost, levels_needed = lv.advance_batch_plan(
+            st, b, BUILD, PROGRESSION)
         self.assertFalse(eligible)
         self.assertEqual((cost, levels_needed), (0, 0))
 
