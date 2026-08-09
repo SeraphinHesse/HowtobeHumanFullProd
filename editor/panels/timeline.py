@@ -29,15 +29,23 @@ as a Save-time uniqueness error.
 Card icons come through the SAME injected icon-provider pattern
 ``editor/panels/palette.py`` uses (``viewport.slot_qimage`` — a real
 engine-resolved frame, ED-22-clean, never hand-drawn art).
+
+**Card labels (user-confirmed, post-live-test)**: a card/slot shows the
+building's REAL tier name (e.g. "Stone Thrower"), auto-derived from
+``buildings.json`` — never a manually-typed rename, and never the old bare
+"NEW"/"T2" kind badge (both replaced by ``_caption_html``'s "name + Tier N"
+two-line label, applied identically to browse cards and offer slots so the
+whole panel reads consistently).
 """
 from pathlib import Path
 
 from PySide6.QtCore import QMimeData, QPoint, Qt, Signal
-from PySide6.QtGui import QDrag, QPainter, QPen, QPixmap
+from PySide6.QtGui import QDrag, QFont, QPainter, QPalette, QPen, QPixmap
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSizePolicy,
@@ -53,7 +61,8 @@ from editor.panels.balancing import _NoWheelSpinBox
 REPO = Path(__file__).resolve().parents[2]
 
 _MIME_TYPE = "application/x-htbh-timeline-card"
-_CARD_SIZE = 48
+_CARD_ICON_SIZE = 56
+_CARD_WIDTH = 84
 _DEFAULT_VIEW_MAX_ROUND = 50
 
 
@@ -66,32 +75,67 @@ def _decode_card(data):
     return kind, building_type, int(tier_index)
 
 
+class _InfoButton(QToolButton):
+    """A small round "?" button that explains ONE feature on click — a
+    hover tooltip alone isn't discoverable/persistent enough for a first-time
+    user (user-confirmed, post-live-test: "Add level" needed exactly this).
+    Reusable for any other control this panel later turns out to need one
+    for; only "Add level" uses it today."""
+
+    def __init__(self, title, body, parent=None):
+        super().__init__(parent)
+        self.setText("?")
+        self.setFixedSize(20, 20)
+        self.setToolTip(title)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.clicked.connect(lambda: QMessageBox.information(self, title, body))
+
+
+def _caption_html(name, tier_index):
+    """The shared two-line card label: the building's real name (bold), the
+    tier number small and muted underneath. Identical on browse cards and
+    offer slots (user-confirmed) — no more bare "NEW"/"T2" badge text."""
+    return (f"<div align='center'><b>{name}</b><br>"
+            f"<span style='font-size:8pt;color:#888888'>"
+            f"Tier {tier_index + 1}</span></div>")
+
+
 class _CardIcon(QLabel):
-    """A single card's icon+label, shared shape between a browse-list card
-    and a filled offer slot. Not itself interactive — the owning widget
-    (`_BrowseCard` / `_SlotWidget`) handles clicks/drag/drop."""
+    """A single card's ICON ONLY — the shared shape between a browse-list
+    card and a filled offer slot. Carries no text (the name/tier caption is
+    a separate label below it, see ``_caption_html``); not itself
+    interactive — the owning widget (`_BrowseCard` / `_SlotWidget`) handles
+    clicks/drag/drop."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(_CARD_SIZE, _CARD_SIZE)
+        self.setFixedSize(_CARD_ICON_SIZE, _CARD_ICON_SIZE)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setFrameShape(QFrame.Shape.Box)
 
     def set_empty(self):
         self.setPixmap(QPixmap())
-        self.setText("")
         self.setStyleSheet(
             "border: 1px dashed gray; background: transparent;")
 
-    def set_image(self, image, badge_text=""):
+    def set_image(self, image):
         self.setStyleSheet("border: 1px solid gray;")
         if image is not None:
             self.setPixmap(
                 QPixmap.fromImage(image).scaled(
-                    _CARD_SIZE, _CARD_SIZE, Qt.AspectRatioMode.KeepAspectRatio))
+                    _CARD_ICON_SIZE, _CARD_ICON_SIZE,
+                    Qt.AspectRatioMode.KeepAspectRatio))
         else:
             self.setPixmap(QPixmap())
-        self.setText(badge_text)
+
+
+def _make_caption(parent):
+    caption = QLabel(parent)
+    caption.setTextFormat(Qt.TextFormat.RichText)
+    caption.setWordWrap(True)
+    caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+    caption.setFixedWidth(_CARD_WIDTH)
+    return caption
 
 
 class _BrowseCard(QWidget):
@@ -105,24 +149,22 @@ class _BrowseCard(QWidget):
         self.building_type = building_type
         self.tier_index = tier_index
         self.slot_key = slot_key
+        self.name = name
         self._drag_start = None
+        self.setFixedWidth(_CARD_WIDTH)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(2)
         self.icon = _CardIcon(self)
         self.icon.set_empty()
-        layout.addWidget(self.icon)
-        badge = "NEW" if self.kind == "unlock" else f"T{tier_index + 1}"
-        caption = QLabel(f"{badge} {name}", self)
-        caption.setWordWrap(True)
-        caption.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignHCenter)
+        caption = _make_caption(self)
+        caption.setText(_caption_html(name, tier_index))
         layout.addWidget(caption)
 
     def refresh_icon(self):
-        image = self._panel.icon_image(self.slot_key)
-        badge = "NEW" if self.kind == "unlock" else f"T{self.tier_index + 1}"
-        self.icon.set_image(image, badge)
+        self.icon.set_image(self._panel.icon_image(self.slot_key))
 
     def set_placed(self, placed):
         self.setEnabled(not placed)  # a disabled widget cannot start a drag
@@ -149,14 +191,15 @@ class _BrowseCard(QWidget):
         pixmap = self.icon.pixmap()
         if pixmap is not None and not pixmap.isNull():
             drag.setPixmap(pixmap)
-            drag.setHotSpot(QPoint(_CARD_SIZE // 2, _CARD_SIZE // 2))
+            drag.setHotSpot(QPoint(_CARD_ICON_SIZE // 2, _CARD_ICON_SIZE // 2))
         drag.exec(Qt.DropAction.CopyAction)
         self._drag_start = None
 
 
 class _SlotWidget(QWidget):
     """One offer-slot drop target on a level row: an empty dashed square, or
-    a filled card with a small clear ("x") button."""
+    a filled card (icon + name/tier caption, matching `_BrowseCard`'s look)
+    with a small clear ("x") button."""
 
     changed = Signal()
 
@@ -166,18 +209,21 @@ class _SlotWidget(QWidget):
         self.village_level = village_level
         self.slot_index = slot_index
         self.setAcceptDrops(True)
+        self.setFixedWidth(_CARD_WIDTH)
 
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
+        outer.setContentsMargins(2, 2, 2, 2)
+        outer.setSpacing(2)
         self.icon = _CardIcon(self)
-        outer.addWidget(self.icon)
+        outer.addWidget(self.icon, 0, Qt.AlignmentFlag.AlignHCenter)
+        self._caption = _make_caption(self)
+        outer.addWidget(self._caption)
         self._clear_btn = QToolButton(self)
-        self._clear_btn.setText("x")
+        self._clear_btn.setText("Clear")
         self._clear_btn.setToolTip("Clear this slot")
         self._clear_btn.clicked.connect(self._on_clear_clicked)
         self._clear_btn.setVisible(False)
-        outer.addWidget(self._clear_btn)
+        outer.addWidget(self._clear_btn, 0, Qt.AlignmentFlag.AlignHCenter)
 
         self.set_assignment(None)
 
@@ -185,6 +231,7 @@ class _SlotWidget(QWidget):
         self._assignment = assignment
         if assignment is None:
             self.icon.set_empty()
+            self._caption.setText("")
             self._clear_btn.setVisible(False)
             self.setToolTip("Drop a building or tier card here")
             return
@@ -192,12 +239,11 @@ class _SlotWidget(QWidget):
             assignment["building_type"], assignment["tier_index"])
         slot_key = catalog_entry["slot"] if catalog_entry else None
         name = catalog_entry["name"] if catalog_entry else assignment["building_type"]
-        badge = "NEW" if assignment["kind"] == "unlock" else \
-            f"T{assignment['tier_index'] + 1}"
-        image = self._panel.icon_image(slot_key) if slot_key else None
-        self.icon.set_image(image, badge)
+        self.icon.set_image(
+            self._panel.icon_image(slot_key) if slot_key else None)
+        self._caption.setText(_caption_html(name, assignment["tier_index"]))
         self._clear_btn.setVisible(True)
-        self.setToolTip(f"{badge} {name}")
+        self.setToolTip(f"{name} (Tier {assignment['tier_index'] + 1})")
 
     def _on_clear_clicked(self):
         self._panel.clear_slot(self.village_level, self.slot_index)
@@ -233,6 +279,10 @@ class _LevelRow(QWidget):
         outer = QVBoxLayout(self)
         header_row = QHBoxLayout()
         self._header = QLabel(self)
+        header_font = self._header.font()
+        header_font.setBold(True)
+        header_font.setPointSize(header_font.pointSize() + 1)
+        self._header.setFont(header_font)
         header_row.addWidget(self._header)
         header_row.addStretch(1)
         remove_level_btn = QPushButton("Remove Level", self)
@@ -242,12 +292,13 @@ class _LevelRow(QWidget):
         outer.addLayout(header_row)
 
         self._slots_row = QHBoxLayout()
+        self._slots_row.setSpacing(8)
         outer.addLayout(self._slots_row)
 
         buttons_row = QHBoxLayout()
         add_slot_btn = QPushButton("+ Slot", self)
         add_slot_btn.clicked.connect(lambda: panel.add_slot(self.village_level))
-        remove_slot_btn = QPushButton("- Slot", self)
+        remove_slot_btn = QPushButton("− Slot", self)
         remove_slot_btn.clicked.connect(
             lambda: panel.remove_last_slot(self.village_level))
         buttons_row.addWidget(add_slot_btn)
@@ -265,9 +316,9 @@ class _LevelRow(QWidget):
     def set_level(self, village_level, offer_slots):
         self.village_level = village_level
         round_num = self._panel.round_for_level(village_level)
-        label = f"Lv {village_level}"
+        label = f"Level {village_level}"
         if round_num is not None:
-            label += f" (~round {round_num})"
+            label += f"  —  best-case round ~{round_num}"
         self._header.setText(label)
 
         while self._slots_row.count():
@@ -316,6 +367,23 @@ class TimelinePanel(QWidget):
         add_level_btn.clicked.connect(
             lambda: self.add_level(self._add_level_spin.value()))
         toolbar.addWidget(add_level_btn)
+        toolbar.addWidget(_InfoButton(
+            "Add Level",
+            "A “level” here is the player's village level "
+            "(RunState.village_level) — it goes up by exactly 1 each "
+            "time the player levels up in-game, starting from 1.\n\n"
+            "“Add Level” creates a new, empty milestone on the "
+            "Timeline at the level number you type in the box. A milestone "
+            "is what makes that level-up able to offer anything at all: a "
+            "village level with no milestone here offers nothing but the "
+            "“+Love” fallback in-game.\n\n"
+            "After adding a level, use its row's “+ Slot” button "
+            "to add empty offer squares, then drag a building card from the "
+            "list on the left into one. The graph above shows roughly which "
+            "in-game round each level is reached at (best case), so you can "
+            "line up a level's placements with when the player is likely to "
+            "see them.",
+            self))
         toolbar.addStretch(1)
         toolbar.addWidget(QLabel("View max round:", self))
         self._view_max_spin = _NoWheelSpinBox(self)
@@ -324,6 +392,18 @@ class TimelinePanel(QWidget):
         self._view_max_spin.valueChanged.connect(self._on_view_max_changed)
         toolbar.addWidget(self._view_max_spin)
         outer.addLayout(toolbar)
+
+        caption = QLabel(
+            "Best-case / upper-bound curve — assumes every enemy spawned is "
+            "killed that round. Real XP depends on the player's kill rate, "
+            "so a real playthrough reaches each level LATER than shown.",
+            self)
+        caption_font = caption.font()
+        caption_font.setItalic(True)
+        caption_font.setPointSize(max(7, caption_font.pointSize() - 1))
+        caption.setFont(caption_font)
+        caption.setWordWrap(True)
+        outer.addWidget(caption)
 
         self._graph = _TimelineGraph(self)
         outer.addWidget(self._graph)
@@ -340,6 +420,7 @@ class TimelinePanel(QWidget):
         self._rows_scroll.setWidgetResizable(True)
         self._rows_content = QWidget()
         self._rows_layout = QVBoxLayout(self._rows_content)
+        self._rows_layout.setSpacing(12)
         self._rows_layout.addStretch(1)
         self._rows_scroll.setWidget(self._rows_content)
         splitter.addWidget(self._rows_scroll)
@@ -446,6 +527,7 @@ class TimelinePanel(QWidget):
             header.setStyleSheet("font-weight: bold;")
             self._browse_layout.addWidget(header)
             cards_row = QHBoxLayout()
+            cards_row.setSpacing(6)
             for tier in entry["tiers"]:
                 card = _BrowseCard(
                     self, entry["building_type"], tier["tier_index"],
@@ -453,6 +535,9 @@ class TimelinePanel(QWidget):
                 cards_row.addWidget(card)
                 self._browse_cards.append(card)
             self._browse_layout.addLayout(cards_row)
+            sep = QFrame(self._browse_content)
+            sep.setFrameShape(QFrame.Shape.HLine)
+            self._browse_layout.addWidget(sep)
         self._browse_layout.addStretch(1)
         self._refresh_placed_state()
         self.refresh_icons()
@@ -567,14 +652,36 @@ class TimelinePanel(QWidget):
         QMessageBox.warning(self, "Save Timeline", message)
 
 
+# Round gridlines land on the first "nice" step (10/20/25/50/100/...) that
+# keeps them from crowding together at a wide view_max.
+_GRIDLINE_STEPS = (1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500)
+
+
+def _gridline_step(view_max, target_lines=8):
+    if view_max <= 0:
+        return 1
+    raw = view_max / target_lines
+    for step in _GRIDLINE_STEPS:
+        if step >= raw:
+            return step
+    return _GRIDLINE_STEPS[-1]
+
+
 class _TimelineGraph(QWidget):
-    """The round-axis strip: tick marks + labels at each village_level's
-    computed best-case round, the raw cumulative-XP curve line, and an
-    always-visible best-case/upper-bound legend caption."""
+    """The round-axis strip: round gridlines, the raw cumulative-XP curve,
+    and a tick + label per village_level's computed best-case round.
+    Theme-aware (reads the widget's own palette, never a hardcoded color) so
+    it stays readable in both light and dark chrome — see
+    ``editor/theme.py``."""
+
+    _TOP_MARGIN = 16
+    _BOTTOM_MARGIN = 36
+    _SIDE_MARGIN = 28
+    _MIN_LABEL_GAP_PX = 46
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setMinimumHeight(120)
+        self.setMinimumHeight(150)
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._cumulative = {}
@@ -589,6 +696,7 @@ class _TimelineGraph(QWidget):
 
     def paintEvent(self, _event):
         painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         try:
             self._paint(painter)
         finally:
@@ -596,38 +704,69 @@ class _TimelineGraph(QWidget):
 
     def _paint(self, painter):
         w, h = self.width(), self.height()
-        margin = 24
-        axis_y = h - margin
-        painter.setPen(QPen(Qt.GlobalColor.gray))
-        painter.drawText(4, 14, "Best-case / upper-bound curve — real XP "
-                                 "depends on the player's kill rate")
-        painter.drawLine(margin, axis_y, w - margin, axis_y)
+        axis_y = h - self._BOTTOM_MARGIN
+        left, right = self._SIDE_MARGIN, w - self._SIDE_MARGIN
+
+        pal = self.palette()
+        text_color = pal.color(QPalette.ColorRole.WindowText)
+        grid_color = pal.color(QPalette.ColorRole.Mid)
+        curve_color = pal.color(QPalette.ColorRole.Highlight)
 
         def x_for_round(round_num):
             frac = round_num / self._view_max if self._view_max else 0
-            return int(margin + frac * (w - 2 * margin))
+            return int(left + frac * (right - left))
 
-        values = [self._cumulative[r] for r in self._cumulative
-                  if r <= self._view_max]
-        max_xp = max(values) if values else 1
+        small_font = QFont(painter.font())
+        small_font.setPointSize(max(7, small_font.pointSize() - 1))
 
-        # cumulative-XP curve line
+        # -- round gridlines + numbers --------------------------------------
+        painter.setPen(QPen(grid_color, 1))
+        painter.setFont(small_font)
+        step = _gridline_step(self._view_max)
+        round_num = 0
+        while round_num <= self._view_max:
+            x = x_for_round(round_num)
+            painter.drawLine(x, self._TOP_MARGIN, x, axis_y)
+            painter.drawText(x - 12, axis_y + 14, 24, 14,
+                             Qt.AlignmentFlag.AlignHCenter, str(round_num))
+            round_num += step
+        painter.drawText(w - _SIDE_MARGIN - 4, axis_y + 28, "round")
+
+        # -- axis line --------------------------------------------------------
+        painter.setPen(QPen(text_color, 1))
+        painter.drawLine(left, axis_y, right, axis_y)
+
+        # -- cumulative-XP curve ----------------------------------------------
         points = sorted(
             (r, xp) for r, xp in self._cumulative.items() if r <= self._view_max)
-        painter.setPen(QPen(Qt.GlobalColor.cyan))
+        max_xp = max((xp for _r, xp in points), default=1) or 1
+        curve_top = self._TOP_MARGIN + 4
+        painter.setPen(QPen(curve_color, 2))
         prev = None
         for round_num, xp in points:
             x = x_for_round(round_num)
-            y = int(axis_y - (xp / max_xp) * (axis_y - 20)) if max_xp else axis_y
+            y = int(axis_y - (xp / max_xp) * (axis_y - curve_top))
             if prev is not None:
                 painter.drawLine(prev[0], prev[1], x, y)
             prev = (x, y)
 
-        # level tick marks + labels
-        painter.setPen(QPen(Qt.GlobalColor.white))
-        for level, round_num in sorted(self._level_to_round.items()):
-            if round_num is None or round_num > self._view_max:
-                continue
+        # -- level ticks + labels, staggered so close ticks don't overlap ----
+        levels = sorted(
+            (level, r) for level, r in self._level_to_round.items()
+            if r is not None and r <= self._view_max)
+        painter.setPen(QPen(text_color, 1))
+        painter.setFont(painter.font())
+        last_x = None
+        row_toggle = False
+        for level, round_num in levels:
             x = x_for_round(round_num)
-            painter.drawLine(x, axis_y - 4, x, axis_y + 4)
-            painter.drawText(x - 20, axis_y + 18, f"Lv {level} ~r{round_num}")
+            if last_x is not None and x - last_x < self._MIN_LABEL_GAP_PX:
+                row_toggle = not row_toggle
+            else:
+                row_toggle = False
+            label_y = self._TOP_MARGIN if row_toggle else self._TOP_MARGIN + 16
+            painter.drawLine(x, axis_y - 5, x, axis_y + 5)
+            painter.drawLine(x, label_y + 10, x, axis_y - 5)
+            painter.drawText(x - 24, label_y, 48, 14,
+                             Qt.AlignmentFlag.AlignHCenter, f"Lv {level}")
+            last_x = x
