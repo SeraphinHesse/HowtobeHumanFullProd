@@ -43,7 +43,9 @@ else.
   `panels/game_theme.py`'s home), `timeline_curve.py` (TimelinePLAN T3/D7 —
   the Timeline panel's best-case XP-curve calculator; a deliberately
   duplicated twin of `game/core/xp_curve.py`, since this package may never
-  import `game/`; pinned equal by a cross-package drift test) — all
+  import `game/`; pinned equal by a cross-package drift test), `timeline_ops.py`
+  (TimelinePLAN T5 — `progression.json` load/assign/clear/add/remove/save,
+  enforcing the two uniqueness invariants JSON Schema can't express) — all
   Qt-free/pygame-free, in `TestPurity`.
   `font_import.py` (UH-Font-A: custom .ttf/.otf import, mirrors
   `asset_import.py`'s shape) is Qt-free and in `TestPurity` too, but — like

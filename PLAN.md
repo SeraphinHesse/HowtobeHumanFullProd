@@ -97,12 +97,11 @@ written.
   picks the new pair up for free — `progression` is not one of its four
   named stem-pairing exceptions (map / balancing_history / agent_forms /
   screen overrides).
-- **D2 — The Timeline panel is toolbar-launched, not selection-tree-driven.**
-  ED-3 governs per-entity panels; the Timeline shows the whole cross-building
-  schedule at once, with no single selected entity to hang off. Precedent:
-  `run_controls`/`spawnclaude` already live as toolbar-launched, non-selection
-  surfaces. Edit model mirrors `editor/panels/balancing.py`'s staged-dict +
-  dirty-dot + explicit Save pattern (no `QUndoStack`).
+- **D2 — The Timeline panel is a selector-tree leaf under "buildings"**
+  (corrected mid-T5, user-confirmed — originally planned as a toolbar
+  button; see the note under the build-order table). Edit model mirrors
+  `editor/panels/balancing.py`'s staged-dict + dirty-dot + explicit Save
+  pattern (no `QUndoStack`).
 - **D3 — `buildings.json` gains two new required fields per building-type
   group**: `building_type` (the `RESEARCH`/`tiers_unlocked` key, e.g.
   `"defence"`) and `card_slots` (array of exactly 3 asset-slot keys, one per
@@ -241,8 +240,8 @@ numerics, no `oneOf`):
   `add_slot`, `remove_slot`, `add_level`, `remove_level`,
   `save_progression` (the one `write_validated` call, cross-checking both
   uniqueness invariants before writing).
-- Wiring: `editor/main.py` toolbar toggle beside "Summon a Drunken Robot";
-  `self.timeline.set_icon_provider(self.viewport.slot_qimage)`.
+- Wiring: `editor/main.py` — a selector-tree leaf (D2, corrected from a
+  toolbar button); `self.timeline.set_icon_provider(self.viewport.slot_qimage)`.
 
 ### Migration
 
@@ -263,13 +262,19 @@ reviewable and re-runnable):
 
 | Phase | Goal | Status |
 |-------|------|--------|
-| T1 | `buildings.json` art/type exposure (`building_type`/`card_slots`) | not started |
-| T2 | `progression` balancing domain (schema + empty seed) | not started |
-| T3 | Best-case XP-curve calculator (`engine`/`game.core`/`editor`) | not started |
-| T5 | Editor Timeline panel + `timeline_ops` (drag-and-drop) | not started |
+| T1 | `buildings.json` art/type exposure (`building_type`/`card_slots`) | done |
+| T2 | `progression` balancing domain (schema + empty seed) | done |
+| T3 | Best-case XP-curve calculator (`engine`/`game.core`/`editor`) | done |
+| T5 | Editor Timeline panel + `timeline_ops` (drag-and-drop) | done |
 | T6 | Migration from `unlock_min_round` → Timeline data | not started |
 | T4 | Runtime read path switch; delete `unlock_min_round` | not started |
 | T7 | Docs | not started |
+
+**D2 correction (made during T5, user-confirmed):** the Timeline panel is a
+**selector-tree leaf under "buildings"** (the Theme/Cutscenes/Tutorial/
+Strings single-document-panel pattern), not a toolbar button as originally
+planned — see `editor/panels/CLAUDE.md`'s Timeline panel section for the
+full reasoning.
 
 Execution order is **T1 → T2 → T3 → T5 → T6 → T4 → T7** (kept as T1–T7 to
 match the design doc's numbering; T4 intentionally runs after T6 so the
@@ -319,20 +324,29 @@ replacement, endgame-scaling pass-through, `threshold_sequence` reproduces
 **Exit gate.** `py tools/testgate.py check --affected`.
 
 ### T5 — Editor panel
-**Goal.** `editor/panels/timeline.py` + `editor/timeline_ops.py`,
-toolbar-launched (D2), graph + drag-and-drop authoring, writes validated
-`progression.json`.
+**Goal.** `editor/panels/timeline.py` + `editor/timeline_ops.py`, a
+selector-tree leaf (D2, corrected from toolbar during execution), graph +
+drag-and-drop authoring, writes validated `progression.json`.
 **Files.** `editor/panels/timeline.py` (new), `editor/timeline_ops.py`
-(new), `editor/main.py` (toolbar button, panel wiring, `set_icon_provider`),
-`test_editor_viewport.py::TestPurity` (both new modules).
-**Tests.** `tools/tests/test_timeline_ops.py` (pure): assign/clear/add/
-remove round-trips; uniqueness cross-checks raise before writing invalid
-data. `tools/tests/test_timeline_panel.py` (Qt tier): drag-assign,
-drag-replace, add/remove slot buttons, graph tick labels vs. a pinned
-`editor.timeline_curve` fixture.
-**Exit gate.** `py tools/testgate.py check --affected`; live
-`py editor/main.py` — open Timeline, drag a card in, Save, confirm the JSON
-validates.
+(new), `editor/panels/selector.py` (new `_TIMELINE_ROLE` leaf under
+"buildings"), `editor/main.py` (panel construction, `right_stack` wiring,
+`set_icon_provider`), `test_editor_viewport.py::TestPurity` (both new
+modules) + one pre-existing pinned `right_stack.count()` test updated for
+the new 8th page.
+**Tests.** `tools/tests/test_timeline_ops.py` (pure, 16 tests): assign/
+clear/add/remove round-trips; uniqueness cross-checks raise before writing
+invalid data. `tools/tests/test_timeline_panel.py` (Qt tier, 10 tests):
+add/remove level/slot, assign/replace/clear via panel methods, ONE synthetic
+`QDropEvent` exercising the real drop path, Save round-trip, graph
+tick-round values vs. `editor.timeline_curve` directly.
+**Exit gate.** `py tools/smoke.py` green; targeted pytest files green;
+headless `MainWindow` construction + Timeline-leaf-selection smoke check
+(no real display available this session — real mouse-driven GUI interaction
+not exercised). Full editor regression suite (`test_editor_panels.py`) and
+the full/`--affected` testgate **deferred to final handoff** per user
+request during this session (testgate's `--affected` falls back to the full
+suite whenever `conftest.py` is touched, which every phase's new test file
+does).
 
 ### T6 — Migration
 **Goal.** Reviewable, re-runnable migration producing the initial
@@ -398,6 +412,11 @@ fields).
   description.
 - Boost-trio visual pinning in the Timeline UI (D8) is a should-have, not
   required for T5's exit gate — flag if descoped.
+- **Full-suite verification is deferred to final handoff** (user request
+  during this session): T2/T3/T5 each ran only targeted pytest files +
+  `py tools/smoke.py`, not the full/`--affected` testgate. One full
+  `py tools/testgate.py check` is still owed before this branch is
+  considered done — do not skip it at handoff.
 
 ## Critical files
 

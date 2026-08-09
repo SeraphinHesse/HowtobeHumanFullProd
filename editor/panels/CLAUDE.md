@@ -1366,6 +1366,72 @@ calls):
   edit. Documented in the panel's own docstring so a future phase does not
   go looking for a missing connection.
 
+## Timeline panel (`panels/timeline.py`, `timeline_ops.py`, `timeline_curve.py`; TimelinePLAN T5)
+- **Selection**: a single "Timeline" LEAF (one document, `data/balancing/
+  progression.json`, nothing to enumerate) is the FIRST child of the
+  "buildings" category node — the exact Theme/Cutscenes/Tutorial/Strings
+  shape (one category over), chosen over a toolbar button after re-reading
+  this doc mid-implementation: those four are the real precedent for a
+  single-document panel, not `run_controls`/`spawnclaude` (actions, not
+  `right_stack` pages). `progression` is deliberately not itself a
+  `slots.json` category (TimelinePLAN D1 — it needs a bespoke drag-and-drop
+  widget, never the generic recursive balancing form), so there was no
+  existing tree node to hang it off; "buildings" was picked because
+  `progression.json` schedules building unlocks. `panels/selector.py`'s
+  `_TIMELINE_ROLE` marker + `timeline_selected()` signal, never
+  `node_selected`. `MainWindow._on_timeline_selected` → `right_stack` (index
+  7, the newest page).
+- **Staged edits, the `tutorial_panel.py` pattern**: every drag/clear/add/
+  remove mutates an in-memory doc through the pure `editor/timeline_ops.py`
+  helper + a dirty flag; ONE "Save Timeline" button is the sole
+  `timeline_ops.save_progression` (`write_validated`) call site, which
+  cross-checks the two invariants JSON Schema can't express (`village_level`
+  uniqueness, `(building_type, tier_index)` uniqueness) before writing.
+- **First drag-and-drop in this editor** — no prior `QDrag`/`QMimeData` usage
+  existed anywhere in `editor/` before this. A custom MIME type
+  (`application/x-htbh-timeline-card`) carries `"<kind>|<building_type>|
+  <tier_index>"`; `_BrowseCard.mouseMoveEvent` starts the drag once past a
+  4px threshold, `_SlotWidget.dropEvent` accepts only that MIME type.
+  **Dropping onto an occupied slot replaces it unconditionally** — no
+  confirm dialog, the palette's "click a new brush, it replaces the armed
+  one" precedent. An already-placed browse card is **disabled**
+  (`setEnabled(False)`) rather than left draggable — Qt cannot start a drag
+  from a disabled widget, which is what keeps a duplicate placement from
+  ever being staged (the alternative, catching it only at Save time via
+  `validate_uniqueness`, was rejected as worse UX).
+- **Icons are real engine frames** via the SAME injected `viewport.
+  slot_qimage` provider `editor/panels/palette.py` uses
+  (`editor/main.py`: `self.timeline.set_icon_provider(self.viewport.
+  slot_qimage)`) — never hand-drawn art (ED-22).
+- **The graph is a hand-rolled `QPainter` strip** (`_TimelineGraph`), which
+  does NOT violate ED-22 — the `sheet_preview.py` precedent already
+  established that QPainter drawing non-game-content editor chrome (there, a
+  raw imported PNG; here, a schedule/curve visualization) is a different
+  thing from a second renderer of GAME content. It draws the round axis, the
+  raw cumulative-XP curve line, and a tick + label per `village_level` at its
+  computed best-case round (`editor/timeline_curve.py::best_case_curve`),
+  plus an always-visible "best-case / upper-bound" caption. A "View max
+  round" spinbox (default 50) is the zoom control — not full mouse-wheel/
+  drag pan, a deliberate scope simplification.
+- **The curve is computed ONCE per panel load/view-max change, not on every
+  Timeline edit** — a correction made mid-implementation to an earlier
+  planning assumption: the best-case curve depends only on `core.json`/
+  `enemies.json` (which this panel never writes), never on
+  `progression.json`'s own slot assignments, so recomputing it after every
+  drag would just repeat the same result.
+- **`editor/timeline_ops.py`'s `load_building_catalog`** is the browse
+  list's data source — reads `data/balancing/buildings.json`'s
+  `building_type`/`card_slots` fields (TimelinePLAN T1), walking whatever
+  groups carry a `building_type` key rather than a hardcoded family list, so
+  a new `/add-building` type needs no editor change here. Tier index 0 is
+  always the `"unlock"` card; indices 1/2 are `"tier"` cards.
+- **Testing note**: a real OS-level drag gesture cannot be reliably
+  synthesized under an offscreen `QApplication`. `test_timeline_panel.py`
+  drives the panel's own mutation methods directly for most coverage, plus
+  ONE test constructing a real `QMimeData` and calling `_SlotWidget.
+  dropEvent` directly — the standard Qt-test workaround, exercising the
+  actual drop-handling code path rather than only the method it delegates to.
+
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing
 features, confirm the JSON on disk validates and a Play subprocess loads it. State
