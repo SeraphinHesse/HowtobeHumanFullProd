@@ -1,4 +1,4 @@
-<!-- status: IN PROGRESS — phase T1 next -->
+<!-- status: IN PROGRESS — all T1-T7 phases implemented; full testgate check pending before merge -->
 
 # TimelinePLAN.md — authored building unlock scheduling
 
@@ -259,9 +259,9 @@ reviewable and re-runnable):
 | T2 | `progression` balancing domain (schema + empty seed) | done |
 | T3 | Best-case XP-curve calculator (`engine`/`game.core`/`editor`) | done |
 | T5 | Editor Timeline panel + `timeline_ops` (drag-and-drop) | done |
-| T6 | Migration from `unlock_min_round` → Timeline data | not started |
-| T4 | Runtime read path switch; delete `unlock_min_round` | not started |
-| T7 | Docs | not started |
+| T6 | Migration from `unlock_min_round` → Timeline data | done |
+| T4 | Runtime read path switch; delete `unlock_min_round` | done |
+| T7 | Docs | done |
 
 **D2 correction (made during T5, user-confirmed):** the Timeline panel is a
 **selector-tree leaf under "buildings"** (the Theme/Cutscenes/Tutorial/
