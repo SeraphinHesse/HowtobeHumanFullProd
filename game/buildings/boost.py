@@ -1,9 +1,15 @@
-"""Boost buildings — the cardinal-adjacency buff/curse support line (Phase 10D).
+"""Boost buildings — the configurable-range buff/curse support line (Phase 10D;
+range made configurable in the booster-range-config feature).
 
 Ports the prototype's ``BoostBuilding`` family (``src/buildings/boost_building.py``).
-A booster buffs the COMBAT buildings on its four cardinal neighbours (plus-shape,
-range 1) — never economy, never another booster, never diagonals. Three data lines
-share ONE behaviour class; the leaves are pure identity:
+A booster buffs the COMBAT buildings within its configured range
+(``BoostBuildings.globals.range_tiles``/``.range_shape`` — shared by all three
+lines) — never economy, never another booster. ``range_shape`` picks the
+tile-offset geometry (``game/buildings/range_shape.py``): ``"plus"`` (the
+shipped default, magnitude 1 — the original cardinal-4 behaviour) or
+``"square"`` (a full Chebyshev square, e.g. every one of the 8 surrounding
+tiles at magnitude 1). Three data lines share ONE behaviour class; the leaves
+are pure identity:
 
   ``boost_speed``  — reduces neighbours' ``attack_speed`` (faster attacks)
   ``boost_damage`` — raises neighbours' ``damage``
@@ -19,15 +25,15 @@ All the buff/curse state lives on the NEIGHBOUR's ``BoostReceiver`` component (E
 is a ``BoostEmitter`` marker + the computed ``boost_value`` from the tier table.
 Orchestration (the per-turn sweep, explosion-on-death, placement adjacency block +
 debuff clearing) lives in ``game/core/payday.py`` and ``game/buildings/registry.py``
-— exactly where the prototype's ``Game`` drove it.
+— exactly where the prototype's ``Game`` drove it. The placement-adjacency block
+(no booster next to another booster) is a SEPARATE, fixed cardinal-4 rule in
+``registry.py`` — deliberately independent of this configurable buff range.
 """
 from engine.core import Health
 
+from . import range_shape
 from .building import Building
 from .components import BoostEmitter, BoostReceiver
-
-# Cardinal-only plus-shape (prototype ``_PLUS_DIRS``): no diagonals.
-_PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 
 
 class BoostBuilding(Building):
@@ -71,6 +77,19 @@ class BoostBuilding(Building):
         d = self.tier_data()
         return d["boost_per_turn"] + self._lvl_idx * d["boost_increase_per_level"]
 
+    def range_tiles(self):
+        """Magnitude of this booster's buff/curse range — shared by all three
+        boost lines and every tier (``BoostBuildings.globals.range_tiles``).
+        Also what the panel Range row, the RANGE overlay, the selection
+        highlight and defence-range pathfinding coverage duck-type on."""
+        return self._balance["BoostBuildings"]["globals"]["range_tiles"]
+
+    def range_shape(self):
+        """``"plus"`` (cardinal arms) or ``"square"`` (Chebyshev) — which
+        tile-offset geometry ``range_tiles()`` is interpreted with
+        (``BoostBuildings.globals.range_shape``, ``game/buildings/range_shape.py``)."""
+        return self._balance["BoostBuildings"]["globals"]["range_shape"]
+
     def upkeep(self):
         d = self.tier_data()
         return d["base_upkeep"] + self._lvl_idx * d["upkeep_per_level"]
@@ -84,10 +103,11 @@ class BoostBuilding(Building):
     # -- adjacency (prototype ``adjacent_tiles`` / ``_adjacent_combat_buildings``) --
 
     def _adjacent_combat(self, tilemap):
-        """(tile, building) for each alive COMBAT building on a cardinal neighbour
-        (``"combat"`` tag = the prototype's ``_COMBAT_TYPES`` membership)."""
+        """(tile, building) for each alive COMBAT building within this
+        booster's configured range (``"combat"`` tag = the prototype's
+        ``_COMBAT_TYPES`` membership)."""
         out = []
-        for dc, dr in _PLUS_DIRS:
+        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
             tile = tilemap.get(self._col + dc, self._row + dr)
             if tile is None:
                 continue
@@ -153,7 +173,7 @@ class BoostBuilding(Building):
         """A new booster placed at ``(col, row)`` clears the debuffs the previous
         one stamped on its neighbours (prototype ``clear_explosion_debuff_from``).
         Only the HP case restores state (re-add the removed max-HP chunk + heal)."""
-        for dc, dr in _PLUS_DIRS:
+        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
             tile = tilemap.get(col + dc, row + dr)
             if tile is None or tile.occupant is None:
                 continue

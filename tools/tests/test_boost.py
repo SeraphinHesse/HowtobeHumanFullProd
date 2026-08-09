@@ -2,8 +2,12 @@
 
 Pure-Python, headless — same synth ``TileMap`` + real balancing fixtures as
 ``test_painter_meditator``. Covers the tier math, the ramp accumulation onto a
-cardinal-adjacent defender, the explosion-on-death debuff + its restore, the
-cardinal-4 placement block, flat mode, and the single-card trio unlock.
+range-adjacent defender, the explosion-on-death debuff + its restore, the
+cardinal-4 placement block, flat mode, the single-card trio unlock, and
+(booster-range-config feature) the configurable
+``BoostBuildings.globals.range_tiles``/``.range_shape`` pair — the shipped
+default (``"plus"``, magnitude 1) reproduces the original cardinal-4-only
+behaviour byte-for-byte; ``"square"``/a larger magnitude are opt-in.
 """
 import copy
 import random
@@ -17,6 +21,7 @@ from engine import tilemap
 from engine.core import Health, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
+from game.buildings import range_shape
 from game.buildings.boost import BoostDamage, BoostHP, BoostSpeed
 from game.buildings.components import BoostReceiver
 from game.buildings.registry import PlacementError
@@ -34,6 +39,12 @@ HOLE = CORE["TheHole"]
 
 FLAT = copy.deepcopy(BUILD)
 FLAT["BoostBuildings"]["globals"]["flat_mode"] = True
+
+SQUARE = copy.deepcopy(BUILD)
+SQUARE["BoostBuildings"]["globals"]["range_shape"] = "square"
+
+PLUS2 = copy.deepcopy(BUILD)
+PLUS2["BoostBuildings"]["globals"]["range_tiles"] = 2
 
 
 def synth(rows, base=(0, 0)):
@@ -129,6 +140,37 @@ class TestRampBoost(unittest.TestCase):
         base = dfn.damage()
         run_payday(st, tm, CORE, occ, scene)
         self.assertEqual(dfn.damage(), base)               # unchanged
+
+    def test_square_shape_touches_diagonal_neighbour(self):
+        # Same layout as above, but range_shape="square": now the diagonal
+        # booster DOES touch the defender (booster-range-config feature).
+        # Asserts on the BoostReceiver fraction directly, not the rounded
+        # `.damage()` int, since a single 2% bump can round away on a small base.
+        tm, scene, occ = board(["bbb", "bbb"])
+        st = run_state("boost_damage")
+        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, SQUARE,
+                                scene, occ, state=st)
+        place_building(tm, tm.get(2, 1), "boost_damage", 9999, SQUARE,
+                       scene, occ, state=st)
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertGreater(dfn.get_component(BoostReceiver).damage_pct, 0)
+
+    def test_plus_shape_magnitude_two_reaches_further_cardinal_not_diagonal(self):
+        # range_tiles=2, shape stays "plus": 2 tiles out cardinally touches,
+        # an off-axis offset still does not, regardless of magnitude. Base
+        # occupies (0,0) (the `board()` helper default), so placements start
+        # at col 1.
+        tm, scene, occ = board(["bbbbbbb", "bbbbbbb"])
+        st = run_state("boost_damage")
+        far, _ = place_building(tm, tm.get(1, 0), "defence", 9999, PLUS2,
+                                scene, occ, state=st)
+        diag, _ = place_building(tm, tm.get(6, 1), "defence", 9999, PLUS2,
+                                 scene, occ, state=st)
+        place_building(tm, tm.get(3, 0), "boost_damage", 9999, PLUS2,
+                       scene, occ, state=st)
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertGreater(far.get_component(BoostReceiver).damage_pct, 0)   # 2 W
+        self.assertEqual(diag.get_component(BoostReceiver).damage_pct, 0)    # off-axis
 
 
 # ---------------------------------------------------------------------------
@@ -245,6 +287,36 @@ class TestTrioUnlock(unittest.TestCase):
         self._silence_non_boost(st)
         opts = roll_levelup_options(st, BUILD, CORE, random.Random(0))
         self.assertFalse([o for o in opts if o.get("kind") == "unlock_building"])
+
+
+# ---------------------------------------------------------------------------
+class TestRangeShapeOffsets(unittest.TestCase):
+    """Pure tile-offset geometry (``game/buildings/range_shape.py``), shared
+    by the booster buff sweep, the RANGE overlay, the selection highlight,
+    and defence-range pathfinding coverage."""
+
+    def test_plus_magnitude_one_is_the_original_cardinal_four(self):
+        self.assertEqual(
+            set(range_shape.offsets(1, "plus")),
+            {(0, -1), (0, 1), (-1, 0), (1, 0)})
+
+    def test_plus_magnitude_two_extends_each_arm(self):
+        self.assertEqual(
+            set(range_shape.offsets(2, "plus")),
+            {(0, -1), (0, -2), (0, 1), (0, 2), (-1, 0), (-2, 0), (1, 0), (2, 0)})
+
+    def test_square_magnitude_one_is_all_eight_surrounding_tiles(self):
+        offsets = set(range_shape.offsets(1, "square"))
+        self.assertEqual(len(offsets), 8)
+        self.assertNotIn((0, 0), offsets)
+        self.assertIn((1, 1), offsets)          # a diagonal neighbour
+
+    def test_square_magnitude_two_is_a_five_by_five_minus_origin(self):
+        self.assertEqual(len(range_shape.offsets(2, "square")), 24)
+
+    def test_zero_magnitude_is_empty_for_both_shapes(self):
+        self.assertEqual(range_shape.offsets(0, "plus"), [])
+        self.assertEqual(range_shape.offsets(0, "square"), [])
 
 
 if __name__ == "__main__":

@@ -482,9 +482,12 @@ the diamond is drawn only where `game.map.conditions.draws_tint` says so — no
 art, or an entry that opts back in. Empty map ⇒ every non-grass tile keeps its
 diamond, i.e. the pre-art look. The sprite itself is NOT drawn here: it goes out
 on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
-(union Chebyshev squares from RAW `range_tiles()`, mortar INCLUDED — its
-exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
-occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
+(union of footprints from RAW `range_tiles()`, mortar INCLUDED — its
+exclusion is pathfinding-only — shaped per an optional duck-typed
+`range_shape()`, `game/buildings/range_shape.py`: Chebyshev square when
+absent, or a booster's configurable `"plus"`/`"square"`,
+`BoostBuildings.globals.range_shape` — booster-range-config feature), and the
+HEATMAP overlay (previous round's distinct-enemy traffic:
 `track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
 phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)`
 (condition label + colour, keyed by `TileCondition.name` — the label text is

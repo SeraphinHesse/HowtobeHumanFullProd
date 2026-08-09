@@ -27,6 +27,7 @@ of the rework.
 import random  # 10J: the name-dice reroll (stdlib — pure)
 from types import SimpleNamespace
 
+from game.buildings import range_shape
 from game.buildings.components import (
     BoostReceiver, Nameplate, RoundStats, TierState, YieldEconomy,
 )
@@ -108,6 +109,7 @@ def _building_stats(b):
         for label, base in b.boosted_stats().items():
             rows.append((f"{label} base", base))
     if hasattr(b, "boost_value"):       # boost building (10D) — buffs neighbours
+        rows.append(("Range", b.range_tiles()))
         rows.append((b._boost_label, f"{b.boost_value() * 100:.1f}%"))
         rows.append(("Upkeep", b.upkeep()))
     if hasattr(b, "wall_hp"):           # wall builder (10E) — raises edge walls
@@ -849,16 +851,17 @@ class BuildingUI:
         # 10I: the selection highlight shows the EFFECTIVE (mountain-boosted)
         # range — a consumption site of the effective value (prototype
         # game.py:578-581); pathfinding coverage stays on the raw range.
+        # `range_shape()` picks the tile-offset geometry (defaults to the
+        # Chebyshev square when absent — every defence building; a booster
+        # defines it, `game/buildings/boost.py`).
         rfn = getattr(b, "effective_range_tiles",
                       getattr(b, "range_tiles", None))
         if rfn is not None:
             r = int(rfn())
-            for dc in range(-r, r + 1):
-                for dr in range(-r, r + 1):
-                    if dc == 0 and dr == 0:
-                        continue
-                    if tilemap.get(b.col + dc, b.row + dr) is not None:
-                        hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
+            shape = getattr(b, "range_shape", lambda: "square")()
+            for dc, dr in range_shape.offsets(r, shape):
+                if tilemap.get(b.col + dc, b.row + dr) is not None:
+                    hl.append((b.col + dc, b.row + dr, widgets.C_RANGE_HIGHLIGHT))
         self._highlight_tiles = hl
 
     def _set_wall_highlight(self, b, tilemap):
