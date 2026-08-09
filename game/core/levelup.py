@@ -226,21 +226,19 @@ def apply_levelup_option(state, option, core_balance):
 
 # -- the upgrade-panel classifier -------------------------------------------
 
-def upgrade_gate(state, building, buildings_balance, progression_balance):
-    """Classify a building's upgrade button -> ``(mode, next_name, cost)``:
+def _next_tier_gate(state, building, buildings_balance, progression_balance):
+    """The next-tier half of the classifier below, independent of whether the
+    building is currently AT its tier max — ``(mode, next_name, cost)`` using
+    the same four post-tier-max modes ``upgrade_gate`` returns. Shared by
+    ``upgrade_gate`` (which only consults this once ``at_tier_max()``) and
+    ``advance_batch_plan`` (which needs it regardless of current level, since
+    the current TIER — not the level within it — is what decides whether a
+    next tier exists/is researched/is offerable).
 
-    ``in_tier``      normal level-up inside the current tier
-    ``tier_upgrade`` at tier max, next tier researched -> advance
-    ``tier_locked``  at tier max, next tier offerable but not researched
-    ``tier_hidden``  at tier max, next tier not yet offerable. Name/preview
-                     hidden; ``cost`` carries the village_level it unlocks at
-                     (TimelinePLAN D5 — always exactly true, unlike showing
-                     the best-case-curve's approximate round would be), or
-                     ``None`` if it has no Timeline placement at all.
-    ``max_tier``     at tier max, no higher tier exists
-    """
-    if not building.at_tier_max():
-        return ("in_tier", None, building.upgrade_cost())
+    ``tier_hidden``'s ``cost`` carries the village_level the next tier
+    unlocks at (TimelinePLAN D5 — always exactly true, unlike showing the
+    best-case-curve's approximate round would be), or ``None`` if it has no
+    Timeline placement at all."""
     if not building.has_next_tier():
         return ("max_tier", None, 0)
     btype = building.building_type
@@ -253,3 +251,51 @@ def upgrade_gate(state, building, buildings_balance, progression_balance):
     if tiers_unlocked_for(state, btype) > next_idx:
         return ("tier_upgrade", tier["name"], cost)
     return ("tier_locked", tier["name"], cost)
+
+
+def upgrade_gate(state, building, buildings_balance, progression_balance):
+    """Classify a building's upgrade button -> ``(mode, next_name, cost)``:
+
+    ``in_tier``      normal level-up inside the current tier
+    ``tier_upgrade`` at tier max, next tier researched -> advance
+    ``tier_locked``  at tier max, next tier offerable but not researched
+    ``tier_hidden``  at tier max, next tier not yet offerable — see
+                     ``_next_tier_gate``'s docstring for what ``cost`` means
+    ``max_tier``     at tier max, no higher tier exists
+    """
+    if not building.at_tier_max():
+        return ("in_tier", None, building.upgrade_cost())
+    return _next_tier_gate(state, building, buildings_balance, progression_balance)
+
+
+def advance_batch_plan(state, building, buildings_balance, progression_balance):
+    """``(eligible, total_cost, levels_needed)`` for the multi-select batch
+    ADVANCE action (``game/ui/building_ui.py``'s ``_batch_advance_targets``).
+
+    ``eligible`` is False when the building can never reach its next tier
+    right now no matter how much love is spent — already at the final tier
+    (``max_tier``), the next tier not yet researched (``tier_locked``), or
+    not yet offerable per the Timeline (``tier_hidden``); those buildings are
+    left for the player to handle separately (a plain in-tier UPGRADE, or
+    once research/the Timeline catches up). When eligible (``tier_upgrade``,
+    whether or not the building is at its tier max RIGHT NOW), ``total_cost``
+    sums every remaining in-tier level-up needed to reach this tier's max
+    level (projected via ``upgrade_cost()``'s own formula, without mutating
+    the building) plus the next tier's advance cost; ``levels_needed`` is how
+    many ``upgrade()`` calls that catch-up takes (0 if already at tier max)."""
+    mode, _next_name, tier_cost = _next_tier_gate(
+        state, building, buildings_balance, progression_balance)
+    if mode != "tier_upgrade":
+        return False, 0, 0
+    tier_data = building.tier_data()
+    max_levels = tier_data["levels"]
+    base = tier_data["upgrade_cost_base"]
+    increment = tier_data["upgrade_cost_increment"]
+    lvl = building.get_component(TierState).current_level_in_tier
+    catchup_cost = 0
+    levels_needed = 0
+    while lvl < max_levels:
+        catchup_cost += base + (lvl - 1) * increment
+        lvl += 1
+        levels_needed += 1
+    return True, catchup_cost + tier_cost, levels_needed

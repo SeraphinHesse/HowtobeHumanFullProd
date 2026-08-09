@@ -153,6 +153,104 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
             lvl = t.occupant.get_component(TierState).current_level_in_tier
             self.assertEqual(lvl, 2)
 
+    def test_batch_advance_catches_up_and_sums_multiple(self):
+        """fix/batch-tier-advance: a multi-selection where every building can
+        reach the next tier -- one already at tier max, one still mid-tier --
+        advances BOTH in one click, one combined cost (catch-up + advance)."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        b_ready, b_catchup = (t.occupant for t in tiles)
+        b_ready.get_component(TierState).current_level_in_tier = 3  # tier max
+        # b_catchup stays at level 1 -- needs 2 more in-tier levels first
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2  # Slinger researched
+
+        tier0 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]
+        tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
+                      ["tiers"][1]["build_cost"])
+        catchup = sum(
+            tier0["upgrade_cost_base"] + (lvl - 1) * tier0["upgrade_cost_increment"]
+            for lvl in (1, 2))
+        expected_total = tier1_cost + (tier1_cost + catchup)
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel.mode, "upgrade")
+        targets = panel._batch_advance_targets()
+        self.assertEqual({t[0] for t in targets}, {b_ready, b_catchup})
+        self.assertIn("ADVANCE", panel.action_btn.label)
+        self.assertEqual(panel._action_cost, expected_total)
+
+        session.state.love = expected_total + 5
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - expected_total)
+        for b in (b_ready, b_catchup):
+            ts = b.get_component(TierState)
+            self.assertEqual(ts.current_tier, 1)
+            self.assertEqual(ts.current_level_in_tier, 1)
+
+    def test_batch_advance_excludes_buildings_that_cannot_reach_next_tier(self):
+        """A building already at its FINAL tier can't advance no matter what
+        -- it's silently excluded from the batch and left untouched, while
+        the eligible one in the same selection still advances."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        b_eligible, b_stuck = (t.occupant for t in tiles)
+        b_eligible.get_component(TierState).current_level_in_tier = 3
+        b_stuck.get_component(TierState).current_tier = 2  # Pistoleer (final tier)
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        targets = panel._batch_advance_targets()
+        self.assertEqual([t[0] for t in targets], [b_eligible])
+
+        tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
+                      ["tiers"][1]["build_cost"])
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - tier1_cost)
+        self.assertEqual(b_eligible.get_component(TierState).current_tier, 1)
+        self.assertEqual(b_stuck.get_component(TierState).current_tier, 2)
+
+    def test_batch_advance_all_or_nothing_when_unaffordable(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        for t in tiles:
+            t.occupant.get_component(TierState).current_level_in_tier = 3
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        total = panel._action_cost
+        self.assertGreater(total, 0)
+        session.state.love = total - 1
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, total - 1)  # nothing spent
+        for t in tiles:
+            self.assertEqual(t.occupant.get_component(TierState).current_tier, 0)
+
     def test_dice_and_rename_preserve_rebirth_chain(self):
         tm, scene, occupancy, session = make_world()
         panel = make_panel()

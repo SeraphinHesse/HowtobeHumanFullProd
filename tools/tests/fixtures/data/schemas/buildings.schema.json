@@ -1079,6 +1079,20 @@
               "description": "false: boost accumulates every surviving income phase. true: permanent 10x flat boost applied once, removed on death.",
               "type": "boolean"
             },
+            "range_shape": {
+              "description": "Which tiles a booster's buff/curse (and its RANGE overlay / selection highlight / pathfinding coverage) reach at the configured range_tiles: \"plus\" = cardinal arms only (range_tiles tiles out in each of N/S/E/W), \"square\" = a full Chebyshev square (every surrounding tile, like a defence building's range).",
+              "enum": [
+                "plus",
+                "square"
+              ],
+              "type": "string"
+            },
+            "range_tiles": {
+              "description": "Magnitude of a booster's buff/curse range, shared by all three boost lines (Speed/Damage/HP) and every tier. Interpreted per range_shape.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
             "starts_unlocked": {
               "description": "Whether this building type is available to place/research from the start of a run (true), or must first be earned via a level-up unlock card (false).",
               "type": "boolean"
@@ -1086,6 +1100,8 @@
           },
           "required": [
             "flat_mode",
+            "range_shape",
+            "range_tiles",
             "starts_unlocked"
           ],
           "type": "object"

@@ -46,8 +46,10 @@ PROGRESSION = load_balance(FIXTURE_DATA, "progression")
 
 XP = CORE["XP"]
 
-# The defence line's tier-2 row, the pool/gate tests' favourite subject —
-# derived so a fixture refresh can never strand a mirrored literal (D5).
+# The defence line's tier-1/tier-2 rows, the pool/gate tests' favourite
+# subject — derived so a fixture refresh can never strand a mirrored
+# literal (D5).
+DEF_T1 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][0]
 DEF_T2 = BUILD["DefenceBuildings"]["BasicDefence"]["tiers"][1]
 # ...and its Timeline placement, the village_level it becomes offerable at.
 DEF_T2_LEVEL = lv.timeline_level_for("defence", 1, PROGRESSION)
@@ -539,6 +541,95 @@ class TestUpgradeGate(unittest.TestCase):
         b.upgrade(); b.upgrade()                      # top of tier 3
         self.assertEqual(lv.upgrade_gate(st, b, BUILD, PROGRESSION)[0],
                          "max_tier")
+
+
+# ---------------------------------------------------------------------------
+class TestAdvanceBatchPlan(unittest.TestCase):
+    """``advance_batch_plan`` (fix/batch-tier-advance) — whether a building
+    can reach its next tier right now no matter what, and the combined
+    catch-up + advance cost when it can. Powers the upgrade panel's
+    multi-select batch ADVANCE action (``game/ui/building_ui.py``)."""
+
+    def defender(self):
+        tm, scene, occ = build_board(["bb", "bb"])
+        st = RunState.from_balance(CORE, BUILD)
+        st.love = 1000
+        b, _ = place_building(tm, tm.get(1, 1), "defence", st.love, BUILD,
+                              scene, occ, state=st)
+        return st, b
+
+    @staticmethod
+    def _catchup_cost(tier_data, from_level):
+        total, lvl = 0, from_level
+        while lvl < tier_data["levels"]:
+            total += (tier_data["upgrade_cost_base"]
+                      + (lvl - 1) * tier_data["upgrade_cost_increment"])
+            lvl += 1
+        return total
+
+    def test_eligible_at_tier_max_needs_no_catchup(self):
+        st, b = self.defender()
+        b.upgrade(); b.upgrade()                       # level 3 of tier 1
+        st.round_num = 10
+        st.tiers_unlocked["defence"] = 2
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertTrue(eligible)
+        self.assertEqual(levels_needed, 0)
+        self.assertEqual(cost, DEF_T2["build_cost"])
+
+    def test_eligible_mid_tier_bundles_catchup_cost(self):
+        """Not yet at the tier cap -- the batch action still counts it in,
+        bundling the remaining in-tier level-up(s) into the total."""
+        st, b = self.defender()                        # level 1 of tier 1
+        st.round_num = 10
+        st.tiers_unlocked["defence"] = 2
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertTrue(eligible)
+        self.assertEqual(levels_needed, 2)              # level 1 -> 3
+        self.assertEqual(cost,
+                         self._catchup_cost(DEF_T1, 1) + DEF_T2["build_cost"])
+
+    def test_ineligible_when_next_tier_unresearched(self):
+        """At the tier cap but the next tier isn't RESEARCHED yet -- no
+        amount of love reaches it via this action, so it's excluded."""
+        st, b = self.defender()
+        b.upgrade(); b.upgrade()
+        st.round_num = 10                               # offerable...
+        # ...but st.tiers_unlocked["defence"] stays at its default (1)
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertFalse(eligible)
+        self.assertEqual((cost, levels_needed), (0, 0))
+
+    def test_ineligible_when_next_tier_round_gated(self):
+        st, b = self.defender()
+        b.upgrade(); b.upgrade()
+        st.tiers_unlocked["defence"] = 2
+        # st.round_num stays at its default (1), below DEF_T2's unlock round
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertFalse(eligible)
+        self.assertEqual((cost, levels_needed), (0, 0))
+
+    def test_ineligible_mid_tier_when_next_tier_unresearched(self):
+        """Still leveling up within the tier, AND the next tier isn't
+        researched -- excluded either way; the plain in-tier UPGRADE batch
+        is what the player wants here, not ADVANCE."""
+        st, b = self.defender()                         # level 1 of tier 1
+        st.round_num = 10
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertFalse(eligible)
+        self.assertEqual((cost, levels_needed), (0, 0))
+
+    def test_ineligible_at_max_tier(self):
+        st, b = self.defender()
+        st.round_num = 30
+        st.tiers_unlocked["defence"] = 3
+        for _ in range(2):
+            b.upgrade(); b.upgrade()
+            self.assertTrue(b.advance_tier())
+        b.upgrade(); b.upgrade()                        # top of tier 3
+        eligible, cost, levels_needed = lv.advance_batch_plan(st, b, BUILD)
+        self.assertFalse(eligible)
+        self.assertEqual((cost, levels_needed), (0, 0))
 
 
 # ---------------------------------------------------------------------------

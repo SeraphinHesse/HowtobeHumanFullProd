@@ -66,6 +66,26 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   **seeded to 1, the economy weight they used to share**, so the prototype's
   boost pathfinding-weight fallback is preserved by the VALUE, not by a shared
   key, and a designer can now diverge them per type. Tag `"boost"`.
+  **The buff/curse range is configurable** (booster-range-config feature):
+  `BoostBuildings.globals.range_tiles`/`.range_shape` — ONE shared magnitude +
+  shape for all three lines and every tier (not per-tier, a deliberate design
+  choice — a designer wanting per-tier growth would need a schema change).
+  `range_shape` is `"plus"` (the shipped default, magnitude 1 = the original
+  cardinal-4 behaviour) or `"square"` (a full Chebyshev square — e.g. every
+  one of the 8 surrounding tiles at magnitude 1). `game/buildings/
+  range_shape.py`'s pure `offsets(n, shape)` computes the tile deltas and is
+  shared by `_adjacent_combat`/`clear_explosion_debuff_from` here AND by the
+  RANGE overlay (`game/ui/overlays.py`) and the panel's selection highlight +
+  its own new Range row (`game/ui/building_ui.py`) — both duck-type an
+  optional `range_shape()` alongside `range_tiles()`, defaulting to
+  `"square"` when absent (every defence building, unchanged), so those two
+  visually reflect a booster's configured shape. Defence-range pathfinding
+  coverage (`coverage.py`, below) is the ONE exception: it deliberately does
+  NOT consult `range_shape()` and always treats a booster's footprint as a
+  square, at the configured magnitude — the visual buff shape and the
+  pathfinding-penalty shape are independent knobs. `BoostBuilding
+  .range_tiles()`/`.range_shape()` read the balance directly; there is no
+  per-instance override.
   All buff/curse state lives on the NEIGHBOUR's `BoostReceiver` component
   (`damage_pct`/`speed_pct`/`hp_pct` + a JSON-safe `explosion_debuffs` list) added
   to every `DefenceBuilding`; the booster only pushes deltas. Consumed transparently
@@ -218,15 +238,23 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     panel all see it). Meditator + Painter override `yield_amount` and take NO
     condition modifier (prototype-exact).
   - **`coverage.py`** is the defence-range pathfinding producer:
-    `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range,
+    `defence_covered_tiles` (Chebyshev union of alive defenders' RAW range —
+    `game/buildings/range_shape.py`'s `offsets(r, "square")`, ALWAYS square —
     `building_type == "aoe_defence"` EXCLUDED — pathfinding-only; the RANGE
-    overlay still shows the mortar; every alive `"boost"`-tagged occupant adds
-    an r=1 square — prototype boosters carry `range_tiles = 1`, but the repo
-    booster keeps NO `range_tiles()` method so the selection highlight stays a
-    plus-shape; empty set when
+    overlay still shows the mortar; empty set when
     `BuildingsGlobal.defence_range_pathfinding.enabled` is off) +
     `wire_defence_coverage` (injects callable + weight add into the tilemap —
-    the host calls it once per run; the map layer never imports this package).
+    the host calls it once per run; the map layer never imports this
+    package). **Boosters carry a real `range_tiles()` now** (booster-range-
+    config feature, `BoostBuildings.globals.range_tiles`, configurable per
+    the 10D boost-line section above) — the old special-cased "every alive
+    `"boost"`-tagged occupant adds a fixed r=1 square" branch is gone,
+    boosters are picked up by the SAME duck-typed `range_tiles()` read every
+    other occupant here uses — but this producer deliberately does NOT
+    consult a booster's `range_shape()`: pathfinding coverage stays a square
+    at the configured MAGNITUDE regardless of whether the visual buff/curse
+    itself is `"plus"` or `"square"` (the RANGE overlay and the selection
+    highlight DO respect `range_shape()` — see `game/ui/CLAUDE.md`).
 - **`registry.py` is the factory + placement seam**: `create(building_type,…,
   tier_idx=0)` (also reconstructs a subclass after `GameObject.from_dict`), and
   `place_building(tilemap, tile, type, love, …)` — buildable-tile + affordability

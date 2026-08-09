@@ -158,6 +158,8 @@
     },
     "globals": {
       "flat_mode": false,
+      "range_shape": "plus",
+      "range_tiles": 1,
       "starts_unlocked": false
     }
   },
