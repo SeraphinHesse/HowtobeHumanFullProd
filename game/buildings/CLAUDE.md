@@ -44,9 +44,9 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     derives `disturbed` from `RoundStats.dmg_taken_last_round`. Do NOT move the
     side-effect back into `yield_amount()`.
   Both add one `research.py` row (Painter: locked type, `min_village_level` gate;
-  Meditator: bare `ResearchSpec()` — its unlock card is gated by
-  `Meditators.tiers[0].unlock_min_round`, and unlocking it makes tier 1
-  immediately placeable).
+  Meditator: bare `ResearchSpec()` — its unlock card is gated by whether its
+  tier 0 has a Timeline placement (TimelinePLAN T4), and unlocking it makes
+  tier 1 immediately placeable).
 - **10B defence lines** (`aoe_defence.py` Maw Mortar, `sun_scorcher.py` Sun
   Scorcher) subclass `DefenceBuilding` and add ONE extra capability component +
   a couple computed methods each: AOE adds `SplashAttacker` (marker) +
@@ -77,8 +77,9 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   `rebuild()`) + `flat_applied` guards. Both modes exist: ramp (default) accumulates
   each income phase, flat (`BoostBuildings.globals.flat_mode`) applies 10× once on
   placement / reverses on death. Research: three rows sharing `unlock_group=(the
-  trio)` (no `gate_kind` — each line's own `tiers[0].unlock_min_round` is 10,
-  read via `tier_offerable`) + a shared `starts_unlocked_path` pointing at
+  trio)` (no `gate_kind` — only the LEAD's tier-0 Timeline placement is ever
+  consulted, read via `tier_offerable`, TimelinePLAN D8) + a shared
+  `starts_unlocked_path` pointing at
   `BoostBuildings.globals.starts_unlocked` (data-driven — see the Research/gating
   seam section); the roll offers ONE unlock card (the lead `boost_speed`), then
   each type researches its own tiers (see `game/core`).
@@ -118,10 +119,10 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     `game.buildings` — the same rule `wall_hp()` / `wall_snapshot()` /
     `building_type` already follow. Research: both
   `blocker` and `wall_builder` are bare `ResearchSpec()` rows — each type's
-  UNLOCK card is gated by its own `tiers[0].unlock_min_round` (Blocker 5,
-  WallBuilder 10), and unlocking either makes its tier 1 immediately placeable
-  (no separate "research tier 1" step). **Both start LOCKED as a type** (a
-  deliberate balance change from the prototype's
+  UNLOCK card is gated by whether its own tier 0 has a Timeline placement
+  (TimelinePLAN T4), and unlocking either makes its tier 1 immediately
+  placeable (no separate "research tier 1" step). **Both start LOCKED as a
+  type** (a deliberate balance change from the prototype's
   `blocker_tiers_unlocked = 1`): `starts_unlocked` is now a `buildings.json` flag
   per type (see the Research/gating seam section) — only `defence`/Stone Thrower and
   `economic`/Flute Player start unlocked; every other type, blocker and wall_builder
@@ -182,11 +183,11 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
     for a shift-multi-select placement, not a flat `cost * count`) all read
     off this same count so the label, the hover figure and the actual charge
     can never disagree.
-  - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; its
-    `tiers[0].unlock_min_round` is 0) with `starts_unlocked: false` in
-    `buildings.json` — offered in the level-up unlock pool from round 1 but
-    not unlocked at the start. (Lightning itself boots LOCKED — see
-    `game/core/CLAUDE.md`.)
+  - Research row: a bare `ResearchSpec(...)` (no `gate_kind`; offerable as
+    soon as its tier 0 has a Timeline placement, TimelinePLAN T4) with
+    `starts_unlocked: false` in `buildings.json` — offered in the level-up
+    unlock pool once placed but not unlocked at the start. (Lightning itself
+    boots LOCKED — see `game/core/CLAUDE.md`.)
 - **10I tile conditions** — snapshot at placement, computed on read:
   - `registry.place_building` stamps two E-11 transients after
     `tile.occupant = building`: `_tile_condition` (the tile's rolled condition)
@@ -350,9 +351,11 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
   key (value 1 — offered from the first level-up; the prototype had it only as a
   `.py` constant, absent from the live JSON 9A migrated, so 10B added it to
   data+schema). Sun Scorcher needs NO `gate_kind`: its unlock card is gated by
-  `BeamDefence.tiers[0].unlock_min_round = 10` (was era-gated to 14 before the
-  `era_unlock_round` key was deleted — an approved balance shift, not a
-  migration of the old number).
+  whether `BeamDefence`'s tier 0 has a Timeline placement (was era-gated to
+  14, then a flat `tiers[0].unlock_min_round = 10`, before TimelinePLAN T4
+  deleted that field entirely in favor of `data/balancing/progression.json`
+  — each step an approved balance/architecture shift, not a migration of the
+  old number).
 
 ## Perf invariant that lives here
 Placement occupancy is incremental (`occupancy.set` per placed tile, not a
