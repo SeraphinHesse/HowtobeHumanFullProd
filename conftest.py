@@ -55,6 +55,7 @@ TIERS = {
     "test_editor_asset_import": "editor",
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
+    "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
     "test_editor_tutorial_paint": "editor",
@@ -150,6 +151,7 @@ TIERS = {
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
     "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
