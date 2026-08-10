@@ -178,6 +178,12 @@ for the full event-kind contract (what an LLM or a human reads) and
   panel via `BuildingUI.dismiss()` and clears the multi-select — from anywhere on
   screen, panel and HUD included. LEVELUP / the boss cutscene are choice-only and
   swallow it. Right-DRAG still pans, so the threshold is what keeps them apart.
+  **Both halves of that mapping become CONDITIONAL when the DRAG SEL toggle is
+  on** — left-DRAG box-selects instead of panning, and a right-click on an
+  already-selected tile deselects it instead of dismissing. See the
+  drag-selection section below; with the toggle off (the default, and its state
+  every frame until the player clicks the button) everything above holds
+  verbatim.
 - Window size / fps / caption come from `data/display.json` (schema-validated,
   G-7) — never hardcode them.
 - **Active map (Phase 6, D-20/D-21)**: boot loads
@@ -212,6 +218,62 @@ for the full event-kind contract (what an LLM or a human reads) and
     could show through. The world background is built from background tiles +
     deco props; `BACKGROUND` tiles always render. `ui.FX.bg_art` survives only as
     a balancing-parity key (nothing reads it at render time).
+
+## Drag-selection toggle (host wiring)
+A HUD toggle (`btn_drag_select`, `game/ui/CLAUDE.md`) that turns ONE
+left-press-drag-release into a rectangle selection reaching the same end state
+10J's Shift+Click multi-select builds one click at a time. **With the toggle
+off nothing here runs and click / Shift+Click / camera-pan behave exactly as
+they always did** — every branch below is guarded on
+`gp["drag_select_enabled"]`.
+- **State**: `gp["drag_select_enabled"]` (bool, default `False`), seeded in the
+  `gp` literal and reset beside `gp["sel"], gp["sel_cat"] = [], None` in BOTH
+  `build_gameplay()` and `teardown_gameplay()`. It lives in `gp` rather than on
+  the `Hud` because the event loop reads it directly; `Hud.submit` receives it
+  per frame (`drag_select_enabled=`) only to draw the active rim, and
+  `Hud.hit()` never mutates it (see that doc — `Hud.hit()` runs twice per
+  click).
+- **The toggle flip is ONE branch**, in `handle_world_click` right after the
+  `("speed", idx)` branch: `hud_action == "drag_select"` inverts the flag and
+  returns.
+- **Arming (MOUSEBUTTONDOWN-left)**: `pan_from` is computed exactly as before,
+  and only then re-routed — `pan_from is not None` IS the existing "this press
+  began over the world, not a UI element" signal, so the new button, the panel
+  and every other HUD element keep drag-select from arming over them **for
+  free** (`over_ui` already calls `gp["hud"].hit(px, py)`, which now covers the
+  new button). Armed only in the BUILDING phase; arming sets
+  `drag_select_from`/`drag_select_current` (two event-loop locals holding
+  **`Tile` objects, not screen coords**, so the preview survives a camera
+  nudge) and clears `pan_from` — the gesture is never both.
+- **Live preview**: a MOUSEMOTION `elif` sibling of the camera-pan arm
+  (mutually exclusive: `pan_from` is `None` whenever `drag_select_from` is
+  armed) updates `drag_select_current`; the world overlay pass draws the
+  rectangle at the same point the tutorial tile highlight draws (before
+  `gp["panel"].submit`) with `widgets.submit_tile_diamond_fill`, running the
+  SAME `_SEL_CATEGORY` filter `finish_drag_select` does — so a tile shown can
+  never fail to be selected on release.
+- **Release (MOUSEBUTTONUP-left)**: the `<= _DRAG_THRESHOLD_SQ` short-press
+  path is UNTOUCHED (a plain click, toggle on or off, still selects the one
+  tile through `handle_world_click` → `update_selection`); a real drag past the
+  threshold calls `finish_drag_select` instead.
+- **`finish_drag_select(start_tile, end_tile)`** sits beside `update_selection`
+  and reuses its `_SEL_CATEGORY` table and its "primary tile first" convention:
+  the start tile's category is the batch's category, every tile in the
+  normalized rectangle that shares it joins, and **locked/unowned tiles are
+  silently skipped** (they carry no category — mirroring today's "a click can't
+  hit them" rule). It runs the same `tutorial.allows(("tile", col, row))` D6
+  gate every other tile click goes through, on the start tile AND on each
+  candidate — zero-overhead outside the tutorial, and during it a drag
+  collapses to at most the one highlighted tile instead of bypassing the
+  whitelist. It then feeds `tutorial.on_tile_clicked` and
+  `panel.open_for_tile(..., selected_tiles=picked)` — the existing batch UI,
+  unmodified.
+- **Right-click single-tile deselect** sits in `handle_world_right_click` after
+  the game-over / cheat-menu / frozen-or-boss-cutscene guards and BEFORE the
+  dismiss ladder, gated on `panel.preview is None` (a right-click over an open
+  construct preview still peels the preview — Shift+Click never reaches the
+  world there either). A right-click on a tile NOT in `gp["sel"]`, or with the
+  toggle off, falls through to the universal dismiss unchanged.
 
 ## Tutorial director (Phase TU-6)
 `game/tutorial/director.py` (`TutorialDirector`, no doc of its own — the
@@ -425,6 +487,29 @@ did change — see the fixed callouts above).
   `TutorialDirector`/`TutorialSequencer` change; the script's step ids/event
   feed are unaffected, only which literal round they fire on shifted down by
   one.
+
+## Building Movement — host wiring
+The feature's rules are `game/buildings/movement.py`
+(`game/buildings/CLAUDE.md`), its panel/modal `game/ui/building_ui.py`
+(`game/ui/CLAUDE.md`). `main.py` owns exactly two pieces:
+- **The destination click.** `handle_world_click`'s BUILDING branch gained one
+  check immediately after `tile = tile_at_screen(...)`: while
+  `panel.mode == "move_select"`, the click is the destination pick and never a
+  selection change — `_pick_move_destination(tile, session)` then `return`
+  (the phase/mode-conditional shape the ENEMY-phase lightning branch below it
+  already has, not a new subsystem). A click on anything but a legal tile
+  (unbuilt BUILDABLE and not already `tilemap.is_moving`) is a **silent
+  no-op** so the player keeps picking; the panel is the cancel affordance.
+  The helper only OPENS a `MovePreview` — `start_move` (via
+  `BuildingUI._do_move`) stays the single legal seam that moves anything.
+- **The in-transit signpost.** A loop over `world.tile_map.moving_orders` in
+  the world-overlay pass (beside the tutorial tile highlight, before
+  `panel.submit`) draws the `moving_sign` slot as a `HudSprite` at BOTH
+  endpoints plus a `submit_text` round countdown. `moving_sign_art` is a
+  boot-time `manifest.entry(MOVING_SIGN_SLOT) is not None` bool, derived once
+  exactly like `condition_art`/`tree_slots`/`wall_art` — E-37: an unimported
+  slot draws only the countdown, never a grey X. `moving_orders` is empty on
+  effectively every frame, so this costs one list check.
 
 ## Large-map performance — INVARIANTS (why/detail → `game/PERF.md`)
 These are load-bearing; a regression drops a 1024² map to ~2 fps. Rules only here:

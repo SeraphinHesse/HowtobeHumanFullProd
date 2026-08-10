@@ -28,6 +28,13 @@
           "maxItems": 4,
           "minItems": 4,
           "type": "array"
+        },
+        "sample": {
+          "type": "string"
+        },
+        "text_id": {
+          "minLength": 1,
+          "type": "string"
         }
       },
       "required": [

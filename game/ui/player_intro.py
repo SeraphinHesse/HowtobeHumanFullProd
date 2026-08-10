@@ -44,12 +44,12 @@ from . import widgets
 
 _MAX_CHARS = 20
 _BG = (12, 14, 22)
-_PW, _PH = 520, 476
+_PW, _PH = 260, 238
 
 #: skill value -> the id a designer picks that option by.
 _SKILL_IDS = {value: f"btn_skill_{value}" for value in SKILLS}
 
-_OPT_W, _OPT_H, _OPT_GAP = 280, 40, 10
+_OPT_W, _OPT_H, _OPT_GAP = 140, 20, 5
 
 SCREEN_ID = "player_intro"
 
@@ -66,8 +66,8 @@ class PlayerIntroScreen:
         self.options = [(value, Button((0, 0, _OPT_W, _OPT_H),
                                        skill_label(value)))
                         for value in SKILLS]
-        self.start_btn = Button((0, 0, 160, 40), "START")
-        self.back_btn = Button((0, 0, 130, 40), "BACK")
+        self.start_btn = Button((0, 0, 80, 20), "START")
+        self.back_btn = Button((0, 0, 65, 20), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._panel = SimpleNamespace(rect=(0, 0, _PW, _PH), skin=None)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
@@ -83,18 +83,18 @@ class PlayerIntroScreen:
         x = view_w // 2 - _PW // 2
         y = view_h // 2 - _PH // 2
         self.rect = (x, y, _PW, _PH)
-        self.name_rect = (x + 24, y + 96, _PW - 48, 36)
-        self._prompt_y = y + 150
-        oy = y + 180
+        self.name_rect = (x + 12, y + 48, _PW - 24, 18)
+        self._prompt_y = y + 75
+        oy = y + 90
         self._opt_x = x + _PW // 2 - _OPT_W // 2
         for _value, btn in self.options:
             btn.rect = (self._opt_x, oy, _OPT_W, _OPT_H)
             oy += _OPT_H + _OPT_GAP
-        self.start_btn.rect = (x + 24, y + _PH - 56, 160, 40)
-        self.back_btn.rect = (x + _PW - 24 - 130, y + _PH - 56, 130, 40)
+        self.start_btn.rect = (x + 12, y + _PH - 28, 80, 20)
+        self.back_btn.rect = (x + _PW - 12 - 65, y + _PH - 28, 65, 20)
         self._backdrop.rect = (0, 0, view_w, view_h)
         self._panel.rect = self.rect
-        self._title.rect = (x + _PW // 2, y + 20, 0, 0)
+        self._title.rect = (x + _PW // 2, y + 10, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "panel": ("panel", self._panel),
@@ -190,7 +190,7 @@ class PlayerIntroScreen:
                             self._title.text_color)
         submit_centered(renderer,
                         "Stamped into this run's debug log filenames and reports.",
-                        cx, y + 58, "sm", widgets.C_UI_TEXT_DIM)
+                        cx, y + 29, "sm", widgets.C_UI_TEXT_DIM)
 
         nx, ny, _nw, _nh = self.name_rect
         renderer.submit_hud(HudRect(self.name_rect, widgets.C_PANEL_STONE))
@@ -203,7 +203,7 @@ class PlayerIntroScreen:
         else:
             shown = "type your name..."
             tcol = widgets.C_UI_TEXT_DIM
-        submit_text(renderer, shown, (nx + 8, ny + 9), "md", tcol)
+        submit_text(renderer, shown, (nx + 4, ny + 4), "md", tcol)
 
         submit_centered(renderer, "How much have you played this game?", cx,
                         self._prompt_y, "sm", widgets.C_UI_TEXT)

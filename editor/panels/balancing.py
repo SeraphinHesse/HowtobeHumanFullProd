@@ -5,9 +5,16 @@ the form from data/schemas/<d>.schema.json. Since Phase 9A the domains are
 nested REPLAN trees, so the build recurses: object -> CollapsibleSection
 (depth-1 groups start expanded, deeper ones collapsed), array of objects ->
 one collapsed sub-section per index (titled with the tier's name field when
-present), array of scalars -> one row per index (fixed length — add/remove
-is not a 9A editor feature; random_names grows via the game's add-name
-menu). Scalar leaves: integer -> QSpinBox, number -> QDoubleSpinBox (ranges
+present), array of scalars -> one row per index. Arrays of objects get
+`+ Row`/`- Row` (ER-5) gated entirely by the schema's own minItems/maxItems —
+an array whose schema pins minItems == maxItems (`tiers`, `scale_tiers`,
+`round_counts`) shows neither button and is unchanged. Arrays of SCALARS get
+the same buttons only when their own property additionally sets
+`"x-array-editable": true` (feature-enemy-intro-dialogue) — `minItems !=
+maxItems` alone is not enough, since `random_names` (`minItems: 1`, no
+maxItems) already has that shape and must keep growing only via the game's
+add-name menu, never this panel; `EnemyIntro.entries[i].hidden_frames` is the
+one property that opts in today. Scalar leaves: integer -> QSpinBox, number -> QDoubleSpinBox (ranges
 from the schema's minimum/maximum, so out-of-range input is unrepresentable,
 not merely rejected), enum -> QComboBox, boolean -> QCheckBox, string ->
 QLineEdit (empty input is restored, not written, when the schema demands
@@ -265,6 +272,7 @@ class BalancingPanel(QWidget):
         self._widgets = {}
         self._dots = {}
         self._refs = {}
+        self._scalar_item_schema = {}
         self._dirty = set()
 
         self._save_btn = QPushButton("Save Balancing Changes")
@@ -302,6 +310,7 @@ class BalancingPanel(QWidget):
         self._widgets = {}
         self._dots = {}
         self._refs = {}
+        self._scalar_item_schema = {}
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
@@ -407,35 +416,59 @@ class BalancingPanel(QWidget):
                 self._add_leaf_row(
                     form, f"[{i}]", item_schema, item, path + (str(i),)
                 )
+            if node.get("x-array-editable"):
+                self._add_row_buttons(node, items, path, parent_layout,
+                                      item_schema=item_schema)
 
-    # -- variable-length arrays of objects: + / − Row (ER-5) -----------------
+    # -- variable-length arrays: + / − Row (ER-5, generalized to scalars) ----
 
-    def _add_row_buttons(self, node, items, path, parent_layout):
-        """A `+ Row` / `− Row` pair under an array of objects, gated ENTIRELY by
-        the schema's own minItems/maxItems.
+    def _add_row_buttons(self, node, items, path, parent_layout, item_schema=None):
+        """A `+ Row` / `− Row` pair under a variable-length array, gated
+        ENTIRELY by the schema's own minItems/maxItems.
 
         That gate is the compatibility argument: every array that shipped before
         ER-5 (`tiers`, `scale_tiers`, `round_counts`) has minItems == maxItems, so
         both buttons stay hidden and those forms are unchanged. `death_spawn.spawns`
-        (minItems 1, no maxItems) is the first array a designer may actually resize
-        — a per-era table for a type that ships with one row.
+        (minItems 1, no maxItems) is the first array of OBJECTS a designer may
+        actually resize — a per-era table for a type that ships with one row.
 
         Add COPIES THE LAST ROW rather than building a default instance from the
-        schema: the document validated on load, so a copy is schema-valid by
-        construction — no guessing at pattern/minLength/required. Remove pops the
-        LAST row, never a middle one: these arrays are era-indexed, so removing
-        [1] would silently renumber every era after it.
+        schema, same as ER-5 shipped: the document validated on load, so a copy
+        is schema-valid by construction — no guessing at pattern/minLength/
+        required. Remove pops the LAST row, never a middle one: these arrays are
+        era-indexed, so removing [1] would silently renumber every era after it.
+
+        `item_schema`, when given, marks this as an array of SCALARS (the
+        `enemy_intro_entry.hidden_frames` case, ships `minItems: 0`) rather than
+        objects: unlike the object-array case, an empty scalar array has no last
+        row to copy, so `_add_array_row` synthesizes one from the schema instead
+        (`_default_scalar_value`). Deliberately NOT extended to arrays of
+        objects — an object has no single sensible schema-derived default
+        (`required`/`pattern`/cross-field constraints), which is exactly why
+        object-array Add always copies a row instead.
+
+        Callers only reach this for a scalar array when its own schema node
+        carries `"x-array-editable": true` (see `_build_array`'s scalar
+        branch) — an EXPLICIT opt-in, not "every array whose minItems !=
+        maxItems". `BuildingsGlobal.random_names` (`buildings.schema.json`,
+        `minItems: 1`, no `maxItems`) shares that exact shape but grows only
+        through the game's own 9H add-name menu, never this panel — it carries
+        no such marker and is unaffected. `hidden_frames` is the only property
+        that sets it today.
         """
         can_add = "maxItems" not in node or len(items) < node["maxItems"]
         can_remove = len(items) > node.get("minItems", 0)
-        if not (can_add or can_remove) or not items:
+        if not (can_add or can_remove):
             return
         key = "/".join(path)
+        if item_schema is not None:
+            self._scalar_item_schema[key] = item_schema
         row = QHBoxLayout()
         if can_add:
             add = QPushButton("+ Row")
             add.setObjectName(f"{self.ROW_ADD}{key}")   # so tests can see WHICH
-            add.setToolTip("Append a copy of the last row")
+            add.setToolTip("Append a copy of the last row"
+                          if items else "Append a new row")
             add.clicked.connect(lambda _c=False, k=key: self._add_array_row(k))
             row.addWidget(add)
         if can_remove:
@@ -449,8 +482,29 @@ class BalancingPanel(QWidget):
 
     def _add_array_row(self, key):
         items = self._value_at(key)
-        items.append(copy.deepcopy(items[-1]))
+        if items:
+            items.append(copy.deepcopy(items[-1]))
+        else:
+            items.append(self._default_scalar_value(
+                self._scalar_item_schema.get(key)))
         self._commit_structure(key)
+
+    def _default_scalar_value(self, item_schema):
+        """A schema-valid starting value for a brand-new row in an EMPTY
+        scalar array (there is no last row to copy — see `_add_row_buttons`).
+        Only reached for a scalar `items` schema; an unresolvable/absent one
+        degrades to `0` rather than raising, since a Qt slot must never let an
+        exception escape."""
+        item_schema = self._deref(item_schema) if item_schema else {}
+        if "enum" in item_schema:
+            values = item_schema["enum"]
+            return values[0] if values else 0
+        kind = item_schema.get("type")
+        if kind == "boolean":
+            return False
+        if kind == "string":
+            return ""
+        return item_schema.get("minimum", 0)
 
     def _remove_array_row(self, key):
         self._value_at(key).pop()

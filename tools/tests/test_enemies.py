@@ -89,14 +89,19 @@ STD0 = era_stats("Standard")
 def footprint_balance(etype, footprint):
     """A copy of the enemies balance with ONE type's `footprint` pinned.
 
-    `footprint` is designer content (ER-1) and every type sits at 1 today. A test
-    that reads it live to prove multi-tile behaviour degrades into a tautology the
-    moment a designer flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the
-    claim these tests make. Pin the number so they keep testing the WIRING
-    (balance -> PathAgent.footprint -> pathfinder / sprite fit); the live value has
-    its own guard in the schema."""
+    `footprint` is designer content (ER-1). A test that reads it live to prove
+    multi-tile behaviour degrades into a tautology the moment a designer
+    flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the claim these
+    tests make. Pin the number so they keep testing the WIRING (balance ->
+    PathAgent.footprint -> pathfinder / sprite fit); the live value has its own
+    guard in the schema.
+
+    The pair is PER-ERA for every era-shaped type, so this writes EVERY row —
+    the shape `test_boss.boss_footprint` has always used for the Boss's own
+    `stats[]` table."""
     enem = copy.deepcopy(ENEM)
-    enem["EnemyTypes"][etype]["footprint"] = footprint
+    for row in enem["EnemyTypes"][etype]["eras"]:
+        row["footprint"] = footprint
     return enem
 
 
@@ -526,7 +531,7 @@ class TestSpawnComposition(unittest.TestCase):
     def test_round_zero_composes_exactly_the_tutorial_count(self):
         sp, etypes = self._counts(0)
         self.assertEqual(len(etypes), SCALE["tutorial_round_enemy_count"])
-        self.assertTrue(all(e == "standard" for e in etypes))
+        self.assertTrue(all(e == "tutorial" for e in etypes))
 
     def test_round_zero_tunable_changes_the_count(self):
         enem = copy.deepcopy(ENEM)
@@ -534,7 +539,7 @@ class TestSpawnComposition(unittest.TestCase):
         sp = Spawner()
         sp.begin_round(0, self.tm, enem, rng=FakeRng())
         etypes = [et for _tile, et, _d in sp._queue]
-        self.assertEqual(etypes, ["standard"] * 3)
+        self.assertEqual(etypes, ["tutorial"] * 3)
 
     def test_round_zero_never_produces_a_boss_at_any_interval(self):
         # (0 - 1) // n goes negative for every n, and a naive `0 % n == 0`
@@ -785,14 +790,43 @@ class TestFormation(unittest.TestCase):
                 self.assertAlmostEqual(f.get_component(Movement).speed,
                                        st["move_speed"])
 
+    def test_its_footprint_grows_with_the_era_and_clamps_past_the_table(self):
+        """The Formation is the one shipped type whose body CHANGES size, so
+        this is where the per-era footprint actually earns its keep: the fit
+        must follow the era, and past the last authored row it must CLAMP
+        (`endgame_scaling` carries no footprint factor, deliberately).
+
+        Read off the LIVE rows rather than a hardcoded 2,2,3,3,4 — the claim
+        under test is that `resolve_fit` lands on the right ROW, not what the
+        designer tuned it to."""
+        rows = ENEM["EnemyTypes"]["Formation"]["eras"]
+        tm = synth(["bbs"])
+        for era in range(len(rows) + 3):          # 3 eras past the table
+            with self.subTest(era=era):
+                row = rows[min(era, len(rows) - 1)]
+                self.assertEqual(
+                    Formation.resolve_fit(ENEM["EnemyTypes"]["Formation"],
+                                          era),
+                    (int(row["footprint"]), float(row["sprite_scale"])))
+                # and the seam is what construction actually uses
+                f = Formation(2, 0, ENEM, tm, era)
+                self.assertEqual(f.get_component(PathAgent).footprint,
+                                 int(row["footprint"]))
+                self.assertEqual(f.get_component(SpriteAnimator).fit_tiles,
+                                 float(row["footprint"]))
+        self.assertNotEqual(rows[0]["footprint"], rows[-1]["footprint"],
+                            "the fixture must actually vary, or this is a "
+                            "tautology")
+
     def test_the_type_itself_refuses_a_one_tile_gap_a_walker_threads(self):
         """End-to-end proof that balancing -> PathAgent -> pathfinder is wired:
         it is the TYPE's footprint in the balance, not a raw footprint=2 argument,
         that seals the gap. Wall down col 2 with a ONE-tile hole.
 
-        The footprint is PINNED, not read live: `footprint` is designer content and
-        every type sits at 1 today, which would quietly turn this into "a 1x1 walks
-        through a 1x1 hole" — a tautology that proves none of the wiring it names."""
+        The footprint is PINNED, not read live: it is designer content, and a
+        retune to 1 would quietly turn this into "a 1x1 walks through a 1x1
+        hole" — a tautology that proves none of the wiring it names. (The live
+        curve has its own test above.)"""
         enem = footprint_balance("Formation", 2)
         tm = synth(["ccfcc", "ccfcc", "ccccc", "ccfcc", "ccfcc"], base=(0, 2))
         walker = create_enemy("standard", 4, 2, enem, tm)
@@ -837,7 +871,7 @@ class TestFormation(unittest.TestCase):
         tile_w = 64
         fit = fit_factor(frame.frame_w, tile_w, fit_tiles=2.0)
         self.assertEqual(fit, 1.0)
-        self.assertEqual(frame.frame_w * fit * FORM["sprite_scale"],
+        self.assertEqual(frame.frame_w * fit * FORM["eras"][0]["sprite_scale"],
                          2 * tile_w)
 
     def test_the_registry_group_resolves_a_slot_per_era(self):
@@ -1865,8 +1899,12 @@ class TestDrummer(unittest.TestCase):
         self.assertIs(ENEMY_CLASSES["drummer"], Drummer)
         # A walker's march, not a hunter's: no repath_on_kill, no goal set.
         self.assertEqual(DRUM["hunts"], "base")
-        self.assertEqual(DRUM["footprint"], 1)
-        self.assertGreater(DRUM["sprite_scale"], 1.0)   # "slightly taller"
+        # The fit pair is PER-ERA for every type now, and the Drummer's
+        # "slightly taller" 1.15 must hold in EVERY row (it is the type's
+        # look, not an era's) — a row that lost it would draw walker-sized.
+        for row in DRUM["eras"]:
+            self.assertEqual(row["footprint"], 1)
+            self.assertGreater(row["sprite_scale"], 1.0)
         # No stat override (the Commander's D8 rule): the base
         # STAT_SUBTREE-driven resolver must read the Drummer's own era rows.
         self.assertIsNone(Drummer.__dict__.get("_resolve_stats"))

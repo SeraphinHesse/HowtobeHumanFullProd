@@ -70,8 +70,10 @@ def host_frame(session, scene, tm, dt):
 def run_wave(session, scene, tm, budget=4000, dt=0.1):
     """end_turn, then frame until the wave resolves (or the budget proves it
     never did — a failure worth failing on, not hanging on). Resolves any
-    modal (LEVELUP / BOSS_CUTSCENE) with its first option so multi-round
-    scenarios can keep driving the loop like a player would."""
+    modal (LEVELUP / BOSS_CUTSCENE / ENEMY_INTRO) with its first option (or,
+    for ENEMY_INTRO, by draining the queue exactly like the host does once a
+    window's close animation finishes) so multi-round scenarios can keep
+    driving the loop like a player would."""
     session.end_turn()
     st = session.state
     for _ in range(budget):
@@ -80,6 +82,8 @@ def run_wave(session, scene, tm, budget=4000, dt=0.1):
             session.resolve_levelup(st.levelup_options[0], scene)
         elif st.phase == GamePhase.BOSS_CUTSCENE:
             session.resolve_boss_cutscene("A", scene)
+        elif st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         elif st.state == GameState.GAME_OVER:
             return
         elif st.phase == GamePhase.BUILDING:
@@ -102,6 +106,8 @@ class TestUndefendedHoleFalls(unittest.TestCase):
         lives0 = st.base_lives
         for _ in range(4000):
             host_frame(session, scene, tm, 0.1)
+            if st.phase == GamePhase.ENEMY_INTRO:
+                session.resolve_enemy_intro()
             if st.base_lives < lives0 or st.state == GameState.GAME_OVER:
                 break
         self.assertLess(st.base_lives, lives0,

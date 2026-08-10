@@ -68,6 +68,22 @@ CONDITION_MODIFIER_KEY = {
 }
 # -- /10I --
 
+# -- map-file condition NAME -> TileCondition --------------------------------
+# The one table translating a `tile_conditions` mark's `condition` name (the
+# map-file schema's enum, which is the single source of truth for that
+# vocabulary) into the runtime enum. GRASS IS present: a designer must be able
+# to paint a tile explicitly grass and lock it out of the roll. ONE table, so
+# the name->enum mapping cannot drift — same rationale as CONDITION_LABEL /
+# CONDITION_WEIGHT_KEY / CONDITION_MODIFIER_KEY above. Indexed DIRECTLY by its
+# consumer (`tile_map.py`), never `.get()`: an unknown name is invalid data and
+# must fail loud (D-2).
+CONDITION_BY_MAP_KEY = {
+    "grass": TileCondition.GRASS,
+    "mountain": TileCondition.MOUNTAIN,
+    "pond": TileCondition.POND,
+    "forest": TileCondition.FOREST,
+}
+
 # -- condition ART -----------------------------------------------------------
 # Condition -> its own TOP-LEVEL group label in the `conditions` slot category
 # (``data/slots.json``). GRASS IS present here (unlike the two tables above):
@@ -90,13 +106,20 @@ CONDITION_LABEL = {
 }
 
 # Zone state -> its group label WITHIN a condition's top-level group.
-# BACKGROUND has NO entry: background tiles never get condition art
-# (unchanged rule) regardless of a tile's rolled condition.
+# BACKGROUND and SPAWNING have NO entry, and that absence IS the rule:
+# neither ever gets condition art, regardless of a tile's condition. For
+# BACKGROUND that is the original rule; for SPAWNING it is the deferred-roll
+# change — the spawn band is a staging area that reads as plain ground plus
+# trees, and a spawn tile does not decide its condition until it converts to
+# COMBAT (`TileMap._roll_condition`). A painted `tile_conditions` mark still
+# applies to a spawn tile as a GAMEPLAY value (weight, modifiers); it simply
+# draws no condition art while the tile is spawning.
+# The four `cond_*_spawning` slots in `data/slots.json` stay first-class
+# editor slots — nothing resolves them at runtime any more.
 CONDITION_STATE_LABEL = {
     TileState.BUILDABLE: "Buildable",
     TileState.BUILT: "Built",
     TileState.COMBAT: "Combat",
-    TileState.SPAWNING: "Spawning",
 }
 
 # -- spawn-band deco (10I) ---------------------------------------------------
@@ -120,6 +143,7 @@ class Tile:
     # (see game/main.py), this is what keeps very large maps performant.
     __slots__ = (
         "col", "row", "state", "content_key", "occupant", "condition",
+        "condition_rolled",
         "condition_slot", "condition_variant_idx", "spawn_deco_roll",
         "damage_weight_reduced", "defence_range_covered",
         "highlighted", "unlock_highlight", "range_highlight",
@@ -138,6 +162,16 @@ class Tile:
         # placement (9D); consumed by damage-weight refresh + occupancy sync.
         self.occupant = occupant
         self.condition = condition
+        # bool — has this tile's condition been DECIDED yet? True once the
+        # init roll rolled it, a painted `tile_conditions` mark claimed it, or
+        # the deferred roll fired at COMBAT conversion — and also for the
+        # starting unlocked pocket, which is deliberately GRASS forever rather
+        # than pending. It is False for exactly one set: unpainted BACKGROUND
+        # and SPAWNING tiles, which have not entered play yet and whose
+        # condition `TileMap._roll_condition` decides the moment they convert
+        # to COMBAT. That is what makes the roll fire ONCE per tile no matter
+        # which route it took in (`c` at init, `s -> c`, or `f -> s -> c`).
+        self.condition_rolled = False
         # str | None — the `conditions`-category slot key whose art this tile
         # draws on the `terrain` layer. Resolved from (condition, state,
         # condition_variant_idx) at map construction AND re-resolved on every
@@ -147,16 +181,19 @@ class Tile:
         # emit nothing.
         self.condition_slot = None
         # int — the stable index into whichever state-family is currently
-        # active for this tile's condition. Picked ONCE (sized against the
-        # tile's initial state's family) and never re-rolled: a state
-        # transition re-resolves `condition_slot` at this SAME index against
-        # the new state's family (modulo its size), so a tile keeps "variant
-        # #2" across buildable/built/combat/spawning looks.
+        # active for this tile's condition. Picked ONCE, at the same moment
+        # the tile's CONDITION is decided (the init art pass for a tile that
+        # starts in play; `TileMap._roll_condition` for one that converts into
+        # play later) and never re-rolled after that: a state transition
+        # re-resolves `condition_slot` at this SAME index against the new
+        # state's family (modulo its size), so a tile keeps "variant #2"
+        # across buildable/built/combat looks.
         self.condition_variant_idx = 0
         # int — packed spawn-deco roll: -1 means "no tree", else `variant_idx *
         # 2 + flip_bit`. Rolled ONCE at `TileMap.__init__` (`SpawnDeco.
-        # tree_chance`) for every non-BACKGROUND tile, same as
-        # `condition_variant_idx` — a single small int keeps the per-tile cost
+        # tree_chance`) for EVERY tile, BACKGROUND included (see the roll's own
+        # comment in `tile_map.py` for why that matters) — a single small int
+        # keeps the per-tile cost
         # at 8 bytes (CPython caches small ints, so this is zero extra
         # allocation) rather than a resolved-slot string. The emitter
         # (`spawn_deco.py`) reads `tile.state` LIVE to decide whether to draw

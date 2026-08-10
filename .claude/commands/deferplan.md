@@ -12,8 +12,10 @@ approved, when the work should land while the user is away.
 ## Read first
 1. The active plan file (path is in the plan-mode system message / the
    `ExitPlanMode` result). That text IS the payload.
-2. `CLAUDE.md` §"Command and Control Structure" + §"Step 2 — Universal exit gate" —
-   both get restated in the routine prompt, since the cloud agent starts blank.
+2. `CLAUDE.md` §"Working structure" + §"Test Suite Policy" + §"Step 2 —
+   Universal exit gate" — all three get restated in the routine prompt, since
+   the cloud agent starts blank. The test policy matters most there: an
+   unattended agent that re-runs the full suite "to be safe" burns the routine.
 
 ## Time grammar
 | Input | Mode | Meaning |

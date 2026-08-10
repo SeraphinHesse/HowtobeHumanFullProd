@@ -156,6 +156,17 @@ class RunState:
     # its own clock.
     lightning_level: int = 0
     # -- /10H --
+    # -- feature-enemy-intro-dialogue -----------------------------------
+    # Queued at ``Session.end_turn()`` when one or more ``core.json``
+    # ``EnemyIntro.entries`` match ``round_num`` (the LEVELUP/
+    # ``pending_boss_cutscene`` "transient request" precedent — never
+    # serialized). The host opens ``entries[0]`` on the BUILDING ->
+    # ENEMY_INTRO phase edge; ``Session.resolve_enemy_intro()`` pops the
+    # shown entry once its close animation finishes, re-arming the host to
+    # open the new head entry, and returns the phase to ENEMY once the
+    # queue drains.
+    pending_enemy_intros: list = field(default_factory=list)
+    # -- /feature-enemy-intro-dialogue --
 
     @classmethod
     def from_balance(cls, core_balance, buildings_balance):

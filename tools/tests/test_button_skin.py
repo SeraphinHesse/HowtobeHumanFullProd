@@ -199,7 +199,7 @@ class TestSkinnedButton(unittest.TestCase):
 
 class TestScreenThreading(unittest.TestCase):
     def test_screen_threads_mouse_down_and_clock(self):
-        shell = Shell(1280, 720, UI)
+        shell = Shell(640, 360, UI)
         mm = shell.main_menu
         btn = mm.buttons[0][0]
         cx, cy = _center(btn.rect)

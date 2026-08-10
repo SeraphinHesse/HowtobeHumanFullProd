@@ -772,11 +772,21 @@ class TestBossCutsceneFlow(unittest.TestCase):
                 break
         return session.state.phase
 
+    def _end_turn_past_any_intro(self, session):
+        """end_turn(), then drain any enemy-intro entry queued on this round
+        (feature-enemy-intro-dialogue) — round 10 (INTERVAL, a boss round)
+        carries both a Boss and a Commander entry in the fixture data — so
+        the round's real ENEMY phase begins exactly like it did before this
+        feature existed."""
+        session.end_turn()
+        while session.state.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
+
     def test_cutscene_beats_levelup_and_chains_through_it(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
         st.levelup_pending = True
-        session.end_turn()                        # boss wave queued
+        self._end_turn_past_any_intro(session)     # boss wave queued
         self.assertEqual(st.phase, GamePhase.ENEMY)
         self.assertEqual(st.boss_events, [INTERVAL])   # announce marker
         self.assertEqual(st.boss_love_snapshot, st.love)
@@ -802,7 +812,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
     def test_cutscene_straight_to_payday_without_levelup(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
-        session.end_turn()
+        self._end_turn_past_any_intro(session)
         session.quick_skip_combat(scene)
         self._ride_to_cutscene(session, scene, tm)
         self.assertEqual(st.phase, GamePhase.BOSS_CUTSCENE)
@@ -815,7 +825,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
     def test_outcome_is_loss_when_a_life_was_lost(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
-        session.end_turn()
+        self._end_turn_past_any_intro(session)
 
         class _Dummy:
             ETYPE = "standard"

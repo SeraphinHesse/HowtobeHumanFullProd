@@ -75,7 +75,33 @@ import list.**
     widgets start with the dot hidden, and a rebuild that is not a domain switch
     would otherwise drop the pending marks of every other staged edit. The buttons
     carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
-    WHICH arrays are resizable. Scalar arrays keep their fixed length.
+    WHICH arrays are resizable.
+  - **Arrays of SCALARS can get the same `+ Row`/`− Row` gate
+    (feature-enemy-intro-dialogue, generalizing ER-5) — but only when their
+    OWN schema property opts in with `"x-array-editable": true`.**
+    `core.json`'s `EnemyIntro.entries[i].hidden_frames` (`minItems: 0`, no
+    `maxItems`, carrying the marker) is the first: a designer-resizable
+    per-entry list of frame-column indices, shipping empty. Same
+    `can_add`/`can_remove` gate as the object-array case, same "remove pops
+    the last row" rule; the one real difference is **Add on an EMPTY array**,
+    which has no last row to copy — `_default_scalar_value(item_schema)`
+    synthesizes a schema-valid starting value instead (an enum's first value,
+    `False` for boolean, `""` for string, else the item schema's own
+    `minimum`, defaulting to `0`). **The marker is required, not just
+    `minItems != maxItems`, because `BuildingsGlobal.random_names`
+    (`buildings.schema.json`) already had that exact shape (`minItems: 1`, no
+    `maxItems`) and must NOT sprout buttons here — it grows only through the
+    game's own 9H add-name menu.** A live regression caught by
+    `test_editor_panels.py::TestBalancingPanel::
+    test_buildings_form_has_no_row_buttons_at_all` is what forced the opt-in
+    marker instead of a blanket `minItems != maxItems` gate. Every other
+    scalar array (`Camera.zoom_levels`, `LightningStrike.{damage,radius,
+    cooldown}`, every `[$defs/…]`-typed 3/4/5-slot tuple) has `minItems ==
+    maxItems` anyway and would show no buttons regardless. Deliberately NOT
+    extended to arrays of OBJECTS gaining a schema-derived default — an
+    object has no single sensible one (`required`/`pattern`/cross-field
+    constraints), which is exactly why the object-array Add still copies a
+    row instead.
     Since ES-2 the enemies domain's `eras` arrays (`EnemyScaling/eras` and every
     `EnemyTypes/<Type>/eras`) are the second family of genuinely resizable
     arrays, and they got those buttons with **zero editor edits** — the schema
@@ -708,6 +734,47 @@ import list.**
     codes (`"stage zones on non-combat tiles"`), NOT the reserve's `checker`
     zone test — the stage only ever advances on a combat-tile purchase. The
     empty-overlay label is `"stage zone tiles"`.
+- **Tile Conditions (4 name brushes)**: an EIGHTH mode page
+  (`palette.MODES`/`EYES` gain `"tile_conditions"`, labelled "Tile Conditions"
+  via `MODE_LABELS`) — the **fourth** per-cell overlay, painting
+  `TileMapDoc.tile_conditions` (`{(col, row): "mountain"}`); the runtime gives
+  a marked cell exactly that condition and excludes it from the random
+  condition roll. Structurally the stage-zones twin, again copied rather than
+  generalised: pure ops `set_condition`/`condition_line`/`condition_rect`/
+  `condition_bucket`/`apply_condition_changes`/`pick_condition` with the same
+  `(col, row, old, new)` tuples, `condition_bucket` flooding the underlying
+  TERRAIN region; `map_session._TileConditionStrokeCommand`/
+  `push_condition_stroke`; a `_tool_press` branch beside the other three and
+  likewise BEFORE the terrain-code branches; `_submit_tile_conditions`, a
+  window-culled overlay diamond + `HudText`; no ghost (the outline IS the
+  ghost).
+  - **It is the FIRST paint mode whose brush value is a NAME, not a number** —
+    so instead of a `_NoWheelSpinBox` the page carries ONE plain-text brush
+    button PER condition, all in the SAME exclusive `_brush_group` (the
+    gametiles/background code-brush idiom), which is what makes the
+    eyedropper's return path (`viewport.condition_picked` →
+    `palette.arm_tile_condition`) a plain re-check of the matching button,
+    exactly like `code_picked` → `arm_code`. `armed_tile_condition()` therefore
+    returns the NAME (or None), not the bool the three number overlays return.
+    The buttons live in their own `self._condition_buttons` dict, NOT in
+    `self._brush_buttons`, for the same reason those three brushes don't: that
+    dict drives `refresh_icons()`/`_armed_slot()`, which need a registry SLOT.
+  - **The four names come from the schema, never from editor code**:
+    `palette._condition_names()` → `engine.tilemap.condition_codes_from_schema`
+    → `map_file.schema.json`'s `tile_conditions.items.condition.enum`, the
+    single source of that vocabulary (the same "schemas over convention"
+    argument as `_stage_bounds`). Adding a fifth condition is a schema edit and
+    nothing else: the brush, its label and its tooltip all follow, and
+    `viewport.CONDITION_COLORS` degrades an unknown name to
+    `CONDITION_DEFAULT_COLOR` rather than raising (E-37).
+  - **Its divergences, by the same logic as the other twins'**: one outline hue
+    per condition (`CONDITION_COLORS` — pale yellow / slate / blue / green
+    against the reserve's cyan, despawn's magenta, stage's lime) and the label
+    sits lower than all three numbers (reserve `sy-6`, despawn `sy+4`, stage
+    `sy+14`, condition `sy+24`) so a cell carrying all four marks stays
+    readable. No `map_requirement_warnings` entry: an unmarked map is the
+    normal case (the runtime rolls conditions randomly), so there is nothing to
+    warn about.
 - **"None" tool**: `PalettePanel.TOOLS` starts with `"none"`, default-armed. It
   structurally cannot paint/erase/place deco but the base-cell check runs BEFORE
   tool dispatch, so dragging the base still works; a LEFT-drag under "none" (off the
@@ -733,10 +800,35 @@ import list.**
   `refresh_screens()` mirror `map_ids()`/`select_map()`/`refresh_maps()`
   exactly (selection-preserving rebuild).
 - **`ViewportPanel.set_screen_mode(session, defaults)`** (mirrors
-  `set_map_mode`): a FIXED 1280×720 logical canvas (`data/display.json`'s
-  canonical resolution) scaled-to-fit the widget (`_screen_scale_offset`) —
+  `set_map_mode`): a FIXED logical canvas at **`data/display.json`'s
+  resolution** — never a literal size. `viewport.logical_resolution(data_dir=
+  None)` loads it at import and fills `SCREEN_W`/`SCREEN_H`; there is
+  deliberately **no numeric fallback** (a fallback would be a second source of
+  truth, so a missing/invalid `display.json` raises). The canvas is
+  scaled-to-fit the widget (`_screen_scale_offset`) —
   no viewport-driven zoom, the whole canvas is always visible, like the
-  entity preview's parked camera. `defaults` is the FULL loaded
+  entity preview's parked camera.
+  - **UR-3 — the preview renders through the canvas, not through scaled
+    geometry** (`_render_screen_frame`): the screen's CONTENT is submitted at
+    the identity triple `(1.0, 0, 0)` into a cached `SCREEN_W x SCREEN_H`
+    `pygame.Surface`, flushed into it, then blitted to the widget surface with
+    ONE `pygame.transform.scale` (never `smoothscale` — pixel art) at
+    `_screen_scale_offset`'s letterbox offset. This mirrors the game's own
+    `pygame.SCALED` pipeline, and it is the only parity-true option: `HudText`
+    carries a font key and no scale, so the old scale-the-geometry path drew
+    labels at absolute pixel size inside scaled boxes and the label/box ratio
+    was wrong by exactly `1/scale`. **Editor chrome is deliberately NOT
+    scaled** — selection outline/handles/caption, the E-37 placeholder and the
+    canvas-edge frame (`_submit_screen_chrome`) are submitted in SCREEN pixels
+    after the blit and ride `render_frame`'s own flush. Two flushes, one
+    `Renderer` (ED-22): `flush` clears the queue.
+  - **The fit scale snaps to a whole multiple at or above 1.0**
+    (`math.floor` inside `_screen_scale_offset`; offsets floored too). Below
+    1.0 the fractional downscale is unchanged. The snap lives in that ONE
+    helper, never at the blit, so hit-testing, dragging and the drawn image
+    cannot disagree. `NUDGE_STEP` stays 1 LOGICAL px.
+
+  `defaults` is the FULL loaded
   `data/ui/screen_defaults.json` mapping (`{screen_id: {widgets, mock_note}}`),
   not a single screen's sub-dict — `_current_screen_defaults()` is the ONE
   place that indexes it by the open session's `screen_id`.
@@ -865,6 +957,53 @@ import list.**
   `push_skin_assign` on an in-memory session, never a populated screen
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
+
+## Phase UT-2/UT-6 — the real screen preview + the Text-template row
+
+- **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews
+  .json`, `data/CLAUDE.md`) instead of drawing only the named widgets as flat
+  boxes. `refresh_screen_previews(previews, recorded_doc=None)` installs it
+  (deserializing ONCE, cached per `(screen, view)` — a list runs to dozens of
+  primitives and `_submit_screen_items` runs every 16 ms);
+  `_current_screen_preview()` resolves the active view the same way
+  `_current_screen_defaults()` does. Missing/corrupt/absent-for-this-screen
+  degrades to the pre-UT-2 flat-box rendering (E-37), never a raise. Still
+  ED-22-clean: every replayed item goes out through `Renderer.submit_hud`.
+- **`_preview_in_sync()` is the whole correctness argument.** A recording is a
+  picture of ONE exact doc. In sync (the live doc equals `recorded_doc`), the
+  recording IS the screen and the editor draws nothing but selection chrome
+  over it — plus the widget under an in-flight drag, whose live rect no
+  recording can know. **Out of sync** (an edit just landed, or a saved doc
+  carries overrides and no re-record has finished), the editor ALSO draws
+  every id'd widget from defaults+overrides on top: they briefly ghost against
+  their recorded selves, which is strictly better than a stale picture that
+  HIDES your edit. Do not "simplify" this by always replaying — that made an
+  assigned skin invisible and turned `TestScreenModeReloadOnEntry` red.
+- **`MainWindow` re-records on every screen-doc change**, debounced
+  (`_PREVIEW_DEBOUNCE_MS`, driven off `screen_session.undo_stack.indexChanged`
+  so it covers undo/redo too) and once more on screen-mode entry when the
+  saved doc is non-empty. It writes `{screen_id: doc}` to a temp file and runs
+  `RunControls.render_preview`, which is deliberately its OWN QProcess slot,
+  NOT `_launch`'s: this fires after every nudge, so queueing it behind Build
+  (or having Build refuse because a preview render is in flight) would make
+  both feel broken. A render already in flight is KILLED, not queued — only
+  the newest doc is worth drawing — and it streams nothing to the console.
+  `preview_renders` is injectable and DEFAULTS TO FOLLOWING
+  `auto_refresh_layouts`, so the test suite never spawns a real render.
+- **`ScreenDetailsPanel`'s Label row becomes "Text template"** when the
+  selected widget has a `text_id` (its own override, else the exporter's).
+  It then edits `data/ui/strings.json` through
+  `UIScreenSession.push_string` — the same undo stack, a different doc — and
+  the grey line beneath shows the resolved `sample` plus a **"used by N
+  widgets"** warning, because the table is GLOBAL and that is not obvious from
+  the row. An unbound widget keeps the per-widget `label` override verbatim.
+  A **Text ID** combo re-points a widget at another EXISTING id; the editor
+  never invents one (the table is a closed set — adding a key is a schema
+  change, i.e. a code change).
+- **`_screen_rules.label_is_code_owned` gained a `text_id` argument** and
+  returns False for anything bound — that rule's reach is now small
+  (`TOOLTIP_LABEL_CODE_OWNED` survives for what genuinely stays code-owned,
+  e.g. a `field`'s user-typed contents).
 
 ## Phase ESV-4 — vfx preview (`panels/vfx_preview.py`, `editor/vfx_params.py`)
 - **A DEDICATED panel, not a fourth `ViewportPanel` mode.** ESV-2 owns
@@ -1324,6 +1463,72 @@ calls):
   consumer (unlike Theme) — no engine reconfiguration follows a text/flag
   edit. Documented in the panel's own docstring so a future phase does not
   go looking for a missing connection.
+
+## Timeline panel (`panels/timeline.py`, `timeline_ops.py`, `timeline_curve.py`; TimelinePLAN T5)
+- **Selection**: a single "Timeline" LEAF (one document, `data/balancing/
+  progression.json`, nothing to enumerate) is the FIRST child of the
+  "buildings" category node — the exact Theme/Cutscenes/Tutorial/Strings
+  shape (one category over), chosen over a toolbar button after re-reading
+  this doc mid-implementation: those four are the real precedent for a
+  single-document panel, not `run_controls`/`spawnclaude` (actions, not
+  `right_stack` pages). `progression` is deliberately not itself a
+  `slots.json` category (TimelinePLAN D1 — it needs a bespoke drag-and-drop
+  widget, never the generic recursive balancing form), so there was no
+  existing tree node to hang it off; "buildings" was picked because
+  `progression.json` schedules building unlocks. `panels/selector.py`'s
+  `_TIMELINE_ROLE` marker + `timeline_selected()` signal, never
+  `node_selected`. `MainWindow._on_timeline_selected` → `right_stack` (index
+  7, the newest page).
+- **Staged edits, the `tutorial_panel.py` pattern**: every drag/clear/add/
+  remove mutates an in-memory doc through the pure `editor/timeline_ops.py`
+  helper + a dirty flag; ONE "Save Timeline" button is the sole
+  `timeline_ops.save_progression` (`write_validated`) call site, which
+  cross-checks the two invariants JSON Schema can't express (`village_level`
+  uniqueness, `(building_type, tier_index)` uniqueness) before writing.
+- **First drag-and-drop in this editor** — no prior `QDrag`/`QMimeData` usage
+  existed anywhere in `editor/` before this. A custom MIME type
+  (`application/x-htbh-timeline-card`) carries `"<kind>|<building_type>|
+  <tier_index>"`; `_BrowseCard.mouseMoveEvent` starts the drag once past a
+  4px threshold, `_SlotWidget.dropEvent` accepts only that MIME type.
+  **Dropping onto an occupied slot replaces it unconditionally** — no
+  confirm dialog, the palette's "click a new brush, it replaces the armed
+  one" precedent. An already-placed browse card is **disabled**
+  (`setEnabled(False)`) rather than left draggable — Qt cannot start a drag
+  from a disabled widget, which is what keeps a duplicate placement from
+  ever being staged (the alternative, catching it only at Save time via
+  `validate_uniqueness`, was rejected as worse UX).
+- **Icons are real engine frames** via the SAME injected `viewport.
+  slot_qimage` provider `editor/panels/palette.py` uses
+  (`editor/main.py`: `self.timeline.set_icon_provider(self.viewport.
+  slot_qimage)`) — never hand-drawn art (ED-22).
+- **The graph is a hand-rolled `QPainter` strip** (`_TimelineGraph`), which
+  does NOT violate ED-22 — the `sheet_preview.py` precedent already
+  established that QPainter drawing non-game-content editor chrome (there, a
+  raw imported PNG; here, a schedule/curve visualization) is a different
+  thing from a second renderer of GAME content. It draws the round axis, the
+  raw cumulative-XP curve line, and a tick + label per `village_level` at its
+  computed best-case round (`editor/timeline_curve.py::best_case_curve`),
+  plus an always-visible "best-case / upper-bound" caption. A "View max
+  round" spinbox (default 50) is the zoom control — not full mouse-wheel/
+  drag pan, a deliberate scope simplification.
+- **The curve is computed ONCE per panel load/view-max change, not on every
+  Timeline edit** — a correction made mid-implementation to an earlier
+  planning assumption: the best-case curve depends only on `core.json`/
+  `enemies.json` (which this panel never writes), never on
+  `progression.json`'s own slot assignments, so recomputing it after every
+  drag would just repeat the same result.
+- **`editor/timeline_ops.py`'s `load_building_catalog`** is the browse
+  list's data source — reads `data/balancing/buildings.json`'s
+  `building_type`/`card_slots` fields (TimelinePLAN T1), walking whatever
+  groups carry a `building_type` key rather than a hardcoded family list, so
+  a new `/add-building` type needs no editor change here. Tier index 0 is
+  always the `"unlock"` card; indices 1/2 are `"tier"` cards.
+- **Testing note**: a real OS-level drag gesture cannot be reliably
+  synthesized under an offscreen `QApplication`. `test_timeline_panel.py`
+  drives the panel's own mutation methods directly for most coverage, plus
+  ONE test constructing a real `QMimeData` and calling `_SlotWidget.
+  dropEvent` directly — the standard Qt-test workaround, exercising the
+  actual drop-handling code path rather than only the method it delegates to.
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

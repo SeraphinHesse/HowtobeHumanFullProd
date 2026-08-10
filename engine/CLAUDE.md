@@ -60,7 +60,14 @@ engine task; if an engine change forces a caller change, tell the user
   them as "flip this cell out of spawning at stage n" and "buying a 2×2 over
   these cells advances the run's stage counter to the max number under it". The
   item field on all three is `stage`; it was `purchase` on the first two until
-  the stage counter stopped being a purchase count.
+  the stage counter stopped being a purchase count. **`tile_conditions` is the
+  FOURTH never-rendered per-cell overlay** — same dict-in-memory /
+  (row, col)-sorted-list-on-disk split and same `validate_doc` bounds check, with
+  ONE difference: its item field is `condition`, an opaque NAME string rather
+  than a stage NUMBER (`tilemap.py` never learns what a "pond" is; the map
+  schema's own enum is the single source of that vocabulary, and
+  `condition_codes_from_schema` digs it out for the editor's brushes the way
+  `defaults_from_schema` digs the legend consts).
   - **Checkerboard parity is PROTOTYPE-EXACT** (src/map/tile.py):
     `slot_for_code`/`slot_for_cell` append `_b` iff the legend entry has `checker:
     true` AND `(col + row + 1) % 2 == 1` (col+row even). Background kinds never
@@ -93,6 +100,20 @@ engine task; if an engine change forces a caller change, tell the user
   the package's no-game-vocabulary rule: it knows "eras", "rows", "stats" and
   "counts", never a raider or a boss — callers pass already-loaded dicts,
   nothing here opens a file or names a JSON path. In `TestPurity`.
+- **`xp_curve.py`** (pure, stdlib-only — TimelinePLAN T3/D7) — the best-case
+  (upper-bound) XP-curve calculator's vocabulary-free core, built on
+  `era_math.py`: `type_count_for_round`/`enemy_counts_for_round` (one type's
+  or every type's spawn count for a round, via `era_math`),
+  `cumulative_best_case_xp` (sums `count × xp_per_type` per round, assuming
+  every spawn is killed that round — an explicit upper bound, never a real
+  playthrough's curve), `threshold_crossing_rounds` (first round a cumulative
+  XP sequence crosses each of an ordered list of thresholds). Deliberately
+  does not decide what a "boss round" or "round 0" means — the CALLER's own
+  injected `counts_for_round(round_num)` composes each round, so this module
+  never learns those concepts. Two vocabulary adapters carry that knowledge:
+  `game/core/xp_curve.py` and its deliberately duplicated twin
+  `editor/timeline_curve.py` (D7 — `editor/` may never import `game/`),
+  pinned equal by a cross-package drift test. In `TestPurity`.
 - **`data_io.py`** — the schema-validating JSON load/write (pure Python; used by
   coords to load geometry, by the editor/agents to write). Deterministic dumps:
   sorted keys, 2-space indent, trailing newline (D-3).

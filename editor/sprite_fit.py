@@ -103,14 +103,25 @@ def _era_index(registry, group_label, slot_key):
 def _type_fit(type_block, era):
     """`(footprint, sprite_scale)` off one `EnemyTypes/<Type>` block.
 
-    Flat at the block root for every type but the Boss, whose pair lives in
-    its per-era `stats[]` rows (BR-1). Total by construction — an unexpected
-    shape returns the render defaults rather than raising, but nothing here
-    can `KeyError`."""
+    PER-ERA for every type, in one of two places: an era-shaped type carries
+    the pair in its `eras[]` rows, and the Boss — which has no `eras` — in its
+    own `stats[]` rows (BR-1). Both clamp to the last authored row, exactly as
+    `game`'s `Enemy.resolve_fit` does (endgame_scaling carries no factor for
+    either key, so a clamp is the whole story past the table).
+
+    The block root is still read as a last resort, so a hand-built or older
+    document that kept them flat resolves instead of silently falling back to
+    the render defaults — which is the shape of the BR-5 bug this function
+    exists to prevent. Total by construction: an unexpected shape returns the
+    defaults rather than raising, and nothing here can `KeyError`."""
     row = type_block
-    stats = type_block.get("stats")
-    if isinstance(stats, list) and stats:
-        row = stats[min(max(int(era), 0), len(stats) - 1)]
+    for key in ("eras", "stats"):
+        rows = type_block.get(key)
+        if isinstance(rows, list) and rows:
+            row = rows[min(max(int(era), 0), len(rows) - 1)]
+            break
+    if not isinstance(row, dict):
+        return DEFAULT_FIT
     if "footprint" not in row or "sprite_scale" not in row:
         return DEFAULT_FIT
     return float(row["footprint"]), float(row["sprite_scale"])

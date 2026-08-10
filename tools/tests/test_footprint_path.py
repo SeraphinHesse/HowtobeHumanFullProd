@@ -461,8 +461,13 @@ class TestSpawnerClearance(unittest.TestCase):
     THICK_BAND = ["bccc", "cccc", "ssss", "ssss"]   # 2 tiles thick
 
     def _balance(self, siege_footprint=1):
+        # The fit pair is PER-ERA for every type, so pin EVERY row — a flat
+        # root key is not read by anything any more and would silently leave
+        # the siege at its shipped footprint 1, turning the clearance tests
+        # below into "a 1x1 fits anywhere" tautologies.
         bal = copy.deepcopy(load_balance(FIXTURE_DATA, "enemies"))
-        bal["EnemyTypes"]["SiegeCannon"]["footprint"] = siege_footprint
+        for row in bal["EnemyTypes"]["SiegeCannon"]["eras"]:
+            row["footprint"] = siege_footprint
         return bal
 
     def _spawner(self, rows, bal, seed=7):

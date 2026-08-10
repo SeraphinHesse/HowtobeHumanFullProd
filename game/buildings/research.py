@@ -7,9 +7,11 @@ building family (10B-10E) adds a leaf class + a ``RESEARCH`` row and never
 reopens the roll.
 
 A spec never stores a gate VALUE — only where in ``buildings.json`` to read it
-(``gate_path``). There is exactly ONE round gate per type: the type's UNLOCK
-card is gated by its own ``tiers[0].unlock_min_round`` (read live via
-``game.core.levelup.tier_offerable``) — unlocking a type makes its tier 1
+(``gate_path``). Since TimelinePLAN T4, the type's UNLOCK card is gated by
+whether it has a Timeline placement at ``tier_index=0``
+(``data/balancing/progression.json``, read live via
+``game.core.levelup.tier_offerable``/``timeline_level_for`` —
+``unlock_min_round`` no longer exists) — unlocking a type makes its tier 1
 immediately placeable, so no separate "starts at tier 0" gate exists.
 Whether a type starts unlocked is a similar story: ``starts_unlocked_for``
 reads it live off the leaf's ``SUBTREE`` group (``<group>.starts_unlocked``) —
@@ -80,9 +82,10 @@ RESEARCH = {
     # 10B — the two special defence lines. Both are LOCKED types earned via a
     # level-up unlock card. Maw Mortar is gated by village level (available from
     # level 1, i.e. the first level-up); Sun Scorcher needs no gate_kind — its
-    # unlock card is gated by its own BeamDefence.tiers[0].unlock_min_round (10),
-    # read live via tier_offerable. (``starts_unlocked`` for both is data, read
-    # live from their own SUBTREE group — see ``starts_unlocked_for``.)
+    # unlock card is gated by whether BeamDefence's tier 0 has a Timeline
+    # placement, read live via tier_offerable (TimelinePLAN T4). (``starts_
+    # unlocked`` for both is data, read live from their own SUBTREE group —
+    # see ``starts_unlocked_for``.)
     "aoe_defence": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("DefenceBuildings", "AOEDefence", "unlock_min_village_level"),
@@ -93,8 +96,8 @@ RESEARCH = {
         unlock_explanation="A burning beam that ramps up — slow to anger, "
                            "deadly to tanks."),
     # Storm Priest — a LOCKED defence type earned via a level-up unlock card,
-    # offered from the first level-up (no gate_kind, unlock_min_round is 0 on
-    # its tier 0, same shape as sun_scorcher above). Placing one is the ONLY way
+    # offered as soon as its tier 0 gets a Timeline placement (no gate_kind,
+    # same shape as sun_scorcher above). Placing one is the ONLY way
     # to unlock lightning strikes (game/core/lightning.py.unlock_from_placement,
     # wired by game/ui/building_ui.py._do_place off its "lightning_source" tag).
     "storm_priest": ResearchSpec(
@@ -104,8 +107,8 @@ RESEARCH = {
     # level-up unlock card gated by village level (available from the first
     # level-up: Painters.unlock_min_village_level = 0). Meditator's type starts
     # locked too (data-driven, see the module docstring); unlocking it makes
-    # tier 1 immediately placeable — its unlock card is gated by
-    # Meditators.tiers[0].unlock_min_round (10), so no gate_kind is needed here.
+    # tier 1 immediately placeable — its unlock card is gated by whether
+    # Meditators' tier 0 has a Timeline placement, so no gate_kind is needed here.
     "painter": ResearchSpec(
         gate_kind="min_village_level",
         gate_path=("EconomyBuildings", "Painters", "unlock_min_village_level"),
@@ -114,8 +117,9 @@ RESEARCH = {
                            "surviving a few rounds — then is gone for good."),
     "meditator": ResearchSpec(),
     # 10D — the boost trio. All three are LOCKED types that unlock TOGETHER from
-    # one card, each gated by its own tiers[0].unlock_min_round (10 on all
-    # three). The lead (boost_speed) carries the card copy + is the only one the
+    # one card; only the LEAD's (boost_speed's) tier-0 Timeline placement is
+    # ever consulted by the roll (TimelinePLAN D8). The lead (boost_speed)
+    # carries the card copy + is the only one the
     # roll offers an unlock card for; the other two ride its unlock_group (the
     # roll skips non-lead members — see game/core/levelup.py). All three need a
     # row so each offers its own Supporting Fan->Cheerleader->Drill Sergeant
@@ -136,12 +140,12 @@ RESEARCH = {
         starts_unlocked_path=("BoostBuildings", "globals", "starts_unlocked"),
         unlock_group=_BOOST_TRIO),
     # 10E — the two passive structure lines. Blocker's Bulwark/Bastion tiers are
-    # researched at level-ups, round-gated by their own ``unlock_min_round``
-    # (20 / 30); the type itself starts LOCKED (data-driven balance change — the
+    # researched at level-ups, gated by their own Timeline placements; the type
+    # itself starts LOCKED (data-driven balance change — the
     # prototype's ``blocker_tiers_unlocked = 1`` is no longer followed) and its
-    # unlock card is gated by Blocker.tiers[0].unlock_min_round (5). WallBuilder's
+    # unlock card is gated the same way at tier 0. WallBuilder's
     # type also starts locked; unlocking it makes tier 1 immediately placeable —
-    # its unlock card is gated by WallBuilder.tiers[0].unlock_min_round (10), so
+    # its unlock card is gated by whether its tier 0 has a Timeline placement, so
     # no gate_kind is needed here — identical shape to the Meditator row.
     "blocker": ResearchSpec(),
     "wall_builder": ResearchSpec(),

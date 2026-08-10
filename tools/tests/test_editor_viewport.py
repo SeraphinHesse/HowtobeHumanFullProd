@@ -29,7 +29,13 @@ from editor.panels.selector import (
     _VIEW_ROLE,
     SelectorPanel,
 )
-from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
+from editor.panels.viewport import (
+    SCREEN_H,
+    SCREEN_W,
+    ViewportPanel,
+    logical_resolution,
+    surface_to_qimage,
+)
 from editor.ui_screen_session import VIEW_ORDER, UIScreenSession, ordered_views
 from engine import data_io
 from engine.render import HudLines, HudRect, HudSprite, HudText
@@ -387,8 +393,10 @@ class TestSelectorScreensBranch(TempDataCase):
         screens_branch = ui_root.child(0)
         # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
         # pills) + TU-6's "tutorial_message" (the guided-tutorial message
-        # box), each added the sanctioned "drop in a file + ids" way.
-        self.assertEqual(screens_branch.childCount(), 14)
+        # box) + feature-enemy-intro-dialogue's "enemy_intro" (the enemy/boss
+        # introduction dialogue window), each added the sanctioned "drop in a
+        # file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 15)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
@@ -548,9 +556,26 @@ class TestOrderedViews(unittest.TestCase):
             ("unlock", "aaa_custom", "zzz_custom"))
 
 
+class TestLogicalResolution(TempDataCase):
+    """UR-1: the screen-mode canvas size comes from data/display.json — the
+    ONE place the logical resolution is stated — not from a literal."""
+
+    def test_screen_constants_match_display_json(self):
+        self.assertEqual((SCREEN_W, SCREEN_H), logical_resolution())
+
+    def test_reads_the_given_data_dir(self):
+        display = data_io.load_validated(
+            self.data_dir / "display.json",
+            self.data_dir / "schemas" / "display.schema.json")
+        self.assertEqual(
+            logical_resolution(self.data_dir),
+            (display["window_w"], display["window_h"]))
+
+
 class TestViewportScreenMode(TempDataCase):
-    """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
-    degrade with no defaults, click/drag/nudge interaction."""
+    """B4 §1c: fixed SCREEN_W x SCREEN_H canvas (data/display.json's
+    resolution) through submit_hud only, graceful degrade with no defaults,
+    click/drag/nudge interaction."""
 
     def setUp(self):
         super().setUp()
@@ -673,6 +698,42 @@ class TestViewportScreenMode(TempDataCase):
         sprites = [c for c in calls if isinstance(c, HudSprite)]
         self.assertEqual(len(sprites), 1)
         self.assertEqual(sprites[0].animation, "hover")
+
+
+class TestScreenScaleOffset(TempDataCase):
+    """UR-3: the ONE fit triple every screen-mode consumer reads — hit-test,
+    drag and the scaled blit alike. Below 1.0 it is a fractional downscale
+    that always fits; at or above 1.0 it snaps down to a whole multiple, so
+    the pixel-art preview duplicates every source pixel equally (the game's
+    SCALED upscale is an exact integer too)."""
+
+    def make_viewport(self, w, h):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(w, h)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def test_smaller_widget_downscales_and_centres(self):
+        panel = self.make_viewport(SCREEN_W // 2, SCREEN_H)
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertLess(scale, 1.0)
+        self.assertGreaterEqual(ox, 0)
+        self.assertGreaterEqual(oy, 0)
+        # letterboxed axis: the canvas is centred inside the widget
+        self.assertAlmostEqual(SCREEN_H * scale + 2 * oy, panel.height(), delta=1)
+
+    def test_double_size_widget_snaps_to_an_integer_scale(self):
+        panel = self.make_viewport(SCREEN_W * 2, SCREEN_H * 2)
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+
+    def test_fractional_upscale_snaps_down(self):
+        panel = self.make_viewport(int(SCREEN_W * 2.6), int(SCREEN_H * 2.6))
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+        self.assertLessEqual(SCREEN_W * scale + ox, panel.width())
+        self.assertLessEqual(SCREEN_H * scale + oy, panel.height())
 
 
 class TestViewportScreenModeViews(TempDataCase):
@@ -1259,9 +1320,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # details_pane (0) + map_details (1) + screen_details (2) +
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
-        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C). The point
-        # of the pin is that the vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 7)
+        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
+        # timeline (7, TimelinePLAN T5). The point of the pin is that the
+        # vfx preview is NOT a stack page of its own.
+        self.assertEqual(window.right_stack.count(), 8)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1433,13 +1495,17 @@ class TestPurity(unittest.TestCase):
             "editor.panels.game_theme, editor.theme_ops, "
             "editor.panels.cutscenes, "
             "editor.panels.tutorial_panel, editor.tutorial_ops, "
+            "editor.panels.timeline, "
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
             "editor.thats_my_producer, "
+            "editor.timeline_curve, editor.timeline_ops, "
             # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
             # module must stay pure of game/ for that import to be legal.
-            "engine.era_math; "
+            # TimelinePLAN T3: editor.timeline_curve also consumes
+            # engine.xp_curve for the same reason (D7).
+            "engine.era_math, engine.xp_curve; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

@@ -67,19 +67,23 @@ _SLOT_IDS = {
 }
 
 _log = logging.getLogger(__name__)
-# player-identity: _GAP dropped 14 -> 8 when the HIGHSCORES row landed. Seven
-# rows at the old pitch ran the QUIT button to y=696..748 in the shipped
-# 1280x720 logical surface (data/display.json), i.e. 28px off the bottom of the
-# screen — clipped, and its lower half unclickable. At 8 the full stack spans
-# 300..712 and fits with room to spare; a matrix that HIDES a row only ever
+# player-identity: _GAP dropped 7 -> 4 when the HIGHSCORES row landed. Seven
+# rows at the old pitch ran the QUIT button to y=348..374 in the shipped
+# 640x360 logical surface (data/display.json), i.e. 14px off the bottom of the
+# screen — clipped, and its lower half unclickable. At 4 the full stack spans
+# 150..356 and fits with room to spare; a matrix that HIDES a row only ever
 # makes the stack shorter, so every availability cell fits too.
-_BTN_W, _BTN_H, _GAP = 320, 52, 8
+# (UR-2 halved every number in this note with the logical surface.)
+_BTN_W, _BTN_H, _GAP = 160, 26, 4
 # debug-mode-telemetry: the small gear sitting beside PLAY DEBUG. It is its
 # own action (``"play_debug_settings"``) rather than a mode of the row above,
 # so a click on it can never start a run by accident.
 _GEAR_ACTION = "play_debug_settings"
 _GEAR_ID = "btn_play_debug_settings"
-_GEAR_W, _GEAR_GAP = 52, 10
+# UR-5: the gear widened 26 -> 30. Its "SET" label measures 24px at "lg"
+# (unhalved), leaving 1px of margin a side in a 26px button. 405 + 30 = 435,
+# still well inside the 640px surface.
+_GEAR_W, _GEAR_GAP = 30, 5
 
 SCREEN_ID = "main_menu"
 
@@ -150,7 +154,7 @@ class MainMenu:
     def layout(self, view_w, view_h):
         visible, gear_slot = self._availability()
         x = view_w // 2 - _BTN_W // 2
-        y = view_h // 2 - 60
+        y = view_h // 2 - 30
         for btn, slot in self.buttons:
             # Set ``visible`` on EVERY row every layout (never only in the
             # hiding branch) so a stale False cannot linger; and advance the
@@ -165,8 +169,8 @@ class MainMenu:
             y += _BTN_H + _GAP
         self.debug_gear.visible = gear_slot is not None
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, view_h // 2 - 150, 0, 0)
-        self._subtitle.rect = (view_w // 2, view_h // 2 - 110, 0, 0)
+        self._title.rect = (view_w // 2, view_h // 2 - 75, 0, 0)
+        self._subtitle.rect = (view_w // 2, view_h // 2 - 55, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),

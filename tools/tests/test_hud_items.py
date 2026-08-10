@@ -30,7 +30,7 @@ class FakeAssets:
         self.sizes = sizes or {}
         self.default = default
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
         w, h = self.sizes.get(slot_key, self.default)
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h)
 
@@ -42,9 +42,10 @@ class RecordingAssets(FakeAssets):
         super().__init__(*a, **kw)
         self.calls = []
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
         self.calls.append((slot_key, animation, anim_time_ms))
-        return super().frame(slot_key, animation, anim_time_ms)
+        return super().frame(slot_key, animation, anim_time_ms,
+                             extra_hidden=extra_hidden)
 
 
 class ManifestAssets:
@@ -55,8 +56,9 @@ class ManifestAssets:
     def __init__(self, manifest):
         self.manifest = manifest
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
-        ref = self.manifest.current_frame(slot_key, animation, anim_time_ms)
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+        ref = self.manifest.current_frame(slot_key, animation, anim_time_ms,
+                                          extra_hidden=extra_hidden)
         entry = self.manifest.entry(slot_key)
         return Frame(surface=ref, frame_w=entry.frame_w, frame_h=entry.frame_h)
 

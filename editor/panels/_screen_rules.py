@@ -105,12 +105,17 @@ _STATIC_TITLE_IDS = frozenset({
 })
 
 
-def label_is_code_owned(screen_id, widget_id, kind):
+def label_is_code_owned(screen_id, widget_id, kind, text_id=None):
     """True iff the game overwrites this widget's `.label` every frame with
     a live computed value, making an editor-authored `label` override dead
     on arrival (game/ui/hud.py's ~12 stable readouts; game/ui/CLAUDE.md).
 
     Rule, in order:
+    0. a `text_id` -> False (UT-1/UT-3). The widget resolves its text through
+       `data/ui/strings.json`, so the text IS designer-owned — the panel shows
+       the TEMPLATE rather than the per-widget `label` override. This is the
+       rule that retired most of this function's reach: before it, every
+       dynamic readout was disabled with "edit it in game code, not here".
     1. `kind == "button"` -> False (editable; `game/ui/widgets.py:246-266`
        draws `self.label`, and `ScreenSkinning.apply` runs after layout so
        an override wins).
@@ -121,6 +126,8 @@ def label_is_code_owned(screen_id, widget_id, kind):
        label, `game/ui/widgets.py:108-119`), `bar` text is live state, and
        `field` content is user-typed at runtime.
     """
+    if text_id:
+        return False
     if kind == "button":
         return False
     if kind == "label":

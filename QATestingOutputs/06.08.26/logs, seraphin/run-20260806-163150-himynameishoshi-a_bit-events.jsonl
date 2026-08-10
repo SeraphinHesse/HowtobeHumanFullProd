@@ -1,0 +1,2 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 2385, "level": 1, "run_id": "run-20260806-163150-himynameishoshi-a_bit", "map_id": "summertest3", "seed": null, "love": 25, "lives": 3, "player_name": "himynameishoshi", "player_skill": "a_bit"}
+{"t": "run_end", "round": 0, "phase": "BUILDING", "frame": 52195, "wall_ms": 172233, "outcome": "quit", "rounds": 0}

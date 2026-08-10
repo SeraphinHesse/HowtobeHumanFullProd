@@ -300,14 +300,14 @@
     },
     "defender_fire": {
       "procedural": "",
-      "sprite_slot": ""
+      "sprite_slot": "vfx_muzzle"
     },
     "enemy_attack_melee": {
       "procedural": "slash",
       "sprite_slot": ""
     },
     "enemy_attack_ranged": {
-      "procedural": "muzzle",
+      "procedural": "",
       "sprite_slot": ""
     },
     "enemy_death": {

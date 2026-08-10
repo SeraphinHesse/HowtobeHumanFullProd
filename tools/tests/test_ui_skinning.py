@@ -49,7 +49,7 @@ from game.ui.main_menu import MainMenu
 from game.ui.pause import PauseScreen
 from game.ui.settings import SessionSettings, SettingsScreen
 
-VIEW_W, VIEW_H = 1280, 720
+VIEW_W, VIEW_H = 640, 360
 OFF = (-1000, -1000)  # off-screen cursor: every button reports "idle"
 
 MAP = FIXTURE_DATA / "maps" / "first_light.json"
@@ -88,21 +88,6 @@ def _session():
     return session
 
 
-_LEVELUP_OPTIONS = [
-    {"kind": "fallback", "title": "Card A", "cost": 5,
-     "explanation": "does a thing", "prev_name": None, "sprite_key": None,
-     "cost_label": "Cost", "display_cost": 5},
-    {"kind": "tier", "title": "Card B", "cost": 0,
-     "explanation": "tiered thing", "prev_name": "Old Name",
-     "sprite_key": None, "cost_label": None, "tier_no": 2, "tier_max": 3},
-]
-
-
-class _GameOverState:
-    round_num = 4
-    buildings_placed = 2
-    enemies_killed = 9
-
 
 def _capture(fn):
     r = RecordingRenderer()
@@ -111,68 +96,18 @@ def _capture(fn):
 
 
 def _screen_captures():
-    """``{screen_id: recorded_items}`` for all 12 screens — fresh instances
-    every call, no state shared between screens."""
-    session = _session()
+    """``{screen_id: recorded_items}`` for all 12 screens.
 
-    mm = MainMenu(VIEW_W, VIEW_H)
-    mm.update(0.0, *OFF, False)
+    Delegates to ``tools/screen_preview.py``'s driver — the SAME code that
+    records ``data/ui/screen_previews.json`` for the editor's screen-mode
+    preview (UT-2). That is deliberate: this golden pin then guards the
+    preview generator too, so a driver that stops reproducing what the game
+    draws turns the pin red before the editor starts lying to a designer.
+    """
+    from tools import screen_preview
 
-    ps = PauseScreen(VIEW_W, VIEW_H)
-    ps.update(0.0, *OFF, False)
+    return screen_preview.capture_screens(FIXTURE_DATA, VIEW_W, VIEW_H)
 
-    settings = SettingsScreen(VIEW_W, VIEW_H, SessionSettings.from_balance(UI))
-    settings.update(0.0, *OFF, False)
-
-    credits = CreditsScreen(VIEW_W, VIEW_H)
-    credits.update(0.0, *OFF, False)
-
-    add_name = AddNameScreen(VIEW_W, VIEW_H)
-    add_name.pool_count = 3
-    add_name.update(0.0, *OFF, False)
-
-    game_over = GameOverScreen(VIEW_W, VIEW_H)
-    game_over.update(0.0, *OFF, False)
-
-    levelup = LevelupWindow(VIEW_W, VIEW_H)
-    levelup.open(_LEVELUP_OPTIONS)
-    levelup.update(0.0, *OFF, False)
-
-    hud = Hud(VIEW_W, VIEW_H)
-    hud_panel = BuildingUI(VIEW_W, VIEW_H, UI)
-    hud.update(0.0, *OFF, session, hud_panel, False)
-
-    panel = BuildingUI(VIEW_W, VIEW_H, UI)
-    panel.hover(*OFF, False)
-    panel.update(0.0)
-
-    cheat = CheatMenu(VIEW_W, VIEW_H)
-    cheat.update(0.0, *OFF, False)
-
-    game_log = GameLog()
-    game_log.post("Test message")
-    game_log.update(0.0)
-
-    boss = BossCutscene(VIEW_W, VIEW_H, CORE)
-    boss.open(1, "win")
-    boss.update(0.0, *OFF, False)
-
-    return {
-        "main_menu": _capture(lambda r: mm.submit(r, VIEW_W, VIEW_H)),
-        "pause": _capture(lambda r: ps.submit(r, VIEW_W, VIEW_H)),
-        "settings": _capture(lambda r: settings.submit(r, VIEW_W, VIEW_H)),
-        "credits": _capture(lambda r: credits.submit(r, VIEW_W, VIEW_H)),
-        "add_name": _capture(lambda r: add_name.submit(r, VIEW_W, VIEW_H)),
-        "game_over": _capture(
-            lambda r: game_over.submit(r, _GameOverState(), VIEW_W, VIEW_H)),
-        "levelup": _capture(lambda r: levelup.submit(r, VIEW_W, VIEW_H)),
-        "hud": _capture(lambda r: hud.submit(
-            r, session, VIEW_W, VIEW_H, hover_cost=hud_panel.hover_cost)),
-        "building_panel": _capture(lambda r: panel.submit(r, session)),
-        "cheat_menu": _capture(lambda r: cheat.submit(r, VIEW_W, VIEW_H)),
-        "game_log": _capture(lambda r: game_log.submit(r, VIEW_H)),
-        "boss_cutscene": _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H)),
-    }
 
 
 #: THE golden baseline — captured from the pre-B2 code (no ``ids``/``apply``
@@ -195,252 +130,284 @@ def _screen_captures():
 #: (52 + 14 px) and its DEFAULT geometry moved on purpose. Only ``main_menu``
 #: changed — every other screen's entry is byte-identical, which is what says
 #: the change was contained.
+#: Regenerated a FOURTH time (drag-selection toggle): ``hud`` gained the DRAG
+#: SEL toggle button on its own row under the speed row, so three primitives
+#: are APPENDED to that entry. Nothing already in it moved, and every other
+#: screen's entry is byte-identical — which is what says the change was
+#: contained.
+#: Regenerated a FIFTH time (persist-boot-display-mode): ``SessionSettings``'s
+#: shipped default flipped from ``windowed`` to ``fullscreen`` on purpose, to
+#: match ``data/display.json``, so the settings screen's DEFAULT value row now
+#: reads FULLSCREEN. Exactly ONE HudText changed — same item count, same rects,
+#: same colours, every other screen byte-identical — which is what says the
+#: change was contained. Note the new SET DEFAULT button does NOT appear here:
+#: the capture builds the screen bare, and ``saved_default`` is then ``None``,
+#: which by design draws no line.
+#: Regenerated a SIXTH time (UR-2: the logical surface flipped 1280x720 ->
+#: 640x360, so EVERY screen's default geometry moved on purpose). This is the
+#: one regeneration where "only one screen changed" is NOT the containment
+#: signal — the whole surface halved, so every rect and every text anchor in
+#: every entry moved, and an entry that did NOT move would be the suspicious
+#: one. What IS pinned: the font presets in ``data/ui/fonts.json`` were
+#: deliberately left alone (they were always 640-scale), so every ``font_key``
+#: here is byte-identical, as is every colour and alpha. Regenerated
+#: mechanically from ``_screen_captures()`` on the converted tree — never
+#: hand-tuned, never relaxed.
+#: Regenerated a SEVENTH time (UR-5: the eyeball/polish pass over UR-2). Four
+#: entries moved, each for a measured reason: ``hud`` (the income/lives/tiles
+#: row step is font-scale and had been halved to 8px against a 13px line
+#: height, so the three rows overlapped — and the speed-button row now derives
+#: from the readout pill's bottom instead of a literal), ``levelup`` (the
+#: option box was smaller than its own font-sized contents), ``cheat_menu``
+#: (rows widened to hold "Unlock All Tech"; close/GO raised over the 12px
+#: click-target floor), ``main_menu`` (the SET gear widened to hold its label).
+#: The other eight entries are byte-identical, which is what says the change
+#: was contained. Regenerated mechanically from ``_screen_captures()``.
 _BASELINE = {
     "main_menu": [
-        HudRect(rect=(0, 0, 1280, 720), color=(18, 30, 20), border_radius=0, width=0),
-        HudSprite(slot_key='main_menu_bg', dest=(0, 0), size=(1280, 720), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='HOW TO BE HUMAN', pos=(640, 210), font_key='xxl', color=(168, 105, 222), align='center'),
-        HudText(text='defend the munckins', pos=(640, 250), font_key='md', color=(168, 105, 222), align='center'),
-        HudRect(rect=(480, 300, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 300, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='START NEW GAME', pos=(640, 318), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 360, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 360, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='PLAY DEBUG', pos=(640, 378), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 420, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 420, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD A NAME', pos=(640, 438), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 480, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 480, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='HIGHSCORES', pos=(640, 498), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 540, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 540, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SETTINGS', pos=(640, 558), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 600, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 600, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='CREDITS', pos=(640, 618), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(480, 660, 320, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(480, 660, 320, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT', pos=(640, 678), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(810, 360, 52, 52), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(810, 360, 52, 52), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SET', pos=(836, 378), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
+        HudSprite(slot_key='main_menu_bg', dest=(0, 0), size=(640, 360), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudText(text='HOW TO BE HUMAN', pos=(320, 105), font_key='xxl', color=(168, 105, 222), align='center'),
+        HudText(text='defend the munckins', pos=(320, 125), font_key='md', color=(168, 105, 222), align='center'),
+        HudRect(rect=(240, 150, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 150, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='START NEW GAME', pos=(320, 155), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 180, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 180, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='PLAY DEBUG', pos=(320, 185), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 210, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 210, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ADD A NAME', pos=(320, 215), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 240, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 240, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='HIGHSCORES', pos=(320, 245), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 270, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 270, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SETTINGS', pos=(320, 275), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 300, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 300, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='CREDITS', pos=(320, 305), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(240, 330, 160, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(240, 330, 160, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='QUIT', pos=(320, 335), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(405, 180, 30, 26), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(405, 180, 30, 26), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SET', pos=(420, 185), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "pause": [
-        HudRect(rect=(0, 0, 1280, 720), color=(0, 0, 0, 150), border_radius=0, width=0),
-        HudRect(rect=(490, 200, 300, 320), color=(24, 20, 40), border_radius=6, width=0),
-        HudRect(rect=(490, 200, 300, 320), color=(80, 65, 120), border_radius=6, width=2),
-        HudText(text='PAUSED', pos=(640, 232), font_key='xl', color=(255, 200, 50), align='center'),
-        HudRect(rect=(520, 284, 240, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(520, 284, 240, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='RESUME', pos=(640, 299), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(520, 342, 240, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(520, 342, 240, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='SETTINGS', pos=(640, 357), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(520, 400, 240, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(520, 400, 240, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT TO MENU', pos=(640, 415), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(520, 458, 240, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(520, 458, 240, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='QUIT GAME', pos=(640, 473), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),
+        HudRect(rect=(245, 100, 150, 160), color=(24, 20, 40), border_radius=6, width=0),
+        HudRect(rect=(245, 100, 150, 160), color=(80, 65, 120), border_radius=6, width=2),
+        HudText(text='PAUSED', pos=(320, 116), font_key='xl', color=(255, 200, 50), align='center'),
+        HudRect(rect=(260, 142, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 142, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='RESUME', pos=(320, 146), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(260, 171, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 171, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='SETTINGS', pos=(320, 175), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(260, 200, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 200, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='QUIT TO MENU', pos=(320, 204), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(260, 229, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 229, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='QUIT GAME', pos=(320, 233), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "settings": [
-        HudRect(rect=(0, 0, 1280, 720), color=(12, 20, 14), border_radius=0, width=0),
-        HudText(text='SETTINGS', pos=(640, 180), font_key='xxl', color=(255, 200, 50), align='center'),
-        HudText(text='Display Mode', pos=(640, 216), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='WINDOWED', pos=(640, 250), font_key='lg', color=(255, 200, 50), align='center'),
-        HudRect(rect=(490, 244, 40, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(490, 244, 40, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='<', pos=(510, 256), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(750, 244, 40, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(750, 244, 40, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='>', pos=(770, 256), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Income Floaters', pos=(490, 320), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(700, 312, 90, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(700, 312, 90, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(745, 324), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Background Art', pos=(490, 376), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(700, 368, 90, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(700, 368, 90, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(745, 380), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Gore', pos=(490, 432), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(700, 424, 90, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(700, 424, 90, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ON', pos=(745, 436), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Master Audio', pos=(490, 474), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(550, 498, 180, 12), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(550, 498, 144, 12), color=(75, 60, 115), border_radius=0, width=0),
-        HudText(text='(no audio yet)', pos=(640, 518), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(540, 558, 200, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 558, 200, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(640, 573), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
+        HudText(text='SETTINGS', pos=(320, 90), font_key='xxl', color=(255, 200, 50), align='center'),
+        HudText(text='Display Mode', pos=(320, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='FULLSCREEN', pos=(320, 125), font_key='lg', color=(255, 200, 50), align='center'),
+        HudRect(rect=(245, 122, 20, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(245, 122, 20, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='<', pos=(255, 124), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(375, 122, 20, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(375, 122, 20, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='>', pos=(385, 124), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Income Floaters', pos=(245, 160), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(350, 156, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(350, 156, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ON', pos=(372, 158), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Background Art', pos=(245, 188), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(350, 184, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(350, 184, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ON', pos=(372, 186), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Gore', pos=(245, 216), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(350, 212, 45, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(350, 212, 45, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ON', pos=(372, 214), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Master Audio', pos=(245, 237), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(275, 249, 90, 6), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(275, 249, 72, 6), color=(75, 60, 115), border_radius=0, width=0),
+        HudText(text='(no audio yet)', pos=(320, 259), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(270, 279, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(270, 279, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(320, 283), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "credits": [
-        HudRect(rect=(0, 0, 1280, 720), color=(12, 20, 14), border_radius=0, width=0),
-        HudText(text='CREDITS', pos=(640, 70), font_key='xxl', color=(255, 200, 50), align='center'),
-        HudText(text='Producer', pos=(600, 150), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Seraphin Hesse', pos=(680, 150), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Game Design Lead', pos=(600, 180), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Fabian Krüger', pos=(680, 180), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Art Lead', pos=(600, 210), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Hendrik Wagner', pos=(680, 210), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Programming Lead', pos=(600, 240), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Johann Heinrich', pos=(680, 240), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='UI Lead/2D Artist', pos=(600, 284), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Alicia Jaison', pos=(680, 284), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='2D Artist', pos=(600, 314), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Varvara Kozačuk', pos=(680, 314), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='2D Artist', pos=(600, 344), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Jakob Dahlkar', pos=(680, 344), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Game Designer', pos=(600, 388), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Joel Hoch', pos=(680, 388), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Game Designer', pos=(600, 418), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Benjamin Riese', pos=(680, 418), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Programmer', pos=(600, 462), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Pantelis Charalambous', pos=(680, 462), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Programmer', pos=(600, 492), font_key='sm', color=(150, 140, 120), align='right'),
-        HudText(text='Alfons Kavalic', pos=(680, 492), font_key='md', color=(235, 225, 195), align='left'),
-        HudRect(rect=(540, 630, 200, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 630, 200, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(640, 645), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
+        HudText(text='CREDITS', pos=(320, 35), font_key='xxl', color=(255, 200, 50), align='center'),
+        HudText(text='Producer', pos=(300, 75), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Seraphin Hesse', pos=(340, 75), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Game Design Lead', pos=(300, 90), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Fabian Krüger', pos=(340, 90), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Art Lead', pos=(300, 105), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Hendrik Wagner', pos=(340, 105), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Programming Lead', pos=(300, 120), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Johann Heinrich', pos=(340, 120), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='UI Lead/2D Artist', pos=(300, 142), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Alicia Jaison', pos=(340, 142), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='2D Artist', pos=(300, 157), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Varvara Kozačuk', pos=(340, 157), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='2D Artist', pos=(300, 172), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Jakob Dahlkar', pos=(340, 172), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Game Designer', pos=(300, 194), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Joel Hoch', pos=(340, 194), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Game Designer', pos=(300, 209), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Benjamin Riese', pos=(340, 209), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Programmer', pos=(300, 231), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Pantelis Charalambous', pos=(340, 231), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Programmer', pos=(300, 246), font_key='sm', color=(150, 140, 120), align='right'),
+        HudText(text='Alfons Kavalic', pos=(340, 246), font_key='md', color=(235, 225, 195), align='left'),
+        HudRect(rect=(270, 315, 100, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(270, 315, 100, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(320, 319), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "add_name": [
-        HudRect(rect=(0, 0, 1280, 720), color=(12, 20, 14), border_radius=0, width=0),
-        HudRect(rect=(410, 230, 460, 260), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(410, 230, 460, 260), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='ADD A NAME', pos=(640, 250), font_key='xl', color=(255, 200, 50), align='center'),
-        HudText(text='Appears on the building-naming dice button.', pos=(640, 292), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(434, 338, 412, 36), color=(40, 32, 58), border_radius=0, width=0),
-        HudRect(rect=(434, 338, 412, 36), color=(255, 200, 50), border_radius=0, width=1),
-        HudText(text='_', pos=(442, 347), font_key='md', color=(235, 225, 195), align='left'),
-        HudText(text='Names in pool: 3', pos=(434, 412), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(434, 434, 160, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(434, 434, 160, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='ADD NAME', pos=(514, 446), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(716, 434, 130, 40), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(716, 434, 130, 40), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='BACK', pos=(781, 446), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(12, 20, 14), border_radius=0, width=0),
+        HudRect(rect=(205, 115, 230, 130), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(205, 115, 230, 130), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='ADD A NAME', pos=(320, 125), font_key='xl', color=(255, 200, 50), align='center'),
+        HudText(text='Appears on the building-naming dice button.', pos=(320, 146), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(217, 169, 206, 18), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(217, 169, 206, 18), color=(255, 200, 50), border_radius=0, width=1),
+        HudText(text='_', pos=(221, 173), font_key='md', color=(235, 225, 195), align='left'),
+        HudText(text='Names in pool: 3', pos=(217, 206), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(217, 217, 80, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(217, 217, 80, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='ADD NAME', pos=(257, 219), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(358, 217, 65, 20), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(358, 217, 65, 20), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='BACK', pos=(390, 219), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "game_over": [
-        HudRect(rect=(0, 0, 1280, 720), color=(10, 5, 15), border_radius=0, width=0),
-        HudText(text='THE COLONY WAS DESTROYED', pos=(640, 240), font_key='xxl', color=(210, 55, 55), align='center'),
-        HudText(text='Round Reached: 4', pos=(640, 330), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='Buildings Placed: 2', pos=(640, 358), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='Enemies Killed: 9', pos=(640, 386), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(520, 470, 240, 46), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(520, 470, 240, 46), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='RETURN TO MENU', pos=(640, 485), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(10, 5, 15), border_radius=0, width=0),
+        HudText(text='THE COLONY WAS DESTROYED', pos=(320, 120), font_key='xxl', color=(210, 55, 55), align='center'),
+        HudText(text='Round Reached: 4', pos=(320, 165), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Buildings Placed: 2', pos=(320, 179), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Enemies Killed: 9', pos=(320, 193), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(260, 235, 120, 23), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(260, 235, 120, 23), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='RETURN TO MENU', pos=(320, 239), font_key='lg', color=(235, 225, 195), align='center'),
     ],
     "levelup": [
-        HudRect(rect=(0, 0, 1280, 720), color=(0, 0, 0, 185), border_radius=0, width=0),
-        HudText(text='CHOOSE YOUR REWARD', pos=(640, 204), font_key='xxl', color=(255, 200, 50), align='center'),
-        HudRect(rect=(436, 250, 200, 220), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(436, 250, 200, 220), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Card A', pos=(536, 260), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='Cost  5', pos=(536, 355), font_key='sm', color=(255, 200, 50), align='center'),
-        HudText(text='does a thing', pos=(536, 370), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(644, 250, 200, 220), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(644, 250, 200, 220), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Old Name', pos=(744, 260), font_key='sm', color=(150, 140, 120), align='center'),
-        HudLines(points=((739, 279), (744, 273), (749, 279)), color=(80, 210, 80), width=2, closed=False),
-        HudText(text='Card B', pos=(744, 283), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='tiered thing', pos=(744, 393), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='Tier 2 of 3', pos=(744, 453), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 185), border_radius=0, width=0),
+        HudText(text='CHOOSE YOUR REWARD', pos=(320, 65), font_key='xxl', color=(255, 200, 50), align='center'),
+        HudRect(rect=(188, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(188, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Card A', pos=(253, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Cost  5', pos=(253, 162), font_key='sm', color=(255, 200, 50), align='center'),
+        HudText(text='does a thing', pos=(253, 175), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(322, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(322, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Old Name', pos=(387, 108), font_key='sm', color=(150, 140, 120), align='center'),
+        HudLines(points=((385, 124), (387, 121), (389, 124)), color=(80, 210, 80), width=2, closed=False),
+        HudText(text='Card B', pos=(387, 126), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='tiered thing', pos=(387, 193), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Tier 2 of 3', pos=(387, 243), font_key='sm', color=(150, 140, 120), align='center'),
     ],
-    # NOTE: the round-cluster separator rect (80, 65, 120)-colored, height 1)
-    # moved to just BEFORE the END TURN button rects (was after) — a
-    # deliberate panel->button->text ordering fix (game/ui/CLAUDE.md), not a
-    # geometry/text change. See TestHudButtonZOrder in test_hud_panel.py.
     "hud": [
-        HudRect(rect=(12, 12, 190, 34), color=(40, 32, 58), border_radius=4, width=0),
-        HudRect(rect=(12, 12, 190, 34), color=(150, 135, 185), border_radius=4, width=1),
-        HudSprite(slot_key='ui_icon_love', dest=(18, 20), size=(18, 18), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='25', pos=(40, 19), font_key='xl', color=(255, 200, 50), align='left'),
-        HudText(text='LVL 1', pos=(214, 12), font_key='hud_lvl', color=(255, 200, 50), align='left'),
-        HudSprite(slot_key='ui_icon_xp', dest=(214, 25), size=(18, 18), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudRect(rect=(236, 29, 110, 9), color=(48, 34, 66), border_radius=0, width=0),
-        HudRect(rect=(236, 29, 110, 9), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='0/50', pos=(236, 40), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(12, 46, 190, 55), color=(40, 32, 58), border_radius=4, width=0),
-        HudRect(rect=(12, 46, 190, 55), color=(150, 135, 185), border_radius=4, width=1),
-        HudText(text='+5/round', pos=(16, 50), font_key='sm', color=(214, 96, 136), align='left'),
-        HudSprite(slot_key='ui_icon_lives', dest=(16, 66), size=(18, 18), tint=None, flip=False, animation='idle', anim_time_ms=0),
-        HudText(text='LIVES 3', pos=(38, 66), font_key='md', color=(200, 55, 55), align='left'),
-        HudText(text='0/4 tiles', pos=(16, 84), font_key='md', color=(150, 140, 120), align='left'),
-        HudText(text='BUILDING', pos=(12, 694), font_key='hud_phase', color=(150, 140, 120), align='left'),
-        HudText(text='ROUND 1', pos=(1184, 627), font_key='md', color=(150, 140, 120), align='center'),
-        HudRect(rect=(1104, 642, 160, 1), color=(80, 65, 120), border_radius=0, width=0),
-        HudRect(rect=(1104, 644, 160, 60), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(1104, 644, 160, 60), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='END TURN', pos=(1184, 666), font_key='lg', color=(235, 225, 195), align='center'),
-        HudRect(rect=(1174, 12, 90, 30), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(1174, 12, 90, 30), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='PAUSE', pos=(1219, 20), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(12, 110, 56, 28), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(12, 110, 56, 28), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='1×', pos=(40, 118), font_key='sm', color=(255, 200, 50), align='center'),
-        HudRect(rect=(12, 110, 56, 28), color=(255, 200, 50), border_radius=3, width=2),
-        HudRect(rect=(74, 110, 56, 28), color=(50, 45, 70), border_radius=3, width=0),
-        HudRect(rect=(74, 110, 56, 28), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='1.5×', pos=(102, 118), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(136, 110, 56, 28), color=(50, 45, 70), border_radius=3, width=0),
-        HudRect(rect=(136, 110, 56, 28), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='2×', pos=(164, 118), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(6, 6, 95, 17), color=(40, 32, 58), border_radius=4, width=0),
+        HudRect(rect=(6, 6, 95, 17), color=(150, 135, 185), border_radius=4, width=1),
+        HudSprite(slot_key='ui_icon_love', dest=(9, 10), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudText(text='25', pos=(20, 9), font_key='xl', color=(255, 200, 50), align='left'),
+        HudText(text='LVL 1', pos=(107, 6), font_key='hud_lvl', color=(255, 200, 50), align='left'),
+        HudSprite(slot_key='ui_icon_xp', dest=(107, 21), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudRect(rect=(118, 23, 55, 4), color=(48, 34, 66), border_radius=0, width=0),
+        HudRect(rect=(118, 23, 55, 4), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='0/50', pos=(118, 28), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(6, 23, 95, 49), color=(40, 32, 58), border_radius=4, width=0),
+        HudRect(rect=(6, 23, 95, 49), color=(150, 135, 185), border_radius=4, width=1),
+        HudText(text='+5/round', pos=(8, 25), font_key='sm', color=(214, 96, 136), align='left'),
+        HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
+        HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
+        HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
+        HudText(text='BUILDING', pos=(6, 347), font_key='hud_phase', color=(150, 140, 120), align='left'),
+        HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
+        HudRect(rect=(552, 320, 80, 1), color=(80, 65, 120), border_radius=0, width=0),
+        HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(552, 322, 80, 30), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='END TURN', pos=(592, 329), font_key='lg', color=(235, 225, 195), align='center'),
+        HudRect(rect=(587, 6, 45, 15), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(587, 6, 45, 15), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='PAUSE', pos=(609, 7), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(6, 76, 28, 14), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(6, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='1×', pos=(20, 77), font_key='sm', color=(255, 200, 50), align='center'),
+        HudRect(rect=(6, 76, 28, 14), color=(255, 200, 50), border_radius=3, width=2),
+        HudRect(rect=(37, 76, 28, 14), color=(50, 45, 70), border_radius=3, width=0),
+        HudRect(rect=(37, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='1.5×', pos=(51, 77), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(68, 76, 28, 14), color=(50, 45, 70), border_radius=3, width=0),
+        HudRect(rect=(68, 76, 28, 14), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='2×', pos=(82, 77), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(6, 93, 45, 14), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(6, 93, 45, 14), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='DRAG SEL', pos=(28, 94), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "building_panel": [
     ],
     "cheat_menu": [
-        HudRect(rect=(0, 0, 1280, 720), color=(0, 0, 0, 150), border_radius=0, width=0),
-        HudRect(rect=(530, 216, 220, 288), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(530, 216, 220, 288), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='CHEATS', pos=(640, 224), font_key='lg', color=(255, 200, 50), align='center'),
-        HudRect(rect=(724, 222, 20, 18), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(724, 222, 20, 18), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='X', pos=(734, 224), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 248, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 248, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='+10 Love', pos=(640, 254), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 278, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 278, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Skip Round', pos=(640, 284), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 308, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 308, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='LEVEL UP', pos=(640, 314), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 338, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 338, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Infinite Money', pos=(640, 344), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 368, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 368, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Unlock All Tech', pos=(640, 374), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 398, 200, 26), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(540, 398, 200, 26), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Debug Log', pos=(640, 404), font_key='md', color=(235, 225, 195), align='center'),
-        HudRect(rect=(540, 430, 200, 1), color=(80, 65, 120), border_radius=0, width=0),
-        HudText(text='Jump to round:', pos=(540, 436), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(540, 454, 96, 22), color=(40, 32, 58), border_radius=0, width=0),
-        HudRect(rect=(540, 454, 96, 22), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='round', pos=(546, 458), font_key='sm', color=(150, 140, 120), align='left'),
-        HudRect(rect=(642, 454, 98, 22), color=(75, 60, 115), border_radius=3, width=0),
-        HudRect(rect=(642, 454, 98, 22), color=(80, 65, 120), border_radius=3, width=1),
-        HudText(text='Go to Round', pos=(691, 459), font_key='sm', color=(235, 225, 195), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 150), border_radius=0, width=0),
+        HudRect(rect=(258, 108, 124, 144), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(258, 108, 124, 144), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='CHEATS', pos=(320, 112), font_key='lg', color=(255, 200, 50), align='center'),
+        HudRect(rect=(365, 111, 14, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(365, 111, 14, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='X', pos=(372, 111), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 124, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 124, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='+10 Love', pos=(320, 124), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 139, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 139, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Skip Round', pos=(320, 139), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 154, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 154, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='LEVEL UP', pos=(320, 154), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 169, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 169, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Infinite Money', pos=(320, 169), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 184, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 184, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Unlock All Tech', pos=(320, 184), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 199, 114, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(263, 199, 114, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Debug Log', pos=(320, 199), font_key='md', color=(235, 225, 195), align='center'),
+        HudRect(rect=(263, 216, 114, 1), color=(80, 65, 120), border_radius=0, width=0),
+        HudText(text='Jump to round:', pos=(263, 218), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(263, 227, 48, 13), color=(40, 32, 58), border_radius=0, width=0),
+        HudRect(rect=(263, 227, 48, 13), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='round', pos=(266, 229), font_key='sm', color=(150, 140, 120), align='left'),
+        HudRect(rect=(314, 227, 63, 13), color=(75, 60, 115), border_radius=3, width=0),
+        HudRect(rect=(314, 227, 63, 13), color=(80, 65, 120), border_radius=3, width=1),
+        HudText(text='Go to Round', pos=(345, 228), font_key='sm', color=(235, 225, 195), align='center'),
     ],
     "game_log": [
-        HudText(text='Test message', pos=(8, 688), font_key='sm', color=(220, 200, 155, 255), align='left'),
+        HudText(text='Test message', pos=(4, 344), font_key='sm', color=(220, 200, 155, 255), align='left'),
     ],
     "boss_cutscene": [
-        HudRect(rect=(0, 0, 1280, 720), color=(0, 0, 0, 210), border_radius=0, width=0),
-        HudText(text='Cutscene: Round Won :)', pos=(640, 244), font_key='xxl', color=(100, 220, 100), align='center'),
-        HudText(text='How will we react?', pos=(640, 290), font_key='md', color=(150, 140, 120), align='center'),
-        HudRect(rect=(450, 315, 180, 130), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(450, 315, 180, 130), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinA', pos=(540, 327), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per unbuilt tile, buildings', pos=(540, 352), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(540, 365), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(650, 315, 180, 130), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(650, 315, 180, 130), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='WinB', pos=(740, 327), font_key='lg', color=(235, 225, 195), align='center'),
-        HudText(text='Per building placed, buildings', pos=(740, 352), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='deal +1 extra damage', pos=(740, 365), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 210), border_radius=0, width=0),
+        HudText(text='Cutscene: Round Won :)', pos=(320, 101), font_key='xxl', color=(100, 220, 100), align='center'),
+        HudText(text='How will we react?', pos=(320, 139), font_key='md', color=(150, 140, 120), align='center'),
+        HudRect(rect=(225, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(225, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='WinA', pos=(270, 164), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Per unbuilt tile, buildings', pos=(270, 184), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='deal +1 extra damage', pos=(270, 197), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(325, 158, 90, 65), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(325, 158, 90, 65), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='WinB', pos=(370, 164), font_key='lg', color=(235, 225, 195), align='center'),
+        HudText(text='Per building placed, buildings', pos=(370, 184), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='deal +1 extra damage', pos=(370, 197), font_key='sm', color=(150, 140, 120), align='center'),
     ],
 }
 
@@ -720,7 +687,8 @@ class TestReviewFixLabelRects(unittest.TestCase):
         title = next(i for i in items
                     if isinstance(i, HudText) and i.text == "CHEATS")
         px, py, pw, _ph = menu.panel_rect
-        self.assertEqual(title.pos, (px + pw // 2, py + 8))
+        # UR-2: the title's inset halved with the logical surface (8 -> 4).
+        self.assertEqual(title.pos, (px + pw // 2, py + 4))
 
     def test_hud_phase_label_rect_override_moves_the_recorded_text(self):
         skinning = ScreenSkinning.empty()
@@ -745,6 +713,32 @@ class TestReviewFixLabelRects(unittest.TestCase):
         headline = next(i for i in items
                        if isinstance(i, HudText) and i.text.startswith("Cutscene"))
         self.assertEqual(headline.pos, (12, 34))
+
+
+class TestLogicalSurface(unittest.TestCase):
+    """UR-2: the shipped logical surface is 640x360, and the layout exporter
+    reads THAT number rather than one of its own.
+
+    Reads the PINNED snapshot (``FIXTURE_DATA``), never live ``data/`` — the
+    root CLAUDE.md rule, so a designer editing live data can never turn the
+    gate red. The drift this pair catches is an exporter that derives a
+    resolution of its own instead of reading the surface it is handed, which
+    is a same-tree question and needs no live read: point the exporter at the
+    pin and it must agree with the pin."""
+
+    def test_shipped_surface_is_640x360(self):
+        display = data_io.load_validated(
+            FIXTURE_DATA / "display.json",
+            FIXTURE_DATA / "schemas" / "display.schema.json")
+        self.assertEqual((display["window_w"], display["window_h"]), (640, 360))
+
+    def test_exporter_resolution_cannot_drift_from_the_surface(self):
+        from tools.export_ui_layouts import _logical_resolution
+        display = data_io.load_validated(
+            FIXTURE_DATA / "display.json",
+            FIXTURE_DATA / "schemas" / "display.schema.json")
+        self.assertEqual(_logical_resolution(FIXTURE_DATA),
+                         (display["window_w"], display["window_h"]))
 
 
 if __name__ == "__main__":

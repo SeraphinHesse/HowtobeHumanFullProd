@@ -72,14 +72,21 @@ class TempDataCase(QtCase):
             shutil.rmtree(history_dir)
 
     def unassign_slot(self, *slot_keys):
-        """Guarantee each `slot_key` has NO manifest entry in the temp copy.
+        """Guarantee each `slot_key` has NO ART AT ALL in the temp copy.
 
         Never assume a slot is unassigned just because it is TODAY. Art lands
         on slots over time, and a test that picks today's empty slot as its
         "no art here" fixture is a time bomb: commit 2512a84 gave
         painter_t1_lvl1 an `idle` row and silently broke five tests that had
         done exactly that. Pin the fixture instead of inheriting it from
-        whatever the artists last imported."""
+        whatever the artists last imported.
+
+        Dropping the manifest ENTRY is not enough on its own: a slot with no
+        entry still resolves art from `imported/<slot>.png`
+        (`details.py:_sheet_ref`), so an artist merely dropping a PNG next to
+        the key re-arms the slot. 8e0e7d3 added cond_mountain_buildable.png and
+        reddened the tint test that way, with no code change anywhere.
+        `_rewrite_manifest` deletes the fallback sheet too."""
         self._rewrite_manifest(lambda k: k in slot_keys)
 
     def unassign_family(self, *prefixes):
@@ -139,6 +146,27 @@ class TempDataCase(QtCase):
         data_io.write_validated(
             doc, path,
             self.data_dir / "schemas" / "asset_manifest.schema.json")
+        self._drop_fallback_sheets(doc, should_drop)
+
+    def _drop_fallback_sheets(self, doc, should_drop):
+        """Delete `imported/<key>.png` for every selected slot — an entryless
+        key is only genuinely empty once its fallback sheet is gone too.
+
+        Selection is over the REGISTRY's slot keys, not the manifest's: the
+        whole point is that a slot can carry art with no entry at all. Never
+        touches a sheet a SURVIVING entry links to — one PNG can back many
+        slots (`editor/panels/CLAUDE.md`, "Use Spritesheet…"), and deleting a
+        shared file would silently empty an unrelated slot."""
+        kept_refs = {e.get("sheet") for e in doc["entries"].values()}
+        for key in load_registry(self.data_dir).slot_keys():
+            if not should_drop(key):
+                continue
+            ref = f"imported/{key}.png"
+            if ref in kept_refs:
+                continue
+            png = self.data_dir / "sprites" / ref
+            if png.exists():
+                png.unlink()
 
     def drop_slot_variants(self, *stems):
         """Strip generated `<stem>_v<N>` variants from the temp slots.json.
@@ -881,6 +909,85 @@ class TestBalancingPanel(TempDataCase):
         # The plain (unpaired) weight sections still render as usual.
         self.assertIn("content_weights", titles)
         self.assertIn("path_weights", titles)
+
+
+class TestScalarArrayRowButtons(TempDataCase):
+    """feature-enemy-intro-dialogue: ER-5's + / - Row gate generalized to
+    arrays of SCALARS. ``EnemyIntro.entries[i].hidden_frames`` (minItems 0, no
+    maxItems) is the first such array, and every seeded entry ships it EMPTY —
+    the case the object-array version of this gate never had to handle."""
+
+    def make_panel(self, domain):
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
+        panel.set_domain(domain)
+        return panel
+
+    def _row_buttons(self, panel, prefix, key):
+        return [
+            b for b in panel.findChildren(QPushButton)
+            if b.objectName() == f"{prefix}{key}"
+        ]
+
+    def test_empty_scalar_array_offers_add_but_not_remove(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        self.assertEqual(panel._value_at(key), [])
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
+
+    def test_add_on_empty_array_synthesizes_a_schema_valid_default(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [0])   # item schema minimum: 0
+        self.assertTrue(panel._save_btn.isEnabled())
+        self.assertIn(key, panel._dirty)
+
+    def test_add_then_save_round_trips_through_schema_validation(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(3)
+        panel.save_changes("Test session")
+        on_disk = read_domain(self.data_dir, "core")
+        self.assertEqual(
+            on_disk["EnemyIntro"]["entries"][0]["hidden_frames"], [3])
+
+    def test_after_one_add_both_buttons_render(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 1)
+
+    def test_add_then_remove_on_an_empty_array_is_clean_again(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._remove_array_row(key)
+        self.assertEqual(panel._value_at(key), [])
+        self.assertNotIn(key, panel._dirty)
+        self.assertFalse(panel._save_btn.isEnabled())
+
+    def test_add_copies_the_last_row_once_non_empty(self):
+        """Once an array of scalars is non-empty, Add still COPIES the last
+        row (the ER-5 object-array rule) rather than resynthesizing a
+        default — only a genuinely EMPTY scalar array needs the schema-derived
+        default path at all."""
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(5)
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [5, 5])
+
+    def test_fixed_length_scalar_array_still_offers_no_buttons(self):
+        """Camera.zoom_levels (minItems == maxItems == 3) is the pre-existing
+        fixed-length scalar array this change must leave untouched."""
+        panel = self.make_panel("core")
+        key = "Camera/zoom_levels"
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 0)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
 
 
 class TestBalancingHistory(TempDataCase):
