@@ -19,7 +19,7 @@
     ]
   },
   "Debug": {
-    "ask_player_identity": true,
+    "ask_player_identity": false,
     "debug_mode_available": true,
     "default_level": 1,
     "default_output_csv": true,
@@ -304,13 +304,13 @@
   },
   "XP": {
     "base_income_per_village_level": 2,
-    "levelup_love_reward": 25,
-    "village_xp_base_threshold": 50,
-    "village_xp_threshold_inc": 15,
-    "village_xp_threshold_inc_growth": 5,
+    "levelup_love_reward": 20,
+    "village_xp_base_threshold": 40,
+    "village_xp_threshold_inc": 20,
+    "village_xp_threshold_inc_growth": 2,
     "xp_from_buildings": true,
     "xp_on_base_damage_kill": true,
-    "xp_per_boss": 150,
+    "xp_per_boss": 20,
     "xp_per_raider": 1,
     "xp_per_siege_enemy": 5,
     "xp_per_standard_enemy": 1

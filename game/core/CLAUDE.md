@@ -264,8 +264,30 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   the lead's own Timeline placement at `tier_index=0` (TimelinePLAN — each boost
   line still carries its own `RESEARCH` row, no shared `gate_kind`/globals key
   needed, only the LEAD's placement is ever consulted by the roll, D8). All
-  three still carry a `RESEARCH` row so each researches its own tiers after
-  unlocking.
+  three still carry a `RESEARCH` row so `tiers_unlocked`/`unlocked_buildings`
+  stay per-type.
+- **Grouped TIERS (the same trio)**: `ResearchSpec.tier_group` is
+  `unlock_group`'s exact mirror one level up — tier 2 and tier 3 are ONE card
+  each, researching that tier for all three lines at once
+  (`apply_levelup_option`'s `"tier"` branch loops `option["building_types"]`,
+  which every tier card now carries — a 1-tuple for an ungrouped type). The
+  roll skips non-lead members the same way, and `tier_lead(btype)` routes
+  `tier_offerable`/`_next_tier_gate`'s timeline readout through the lead, so
+  the non-lead lines' Timeline rows at tiers 1/2 are as inert as their tier-0
+  rows already were (D8). A card granting three lines cannot be titled from any
+  one line's tier name, so the copy is DATA:
+  `BoostBuildings.globals.tier_card_titles` / `.tier_card_explanations`
+  (3 entries each, indexed by tier; index 0 is only the tier-2 card's
+  `prev_name`), reached via `ResearchSpec.tier_copy_path`. Each placed booster
+  still advances individually, paying its own `build_cost` in the upgrade panel
+  — the card only lifts the research gate.
+- **Researching a tier is FREE, for EVERY building type** (user decision, not
+  boost-specific): `_tier_option` emits `cost: 0` and carries the tier's
+  `build_cost` as `display_cost`, the unlock card's preview-only shape
+  (`game/ui/levelup.py` already prefers `display_cost`). `build_cost` is still
+  the ONE price to actually GET the tier onto a building — a fresh placement or
+  the upgrade panel's advance button — so the card's "Upgrade Cost" readout
+  stays true; only the research card stopped charging it.
 - **Empty pool is possible whenever a village_level has no Timeline
   placements** (TimelinePLAN — was "before round 10" when eligibility was
   round-gated; now purely a function of what a designer has placed on the

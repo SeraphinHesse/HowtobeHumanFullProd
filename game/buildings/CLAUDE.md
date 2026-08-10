@@ -101,8 +101,14 @@ update THIS doc. **Adding a building? Use the `/add-building` skill.**
   consulted, read via `tier_offerable`, TimelinePLAN D8) + a shared
   `starts_unlocked_path` pointing at
   `BoostBuildings.globals.starts_unlocked` (data-driven — see the Research/gating
-  seam section); the roll offers ONE unlock card (the lead `boost_speed`), then
-  each type researches its own tiers (see `game/core`).
+  seam section); the roll offers ONE unlock card (the lead `boost_speed`).
+  **Tiers 2 and 3 are grouped the same way**: the same three rows carry
+  `tier_group=(the trio)` so each later tier is also ONE card researching all
+  three lines (`game/core`), with the lead additionally carrying
+  `tier_copy_path=("BoostBuildings", "globals")` — a card granting three lines
+  cannot be titled from any one line's tier name, so its copy is designer-editable
+  data (`tier_card_titles`/`tier_card_explanations`, 3 entries each). Each placed
+  booster still advances individually at its own `build_cost`.
   - **Wall-hp-boost feature: the HP line (`boost_hp`) ALSO reaches nearby
     WallBuilders' walls**, via a SECOND, parallel adjacency scan
     (`_adjacent_structures`, same `range_shape.offsets(...)` geometry as
@@ -376,7 +382,8 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
 ## Research / gating seam (10A, regated in the Joel-Balancing pass; TimelinePLAN T4)
 - **`game/buildings/research.py`** is the extension seam: `LEAF_CLASSES` + a
   `RESEARCH` table of `ResearchSpec` rows (`gate_kind`/`gate_path`,
-  `starts_unlocked_path`, `unlock_group`, UI copy). A spec never stores a gate
+  `starts_unlocked_path`, `unlock_group`, `tier_group`/`tier_copy_path`,
+  UI copy). A spec never stores a gate
   VALUE, only where in `buildings.json` to read it. **10B–10E add a leaf class
   + one row and NEVER reopen the roll.** It lives there (not `registry.py`)
   because `registry` imports `game.map.tiles` → `game.core.balance`;

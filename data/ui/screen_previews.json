@@ -3565,11 +3565,13 @@
       {
         "anim_time_ms": 0,
         "animation": "idle",
+        "crop": null,
         "dest": [
           9,
           10
         ],
         "flip": false,
+        "hidden_frames": [],
         "size": [
           9,
           9
@@ -3611,11 +3613,13 @@
       {
         "anim_time_ms": 0,
         "animation": "idle",
+        "crop": null,
         "dest": [
           107,
           21
         ],
         "flip": false,
+        "hidden_frames": [],
         "size": [
           9,
           9
@@ -3721,11 +3725,13 @@
       {
         "anim_time_ms": 0,
         "animation": "idle",
+        "crop": null,
         "dest": [
           8,
           41
         ],
         "flip": false,
+        "hidden_frames": [],
         "size": [
           9,
           9
@@ -4360,11 +4366,13 @@
       {
         "anim_time_ms": 0,
         "animation": "idle",
+        "crop": null,
         "dest": [
           0,
           0
         ],
         "flip": false,
+        "hidden_frames": [],
         "size": [
           640,
           360

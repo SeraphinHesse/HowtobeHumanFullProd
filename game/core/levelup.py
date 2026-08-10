@@ -25,7 +25,12 @@ TWO gates stack:
 
 Only the SINGLE next locked tier of a type is ever offerable
 (``idx == tiers_unlocked``), so Pistoleer stays hidden until Slinger is bought.
-Tier research is GLOBAL per type: every building of that type shares the count.
+Tier research is GLOBAL per type: every building of that type shares the count —
+and for a ``tier_group``'d family (the boost trio) one card researches the tier
+for every member at once, the exact mirror of their shared unlock card.
+**Researching a tier is FREE for every type**; the tier's ``build_cost`` rides
+along as ``display_cost`` (preview only), and is still what a fresh placement or
+the upgrade panel's advance button actually charges.
 Unlocking a type makes its tier 1 immediately placeable (no more "starts at
 tier 0" case — see ``game/buildings/research.py``).
 """
@@ -73,8 +78,20 @@ def timeline_level_for(btype, idx, progression_balance):
     return None
 
 
+def tier_lead(btype):
+    """The type whose Timeline placements govern ``btype``'s tiers. A
+    ``tier_group``'d family (the boost trio) researches every tier from ONE
+    card, so only the LEAD's placement is ever consulted — the other members'
+    rows are inert, exactly as their tier-0 rows already are for the shared
+    unlock card (TimelinePLAN D8). Every ungrouped type leads itself."""
+    spec = RESEARCH.get(btype)
+    if spec is not None and spec.tier_group:
+        return spec.tier_group[0]
+    return btype
+
+
 def tier_offerable(state, btype, idx, progression_balance):
-    level = timeline_level_for(btype, idx, progression_balance)
+    level = timeline_level_for(tier_lead(btype), idx, progression_balance)
     return level is not None and state.village_level >= level
 
 
@@ -99,7 +116,21 @@ def _gate_met(state, spec, buildings_balance):
 
 # -- option builders (prototype dict shape) ---------------------------------
 
-def _tier_option(btype, idx, buildings_balance):
+def _group_tier_copy(spec, idx, buildings_balance):
+    """``(title, prev_name, explanation)`` for a ``tier_group``'d family's ONE
+    shared research card, read live off ``spec.tier_copy_path`` (a designer
+    edits it in the editor's balancing panel). ``None`` when this member is not
+    the copy-owning lead, so the caller falls back to the tier's own name."""
+    if not spec.tier_copy_path:
+        return None
+    node = reduce(lambda d, k: d[k], spec.tier_copy_path, buildings_balance)
+    titles = node["tier_card_titles"]
+    return (titles[idx],
+            titles[idx - 1] if idx > 0 else None,
+            node["tier_card_explanations"][idx])
+
+
+def _tier_option(btype, idx, buildings_balance, spec=None):
     tiers = tiers_for(btype, buildings_balance)
     tier = tiers[idx]
     leaf = LEAF_CLASSES[btype]
@@ -108,19 +139,32 @@ def _tier_option(btype, idx, buildings_balance):
     # art on TIER_SPRITES[idx] with the tier/level suffix.
     flat_slot = getattr(leaf, "SLOT", "")
     sprite_key = flat_slot or f"{leaf.TIER_SPRITES[idx]}_t{idx + 1}_lvl1"
+    spec = spec if spec is not None else RESEARCH.get(btype)
+    types = tuple(spec.tier_group) if spec is not None and spec.tier_group else (btype,)
+    # A grouped card researches this tier for the WHOLE family, so no single
+    # line's tier name can title it -- the copy is data (see _group_tier_copy).
+    copy = _group_tier_copy(spec, idx, buildings_balance) if spec is not None else None
+    title, prev_name, explanation = copy or (
+        tier["name"],
+        tiers[idx - 1]["name"] if idx > 0 else None,
+        tier.get("explanation", ""),
+    )
     return {
         "kind": "tier",
         "building_type": btype,
+        "building_types": types,
         "tier_index": idx,
         "tier_no": idx + 1,
         "tier_max": len(tiers),
-        "title": tier["name"],
-        "prev_name": tiers[idx - 1]["name"] if idx > 0 else None,
-        "explanation": tier.get("explanation", ""),
-        # build_cost is the ONE price for this tier -- placement, this
-        # research card, and the upgrade panel's advance button all charge
-        # the same number (no separate tier_unlock_cost anymore).
-        "cost": tier.get("build_cost", 0),
+        "title": title,
+        "prev_name": prev_name,
+        "explanation": explanation,
+        # Researching a tier is FREE (user decision) -- the card only lifts the
+        # gate. build_cost is still the ONE price to actually GET this tier on a
+        # building (a fresh placement, or the upgrade panel's advance button), so
+        # it rides along as display_cost, the unlock card's preview-only shape.
+        "cost": 0,
+        "display_cost": tier.get("build_cost", 0),
         "cost_label": "Upgrade Cost",
         "sprite_key": sprite_key,
     }
@@ -183,12 +227,17 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng,
         if btype not in LEAF_CLASSES:
             continue
         if type_unlocked(state, btype):
+            # Grouped tiers (the boost trio): one card researches this tier for
+            # all three, so only the LEAD offers it -- the same skip the grouped
+            # unlock below does, for the same reason.
+            if spec.tier_group and btype != spec.tier_group[0]:
+                continue
             # Only the single next locked tier can be offered.
             idx = tiers_unlocked_for(state, btype)
             tiers = tiers_for(btype, buildings_balance)
             if idx < len(tiers) and tier_offerable(state, btype, idx,
                                                    progression_balance):
-                pool.append(_tier_option(btype, idx, buildings_balance))
+                pool.append(_tier_option(btype, idx, buildings_balance, spec))
         elif (_gate_met(state, spec, buildings_balance)
               and tier_offerable(state, btype, 0, progression_balance)):
             # Grouped unlock (the boost trio): all members are seeded locked so
@@ -210,9 +259,11 @@ def apply_levelup_option(state, option, core_balance):
     """Grant the chosen reward. Costs are spent clamped at >= 0 (RunState)."""
     kind = option["kind"]
     if kind == "tier":
-        btype = option["building_type"]
-        state.tiers_unlocked[btype] = max(
-            tiers_unlocked_for(state, btype), option["tier_no"])
+        # A grouped card carries every member of its family (the boost trio);
+        # an ordinary one carries just its own type.
+        for btype in option.get("building_types", (option["building_type"],)):
+            state.tiers_unlocked[btype] = max(
+                tiers_unlocked_for(state, btype), option["tier_no"])
         state.spend_love(option["cost"])
     elif kind == "unlock_building":
         for btype in option["building_types"]:
@@ -245,7 +296,8 @@ def _next_tier_gate(state, building, buildings_balance, progression_balance):
     next_idx = building.get_component(TierState).current_tier + 1
     if not tier_offerable(state, btype, next_idx, progression_balance):
         return ("tier_hidden", None,
-                timeline_level_for(btype, next_idx, progression_balance))
+                timeline_level_for(tier_lead(btype), next_idx,
+                                   progression_balance))
     tier = tiers_for(btype, buildings_balance)[next_idx]
     cost = tier.get("build_cost", 0)
     if tiers_unlocked_for(state, btype) > next_idx:

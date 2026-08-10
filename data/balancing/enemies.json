@@ -2,8 +2,8 @@
   "EnemyScaling": {
     "boss_round_in_era": 10,
     "endgame_scaling": {
-      "batch_size": 1.0,
-      "spawn_interval": 1.0
+      "batch_size": 3.0,
+      "spawn_interval": 0.1
     },
     "eras": [
       {
@@ -11,19 +11,19 @@
         "spawn_interval": 0.8
       },
       {
-        "batch_size": 2,
+        "batch_size": 1,
         "spawn_interval": 0.73
       },
       {
-        "batch_size": 3,
+        "batch_size": 1,
         "spawn_interval": 0.64
       },
       {
-        "batch_size": 4,
+        "batch_size": 2,
         "spawn_interval": 0.24
       },
       {
-        "batch_size": 5,
+        "batch_size": 2,
         "spawn_interval": 0.10999999999999999
       }
     ],
@@ -60,27 +60,27 @@
       "round_counts": [
         {
           "commander": 0,
-          "raiders": 12,
-          "regular": 8,
+          "raiders": 6,
+          "regular": 19,
           "siege": 0
         },
         {
           "commander": 0,
-          "raiders": 30,
-          "regular": 30,
-          "siege": 6
+          "raiders": 7,
+          "regular": 12,
+          "siege": 0
         },
         {
           "commander": 0,
-          "raiders": 125,
-          "regular": 280,
+          "raiders": 12,
+          "regular": 8,
           "siege": 31
         },
         {
           "commander": 0,
-          "raiders": 170,
-          "regular": 400,
-          "siege": 46
+          "raiders": 21,
+          "regular": 0,
+          "siege": 0
         },
         {
           "commander": 0,
@@ -367,9 +367,9 @@
       "emerge_cooldown": 2.4,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 1.0,
+        "dmg": 0.0,
         "hp": 1.0,
-        "move_speed": 1.0
+        "move_speed": 0.05
       },
       "eras": [
         {
@@ -389,8 +389,8 @@
           }
         },
         {
-          "count_per_round": 0,
-          "count_start": 0,
+          "count_per_round": 0.5,
+          "count_start": 1.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -405,8 +405,8 @@
           }
         },
         {
-          "count_per_round": 0,
-          "count_start": 0,
+          "count_per_round": 0.75,
+          "count_start": 1.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -421,7 +421,7 @@
           }
         },
         {
-          "count_per_round": 0.2,
+          "count_per_round": 1.0,
           "count_start": 1,
           "per_round": {
             "dmg": 50,
@@ -437,7 +437,7 @@
           }
         },
         {
-          "count_per_round": 0.2,
+          "count_per_round": 1.5,
           "count_start": 2,
           "per_round": {
             "dmg": 50,
@@ -458,7 +458,7 @@
       "kidnapping": false,
       "registry_group": "Digger",
       "sprite_scale": 1.0,
-      "start_round": 32
+      "start_round": 15
     },
     "Drummer": {
       "attack_speed_increase": 0.1,
@@ -483,9 +483,9 @@
       "dmg_increase": 0.15,
       "endgame_scaling": {
         "count": 1.0,
-        "dmg": 1.0,
-        "hp": 1.0,
-        "move_speed": 1.0
+        "dmg": 0.0,
+        "hp": 0.0,
+        "move_speed": 0.0
       },
       "eras": [
         {
@@ -521,7 +521,7 @@
           }
         },
         {
-          "count_per_round": 0.2,
+          "count_per_round": 0.25,
           "count_start": 1,
           "per_round": {
             "dmg": 0,
@@ -537,8 +537,8 @@
           }
         },
         {
-          "count_per_round": 0.2,
-          "count_start": 2,
+          "count_per_round": 0.75,
+          "count_start": 1.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -553,7 +553,7 @@
           }
         },
         {
-          "count_per_round": 0.2,
+          "count_per_round": 1.0,
           "count_start": 3,
           "per_round": {
             "dmg": 0,
@@ -576,7 +576,7 @@
       "move_speed_increase": 0.15,
       "registry_group": "Drummer",
       "sprite_scale": 1.15,
-      "start_round": 22,
+      "start_round": 21,
       "support_range": 1,
       "support_range_increase": 0
     },
@@ -596,18 +596,42 @@
             "raiders": 0,
             "regular": 4,
             "siege": 0
+          },
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 3,
+            "siege": 0
+          },
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 4,
+            "siege": 0
+          },
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 5,
+            "siege": 0
+          },
+          {
+            "commander": 0,
+            "raiders": 0,
+            "regular": 6,
+            "siege": 0
           }
         ]
       },
       "endgame_scaling": {
-        "count": 1.0,
+        "count": 4.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 1.0
+        "move_speed": 0.0
       },
       "eras": [
         {
-          "count_per_round": 0.3333333333333333,
+          "count_per_round": 1.0,
           "count_start": 1,
           "per_round": {
             "dmg": 0,
@@ -623,7 +647,7 @@
           }
         },
         {
-          "count_per_round": 0.3333333333333333,
+          "count_per_round": 1.0,
           "count_start": 1,
           "per_round": {
             "dmg": 0,
@@ -639,8 +663,8 @@
           }
         },
         {
-          "count_per_round": 0.3333333333333333,
-          "count_start": 2.666666666666667,
+          "count_per_round": 1.5,
+          "count_start": 2.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -655,8 +679,8 @@
           }
         },
         {
-          "count_per_round": 0.3333333333333333,
-          "count_start": 6,
+          "count_per_round": 2.75,
+          "count_start": 5.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -671,8 +695,8 @@
           }
         },
         {
-          "count_per_round": 0.3333333333333333,
-          "count_start": 9.333333333333334,
+          "count_per_round": 3.0,
+          "count_start": 8.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -692,7 +716,7 @@
       "kidnapping": false,
       "registry_group": "Formation",
       "sprite_scale": 1.0,
-      "start_round": 18
+      "start_round": 11
     },
     "Raider": {
       "condition_path_weights": {
@@ -714,10 +738,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 1.0,
-        "dmg": 1.0,
-        "hp": 1.0,
-        "move_speed": 1.0
+        "count": 3.0,
+        "dmg": 0.0,
+        "hp": 0.0,
+        "move_speed": 0.0
       },
       "eras": [
         {
@@ -737,8 +761,8 @@
           }
         },
         {
-          "count_per_round": 1,
-          "count_start": 2.0,
+          "count_per_round": 0.5,
+          "count_start": 3.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -754,7 +778,7 @@
         },
         {
           "count_per_round": 1,
-          "count_start": 17,
+          "count_start": 3.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -769,8 +793,8 @@
           }
         },
         {
-          "count_per_round": 1,
-          "count_start": 27,
+          "count_per_round": 2.0,
+          "count_start": 3.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -785,8 +809,8 @@
           }
         },
         {
-          "count_per_round": 1,
-          "count_start": 37,
+          "count_per_round": 2.5,
+          "count_start": 5.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -828,10 +852,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 1.0,
+        "count": 1.75,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 1.0
+        "move_speed": 0.0
       },
       "eras": [
         {
@@ -884,7 +908,7 @@
         },
         {
           "count_per_round": 1,
-          "count_start": 18,
+          "count_start": 1.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -899,8 +923,8 @@
           }
         },
         {
-          "count_per_round": 1,
-          "count_start": 28,
+          "count_per_round": 1.5,
+          "count_start": 4.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -922,7 +946,7 @@
       "queue_lead_count": 5,
       "registry_group": "Siege Cannon",
       "sprite_scale": 1.0,
-      "start_round": 14
+      "start_round": 31
     },
     "Sniper": {
       "condition_path_weights": {
@@ -944,10 +968,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 1.0,
+        "count": 1.5,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 1.0
+        "move_speed": 0.0
       },
       "eras": [
         {
@@ -983,7 +1007,7 @@
           }
         },
         {
-          "count_per_round": 0.5,
+          "count_per_round": 1.0,
           "count_start": 1,
           "per_round": {
             "dmg": 0,
@@ -999,8 +1023,8 @@
           }
         },
         {
-          "count_per_round": 0.5,
-          "count_start": 4,
+          "count_per_round": 1.0,
+          "count_start": 2.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1015,8 +1039,8 @@
           }
         },
         {
-          "count_per_round": 0.5,
-          "count_start": 9,
+          "count_per_round": 1.5,
+          "count_start": 5.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1037,7 +1061,7 @@
       "registry_group": "Sniper",
       "sprite_scale": 1.0,
       "stand_off_range": 2,
-      "start_round": 26
+      "start_round": 25
     },
     "Standard": {
       "condition_path_weights": {
@@ -1059,10 +1083,10 @@
         ]
       },
       "endgame_scaling": {
-        "count": 1.0,
+        "count": 0.0,
         "dmg": 1.0,
         "hp": 1.0,
-        "move_speed": 1.0
+        "move_speed": 0.0
       },
       "eras": [
         {
@@ -1082,8 +1106,8 @@
           }
         },
         {
-          "count_per_round": 4.0,
-          "count_start": 6.0,
+          "count_per_round": 1.0,
+          "count_start": 3.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1098,8 +1122,8 @@
           }
         },
         {
-          "count_per_round": 5.0,
-          "count_start": 51.0,
+          "count_per_round": 0.5,
+          "count_start": 4.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1114,8 +1138,8 @@
           }
         },
         {
-          "count_per_round": 5,
-          "count_start": 151,
+          "count_per_round": 0.0,
+          "count_start": 0.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -1130,8 +1154,8 @@
           }
         },
         {
-          "count_per_round": 6,
-          "count_start": 241,
+          "count_per_round": 0.0,
+          "count_start": 0.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,

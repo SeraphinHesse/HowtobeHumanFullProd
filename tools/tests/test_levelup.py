@@ -301,7 +301,10 @@ class TestOptionRoll(unittest.TestCase):
         self.assertEqual(option["tier_no"], 2)
         self.assertEqual(option["tier_max"], 3)
         self.assertEqual(option["prev_name"], "Stone Thrower")
-        self.assertEqual(option["cost"], DEF_T2["build_cost"])
+        # Researching a tier is FREE; build_cost only PREVIEWS what actually
+        # getting the tier onto a building costs.
+        self.assertEqual(option["cost"], 0)
+        self.assertEqual(option["display_cost"], DEF_T2["build_cost"])
         self.assertEqual(option["sprite_key"], "slinger_t2_lvl1")
 
     def test_tier_zero_timeline_level_gates_a_locked_types_unlock_card(self):
@@ -438,7 +441,10 @@ class TestUnlockOptions(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestApplyOption(unittest.TestCase):
-    def test_tier_option_researches_and_charges(self):
+    def test_tier_option_researches_for_free(self):
+        """Researching a tier costs nothing (the card only lifts the gate);
+        ``build_cost`` rides along as ``display_cost``, previewing what actually
+        getting the tier onto a building still costs."""
         st = RunState.from_balance(CORE, BUILD)
         st.village_level = DEF_T2_LEVEL
         st.love = 100
@@ -447,17 +453,8 @@ class TestApplyOption(unittest.TestCase):
                       if o.get("building_type") == "defence")
         lv.apply_levelup_option(st, option, CORE)
         self.assertEqual(st.tiers_unlocked["defence"], 2)
-        self.assertEqual(st.love, 100 - DEF_T2["build_cost"])
-
-    def test_tier_cost_clamps_love_at_zero(self):
-        st = RunState.from_balance(CORE, BUILD)
-        st.village_level = DEF_T2_LEVEL
-        st.love = 5
-        option = next(o for o in lv.roll_levelup_options(st, BUILD, CORE,
-                                                         NoShuffle, PROGRESSION)
-                      if o.get("building_type") == "defence")
-        lv.apply_levelup_option(st, option, CORE)
-        self.assertEqual(st.love, 0)
+        self.assertEqual(st.love, 100)
+        self.assertEqual(option["display_cost"], DEF_T2["build_cost"])
 
     def test_fallback_pays_love(self):
         st = RunState.from_balance(CORE, BUILD)
