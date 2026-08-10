@@ -89,14 +89,19 @@ STD0 = era_stats("Standard")
 def footprint_balance(etype, footprint):
     """A copy of the enemies balance with ONE type's `footprint` pinned.
 
-    `footprint` is designer content (ER-1) and every type sits at 1 today. A test
-    that reads it live to prove multi-tile behaviour degrades into a tautology the
-    moment a designer flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the
-    claim these tests make. Pin the number so they keep testing the WIRING
-    (balance -> PathAgent.footprint -> pathfinder / sprite fit); the live value has
-    its own guard in the schema."""
+    `footprint` is designer content (ER-1). A test that reads it live to prove
+    multi-tile behaviour degrades into a tautology the moment a designer
+    flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the claim these
+    tests make. Pin the number so they keep testing the WIRING (balance ->
+    PathAgent.footprint -> pathfinder / sprite fit); the live value has its own
+    guard in the schema.
+
+    The pair is PER-ERA for every era-shaped type, so this writes EVERY row —
+    the shape `test_boss.boss_footprint` has always used for the Boss's own
+    `stats[]` table."""
     enem = copy.deepcopy(ENEM)
-    enem["EnemyTypes"][etype]["footprint"] = footprint
+    for row in enem["EnemyTypes"][etype]["eras"]:
+        row["footprint"] = footprint
     return enem
 
 
@@ -785,14 +790,43 @@ class TestFormation(unittest.TestCase):
                 self.assertAlmostEqual(f.get_component(Movement).speed,
                                        st["move_speed"])
 
+    def test_its_footprint_grows_with_the_era_and_clamps_past_the_table(self):
+        """The Formation is the one shipped type whose body CHANGES size, so
+        this is where the per-era footprint actually earns its keep: the fit
+        must follow the era, and past the last authored row it must CLAMP
+        (`endgame_scaling` carries no footprint factor, deliberately).
+
+        Read off the LIVE rows rather than a hardcoded 2,2,3,3,4 — the claim
+        under test is that `resolve_fit` lands on the right ROW, not what the
+        designer tuned it to."""
+        rows = ENEM["EnemyTypes"]["Formation"]["eras"]
+        tm = synth(["bbs"])
+        for era in range(len(rows) + 3):          # 3 eras past the table
+            with self.subTest(era=era):
+                row = rows[min(era, len(rows) - 1)]
+                self.assertEqual(
+                    Formation.resolve_fit(ENEM["EnemyTypes"]["Formation"],
+                                          era),
+                    (int(row["footprint"]), float(row["sprite_scale"])))
+                # and the seam is what construction actually uses
+                f = Formation(2, 0, ENEM, tm, era)
+                self.assertEqual(f.get_component(PathAgent).footprint,
+                                 int(row["footprint"]))
+                self.assertEqual(f.get_component(SpriteAnimator).fit_tiles,
+                                 float(row["footprint"]))
+        self.assertNotEqual(rows[0]["footprint"], rows[-1]["footprint"],
+                            "the fixture must actually vary, or this is a "
+                            "tautology")
+
     def test_the_type_itself_refuses_a_one_tile_gap_a_walker_threads(self):
         """End-to-end proof that balancing -> PathAgent -> pathfinder is wired:
         it is the TYPE's footprint in the balance, not a raw footprint=2 argument,
         that seals the gap. Wall down col 2 with a ONE-tile hole.
 
-        The footprint is PINNED, not read live: `footprint` is designer content and
-        every type sits at 1 today, which would quietly turn this into "a 1x1 walks
-        through a 1x1 hole" — a tautology that proves none of the wiring it names."""
+        The footprint is PINNED, not read live: it is designer content, and a
+        retune to 1 would quietly turn this into "a 1x1 walks through a 1x1
+        hole" — a tautology that proves none of the wiring it names. (The live
+        curve has its own test above.)"""
         enem = footprint_balance("Formation", 2)
         tm = synth(["ccfcc", "ccfcc", "ccccc", "ccfcc", "ccfcc"], base=(0, 2))
         walker = create_enemy("standard", 4, 2, enem, tm)
@@ -837,7 +871,7 @@ class TestFormation(unittest.TestCase):
         tile_w = 64
         fit = fit_factor(frame.frame_w, tile_w, fit_tiles=2.0)
         self.assertEqual(fit, 1.0)
-        self.assertEqual(frame.frame_w * fit * FORM["sprite_scale"],
+        self.assertEqual(frame.frame_w * fit * FORM["eras"][0]["sprite_scale"],
                          2 * tile_w)
 
     def test_the_registry_group_resolves_a_slot_per_era(self):
@@ -1081,6 +1115,45 @@ class TestDigger(unittest.TestCase):
                 self.assertFalse(e.get_component(PathAgent).no_melee)
                 self.assertIsNone(e.get_component(BurrowAgent))
 
+    # -- the min-target-distance preference -----------------------------------
+
+    def test_prefers_a_target_at_least_min_distance_away(self):
+        """Two claimable structures: one closer than
+        `min_target_distance_tiles`, one clearing it. The Digger must claim
+        the FARTHER one despite it not being the literal nearest."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        self.assertGreater(min_dist, 1)     # the fixture must exercise this
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)   # too close: excluded
+        far_col = spawn_col - (min_dist + 2)    # clears the minimum
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(far_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual(burrow.min_target_distance_tiles, min_dist)
+        self.assertEqual((pa.target_col, pa.target_row), (far_col, 0))
+
+    def test_falls_back_to_the_near_target_when_nothing_clears_the_minimum(self):
+        """No candidate clears `min_target_distance_tiles` -> claim the only
+        (near) one rather than standing down. The near column is also inside
+        `dig_range_tiles` at this fixture, so it may submerge on the very
+        first tick — that's correct, not a bug this test is checking; the
+        thing under test is the CLAIM, and that the Digger goes on to erupt
+        normally rather than getting stuck."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (near_col, 0))
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+
     # -- the state machine -------------------------------------------------
 
     def test_submerges_at_exactly_dig_range_tiles(self):
@@ -1100,6 +1173,37 @@ class TestDigger(unittest.TestCase):
                 break
         self.assertEqual(burrow.state, BURROW_SUBMERGED)
         self.assertEqual(dist_before, DIGGER["dig_range_tiles"])
+
+    def test_never_submerges_on_a_tile_a_building_occupies(self):
+        """A single-row board so the walk physically crosses the obstacle's
+        tile (the `no_melee` regression's own technique). An UNRELATED
+        `economic` building (not a "structure" hunt candidate) sits exactly
+        `dig_range_tiles` from the real target — the first column the submerge
+        trigger goes true. Absent the fix the Digger would submerge standing
+        on it; the fix must relocate it to the nearest CLEAR tile first (col 7,
+        the next tile toward the target — the ring search's first valid hit)."""
+        tm, scene, occ = self._board()
+        target_col = 2
+        place_building(tm, tm.get(target_col, 0), "blocker", 9999, BUILD,
+                       scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (target_col, 0))
+        obstacle_col = target_col + DIGGER["dig_range_tiles"]
+        place_building(tm, tm.get(obstacle_col, 0), "economic", 9999, BUILD,
+                       scene, occ)
+
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        sub_col = round(dig.transform.wx)
+        sub_row = round(dig.transform.wy)
+        self.assertNotEqual(sub_col, obstacle_col)
+        self.assertIsNone(tm.get(sub_col, sub_row).occupant)
+        self.assertEqual((sub_col, sub_row), (obstacle_col - 1, 0))
+        self.assertAlmostEqual(burrow.start_wx, obstacle_col - 1)
+        self.assertAlmostEqual(burrow.start_wy, 0.0)
 
     def test_untargetable_and_undamageable_while_submerged(self):
         tm, scene, occ = self._board()
@@ -1795,8 +1899,12 @@ class TestDrummer(unittest.TestCase):
         self.assertIs(ENEMY_CLASSES["drummer"], Drummer)
         # A walker's march, not a hunter's: no repath_on_kill, no goal set.
         self.assertEqual(DRUM["hunts"], "base")
-        self.assertEqual(DRUM["footprint"], 1)
-        self.assertGreater(DRUM["sprite_scale"], 1.0)   # "slightly taller"
+        # The fit pair is PER-ERA for every type now, and the Drummer's
+        # "slightly taller" 1.15 must hold in EVERY row (it is the type's
+        # look, not an era's) — a row that lost it would draw walker-sized.
+        for row in DRUM["eras"]:
+            self.assertEqual(row["footprint"], 1)
+            self.assertGreater(row["sprite_scale"], 1.0)
         # No stat override (the Commander's D8 rule): the base
         # STAT_SUBTREE-driven resolver must read the Drummer's own era rows.
         self.assertIsNone(Drummer.__dict__.get("_resolve_stats"))
