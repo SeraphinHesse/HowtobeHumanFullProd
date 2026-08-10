@@ -50,13 +50,20 @@ package (D7).
   clamp — and the old "past tier 5 stats freeze while counts climb forever"
   cliff is gone.
 - **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
-  so are `kidnapping`, `footprint`, `sprite_scale` (**except on the Boss since
-  BR-1** — see the Boss section), `death_spawn`,
-  `registry_group`, `start_round`, `mix_ratio`, `queue_lead_count`. The
+  so are `kidnapping`, `death_spawn`, `registry_group`, `start_round`,
+  `mix_ratio`, `queue_lead_count`. The
   restructure moved only the numbers that scale with the round. A Raider hunts
   economic buildings in era 0 and in era 9 — nothing in the "Prey hunting"
   section below is era-indexed or was touched by this rework. Promoting them
   into era rows later would be additive; do not pre-build it.
+  - **`footprint`/`sprite_scale` ARE per-era, on every type, and have no flat
+    home left.** They were on this list until BR-1 carved out the Boss; the
+    per-era-footprint change then moved every era-shaped type's pair into its
+    own `eras[]` rows (`$defs/type_era_row`) and DELETED the type-root keys.
+    A body's size is a number that scales with the round after all — the
+    Formation grows 2→2→3→3→4 across eras 0–4. **`endgame_scaling` carries no
+    factor for either**, so past the last authored era a size clamps; only
+    the Boss's `endgame_boss_scaling` can grow one.
 - Editor support: era arrays are `minItems 1` with no `maxItems`, so the
   balancing panel's ER-5 `+ Row`/`− Row` buttons work on them, and every era ≥ 1
   field shows a greyed previous-era reference (D9, `editor/panels/CLAUDE.md`).
@@ -157,15 +164,23 @@ package (D7).
 - **EVERY boss variable is PER-ERA (BR-1).** `footprint`, `sprite_scale` and
   `shake: {interval, strength}` were single GLOBAL keys on `EnemyTypes.Boss`
   shared by all five bosses; they now live in each `stats[]` row and the
-  global keys are DELETED. The Boss is the one type this is true of — every
-  other type keeps them flat at its root (D10 above).
+  global keys are DELETED. `shake` is still the Boss's alone; `footprint`/
+  `sprite_scale` are no longer — the per-era-footprint change did the same
+  move for all nine era-shaped types, into their `eras[]` rows (D10 above).
+  What stays boss-specific is only WHERE its pair lives (`stats[]`, since it
+  has no `eras[]`) and that `endgame_boss_scaling` can grow it past the table.
   - **`Enemy.resolve_fit(block, era)` is the ONE seam** deciding *where* a
     type's `(footprint, sprite_scale)` lives. A `classmethod`, because
     `spawner._footprint_of` needs the footprint to pick a spawn tile BEFORE
     the enemy exists — so `__init__` and the clearance filter can never read
-    different values. Base returns the flat keys; `Boss` overrides it to read
-    its clamped `stats[era]` row (`Boss._stat_row`). `_pick_spawn_tile` passes
-    `_boss_era` for a boss and `_era` for everything else.
+    different values. **Both sides of it are per-era now**: the base resolves
+    the type's own `eras[era]` row through `era_math.resolve_era_row` (with
+    `cls.endgame_factors(block)`, which is `None` for everything but the
+    Boss, so it plainly clamps); `Boss` overrides it to read its clamped
+    `stats[era]` row (`Boss._stat_row`), because it carries no `eras[]`.
+    The base used to return two flat type-root keys, which no longer exist.
+    `_pick_spawn_tile` passes `_boss_era` for a boss and `_era` for
+    everything else.
   - **The shake is read off the LIVE boss**, not re-derived from the round
     number: `Boss.shake` is a duck-typed property (a dict COPY) beside
     `era`/`death_spawned`, and `game/main.py`'s camera-shake driver takes it
@@ -330,10 +345,11 @@ invariant: BR-3 wires it to the boss's second phase.
   `_resolve_era`, no `EXTRA_TAGS` — so no `"boss"` scene tag and therefore no
   camera shake and no boss HUD bar, both of which key off that tag.
 - **It is a NORMAL era type** (D8): the base `STAT_SUBTREE`-driven resolver
-  reads its own `EnemyTypes.Commander.eras` rows, and `footprint` /
-  `sprite_scale` stay FLAT at its root — the Boss is still the ONE type whose
-  render fit is per-era (BR-1), and `Boss._resolve_stats` is still the ONE
-  surviving override in the module. Do not add one here.
+  reads its own `EnemyTypes.Commander.eras` rows — including its `footprint` /
+  `sprite_scale`, which sit in those rows like every other era-shaped type's
+  (they were flat at the block root until the per-era-footprint change).
+  `Boss._resolve_stats` is still the ONE surviving stat override in the
+  module. Do not add one here.
 - **It hunts buildings like the Boss with no boss-specific code**: `hunts:
   "any_non_base"` is all it takes — the generic `Enemy.on_spawn` runs the
   goal-set query, arms `PathAgent.repath_on_kill` and calls `adopt_goal`
@@ -430,9 +446,10 @@ resolver reads its own `EnemyTypes.Sniper.eras` rows), no `_resolve_era`, no
   plain Defenders. That widening is a prerequisite, not an implementation
   detail: with the old single-literal predicate the Sniper would walk past
   three quarters of the player's guns.
-- **`stand_off_range` is FLAT at the type root, like `footprint`/`kidnapping`
+- **`stand_off_range` is FLAT at the type root, like `kidnapping`/`hunts`
   (D10)** — standing off at 2 tiles is the type's identity, not a number that
-  scales with the round. Keep it at or below `attack_range_tiles` or the unit
+  scales with the round. (It was written here as "like `footprint`"; that
+  comparison is dead — `footprint` went per-era for every type.) Keep it at or below `attack_range_tiles` or the unit
   halts outside its own reach; there is deliberately no runtime guard (the
   editor bounds are the fence), same policy as `death_spawn`'s
   `spawn_hp_fraction` footgun.
@@ -613,8 +630,9 @@ only how it was seeded.
 
 ### Digger balancing (`EnemyTypes.Digger`)
 A NORMAL era-shaped type — its own `eras[]` rows through the base
-`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` FLAT at the root. Four
-things are specific to it, all flagged as STARTING VALUES in their schema
+`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` among them (1 and 1.0 in
+every row; they were flat at the root until the per-era-footprint change).
+Four things are specific to it, all flagged as STARTING VALUES in their schema
 descriptions:
 - **`dig_speed`** (flat, tiles/sec) — burrowed AND overground speed.
 - **`dig_range_tiles`** (flat, default 6) — the submerge trigger distance, and
@@ -877,9 +895,22 @@ on one `Spawner` yields byte-identical output to composing round 1 fresh
 (pinned by `test_enemies.py`'s `TestSpawnComposition` round-zero tests).
 
 ## Formation (ER-4)
-The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
+The marching column, and **the one type whose body actually GROWS**:
+`footprint` is `2, 2, 3, 3, 4` across eras 0–4 (per-era for every type now —
+D10 above). It shipped a flat `1` for the whole of ER-4 despite this section,
+its schema description and its own docstring all calling it 2×2; the per-era
+change is what finally made the data agree with the design.
+
+**It adds no mechanism** — it is the first consumer of
 ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
 (`death_spawn`), all three driven purely from `data/balancing/enemies.json`.
+- **A 3×3/4×4 body leans much harder on two existing behaviours**, neither of
+  which changed. `_pick_spawn_tile` only spawns it where its whole N×N block
+  is spawn zone and falls back to an UNFILTERED pick when no tile qualifies —
+  on a map with a thin spawn band an era-4 Formation will take that fallback,
+  which is the designed "never drop an enemy from a wave" outcome, not a bug.
+  And its art is a 64×32 per-slot frame auto-fit to `footprint*tile_w` and
+  never upscaled, so a 4×4 draws at its sheet size until real art lands.
 - **The subclass is four class attrs, nothing else.** No `__init__`, no
   `on_spawn`, no `_resolve_stats`, no `EXTRA_TAGS`, no component wiring, no
   break state machine.
@@ -1169,9 +1200,11 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   when the blocker dies (the route already runs through that now-passable tile). It
   caches the map as `PathAgent._tilemap` — a deliberate environment-reference
   transient, exactly like `Movement._owner`.
-- **`PathAgent.footprint` (ER-2)** — an `int` field fed from
-  `EnemyTypes.<type>.footprint` (G-7; `Enemy.__init__` reads it off the resolved
-  `STAT_SUBTREE` block, no code-side default). The unit occupies an N×N block
+- **`PathAgent.footprint` (ER-2)** — an `int` field fed from the type's own
+  `eras[era].footprint` (the Boss's `stats[era].footprint`) via the ONE
+  `Enemy.resolve_fit` seam (G-7 — no code-side default anywhere). It is
+  resolved ONCE at construction, so a unit keeps the size of the era it
+  spawned in for its whole life. The unit occupies an N×N block
   whose **anchor is the MIN corner** (the body extends right and down); the whole
   rule set + the helper functions live in `game/map/CLAUDE.md` / `pathfinder.py`
   and are imported, never re-derived. Consequences in this package:
