@@ -64,6 +64,7 @@ _FIXTURE_STRINGS = {
     "building.flash.not_enough_love": "NOT ENOUGH LOVE",
     "building.hint.research": "Research it on levelup",
     "building.hint.tier_locked": "Unlocks at round {round}",
+    "building.hint.tier_unoffered": "Not yet offered",
     "building.hint.wall_rooted": "A wall builder is rooted to its tile",
     "building.log.moved": "Building moved",
     "building.log.moving": "Building moving — {rounds} rounds",

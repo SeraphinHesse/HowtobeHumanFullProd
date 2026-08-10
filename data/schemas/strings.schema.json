@@ -180,6 +180,10 @@
       "description": "Hint under a NEXT TIER LOCKED action button. `round` is the round the tier unlocks at.",
       "type": "string"
     },
+    "building.hint.tier_unoffered": {
+      "description": "Hint under a NEXT TIER LOCKED action button when the tier has no Timeline placement at all, so there is no unlock round to name. No placeholders.",
+      "type": "string"
+    },
     "building.hint.wall_rooted": {
       "description": "Hint under a disabled move button on a wall builder. No placeholders.",
       "type": "string"
@@ -634,6 +638,7 @@
     "building.flash.not_enough_love",
     "building.hint.research",
     "building.hint.tier_locked",
+    "building.hint.tier_unoffered",
     "building.hint.wall_rooted",
     "building.log.moved",
     "building.log.moving",
