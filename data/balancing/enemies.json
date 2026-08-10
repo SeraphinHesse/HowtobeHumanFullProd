@@ -658,7 +658,7 @@
         {
           "count_per_round": 1.0,
           "count_start": 1,
-          "footprint": 2,
+          "footprint": 1,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -676,7 +676,7 @@
         {
           "count_per_round": 1.0,
           "count_start": 1,
-          "footprint": 2,
+          "footprint": 1,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -694,7 +694,7 @@
         {
           "count_per_round": 1.5,
           "count_start": 2.0,
-          "footprint": 3,
+          "footprint": 1,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -712,7 +712,7 @@
         {
           "count_per_round": 2.75,
           "count_start": 5.0,
-          "footprint": 3,
+          "footprint": 2,
           "per_round": {
             "dmg": 0,
             "hp": 0,
@@ -730,7 +730,7 @@
         {
           "count_per_round": 3.0,
           "count_start": 8.0,
-          "footprint": 4,
+          "footprint": 2,
           "per_round": {
             "dmg": 0,
             "hp": 0,
