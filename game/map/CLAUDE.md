@@ -393,6 +393,13 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     as condition art — an un-imported wall tier emits NOTHING, never a grey X.
     Several edges on one tile emit several items (different animation rows of
     the SAME slot) — a corner tile really is walled on two sides.
+    **Wall-era-art feature**: it tries the owner's optional
+    `edge.owner.wall_era_slot()` FIRST (the frozen era-stamped key —
+    `game/buildings/structure.py`/`game/core/wall_era.py`) and falls back to
+    `wall_slot()` whenever the era slot has no imported art (absent from
+    `art_slots`, or the owner carries no such method at all — headless test
+    stubs included) — same E-37 gating, never a special case for "no era
+    stamped" (`wall_era_slot()` itself returns `None` then).
     - **It deliberately DIFFERS from `conditions.py` in two ways, both
       load-bearing.** (1) It iterates `tile_map.wall_edges.values()` and filters
       to the window instead of walking the window's tiles: `wall_edges` is

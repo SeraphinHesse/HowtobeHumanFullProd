@@ -301,6 +301,111 @@
       ],
       "type": "object"
     },
+    "boost_hp_tier": {
+      "additionalProperties": false,
+      "description": "One HP boost tier (Supporting Fan -> Cheerleader -> Drill Sergeant). Same shape as boost_tier plus the two wall-hp-boost fields (wall-hp-boost feature) - only the HP line reaches WallBuilders' walls.",
+      "properties": {
+        "base_hp": {
+          "description": "Hit points at level 1 of this tier (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "base_upkeep": {
+          "description": "Love upkeep charged per income phase at level 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "boost_increase_per_level": {
+          "description": "Extra boost fraction per level above 1.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "boost_per_turn": {
+          "description": "Boost fraction granted to cardinal-adjacent defenders per surviving income phase (flat 10x once if globals flat_mode).",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "build_cost": {
+          "description": "Love cost to place a fresh building of this tier -- also what the level-up 'tier' research card and the upgrade panel's advance-to-next-tier button charge to reach it. One cost for placement, research, and in-place advance alike.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "explanation": {
+          "description": "Flavor/help text shown in the build and upgrade panel.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "hp_per_level": {
+          "description": "Extra HP per level above 1 (x10 combat scale, D-12).",
+          "maximum": 100000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "levels": {
+          "description": "Number of upgrade levels within this tier.",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of this tier's building.",
+          "minLength": 1,
+          "type": "string"
+        },
+        "upgrade_cost_base": {
+          "description": "Love cost of the first in-tier level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upgrade_cost_increment": {
+          "description": "Extra love cost added per further level upgrade.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "upkeep_per_level": {
+          "description": "Extra upkeep per level above 1.",
+          "maximum": 10000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "wall_boost_increase_per_level": {
+          "description": "Extra wall-hp-boost fraction per level above 1 - independent of boost_increase_per_level, which only affects adjacent combat buildings.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        },
+        "wall_boost_per_turn": {
+          "description": "Wall-hp-boost fraction granted to adjacent WallBuilders' walls per surviving income phase (flat 10x once if globals flat_mode) - independent of boost_per_turn, which only affects adjacent combat buildings.",
+          "maximum": 1,
+          "minimum": 0,
+          "type": "number"
+        }
+      },
+      "required": [
+        "base_hp",
+        "base_upkeep",
+        "boost_increase_per_level",
+        "boost_per_turn",
+        "build_cost",
+        "explanation",
+        "hp_per_level",
+        "levels",
+        "name",
+        "upgrade_cost_base",
+        "upgrade_cost_increment",
+        "upkeep_per_level",
+        "wall_boost_increase_per_level",
+        "wall_boost_per_turn"
+      ],
+      "type": "object"
+    },
     "boost_tier": {
       "additionalProperties": false,
       "description": "One boost tier (Supporting Fan -> Cheerleader -> Drill Sergeant); shared shape for Speed/Damage/HP boost lines.",
@@ -1020,7 +1125,7 @@
             "tiers": {
               "description": "HP boost tiers in advance order.",
               "items": {
-                "$ref": "#/$defs/boost_tier"
+                "$ref": "#/$defs/boost_hp_tier"
               },
               "maxItems": 3,
               "minItems": 3,

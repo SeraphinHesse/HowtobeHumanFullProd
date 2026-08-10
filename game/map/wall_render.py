@@ -116,6 +116,14 @@ def wall_render_items(tile_map, col_min, col_max, row_min, row_max, art_slots,
 
     An owner without a ``wall_slot()`` method emits nothing rather than raising
     (headless fixtures own edges with stub builders).
+
+    **Wall-era-art feature**: an owner's optional ``wall_era_slot()`` (the
+    FROZEN era-specific key — see ``game/buildings/structure.py``) is tried
+    FIRST; whenever it has no imported art yet (absent from ``art_slots``, or
+    the owner carries no such method at all — e.g. headless test stubs), this
+    falls back to ``wall_slot()`` exactly as before. Never a special case for
+    "no era stamped": ``wall_era_slot()`` itself returns ``None`` then, which
+    is simply never in ``art_slots``.
     """
     if not art_slots:
         return []
@@ -130,7 +138,9 @@ def wall_render_items(tile_map, col_min, col_max, row_min, row_max, art_slots,
         wall_slot = getattr(edge.owner, "wall_slot", None)
         if wall_slot is None:
             continue                      # stub/duck-typed owner without art
-        slot_key = wall_slot()
+        wall_era_slot = getattr(edge.owner, "wall_era_slot", None)
+        era_slot_key = wall_era_slot() if wall_era_slot is not None else None
+        slot_key = era_slot_key if era_slot_key in art_slots else wall_slot()
         if slot_key not in art_slots:
             continue
         items.append(RenderItem(slot_key, (col, row), layer=LAYER,

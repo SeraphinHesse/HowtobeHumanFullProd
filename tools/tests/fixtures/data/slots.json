@@ -1162,28 +1162,163 @@
         {
           "children": [
             {
-              "label": "Bush Wall",
-              "slots": [
-                "wall_t1_lvl1",
-                "wall_t1_lvl2",
-                "wall_t1_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t1_lvl1",
+                    "wall_t1_lvl2",
+                    "wall_t1_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t1_lvl1_era1",
+                    "wall_t1_lvl2_era1",
+                    "wall_t1_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t1_lvl1_era2",
+                    "wall_t1_lvl2_era2",
+                    "wall_t1_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t1_lvl1_era3",
+                    "wall_t1_lvl2_era3",
+                    "wall_t1_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t1_lvl1_era4",
+                    "wall_t1_lvl2_era4",
+                    "wall_t1_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t1_lvl1_era5",
+                    "wall_t1_lvl2_era5",
+                    "wall_t1_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Bush Wall"
             },
             {
-              "label": "Wooden Wall",
-              "slots": [
-                "wall_t2_lvl1",
-                "wall_t2_lvl2",
-                "wall_t2_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t2_lvl1",
+                    "wall_t2_lvl2",
+                    "wall_t2_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t2_lvl1_era1",
+                    "wall_t2_lvl2_era1",
+                    "wall_t2_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t2_lvl1_era2",
+                    "wall_t2_lvl2_era2",
+                    "wall_t2_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t2_lvl1_era3",
+                    "wall_t2_lvl2_era3",
+                    "wall_t2_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t2_lvl1_era4",
+                    "wall_t2_lvl2_era4",
+                    "wall_t2_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t2_lvl1_era5",
+                    "wall_t2_lvl2_era5",
+                    "wall_t2_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Wooden Wall"
             },
             {
-              "label": "Stone Wall",
-              "slots": [
-                "wall_t3_lvl1",
-                "wall_t3_lvl2",
-                "wall_t3_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t3_lvl1",
+                    "wall_t3_lvl2",
+                    "wall_t3_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t3_lvl1_era1",
+                    "wall_t3_lvl2_era1",
+                    "wall_t3_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t3_lvl1_era2",
+                    "wall_t3_lvl2_era2",
+                    "wall_t3_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t3_lvl1_era3",
+                    "wall_t3_lvl2_era3",
+                    "wall_t3_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t3_lvl1_era4",
+                    "wall_t3_lvl2_era4",
+                    "wall_t3_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t3_lvl1_era5",
+                    "wall_t3_lvl2_era5",
+                    "wall_t3_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Stone Wall"
             }
           ],
           "label": "Wall"
