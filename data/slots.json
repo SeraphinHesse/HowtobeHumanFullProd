@@ -338,7 +338,9 @@
               "label": "Era 1",
               "slots": [
                 "enemy_stage_1_v1",
-                "enemy_stage_1_v2"
+                "enemy_stage_1_v2",
+                "enemy_stage_1_v3",
+                "enemy_stage_1_v4"
               ]
             },
             {
