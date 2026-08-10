@@ -75,7 +75,33 @@ import list.**
     widgets start with the dot hidden, and a rebuild that is not a domain switch
     would otherwise drop the pending marks of every other staged edit. The buttons
     carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
-    WHICH arrays are resizable. Scalar arrays keep their fixed length.
+    WHICH arrays are resizable.
+  - **Arrays of SCALARS can get the same `+ Row`/`− Row` gate
+    (feature-enemy-intro-dialogue, generalizing ER-5) — but only when their
+    OWN schema property opts in with `"x-array-editable": true`.**
+    `core.json`'s `EnemyIntro.entries[i].hidden_frames` (`minItems: 0`, no
+    `maxItems`, carrying the marker) is the first: a designer-resizable
+    per-entry list of frame-column indices, shipping empty. Same
+    `can_add`/`can_remove` gate as the object-array case, same "remove pops
+    the last row" rule; the one real difference is **Add on an EMPTY array**,
+    which has no last row to copy — `_default_scalar_value(item_schema)`
+    synthesizes a schema-valid starting value instead (an enum's first value,
+    `False` for boolean, `""` for string, else the item schema's own
+    `minimum`, defaulting to `0`). **The marker is required, not just
+    `minItems != maxItems`, because `BuildingsGlobal.random_names`
+    (`buildings.schema.json`) already had that exact shape (`minItems: 1`, no
+    `maxItems`) and must NOT sprout buttons here — it grows only through the
+    game's own 9H add-name menu.** A live regression caught by
+    `test_editor_panels.py::TestBalancingPanel::
+    test_buildings_form_has_no_row_buttons_at_all` is what forced the opt-in
+    marker instead of a blanket `minItems != maxItems` gate. Every other
+    scalar array (`Camera.zoom_levels`, `LightningStrike.{damage,radius,
+    cooldown}`, every `[$defs/…]`-typed 3/4/5-slot tuple) has `minItems ==
+    maxItems` anyway and would show no buttons regardless. Deliberately NOT
+    extended to arrays of OBJECTS gaining a schema-derived default — an
+    object has no single sensible one (`required`/`pattern`/cross-field
+    constraints), which is exactly why the object-array Add still copies a
+    row instead.
     Since ES-2 the enemies domain's `eras` arrays (`EnemyScaling/eras` and every
     `EnemyTypes/<Type>/eras`) are the second family of genuinely resizable
     arrays, and they got those buttons with **zero editor edits** — the schema
@@ -1437,6 +1463,72 @@ calls):
   consumer (unlike Theme) — no engine reconfiguration follows a text/flag
   edit. Documented in the panel's own docstring so a future phase does not
   go looking for a missing connection.
+
+## Timeline panel (`panels/timeline.py`, `timeline_ops.py`, `timeline_curve.py`; TimelinePLAN T5)
+- **Selection**: a single "Timeline" LEAF (one document, `data/balancing/
+  progression.json`, nothing to enumerate) is the FIRST child of the
+  "buildings" category node — the exact Theme/Cutscenes/Tutorial/Strings
+  shape (one category over), chosen over a toolbar button after re-reading
+  this doc mid-implementation: those four are the real precedent for a
+  single-document panel, not `run_controls`/`spawnclaude` (actions, not
+  `right_stack` pages). `progression` is deliberately not itself a
+  `slots.json` category (TimelinePLAN D1 — it needs a bespoke drag-and-drop
+  widget, never the generic recursive balancing form), so there was no
+  existing tree node to hang it off; "buildings" was picked because
+  `progression.json` schedules building unlocks. `panels/selector.py`'s
+  `_TIMELINE_ROLE` marker + `timeline_selected()` signal, never
+  `node_selected`. `MainWindow._on_timeline_selected` → `right_stack` (index
+  7, the newest page).
+- **Staged edits, the `tutorial_panel.py` pattern**: every drag/clear/add/
+  remove mutates an in-memory doc through the pure `editor/timeline_ops.py`
+  helper + a dirty flag; ONE "Save Timeline" button is the sole
+  `timeline_ops.save_progression` (`write_validated`) call site, which
+  cross-checks the two invariants JSON Schema can't express (`village_level`
+  uniqueness, `(building_type, tier_index)` uniqueness) before writing.
+- **First drag-and-drop in this editor** — no prior `QDrag`/`QMimeData` usage
+  existed anywhere in `editor/` before this. A custom MIME type
+  (`application/x-htbh-timeline-card`) carries `"<kind>|<building_type>|
+  <tier_index>"`; `_BrowseCard.mouseMoveEvent` starts the drag once past a
+  4px threshold, `_SlotWidget.dropEvent` accepts only that MIME type.
+  **Dropping onto an occupied slot replaces it unconditionally** — no
+  confirm dialog, the palette's "click a new brush, it replaces the armed
+  one" precedent. An already-placed browse card is **disabled**
+  (`setEnabled(False)`) rather than left draggable — Qt cannot start a drag
+  from a disabled widget, which is what keeps a duplicate placement from
+  ever being staged (the alternative, catching it only at Save time via
+  `validate_uniqueness`, was rejected as worse UX).
+- **Icons are real engine frames** via the SAME injected `viewport.
+  slot_qimage` provider `editor/panels/palette.py` uses
+  (`editor/main.py`: `self.timeline.set_icon_provider(self.viewport.
+  slot_qimage)`) — never hand-drawn art (ED-22).
+- **The graph is a hand-rolled `QPainter` strip** (`_TimelineGraph`), which
+  does NOT violate ED-22 — the `sheet_preview.py` precedent already
+  established that QPainter drawing non-game-content editor chrome (there, a
+  raw imported PNG; here, a schedule/curve visualization) is a different
+  thing from a second renderer of GAME content. It draws the round axis, the
+  raw cumulative-XP curve line, and a tick + label per `village_level` at its
+  computed best-case round (`editor/timeline_curve.py::best_case_curve`),
+  plus an always-visible "best-case / upper-bound" caption. A "View max
+  round" spinbox (default 50) is the zoom control — not full mouse-wheel/
+  drag pan, a deliberate scope simplification.
+- **The curve is computed ONCE per panel load/view-max change, not on every
+  Timeline edit** — a correction made mid-implementation to an earlier
+  planning assumption: the best-case curve depends only on `core.json`/
+  `enemies.json` (which this panel never writes), never on
+  `progression.json`'s own slot assignments, so recomputing it after every
+  drag would just repeat the same result.
+- **`editor/timeline_ops.py`'s `load_building_catalog`** is the browse
+  list's data source — reads `data/balancing/buildings.json`'s
+  `building_type`/`card_slots` fields (TimelinePLAN T1), walking whatever
+  groups carry a `building_type` key rather than a hardcoded family list, so
+  a new `/add-building` type needs no editor change here. Tier index 0 is
+  always the `"unlock"` card; indices 1/2 are `"tier"` cards.
+- **Testing note**: a real OS-level drag gesture cannot be reliably
+  synthesized under an offscreen `QApplication`. `test_timeline_panel.py`
+  drives the panel's own mutation methods directly for most coverage, plus
+  ONE test constructing a real `QMimeData` and calling `_SlotWidget.
+  dropEvent` directly — the standard Qt-test workaround, exercising the
+  actual drop-handling code path rather than only the method it delegates to.
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

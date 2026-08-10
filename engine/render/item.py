@@ -31,6 +31,7 @@ class DrawCall:
     tint: tuple = None
     flip: bool = False
     slice: tuple = None  # nine-slice margins (frame px) — HUD sprites only
+    crop_rect: tuple = None  # (x, y, w, h) source sub-rect (frame px) — HUD only
 
 
 @dataclass(frozen=True)

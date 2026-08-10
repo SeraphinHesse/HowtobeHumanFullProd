@@ -300,6 +300,48 @@ logic is `game/core` — see that doc.)
   parameters from `Boss.shake.{interval,strength}`, active only while ENEMY
   phase + a live `"boss"` in the scene.
 
+## Enemy intro dialogue sprite/animation controls (feature-enemy-intro-dialogue)
+`game/ui/enemy_intro.py`'s `EnemyIntroWindow` (session/phase wiring →
+`game/core/CLAUDE.md`'s matching section) plays its sprite as a LOOPING
+spritesheet animation, not a static frame, with per-entry crop/offset/flip/
+tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
+`EnemyIntro.entries[i]` beyond `sprite_w`/`sprite_h`.
+- **One continuous clock, not the world's `SpriteAnimator` clock.** The
+  window owns `self._clock` (float seconds, reset to `0.0` in `open()`,
+  incremented by `dt` in `update()` for as long as `visible`) — the
+  `boss_cutscene.py` pattern for a UI screen's own independent animation
+  time. `submit()` converts it once via `widgets.anim_ms(self._clock *
+  entry["anim_speed"])` into the `HudSprite`'s `anim_time_ms`; the animation
+  loops for the ENTIRE open+hold+close lifetime (a deliberate simplification
+  — no per-entry "loop vs. play-once-then-freeze" mode).
+- **`sprite_slot` may be ANY imported sprite**, any category — `game/core/
+  CLAUDE.md`'s section covers the generated enum. `animation` names one of
+  that slot's manifest rows; a mismatch (e.g. an `enemies`-vocabulary name on
+  a `ui` slot) degrades to idle rather than erroring, the manifest's own
+  tolerance.
+- **`crop_x/y/w/h`**: a source sub-rect (frame-px) drawn instead of the whole
+  frame, still stretched to `sprite_w`×`sprite_h` — `crop_w == 0 and crop_h
+  == 0` means no crop (the `fit_tiles == 0` sentinel convention). Composed
+  into a `HudSprite.crop` tuple; the actual crop-then-scale work is
+  `engine/render/backend.py`'s `_cropped` (`engine/render/CLAUDE.md`).
+- **`sprite_offset_x/y`** nudge the sprite's dest box off its default
+  horizontally-centered position — added directly into the `(cx - sw//2,
+  cursor)` dest computation; they do NOT move the panel's text cursor, only
+  the sprite's own draw box.
+- **`sprite_flip_h`** wires straight to `HudSprite.flip` (a pre-existing
+  field — no engine work needed).
+- **`background_tint` `[r, g, b, a]`** draws a `HudRect` behind the sprite,
+  sized to match its box, submitted immediately before the sprite's
+  `HudSprite` (the house "panel/background first" HUD-submission-order rule,
+  above). Its alpha COMPOSES with the window's own open/close fade
+  (`round(bg_a * window_alpha / 255)`) rather than fighting it. `a == 0`
+  (the shipped default) is invisible, so an un-tinted entry looks identical
+  to before this feature.
+- **`hidden_frames`**: extra frame-column indices to skip for THIS entry,
+  passed as `HudSprite.hidden_frames` → `Manifest.current_frame`'s
+  `extra_hidden` (`engine/assets/CLAUDE.md`) — UNIONS with, never overrides,
+  whatever the manifest row's own `hidden` list already drops.
+
 ## Shell + menus (9H)
 `game/ui/shell.py` wraps a run — ports the prototype's `GameState` shell
 (`src/core/game.py` dispatch):
@@ -526,11 +568,12 @@ picker and the confirmation.
 - **`BuildingUI.move_btn`** — a mode-independent `Button` built once in
   `__init__` (the `boss_btn`/`_dice_up` pattern) with the id `move_btn`, and
   positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
-  **Visible only on a SINGLE selection** — a move is not batchable, the same
-  "tier advance stays primary-only" precedent. A Wall Builder gets the button
-  DISABLED + relabelled `CANNOT BE MOVED` with an `_upgrade_hint`, the same
-  mechanism `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the
-  real enforcement.
+  **Visible only on a SINGLE selection** — a move is not batchable (unlike
+  UPGRADE/ADVANCE, which do batch — see the fix/batch-tier-advance note
+  below). A Wall Builder gets the button DISABLED + relabelled
+  `CANNOT BE MOVED` with an `_upgrade_hint`, the same mechanism
+  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the real
+  enforcement.
 - **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
   `_highlight_tiles` with every `buildable_tiles()` tile that is not already
   `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
@@ -576,9 +619,12 @@ the diamond is drawn only where `game.map.conditions.draws_tint` says so — no
 art, or an entry that opts back in. Empty map ⇒ every non-grass tile keeps its
 diamond, i.e. the pre-art look. The sprite itself is NOT drawn here: it goes out
 on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
-(union Chebyshev squares from RAW `range_tiles()`, mortar INCLUDED — its
-exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
-occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
+(union of footprints from RAW `range_tiles()`, mortar INCLUDED — its
+exclusion is pathfinding-only — shaped per an optional duck-typed
+`range_shape()`, `game/buildings/range_shape.py`: Chebyshev square when
+absent, or a booster's configurable `"plus"`/`"square"`,
+`BoostBuildings.globals.range_shape` — booster-range-config feature), and the
+HEATMAP overlay (previous round's distinct-enemy traffic:
 `track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
 phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)`
 (condition label + colour, keyed by `TileCondition.name` — the label text is
@@ -606,9 +652,26 @@ imports:
   .open_for_tile(..., selected_tiles=[primary, …])` batches: **unlock**
   dedups 2×2 chunks (`_unlock_chunks` frozenset key, summed cost, "UNLOCK n
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
-  only, **in-tier upgrade** sums `_batch_upgrade_targets`; tier ADVANCE stays
-  primary-only. Range diamond only when the selection is a single tile. The
-  base never batches.
+  only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
+  when the selection is a single tile. The base never batches.
+  **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
+  path from the plain in-tier batch above.** `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
+  every building whose next tier is reachable right now — regardless of its
+  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
+  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
+  UPGRADE batch. Clicking it, for each target: pays and applies any
+  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
+  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
+  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
+  LOVE" flash the in-tier batch uses). A building that can never reach its
+  next tier right now (already at the final tier, next tier unresearched,
+  or round-gated) is excluded from the batch/cost entirely — left for the
+  player to handle separately once it qualifies. **A single selection is
+  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
+  tiles) <= 1`, so one selected building still upgrades one in-tier level
+  per click and advances tier separately, via the original primary-only
+  branch in `_upgrade_click`, byte-identical to before this fix.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name

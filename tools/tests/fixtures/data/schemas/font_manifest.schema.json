@@ -1,0 +1,47 @@
+{
+  "$id": "font_manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/fonts/font_manifest.json (UH-Font-A): every custom .ttf/.otf a designer has imported through the editor's Theme panel, keyed by a generated font id. Pairs with data/fonts/imported/ (committed content, mirroring data/sprites/imported/*.png's D-31 precedent). Written ONLY by editor.font_import.import_font_file, through the validating writer. data/ui/active_font.json points at ONE entry here (or 'default' for the plain SysFont fallback) - the cross-file reference a schema can't express, so game/main.py's boot loader cross-checks it and fails loud (D-2), the same pattern engine.tilemap.load_map uses for checks schemas can't express.",
+  "properties": {
+    "entries": {
+      "additionalProperties": false,
+      "description": "One entry per imported font, keyed by font id.",
+      "patternProperties": {
+        "^[a-z][a-z0-9_]*$": {
+          "additionalProperties": false,
+          "description": "One imported font file.",
+          "properties": {
+            "display_name": {
+              "description": "Human-readable name shown in the editor's Font Family combo.",
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            "file": {
+              "description": "Font file path relative to data/fonts, resolved as a real path (mirrors asset_manifest.json's sheet field) - always imported/<font_id>.<ttf|otf>.",
+              "pattern": "^imported/[a-z][a-z0-9_]*\\.(ttf|otf)$",
+              "type": "string"
+            }
+          },
+          "required": [
+            "file",
+            "display_name"
+          ],
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "version": {
+      "const": 1,
+      "description": "Font manifest format version; this schema is v1."
+    }
+  },
+  "required": [
+    "version",
+    "entries"
+  ],
+  "title": "font_manifest",
+  "type": "object"
+}

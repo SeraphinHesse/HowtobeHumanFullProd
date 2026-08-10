@@ -48,8 +48,26 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
-  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression}.json`, each with `schemas/<domain>.schema.json`.
+  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+  feature's authored building-unlock schedule — `Timeline.levels[]`, one
+  sparse entry per player `village_level` that has offer slots authored,
+  each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,
+  `tier_index`) or `null` for an empty, still-persisted slot. It is registered
+  in `game/core/balance.py::DOMAINS` for runtime loading; it is deliberately
+  **not** a `data/slots.json` category (that registry is unrelated
+  sprite-slot vocabulary — see the Asset data section below), so it does not
+  auto-render as a generic recursive form in the editor's balancing panel —
+  it gets its own bespoke drag-and-drop panel instead (`editor/panels/
+  timeline.py`, T5). T2 shipped only the schema + an empty seed
+  (`{"Timeline": {"levels": []}}`); T6's migration
+  (`tools/migrate_timeline_from_unlock_min_round.py`) then populated it from
+  every building tier's then-existing `unlock_min_round`, and T4 made it the
+  SOLE source of unlock-timing eligibility at runtime
+  (`game/core/levelup.py::timeline_level_for`, threaded onto `Session.
+  progression_balance`) — `unlock_min_round` itself is deleted from
+  `buildings.json`. **`vfx` was the previous newest (ESV-3a)**:
   it promoted `vfx` from an asset-only `slots.json` category to a full
   balancing domain (`editor/domains.py::domains()` derives the domain list,
   so this needed zero editor edits — see `/add-category`). Its `procedural`
@@ -125,6 +143,28 @@ validating writer; don't hand-edit the JSON.
   runtime. Shipped defaults (10 / 2 / 10 / 1 / 2 / 1) make a 3-tile move cost
   20 love and take 2 rounds. Read by `game/buildings/movement.py`, which is
   handed the subtree and never opens a file.
+- **`building_type` + `card_slots` (TimelinePLAN T1/D3)**: each of the TWELVE
+  building-type groups in `buildings.json` (`DefenceBuildings.{BasicDefence,
+  AOEDefence,BeamDefence,StormPriest}`, `EconomyBuildings.{Musicians,Painters,
+  Meditators}`, `BoostBuildings.{Speed,Damage,HP}`, `StructureBuildings.
+  {Blocker,WallBuilder}`) carries two REQUIRED fields exposing what only
+  `game/buildings/*.py` class attributes said before. `building_type` (string)
+  is the `game/buildings/research.py` `RESEARCH`/`LEAF_CLASSES` key —
+  identity, not a tunable (`"defence"`, `"economic"`, `"sun_scorcher"`, … —
+  three of them do NOT match their group name). `card_slots` (exactly 3
+  strings) is one `slots.json` asset-slot key per tier, computed the way
+  `game/core/levelup.py::_tier_option` does: a flat `SLOT` wins for the
+  structure lines (`["blocker","blocker","blocker"]`), otherwise
+  `f"{TIER_SPRITES[idx]}_t{idx+1}_lvl1"`. Same **`registry_group` precedent**
+  as the enemy blocks above: the editor may never import `game/`, so a link
+  that existed only as a Python constant becomes real data, and the Python
+  constants stay as an UN-refactored second home pinned against drift by
+  `tools/tests/test_balancing_data.py::TestBuildingTypeAndCardSlots`. T1
+  shipped as pure exposure (nothing read either field yet); both are read
+  now — `editor/timeline_ops.py::load_building_catalog` (the Timeline
+  panel's browse-list source, T5) and `tools/migrate_timeline_from_
+  unlock_min_round.py` (T6) both walk `building_type`/`card_slots` for
+  every group.
 - **`slots.json`'s `core` category gained a `"Moving Sign"` one-slot group**
   (`moving_sign`, 64×96, `["idle"]`) — the signpost the game draws on both
   endpoints of a move in progress. `core` is the right home: it already holds
@@ -272,13 +312,17 @@ validating writer; don't hand-edit the JSON.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
-  forbidden). Every object level in all five balancing domains keeps
+  forbidden). Every object level in all seven balancing domains keeps
   `additionalProperties:false` + full `required`, no exceptions (the former
-  `era_unlock_round` group-level key was the last one read as optional by
-  convention anywhere near buildings — it never actually was schema-optional,
-  and it is deleted now that the meditator/beam/wall-builder round gate is a
-  single `tiers[0].unlock_min_round`, no separate era key). No `allOf`
-  composition (it breaks `additionalProperties:false`).
+  `era_unlock_round` group-level key was read as optional by convention
+  anywhere near buildings — it never actually was schema-optional, and was
+  deleted once the meditator/beam/wall-builder round gate became a single
+  per-tier `unlock_min_round`, no separate era key. **TimelinePLAN T4 went
+  further and deleted `unlock_min_round` itself** — every tier `$def`'s
+  eligibility gate is now `data/balancing/progression.json`'s Timeline
+  placement, not a `buildings.json` round value at all; see that domain's
+  entry above and `game/buildings/CLAUDE.md`'s "Research / gating seam"
+  section). No `allOf` composition (it breaks `additionalProperties:false`).
   `random_names` has `minItems:1` and NO `maxItems` (the 9H add-name menu
   appends). Bounds policy, documented per-domain in the schema description:
   fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,
@@ -295,6 +339,19 @@ validating writer; don't hand-edit the JSON.
   `write_validated` — never hand-format).
 
 ## Asset data (Phase 5, D-30/31/32 specifics)
+- **A schema enum spanning EVERY slot category is GENERATED, not
+  hand-maintained (feature-enemy-intro-dialogue's animation follow-up)**:
+  `core.schema.json`'s `$defs.enemy_intro_entry.sprite_slot` enum (every
+  slot key in `data/slots.json`, any category) and its sibling `animation`
+  enum (the union of every category's `animations` vocabulary) are written by
+  `tools/gen_sprite_slot_enum.py` — read the live `SlotRegistry`, rewrite
+  both enums in place, deterministic/idempotent. Re-run it after adding a
+  slot or changing a category's `animations` list;
+  `tools/tests/test_schema_slot_sync.py` fails CI if the committed enum
+  drifted from `slots.json`. This is the first schema field in the repo
+  referencing slots across the whole registry rather than one category — the
+  hand-maintained, single-category precedent (`vfx.schema.json`'s
+  `trigger_row.sprite_slot`) is unaffected and stays hand-typed.
 - **`slots.json` location is a deliberate D-32 deviation**: SPEC says
   `data/schemas/slots.*`, but `tools/smoke.py` skips `data/schemas/` when
   validating, and the registry must be validated content — so it lives at
@@ -356,19 +413,31 @@ validating writer; don't hand-edit the JSON.
 - **`walls` is an asset-only category too** (no `balancing/walls.json`, no
   `schemas/walls.schema.json` — that absence is exactly what keeps it out of
   `editor/domains.py::domains()`), holding the art for the WallBuilder's
-  destructible edge walls: one `Wall` group with three variant-family children
-  (`Bush Wall`/`Wooden Wall`/`Stone Wall`), 9 slots, `wall_t{1..3}_lvl{1..3}`.
-  64×96 like buildings — a wall rises above its tile. Its animation vocabulary
-  is NOT a set of animations but a set of SIDES: `["idle", "edge_se",
+  destructible edge walls: one `Wall` group with three tier children
+  (`Bush Wall`/`Wooden Wall`/`Stone Wall`), each now (wall-era-art feature) a
+  NESTED node — a `Base` variant-family child (the original 9 slots,
+  `wall_t{1..3}_lvl{1..3}`, unchanged) plus open-ended `Era 1`..`Era 5`
+  sibling children (`wall_t{tier}_lvl{level}_era{n}`, all art-less until a
+  designer imports through the normal asset-import flow — E-37 grey-X-free).
+  Legal with zero schema change: `slots.schema.json`'s group node already
+  recurses `children` to arbitrary depth. `game/buildings/structure.py`'s
+  `WallBuilder.wall_era_slot()` resolves the era key off a stamp frozen at
+  placement/upgrade time (`game/core/wall_era.py`); `game/map/wall_render.py`
+  tries it before falling back to the `Base` key. 64×96 like buildings — a
+  wall rises above its tile. Its animation vocabulary is NOT a set of
+  animations but a set of SIDES: `["idle", "edge_se",
   "edge_sw", "edge_nw", "edge_ne"]`, one manifest row per isometric tile-diamond
   side (row 0 stays `idle`, schema-forced, and holds a generic preview segment
   for the editor's slot list). `game/map/wall_render.py` owns the neighbour
   delta → side-row table; a frame blits centred on the tile centre, so in a
   64×96 frame the diamond's corners are fixed at top `(32,32)`, right `(64,48)`,
-  bottom `(32,64)`, left `(0,48)`. The committed starting art was generated by
+  bottom `(32,64)`, left `(0,48)`. The committed starting art (the `Base`
+  tier/level slots only) was generated by
   `tools/gen_wall_sheets.py` (deterministic, re-runnable, writes the 9 sheets
   AND their manifest entries) — it is ordinary editable D-31 content, not a
-  build artifact: repaint or re-import it freely.
+  build artifact: repaint or re-import it freely. The `Era N` slots ship with
+  no generator and no manifest entries — real art lands via the editor's
+  normal per-slot import, same as any other un-imported slot.
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,

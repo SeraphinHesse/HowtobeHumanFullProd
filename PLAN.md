@@ -1,332 +1,433 @@
-<!-- active-plan: UiTextBindingPLAN.md | set: 2026-08-09 -->
-> **Active plan:** UiTextBindingPLAN.md (mirror). Source of truth:
-> `planning/UiTextBindingPLAN.md`. Do **not** edit this file directly — edit the
+<!-- active-plan: TimelinePLAN.md | set: 2026-08-09 -->
+> **Active plan:** TimelinePLAN.md (mirror). Source of truth:
+> `planning/TimelinePLAN.md`. Do **not** edit this file directly — edit the
 > source in `planning/` and re-run `/setcurrentplan`, or pick a different
 > plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
 > screen).
 
-# UiTextBindingPLAN.md — every stat and string a movable, editable widget
+<!-- status: IN PROGRESS — all T1-T7 phases implemented; full testgate check pending before merge -->
 
-Phased, agent-executable plan (same family as `NewEnemyTypesPLAN.md` /
-`UI_EDITOR_PLAN.md`). Base branch: `Development`; work lands on
-`UiImplementation`. Runnable via
-`/execute-plan-phases planning/UiTextBindingPLAN.md UT-1-UT-7` or phase-by-phase.
+# TimelinePLAN.md — authored building unlock scheduling
+
+Phased, agent-executable plan (same family as `AgentDispatchPLAN.md` /
+`MIGRATION_PLAN.md`). Base branch: `Development`. This work happens on
+`feature/timeline-unlock-scheduling` (already branched off `origin/Development`)
+to avoid conflicting with unrelated in-flight branches.
 
 ## 1. Vision
 
-Today the UI is half data-driven. `game/ui/skinning.py`'s `ScreenSkinning.apply()`
-lets a designer move, restyle and hide any widget a screen registers in its
-`ids: {name: (kind, widget)}` dict, and `tools/export_ui_layouts.py` records those
-defaults into `data/ui/screen_defaults.json` for the editor to compose overrides
-on. The HUD's readouts already use the pattern properly: `hud.py`'s `_love_text`,
-`_lives_text`, `_tiles_text` are id'd label holders whose rect/font/colour come
-from data while their *text* comes from `T("hud.lives", count=…)` against
-`data/ui/strings.json`.
+Today, "when a building becomes available to research" lives as a scattered
+per-tier `unlock_min_round` field across 12 building-type groups in
+`data/balancing/buildings.json` (36 tier objects total). To find or change
+when any given building unlocks, a developer opens the editor's balancing
+form and scrolls through a deep per-building schema tree — there is no
+single place that shows the whole unlock schedule at a glance, and no way to
+see how one edit reshapes the overall pacing.
 
-Everything else is hardcoded. The upgrade panel draws ~40 stat rows as bare
-`submit_text(renderer, label, (x, y), …)` with `y += 24`, so not one of them can
-be moved, recoloured or hidden from the editor, and their strings ("HP", "Damage",
-"DIED LAST ROUND", "click here to change name") exist only as Python literals. The
-editor is honest about this — `_screen_rules.label_is_code_owned()` disables the
-Label field with *"This text is written by game code at runtime — edit it in game
-code, not here."* That tooltip is the problem statement.
+Separately, the level-up mechanic that surfaces these unlocks to the player
+(`game/core/levelup.py::roll_levelup_options`) is a live stochastic roll: it
+walks every building type, collects whatever currently passes its
+round/village-level gate, shuffles, and shows exactly 3 cards (padding with
+"+Love" filler if fewer qualify). There's no way to *see*, as a designer,
+what that pool looks like at a given point in the game, or to deliberately
+curate "this level-up should be able to offer these three specific things."
 
-The editor's screen preview compounds it: it draws only the named widgets, as flat
-rects or skins. A designer laying out the Build/Upgrade screen sees five boxes, not
-the panel the player sees.
+**Timeline** fixes both: one visual, horizontal editor panel (round 0 →
+round 50, scrollable/zoomable beyond that) where every building's
+unlock/tier-upgrade card is drag-and-drop placed into an "offer slot"
+attached to a specific player level-up (identified by `village_level`, the
+existing 1/2/3/… counter). Placing a card there is what makes it *eligible*
+to be rolled at that level-up onward — replacing `unlock_min_round` as the
+single source of truth for unlock timing, while leaving the random
+roll-of-3 mechanic untouched. A computed graph overlay shows, for each
+level-up, the best-case (upper-bound) round at which it would occur,
+computed live from the game's real enemy-count formulas and XP values — not
+a hand-placed guess.
 
-**Outcome.** Every stat gets two movable widgets — one for its name, one for its
-number. Every user-visible string is a `data/ui/strings.json` template the editor
-shows and edits. The editor viewport shows the real screen, rendered by real game
-code against mock data, instead of placeholder boxes.
+### Confirmed design decisions (do not re-litigate)
 
-## 2. Decisions (with rationale)
+1. **Architecture split**: `editor/` owns the new drag-and-drop authoring UI
+   and writes new schema-validated `data/` JSON; `game/`/`engine/` read it
+   at runtime.
+2. **Tiers are real and placeable**: both a building type's initial *unlock*
+   card and each subsequent *tier-upgrade* card (e.g. Stone Thrower →
+   Slinger) are placeable — matching the existing two-offer-kind model in
+   `game/buildings/research.py`/`game/core/levelup.py`.
+3. **Level-ups stay XP/kill-triggered.** `game/core/xp.py`'s trigger is
+   untouched. The timeline's round-axis position for a level-up is a
+   *computed reference*, never a hard schedule.
+4. **The graph is a deterministic best-case formula**: assume every enemy
+   spawned in a round is killed (enemy counts per round are already a
+   closed-form, non-random formula in `engine/era_math.py`). Must be clearly
+   labeled as a best-case/upper-bound curve in the UI.
+5. **The random roll-of-3 stays exactly as-is** — Timeline slots only
+   curate the *eligible pool*; no change to `OPTION_COUNT`, the shuffle, or
+   the "+Love" fallback padding.
+6. **Timeline data replaces `unlock_min_round`** as the sole source of
+   unlock timing — deleted from schema and content once the runtime read
+   path is repointed, after a reviewed migration seeds the new data.
+7. **Slots are indexed by `village_level`** (`RunState.village_level`) — not
+   by round.
+8. **Terminology**: `data/slots.json` is the unrelated sprite/asset slot
+   registry. This feature's "slot" uses different vocabulary ("offer slot")
+   and does not touch `data/slots.json`.
+9. Slot cardinality per level-up is dynamic/editable directly in the
+   Timeline UI, not fixed.
 
-- **D1 — Per-stat granularity, label and value as separate widgets.** A single
-  "stat block" widget with a row height would be far fewer ids, but the user
-  wants each stat's name and its number independently placeable. So each stat key
-  registers `stat_<key>_label` and `stat_<key>_value`.
-- **D2 — Templates live in `data/ui/strings.json`, globally.** One source of
-  truth; editing `hud.lives` changes it everywhere. The alternative (copying the
-  template into each screen's override doc) lets the same text drift between
-  screens and demotes `strings.json` to a default nobody reads.
-- **D3 — The editor edits templates, never invents keys.** `configure_strings()`
-  fails loud on any key-set mismatch between the seeded `_STRINGS` dict and the
-  JSON; that check is the guarantee that no converted string silently goes
-  missing. Adding a key stays a code change. The editor may re-point a widget at
-  an existing key (`text_id`) and may rewrite any template's text.
-- **D4 — The preview is produced by `tools/`, never by the editor.**
-  `editor/` may never import `game/` (design pillar 2), but `tools/` may, and
-  `tools/export_ui_layouts.py` already constructs every screen headlessly under
-  dummy SDL. It therefore also records a serialized **draw list** the editor
-  replays through `engine/render`. ED-22's one-render-path holds; the layering
-  rule holds; and un-converted chrome still shows up in the preview, which makes
-  the conversion phases incremental instead of all-or-nothing.
-- **D5 — Default geometry must not move.** Conversion re-expresses existing draw
-  calls; it does not re-lay-out anything. Every phase is checked by diffing
-  `data/ui/screen_defaults.json`: additions only, never a changed `rect`.
+All of the above, plus every file/line reference below, was verified against
+the current repository state — `game/core/levelup.py`,
+`game/buildings/research.py`, `engine/era_math.py`, `game/core/xp.py`,
+`data/schemas/{core,buildings}.schema.json`, `editor/domains.py`,
+`game/core/balance.py`, `tools/smoke.py`, and `game/buildings/defender.py`
+were all directly read to confirm exact current shapes before this plan was
+written.
 
-## 3. Architecture
+## 2. Architecture / decisions (with rationale)
 
-### 3.1 `text_id` — the widget↔string binding
+- **D1 — New standalone balancing domain, `progression`.**
+  `data/balancing/progression.json` + `data/schemas/progression.schema.json`,
+  added to `game/core/balance.py::DOMAINS` (currently `("buildings",
+  "enemies","map","ui","core","vfx")`) for runtime loading. **Deliberately
+  NOT added as a `data/slots.json` category** — `editor/domains.py::
+  domains()` derives its auto-rendered selector/balancing-panel list as
+  *slots.json categories ∩ balancing files*; Timeline needs a bespoke
+  drag-and-drop widget, never a generic recursive form, so it must not also
+  auto-render as one. `tools/smoke.py`'s generic stem-pairing walk
+  (`data/foo.json` ↔ `schemas/foo.schema.json`, `tools/smoke.py:25-61`)
+  picks the new pair up for free — `progression` is not one of its four
+  named stem-pairing exceptions (map / balancing_history / agent_forms /
+  screen overrides).
+- **D2 — The Timeline panel is a selector-tree leaf under "buildings"**
+  (corrected mid-T5, user-confirmed — originally planned as a toolbar
+  button; see the note under the build-order table). Edit model mirrors
+  `editor/panels/balancing.py`'s staged-dict + dirty-dot + explicit Save
+  pattern (no `QUndoStack`).
+- **D3 — `buildings.json` gains two new required fields per building-type
+  group**: `building_type` (the `RESEARCH`/`tiers_unlocked` key, e.g.
+  `"defence"`) and `card_slots` (array of exactly 3 asset-slot keys, one per
+  tier). These exist ONLY in Python today (`BUILDING_TYPE`/`TIER_SPRITES`
+  class attributes, confirmed in `game/buildings/defender.py:11,13` and all
+  12 leaf classes) with no JSON equivalent — the editor may never import
+  `game/`, so it cannot enumerate building types or resolve card art
+  without this addition. Mirrors the existing `registry_group` precedent.
+  Seeding is mechanical transcription from the 12 leaf files.
+- **D4 — `unlock_min_round` is deleted from schema + content**, not merely
+  ignored — confirmed required in all 10 tier `$defs` in
+  `data/schemas/buildings.schema.json` and present on all 36 tier objects in
+  `data/balancing/buildings.json`.
+- **D5 — `upgrade_gate`'s second consumer is re-keyed to a village_level,
+  not a round.** `game/core/levelup.py::upgrade_gate`'s `tier_hidden` mode
+  is read by `game/ui/building_ui.py`'s `_upgrade_state` to format
+  `"Unlocks at round {cost}"` in the live in-game upgrade panel. Instead:
+  `game/buildings/research.py` gains `timeline_level_for(btype, idx,
+  progression_balance) -> int | None`; `upgrade_gate`'s `tier_hidden` branch
+  returns that village_level directly; the one `building_ui.py` f-string
+  becomes `"Unlocks at level {cost}"` (or "Not yet offered" when `None`).
+  Only `game/ui` text change this plan requires.
+- **D6 — The `gate_kind="min_village_level"` stacked gate** (Maw Mortar,
+  Cave Painter's `unlock_min_village_level`) is untouched — a different,
+  orthogonal gate from the round gate this plan replaces.
+- **D7 — The best-case curve calculator is vocabulary-free in `engine/`**,
+  with a small duplicated vocabulary adapter in `game/core/` and `editor/` —
+  mirroring `engine/era_math.py`'s own discipline and the two
+  already-precedented duplication cases in this repo (`editor/vfx_params.py`
+  ↔ `game/ui/effects.py`; `editor/panels/_screen_primitives.py` ↔ `game/ui`'s
+  widget look). A cross-package drift test pins the two vocabulary tables
+  together (the `TestRegistryGroupDrift` pattern).
+- **D8 — Boost-trio grouping is untouched** — only the lead type's Timeline
+  placement is consulted for the shared "unlock all three" card; the UI
+  should visually pin the two non-lead members when the lead is placed
+  (should-have UX affordance, not a new mechanism).
 
-A label-bearing widget holder gains an optional `text_id` naming a
-`data/ui/strings.json` key. Game code stops passing a literal id to `T()` and
-reads the holder's instead, so re-pointing a widget at a different string becomes
-a data edit. One new helper in `game/ui/widgets.py` collapses the ~90 conversion
-sites:
+### Data model
 
-```python
-def submit_label(renderer, holder, **fmt):
-    """Draw an id'd label holder: text from T(holder.text_id, **fmt),
-    geometry/font/colour from the holder (post-skinning.apply), skipped when an
-    override has hidden it. The one idiom every converted call site uses."""
+`data/balancing/progression.json` / `data/schemas/progression.schema.json`.
+Top-level `Timeline.levels`: a sparse array of per-`village_level` records,
+house schema style (`additionalProperties:false`, full `required`, bounded
+numerics, no `oneOf`):
+
+```json
+{
+  "Timeline": {
+    "levels": [
+      {
+        "village_level": 1,
+        "offer_slots": [
+          {"assignment": {"kind": "unlock", "building_type": "storm_priest", "tier_index": 0}},
+          {"assignment": {"kind": "unlock", "building_type": "wall_builder", "tier_index": 0}},
+          {"assignment": {"kind": "unlock", "building_type": "blocker", "tier_index": 0}}
+        ]
+      },
+      {
+        "village_level": 4,
+        "offer_slots": [
+          {"assignment": {"kind": "tier", "building_type": "defence", "tier_index": 1}},
+          {"assignment": null}
+        ]
+      }
+    ]
+  }
+}
 ```
 
-`ScreenSkinning.apply()` needs no code change — its generic setattr loop already
-threads any new key onto the widget, exactly as its docstring says it does for
-`tint`. Its docstring's key list does need updating.
+- `village_level`: integer [1,1000] (repo's existing bounds policy; 50 is
+  only the UI's initial view range, never a data cap).
+- `offer_slots`: `minItems:0`, no `maxItems` (dynamic cardinality) — an
+  empty, persisted slot (`assignment: null`) is a legitimate saved state.
+- `assignment` (nullable object): `{kind: enum["unlock","tier"],
+  building_type: string, tier_index: integer[0,2]}` — all three keys always
+  present even when unused. No `oneOf`.
+- `village_level` uniqueness across `levels`, and `(building_type,
+  tier_index)` uniqueness across the whole Timeline, are beyond JSON Schema
+  — enforced by the editor's pure ops helper before every write, and by a
+  runtime loader cross-check that fails loud on violation.
 
-Schema work:
+### Runtime read path
 
-- `data/schemas/screen_defaults.schema.json` — widget gains optional `text_id`
-  (string) and `sample` (the mock-resolved text, so the editor can show
-  *"LIVES 3"* beside the template *"LIVES {count}"*).
-- `data/schemas/ui_screen.schema.json` — widget gains optional `text_id`
-  override.
-- `data/schemas/strings.schema.json` — one property per new key, carrying its
-  placeholder documentation (the file's existing convention).
+- `game/buildings/research.py`: delete `tier_unlock_min_round`; add
+  `timeline_level_for(btype, idx, progression_balance) -> int | None`.
+- `game/core/levelup.py`: `tier_offerable`, `roll_levelup_options`,
+  `upgrade_gate` all gain/thread a `progression_balance` parameter; the
+  shuffle/take-3/fallback-pad logic in `roll_levelup_options` stays
+  byte-identical — only pool membership changes.
+- Call-site ripple: `game/core/session.py` (`Session.__init__`/
+  `resolve_levelup` thread `progression_balance`, loaded in `game/main.py`'s
+  boot sequence via `game.core.balance.load_all`); `game/ui/building_ui.py`'s
+  `upgrade_gate(...)` call + its one f-string; `tools/tests/test_levelup.py`,
+  `tools/tests/test_boost.py` fixtures.
 
-### 3.2 Per-stat widget ids
+### Best-case XP-curve calculator
 
-`building_ui._building_stats(b)` returns `(label_text, value)` pairs today. It
-becomes `(stat_key, text_id, value)` triples over a fixed vocabulary — `hp`,
-`damage`, `range`, `atk_speed`, `upkeep`, `yield`, `streak`, `progress`,
-`payout`, `pays_in`, `wall_hp`, `boost`, plus the `<key>_base` contrast rows
-`boosted_stats()` produces. Each key registers two ids:
+- `engine/xp_curve.py` (new, pure, stdlib-only, built on `engine.era_math`):
+  `enemy_counts_for_round`, `boss_round_counts` (mirrors
+  `game/enemies/spawner.py::_boss_round`'s fallback-past-era-4 behavior),
+  `cumulative_best_case_xp(round_range,...) -> dict[round,cum_xp]`,
+  `threshold_crossing_rounds(...) -> dict[village_level, round|None]`. Type
+  keys are opaque.
+- `game/core/xp_curve.py` (new, vocabulary adapter): `threshold_sequence`
+  reproduces `xp.py::advance_village_level`'s threshold walk read-only
+  (ships the documented 50/65/85/110/140… curve); `best_case_curve` builds
+  the vocabulary from `enemies_balance["EnemyTypes"]` + `core_balance["XP"]`
+  (promote `xp.py`'s private `_XP_KEY` to `XP_KEY_FOR_ETYPE`) and calls into
+  `engine.xp_curve`.
+- `editor/timeline_curve.py` (new, pure, Qt-free, the deliberately
+  duplicated adapter — reads `data/balancing/{core,enemies}.json` directly,
+  never imports `game/`). Registered in `TestPurity`. A cross-package test
+  asserts byte-identical output vs. `game/core/xp_curve.py` on the same
+  fixture.
 
-```
-stat_hp_label      kind=label  text_id="building.stat.hp"     rect [14, 116, 0, 0]
-stat_hp_value      kind=label  text_id="building.stat.value"  rect [186,116, 0, 0]
-stat_damage_label  …
-```
+### The editor panel
 
-Default rects come from the existing stacking loop, so an untouched
-`screen_defaults.json` is geometrically identical to today. An override moves
-that one row and **does not cascade** — the rows below keep their own default
-anchors, matching the convention `hud.py:_layout_readouts` already documents. A
-stat the selected building lacks is simply not drawn; its id still exists in the
-defaults so a designer can place it.
+`editor/panels/timeline.py` (`TimelinePanel`, new):
+- **Graph strip**: round axis with tick marks at each `village_level`'s
+  computed best-case round, labeled `"Lv N ~round R"`, an always-visible
+  "best-case / upper bound" legend, the raw cumulative-XP curve line.
+- **Offer-slot rows**: one per `village_level` record, square drop-target
+  buttons per `offer_slots[i]` plus `+`/`−` to append/remove a trailing
+  empty square, an "Add level" affordance. Filled squares render via the
+  SAME injected icon-provider pattern `editor/panels/palette.py` uses
+  (`viewport.slot_qimage(slot_key)`), resolving `card_slots[idx]`.
+- **Browse list**: one row per `building_type` (enumerated live, never
+  hardcoded), expandable to its up to 3 cards, draggable via the same
+  `slot_qimage` provider, greyed once placed.
+- **Drag-and-drop — genuinely new ground** (zero existing `QDrag`/
+  `QMimeData` usage anywhere in `editor/`). Custom-MIME payload
+  `(kind, building_type, tier_index)`; dropping onto an occupied slot
+  replaces it unconditionally (no confirm dialog). All gesture-recognition
+  code stays Qt-boundary-only; every mutation goes through:
+- **`editor/timeline_ops.py`** (new, pure, `engine.data_io`-only, in
+  `TestPurity`): `load_progression`, `assign_slot`, `clear_slot`,
+  `add_slot`, `remove_slot`, `add_level`, `remove_level`,
+  `save_progression` (the one `write_validated` call, cross-checking both
+  uniqueness invariants before writing).
+- Wiring: `editor/main.py` — a selector-tree leaf (D2, corrected from a
+  toolbar button); `self.timeline.set_icon_provider(self.viewport.slot_qimage)`.
 
-The exporter must therefore emit the **union** of stat ids, not one mock
-building's subset: `_build_bp_upgrade` builds one mock per family (defence /
-boost / wall / painter / meditator / musician) and unions their ids first-wins —
-the same deterministic-union idiom `_BP_VIEW_ORDER` already uses at
-`tools/export_ui_layouts.py:428-450`.
+### Migration
 
-### 3.3 Preview by draw-list replay
+`tools/migrate_timeline_from_unlock_min_round.py` (kept, not throwaway,
+reviewable and re-runnable):
+1. For every `(building_type, tier_index)`, read current `unlock_min_round`.
+2. Run `game/core/xp_curve.best_case_curve` over the full round range
+   against current, unmigrated data to get `round → cumulative_xp` and
+   `village_level → round`.
+3. Bucket each tier/unlock into the smallest `village_level` whose computed
+   round is `>= R`.
+4. Write through `editor.timeline_ops.save_progression`.
+5. Print a diff table (`old unlock_min_round → computed village_level →
+   curve round`) as a **required human review gate** before the phase that
+   deletes `unlock_min_round` runs.
 
-- A recording renderer stub in `tools/` captures `submit_hud` /
-  `submit_overlay_*` calls into serialized items (`{type: "rect"|"text"|
-  "sprite"|"line", …}`), tagging each with the widget id in scope when there is
-  one.
-- New generated file `data/ui/screen_previews.json` plus
-  `data/schemas/screen_previews.schema.json`, keyed `{screen_id: {view:
-  {items: [...], mock_note: str}}}`. Generated, committed, deterministic, never
-  hand-edited — the contract `screen_defaults.json` already carries in
-  `data/CLAUDE.md`.
-- `ViewportPanel._submit_screen_items` (`editor/panels/viewport.py:1723`) replays
-  the item list first, then draws selection chrome and handles on top.
-- **Live editing:** while a widget is dragged or resized, the editor suppresses
-  that widget's tagged items and renders it itself at the live rect (today's
-  `_submit_screen_widget` path), so drag feedback stays immediate. On release,
-  and on Save, the preview is regenerated.
-- **Regeneration** reuses the tracked-`QProcess` plumbing behind the existing
-  "Refresh Layouts" toolbar button (`editor/run_controls.py:42`,
-  `editor/main.py:275`); the exporter grows `--overrides <path> --screen <id>` so
-  the editor can render the *unsaved* doc from a temp file. No new
-  infrastructure.
+## 3. Build order
 
-### 3.4 Editor form (`editor/panels/screen_details.py`)
+| Phase | Goal | Status |
+|-------|------|--------|
+| T1 | `buildings.json` art/type exposure (`building_type`/`card_slots`) | done |
+| T2 | `progression` balancing domain (schema + empty seed) | done |
+| T3 | Best-case XP-curve calculator (`engine`/`game.core`/`editor`) | done |
+| T5 | Editor Timeline panel + `timeline_ops` (drag-and-drop) | done |
+| T6 | Migration from `unlock_min_round` → Timeline data | done |
+| T4 | Runtime read path switch; delete `unlock_min_round` | done |
+| T7 | Docs | done |
 
-- The **Label** row stops being disabled for dynamic labels. When the selected
-  widget has a `text_id`, it becomes **Text template**: it edits the
-  `strings.json` entry, shows the resolved `sample` beneath it, and warns *"used
-  by N widgets"* when the key is shared. Static-label widgets keep today's
-  per-widget `label` override unchanged.
-- `_screen_rules.label_is_code_owned()` narrows to "no `text_id` and not a pinned
-  static title". `TOOLTIP_LABEL_CODE_OWNED` survives for what genuinely stays
-  code-owned (a `field`'s user-typed contents).
-- A **Text ID** combo re-points a widget at another existing key (D3).
-- Template edits are undoable through `UIScreenSession.push_string(text_id, old,
-  new)` and saved with the screen. Because strings are global, the panel shows
-  the strings doc's dirty state separately from the screen doc's.
+**D2 correction (made during T5, user-confirmed):** the Timeline panel is a
+**selector-tree leaf under "buildings"** (the Theme/Cutscenes/Tutorial/
+Strings single-document-panel pattern), not a toolbar button as originally
+planned — see `editor/panels/CLAUDE.md`'s Timeline panel section for the
+full reasoning.
 
-## 4. Build order
+Execution order is **T1 → T2 → T3 → T5 → T6 → T4 → T7** (kept as T1–T7 to
+match the design doc's numbering; T4 intentionally runs after T6 so the
+destructive schema change has a reviewed replacement dataset first).
 
-| Phase | Scope | Status |
-|-------|-------|--------|
-| UT-1  | Mechanism: `text_id`, `submit_label()`, schemas, `push_string` | **done** |
-| UT-2  | Preview pipeline: recording renderer, `screen_previews.json`, editor replay | **done** |
-| UT-3  | `building_panel` conversion — all five views, the stat vocabulary | **done** |
-| UT-4  | `hud.py` conversion | **done** |
-| UT-5  | The remaining 12 screens + `effects.py` | **done**  |
-| UT-6  | Editor Text-template form | **done** |
-| UT-7  | Eyeball pass, docs | **docs done**, playtest pending |
+### T1 — `buildings.json` art/type exposure
+**Goal.** Add `building_type` + `card_slots` to all 12 groups; no behavior
+change anywhere yet.
+**Files.** `data/schemas/buildings.schema.json` (12 group blocks);
+`data/balancing/buildings.json` (12 groups, transcribed from
+`game/buildings/*.py` leaf classes), through `write_validated`.
+**Tests.** `tools/tests/test_balancing_data.py` (D-12 bounds/description walk
+picks the fields up automatically); a new pinning test asserting every
+`card_slots[idx]` resolves to a real `data/slots.json` slot key.
+**Exit gate.** `py tools/smoke.py` + `py tools/testgate.py check --affected`.
 
-UT-1 and UT-2 are independent. UT-3/4/5 all depend on UT-1. UT-6 depends on UT-1
-and is sequenced after UT-3 so it has real bindings to drive. UT-7 is last by
-definition.
+### T2 — `progression` domain
+**Goal.** Schema + empty-but-valid seed file exist; nothing reads/writes it.
+**Files — new.** `data/schemas/progression.schema.json`,
+`data/balancing/progression.json` (`{"Timeline": {"levels": []}}`).
+**Files — modified.** `game/core/balance.py::DOMAINS` (append
+`"progression"`).
+**Deviation from original file list (user-confirmed during execution):**
+`tools/tests/test_balancing_data.py::DOMAINS` is **NOT** updated in T2.
+That test's `test_out_of_range_numeric_rejected` requires every listed
+domain to have at least one populated numeric leaf to violate; the T2 seed
+is genuinely empty (`levels: []`), so it would fail for a reason unrelated
+to a real bug. Add `"progression"` to that `DOMAINS` tuple in **T6**
+instead, once the migration gives the file real content to test against.
+**Tests.** `py tools/smoke.py` validates the new pair automatically (schema
+validity / canonical formatting / description+bounds checks all still apply
+via smoke's generic stem-pairing walk, independent of the DOMAINS tuple
+above).
+**Exit gate.** GATE PASS.
 
-### Phase UT-1 — the mechanism
+### T3 — Calculator
+**Goal.** `engine/xp_curve.py`, `game/core/xp_curve.py`,
+`editor/timeline_curve.py` — pure, headlessly testable, no readers changed.
+**Files — new.** The three modules above.
+**Files — modified.** `game/core/xp.py` (promote `_XP_KEY` →
+`XP_KEY_FOR_ETYPE`); `tools/tests/test_editor_viewport.py::TestPurity` (add
+`editor.timeline_curve`).
+**Tests.** `tools/tests/test_xp_curve.py`: boundary rounds, boss-round
+replacement, endgame-scaling pass-through, `threshold_sequence` reproduces
+50/65/85/110/140; cross-package drift test (`editor.timeline_curve` vs.
+`game.core.xp_curve`).
+**Exit gate.** `py tools/testgate.py check --affected`.
 
-`game/ui/widgets.py` gains `submit_label()`; `Button` gains an optional
-`text_id`. `game/ui/skinning.py`'s docstring key list grows `text_id` (no code
-change — verify the setattr loop threads it). The three schemas above are
-extended. `editor/ui_screen_session.py` gains `push_string`.
+### T5 — Editor panel
+**Goal.** `editor/panels/timeline.py` + `editor/timeline_ops.py`, a
+selector-tree leaf (D2, corrected from toolbar during execution), graph +
+drag-and-drop authoring, writes validated `progression.json`.
+**Files.** `editor/panels/timeline.py` (new), `editor/timeline_ops.py`
+(new), `editor/panels/selector.py` (new `_TIMELINE_ROLE` leaf under
+"buildings"), `editor/main.py` (panel construction, `right_stack` wiring,
+`set_icon_provider`), `test_editor_viewport.py::TestPurity` (both new
+modules) + one pre-existing pinned `right_stack.count()` test updated for
+the new 8th page.
+**Tests.** `tools/tests/test_timeline_ops.py` (pure, 16 tests): assign/
+clear/add/remove round-trips; uniqueness cross-checks raise before writing
+invalid data. `tools/tests/test_timeline_panel.py` (Qt tier, 10 tests):
+add/remove level/slot, assign/replace/clear via panel methods, ONE synthetic
+`QDropEvent` exercising the real drop path, Save round-trip, graph
+tick-round values vs. `editor.timeline_curve` directly.
+**Exit gate.** `py tools/smoke.py` green; targeted pytest files green;
+headless `MainWindow` construction + Timeline-leaf-selection smoke check
+(no real display available this session — real mouse-driven GUI interaction
+not exercised). Full editor regression suite (`test_editor_panels.py`) and
+the full/`--affected` testgate **deferred to final handoff** per user
+request during this session (testgate's `--affected` falls back to the full
+suite whenever `conftest.py` is touched, which every phase's new test file
+does).
 
-No screen is converted; **zero visual change** and `screen_defaults.json` is
-byte-identical.
+### T6 — Migration
+**Goal.** Reviewable, re-runnable migration producing the initial
+`progression.json` from today's `unlock_min_round` content.
+**Files.** `tools/migrate_timeline_from_unlock_min_round.py` (new), run once,
+its output committed as the seed `data/balancing/progression.json`; also add
+`"progression"` to `tools/tests/test_balancing_data.py::DOMAINS` now that the
+file has real numeric content (see T2's deferral note above).
+**Tests.** `tools/tests/test_migration_timeline.py`: bucketing preserves the
+relative order of `unlock_min_round` values.
+**Exit gate.** Human review of the printed diff table; `py tools/smoke.py`
+on the committed output.
 
-**Tests**: `submit_label` honours `visible`, resolves through `text_id`, and
-falls back to a holder's `.label` when it has no `text_id`; `ScreenSkinning.apply`
-threads a `text_id` override onto a holder; `push_string` is undoable and prunes
-to absent on reset.
+### T4 — Runtime read path
+**Goal.** `game/core/levelup.py`/`game/buildings/research.py` read Timeline
+data; `unlock_min_round` is gone. Runs after T6 is committed and reviewed.
+**Files.** `game/buildings/research.py`, `game/core/levelup.py`,
+`game/core/session.py`, `game/ui/building_ui.py`, `game/main.py`;
+`data/schemas/buildings.schema.json` + `data/balancing/buildings.json`
+(delete `unlock_min_round`); `tools/tests/test_levelup.py`,
+`tools/tests/test_boost.py`; `game/buildings/CLAUDE.md`.
+**Tests.** Extend `test_levelup.py`: unplaced tier never offered; placed tier
+offered starting exactly at `village_level >= N`; roll-of-3 regression pin;
+`upgrade_gate`'s `tier_hidden` returns a village_level.
+**Exit gate.** Full `py tools/testgate.py check` (spans `game/core` +
+`game/buildings` + `game/ui`); live `py game/main.py` through a level-up.
 
-**Exit gate**: `py tools/smoke.py`; `py -m pytest tools/tests/test_ui_skinning.py
-tools/tests/test_ui_screen_session.py -x -q`; exporter re-run produces no diff.
+### T7 — Docs
+**Goal.** Durable-doc updates land where the code changed.
+**Files.** `game/buildings/CLAUDE.md`, `game/core/CLAUDE.md` (XP section),
+`editor/CLAUDE.md`/`editor/panels/CLAUDE.md` (new Timeline section),
+`data/CLAUDE.md` (new `progression` domain + the two new `buildings.json`
+fields).
+**Exit gate.** Full `py tools/testgate.py check`.
 
-### Phase UT-2 — the preview pipeline
+## 4. Test coverage summary
 
-The recording renderer, `data/ui/screen_previews.json` + its schema, the
-exporter's `--overrides`/`--screen` flags, the editor replay in
-`_submit_screen_items`, drag suppression, and regenerate-on-release wired to the
-existing tracked `QProcess`.
+- **Pure logic**: `engine/xp_curve.py`, `game/core/xp_curve.py`, the
+  editor/game curve drift pin, `research.py::timeline_level_for`,
+  `levelup.py`'s eligibility + roll-of-3/shuffle/fallback regression pin,
+  `editor/timeline_ops.py` round-trips + uniqueness cross-checks, migration
+  order-preservation.
+- **Editor Qt tier**: drag-assign, drag-replace, add/remove slot, graph
+  rendering vs. a pinned fixture, icon-provider grey-X fallback,
+  `TestPurity` membership.
+- **Integration**: write a `progression.json` fixture via
+  `editor.timeline_ops`, boot a `Session` with matching balance data, drive
+  `roll_levelup_options` across increasing `village_level`, assert the
+  offered pool matches exactly what was placed; a live `py game/main.py` run
+  exercising a real level-up end to end.
 
-Determinism is the risk: feed the recorder a **fixed `anim_ms`** and never
-capture a wall-clock value, or the generated file churns on every run.
+## 5. Risks / open items
 
-**Tests**: the recorder serializes each HUD primitive round-trip; the exporter is
-byte-identical on a second run; `--overrides` shifts exactly the widget the
-override names; the editor replays a fixture item list without importing `game`
-(an import-guard assertion already exists for the layering rule — extend it).
+- The best-case curve is explicitly an upper bound — real playthroughs will
+  cross thresholds later. This is intentional (confirmed with the user) but
+  worth re-confirming with a designer once the panel is live, in case the
+  gap between best-case and real pacing feels misleading in practice.
+- T4's deletion of `unlock_min_round` is destructive; it must not run until
+  T6's migration diff has been human-reviewed (see T6's exit gate — not a
+  machine gate).
+- `game/ui`'s `_upgrade_state` wording changes ("round" → "level") is a
+  small but visible in-game text change; worth a screenshot in the T4 PR
+  description.
+- Boost-trio visual pinning in the Timeline UI (D8) is a should-have, not
+  required for T5's exit gate — flag if descoped.
+- **Full-suite verification is deferred to final handoff** (user request
+  during this session): T2/T3/T5 each ran only targeted pytest files +
+  `py tools/smoke.py`, not the full/`--affected` testgate. One full
+  `py tools/testgate.py check` is still owed before this branch is
+  considered done — do not skip it at handoff.
 
-**Exit gate**: `py tools/smoke.py`; exporter run twice, second run a no-op;
-`py -m pytest tools/tests/test_export_ui_layouts.py tools/tests/test_viewport*.py
--x -q`; open the editor and confirm a screen renders as its real self.
+## Critical files
 
-### Phase UT-3 — `building_panel`
-
-The stat-key vocabulary and `_building_stats` triples; per-stat `*_label` /
-`*_value` id pairs registered in `BuildingUI.ids`; the exporter's per-family
-union in `_build_bp_upgrade`; and every remaining literal in `building_ui.py` —
-`_submit_unlock:1294`, `_submit_construct:1310`, `_submit_upgrade:1359`,
-`_submit_base_info:1548`, `_submit_boss_popup:1573`, `ConstructPreview.submit:270`,
-`MovePreview.submit:434`. Roughly 40 sites: titles, the name-box placeholder,
-"Damage dealt"/"Damage taken", "DIED LAST ROUND", the next-tier card, upgrade
-hints, cost/time rows.
-
-The green next-level hover preview must keep working: it compares by stat key
-now, not by label text — which is strictly more robust, since a renamed label
-used to silently break the match.
-
-**Tests**: every stat key resolves to a registered id pair; a rect override moves
-one row and leaves its neighbours' rects untouched; hiding a row's two widgets
-removes it without reflow; the hover preview still greens a changed value after
-a template rename.
-
-**Exit gate**: `py tools/smoke.py`; `py -m pytest tools/tests/test_building_ui.py
--x -q`; `git diff data/ui/screen_defaults.json` shows additions only.
-
-### Phase UT-4 — `hud.py`
-
-The readouts already bind through `T()`; give each a `text_id` attribute so the
-editor can see and re-point it, and convert what remains — the income-breakdown
-tooltip rows, the lightning readout, the phase banner. ~20 sites.
-
-**Tests**: each HUD readout's `text_id` matches the key it renders; a `text_id`
-override re-points a readout.
-
-**Exit gate**: as UT-3, with `tools/tests/test_hud.py`.
-
-### Phase UT-5 — the remaining screens
-
-`levelup`, `boss_cutscene`, `cheat_menu`, `game_over`, `main_menu`, `pause`,
-`settings`, `credits`, `add_name`, `game_log`, `tutorial_message`, `overlays`,
-plus `effects.py`'s tooltips and floaters. The three code-only screens
-(`highscores`, `player_intro`, `debug_settings`) were left OUT.
-**Scope deviation from this plan's own text, on purpose:** widening
-`SCREEN_IDS` from 13 to 16 adds three entries to the generated
-`screen_previews.json`, which would break UT-5's byte-empty-diff
-invariant — the one signal that says the conversion changed nothing the
-player sees. Bringing them in is a clean follow-up task of its own: add
-them to `SCREEN_IDS`, regenerate BOTH artifacts, and re-baseline.
-
-Dynamic-count content (levelup's option boxes, construct cards, the boss-history
-popup) keeps inheriting the screen's `defaults` section — that mechanism is
-unchanged; only their *strings* move into `strings.json`.
-
-**Exit gate**: as UT-3, across the affected test modules.
-
-### Phase UT-6 — the editor form
-
-The Text-template row, sample display, Text ID combo, shared-key warning,
-`_screen_rules.label_is_code_owned` narrowing, and the separate strings dirty
-state.
-
-**Tests** (Qt tier): selecting a widget with a `text_id` shows an enabled Text
-template row carrying the template, not the resolved sample; editing it pushes an
-undoable command and writes `strings.json` on save; selecting a widget without
-one keeps today's disabled-label behaviour and tooltip.
-
-**Exit gate**: `py -m pytest -m editor -x -q` on the affected modules;
-`py tools/smoke.py`.
-
-### Phase UT-7 — eyeball pass and docs
-
-Live game + editor pass per §5, then the durable-rule updates:
-`game/ui/CLAUDE.md` (the 10L-B widget contract gains `text_id`; the
-`submit_label` idiom), `data/CLAUDE.md` (the new generated file and its schema
-pairing; `text_id`/`sample` in the widget record), `editor/panels/CLAUDE.md`
-(preview replay, drag suppression, the Text-template row).
-
-## 5. Cross-phase verification (once, at the end)
-
-- `py tools/smoke.py` and the **full** `py tools/testgate.py check` — `GATE PASS`,
-  no affected-tier shortcut on the final handoff.
-- `py tools/export_ui_layouts.py` twice; the second run must produce no diff.
-- Live `py game/main.py`: start a run, place a Stone Thrower, open its upgrade
-  panel. Every stat row, the tier line, the name box and the hints look exactly
-  as they do on `Development`. Hovering the upgrade button still greens the
-  next-level values.
-- Live `py editor/main.py` → **Screens → building_panel → upgrade**: the viewport
-  shows the real panel with mock data, not boxes. Drag `stat_damage_value` 40px
-  right — the number moves live and the surrounding preview re-renders on
-  release. Edit `stat_hp_label`'s template from `HP` to `Health`, save, and
-  confirm the game reads *Health*. Hide `stat_upkeep_label`/`_value` and confirm
-  the row vanishes in game with **no reflow** below it.
-
-## 6. Risks / open items
-
-- **`planning/UiResolutionPLAN.md` collides with this plan.** It halves every UI
-  rect in the same files. The two must not run concurrently; whichever lands
-  second re-derives its constants. Flag at kickoff.
-- **`configure_strings`'s fail-loud check makes every phase all-or-nothing per
-  key.** A converted literal that reaches `_STRINGS` but not `strings.json`
-  (or its schema) fails boot, not a test. Add both in the same edit; `smoke.py`
-  catches it immediately.
-- **The recorded draw list can double-draw.** If the editor replays a widget's
-  tagged items *and* renders the widget itself, the designer sees ghosting. The
-  suppression rule (§3.3) is the fix and needs a test, not just care.
-- **Preview staleness is a UX cliff, not a correctness bug.** Between an edit and
-  a regeneration the preview shows old geometry for everything except the widget
-  being dragged. If regenerate-on-release proves too slow in practice, the
-  fallback is an explicit "Refresh preview" button rather than a debounce that
-  fires mid-drag.
-- **Per-stat ids multiply the id namespace fast** (~24 new ids on
-  `building_panel` alone, before the other screens). The widget list in
-  `screen_details.py` is a flat `QListWidget`; it will need grouping or filtering
-  to stay usable. Treated as UT-6 polish, but call it out if it bites earlier.
-- **The three code-only screens are new surface.** They have never had override
-  docs; giving them one is the right call for consistency but is the least-tested
-  part of UT-5.
+- `data/schemas/buildings.schema.json`, `data/balancing/buildings.json`
+- `data/schemas/progression.schema.json` (new), `data/balancing/progression.json` (new)
+- `game/core/levelup.py`, `game/buildings/research.py`, `game/core/xp.py`,
+  `game/core/session.py`, `game/ui/building_ui.py`
+- `engine/era_math.py`, `engine/xp_curve.py` (new)
+- `game/core/xp_curve.py` (new), `editor/timeline_curve.py` (new)
+- `editor/panels/timeline.py` (new), `editor/timeline_ops.py` (new)
+- `editor/panels/palette.py`, `editor/panels/viewport.py` (icon-provider pattern)
+- `editor/domains.py`, `game/core/balance.py`
+- `tools/tests/test_editor_viewport.py` (`TestPurity`)
+- `tools/migrate_timeline_from_unlock_min_round.py` (new)

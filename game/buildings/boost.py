@@ -1,9 +1,15 @@
-"""Boost buildings — the cardinal-adjacency buff/curse support line (Phase 10D).
+"""Boost buildings — the configurable-range buff/curse support line (Phase 10D;
+range made configurable in the booster-range-config feature).
 
 Ports the prototype's ``BoostBuilding`` family (``src/buildings/boost_building.py``).
-A booster buffs the COMBAT buildings on its four cardinal neighbours (plus-shape,
-range 1) — never economy, never another booster, never diagonals. Three data lines
-share ONE behaviour class; the leaves are pure identity:
+A booster buffs the COMBAT buildings within its configured range
+(``BoostBuildings.globals.range_tiles``/``.range_shape`` — shared by all three
+lines) — never economy, never another booster. ``range_shape`` picks the
+tile-offset geometry (``game/buildings/range_shape.py``): ``"plus"`` (the
+shipped default, magnitude 1 — the original cardinal-4 behaviour) or
+``"square"`` (a full Chebyshev square, e.g. every one of the 8 surrounding
+tiles at magnitude 1). Three data lines share ONE behaviour class; the leaves
+are pure identity:
 
   ``boost_speed``  — reduces neighbours' ``attack_speed`` (faster attacks)
   ``boost_damage`` — raises neighbours' ``damage``
@@ -19,15 +25,29 @@ All the buff/curse state lives on the NEIGHBOUR's ``BoostReceiver`` component (E
 is a ``BoostEmitter`` marker + the computed ``boost_value`` from the tier table.
 Orchestration (the per-turn sweep, explosion-on-death, placement adjacency block +
 debuff clearing) lives in ``game/core/payday.py`` and ``game/buildings/registry.py``
-— exactly where the prototype's ``Game`` drove it.
+— exactly where the prototype's ``Game`` drove it. The placement-adjacency block
+(no booster next to another booster) is a SEPARATE, fixed cardinal-4 rule in
+``registry.py`` — deliberately independent of this configurable buff range.
+
+**Wall-hp-boost feature**: the HP line (``boost_hp``) ALSO reaches nearby
+WallBuilders' walls, via a second, parallel adjacency scan
+(``_adjacent_structures``, duck-typed on ``hasattr(b, "wall_hp")`` — the same
+precedent ``game/buildings/movement.py``'s ``is_movable`` uses) and a SEPARATE
+dedicated rate (``wall_boost_per_turn``/``wall_boost_increase_per_level`` —
+``wall_boost_value()``, independent of ``boost_value()``) pushed into
+``WallBuilderState.wall_hp_pct`` (never ``BoostReceiver`` — a WallBuilder never
+carries one, so its own body HP is provably unaffected). Only the ``"hp"``
+stat does this; Speed/Damage never touch walls. The explosion-debuff halve/
+restore lifecycle is mirrored too, via ``WallBuilderState``'s own
+``wall_hp_debuffs`` list (``set_wall_hp_explosion``/``pop_wall_hp_explosion``,
+the ``BoostReceiver.explosion_debuffs`` shape without the unneeded ``"stat"``
+key, since this list only ever holds HP penalties).
 """
 from engine.core import Health
 
+from . import range_shape
 from .building import Building
-from .components import BoostEmitter, BoostReceiver
-
-# Cardinal-only plus-shape (prototype ``_PLUS_DIRS``): no diagonals.
-_PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
+from .components import BoostEmitter, BoostReceiver, WallBuilderState
 
 
 class BoostBuilding(Building):
@@ -76,6 +96,19 @@ class BoostBuilding(Building):
         d = self.tier_data()
         return d["boost_per_turn"] + self._lvl_idx * d["boost_increase_per_level"]
 
+    def range_tiles(self):
+        """Magnitude of this booster's buff/curse range — shared by all three
+        boost lines and every tier (``BoostBuildings.globals.range_tiles``).
+        Also what the panel Range row, the RANGE overlay, the selection
+        highlight and defence-range pathfinding coverage duck-type on."""
+        return self._balance["BoostBuildings"]["globals"]["range_tiles"]
+
+    def range_shape(self):
+        """``"plus"`` (cardinal arms) or ``"square"`` (Chebyshev) — which
+        tile-offset geometry ``range_tiles()`` is interpreted with
+        (``BoostBuildings.globals.range_shape``, ``game/buildings/range_shape.py``)."""
+        return self._balance["BoostBuildings"]["globals"]["range_shape"]
+
     def upkeep(self):
         d = self.tier_data()
         return d["base_upkeep"] + self._lvl_idx * d["upkeep_per_level"]
@@ -89,15 +122,33 @@ class BoostBuilding(Building):
     # -- adjacency (prototype ``adjacent_tiles`` / ``_adjacent_combat_buildings``) --
 
     def _adjacent_combat(self, tilemap):
-        """(tile, building) for each alive COMBAT building on a cardinal neighbour
-        (``"combat"`` tag = the prototype's ``_COMBAT_TYPES`` membership)."""
+        """(tile, building) for each alive COMBAT building within this
+        booster's configured range (``"combat"`` tag = the prototype's
+        ``_COMBAT_TYPES`` membership)."""
         out = []
-        for dc, dr in _PLUS_DIRS:
+        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
             tile = tilemap.get(self._col + dc, self._row + dr)
             if tile is None:
                 continue
             b = tile.occupant
             if b is not None and getattr(b, "alive", False) and "combat" in b.tags:
+                out.append((tile, b))
+        return out
+
+    def _adjacent_structures(self, tilemap):
+        """(tile, building) for each alive wall-owning structure within this
+        booster's configured range — the wall-hp-boost feature's counterpart
+        to ``_adjacent_combat``. Duck-typed on ``hasattr(b, "wall_hp")``
+        (the ``movement.py`` ``is_movable`` precedent) rather than a tag or
+        type string, since ``"structure"`` also covers ``Blocker``, which has
+        no walls to boost."""
+        out = []
+        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
+            tile = tilemap.get(self._col + dc, self._row + dr)
+            if tile is None:
+                continue
+            b = tile.occupant
+            if b is not None and getattr(b, "alive", False) and hasattr(b, "wall_hp"):
                 out.append((tile, b))
         return out
 
@@ -116,14 +167,38 @@ class BoostBuilding(Building):
             rcv.hp_pct += delta
             _refresh_max_hp(building)
 
+    def wall_boost_value(self):
+        """Fraction granted to adjacent WALLS per surviving income phase —
+        the DEDICATED ``wall_boost_per_turn``/``wall_boost_increase_per_level``
+        tier fields (wall-hp-boost feature), independent of ``boost_value()``'s
+        combat-building rate. Only meaningful for the HP line; every call site
+        below gates on ``self._boost_stat == "hp"`` before reading it."""
+        d = self.tier_data()
+        return (d["wall_boost_per_turn"]
+                + self._lvl_idx * d["wall_boost_increase_per_level"])
+
+    def _apply_wall_delta(self, building, delta):
+        """Accumulate ``delta`` onto a WallBuilder's DEDICATED
+        ``wall_hp_pct`` accumulator (never ``BoostReceiver``) and resync its
+        owned wall edges by the delta (never a full heal — mirrors
+        ``_refresh_max_hp``)."""
+        building.get_component(WallBuilderState).wall_hp_pct += delta
+        building.resync_wall_hp(full_heal=False)
+
     def apply_per_turn(self, tilemap):
-        """RAMP mode: add one turn's boost to every adjacent combat building.
+        """RAMP mode: add one turn's boost to every adjacent combat building
+        (and, for the HP line, every adjacent WallBuilder's walls).
         Returns ``[(col, row, text)]`` for the payday floater ledger."""
         events = []
         value = self.boost_value()
         for tile, b in self._adjacent_combat(tilemap):
             self._apply_delta(b, value)
             events.append((tile.col, tile.row, self._vfx_text(value)))
+        if self._boost_stat == "hp":
+            wall_value = self.wall_boost_value()
+            for tile, b in self._adjacent_structures(tilemap):
+                self._apply_wall_delta(b, wall_value)
+                events.append((tile.col, tile.row, self._vfx_text(wall_value)))
         return events
 
     def apply_flat(self, tilemap):
@@ -131,19 +206,28 @@ class BoostBuilding(Building):
         flat = self.boost_value() * 10
         for _tile, b in self._adjacent_combat(tilemap):
             self._apply_delta(b, flat)
+        if self._boost_stat == "hp":
+            wall_flat = self.wall_boost_value() * 10
+            for _tile, b in self._adjacent_structures(tilemap):
+                self._apply_wall_delta(b, wall_flat)
 
     def remove_flat(self, tilemap):
         """FLAT mode: reverse this booster's 10× contribution on death."""
         flat = self.boost_value() * 10
         for _tile, b in self._adjacent_combat(tilemap):
             self._apply_delta(b, -flat)
+        if self._boost_stat == "hp":
+            wall_flat = self.wall_boost_value() * 10
+            for _tile, b in self._adjacent_structures(tilemap):
+                self._apply_wall_delta(b, -wall_flat)
 
     # -- explosion debuff on death (prototype ``_set_explosion_debuff``) ---------
 
     def apply_explosion_debuff(self, tilemap):
-        """On death: stamp the penalty on adjacent alive combat buildings. Speed /
-        damage are lazy multiplier flags; HP removes half of current max HP,
-        stored so a rebuild can restore it exactly."""
+        """On death: stamp the penalty on adjacent alive combat buildings (and,
+        for the HP line, adjacent WallBuilders' walls). Speed/damage are lazy
+        multiplier flags; HP removes half of current max HP, stored so a
+        rebuild can restore it exactly."""
         for _tile, b in self._adjacent_combat(tilemap):
             rcv = b.get_component(BoostReceiver)
             if self._boost_stat == "hp":
@@ -153,21 +237,36 @@ class BoostBuilding(Building):
                 _refresh_max_hp(b)
             else:
                 rcv.set_explosion(self._col, self._row, self._boost_stat)
+        if self._boost_stat == "hp":
+            for _tile, b in self._adjacent_structures(tilemap):
+                state = b.get_component(WallBuilderState)
+                penalty = max(1, b.wall_hp() // 2)
+                state.set_wall_hp_explosion(self._col, self._row, penalty)
+                b.resync_wall_hp(full_heal=False)
 
     def clear_explosion_debuff_from(self, col, row, tilemap):
         """A new booster placed at ``(col, row)`` clears the debuffs the previous
         one stamped on its neighbours (prototype ``clear_explosion_debuff_from``).
-        Only the HP case restores state (re-add the removed max-HP chunk + heal)."""
-        for dc, dr in _PLUS_DIRS:
+        Only the HP case restores state (re-add the removed max-HP chunk + heal).
+        Runs regardless of THIS booster's own stat — the previous occupant may
+        have been any of the three lines, including a WallBuilder-adjacent HP
+        booster, so both receiver kinds are checked unconditionally."""
+        for dc, dr in range_shape.offsets(self.range_tiles(), self.range_shape()):
             tile = tilemap.get(col + dc, row + dr)
             if tile is None or tile.occupant is None:
                 continue
-            rcv = tile.occupant.get_component(BoostReceiver)
-            if rcv is None:
+            occupant = tile.occupant
+            rcv = occupant.get_component(BoostReceiver)
+            if rcv is not None:
+                entry = rcv.pop_explosion(col, row)
+                if entry is not None and entry["stat"] == "hp":
+                    _refresh_max_hp(occupant)
                 continue
-            entry = rcv.pop_explosion(col, row)
-            if entry is not None and entry["stat"] == "hp":
-                _refresh_max_hp(tile.occupant)
+            state = occupant.get_component(WallBuilderState)
+            if state is not None:
+                popped = state.pop_wall_hp_explosion(col, row)
+                if popped is not None:
+                    occupant.resync_wall_hp(full_heal=False)
 
     def _vfx_text(self, value):
         return f"+{value * 100:.0f}%{self._boost_stat[:3]}"

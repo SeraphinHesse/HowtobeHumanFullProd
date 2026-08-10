@@ -49,6 +49,16 @@ nothing to enumerate) as the THIRD child of the "ui" category, right after
 "Theme". Selecting it emits strings_selected() + domain_selected("ui") —
 same never-node_selected rule, via its own marker role (_STRINGS_ROLE).
 
+TimelinePLAN T5 adds a single "Timeline" LEAF (same "one document, nothing
+to enumerate" shape as Theme/Cutscenes/Tutorial/Strings) as the FIRST child
+of the "buildings" category — `progression.json` schedules building
+unlocks, so "buildings" is the natural category to hang it off, even though
+`progression` is deliberately not itself a slots.json category (TimelinePLAN
+D1 — it needs a bespoke drag-and-drop panel, never the generic recursive
+balancing form). Selecting it emits timeline_selected() +
+domain_selected("buildings") — same never-node_selected rule, via its own
+marker role (_TIMELINE_ROLE).
+
 Balancing domains are DERIVED, never hardcoded (AD-6): `domains.domains()`
 is slots.json's category order ∩ the categories carrying a
 data/balancing/<key>.json, cached here as `self._domains` (re-derived on
@@ -101,6 +111,7 @@ _THEME_ROLE = Qt.ItemDataRole.UserRole + 5      # True on the single Theme leaf 
 _CUTSCENES_ROLE = Qt.ItemDataRole.UserRole + 6   # True on the single Cutscenes leaf (TU-3)
 _TUTORIAL_ROLE = Qt.ItemDataRole.UserRole + 7    # True on the single Tutorial leaf (TU-4)
 _STRINGS_ROLE = Qt.ItemDataRole.UserRole + 8    # True on the single Strings leaf (Phase C)
+_TIMELINE_ROLE = Qt.ItemDataRole.UserRole + 9   # True on the single Timeline leaf (TimelinePLAN T5)
 
 _MAPS_BRANCH_LABEL = "Maps"
 _SCREENS_BRANCH_LABEL = "Screens"
@@ -108,6 +119,7 @@ _THEME_LABEL = "Theme"
 _CUTSCENES_LABEL = "Cutscenes"
 _TUTORIAL_LABEL = "Tutorial"
 _STRINGS_LABEL = "Strings"
+_TIMELINE_LABEL = "Timeline"
 
 # Registry categories shown as CHILDREN of the "map" node instead of their own
 # top-level node — a tree-shape choice only (see the branch in __init__).
@@ -128,6 +140,7 @@ class SelectorPanel(QTreeWidget):
     cutscenes_selected = Signal()        # TU-3: the single Cutscenes leaf
     tutorial_selected = Signal()     # TU-4: the single Tutorial leaf
     strings_selected = Signal()      # Phase C: the single Strings leaf was selected
+    timeline_selected = Signal()     # TimelinePLAN T5: the single Timeline leaf
     add_requested = Signal(str)      # form spec id (AD-6 context menu)
 
     def __init__(self, data_dir=None, parent=None):
@@ -145,6 +158,7 @@ class SelectorPanel(QTreeWidget):
         self._cutscenes_item = None
         self._tutorial_item = None
         self._strings_item = None
+        self._timeline_item = None
         map_root = None
         for category in self.registry.categories():
             if domains.is_domain_category(category.key, self._data_dir) and \
@@ -220,6 +234,17 @@ class SelectorPanel(QTreeWidget):
                 strings_item.setData(0, _STRINGS_ROLE, True)
                 root.insertChild(2, strings_item)
                 self._strings_item = strings_item
+            elif category.key == "buildings":
+                # TimelinePLAN T5: a single "Timeline" leaf, FIRST child (the
+                # Maps/Screens-branch-first convention) — one document
+                # (progression.json), nothing to enumerate, so a marker role
+                # rather than a from-disk id list (the Theme/Cutscenes/
+                # Tutorial/Strings shape, one category over).
+                timeline_item = self._make_item(
+                    _TIMELINE_LABEL, "buildings", (_TIMELINE_LABEL,))
+                timeline_item.setData(0, _TIMELINE_ROLE, True)
+                root.insertChild(0, timeline_item)
+                self._timeline_item = timeline_item
         self.refresh_maps()
         self.refresh_screens()
         self.refresh_markers()
@@ -549,6 +574,13 @@ class SelectorPanel(QTreeWidget):
             self.strings_selected.emit()
             if "ui" in self._domains:
                 self.domain_selected.emit("ui")
+            return
+        if items[0].data(0, _TIMELINE_ROLE):
+            # Timeline leaf (TimelinePLAN T5): the exact _THEME_ROLE pattern,
+            # under "buildings" instead of "ui".
+            self.timeline_selected.emit()
+            if "buildings" in self._domains:
+                self.domain_selected.emit("buildings")
             return
         screen_id = items[0].data(0, _SCREEN_ROLE)
         if screen_id is not None:

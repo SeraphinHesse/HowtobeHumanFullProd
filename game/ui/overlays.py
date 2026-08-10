@@ -5,13 +5,16 @@ owns every 10I UI surface so ``hud.py`` (edited by 10G/10H) carries no 10I
 diff:
 
 * **World condition tint** — a coloured diamond on every non-GRASS,
-  non-BACKGROUND tile inside the visible window (prototype ``tile.py:25-30,
-  166-173``), drawn under buildings/highlights.
+  non-BACKGROUND, non-SPAWNING tile inside the visible window (prototype
+  ``tile.py:25-30, 166-173``), drawn under buildings/highlights. A tile keeps
+  its rolled condition while SPAWNING — only the draw is skipped, so the
+  diamond reappears once the tile converts to COMBAT (spawn recede).
 * **RANGE toggle** — red diamonds over the union of every alive defender's
-  Chebyshev range square, using RAW ``range_tiles()`` (prototype
-  ``hud.py:399-430`` / ``game.py:2012-2019``). The Maw Mortar IS included
-  (its exclusion is pathfinding-only); ``"boost"``-tagged occupants contribute
-  their 4-cardinal plus-shape.
+  range footprint, using RAW ``range_tiles()`` (prototype ``hud.py:399-430``
+  / ``game.py:2012-2019``), shaped per an optional duck-typed
+  ``range_shape()`` (Chebyshev square when absent; a booster's shape is
+  configurable, ``game/buildings/boost.py``). The Maw Mortar IS included
+  (its exclusion is pathfinding-only).
 * **HEATMAP toggle** — the PREVIOUS round's distinct-enemy traffic per tile,
   blue→yellow→red ramp (prototype ``hud.py:432-470`` / ``game.py:1344-1349,
   927-932``). ``track`` accumulates during the ENEMY phase and snapshots on
@@ -34,6 +37,7 @@ ids), ``apply()`` runs once in ``__init__`` rather than from a per-frame
 ``layout()``.
 """
 from engine.render import HudRect
+from game.buildings import range_shape
 from game.core.phases import GamePhase
 from game.map.conditions import draws_tint
 from game.map.tiles import TileCondition, TileState
@@ -53,8 +57,6 @@ _COND_TINT = {
     TileCondition.FOREST: (30, 100, 30),
 }
 
-# The boost plus-shape (cardinal neighbours only — prototype hud.py:411-420).
-_PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 
 
 def heat_color(t):
@@ -158,25 +160,27 @@ class MapOverlays:
 
     @staticmethod
     def range_coverage(tilemap):
-        """Union of covered tiles for the RANGE overlay: a Chebyshev square
-        per alive built occupant with duck-typed RAW ``range_tiles() > 0``
-        (mortar included — the aoe exclusion is pathfinding-only), plus the
-        4-cardinal plus-shape per ``"boost"``-tagged occupant."""
+        """Union of covered tiles for the RANGE overlay: the tile-offset
+        geometry (``game/buildings/range_shape.py``) per alive built occupant
+        with duck-typed RAW ``range_tiles() > 0`` (mortar included — the aoe
+        exclusion is pathfinding-only). ``range_shape()`` picks the shape
+        (defaults to a Chebyshev square when absent — every defence building;
+        a booster defines it, defaulting to ``"plus"``, `game/buildings/
+        boost.py`)."""
         covered = set()
         for tile in tilemap.built_tiles():
             b = tile.occupant
             if b is None or not getattr(b, "alive", False):
                 continue
             rfn = getattr(b, "range_tiles", None)
-            if rfn is not None:
-                r = int(rfn())
-                if r > 0:
-                    for dc in range(-r, r + 1):
-                        for dr in range(-r, r + 1):
-                            covered.add((tile.col + dc, tile.row + dr))
-            if "boost" in getattr(b, "tags", ()):
-                for dc, dr in _PLUS_DIRS:
-                    covered.add((tile.col + dc, tile.row + dr))
+            if rfn is None:
+                continue
+            r = int(rfn())
+            if r <= 0:
+                continue
+            shape = getattr(b, "range_shape", lambda: "square")()
+            for dc, dr in range_shape.offsets(r, shape):
+                covered.add((tile.col + dc, tile.row + dr))
         return covered
 
     # -- render --------------------------------------------------------------
@@ -190,7 +194,8 @@ class MapOverlays:
         for r in range(max(0, rmin), min(tilemap.rows - 1, rmax) + 1):
             for c in range(max(0, cmin), min(tilemap.cols - 1, cmax) + 1):
                 t = tilemap.get(c, r)
-                if t is None or t.state == TileState.BACKGROUND:
+                if t is None or t.state in (TileState.BACKGROUND,
+                                             TileState.SPAWNING):
                     continue
                 tint = _COND_TINT.get(t.condition)
                 # The diamond is a FALLBACK now: a tile whose condition art is

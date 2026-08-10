@@ -69,6 +69,7 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
+from editor.panels.timeline import TimelinePanel
 from editor.panels.tutorial_panel import TutorialPanel
 from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
@@ -124,6 +125,7 @@ class MainWindow(QMainWindow):
         self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
         self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
+        self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
         self._screen_previews = {}   # cached data/ui/screen_previews.json (UT-2)
         self._preview_dir = None     # UT-2 scratch dir, created on first render
@@ -215,6 +217,7 @@ class MainWindow(QMainWindow):
         self.palette.background_slot_armed.connect(
             self._on_background_slot_armed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
+        self.timeline.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.reserve_number_picked.connect(
             self.palette.set_reserve_number)
@@ -264,6 +267,10 @@ class MainWindow(QMainWindow):
         # panels/strings_panel.py's module docstring); the game re-reads it
         # at its own next boot.
         self.selector.strings_selected.connect(self._on_strings_selected)
+        # Timeline wiring (TimelinePLAN T5): the "Timeline" leaf -> right_stack;
+        # reload on entry, the same convention as every other selection-driven
+        # panel.
+        self.selector.timeline_selected.connect(self._on_timeline_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -435,6 +442,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
         self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
         self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
+        self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -1215,6 +1223,17 @@ class MainWindow(QMainWindow):
         panels/strings_panel.py's module docstring."""
         self.strings_panel.set_strings()
         self.right_stack.setCurrentWidget(self.strings_panel)
+
+    # -- Timeline panel (TimelinePLAN T5) --------------------------------------
+
+    def _on_timeline_selected(self):
+        """The selector's Timeline leaf: reload fresh from disk (mirrors
+        every other selection-driven panel's "reload on entry" convention)
+        and show the panel. No saved-signal consumer — progression.json has
+        no editor-side render to reconfigure (the strings.json precedent);
+        the game re-reads it at its own next boot."""
+        self.timeline.set_timeline()
+        self.right_stack.setCurrentWidget(self.timeline)
 
     # -- frame drive ---------------------------------------------------------
 

@@ -2223,6 +2223,33 @@
       }
     }
   },
+  "enemy_intro": {
+    "mock_note": "love=123, round=7 (mock entry; open(), settled at rest)",
+    "widgets": {
+      "close_btn": {
+        "display_name": "Close button",
+        "kind": "button",
+        "label": "X",
+        "rect": [
+          1254,
+          156,
+          20,
+          18
+        ]
+      },
+      "panel": {
+        "display_name": "Enemy intro panel",
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          960,
+          150,
+          320,
+          420
+        ]
+      }
+    }
+  },
   "game_log": {
     "mock_note": "love=123, round=7 (empty log, no messages queued)",
     "widgets": {

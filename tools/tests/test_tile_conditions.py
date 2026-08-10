@@ -88,7 +88,7 @@ class TestConditionRoll(unittest.TestCase):
     def test_distribution_matches_spawn_chances(self):
         tm = synth(self.ROWS, rng=random.Random(42))
         eligible = [t for t in tm.all_tiles()
-                    if t.state in (TileState.COMBAT, TileState.SPAWNING)]
+                    if t.state == TileState.COMBAT]
         n = len(eligible)
         self.assertGreater(n, 1000)
         chances = MAPBAL["TileConditions"]["spawn_chances"]
@@ -111,6 +111,95 @@ class TestConditionRoll(unittest.TestCase):
         tm = synth(self.ROWS)   # rng=None -> the pre-10I neutral grid
         self.assertTrue(all(t.condition == TileCondition.GRASS
                             for t in tm.all_tiles()))
+
+
+class TestSpawnTilesAreConditionFreeUntilTheyConvert(unittest.TestCase):
+    """A spawn tile is a staging area, not a gameplay tile: it carries NO
+    condition at map construction and decides one only when it converts to
+    COMBAT. That covers `s -> c` and `f -> s -> c` alike, since both go
+    through the one `set_tile_state` seam."""
+
+    #: pocket, combat, a painted spawn band, background behind it
+    ROWS = ["bbcccc" + "s" * 6 + "f" * 8] * 12
+
+    def _map(self, seed=13, **kw):
+        return synth(self.ROWS, rng=random.Random(seed), **kw)
+
+    def test_the_init_roll_skips_the_spawn_band(self):
+        tm = self._map()
+        band = [t for t in tm.all_tiles() if t.state == TileState.SPAWNING]
+        self.assertGreater(len(band), 50)
+        for t in band:
+            self.assertEqual(t.condition, TileCondition.GRASS,
+                             (t.col, t.row))
+            self.assertFalse(t.condition_rolled, (t.col, t.row))
+
+    def test_converting_to_combat_rolls_the_condition(self):
+        tm = self._map()
+        band = [t for t in tm.all_tiles() if t.state == TileState.SPAWNING]
+        for t in band:
+            tm.set_tile_state(t, TileState.COMBAT)
+        for t in band:
+            self.assertTrue(t.condition_rolled, (t.col, t.row))
+        # a whole band's worth of draws cannot plausibly all come up grass
+        self.assertGreater(
+            len({t.condition for t in band}), 1,
+            "the deferred roll produced a single condition for the band")
+
+    def test_a_background_tile_rolls_on_the_f_to_s_to_c_route(self):
+        """The bug this replaces: a tile that entered play late used to stay
+        GRASS forever, because the init roll skipped it and never returned."""
+        tm = self._map()
+        tile = tm.get(15, 5)
+        self.assertEqual(tile.state, TileState.BACKGROUND)
+        tm.set_tile_state(tile, TileState.SPAWNING)
+        self.assertEqual(tile.condition, TileCondition.GRASS)
+        self.assertFalse(tile.condition_rolled)
+        tm.set_tile_state(tile, TileState.COMBAT)
+        self.assertTrue(tile.condition_rolled)
+
+    def test_the_roll_fires_once_and_survives_later_transitions(self):
+        tm = self._map()
+        tile = tm.get(6, 0)                       # spawn band
+        tm.set_tile_state(tile, TileState.COMBAT)
+        rolled = tile.condition
+        for state in (TileState.BUILDABLE, TileState.BUILT,
+                      TileState.COMBAT):
+            tm.set_tile_state(tile, state)
+            self.assertEqual(tile.condition, rolled, state)
+
+    def test_a_painted_spawn_tile_keeps_its_mark_through_the_conversion(self):
+        """A designer's mark still wins everywhere: it applies to the spawn
+        band immediately AND is never overwritten by the deferred roll."""
+        tm = self._map(tile_conditions={(6, 0): "pond", (7, 0): "mountain"})
+        for (col, row), cond in (((6, 0), TileCondition.POND),
+                                 ((7, 0), TileCondition.MOUNTAIN)):
+            tile = tm.get(col, row)
+            self.assertEqual(tile.state, TileState.SPAWNING)
+            self.assertEqual(tile.condition, cond)      # visible immediately
+            tm.set_tile_state(tile, TileState.COMBAT)
+            self.assertEqual(tile.condition, cond)      # never re-rolled
+
+    def test_no_rng_defers_nothing(self):
+        """`rng=None` is the all-GRASS headless-fixture mode for the deferred
+        roll exactly as it is for the init roll."""
+        tm = synth(self.ROWS)
+        tile = tm.get(6, 0)
+        tm.set_tile_state(tile, TileState.COMBAT)
+        self.assertEqual(tile.condition, TileCondition.GRASS)
+        self.assertFalse(tile.condition_rolled)
+
+    def test_the_conversion_roll_is_seed_deterministic(self):
+        def band_conditions(seed):
+            tm = self._map(seed=seed)
+            band = [t for t in tm.all_tiles()
+                    if t.state == TileState.SPAWNING]
+            for t in band:
+                tm.set_tile_state(t, TileState.COMBAT)
+            return [t.condition for t in band]
+
+        self.assertEqual(band_conditions(3), band_conditions(3))
+        self.assertNotEqual(band_conditions(3), band_conditions(4))
 
 
 class TestPaintedConditions(unittest.TestCase):

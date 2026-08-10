@@ -55,6 +55,7 @@ TIERS = {
     "test_editor_asset_import": "editor",
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
+    "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
     "test_editor_tutorial_paint": "editor",
@@ -96,6 +97,7 @@ TIERS = {
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
+    "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
@@ -130,6 +132,7 @@ TIERS = {
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",
+    "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
     "test_shell": "core",
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
@@ -155,7 +158,10 @@ TIERS = {
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration
+    "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
     "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
+    "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
 
 

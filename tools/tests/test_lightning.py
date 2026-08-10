@@ -558,6 +558,11 @@ class TestCheats(unittest.TestCase):
                                            rng=random.Random(11))
         st = session.state
         session.end_turn()                          # queue a real wave
+        # Round 1 carries a designer-authored enemy-intro entry in the
+        # fixture data (feature-enemy-intro-dialogue) — drain it exactly like
+        # the host does before the round's real ENEMY phase begins.
+        while st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(st.phase, GamePhase.ENEMY)
         self.assertTrue(session.spawner.pending())  # something queued
         love0, round0 = st.love, st.round_num
@@ -615,6 +620,8 @@ class TestCheats(unittest.TestCase):
         session, scene, tm = self._session(["bb"])      # spawnless: empty wave
         st = session.state
         session.end_turn()
+        while st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(st.phase, GamePhase.ENEMY)
         round0 = st.round_num
 
