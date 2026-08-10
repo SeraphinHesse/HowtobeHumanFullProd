@@ -75,7 +75,33 @@ import list.**
     widgets start with the dot hidden, and a rebuild that is not a domain switch
     would otherwise drop the pending marks of every other staged edit. The buttons
     carry `objectName` `rowadd:<path>` / `rowremove:<path>` so a test can assert
-    WHICH arrays are resizable. Scalar arrays keep their fixed length.
+    WHICH arrays are resizable.
+  - **Arrays of SCALARS can get the same `+ Row`/`− Row` gate
+    (feature-enemy-intro-dialogue, generalizing ER-5) — but only when their
+    OWN schema property opts in with `"x-array-editable": true`.**
+    `core.json`'s `EnemyIntro.entries[i].hidden_frames` (`minItems: 0`, no
+    `maxItems`, carrying the marker) is the first: a designer-resizable
+    per-entry list of frame-column indices, shipping empty. Same
+    `can_add`/`can_remove` gate as the object-array case, same "remove pops
+    the last row" rule; the one real difference is **Add on an EMPTY array**,
+    which has no last row to copy — `_default_scalar_value(item_schema)`
+    synthesizes a schema-valid starting value instead (an enum's first value,
+    `False` for boolean, `""` for string, else the item schema's own
+    `minimum`, defaulting to `0`). **The marker is required, not just
+    `minItems != maxItems`, because `BuildingsGlobal.random_names`
+    (`buildings.schema.json`) already had that exact shape (`minItems: 1`, no
+    `maxItems`) and must NOT sprout buttons here — it grows only through the
+    game's own 9H add-name menu.** A live regression caught by
+    `test_editor_panels.py::TestBalancingPanel::
+    test_buildings_form_has_no_row_buttons_at_all` is what forced the opt-in
+    marker instead of a blanket `minItems != maxItems` gate. Every other
+    scalar array (`Camera.zoom_levels`, `LightningStrike.{damage,radius,
+    cooldown}`, every `[$defs/…]`-typed 3/4/5-slot tuple) has `minItems ==
+    maxItems` anyway and would show no buttons regardless. Deliberately NOT
+    extended to arrays of OBJECTS gaining a schema-derived default — an
+    object has no single sensible one (`required`/`pattern`/cross-field
+    constraints), which is exactly why the object-array Add still copies a
+    row instead.
     Since ES-2 the enemies domain's `eras` arrays (`EnemyScaling/eras` and every
     `EnemyTypes/<Type>/eras`) are the second family of genuinely resizable
     arrays, and they got those buttons with **zero editor edits** — the schema

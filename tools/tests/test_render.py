@@ -42,7 +42,7 @@ class FakeAssets:
         self.offsets = offsets or {}
         self.slices = slices or {}
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
         w, h = self.sizes.get(slot_key, self.default)
         offset_x, offset_y = self.offsets.get(slot_key, (0, 0))
         return Frame(surface=f"SURF:{slot_key}", frame_w=w, frame_h=h,
@@ -494,6 +494,117 @@ class TestNineSliceThrough(unittest.TestCase):
         r.submit_hud(HudSprite("icon", (0, 0), (16, 16)))
         r.flush(target=None)
         self.assertIsNone(backend.calls[0].slice)
+
+
+class TestCropThrough(unittest.TestCase):
+    """feature-enemy-intro-dialogue: HudSprite.crop -> DrawCall.crop_rect and
+    HudSprite.hidden_frames -> assets.frame(extra_hidden=...), HUD only,
+    mirroring TestNineSliceThrough's shape for `slice`."""
+
+    def assets(self):
+        return FakeAssets(sizes={"btn": (64, 64)})
+
+    def test_hud_sprite_drawcall_carries_crop_rect(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), self.assets(), backend=backend)
+        r.submit_hud(HudSprite("btn", (0, 0), (32, 32), crop=(4, 4, 16, 16)))
+        r.flush(target=None)
+        self.assertEqual(backend.calls[0].crop_rect, (4, 4, 16, 16))
+
+    def test_uncropped_hud_sprite_has_no_crop_rect(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), self.assets(), backend=backend)
+        r.submit_hud(HudSprite("btn", (0, 0), (32, 32)))
+        r.flush(target=None)
+        self.assertIsNone(backend.calls[0].crop_rect)
+
+    def test_world_sprite_drawcall_never_sets_crop_rect(self):
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), self.assets(), backend=backend)
+        r.submit(RenderItem("btn", (0, 0)))   # same slot, world path
+        r.flush(target=None)
+        self.assertIsNone(backend.calls[0].crop_rect)
+
+    def test_hidden_frames_reach_assets_frame_as_extra_hidden(self):
+        recording = RecordingAssetsWithHidden()
+        backend = RecordingBackend()
+        r = Renderer(make_cs(), recording, backend=backend)
+        r.submit_hud(HudSprite("btn", (0, 0), (32, 32), hidden_frames=(1, 3)))
+        r.flush(target=None)
+        self.assertEqual(recording.last_extra_hidden, {1, 3})
+
+    def test_empty_hidden_frames_passes_none_not_empty_tuple(self):
+        # An empty tuple is the HudSprite default (no per-entry narrowing) —
+        # `renderer.py` passes `hud.hidden_frames or None`, never `()`, so a
+        # falsy-but-truthiness-sensitive extra_hidden consumer sees "absent".
+        recording = RecordingAssetsWithHidden()
+        r = Renderer(make_cs(), recording, backend=RecordingBackend())
+        r.submit_hud(HudSprite("btn", (0, 0), (32, 32)))
+        r.flush(target=None)
+        self.assertIsNone(recording.last_extra_hidden)
+
+
+class RecordingAssetsWithHidden(FakeAssets):
+    """FakeAssets that also records the `extra_hidden` it was asked for."""
+
+    def __init__(self):
+        super().__init__(sizes={"btn": (64, 64)})
+        self.last_extra_hidden = None
+
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+        self.last_extra_hidden = set(extra_hidden) if extra_hidden else extra_hidden
+        return super().frame(slot_key, animation, anim_time_ms)
+
+
+class TestCropBackend(unittest.TestCase):
+    """`backend._cropped`: pixel-correct sub-rect, clamped so an
+    out-of-bounds crop degrades instead of raising (E-37), sharing the
+    `_scale_cache`'s weak eviction like `_nine_patch`."""
+
+    def test_crop_selects_the_right_sub_rect(self):
+        import pygame
+        from engine.render import backend
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        src = pygame.Surface((64, 64), pygame.SRCALPHA)
+        pygame.draw.rect(src, (255, 0, 0, 255), (0, 0, 32, 32))
+        pygame.draw.rect(src, (0, 255, 0, 255), (32, 32, 32, 32))
+        target = pygame.Surface((64, 64))
+        backend.draw(target, [DrawCall(surface=src, dest=(0, 0), size=(10, 10),
+                                       crop_rect=(32, 32, 32, 32))])
+        self.assertEqual(target.get_at((5, 5))[:3], (0, 255, 0))
+
+    def test_out_of_bounds_crop_clamps_instead_of_raising(self):
+        import pygame
+        from engine.render import backend
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        src = pygame.Surface((32, 32), pygame.SRCALPHA)
+        target = pygame.Surface((64, 64))
+        backend.draw(target, [DrawCall(surface=src, dest=(0, 0), size=(10, 10),
+                                       crop_rect=(9999, 9999, 9999, 9999))])
+        backend.draw(target, [DrawCall(surface=src, dest=(0, 0), size=(10, 10),
+                                       crop_rect=(0, 0, 0, 0))])
+        backend.draw(target, [DrawCall(surface=src, dest=(0, 0), size=(10, 10),
+                                       crop_rect=(-5, -5, 20, 20))])
+
+    def test_crop_result_shares_the_weak_scale_cache(self):
+        import pygame
+        from engine.render import backend
+        from engine.render.item import DrawCall
+
+        backend._scale_cache.clear()
+        src = pygame.Surface((32, 32), pygame.SRCALPHA)
+        target = pygame.Surface((64, 64))
+        for _ in range(3):
+            backend.draw(target, [DrawCall(surface=src, dest=(0, 0), size=(10, 10),
+                                           crop_rect=(4, 4, 8, 8))])
+        # One crop cache entry keyed on `src`, reused across all three draws —
+        # never leaks a growing set of surfaces per call.
+        self.assertIn(src, backend._scale_cache)
+        self.assertEqual(len(backend._scale_cache[src]), 1)
 
 
 class TestPurity(unittest.TestCase):

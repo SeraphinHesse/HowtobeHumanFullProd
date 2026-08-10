@@ -387,8 +387,10 @@ class TestSelectorScreensBranch(TempDataCase):
         screens_branch = ui_root.child(0)
         # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
         # pills) + TU-6's "tutorial_message" (the guided-tutorial message
-        # box), each added the sanctioned "drop in a file + ids" way.
-        self.assertEqual(screens_branch.childCount(), 14)
+        # box) + feature-enemy-intro-dialogue's "enemy_intro" (the enemy/boss
+        # introduction dialogue window), each added the sanctioned "drop in a
+        # file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 15)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))

@@ -47,8 +47,8 @@ from engine import data_io  # noqa: E402
 # build_screen_defaults is invoked in, not the file's byte layout.
 SCREEN_IDS = [
     "add_name", "boss_cutscene", "building_panel", "cheat_menu", "credits",
-    "game_log", "game_over", "hud", "levelup", "main_menu", "overlays",
-    "pause", "settings",
+    "enemy_intro", "game_log", "game_over", "hud", "levelup", "main_menu",
+    "overlays", "pause", "settings",
 ]
 
 # Common mock state (§1.3): every screen construction reads these where it
@@ -156,6 +156,10 @@ _DISPLAY_NAMES = {
     "overlays": {
         "btn_range": "Range overlay toggle",
         "btn_heatmap": "Heatmap overlay toggle",
+    },
+    "enemy_intro": {
+        "panel": "Enemy intro panel",
+        "close_btn": "Close button",
     },
     "hud": {
         "btn_end_turn": "End Turn button",
@@ -488,6 +492,31 @@ def _build_boss_cutscene(view_w, view_h, data_root):
     return _widgets_from_ids(screen.ids), "open(1, 'win')"
 
 
+def _build_enemy_intro(view_w, view_h, data_root):
+    from game.core import load_balance
+    from game.ui.enemy_intro import EnemyIntroWindow
+
+    # feature-enemy-intro-dialogue: entries[] ships empty, so a mock entry is
+    # needed to exercise the layout the way boss_cutscene's open(1, "win")
+    # does. Only the window's own geometry/timings need to be real (they
+    # come from live core.json); the mock entry's content is throwaway.
+    core_balance = load_balance(data_root, "core")
+    window_balance = core_balance["EnemyIntro"]["window"]
+    screen = EnemyIntroWindow(view_w, view_h, window_balance)
+    screen.open({
+        "enemy_label": "Mock Enemy", "round": 1, "title": "Mock title",
+        "body": "Mock body text.", "sprite_slot": "enemy_stage_1_v1",
+        "sprite_w": 96, "sprite_h": 96,
+    })
+    # Recorded at REST (fully open, docked to the right edge), not the
+    # instant-of-open off-screen position open() itself leaves it at — a
+    # designer previewing/overriding this screen wants the on-screen geometry.
+    # One update() past open_seconds deterministically settles the HOLD phase
+    # regardless of the configured duration.
+    screen.update(window_balance["open_seconds"] + 1.0, 0, 0)
+    return _widgets_from_ids(screen.ids), f"{_COMMON_NOTE} (mock entry; open(), settled at rest)"
+
+
 def _build_overlays(view_w, view_h, data_root):
     from game.ui.overlays import MapOverlays
 
@@ -504,6 +533,7 @@ _BUILDERS = {
     "building_panel": _build_building_panel,
     "cheat_menu": _build_cheat_menu,
     "credits": _build_credits,
+    "enemy_intro": _build_enemy_intro,
     "game_log": _build_game_log,
     "game_over": _build_game_over,
     "hud": _build_hud,

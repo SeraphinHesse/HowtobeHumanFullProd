@@ -97,6 +97,7 @@ TIERS = {
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
+    "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine
     "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
     "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
@@ -131,6 +132,7 @@ TIERS = {
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",
+    "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
     "test_shell": "core",
     "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",

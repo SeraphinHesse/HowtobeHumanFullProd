@@ -62,6 +62,11 @@ class TestPendingCutsceneRequest(unittest.TestCase):
 
         self.assertEqual(session.state.pending_cutscene,
                          {"id": "first_end_turn"})
+        # Round 1 carries a designer-authored enemy-intro entry in the fixture
+        # data (feature-enemy-intro-dialogue) — drain it exactly like the host
+        # does before the round's real ENEMY phase begins.
+        while session.state.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(session.state.phase, GamePhase.ENEMY)
         self.assertTrue(session.state.first_end_turn_cutscene_requested)
 

@@ -339,6 +339,19 @@ validating writer; don't hand-edit the JSON.
   `write_validated` — never hand-format).
 
 ## Asset data (Phase 5, D-30/31/32 specifics)
+- **A schema enum spanning EVERY slot category is GENERATED, not
+  hand-maintained (feature-enemy-intro-dialogue's animation follow-up)**:
+  `core.schema.json`'s `$defs.enemy_intro_entry.sprite_slot` enum (every
+  slot key in `data/slots.json`, any category) and its sibling `animation`
+  enum (the union of every category's `animations` vocabulary) are written by
+  `tools/gen_sprite_slot_enum.py` — read the live `SlotRegistry`, rewrite
+  both enums in place, deterministic/idempotent. Re-run it after adding a
+  slot or changing a category's `animations` list;
+  `tools/tests/test_schema_slot_sync.py` fails CI if the committed enum
+  drifted from `slots.json`. This is the first schema field in the repo
+  referencing slots across the whole registry rather than one category — the
+  hand-maintained, single-category precedent (`vfx.schema.json`'s
+  `trigger_row.sprite_slot`) is unaffected and stays hand-typed.
 - **`slots.json` location is a deliberate D-32 deviation**: SPEC says
   `data/schemas/slots.*`, but `tools/smoke.py` skips `data/schemas/` when
   validating, and the registry must be validated content — so it lives at

@@ -24,6 +24,18 @@ crashes boot.** When you change asset conventions, update THIS doc.
   missing slot / no usable idle → PLACEHOLDER. Note `SpriteAnimator` sums
   `phase_ms` into `anim_time_ms` at emit, so the store's `frame(slot, animation,
   anim_time_ms)` takes ONE summed time.
+- **`Manifest.current_frame(..., extra_hidden=None)` (feature-enemy-intro-dialogue)**
+  — an optional caller-supplied set/iterable of frame-COLUMN indices to skip
+  IN ADDITION to whatever the resolved track's own `hidden` list already
+  dropped at parse time. It is a per-CALL narrowing, never a widening: a
+  column the manifest row already hid stays hidden regardless of
+  `extra_hidden`. If filtering would drop every remaining frame, the
+  UNFILTERED timeline is used instead (never resolves to nothing — the same
+  degrade-don't-crash contract every other engine seam here uses).
+  `AssetStore.frame(..., extra_hidden=None)` passes it straight through.
+  Threaded end-to-end for `HudSprite.hidden_frames` only (`engine/render/
+  CLAUDE.md`) — not for `RenderItem`/world sprites, which carry no matching
+  field.
 - **`Manifest.animation_ms(slot, name)`** (+ `AssetStore.animation_total_ms`
   delegating) returns a named track's `total_ms`, or `None` when the slot or that
   animation is absent — **no idle fallback** (unlike `current_frame`), because the

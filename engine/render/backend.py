@@ -97,6 +97,34 @@ def _nine_patch(surface, size, margins):
     return patched
 
 
+def _cropped(surface, rect):
+    """Sub-rect of `surface` (frame-px `(x, y, w, h)`), clamped into the
+    surface's own bounds so an out-of-range crop degrades rather than
+    raising (E-37) — same tolerance style as `_nine_patch`'s `_clamp_pair`.
+
+    Memoized in the SAME weak scale cache as `_scaled`/`_nine_patch`, under a
+    `("crop", (x, y, w, h))` key — a 2-tuple whose first element is a string
+    literal distinct from `_nine_patch`'s `"9p"`, so the three kinds of cache
+    entry can never collide. The cropped surface is itself a valid cache key
+    for a subsequent `_scaled`/`_nine_patch` call (see `draw()`), so "crop,
+    then stretch to dest size" shares the existing scale/9-patch machinery
+    unchanged.
+    """
+    sw, sh = surface.get_size()
+    x = max(0, min(int(rect[0]), sw - 1))
+    y = max(0, min(int(rect[1]), sh - 1))
+    w = max(1, min(int(rect[2]), sw - x))
+    h = max(1, min(int(rect[3]), sh - y))
+    key = ("crop", (x, y, w, h))
+    by_key = _scale_cache.get(surface)
+    if by_key is None:
+        by_key = _scale_cache[surface] = {}
+    cropped = by_key.get(key)
+    if cropped is None:
+        cropped = by_key[key] = surface.subsurface(pygame.Rect(x, y, w, h))
+    return cropped
+
+
 def _has_alpha(color):
     return len(color) == 4 and color[3] < 255
 
@@ -173,13 +201,22 @@ def draw(target, draw_calls):
                 _draw_hud_text(target, call)
             continue
         size = (max(1, round(call.size[0])), max(1, round(call.size[1])))
+        # A crop resolves first (feature-enemy-intro-dialogue) — the cropped
+        # surface is then scaled/nine-patched exactly like a full frame would
+        # be, since _cropped's result is itself a valid cache key. Known,
+        # accepted edge case: a crop combined with a nine-slice on the SAME
+        # entry is incoherent (slice margins are authored against the full
+        # frame) — no shipped entry combines the two.
+        source = call.surface
+        if call.crop_rect:
+            source = _cropped(source, call.crop_rect)
         # An all-zero slice is arithmetically a plain scale, and a 1:1 draw is
         # the identity — both take the plain path so they share its cache entry.
         margins = call.slice
-        if margins and any(margins) and size != call.surface.get_size():
-            surface = _nine_patch(call.surface, size, tuple(margins))
+        if margins and any(margins) and size != source.get_size():
+            surface = _nine_patch(source, size, tuple(margins))
         else:
-            surface = _scaled(call.surface, size)
+            surface = _scaled(source, size)
         if call.flip:
             surface = pygame.transform.flip(surface, True, False)
         if call.tint is not None:

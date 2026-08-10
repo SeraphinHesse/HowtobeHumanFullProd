@@ -205,6 +205,8 @@ class TestPainterThroughSession(unittest.TestCase):
             session.end_turn()
             for _ in range(80):
                 self._frame(session, scene, tm, 0.1)
+                if session.state.phase == GamePhase.ENEMY_INTRO:
+                    session.resolve_enemy_intro()
                 if (session.state.phase == GamePhase.BUILDING
                         and session.state.round_num == target):
                     break

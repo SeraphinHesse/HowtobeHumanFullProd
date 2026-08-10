@@ -44,7 +44,17 @@ class HudSprite:
 
     animation/anim_time_ms are appended LAST on purpose: the shipping call
     sites pass (slot_key, dest, size) positionally, so tint/flip must keep
-    their positions."""
+    their positions. crop/hidden_frames are appended after them for the same
+    reason (feature-enemy-intro-dialogue): a shipping call passing animation/
+    anim_time_ms positionally must not shift.
+
+    crop = (x, y, w, h) in source FRAME pixels — a sub-rect of the resolved
+    frame to draw instead of the whole thing, stretched to `size` exactly like
+    the whole-frame case. `None` (default) means no crop. hidden_frames is an
+    optional tuple of frame-column indices to additionally skip during
+    playback, on top of whatever the manifest row's own `hidden` already
+    drops (see `engine.assets.manifest.Manifest.current_frame`'s
+    `extra_hidden`)."""
 
     slot_key: str
     dest: tuple
@@ -53,6 +63,8 @@ class HudSprite:
     flip: bool = False
     animation: str = "idle"
     anim_time_ms: int = 0
+    crop: tuple = None
+    hidden_frames: tuple = ()
 
 
 @dataclass(frozen=True)
