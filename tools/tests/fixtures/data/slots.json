@@ -338,7 +338,9 @@
               "label": "Era 1",
               "slots": [
                 "enemy_stage_1_v1",
-                "enemy_stage_1_v2"
+                "enemy_stage_1_v2",
+                "enemy_stage_1_v3",
+                "enemy_stage_1_v4"
               ]
             },
             {
@@ -882,7 +884,8 @@
             "vfx_crater",
             "vfx_projectile",
             "vfx_shell",
-            "vfx_dirt_pile"
+            "vfx_dirt_pile",
+            "vfx_buff_arrow"
           ]
         }
       ],

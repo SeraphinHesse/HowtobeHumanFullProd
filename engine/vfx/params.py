@@ -13,11 +13,13 @@ resolved to a ``BurstParams`` on the game side; the engine only ever sees the
 resolved dataclass).
 
 ESV-3b's four dataclasses (``BeamParams``/``CraterParams``/``LightningParams``/
-``AnnounceParams``) and ESV-6's ``FloaterParams`` are NOT consumed by
-``VfxSystem`` — those effects own no particle/gold/slash/splatter LIST (the
-scene already owns the crater/lightning state; floaters are a bare colour+
-lifetime pair with no particle behaviour at all). ``game/ui/effects.py`` reads
-them straight off the ``VfxParams`` bundle it holds.
+``AnnounceParams``), ESV-6's ``FloaterParams`` and ``DrummerAuraParams`` are
+NOT consumed by ``VfxSystem`` — those effects own no particle/gold/slash/
+splatter LIST (the scene already owns the crater/lightning state; floaters
+are a bare colour+lifetime pair with no particle behaviour at all; the
+Drummer aura ring is drawn straight off the live ``DrummerAura`` component,
+no scene-object fade clock of its own). ``game/ui/effects.py`` reads them
+straight off the ``VfxParams`` bundle it holds.
 """
 from dataclasses import dataclass
 
@@ -243,6 +245,26 @@ class ProjectileParams:
 
 
 @dataclass(frozen=True)
+class DrummerAuraParams:
+    """The Drummer's (NE-3) buff-range telegraph: a pulsing world-space ring
+    around a live Drummer, sized to its own ``support_range`` — the same
+    ``_polygon_ring`` world-unit N-gon technique the mortar crater draws
+    with, but with NO scene-object fade clock of its own: the ring is drawn
+    fresh every frame straight off the live ``DrummerAura`` component for as
+    long as the Drummer is alive, never spawned/despawned as a separate
+    GameObject. ``alpha_min``/``alpha_max`` bound a smooth sine breathe over
+    ``pulse_period_s`` seconds (the ``hud.py`` XP-bar level-up pulse shape);
+    ``segments`` is the ring's polygon-ring vertex count. Draws no random
+    numbers."""
+
+    color: tuple
+    alpha_min: int
+    alpha_max: int
+    pulse_period_s: float
+    segments: int
+
+
+@dataclass(frozen=True)
 class VfxParams:
     """Everything a ``VfxSystem`` needs beyond spark (spark presets are
     game vocabulary — the caller resolves a preset key to a ``BurstParams``
@@ -263,3 +285,4 @@ class VfxParams:
     announce: AnnounceParams
     floaters: FloaterParams
     projectile: ProjectileParams
+    drummer_aura: DrummerAuraParams

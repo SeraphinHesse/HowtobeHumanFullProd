@@ -150,10 +150,10 @@ from engine.render import (
 from game.anchors import anchor_world_point
 from engine.render.fonts import layout_h
 from engine.vfx import (
-    AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
-    GoldParams, LightningParams, MuzzleParams, ProjectileParams,
-    ShardBurstParams, SlashParams, SplatterParams, VfxParams, VfxSystem,
-    spawn_play_once,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, DrummerAuraParams,
+    FloaterParams, GoldParams, LightningParams, MuzzleParams,
+    ProjectileParams, ShardBurstParams, SlashParams, SplatterParams,
+    VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.lightning import LightningCaster
@@ -207,6 +207,17 @@ _CHARGE_BAR_SLATE = (70, 70, 90)          # empty/just-fired ramp start
 _CHARGE_BAR_READY_YELLOW = (255, 240, 80)  # ramp end == hud.py's ready colour
 _CHARGE_BAR_LIFT = 8   # px below the HP-bar baseline, so the two don't overlap
 # -- /feature-storm-acolyte-multi-build --
+
+# -- Drummer buff-range indicator + buffed-enemy arrow (very-simple placeholder
+# visuals): the arrow's SHAPE/colour are code chrome (like HP_BAR_*'s bar
+# geometry above) — only its swappable ART (the vfx_buff_arrow slot) is a
+# designer lever. The ring's colour/pulse ARE balancing (procedural.
+# drummer_aura), since it has no image slot to swap.
+BUFF_ARROW_SLOT = "vfx_buff_arrow"
+_BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
+_BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
+_BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
+# -- /Drummer buff-range indicator + buffed-enemy arrow --
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
 # data/balancing/vfx.json now (ESV-3a) — see _params_from_balance below. The
@@ -340,10 +351,19 @@ def _params_from_balance(vfx):
         lift_frac=pr["lift_frac"])
     # -- /Fix 2 ----------------------------------------------------------
 
+    # -- Drummer buff-range telegraph ring --------------------------------
+    da = proc["drummer_aura"]
+    drummer_aura = DrummerAuraParams(
+        color=_color(da["color"]), alpha_min=da["alpha_min"],
+        alpha_max=da["alpha_max"], pulse_period_s=da["pulse_period_s"],
+        segments=da["segments"])
+    # -- /Drummer buff-range telegraph ring --------------------------------
+
     return spark_presets, VfxParams(
         death_burst=death_burst, muzzle=muzzle, slash=slash, gold=gold,
         splatter=splatter, beam=beam, crater=crater, lightning=lightning,
-        announce=announce, floaters=floaters, projectile=projectile)
+        announce=announce, floaters=floaters, projectile=projectile,
+        drummer_aura=drummer_aura)
 
 
 def _triggers_from_balance(vfx):
@@ -461,6 +481,10 @@ class FloaterManager:
         self.scene = None    # Scene, wired by the host
         self.cs = None       # CoordinateSystem, wired by the host (ESV-6)
         # -- /ESV-5/6 --
+        # Drummer buff-range telegraph: a manager-owned seconds clock, the
+        # hud.py `self._clock` XP-pulse precedent, driving the ring's smooth
+        # sine breathe (submit_drummer_auras) — accumulated in update(dt).
+        self._clock = 0.0
 
     def spawn_income_events(self, state):
         if not self._enabled:
@@ -726,6 +750,7 @@ class FloaterManager:
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
 
     def update(self, dt):
+        self._clock += dt
         for f in self._floaters:
             f.age += dt
         self._floaters = [f for f in self._floaters if f.age < f.life]
@@ -870,6 +895,40 @@ class FloaterManager:
             pts = _polygon_ring(cx + 0.5, cy + 0.5, r, cp.segments)
             renderer.submit_overlay_polys(
                 pts, cp.color + (int(cp.alpha * frac),))
+
+    def submit_drummer_auras(self, renderer, cs, scene):
+        """A pulsing world-space ring around every ALIVE Drummer, sized to
+        its own live ``DrummerAura.support_range`` — always visible while
+        the Drummer is alive (no click/toggle needed, per the user's own
+        design call), so the ring can never disagree with the real buff
+        area it telegraphs. Uses the SAME ``_polygon_ring`` world-unit N-gon
+        technique ``submit_craters`` draws the mortar scorch with, but reads
+        the radius off the live component every frame instead of a spawned
+        GameObject's own state — there is no separate fade clock, the ring
+        simply stops being drawn the frame the Drummer dies.
+
+        Purely a placeholder telegraph: colour/alpha bounds/segments come
+        from ``self._vfx_params.drummer_aura`` (balancing-tunable, ESV-3b
+        style — not a swappable sprite, unlike the buff arrow below), and
+        the alpha breathes smoothly between them on a
+        ``pulse_period_s``-second sine cycle off this manager's own
+        ``self._clock`` (the ``hud.py`` XP-bar level-up pulse shape)."""
+        from game.enemies.components import DrummerAura
+
+        dp = self._vfx_params.drummer_aura
+        t = 0.5 + 0.5 * math.sin(
+            self._clock * (2 * math.pi / dp.pulse_period_s))
+        alpha = int(dp.alpha_min + (dp.alpha_max - dp.alpha_min) * t)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            aura = e.get_component(DrummerAura)
+            if aura is None:
+                continue
+            wx, wy = e.transform.world_pos
+            pts = _polygon_ring(wx + 0.5, wy + 0.5, aura.support_range,
+                                dp.segments)
+            renderer.submit_overlay_polys(pts, dp.color + (alpha,))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -1045,6 +1104,59 @@ class FloaterManager:
                 submit_bar(renderer, x, y, w, h, health.hp / health.max_hp,
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
+
+    def submit_buff_arrows(self, renderer, cs, scene):
+        """A little golden arrow above any ALIVE enemy carrying an active
+        buff (``BuffState.sources`` non-empty — today always a Drummer's
+        aura, NE-3, but this deliberately keys off "any active buff" rather
+        than the source type, per the user's own design call). Shown
+        independently of the HP bar's own "hide at full HP" rule — a
+        buffed-but-undamaged enemy still gets the arrow.
+
+        Anchored off the SAME ``hp_bar`` point (or its ``_sprite_top``
+        fallback) ``submit_enemy_hp_bars`` uses, offset one arrow-height +
+        gap above it — a deliberately SIMPLER placeholder than that method:
+        it does not stack multiple enemies sharing a tile, since a buffed
+        unit's arrow is a status flag, not a competing bar.
+
+        Interchangeable placeholder art (E-37 shape): the ``vfx_buff_arrow``
+        slot draws as a real sprite once imported; with no art yet it draws
+        a small procedural golden triangle instead, so the feature is
+        visible today with zero art asset required."""
+        from game.enemies.components import BuffState
+
+        zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
+        has_art = (assets is not None
+                   and assets.animation_total_ms(BUFF_ARROW_SLOT, "idle")
+                   is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            buffs = e.get_component(BuffState)
+            if buffs is None or not buffs.sources:
+                continue
+            h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+            pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
+            point = anchor_world_point(assets, cs, e, "hp_bar")
+            if point is not None:
+                x_c, y_c = cs.world_to_screen(*point)
+            else:
+                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                            e.transform.wy + 0.5)
+                top = _sprite_top(renderer, cs, e, cy, zoom)
+                x_c, y_c = cx, top - pad * zoom
+            y = int(y_c) - h - _BUFF_ARROW_GAP
+            w = _BUFF_ARROW_W
+            if has_art:
+                renderer.submit_hud(HudSprite(
+                    BUFF_ARROW_SLOT,
+                    (int(x_c - w / 2), y - _BUFF_ARROW_H), (w, _BUFF_ARROW_H)))
+            else:
+                pts = ((int(x_c - w / 2), y),
+                       (int(x_c), y + _BUFF_ARROW_H),
+                       (int(x_c + w / 2), y))
+                renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
 
     # -- feature-storm-acolyte-multi-build: per-caster charge bars ----------
 
