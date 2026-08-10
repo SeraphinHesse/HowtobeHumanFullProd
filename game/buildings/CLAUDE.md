@@ -325,12 +325,19 @@ Moving an ALREADY-PLACED building to another unbuilt buildable tile.
 `movement.py` is the pure-logic sibling of `registry.place_building`, and
 `start_move` is the ONE legal way a placed building leaves its tile — the same
 "single legal path" rule `place_building` holds for arrivals.
-- **Cost + duration both scale with CHEBYSHEV distance**, floor-divided into
-  steps: `base + (distance // increment) * increase`, or a flat `0` when the
-  matching `*_enabled` flag is off. Every number is
+- **Cost + duration both scale with MANHATTAN (straight-line-only) distance**,
+  floor-divided into steps: `base + (distance // increment) * increase`, or a
+  flat `0` when the matching `*_enabled` flag is off. Every number is
   `BuildingsGlobal.Movement` in `data/balancing/buildings.json` (G-7); the
   caller passes that subtree in, this module never loads it. `move_cost` /
   `move_time` / `move_distance` are pure and are what the UI quotes.
+  **No diagonal shortcut and no tilemap/ownership check** (fix for the
+  building-move-manhattan-distance bug, where a diagonal-shortcut Chebyshev
+  metric let a move quote the same price whether the tiles it crossed were
+  owned or not): every tile actually stepped over between origin and
+  destination counts once, unowned tiles included, with no special-casing
+  either way. `game/ui/CLAUDE.md`'s Move Building section documents the
+  matching path-line UI feedback drawn once a destination is picked.
 - **A move in transit is represented by ABSENCE, and that is the whole
   design.** `start_move` clears the origin tile to `TileState.BUILDABLE` with
   no occupant/content key and **despawns the building from the scene**. There

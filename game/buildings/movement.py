@@ -7,11 +7,17 @@ the painter-tile bar and the boost-adjacency block live in that function and
 not in the UI — the panel's disabled button is a convenience, this is the
 enforcement).
 
-Cost and duration both scale with the **Chebyshev** tile distance
-``max(|dcol|, |drow|)`` between origin and destination, floor-divided into
-steps::
+Cost and duration both scale with the **Manhattan** (straight-line-only) tile
+distance ``|dcol| + |drow|`` between origin and destination, floor-divided
+into steps::
 
     value = base + (distance // increment) * increase
+
+There is deliberately no tilemap/ownership check anywhere in this module: a
+tile the player does not yet own, if it lies between the origin and
+destination, is not special-cased — it simply adds to the distance exactly
+like any other tile, because the metric counts every tile actually stepped
+over (no diagonal shortcut) rather than the two endpoints' geometry alone.
 
 …or a flat ``0`` when the matching ``*_enabled`` flag is off. Every number
 comes from ``data/balancing/buildings.json``'s ``BuildingsGlobal.Movement``
@@ -55,10 +61,13 @@ class MoveError(Exception):
 
 
 def move_distance(from_col, from_row, to_col, to_row):
-    """Chebyshev tile distance — diagonal steps cost the same as cardinal
-    ones, matching how the panel's range/adjacency rules already read the
-    board."""
-    return max(abs(to_col - from_col), abs(to_row - from_row))
+    """Manhattan (straight-line-only) tile distance — no diagonal shortcut,
+    so every tile actually stepped over between origin and destination
+    counts once, whether the player owns it or not. There is deliberately no
+    tilemap/ownership check anywhere in this module: an unowned tile crossed
+    by a move is not special-cased, it simply adds to the distance like any
+    other tile."""
+    return abs(to_col - from_col) + abs(to_row - from_row)
 
 
 def _stepped(distance, enabled, base, increment, increase):

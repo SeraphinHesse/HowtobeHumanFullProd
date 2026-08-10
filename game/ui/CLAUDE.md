@@ -605,6 +605,19 @@ picker and the confirmation.
   both endpoints are plain BUILDABLE tiles, so without this the panel would
   offer cards `place_building` then refuses. Convenience only; the bar itself
   is in `place_building`.
+- **The path line (building-move-manhattan-distance fix)**: once a
+  destination tile is picked (i.e. `self.preview` is a `MovePreview`),
+  `BuildingUI.submit()` draws an L-shaped cyan (`widgets.C_MOVE_HIGHLIGHT`)
+  world-space line from the building's tile centre to the destination's —
+  column-first, then row, matching the straight-line-only tiles
+  `move_distance()` counts (`game/buildings/CLAUDE.md`). It is NOT a live
+  mouse-hover trace: nothing is drawn during plain `move_select` picking,
+  only once a destination has actually been chosen and the confirm modal is
+  open. It sits beside `_highlight_tiles`/`_highlight_edges`, before the
+  `self.visible` guard, and reads `self.preview.building`/`.dest_tile`
+  straight off the live preview object every frame rather than caching
+  separate state — it disappears for free the instant `self.preview` is
+  cleared (confirm, cancel, or close all already do that).
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
