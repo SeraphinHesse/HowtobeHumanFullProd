@@ -45,6 +45,11 @@ class BoostBuilding(Building):
     _boost_stat = None      # "damage" | "speed" | "hp" — which receiver accumulator
     _boost_color = (255, 255, 255)
     _boost_label = "Boost/turn"
+    # UT-3: the stat-row key the building panel names this row's two
+    # id'd widgets after, and the `building.stat.<key>` string id it
+    # resolves its label through. `_boost_label` stays as the code-side
+    # fallback the string table was seeded from.
+    _boost_stat_key = "boost"
 
     def _extra_components(self, tier0):
         return [BoostEmitter()]
@@ -190,6 +195,7 @@ class BoostSpeed(BoostBuilding):
     _boost_stat = "speed"
     _boost_color = (100, 160, 255)
     _boost_label = "Spd boost/turn"
+    _boost_stat_key = "boost_speed"
 
 
 class BoostDamage(BoostBuilding):
@@ -200,6 +206,7 @@ class BoostDamage(BoostBuilding):
     _boost_stat = "damage"
     _boost_color = (255, 100, 100)
     _boost_label = "Dmg boost/turn"
+    _boost_stat_key = "boost_damage"
 
 
 class BoostHP(BoostBuilding):
@@ -210,3 +217,4 @@ class BoostHP(BoostBuilding):
     _boost_stat = "hp"
     _boost_color = (255, 150, 200)
     _boost_label = "HP boost/turn"
+    _boost_stat_key = "boost_hp"

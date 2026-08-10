@@ -66,6 +66,14 @@ REPO = Path(__file__).resolve().parents[2]
 # widget (still inert; see game/ui/skinning.py's button_kwargs docstring).
 TOOLTIP_TINT_SKINNED = "Multiplies the sprite sheet — white = unchanged."
 
+# UT-1/UT-3: shown on the Label row when the widget is bound to a string
+# id. The row edits data/ui/strings.json, which is GLOBAL — the warning
+# under the field says how many widgets share the id.
+TOOLTIP_TEXT_TEMPLATE = (
+    "This text comes from data/ui/strings.json. Editing it here changes "
+    "it everywhere this string id is used. {placeholders} are filled in "
+    "by the game at runtime.")
+
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
 
@@ -99,6 +107,7 @@ class ScreenDetailsPanel(QWidget):
         self._text_color_baseline = None
         self._label_baseline = None
         self._label_effective = None
+        self._text_id_baseline = None    # UT-1/UT-3
         self._visible_baseline = None
 
         layout = QVBoxLayout(self)
@@ -162,7 +171,26 @@ class ScreenDetailsPanel(QWidget):
         self.label_edit.editingFinished.connect(self._on_label_edited)
         label_row, self.label_reset_button = self._field_row(
             (self.label_edit,), "label", lambda: self._on_reset_field("label"))
-        form.addRow("Label", label_row)
+        self.label_row_label = QLabel("Label", self)
+        form.addRow(self.label_row_label, label_row)
+
+        # -- UT-1/UT-3: the string-table binding ------------------------------
+        # A widget that resolves its text through `data/ui/strings.json` shows
+        # the TEMPLATE here instead of a per-widget label override. The
+        # template is GLOBAL (one id, one text, everywhere), which is why the
+        # shared-key warning below exists at all.
+        self.text_id_combo = _NoWheelComboBox(self)
+        self.text_id_combo.activated.connect(self._on_text_id_changed)
+        text_id_row, self.text_id_reset_button = self._field_row(
+            (self.text_id_combo,), "text_id",
+            lambda: self._on_reset_field("text_id"))
+        self.text_id_row_label = QLabel("Text ID", self)
+        form.addRow(self.text_id_row_label, text_id_row)
+
+        self.sample_label = QLabel("", self)
+        self.sample_label.setWordWrap(True)
+        self.sample_label.setStyleSheet("color: #888;")
+        form.addRow("", self.sample_label)
 
         self.visible_check = QCheckBox("Visible", self)
         self.visible_check.toggled.connect(self._on_visible_toggled)
@@ -406,6 +434,7 @@ class ScreenDetailsPanel(QWidget):
         for w in (self.x_spin, self.y_spin, self.w_spin, self.h_spin,
                   self.skin_combo, self.font_combo, self.color_button,
                   self.text_color_button, self.label_edit,
+                  self.text_id_combo,
                   self.visible_check, self.reset_button):
             w.setEnabled(enabled)
         if not enabled:
@@ -416,7 +445,7 @@ class ScreenDetailsPanel(QWidget):
             for btn in (self.rect_reset_button, self.skin_reset_button,
                        self.font_reset_button, self.color_reset_button,
                        self.text_color_reset_button, self.label_reset_button,
-                       self.visible_reset_button):
+                       self.text_id_reset_button, self.visible_reset_button):
                 btn.setEnabled(False)
             # UH-6: no widget selected -> nothing to be honest about; show
             # the row's plain, default state.
@@ -439,6 +468,7 @@ class ScreenDetailsPanel(QWidget):
         self.color_reset_button.setEnabled(self._active_color_key() in override)
         self.text_color_reset_button.setEnabled("text_color" in override)
         self.label_reset_button.setEnabled("label" in override)
+        self.text_id_reset_button.setEnabled("text_id" in override)
         self.visible_reset_button.setEnabled("visible" in override)
 
     def _active_color_key(self):
@@ -507,9 +537,21 @@ class ScreenDetailsPanel(QWidget):
                 self.color_button.setToolTip("")
                 self.color_button.setEnabled(True)
 
-        code_owned = label_is_code_owned(screen_id, self._current_widget, kind)
+        # UT-1/UT-3: a widget bound to a string id shows its TEMPLATE here,
+        # editable, instead of the old "edit it in game code" disablement.
+        text_id = self._effective_text_id(spec, override)
+        code_owned = label_is_code_owned(screen_id, self._current_widget, kind,
+                                         text_id)
         self.label_edit.setEnabled(not code_owned)
-        self.label_edit.setToolTip(TOOLTIP_LABEL_CODE_OWNED if code_owned else "")
+        self.label_edit.setToolTip(
+            TOOLTIP_TEXT_TEMPLATE if text_id
+            else (TOOLTIP_LABEL_CODE_OWNED if code_owned else ""))
+        self.label_row_label.setText("Text template" if text_id else "Label")
+        bindable = bool(self._strings_doc())
+        self.text_id_row_label.setVisible(bindable)
+        self.text_id_combo.setVisible(bindable)
+        self.text_id_combo.setEnabled(bindable)
+        self.sample_label.setVisible(bool(text_id))
 
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
@@ -545,10 +587,21 @@ class ScreenDetailsPanel(QWidget):
         self._tint_baseline = override.get("tint")   # UH-6/D6
         self._text_color_baseline = override.get("text_color")
 
-        label = override.get("label", spec.get("label", ""))
+        # UT-1/UT-3: when the widget is bound to a string id the Label row
+        # edits the TEMPLATE (the global string table), not a per-widget
+        # override — so its text and baseline come from strings.json.
+        self._text_id_baseline = override.get("text_id")
+        text_id = self._effective_text_id(spec, override)
+        self._refresh_text_id_combo(text_id)
+        if text_id:
+            label = self._strings_doc().get(text_id, "")
+            self._label_baseline = self._label_effective = label
+        else:
+            label = override.get("label", spec.get("label", ""))
+            self._label_baseline = override.get("label")
+            self._label_effective = label
         self.label_edit.setText(label)
-        self._label_baseline = override.get("label")
-        self._label_effective = label
+        self._refresh_sample(spec, text_id)
 
         # visible defaults True (schema omits it ⇒ visible); baseline stores
         # the RAW override (None = "no override", the push_field sentinel)
@@ -645,10 +698,90 @@ class ScreenDetailsPanel(QWidget):
         new_label = self.label_edit.text()
         if new_label == self._label_effective:
             return   # nothing actually changed from what's on screen
-        self._session.push_field(
-            self._current_widget, "label", self._label_baseline, new_label)
+        text_id = self._current_text_id()
+        if text_id:
+            # UT-1/UT-3: this row is the TEMPLATE, so the edit goes to the
+            # global string table, not to a per-widget override.
+            self._session.push_string(text_id, self._label_baseline, new_label)
+            self._refresh_sample(self._current_spec(), text_id)
+        else:
+            self._session.push_field(
+                self._current_widget, "label", self._label_baseline, new_label)
         self._label_baseline = new_label
         self._label_effective = new_label
+
+    # -- UT-1/UT-3: the string-table binding ---------------------------------
+
+    def _strings_doc(self):
+        return (self._session.strings_doc or {}) if self._session else {}
+
+    def _current_spec(self):
+        return (self._current_screen_defaults()
+                .get("widgets", {}).get(self._current_widget) or {})
+
+    def _effective_text_id(self, spec, override):
+        """The string id this widget currently draws through: the doc's
+        `text_id` override if the designer re-pointed it, else the one the
+        exporter recorded off the game's own holder."""
+        return override.get("text_id") or spec.get("text_id")
+
+    def _current_text_id(self):
+        if self._current_widget is None or self._session is None:
+            return None
+        override = (self._session.doc or {}).get("widgets", {}).get(
+            self._current_widget, {})
+        return self._effective_text_id(self._current_spec(), override)
+
+    def _refresh_text_id_combo(self, text_id):
+        """Every id in the table, so a widget can be re-pointed at an existing
+        string. The editor never INVENTS an id: the table is a closed set
+        (`additionalProperties: false`, every key required), so adding one is a
+        schema change — i.e. a code change (plan D3)."""
+        combo = self.text_id_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("(none)", None)
+        for sid in sorted(self._strings_doc()):
+            combo.addItem(sid, sid)
+        combo.setCurrentIndex(max(0, combo.findData(text_id)))
+        combo.blockSignals(False)
+
+    def _refresh_sample(self, spec, text_id):
+        """The grey line under the template: what it renders as, and how many
+        other widgets share it — because editing a template here changes the
+        text everywhere that id is used, which is not obvious from the row."""
+        if not text_id:
+            self.sample_label.setText("")
+            return
+        sample = spec.get("sample")
+        shown = f"→ {sample}" if sample else "→ filled in at runtime"
+        users = self._text_id_users(text_id)
+        if users > 1:
+            shown += f"   ·   used by {users} widgets"
+        self.sample_label.setText(shown)
+
+    def _text_id_users(self, text_id):
+        """How many widgets across EVERY screen and view resolve `text_id`."""
+        count = 0
+        for entry in (self._all_defaults or {}).values():
+            groups = [entry.get("widgets", {})]
+            groups += [v.get("widgets", {})
+                       for v in (entry.get("views") or {}).values()]
+            for widgets_map in groups:
+                count += sum(1 for spec in widgets_map.values()
+                             if spec.get("text_id") == text_id)
+        return count
+
+    def _on_text_id_changed(self):
+        if self._current_widget is None or self._populating:
+            return
+        new_id = self.text_id_combo.currentData()
+        if new_id == self._text_id_baseline:
+            return
+        self._session.push_field(
+            self._current_widget, "text_id", self._text_id_baseline, new_id)
+        self._text_id_baseline = new_id
+        self._refresh_widget_form()
 
     def _on_visible_toggled(self, checked):
         if self._current_widget is None or self._populating:

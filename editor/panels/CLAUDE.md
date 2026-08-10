@@ -932,6 +932,53 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+## Phase UT-2/UT-6 — the real screen preview + the Text-template row
+
+- **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews
+  .json`, `data/CLAUDE.md`) instead of drawing only the named widgets as flat
+  boxes. `refresh_screen_previews(previews, recorded_doc=None)` installs it
+  (deserializing ONCE, cached per `(screen, view)` — a list runs to dozens of
+  primitives and `_submit_screen_items` runs every 16 ms);
+  `_current_screen_preview()` resolves the active view the same way
+  `_current_screen_defaults()` does. Missing/corrupt/absent-for-this-screen
+  degrades to the pre-UT-2 flat-box rendering (E-37), never a raise. Still
+  ED-22-clean: every replayed item goes out through `Renderer.submit_hud`.
+- **`_preview_in_sync()` is the whole correctness argument.** A recording is a
+  picture of ONE exact doc. In sync (the live doc equals `recorded_doc`), the
+  recording IS the screen and the editor draws nothing but selection chrome
+  over it — plus the widget under an in-flight drag, whose live rect no
+  recording can know. **Out of sync** (an edit just landed, or a saved doc
+  carries overrides and no re-record has finished), the editor ALSO draws
+  every id'd widget from defaults+overrides on top: they briefly ghost against
+  their recorded selves, which is strictly better than a stale picture that
+  HIDES your edit. Do not "simplify" this by always replaying — that made an
+  assigned skin invisible and turned `TestScreenModeReloadOnEntry` red.
+- **`MainWindow` re-records on every screen-doc change**, debounced
+  (`_PREVIEW_DEBOUNCE_MS`, driven off `screen_session.undo_stack.indexChanged`
+  so it covers undo/redo too) and once more on screen-mode entry when the
+  saved doc is non-empty. It writes `{screen_id: doc}` to a temp file and runs
+  `RunControls.render_preview`, which is deliberately its OWN QProcess slot,
+  NOT `_launch`'s: this fires after every nudge, so queueing it behind Build
+  (or having Build refuse because a preview render is in flight) would make
+  both feel broken. A render already in flight is KILLED, not queued — only
+  the newest doc is worth drawing — and it streams nothing to the console.
+  `preview_renders` is injectable and DEFAULTS TO FOLLOWING
+  `auto_refresh_layouts`, so the test suite never spawns a real render.
+- **`ScreenDetailsPanel`'s Label row becomes "Text template"** when the
+  selected widget has a `text_id` (its own override, else the exporter's).
+  It then edits `data/ui/strings.json` through
+  `UIScreenSession.push_string` — the same undo stack, a different doc — and
+  the grey line beneath shows the resolved `sample` plus a **"used by N
+  widgets"** warning, because the table is GLOBAL and that is not obvious from
+  the row. An unbound widget keeps the per-widget `label` override verbatim.
+  A **Text ID** combo re-points a widget at another EXISTING id; the editor
+  never invents one (the table is a closed set — adding a key is a schema
+  change, i.e. a code change).
+- **`_screen_rules.label_is_code_owned` gained a `text_id` argument** and
+  returns False for anything bound — that rule's reach is now small
+  (`TOOLTIP_LABEL_CODE_OWNED` survives for what genuinely stays code-owned,
+  e.g. a `field`'s user-typed contents).
+
 ## Phase ESV-4 — vfx preview (`panels/vfx_preview.py`, `editor/vfx_params.py`)
 - **A DEDICATED panel, not a fourth `ViewportPanel` mode.** ESV-2 owns
   `viewport.py` concurrently (anchor handles + drag); a `set_vfx_mode`

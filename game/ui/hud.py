@@ -24,8 +24,8 @@ from game.core.xp import scaled_base_income
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    Button, anim_ms, contains, submit_bar, submit_centered,
-    submit_panel, submit_text, text_h, text_size
+    Button, anim_ms, contains, label_holder, submit_bar, submit_centered,
+    submit_label, submit_panel, submit_text, text_h, text_size
 )
 from . import widgets
 from .strings import T
@@ -215,7 +215,8 @@ class Hud:
         self._readout_panel = SimpleNamespace(rect=(6, 22, 95, 30),
                                               visible=True)
         self._phase_label = SimpleNamespace(font_key="hud_phase", text_color=None,
-                                            visible=True)
+                                            visible=True, text_id=None,
+                                            label="", align="left")
         # -- 10L-B review fix (HIGH 1): the ~10 stable readouts around the
         # love panel. TEXT stays game-state/code-owned for every one of these
         # (love count, level, xp fraction, income delta, lives, tile count,
@@ -224,22 +225,32 @@ class Hud:
         # staying win/loss-owned. Positions are finalized in submit() (they
         # are relative to the now-applied love_panel/end_turn rects), so
         # these get a SECOND skinning.apply() pass there. --
-        self._love_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xl",
-                                          text_color=None, visible=True)
-        self._lvl_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="hud_lvl",
-                                          text_color=widgets.C_GOLD, visible=True)
+        # UT-4: each readout now names the `data/ui/strings.json` template
+        # it draws through, so the editor can show and edit that text (and
+        # re-point the widget at another id) instead of calling it code-owned.
+        # The LIVE VALUES stay code-owned — they are the game state.
+        self._love_text = label_holder(font_key="xl",
+                                       text_id="hud.love_display")
+        self._lvl_label = label_holder(font_key="hud_lvl",
+                                       text_color=widgets.C_GOLD,
+                                       text_id="hud.level")
         self._xp_bar = SimpleNamespace(rect=(0, 0, 55, 4), color=_XP_TRACK,
                                        visible=True)
-        self._xp_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
-                                        text_color=widgets.C_UI_TEXT_DIM, visible=True)
-        self._income_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
-                                            text_color=_INCOME_PINK, visible=True)
-        self._lives_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                           text_color=widgets.C_HP_RED, visible=True)
-        self._tiles_text = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                           text_color=widgets.C_UI_TEXT_DIM, visible=True)
-        self._round_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                            text_color=widgets.C_UI_TEXT_DIM, visible=True)
+        self._xp_text = label_holder(font_key="sm",
+                                     text_color=widgets.C_UI_TEXT_DIM,
+                                     text_id="hud.xp_progress")
+        self._income_text = label_holder(font_key="sm",
+                                         text_color=_INCOME_PINK,
+                                         text_id="hud.income_net")
+        self._lives_text = label_holder(font_key="md",
+                                        text_color=widgets.C_HP_RED,
+                                        text_id="hud.lives")
+        self._tiles_text = label_holder(font_key="md",
+                                        text_color=widgets.C_UI_TEXT_DIM,
+                                        text_id="hud.tiles")
+        self._round_label = label_holder(font_key="md",
+                                         text_color=widgets.C_UI_TEXT_DIM,
+                                         text_id="hud.round")
         # -- 10L wave-3 phase 4: three baked icon slots beside their readouts.
         # Panel-kind holders (rect/skin/visible) routed through the skinned
         # submit_panel() path (10L-A) — a code-default skin means every
@@ -450,17 +461,16 @@ class Hud:
                         tint=getattr(self._icon_love, "tint", None), anim_ms=t)
         if hover_cost is not None:
             remaining = st.love - hover_cost
-            love_txt = (T("hud.love_display", amount=remaining)
-                       if remaining >= 0 else T("hud.love_unaffordable"))
-            love_col = widgets.C_RED
+            # Unaffordable swaps to a DIFFERENT string id, so it goes through
+            # `text=` rather than the holder's own; the affordable case reads
+            # the holder's `text_id`, which a designer may re-point.
+            love_txt = (None if remaining >= 0
+                        else T("hud.love_unaffordable"))
+            amount, love_col = remaining, widgets.C_RED
         else:
-            love_txt = T("hud.love_display", amount=st.love)
-            love_col = widgets.C_GOLD
-        if self._love_text.visible:
-            lt_color = (self._love_text.text_color
-                       if self._love_text.text_color is not None else love_col)
-            submit_text(renderer, love_txt, self._love_text.rect[:2],
-                       self._love_text.font_key, lt_color)
+            love_txt, amount, love_col = None, st.love, widgets.C_GOLD
+        submit_label(renderer, self._love_text, text=love_txt,
+                     color=love_col, amount=amount)
 
         # -- XP bar + village level (right of the love pill) ---------------
         self._submit_xp(renderer, st)
@@ -479,10 +489,7 @@ class Hud:
         sources = income_sources(session)
         net = sum(v for _, v in sources)
         sign = "+" if net >= 0 else ""
-        if self._income_text.visible:
-            submit_text(renderer, T("hud.income_net", sign=sign, net=net),
-                       self._income_text.rect[:2], self._income_text.font_key,
-                       self._income_text.text_color)
+        submit_label(renderer, self._income_text, sign=sign, net=net)
         # prototype pill2 hover zone. UR-5: its HEIGHT is font-scale — UR-2
         # halved 18 -> 9 against a 13px "md" row, so the bottom 4px of the
         # income line was not hoverable. Derived from layout_h now.
@@ -500,24 +507,18 @@ class Hud:
             submit_panel(renderer, self._icon_lives.rect,
                         skin=self._icon_lives.skin,
                         tint=getattr(self._icon_lives, "tint", None), anim_ms=t)
-        if self._lives_text.visible:
-            submit_text(renderer, T("hud.lives", count=st.base_lives),
-                       self._lives_text.rect[:2], self._lives_text.font_key,
-                       self._lives_text.text_color)
+        submit_label(renderer, self._lives_text, count=st.base_lives)
         built, unlocked = _tile_counts(session.tilemap)
-        if self._tiles_text.visible:
-            submit_text(renderer, T("hud.tiles", built=built, unlocked=unlocked),
-                       self._tiles_text.rect[:2], self._tiles_text.font_key,
-                       self._tiles_text.text_color)
+        submit_label(renderer, self._tiles_text, built=built,
+                     unlocked=unlocked)
 
         # -- phase banner (bottom-left) -----------------------------------
-        if self._phase_label.visible:
-            label = _phase_label_text(st.phase)
-            color = (self._phase_label.text_color
-                    if self._phase_label.text_color is not None
-                    else _phase_color(st.phase, widgets.C_UI_TEXT_DIM))
-            submit_text(renderer, label, self._phase_label.rect[:2],
-                       self._phase_label.font_key, color)
+        # The banner picks one of six `hud.phase.*` ids by enum, so its
+        # TEXT comes through `text=`; its position/font/colour stay the
+        # holder's (and the colour still falls back to the phase colour).
+        submit_label(renderer, self._phase_label,
+                     text=_phase_label_text(st.phase),
+                     color=_phase_color(st.phase, widgets.C_UI_TEXT_DIM))
 
         # -- right-edge cluster: pause (top), round + End Turn (bottom) ----
         # The whole column lives under the building panel, so it is skipped
@@ -531,13 +532,10 @@ class Hud:
                 # from 1 on (including a skipped run, which starts at 1)
                 # reads normally. Both strings go through T() so the Strings
                 # panel owns the wording (Phase C).
-                round_text = (T("hud.round_tutorial") if st.round_num == 0
-                              else T("hud.round", n=st.round_num))
-                submit_centered(renderer, round_text,
-                               self._round_label.rect[0],
-                               self._round_label.rect[1],
-                               self._round_label.font_key,
-                               self._round_label.text_color)
+                round_text = (T("hud.round_tutorial")
+                              if st.round_num == 0 else None)
+                submit_label(renderer, self._round_label, text=round_text,
+                             align="center", n=st.round_num)
             # a faint separator under the round text keeps the corner legible
             # (panel-kind — submitted before the button it sits near so it
             # never draws on top of it; game/ui/CLAUDE.md "panel -> button ->
@@ -636,10 +634,7 @@ class Hud:
         else:
             ratio = st.player_xp / st.xp_threshold if st.xp_threshold else 0.0
             fill = _XP_PURPLE
-        if self._lvl_label.visible:
-            submit_text(renderer, T("hud.level", n=st.village_level),
-                       self._lvl_label.rect[:2], self._lvl_label.font_key,
-                       self._lvl_label.text_color)
+        submit_label(renderer, self._lvl_label, n=st.village_level)
         # -- 10L wave-3: xp icon, left of the bar --------------------------
         if is_visible(self._icon_xp):
             submit_panel(renderer, self._icon_xp.rect,
@@ -650,11 +645,8 @@ class Hud:
             bx, by, bw, bh = self._xp_bar.rect
             submit_bar(renderer, bx, by, bw, bh, ratio,
                       bg=self._xp_bar.color, fill=fill, border=widgets.C_UI_BORDER)
-        if self._xp_text.visible:
-            submit_text(renderer, T("hud.xp_progress", current=st.player_xp,
-                                    threshold=st.xp_threshold),
-                       self._xp_text.rect[:2], self._xp_text.font_key,
-                       self._xp_text.text_color)
+        submit_label(renderer, self._xp_text, current=st.player_xp,
+                     threshold=st.xp_threshold)
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 

@@ -15,10 +15,13 @@ they equal the stock file). Every consumer reads ``widgets.C_GOLD`` etc. via
 attribute access, never ``from .widgets import C_GOLD`` (an early binding a
 later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
 
 from . import strings
+from .skinning import is_visible
 
 _METRICS = TextMetrics()
 
@@ -207,6 +210,71 @@ def submit_text(renderer, text, pos, font_key, color, align="left"):
 def submit_centered(renderer, text, cx, cy, font_key, color):
     """Text centred horizontally on ``cx`` with its top at ``cy``."""
     renderer.submit_hud(HudText(text, (cx, cy), font_key, color, align="center"))
+
+
+def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
+                 text_color=None, align="left", visible=True):
+    """A ``label``-kind widget holder for an id'd piece of text (UT-1).
+
+    The ``SimpleNamespace`` shadow object every screen already builds by hand
+    for its static titles, with the two UT-1 fields folded in — written once
+    here so the ~90 converted call sites do not each restate the field list.
+
+    ``rect`` follows the text-label convention (``game/ui/CLAUDE.md``): an
+    ``(x, y, 0, 0)`` ANCHOR POINT, W/H nominal ``0``, computed and STORED in
+    ``layout()`` so a rect override moves the text and the exporter reads a
+    real position.
+
+    ``text_id`` names a ``data/ui/strings.json`` key: the text is resolved
+    through ``T()`` at draw time, so the template is designer-editable and the
+    live values stay code-owned. A holder with no ``text_id`` falls back to its
+    static ``label`` — the pre-UT-1 behaviour, unchanged.
+    """
+    return SimpleNamespace(rect=rect, text_id=text_id, label=label,
+                           font_key=font_key, text_color=text_color,
+                           align=align, visible=visible)
+
+
+def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
+    """Draw an id'd label holder (UT-1) — THE idiom for text a screen names in
+    its ``ids`` dict.
+
+    Text comes from ``T(holder.text_id, **fmt)`` when the holder carries a
+    ``text_id``, else from its static ``holder.label``. Geometry, font, colour,
+    alignment and visibility all come off the holder, i.e. from whatever
+    ``ScreenSkinning.apply()`` last wrote onto it — which is why this must be
+    called AFTER ``apply()``, like every other override-reading draw.
+
+    ``text`` bypasses both for the handful of runs whose content is authored
+    at RUNTIME rather than templated — a building's player-typed name, a live
+    text-entry buffer. Those still get an id'd holder (so their position,
+    font and colour are designer-owned); only the characters are not the
+    designer's to write.
+
+    ``color`` is the code-computed fallback used when no ``text_color``
+    override is set (the "``None`` means compute" convention every other
+    override key already follows); ``align`` likewise overrides the holder's
+    own for a call site that varies it. An empty resolved string draws
+    nothing — a hidden or unset label is a no-op, never a blank ``HudText``.
+    """
+    if not is_visible(holder):
+        return
+    text_id = getattr(holder, "text_id", None)
+    if text is None:
+        if text_id:
+            text = strings.T(text_id, **fmt)
+        else:
+            text = getattr(holder, "label", "") or ""
+    if not text:
+        return
+    tcol = getattr(holder, "text_color", None)
+    if tcol is None:
+        tcol = color if color is not None else C_UI_TEXT
+    if align is None:
+        align = getattr(holder, "align", "left") or "left"
+    rect = holder.rect
+    renderer.submit_hud(HudText(text, (rect[0], rect[1]),
+                                holder.font_key, tcol, align=align))
 
 
 def submit_tile_diamond(renderer, col, row, color, width=2):

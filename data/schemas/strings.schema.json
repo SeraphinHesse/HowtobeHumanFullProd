@@ -4,12 +4,432 @@
   "additionalProperties": false,
   "description": "data/ui/strings.json (Phase C): the global UI string table for text that is NOT one fixed label per widget id (that's the per-widget `label` override, data/schemas/ui_screen.schema.json) — text that varies by runtime/enum state or is built from a template with values. A FLAT {string_id: template} map, one dotted id per source module/call-site (hud.*, widgets.*, levelup.*, boss_cutscene.*). Loaded once at boot (game/main.py) and passed to game.ui.strings.configure_strings, which rebinds the string table in place; every call site resolves text via game.ui.strings.T(string_id, **kwargs) = template.format(**kwargs). The unconfigured module defaults equal this file's stock content. Templates use Python str.format() placeholders — each property's description documents which keyword(s) its call site passes. All keys are required: the game names them by id, so a missing one would raise KeyError at the T() call site; adding a NEW id is a schema change (a closed set, same convention as fonts.json/palette.json).",
   "properties": {
+    "add_name.hint": {
+      "description": "Add-a-Name modal subtitle explaining where a submitted name shows up. No placeholders.",
+      "type": "string"
+    },
+    "add_name.msg_added": {
+      "description": "Add-a-Name feedback line after a successful commit. `name` is the stripped name the player typed.",
+      "type": "string"
+    },
+    "add_name.msg_duplicate": {
+      "description": "Add-a-Name feedback line when the typed name is already in the pool. `name` is the stripped name.",
+      "type": "string"
+    },
+    "add_name.msg_empty": {
+      "description": "Add-a-Name feedback line when ADD was pressed with an empty field. No placeholders.",
+      "type": "string"
+    },
+    "add_name.placeholder": {
+      "description": "Add-a-Name text-field placeholder, shown while the field is empty and unfocused. No placeholders.",
+      "type": "string"
+    },
+    "add_name.pool_count": {
+      "description": "Add-a-Name footer counting the random-name pool. `count` is the number of names currently in it.",
+      "type": "string"
+    },
+    "boss_cutscene.box_label": {
+      "description": "Boss-cutscene option box caption. `prefix` is the resolved boss_cutscene.prefix_win/prefix_loss text, `option` the literal \"A\"/\"B\" the choice set is keyed by.",
+      "type": "string"
+    },
     "boss_cutscene.headline_loss": {
       "description": "Boss-cutscene headline shown on a LOST boss round. No placeholders (win/loss is a 2-variant runtime pick, not part of the template).",
       "type": "string"
     },
     "boss_cutscene.headline_win": {
       "description": "Boss-cutscene headline shown on a WON boss round. No placeholders.",
+      "type": "string"
+    },
+    "boss_cutscene.prefix_loss": {
+      "description": "Boss-cutscene option-box prefix on a LOST boss round. No placeholders.",
+      "type": "string"
+    },
+    "boss_cutscene.prefix_win": {
+      "description": "Boss-cutscene option-box prefix on a WON boss round. No placeholders.",
+      "type": "string"
+    },
+    "building.action.advance": {
+      "description": "Action button caption for a tier advance. `name` is the next tier's display name (upper-cased by the call site), `cost` the love figure.",
+      "type": "string"
+    },
+    "building.action.max_tier": {
+      "description": "Action button caption at the last tier. No placeholders.",
+      "type": "string"
+    },
+    "building.action.not_adjacent": {
+      "description": "Action button caption when the selected tile does not touch owned territory. No placeholders.",
+      "type": "string"
+    },
+    "building.action.research": {
+      "description": "Action button caption when the next tier needs a levelup research pick. No placeholders.",
+      "type": "string"
+    },
+    "building.action.tier_locked": {
+      "description": "Action button caption when the next tier is round-gated. No placeholders.",
+      "type": "string"
+    },
+    "building.action.unlock": {
+      "description": "Action button caption for a single-area unlock. `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.action.unlock_many": {
+      "description": "Action button caption for a batched unlock. `n` is the area count, `cost` the summed love figure.",
+      "type": "string"
+    },
+    "building.action.upgrade": {
+      "description": "Action button caption for a single in-tier upgrade. `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.action.upgrade_many": {
+      "description": "Action button caption for a batched in-tier upgrade. `n` is the building count, `cost` the summed love figure.",
+      "type": "string"
+    },
+    "building.base_info.base_income": {
+      "description": "Base info row label: the hole's own per-round income. No placeholders.",
+      "type": "string"
+    },
+    "building.base_info.buildings": {
+      "description": "Base info row label: buildings placed this run. No placeholders.",
+      "type": "string"
+    },
+    "building.base_info.enemies_killed": {
+      "description": "Base info row label: enemies killed this run. No placeholders.",
+      "type": "string"
+    },
+    "building.base_info.income_value": {
+      "description": "Base info income VALUE. `amount` is the per-round love figure.",
+      "type": "string"
+    },
+    "building.base_info.lives": {
+      "description": "Base info row label: remaining lives. No placeholders.",
+      "type": "string"
+    },
+    "building.base_info.title": {
+      "description": "Building panel header when the base is selected. No placeholders.",
+      "type": "string"
+    },
+    "building.base_info.wave": {
+      "description": "Base info row label: the current round number. No placeholders.",
+      "type": "string"
+    },
+    "building.boss.none_yet": {
+      "description": "Boss-history popup body when no boss choice has been made. No placeholders.",
+      "type": "string"
+    },
+    "building.boss.row": {
+      "description": "One boss-history row. `n` is the boss number, `outcome` Win/Loss, `option` the chosen A/B option.",
+      "type": "string"
+    },
+    "building.boss.title": {
+      "description": "Header of the boss-history popup. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.boss_choices": {
+      "description": "Base-info button opening the boss-history popup. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.boss_close": {
+      "description": "Boss-history popup close button. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.cancel": {
+      "description": "Cancel button on the construct and move preview modals. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.close": {
+      "description": "The building panel's close (X) button caption. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.confirm": {
+      "description": "Confirm button on the construct and move preview modals. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.dice": {
+      "description": "The reroll-a-random-name dice button caption (both the rename row and the construct preview). No placeholders.",
+      "type": "string"
+    },
+    "building.btn.move": {
+      "description": "The move-building button's caption. No placeholders.",
+      "type": "string"
+    },
+    "building.btn.move_blocked": {
+      "description": "The move-building button's caption for a building that is rooted to its tile. No placeholders.",
+      "type": "string"
+    },
+    "building.construct.card": {
+      "description": "One construct-mode card's caption. `name` is the tier's display name, `cost` the love price (which escalates for repeat-priced types).",
+      "type": "string"
+    },
+    "building.construct.title": {
+      "description": "Building panel header in construct mode. No placeholders.",
+      "type": "string"
+    },
+    "building.flash.cannot_move": {
+      "description": "Red button flash when a move destination was taken between opening the modal and confirming. No placeholders.",
+      "type": "string"
+    },
+    "building.flash.not_enough_love": {
+      "description": "Red button flash when the player cannot afford an action. No placeholders.",
+      "type": "string"
+    },
+    "building.hint.research": {
+      "description": "Hint under a RESEARCH REQUIRED action button. No placeholders.",
+      "type": "string"
+    },
+    "building.hint.tier_locked": {
+      "description": "Hint under a NEXT TIER LOCKED action button. `round` is the round the tier unlocks at.",
+      "type": "string"
+    },
+    "building.hint.wall_rooted": {
+      "description": "Hint under a disabled move button on a wall builder. No placeholders.",
+      "type": "string"
+    },
+    "building.log.moved": {
+      "description": "Game-log line for a move that completes immediately. No placeholders.",
+      "type": "string"
+    },
+    "building.log.moving": {
+      "description": "Game-log line for a move in progress. `rounds` is the number of rounds it will take.",
+      "type": "string"
+    },
+    "building.log.unlock_refused": {
+      "description": "Game-log line posted when an unlock is refused. No placeholders.",
+      "type": "string"
+    },
+    "building.move.hint_1": {
+      "description": "Move-mode instruction, first line of two. No placeholders.",
+      "type": "string"
+    },
+    "building.move.hint_2": {
+      "description": "Move-mode instruction, second line of two. No placeholders.",
+      "type": "string"
+    },
+    "building.move.hint_cancel": {
+      "description": "Move-mode cancel instruction. No placeholders.",
+      "type": "string"
+    },
+    "building.move.pick_tile": {
+      "description": "Move-mode instruction line. No placeholders.",
+      "type": "string"
+    },
+    "building.move.title": {
+      "description": "Building panel header while picking a move destination. No placeholders.",
+      "type": "string"
+    },
+    "building.move_preview.cost": {
+      "description": "Move preview cost line. `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.move_preview.cost_free": {
+      "description": "Move preview cost line when the move is free. No placeholders.",
+      "type": "string"
+    },
+    "building.move_preview.dest": {
+      "description": "Move preview destination line. `col`/`row` are the destination tile coordinates.",
+      "type": "string"
+    },
+    "building.move_preview.time": {
+      "description": "Move preview time line. `rounds` is the round count, `unit` the already-pluralised word (round/rounds).",
+      "type": "string"
+    },
+    "building.move_preview.time_instant": {
+      "description": "Move preview time line when the move completes immediately. No placeholders.",
+      "type": "string"
+    },
+    "building.preview.click_to_name": {
+      "description": "Placeholder in the construct preview's name box while it is empty and unfocused. No placeholders.",
+      "type": "string"
+    },
+    "building.preview.cost": {
+      "description": "Construct preview total cost line. `cost` is the love figure.",
+      "type": "string"
+    },
+    "building.preview.name_label": {
+      "description": "Construct preview label above the name box. No placeholders.",
+      "type": "string"
+    },
+    "building.preview.title_batch": {
+      "description": "Construct preview title for a BATCH placement. `name` is the tier's display name, `count` the number of tiles.",
+      "type": "string"
+    },
+    "building.preview.unnamed": {
+      "description": "Fallback name for a building confirmed with an empty name box. `title` is the tier's display name.",
+      "type": "string"
+    },
+    "building.stat.atk_speed": {
+      "description": "Building stat row label: seconds between attacks. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.atk_speed_base": {
+      "description": "Building stat row label: the UN-boosted attack speed shown beside a boosted value. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.boost": {
+      "description": "Building stat row label: a generic booster's per-turn magnitude. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.boost_damage": {
+      "description": "Building stat row label: a damage booster's per-turn magnitude. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.boost_hp": {
+      "description": "Building stat row label: an HP booster's per-turn magnitude. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.boost_speed": {
+      "description": "Building stat row label: an attack-speed booster's per-turn magnitude. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.damage": {
+      "description": "Building stat row label: damage per attack. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.damage_base": {
+      "description": "Building stat row label: the UN-boosted damage shown beside a boosted value. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.hp": {
+      "description": "Building stat row label: max hit points. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.hp_base": {
+      "description": "Building stat row label: the UN-boosted HP shown beside a boosted value. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.payout": {
+      "description": "Building stat row label: the love a painter pays out. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.pays_in": {
+      "description": "Building stat row label: rounds until a painter pays out. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.progress": {
+      "description": "Building stat row label: a painter's rounds-so-far toward its payout. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.range": {
+      "description": "Building stat row label: effective attack range in tiles. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.streak": {
+      "description": "Building stat row label: a meditator's compounding streak. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.upkeep": {
+      "description": "Building stat row label: love paid per round. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.value": {
+      "description": "The VALUE column of any building stat row. `value` is the already-formatted stat (an int, or a string like '1.0s').",
+      "type": "string"
+    },
+    "building.stat.wall_hp": {
+      "description": "Building stat row label: hit points of the walls a wall builder raises. No placeholders.",
+      "type": "string"
+    },
+    "building.stat.yield": {
+      "description": "Building stat row label: love produced per round. No placeholders.",
+      "type": "string"
+    },
+    "building.terrain_badge": {
+      "description": "The terrain badge pill under the panel header. `label` is the resolved tile-condition name (widgets.condition.*).",
+      "type": "string"
+    },
+    "building.unlock.hint": {
+      "description": "Building panel unlock-mode subtitle. No placeholders.",
+      "type": "string"
+    },
+    "building.unlock.not_adjacent": {
+      "description": "Building panel unlock-mode refusal line, shown when the tile does not touch owned territory. No placeholders.",
+      "type": "string"
+    },
+    "building.unlock.title": {
+      "description": "Building panel header in unlock mode. No placeholders.",
+      "type": "string"
+    },
+    "building.upgrade.died_last_round": {
+      "description": "Upgrade panel tag shown when last round's damage covered the building's full HP. No placeholders.",
+      "type": "string"
+    },
+    "building.upgrade.dmg_dealt": {
+      "description": "Upgrade panel round-stats row label: damage this building dealt last round. No placeholders.",
+      "type": "string"
+    },
+    "building.upgrade.dmg_taken": {
+      "description": "Upgrade panel round-stats row label: damage this building took last round. No placeholders.",
+      "type": "string"
+    },
+    "building.upgrade.name_placeholder": {
+      "description": "Placeholder text in the upgrade panel's rename box while it is empty and unfocused. No placeholders.",
+      "type": "string"
+    },
+    "building.upgrade.next_tier": {
+      "description": "Header of the upgrade panel's next-tier preview card. `name` is the next tier's display name.",
+      "type": "string"
+    },
+    "building.upgrade.next_tier_row": {
+      "description": "One stat row inside the next-tier preview card. `label` is the resolved stat label, `value` the stat's value at that tier.",
+      "type": "string"
+    },
+    "building.upgrade.tier_level": {
+      "description": "Building panel upgrade-mode subtitle. `tier` is the tier's display name, `level` the in-tier level number.",
+      "type": "string"
+    },
+    "cheat_menu.round_placeholder": {
+      "description": "Cheat-menu round field placeholder, shown while the field is empty and unfocused. No placeholders.",
+      "type": "string"
+    },
+    "credits.name": {
+      "description": "Credits row, right column. `name` is the person's name from the screen's own static roster.",
+      "type": "string"
+    },
+    "credits.role": {
+      "description": "Credits row, left column. `role` is the job title from the screen's own static roster.",
+      "type": "string"
+    },
+    "effects.announce_line1": {
+      "description": "First line of the centred boss-approach banner. No placeholders.",
+      "type": "string"
+    },
+    "effects.announce_line2": {
+      "description": "Second line of the centred boss-approach banner. No placeholders.",
+      "type": "string"
+    },
+    "effects.boss_bar_hp": {
+      "description": "Text right of the bottom-centre boss HP bar. `hp` is the current hit points, `max_hp` the maximum.",
+      "type": "string"
+    },
+    "effects.boss_bar_label": {
+      "description": "Text left of the bottom-centre boss HP bar. No placeholders.",
+      "type": "string"
+    },
+    "effects.floater_gain": {
+      "description": "World floater for a POSITIVE income/boost figure. `amount` is the love figure (unsigned - the template carries the sign).",
+      "type": "string"
+    },
+    "effects.floater_loss": {
+      "description": "World floater for a NEGATIVE income figure. `amount` already carries its own minus sign.",
+      "type": "string"
+    },
+    "effects.floater_xp": {
+      "description": "World floater for an XP award. `amount` is the XP figure (unsigned - the template carries the sign).",
+      "type": "string"
+    },
+    "game_log.building_killed": {
+      "description": "Game-log line when a NAMED building dies. `name` is its custom nameplate name.",
+      "type": "string"
+    },
+    "game_over.buildings_placed": {
+      "description": "Game-over run-stat row. `count` is the number of buildings placed during the run.",
+      "type": "string"
+    },
+    "game_over.enemies_killed": {
+      "description": "Game-over run-stat row. `count` is the number of enemies killed during the run.",
+      "type": "string"
+    },
+    "game_over.round_reached": {
+      "description": "Game-over run-stat row. `n` is the round the run ended on.",
       "type": "string"
     },
     "hud.income.base": {
@@ -128,6 +548,30 @@
       "description": "Level-up option-box tier-progress line, tier-kind options only. Placeholders: {tier_no} (the tier this option advances TO, int), {tier_max} (the family's highest tier, int).",
       "type": "string"
     },
+    "settings.display_mode": {
+      "description": "Settings header above the windowed/borderless/fullscreen cycler. No placeholders (the VALUE itself is the enum, not a template).",
+      "type": "string"
+    },
+    "settings.master_audio": {
+      "description": "Settings label above the (inert) audio slider. No placeholders.",
+      "type": "string"
+    },
+    "settings.no_audio": {
+      "description": "Settings note under the audio slider saying it is not wired yet. No placeholders.",
+      "type": "string"
+    },
+    "settings.toggle.bg_art": {
+      "description": "Settings FX toggle row label for background art. No placeholders.",
+      "type": "string"
+    },
+    "settings.toggle.gore": {
+      "description": "Settings FX toggle row label for gore. No placeholders.",
+      "type": "string"
+    },
+    "settings.toggle.income_floaters": {
+      "description": "Settings FX toggle row label for income floaters. No placeholders.",
+      "type": "string"
+    },
     "widgets.condition.forest": {
       "description": "Display label for the FOREST tile condition (10I terrain badges/tooltips, map overlays). No placeholders.",
       "type": "string"
@@ -146,8 +590,113 @@
     }
   },
   "required": [
+    "add_name.hint",
+    "add_name.msg_added",
+    "add_name.msg_duplicate",
+    "add_name.msg_empty",
+    "add_name.placeholder",
+    "add_name.pool_count",
+    "boss_cutscene.box_label",
     "boss_cutscene.headline_loss",
     "boss_cutscene.headline_win",
+    "boss_cutscene.prefix_loss",
+    "boss_cutscene.prefix_win",
+    "building.action.advance",
+    "building.action.max_tier",
+    "building.action.not_adjacent",
+    "building.action.research",
+    "building.action.tier_locked",
+    "building.action.unlock",
+    "building.action.unlock_many",
+    "building.action.upgrade",
+    "building.action.upgrade_many",
+    "building.base_info.base_income",
+    "building.base_info.buildings",
+    "building.base_info.enemies_killed",
+    "building.base_info.income_value",
+    "building.base_info.lives",
+    "building.base_info.title",
+    "building.base_info.wave",
+    "building.boss.none_yet",
+    "building.boss.row",
+    "building.boss.title",
+    "building.btn.boss_choices",
+    "building.btn.boss_close",
+    "building.btn.cancel",
+    "building.btn.close",
+    "building.btn.confirm",
+    "building.btn.dice",
+    "building.btn.move",
+    "building.btn.move_blocked",
+    "building.construct.card",
+    "building.construct.title",
+    "building.flash.cannot_move",
+    "building.flash.not_enough_love",
+    "building.hint.research",
+    "building.hint.tier_locked",
+    "building.hint.wall_rooted",
+    "building.log.moved",
+    "building.log.moving",
+    "building.log.unlock_refused",
+    "building.move.hint_1",
+    "building.move.hint_2",
+    "building.move.hint_cancel",
+    "building.move.pick_tile",
+    "building.move.title",
+    "building.move_preview.cost",
+    "building.move_preview.cost_free",
+    "building.move_preview.dest",
+    "building.move_preview.time",
+    "building.move_preview.time_instant",
+    "building.preview.click_to_name",
+    "building.preview.cost",
+    "building.preview.name_label",
+    "building.preview.title_batch",
+    "building.preview.unnamed",
+    "building.stat.atk_speed",
+    "building.stat.atk_speed_base",
+    "building.stat.boost",
+    "building.stat.boost_damage",
+    "building.stat.boost_hp",
+    "building.stat.boost_speed",
+    "building.stat.damage",
+    "building.stat.damage_base",
+    "building.stat.hp",
+    "building.stat.hp_base",
+    "building.stat.payout",
+    "building.stat.pays_in",
+    "building.stat.progress",
+    "building.stat.range",
+    "building.stat.streak",
+    "building.stat.upkeep",
+    "building.stat.value",
+    "building.stat.wall_hp",
+    "building.stat.yield",
+    "building.terrain_badge",
+    "building.unlock.hint",
+    "building.unlock.not_adjacent",
+    "building.unlock.title",
+    "building.upgrade.died_last_round",
+    "building.upgrade.dmg_dealt",
+    "building.upgrade.dmg_taken",
+    "building.upgrade.name_placeholder",
+    "building.upgrade.next_tier",
+    "building.upgrade.next_tier_row",
+    "building.upgrade.tier_level",
+    "cheat_menu.round_placeholder",
+    "credits.name",
+    "credits.role",
+    "effects.announce_line1",
+    "effects.announce_line2",
+    "effects.boss_bar_hp",
+    "effects.boss_bar_label",
+    "effects.floater_gain",
+    "effects.floater_loss",
+    "effects.floater_xp",
+    "game_log.building_killed",
+    "game_over.buildings_placed",
+    "game_over.enemies_killed",
+    "game_over.round_reached",
     "hud.income.base",
     "hud.income.meditators",
     "hud.income.musicians",
@@ -177,6 +726,12 @@
     "levelup.cost_paid",
     "levelup.heading",
     "levelup.tier_progress",
+    "settings.display_mode",
+    "settings.master_audio",
+    "settings.no_audio",
+    "settings.toggle.bg_art",
+    "settings.toggle.gore",
+    "settings.toggle.income_floaters",
     "widgets.condition.forest",
     "widgets.condition.grass",
     "widgets.condition.mountain",
@@ -185,3 +740,4 @@
   "title": "strings",
   "type": "object"
 }
+

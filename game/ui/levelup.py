@@ -26,7 +26,8 @@ from engine.render.fonts import layout_h
 
 from .skinning import ScreenSkinning
 from .widgets import (
-    anim_ms, contains, submit_centered, submit_panel, wrap_text
+    anim_ms, contains, label_holder, submit_centered, submit_label,
+    submit_panel, wrap_text
 )
 from . import widgets
 from .strings import T
@@ -68,6 +69,12 @@ class LevelupWindow:
         self.rects = []
         self.hovered = -1
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
+        # UT-5: the heading is a FIXED line above the option row, so it earns
+        # an id (unlike the 1-3 boxes below it). Its anchor is stored in
+        # layout(), the text-label convention — the exporter reads a real
+        # position and a rect override moves it.
+        self._heading = label_holder(text_id="levelup.heading", font_key="xxl",
+                                     text_color=None, align="center")
         self.ids = {}
         self._clock = 0.0  # 10L-B: only the skinned box path uses this
 
@@ -98,7 +105,11 @@ class LevelupWindow:
             self.rects = [(x0 + i * (_BOX_W + _GAP), y0, _BOX_W, _BOX_H)
                           for i in range(n)]
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self.ids = {"backdrop": ("backdrop", self._backdrop)}
+        # layout_h: the heading anchor lands in the golden parity stream.
+        top = self.rects[0][1] if self.rects else view_h // 2
+        self._heading.rect = (view_w // 2, top - layout_h("xxl") - 8, 0, 0)
+        self.ids = {"backdrop": ("backdrop", self._backdrop),
+                    "heading": ("label", self._heading)}
         self.skinning.apply(self.screen_id, self.ids)
 
     def update(self, dt, mx, my, mouse_down=False):
@@ -123,10 +134,7 @@ class LevelupWindow:
         t = anim_ms(self._clock)
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
-        top = self.rects[0][1] if self.rects else view_h // 2
-        # layout_h: the heading position lands in the golden parity stream.
-        submit_centered(renderer, T("levelup.heading"), view_w // 2,
-                        top - layout_h("xxl") - 8, "xxl", widgets.C_GOLD)
+        submit_label(renderer, self._heading, color=widgets.C_GOLD)
         panel_skin = self.skinning.defaults(self.screen_id).get("panel_skin")
         for i, option in enumerate(self.options):
             self._submit_box(renderer, self.rects[i], option, i == self.hovered,

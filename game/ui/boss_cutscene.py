@@ -33,7 +33,7 @@ from game.core.boss_bonuses import choice_desc
 
 from .skinning import ScreenSkinning, is_visible
 from .widgets import (
-    anim_ms, contains, submit_centered, submit_panel
+    anim_ms, contains, submit_centered, submit_label, submit_panel
 )
 from . import widgets
 from .strings import T
@@ -73,9 +73,17 @@ class BossCutscene:
         # scope per the "dynamic/enum-varying text" rule). subtitle is a
         # fixed, non-varying string, so — like every other screen's static
         # title — `label` is a legitimate override field for it.
-        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
+        # UT-5: both go out through ``submit_label`` now, so a ``visible``
+        # override is honoured. ``headline`` keeps ``text_id=None`` on purpose
+        # — it picks ONE OF TWO string ids from the runtime outcome, the same
+        # ``text=`` escape hatch ``hud.py``'s phase banner uses.
+        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
+                                         text_id=None, align="center",
+                                         visible=True)
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
                                          text_color=widgets.C_UI_TEXT_DIM,
+                                         align="center", visible=True,
+                                         text_id=None,
                                          label="How will we react?")
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
@@ -156,18 +164,18 @@ class BossCutscene:
         headline = T("boss_cutscene.headline_win" if won
                      else "boss_cutscene.headline_loss")
         color = _WIN_GREEN if won else _LOSS_RED
-        submit_centered(renderer, headline, self._headline.rect[0],
-                        self._headline.rect[1], self._headline.font_key, color)
-        submit_centered(renderer, self._subtitle.label, self._subtitle.rect[0],
-                        self._subtitle.rect[1], self._subtitle.font_key,
-                        self._subtitle.text_color)
-        prefix = "Win" if won else "Loss"
+        submit_label(renderer, self._headline, text=headline, color=color)
+        submit_label(renderer, self._subtitle)
+        prefix = T("boss_cutscene.prefix_win" if won
+                   else "boss_cutscene.prefix_loss")
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(
                 (("A", self.box_a), ("B", self.box_b))):
             if not is_visible(box):
                 continue
-            self._submit_box(renderer, box, prefix + option,
+            self._submit_box(renderer, box,
+                             T("boss_cutscene.box_label", prefix=prefix,
+                               option=option),
                              choice_desc(set_idx, option, self.core_balance),
                              i == self.hovered, t)
 

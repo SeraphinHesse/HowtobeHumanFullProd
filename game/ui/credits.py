@@ -18,6 +18,7 @@ from .widgets import (
     Button, anim_ms, submit_centered, submit_text
 )
 from . import widgets
+from .strings import T
 
 _BG = (12, 20, 14)
 
@@ -94,9 +95,15 @@ class CreditsScreen:
             if not role and not name:
                 y += _SPACER_H
                 continue
-            submit_text(renderer, role, (cx - 20, y), "sm", widgets.C_UI_TEXT_DIM,
-                        align="right")
-            submit_text(renderer, name, (cx + 20, y), "md", widgets.C_UI_TEXT)
+            # UT-5: the ROWS are dynamic-count content and get no per-row id
+            # (the levelup-option-box / construct-card rule), but each column
+            # still resolves through a string template — the `{value}`-shaped
+            # `building.stat.value` precedent — so a designer can decorate a
+            # column without touching code.
+            submit_text(renderer, T("credits.role", role=role), (cx - 20, y),
+                        "sm", widgets.C_UI_TEXT_DIM, align="right")
+            submit_text(renderer, T("credits.name", name=name), (cx + 20, y),
+                        "md", widgets.C_UI_TEXT)
             y += _LINE_H
         if is_visible(self.back_btn):
             self.back_btn.submit(renderer, anim_ms=t, **button_kwargs(self.back_btn))

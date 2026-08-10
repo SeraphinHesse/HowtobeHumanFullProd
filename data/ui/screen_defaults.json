@@ -35,6 +35,28 @@
           20
         ]
       },
+      "hint": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          146,
+          0,
+          0
+        ],
+        "sample": "Appears on the building-naming dice button.",
+        "text_id": "add_name.hint"
+      },
+      "msg_text": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          193,
+          0,
+          0
+        ]
+      },
       "panel": {
         "display_name": "Add name panel",
         "kind": "panel",
@@ -45,6 +67,17 @@
           230,
           130
         ]
+      },
+      "pool_count": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          217,
+          206,
+          0,
+          0
+        ],
+        "text_id": "add_name.pool_count"
       },
       "title": {
         "display_name": "Title label",
@@ -123,8 +156,21 @@
     "mock_note": "love=123, round=7; first-wins union of the five per-mode views ('unlock', 'construct', 'upgrade', 'base_info', 'preview') for ids shared across modes (panel/close_btn) — see views.<name>.mock_note for that mode's own mock state",
     "views": {
       "base_info": {
-        "mock_note": "love=123, round=7",
+        "mock_note": "love=123, round=7; the base tile (the hole)",
         "widgets": {
+          "base_info_title": {
+            "display_name": "The Hole header",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              8,
+              0,
+              0
+            ],
+            "sample": "THE HOLE",
+            "text_id": "building.base_info.title"
+          },
           "boss_btn": {
             "display_name": "Boss history button",
             "kind": "button",
@@ -158,6 +204,131 @@
               13
             ]
           },
+          "info_base_income_label": {
+            "display_name": "Base income label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              96,
+              0,
+              0
+            ],
+            "sample": "Base income",
+            "text_id": "building.base_info.base_income"
+          },
+          "info_base_income_value": {
+            "display_name": "Base income value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              96,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "info_buildings_label": {
+            "display_name": "Buildings label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              81,
+              0,
+              0
+            ],
+            "sample": "Buildings",
+            "text_id": "building.base_info.buildings"
+          },
+          "info_buildings_value": {
+            "display_name": "Buildings value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              81,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "info_enemies_killed_label": {
+            "display_name": "Enemies killed label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              66,
+              0,
+              0
+            ],
+            "sample": "Enemies killed",
+            "text_id": "building.base_info.enemies_killed"
+          },
+          "info_enemies_killed_value": {
+            "display_name": "Enemies killed value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              66,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "info_lives_label": {
+            "display_name": "Lives label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              36,
+              0,
+              0
+            ],
+            "sample": "Lives",
+            "text_id": "building.base_info.lives"
+          },
+          "info_lives_value": {
+            "display_name": "Lives value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              36,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "info_wave_label": {
+            "display_name": "Wave label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              51,
+              0,
+              0
+            ],
+            "sample": "Wave",
+            "text_id": "building.base_info.wave"
+          },
+          "info_wave_value": {
+            "display_name": "Wave value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              51,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
           "panel": {
             "display_name": "Building panel",
             "kind": "panel",
@@ -172,7 +343,7 @@
         }
       },
       "construct": {
-        "mock_note": "love=123, round=7; construct cards are dynamic-count and deliberately un-id'd (B3 rule) — they inherit defaults.button_skin instead of an individual override",
+        "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map — construct cards are dynamic-count and deliberately un-id'd, they inherit defaults.button_skin",
         "widgets": {
           "close_btn": {
             "display_name": "Close button",
@@ -184,6 +355,19 @@
               14,
               13
             ]
+          },
+          "construct_title": {
+            "display_name": "Build header",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              8,
+              0,
+              0
+            ],
+            "sample": "BUILD",
+            "text_id": "building.construct.title"
           },
           "panel": {
             "display_name": "Building panel",
@@ -199,7 +383,7 @@
         }
       },
       "preview": {
-        "mock_note": "love=123, round=7; ConstructPreview('defence') modal open, count=1, tier_idx=0 (preview_cancel_btn present iff ui.Timing.construct_show_cancel)",
+        "mock_note": "love=123, round=7; ConstructPreview('defence') modal open over the construct panel, count=1, tier_idx=0 (preview_cancel_btn present iff ui.Timing.construct_show_cancel)",
         "widgets": {
           "preview_cancel_btn": {
             "display_name": "Construct cancel button",
@@ -259,12 +443,12 @@
         }
       },
       "unlock": {
-        "mock_note": "love=123, round=7; mock tile (0,0), a single-tile chunk, fixed unlock_cost=40, can_unlock=True (always adjacent)",
+        "mock_note": "love=123, round=7; the lowest-(row,col) COMBAT tile of the 'first_light' map, its real 2x2 chunk and unlock cost",
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
             "kind": "button",
-            "label": "UNLOCK  40",
+            "label": "UNLOCK  7",
             "rect": [
               516,
               75,
@@ -293,11 +477,50 @@
               130,
               360
             ]
+          },
+          "unlock_blocked": {
+            "display_name": "Not-adjacent warning",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              98,
+              0,
+              0
+            ],
+            "sample": "Must touch your territory",
+            "text_id": "building.unlock.not_adjacent"
+          },
+          "unlock_hint": {
+            "display_name": "Unlock subtitle",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              35,
+              0,
+              0
+            ],
+            "sample": "Unlocks a 2x2 area",
+            "text_id": "building.unlock.hint"
+          },
+          "unlock_title": {
+            "display_name": "Unlock header",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              8,
+              0,
+              0
+            ],
+            "sample": "UNLOCK TILE",
+            "text_id": "building.unlock.title"
           }
         }
       },
       "upgrade": {
-        "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) with a fresh RunState.from_balance() run-state — upgrade_gate resolves 'in_tier' deterministically",
+        "mock_note": "love=123, round=7; a freshly created 'defence' building (tier 0, level 1) — upgrade_gate resolves 'in_tier' deterministically",
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
@@ -321,6 +544,69 @@
               13
             ]
           },
+          "died_last_round": {
+            "display_name": "Died-last-round tag",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              575,
+              157,
+              0,
+              0
+            ],
+            "sample": "DIED LAST ROUND",
+            "text_id": "building.upgrade.died_last_round"
+          },
+          "dmg_dealt_label": {
+            "display_name": "Damage dealt label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              133,
+              0,
+              0
+            ],
+            "sample": "Damage dealt",
+            "text_id": "building.upgrade.dmg_dealt"
+          },
+          "dmg_dealt_value": {
+            "display_name": "Damage dealt value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              133,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "dmg_taken_label": {
+            "display_name": "Damage taken label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              145,
+              0,
+              0
+            ],
+            "sample": "Damage taken",
+            "text_id": "building.upgrade.dmg_taken"
+          },
+          "dmg_taken_value": {
+            "display_name": "Damage taken value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              145,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
           "move_btn": {
             "display_name": "Move building button",
             "kind": "button",
@@ -331,6 +617,18 @@
               118,
               15
             ]
+          },
+          "next_tier_header": {
+            "display_name": "Next-tier card header",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              0,
+              0,
+              0
+            ],
+            "text_id": "building.upgrade.next_tier"
           },
           "panel": {
             "display_name": "Building panel",
@@ -353,6 +651,503 @@
               14,
               15
             ]
+          },
+          "stat_atk_speed_base_label": {
+            "display_name": "Atk speed base label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              156,
+              0,
+              0
+            ],
+            "sample": "Atk speed base",
+            "text_id": "building.stat.atk_speed_base"
+          },
+          "stat_atk_speed_base_value": {
+            "display_name": "Atk speed base value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              156,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_atk_speed_label": {
+            "display_name": "Atk speed label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              100,
+              0,
+              0
+            ],
+            "sample": "Atk speed",
+            "text_id": "building.stat.atk_speed"
+          },
+          "stat_atk_speed_value": {
+            "display_name": "Atk speed value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              100,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_boost_damage_label": {
+            "display_name": "Dmg boost/turn label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              198,
+              0,
+              0
+            ],
+            "sample": "Dmg boost/turn",
+            "text_id": "building.stat.boost_damage"
+          },
+          "stat_boost_damage_value": {
+            "display_name": "Dmg boost/turn value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              198,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_boost_hp_label": {
+            "display_name": "HP boost/turn label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              212,
+              0,
+              0
+            ],
+            "sample": "HP boost/turn",
+            "text_id": "building.stat.boost_hp"
+          },
+          "stat_boost_hp_value": {
+            "display_name": "HP boost/turn value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              212,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_boost_label": {
+            "display_name": "Boost/turn label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              170,
+              0,
+              0
+            ],
+            "sample": "Boost/turn",
+            "text_id": "building.stat.boost"
+          },
+          "stat_boost_speed_label": {
+            "display_name": "Spd boost/turn label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              184,
+              0,
+              0
+            ],
+            "sample": "Spd boost/turn",
+            "text_id": "building.stat.boost_speed"
+          },
+          "stat_boost_speed_value": {
+            "display_name": "Spd boost/turn value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              184,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_boost_value": {
+            "display_name": "Boost/turn value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              170,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_damage_base_label": {
+            "display_name": "Damage base label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              142,
+              0,
+              0
+            ],
+            "sample": "Damage base",
+            "text_id": "building.stat.damage_base"
+          },
+          "stat_damage_base_value": {
+            "display_name": "Damage base value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              142,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_damage_label": {
+            "display_name": "Damage label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              72,
+              0,
+              0
+            ],
+            "sample": "Damage",
+            "text_id": "building.stat.damage"
+          },
+          "stat_damage_value": {
+            "display_name": "Damage value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              72,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_hp_base_label": {
+            "display_name": "HP base label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              128,
+              0,
+              0
+            ],
+            "sample": "HP base",
+            "text_id": "building.stat.hp_base"
+          },
+          "stat_hp_base_value": {
+            "display_name": "HP base value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              128,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_hp_label": {
+            "display_name": "HP label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              58,
+              0,
+              0
+            ],
+            "sample": "HP",
+            "text_id": "building.stat.hp"
+          },
+          "stat_hp_value": {
+            "display_name": "HP value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              58,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_payout_label": {
+            "display_name": "Payout label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              254,
+              0,
+              0
+            ],
+            "sample": "Payout",
+            "text_id": "building.stat.payout"
+          },
+          "stat_payout_value": {
+            "display_name": "Payout value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              254,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_pays_in_label": {
+            "display_name": "Pays in label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              268,
+              0,
+              0
+            ],
+            "sample": "Pays in",
+            "text_id": "building.stat.pays_in"
+          },
+          "stat_pays_in_value": {
+            "display_name": "Pays in value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              268,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_progress_label": {
+            "display_name": "Progress label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              240,
+              0,
+              0
+            ],
+            "sample": "Progress",
+            "text_id": "building.stat.progress"
+          },
+          "stat_progress_value": {
+            "display_name": "Progress value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              240,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_range_label": {
+            "display_name": "Range label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              86,
+              0,
+              0
+            ],
+            "sample": "Range",
+            "text_id": "building.stat.range"
+          },
+          "stat_range_value": {
+            "display_name": "Range value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              86,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_streak_label": {
+            "display_name": "Streak label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              296,
+              0,
+              0
+            ],
+            "sample": "Streak",
+            "text_id": "building.stat.streak"
+          },
+          "stat_streak_value": {
+            "display_name": "Streak value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              296,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_upkeep_label": {
+            "display_name": "Upkeep label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              114,
+              0,
+              0
+            ],
+            "sample": "Upkeep",
+            "text_id": "building.stat.upkeep"
+          },
+          "stat_upkeep_value": {
+            "display_name": "Upkeep value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              114,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_wall_hp_label": {
+            "display_name": "Wall HP label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              226,
+              0,
+              0
+            ],
+            "sample": "Wall HP",
+            "text_id": "building.stat.wall_hp"
+          },
+          "stat_wall_hp_value": {
+            "display_name": "Wall HP value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              226,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "stat_yield_label": {
+            "display_name": "Yield label",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              282,
+              0,
+              0
+            ],
+            "sample": "Yield",
+            "text_id": "building.stat.yield"
+          },
+          "stat_yield_value": {
+            "display_name": "Yield value",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              633,
+              282,
+              0,
+              0
+            ],
+            "text_id": "building.stat.value"
+          },
+          "upgrade_hint": {
+            "display_name": "Action button hint",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              0,
+              0,
+              0,
+              0
+            ]
+          },
+          "upgrade_name": {
+            "display_name": "Rename box text",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              520,
+              22,
+              0,
+              0
+            ],
+            "sample": "click here to change name",
+            "text_id": "building.upgrade.name_placeholder"
+          },
+          "upgrade_tier_level": {
+            "display_name": "Tier / level line",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              34,
+              0,
+              0
+            ],
+            "text_id": "building.upgrade.tier_level"
+          },
+          "upgrade_title": {
+            "display_name": "Building name header",
+            "kind": "label",
+            "label": "",
+            "rect": [
+              517,
+              5,
+              0,
+              0
+            ]
           }
         }
       }
@@ -361,13 +1156,26 @@
       "action_btn": {
         "display_name": "Unlock / Build / Upgrade button",
         "kind": "button",
-        "label": "UNLOCK  40",
+        "label": "UNLOCK  7",
         "rect": [
           516,
           75,
           118,
           18
         ]
+      },
+      "base_info_title": {
+        "display_name": "The Hole header",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          8,
+          0,
+          0
+        ],
+        "sample": "THE HOLE",
+        "text_id": "building.base_info.title"
       },
       "boss_btn": {
         "display_name": "Boss history button",
@@ -402,6 +1210,207 @@
           13
         ]
       },
+      "construct_title": {
+        "display_name": "Build header",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          8,
+          0,
+          0
+        ],
+        "sample": "BUILD",
+        "text_id": "building.construct.title"
+      },
+      "died_last_round": {
+        "display_name": "Died-last-round tag",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          575,
+          157,
+          0,
+          0
+        ],
+        "sample": "DIED LAST ROUND",
+        "text_id": "building.upgrade.died_last_round"
+      },
+      "dmg_dealt_label": {
+        "display_name": "Damage dealt label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          133,
+          0,
+          0
+        ],
+        "sample": "Damage dealt",
+        "text_id": "building.upgrade.dmg_dealt"
+      },
+      "dmg_dealt_value": {
+        "display_name": "Damage dealt value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          133,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "dmg_taken_label": {
+        "display_name": "Damage taken label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          145,
+          0,
+          0
+        ],
+        "sample": "Damage taken",
+        "text_id": "building.upgrade.dmg_taken"
+      },
+      "dmg_taken_value": {
+        "display_name": "Damage taken value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          145,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "info_base_income_label": {
+        "display_name": "Base income label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          96,
+          0,
+          0
+        ],
+        "sample": "Base income",
+        "text_id": "building.base_info.base_income"
+      },
+      "info_base_income_value": {
+        "display_name": "Base income value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          96,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "info_buildings_label": {
+        "display_name": "Buildings label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          81,
+          0,
+          0
+        ],
+        "sample": "Buildings",
+        "text_id": "building.base_info.buildings"
+      },
+      "info_buildings_value": {
+        "display_name": "Buildings value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          81,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "info_enemies_killed_label": {
+        "display_name": "Enemies killed label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          66,
+          0,
+          0
+        ],
+        "sample": "Enemies killed",
+        "text_id": "building.base_info.enemies_killed"
+      },
+      "info_enemies_killed_value": {
+        "display_name": "Enemies killed value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          66,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "info_lives_label": {
+        "display_name": "Lives label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          36,
+          0,
+          0
+        ],
+        "sample": "Lives",
+        "text_id": "building.base_info.lives"
+      },
+      "info_lives_value": {
+        "display_name": "Lives value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          36,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "info_wave_label": {
+        "display_name": "Wave label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          51,
+          0,
+          0
+        ],
+        "sample": "Wave",
+        "text_id": "building.base_info.wave"
+      },
+      "info_wave_value": {
+        "display_name": "Wave value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          51,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
       "move_btn": {
         "display_name": "Move building button",
         "kind": "button",
@@ -412,6 +1421,18 @@
           118,
           15
         ]
+      },
+      "next_tier_header": {
+        "display_name": "Next-tier card header",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          0,
+          0,
+          0
+        ],
+        "text_id": "building.upgrade.next_tier"
       },
       "panel": {
         "display_name": "Building panel",
@@ -488,6 +1509,542 @@
           20,
           14,
           15
+        ]
+      },
+      "stat_atk_speed_base_label": {
+        "display_name": "Atk speed base label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          156,
+          0,
+          0
+        ],
+        "sample": "Atk speed base",
+        "text_id": "building.stat.atk_speed_base"
+      },
+      "stat_atk_speed_base_value": {
+        "display_name": "Atk speed base value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          156,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_atk_speed_label": {
+        "display_name": "Atk speed label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          100,
+          0,
+          0
+        ],
+        "sample": "Atk speed",
+        "text_id": "building.stat.atk_speed"
+      },
+      "stat_atk_speed_value": {
+        "display_name": "Atk speed value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          100,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_boost_damage_label": {
+        "display_name": "Dmg boost/turn label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          198,
+          0,
+          0
+        ],
+        "sample": "Dmg boost/turn",
+        "text_id": "building.stat.boost_damage"
+      },
+      "stat_boost_damage_value": {
+        "display_name": "Dmg boost/turn value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          198,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_boost_hp_label": {
+        "display_name": "HP boost/turn label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          212,
+          0,
+          0
+        ],
+        "sample": "HP boost/turn",
+        "text_id": "building.stat.boost_hp"
+      },
+      "stat_boost_hp_value": {
+        "display_name": "HP boost/turn value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          212,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_boost_label": {
+        "display_name": "Boost/turn label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          170,
+          0,
+          0
+        ],
+        "sample": "Boost/turn",
+        "text_id": "building.stat.boost"
+      },
+      "stat_boost_speed_label": {
+        "display_name": "Spd boost/turn label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          184,
+          0,
+          0
+        ],
+        "sample": "Spd boost/turn",
+        "text_id": "building.stat.boost_speed"
+      },
+      "stat_boost_speed_value": {
+        "display_name": "Spd boost/turn value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          184,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_boost_value": {
+        "display_name": "Boost/turn value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          170,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_damage_base_label": {
+        "display_name": "Damage base label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          142,
+          0,
+          0
+        ],
+        "sample": "Damage base",
+        "text_id": "building.stat.damage_base"
+      },
+      "stat_damage_base_value": {
+        "display_name": "Damage base value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          142,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_damage_label": {
+        "display_name": "Damage label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          72,
+          0,
+          0
+        ],
+        "sample": "Damage",
+        "text_id": "building.stat.damage"
+      },
+      "stat_damage_value": {
+        "display_name": "Damage value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          72,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_hp_base_label": {
+        "display_name": "HP base label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          128,
+          0,
+          0
+        ],
+        "sample": "HP base",
+        "text_id": "building.stat.hp_base"
+      },
+      "stat_hp_base_value": {
+        "display_name": "HP base value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          128,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_hp_label": {
+        "display_name": "HP label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          58,
+          0,
+          0
+        ],
+        "sample": "HP",
+        "text_id": "building.stat.hp"
+      },
+      "stat_hp_value": {
+        "display_name": "HP value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          58,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_payout_label": {
+        "display_name": "Payout label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          254,
+          0,
+          0
+        ],
+        "sample": "Payout",
+        "text_id": "building.stat.payout"
+      },
+      "stat_payout_value": {
+        "display_name": "Payout value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          254,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_pays_in_label": {
+        "display_name": "Pays in label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          268,
+          0,
+          0
+        ],
+        "sample": "Pays in",
+        "text_id": "building.stat.pays_in"
+      },
+      "stat_pays_in_value": {
+        "display_name": "Pays in value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          268,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_progress_label": {
+        "display_name": "Progress label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          240,
+          0,
+          0
+        ],
+        "sample": "Progress",
+        "text_id": "building.stat.progress"
+      },
+      "stat_progress_value": {
+        "display_name": "Progress value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          240,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_range_label": {
+        "display_name": "Range label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          86,
+          0,
+          0
+        ],
+        "sample": "Range",
+        "text_id": "building.stat.range"
+      },
+      "stat_range_value": {
+        "display_name": "Range value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          86,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_streak_label": {
+        "display_name": "Streak label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          296,
+          0,
+          0
+        ],
+        "sample": "Streak",
+        "text_id": "building.stat.streak"
+      },
+      "stat_streak_value": {
+        "display_name": "Streak value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          296,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_upkeep_label": {
+        "display_name": "Upkeep label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          114,
+          0,
+          0
+        ],
+        "sample": "Upkeep",
+        "text_id": "building.stat.upkeep"
+      },
+      "stat_upkeep_value": {
+        "display_name": "Upkeep value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          114,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_wall_hp_label": {
+        "display_name": "Wall HP label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          226,
+          0,
+          0
+        ],
+        "sample": "Wall HP",
+        "text_id": "building.stat.wall_hp"
+      },
+      "stat_wall_hp_value": {
+        "display_name": "Wall HP value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          226,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "stat_yield_label": {
+        "display_name": "Yield label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          282,
+          0,
+          0
+        ],
+        "sample": "Yield",
+        "text_id": "building.stat.yield"
+      },
+      "stat_yield_value": {
+        "display_name": "Yield value",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          633,
+          282,
+          0,
+          0
+        ],
+        "text_id": "building.stat.value"
+      },
+      "unlock_blocked": {
+        "display_name": "Not-adjacent warning",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          98,
+          0,
+          0
+        ],
+        "sample": "Must touch your territory",
+        "text_id": "building.unlock.not_adjacent"
+      },
+      "unlock_hint": {
+        "display_name": "Unlock subtitle",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          35,
+          0,
+          0
+        ],
+        "sample": "Unlocks a 2x2 area",
+        "text_id": "building.unlock.hint"
+      },
+      "unlock_title": {
+        "display_name": "Unlock header",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          8,
+          0,
+          0
+        ],
+        "sample": "UNLOCK TILE",
+        "text_id": "building.unlock.title"
+      },
+      "upgrade_hint": {
+        "display_name": "Action button hint",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "upgrade_name": {
+        "display_name": "Rename box text",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          520,
+          22,
+          0,
+          0
+        ],
+        "sample": "click here to change name",
+        "text_id": "building.upgrade.name_placeholder"
+      },
+      "upgrade_tier_level": {
+        "display_name": "Tier / level line",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          34,
+          0,
+          0
+        ],
+        "text_id": "building.upgrade.tier_level"
+      },
+      "upgrade_title": {
+        "display_name": "Building name header",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          517,
+          5,
+          0,
+          0
         ]
       }
     }
@@ -707,6 +2264,39 @@
           23
         ]
       },
+      "stat_buildings": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          179,
+          0,
+          0
+        ],
+        "text_id": "game_over.buildings_placed"
+      },
+      "stat_enemies": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          193,
+          0,
+          0
+        ],
+        "text_id": "game_over.enemies_killed"
+      },
+      "stat_round": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          165,
+          0,
+          0
+        ],
+        "text_id": "game_over.round_reached"
+      },
       "title": {
         "display_name": "Title label",
         "kind": "label",
@@ -823,7 +2413,8 @@
           25,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.income_net"
       },
       "lives_text": {
         "kind": "label",
@@ -833,7 +2424,8 @@
           41,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.lives"
       },
       "love_panel": {
         "display_name": "Love panel",
@@ -854,7 +2446,8 @@
           9,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.love_display"
       },
       "lvl_label": {
         "kind": "label",
@@ -864,7 +2457,8 @@
           6,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.level"
       },
       "phase_label": {
         "display_name": "Phase label",
@@ -896,7 +2490,8 @@
           307,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.round"
       },
       "tiles_text": {
         "kind": "label",
@@ -906,7 +2501,8 @@
           57,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.tiles"
       },
       "xp_bar": {
         "display_name": "XP bar",
@@ -927,7 +2523,8 @@
           28,
           0,
           0
-        ]
+        ],
+        "text_id": "hud.xp_progress"
       }
     }
   },
@@ -944,6 +2541,18 @@
           640,
           360
         ]
+      },
+      "heading": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          142,
+          0,
+          0
+        ],
+        "sample": "CHOOSE YOUR REWARD",
+        "text_id": "levelup.heading"
       }
     }
   },
@@ -1171,6 +2780,31 @@
   "settings": {
     "mock_note": "love=123, round=7 (idle, default SessionSettings — no world state)",
     "widgets": {
+      "audio_label": {
+        "display_name": "Master Audio label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          245,
+          237,
+          0,
+          0
+        ],
+        "sample": "Master Audio",
+        "text_id": "settings.master_audio"
+      },
+      "audio_note": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          259,
+          0,
+          0
+        ],
+        "sample": "(no audio yet)",
+        "text_id": "settings.no_audio"
+      },
       "backdrop": {
         "display_name": "Background backdrop",
         "kind": "backdrop",
@@ -1257,6 +2891,65 @@
           45,
           20
         ]
+      },
+      "dm_label": {
+        "display_name": "Display Mode label",
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          108,
+          0,
+          0
+        ],
+        "sample": "Display Mode",
+        "text_id": "settings.display_mode"
+      },
+      "dm_value": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          320,
+          125,
+          0,
+          0
+        ]
+      },
+      "label_bg_art": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          245,
+          188,
+          0,
+          0
+        ],
+        "sample": "Background Art",
+        "text_id": "settings.toggle.bg_art"
+      },
+      "label_gore": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          245,
+          216,
+          0,
+          0
+        ],
+        "sample": "Gore",
+        "text_id": "settings.toggle.gore"
+      },
+      "label_income_floaters": {
+        "kind": "label",
+        "label": "",
+        "rect": [
+          245,
+          160,
+          0,
+          0
+        ],
+        "sample": "Income Floaters",
+        "text_id": "settings.toggle.income_floaters"
       },
       "title": {
         "display_name": "Title label",

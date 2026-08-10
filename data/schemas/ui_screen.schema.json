@@ -105,6 +105,10 @@
               "minItems": 3,
               "type": "array"
             },
+            "text_id": {
+              "minLength": 1,
+              "type": "string"
+            },
             "tint": {
               "items": {
                 "maximum": 255,

@@ -1163,15 +1163,124 @@ reference to a resolved VALUE, only to the `T` function).
   The editor's Strings panel (`editor/panels/strings_panel.py`,
   `editor/strings_ops.py`) writes `strings.json` and stops there; the game
   re-reads it at its own next boot.
-- **Not yet migrated (scope note)**: this phase covered `hud.py` in full,
+- **Migration status**: Phase C covered `hud.py` in full,
   `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
-  `boss_cutscene.py`'s win/loss headline. `building_ui.py`'s many per-mode
-  dynamic labels (action-button text, stat rows, the boss-history popup),
-  `effects.py`'s floater/announce text, and the remaining menu screens'
-  templated strings (`game_over.py`'s stat lines, `add_name.py`'s pool
-  counter, `credits.py`) are STILL plain f-strings/module literals — good
-  candidates for the same treatment, deliberately left for a follow-up pass
-  rather than migrated wholesale in one phase.
+  `boss_cutscene.py`'s win/loss headline. UT-3 took `building_ui.py`, UT-4
+  the rest of `hud.py`, and **UT-5 the remaining screens + `effects.py`** —
+  see the UT-5 section below. There is no known un-migrated user-visible
+  string left in `game/ui`; what stays a Python literal now does so for a
+  stated reason (a static title on the per-widget `label` mechanism, or a
+  runtime-authored value), not because nobody got to it.
+
+## `text_id` — a widget's text is DATA now (UT-1 … UT-4)
+
+The 10L-B widget contract gained a fifth override key beside `rect`/`skin`/
+`font`/`color`/`text_color`/`visible`/`tint`: **`text_id`**, the
+`data/ui/strings.json` key a label-bearing widget resolves its text through.
+It needs no `_SPEC_TO_ATTR` entry — `ScreenSkinning.apply`'s one generic
+setattr loop threads it onto the holder for free, exactly like `skin`/`tint`.
+
+**`widgets.submit_label(renderer, holder, **fmt)` is THE idiom.** It resolves
+`T(holder.text_id, **fmt)`, reads geometry/font/colour/alignment off the
+holder (i.e. off whatever `apply()` last wrote), and skips a hidden or empty
+one. Build the holder with `widgets.label_holder(...)`, whose defaults encode
+the text-label convention (an `(x, y, 0, 0)` ANCHOR, W/H nominal 0, stored in
+`layout()` so the exporter reads a real position and a rect override moves the
+text). **Never re-implement the resolution inline** — a call site that reads
+`holder.text_id` itself is the drift this helper exists to prevent.
+
+Three escape hatches, all deliberate:
+- **`text=`** overrides both, for runs whose CONTENT is authored at runtime
+  and no template can produce: a building's player-typed name, the rename
+  box's live buffer, a phase banner that picks one of six ids by enum. The
+  holder still owns position, font and colour — only the characters are not
+  the designer's.
+- **`color=`** is the code-computed fallback used when no `text_color`
+  override is set (the "`None` means compute" convention).
+- A holder with no `text_id` falls back to its static `label` — the pre-UT-1
+  behaviour, unchanged, and still the right answer for a fixed title.
+
+### Per-stat widgets (`building_ui.py`, UT-3)
+
+`_building_stats(b)` returns `(stat_key, value)` — **not** `(label, value)`.
+The label is the widget's own `building.stat.<key>` template. Every key in
+`STAT_KEYS` owns TWO id'd widgets, `stat_<key>_label` and `stat_<key>_value`,
+so a designer can place a stat's NAME and its NUMBER independently. Rules:
+
+- **`_layout_upgrade_rows()` stacks the SHOWN subset**, and it runs from
+  `_build_upgrade` — before any `submit()`, therefore before
+  `skinning.apply` — which is what makes a rect override win. Rows below an
+  overridden one keep their own defaults (the no-cascade convention).
+- A stat the selected building lacks keeps its canonical-order anchor from
+  `_build_text_holders`, so the exporter still records a real position for
+  its two ids.
+- The hover next-level preview matches on the **key**, so renaming a stat in
+  `strings.json` can no longer silently break the green highlight — which it
+  could when the match was on label text.
+- `boosted_stats()` still returns display labels; `_BOOSTED_STAT_KEYS` maps
+  them, rather than widening that method's contract for its one consumer.
+  `game/buildings/boost.py`'s four classes carry `_boost_stat_key` beside
+  `_boost_label` for the same reason.
+- **Dynamic-count content keeps the construct-card rule**: the next-tier
+  card's three rows and `ConstructPreview`'s stat list get no per-row id, but
+  their labels resolve through the SAME `building.stat.*` ids, so a rename
+  reaches them too.
+
+### The remaining screens + `effects.py` (UT-5)
+
+The same conversion, screen by screen. The rule that decided **id vs. plain
+`T()`** everywhere below is the anchor-rect convention already stated above:
+**a widget id needs a STORED rect first.** Copy whose position is computed
+inline from another widget's rect at submit time gets its text into
+`strings.json` and stops there — giving it an id would mean inventing a
+stored anchor for it, which is a layout change, and UT-5 is explicitly not
+allowed to move a pixel.
+
+- **New ids (all additive; `screen_defaults.json` gained widgets, nothing
+  moved)**: `game_over`'s three run-stat rows
+  (`stat_round`/`stat_buildings`/`stat_enemies`), `levelup`'s `heading`,
+  `settings`' `dm_label`/`dm_value`/`audio_label`/`audio_note` plus one
+  `label_<attr>` per FX toggle row (the sibling of its existing
+  `btn_toggle_<attr>` — a row's NAME and its ON/OFF control are
+  independently placeable, the per-stat rule), and `add_name`'s
+  `hint`/`msg_text`/`pool_count`.
+- **`text=` (runtime-authored content, holder still owns everything else)**:
+  `boss_cutscene`'s headline (a 2-of-2 enum pick), `settings`' display-mode
+  value, `add_name`'s feedback line, `game_over`'s numbers.
+- **String ids, no widget id**: `cheat_menu`'s round-field placeholder and
+  `add_name`'s name-field placeholder (both positioned off their field's
+  rect), `credits`' two row columns (dynamic-count rows, so `credits.role`/
+  `credits.name` are `{value}`-shaped templates the way `building.stat.value`
+  is), and every string in `effects.py` — the announce banner, the boss HUD
+  bar's label + `hp/max`, the four floater texts, and the "<name> has been
+  killed" game-log line. **`effects.py` is FX, not a screen**: it has no
+  `ids` dict at all and every position is a world point or a view-relative
+  centre, so `T()` is the whole of its binding.
+- **Deliberately unchanged**: `main_menu`, `pause`, `overlays` and
+  `tutorial_message` carry no templated or un-id'd copy — every string on
+  them is either a static title/button caption already served by the
+  per-widget `label` override (which is documented above as the right answer
+  for a fixed string, and which `test_ui_text_binding`'s
+  `test_unbound_widget_keeps_the_per_widget_label` pins on `main_menu.title`)
+  or runtime script text (`tutorial_message`) with an id'd holder already.
+  `game_log`'s lines are posted messages — its one `log` id styles them and
+  their text belongs to whoever posted it.
+- **The three code-only screens** (`highscores`, `player_intro`,
+  `debug_settings`) were NOT added to `tools/export_ui_layouts.py`'s
+  `SCREEN_IDS`, nor was `tutorial_message`. The plan floated it as a
+  deliberate scope addition; adding a screen there also adds an entry to
+  `screen_previews.json`, and UT-5's landing condition is a byte-empty diff
+  on that file. It stays a separate change.
+
+### What is still code-owned, and why
+
+Not everything became data. `hud.py`'s income-breakdown tooltip and lightning
+readout are hover/phase-gated overlays with no stored rect (they are drawn
+from a computed position at submit time), so they carry no id — their TEXT is
+already `T()`-bound and editable, only their POSITION is not. The same goes
+for `building_ui.py`'s terrain badge/tooltip and the boss-history rows.
+Giving one of those an id means giving it a stored rect first (the anchor-rect
+convention above), not just wrapping the draw call.
 
 ## The love glyph is GONE
 `widgets.HEART` (`"♥"`) and every `{heart}` placeholder are DELETED — the

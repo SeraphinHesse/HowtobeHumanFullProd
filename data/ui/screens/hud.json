@@ -1,5 +1,13 @@
 {
   "widgets": {
+    "btn_drag_select": {
+      "rect": [
+        11,
+        131,
+        45,
+        14
+      ]
+    },
     "btn_end_turn": {
       "rect": [
         552,
@@ -24,29 +32,54 @@
       "skin": "ui_button_pause"
     },
     "btn_speed_1_5x": {
+      "rect": [
+        36,
+        107,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
     },
     "btn_speed_1x": {
+      "rect": [
+        4,
+        108,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
     },
     "btn_speed_2x": {
+      "rect": [
+        68,
+        109,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
+    },
+    "icon_xp": {
+      "rect": [
+        234,
+        9,
+        9,
+        9
+      ]
     },
     "love_panel": {
       "rect": [
         6,
         6,
-        53,
-        19
-      ],
-      "skin": "ui_panel"
+        93,
+        62
+      ]
     },
     "readout_panel": {
       "rect": [
-        6,
-        23,
-        53,
-        28
+        1,
+        66,
+        84,
+        36
       ]
     },
     "round_label": {
@@ -54,6 +87,14 @@
         0,
         0,
         0
+      ]
+    },
+    "xp_bar": {
+      "rect": [
+        248,
+        12,
+        55,
+        4
       ]
     }
   }

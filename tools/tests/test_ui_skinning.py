@@ -88,21 +88,6 @@ def _session():
     return session
 
 
-_LEVELUP_OPTIONS = [
-    {"kind": "fallback", "title": "Card A", "cost": 5,
-     "explanation": "does a thing", "prev_name": None, "sprite_key": None,
-     "cost_label": "Cost", "display_cost": 5},
-    {"kind": "tier", "title": "Card B", "cost": 0,
-     "explanation": "tiered thing", "prev_name": "Old Name",
-     "sprite_key": None, "cost_label": None, "tier_no": 2, "tier_max": 3},
-]
-
-
-class _GameOverState:
-    round_num = 4
-    buildings_placed = 2
-    enemies_killed = 9
-
 
 def _capture(fn):
     r = RecordingRenderer()
@@ -111,68 +96,18 @@ def _capture(fn):
 
 
 def _screen_captures():
-    """``{screen_id: recorded_items}`` for all 12 screens — fresh instances
-    every call, no state shared between screens."""
-    session = _session()
+    """``{screen_id: recorded_items}`` for all 12 screens.
 
-    mm = MainMenu(VIEW_W, VIEW_H)
-    mm.update(0.0, *OFF, False)
+    Delegates to ``tools/screen_preview.py``'s driver — the SAME code that
+    records ``data/ui/screen_previews.json`` for the editor's screen-mode
+    preview (UT-2). That is deliberate: this golden pin then guards the
+    preview generator too, so a driver that stops reproducing what the game
+    draws turns the pin red before the editor starts lying to a designer.
+    """
+    from tools import screen_preview
 
-    ps = PauseScreen(VIEW_W, VIEW_H)
-    ps.update(0.0, *OFF, False)
+    return screen_preview.capture_screens(FIXTURE_DATA, VIEW_W, VIEW_H)
 
-    settings = SettingsScreen(VIEW_W, VIEW_H, SessionSettings.from_balance(UI))
-    settings.update(0.0, *OFF, False)
-
-    credits = CreditsScreen(VIEW_W, VIEW_H)
-    credits.update(0.0, *OFF, False)
-
-    add_name = AddNameScreen(VIEW_W, VIEW_H)
-    add_name.pool_count = 3
-    add_name.update(0.0, *OFF, False)
-
-    game_over = GameOverScreen(VIEW_W, VIEW_H)
-    game_over.update(0.0, *OFF, False)
-
-    levelup = LevelupWindow(VIEW_W, VIEW_H)
-    levelup.open(_LEVELUP_OPTIONS)
-    levelup.update(0.0, *OFF, False)
-
-    hud = Hud(VIEW_W, VIEW_H)
-    hud_panel = BuildingUI(VIEW_W, VIEW_H, UI)
-    hud.update(0.0, *OFF, session, hud_panel, False)
-
-    panel = BuildingUI(VIEW_W, VIEW_H, UI)
-    panel.hover(*OFF, False)
-    panel.update(0.0)
-
-    cheat = CheatMenu(VIEW_W, VIEW_H)
-    cheat.update(0.0, *OFF, False)
-
-    game_log = GameLog()
-    game_log.post("Test message")
-    game_log.update(0.0)
-
-    boss = BossCutscene(VIEW_W, VIEW_H, CORE)
-    boss.open(1, "win")
-    boss.update(0.0, *OFF, False)
-
-    return {
-        "main_menu": _capture(lambda r: mm.submit(r, VIEW_W, VIEW_H)),
-        "pause": _capture(lambda r: ps.submit(r, VIEW_W, VIEW_H)),
-        "settings": _capture(lambda r: settings.submit(r, VIEW_W, VIEW_H)),
-        "credits": _capture(lambda r: credits.submit(r, VIEW_W, VIEW_H)),
-        "add_name": _capture(lambda r: add_name.submit(r, VIEW_W, VIEW_H)),
-        "game_over": _capture(
-            lambda r: game_over.submit(r, _GameOverState(), VIEW_W, VIEW_H)),
-        "levelup": _capture(lambda r: levelup.submit(r, VIEW_W, VIEW_H)),
-        "hud": _capture(lambda r: hud.submit(
-            r, session, VIEW_W, VIEW_H, hover_cost=hud_panel.hover_cost)),
-        "building_panel": _capture(lambda r: panel.submit(r, session)),
-        "cheat_menu": _capture(lambda r: cheat.submit(r, VIEW_W, VIEW_H)),
-        "game_log": _capture(lambda r: game_log.submit(r, VIEW_H)),
-        "boss_cutscene": _capture(lambda r: boss.submit(r, VIEW_W, VIEW_H)),
-    }
 
 
 #: THE golden baseline — captured from the pre-B2 code (no ``ids``/``apply``

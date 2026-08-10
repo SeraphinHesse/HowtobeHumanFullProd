@@ -40,9 +40,10 @@ from engine.render import HudRect
 
 from .skinning import ScreenSkinning, button_kwargs, is_visible
 from .widgets import (
-    Button, anim_ms, contains, submit_centered, submit_panel, submit_text
+    Button, anim_ms, contains, submit_label, submit_panel, submit_text
 )
 from . import widgets
+from .strings import T
 
 _BG = (0, 0, 0, 150)  # prototype alpha dim (10J)
 # UR-5: the panel widened 110 -> 124. Its rows carry unhalved "md" labels, and
@@ -103,12 +104,18 @@ class CheatMenu:
         # game-state — same "label is a legitimate override field" rule
         # every other screen's static title already follows (game/ui/
         # CLAUDE.md "Every static title/header is an id too").
+        # UT-5: both static labels go out through ``submit_label`` now (their
+        # copy stays the per-widget ``label`` override — a fixed title is
+        # exactly what that mechanism is for), which is what makes a
+        # ``visible`` override on either of them real.
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="lg",
-                                      text_color=widgets.C_GOLD, label=_TITLE)
+                                      text_color=widgets.C_GOLD, label=_TITLE,
+                                      align="center", visible=True)
         self._round_field = SimpleNamespace(rect=self.field_rect,
                                             font_key="sm", text_color=None)
         self._jump_label = SimpleNamespace(rect=(0, 0, 0, 0), font_key="sm",
                                            text_color=widgets.C_UI_TEXT_DIM,
+                                           align="left", visible=True,
                                            label="Jump to round:")
         self.ids = {}
         # -- /10L-B --
@@ -239,9 +246,7 @@ class CheatMenu:
             submit_panel(renderer, self.panel_rect, skin=self._panel.skin,
                         tint=getattr(self._panel, "tint", None), anim_ms=t)
         px, py, pw, _ph = self.panel_rect
-        submit_centered(renderer, self._title.label, self._title.rect[0],
-                        self._title.rect[1], self._title.font_key,
-                        self._title.text_color)
+        submit_label(renderer, self._title)
         if is_visible(self.close_btn):
             self.close_btn.submit(renderer, anim_ms=t, **button_kwargs(self.close_btn))
         for _action, btn in self.buttons:
@@ -249,8 +254,7 @@ class CheatMenu:
                 btn.submit(renderer, anim_ms=t, **button_kwargs(btn))
         renderer.submit_hud(
             HudRect((px + 5, self._divider_y, pw - 10, 1), widgets.C_UI_BORDER))
-        submit_text(renderer, self._jump_label.label, self._jump_label.rect[:2],
-                   self._jump_label.font_key, self._jump_label.text_color)
+        submit_label(renderer, self._jump_label)
         renderer.submit_hud(HudRect(self.field_rect, widgets.C_PANEL_STONE))
         renderer.submit_hud(HudRect(
             self.field_rect, widgets.C_GOLD if self.field_focused else widgets.C_UI_BORDER,
@@ -260,7 +264,11 @@ class CheatMenu:
             shown = self.round_text + ("_" if self.field_focused else "")
             tcol = widgets.C_UI_TEXT
         else:
-            shown = "round"
+            # UT-5: the placeholder copy is string-table content. It gets no
+            # id of its own — its position is derived inline from the (already
+            # id'd, already overridable) ``round_field`` rect, and the
+            # anchor-rect convention says an id needs a STORED rect first.
+            shown = T("cheat_menu.round_placeholder")
             tcol = widgets.C_UI_TEXT_DIM
         submit_text(renderer, shown, (fx + 3, fy + 2), self._round_field.font_key,
                    tcol)

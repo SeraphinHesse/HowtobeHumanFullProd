@@ -29,6 +29,7 @@ canvas — the canvas is data/display.json's resolution (see
 logical_resolution below). Do not de-literalise it; it would falsify the
 measurement.
 """
+import copy
 import math
 import os
 import time
@@ -58,6 +59,7 @@ from engine.render import (
     Renderer,
     RenderItem,
     fit_factor,
+    hud_item_from_json,
     sprite_anchor_screen,
 )
 
@@ -267,6 +269,11 @@ class ViewportPanel(QWidget):
         # submission/hit-test time
         self._screen_session = None
         self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
+        # UT-2: the recorded draw list (data/ui/screen_previews.json) and its
+        # per-(screen, view) deserialized cache — see _current_screen_preview.
+        self._screen_previews = {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = {}
         self._selected_widget = None
         self._selected_field_mode = None   # None | "move" | "resize"
         self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
@@ -464,7 +471,7 @@ class ViewportPanel(QWidget):
 
     # -- screen mode (B4, R3) -------------------------------------------------
 
-    def set_screen_mode(self, session, defaults=None):
+    def set_screen_mode(self, session, defaults=None, previews=None):
         """A UIScreenSession with an open doc → screen mode: a FIXED
         SCREEN_W x SCREEN_H logical canvas (data/display.json's resolution),
         scaled-to-fit the viewport widget (no
@@ -483,6 +490,7 @@ class ViewportPanel(QWidget):
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
         self._screen_defaults = defaults if defaults is not None else {}
+        self.refresh_screen_previews(previews)
         self._selected_widget = None
         self._selected_field_mode = None
         self._resize_corner = None
@@ -506,6 +514,68 @@ class ViewportPanel(QWidget):
         """"Refresh Layouts" finished (B3's exporter ran): re-render with the
         freshly re-read data/ui/screen_defaults.json — no mode change."""
         self._screen_defaults = defaults or {}
+
+    def refresh_screen_previews(self, previews, recorded_doc=None):
+        """Swap in a freshly generated `screen_previews.json` (UT-2) — the
+        real draw list this screen produces in game, recorded by
+        `tools/export_ui_layouts.py`. `None`/`{}` degrades to the pre-UT-2
+        flat-box rendering (E-37), which is also what a screen the generator
+        does not cover gets.
+
+        `recorded_doc` is the override doc the list was recorded AGAINST —
+        `None` means the committed file, which is always recorded
+        override-free (i.e. `{}`). It is what `_preview_in_sync` compares the
+        live doc to; see there for why that matters.
+
+        Items are deserialized ONCE here, not per frame: a screen's list runs
+        to dozens of primitives and `_submit_screen_items` runs every 16 ms.
+        """
+        self._screen_previews = previews or {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = copy.deepcopy(
+            {} if recorded_doc is None else recorded_doc)
+
+    def _preview_in_sync(self):
+        """True when the recorded draw list already reflects the OPEN doc.
+
+        This is the whole correctness argument for the replay. A recording is
+        a picture of one exact doc; the moment a designer changes anything it
+        describes the past. In sync, the recording IS the screen and the
+        editor draws nothing but selection chrome over it. Out of sync (an
+        edit landed, or a saved doc carries overrides and no re-record has
+        finished yet) the editor ALSO draws every id'd widget from
+        defaults+overrides on top — the pre-UT-2 behaviour, so an override can
+        never be invisible. Those widgets briefly ghost against their recorded
+        selves; a stale picture that hides your edit is the worse failure.
+        """
+        if self._screen_session is None:
+            return False
+        return self._screen_session.doc == self._preview_recorded_doc
+
+    def _current_screen_preview(self):
+        """The open screen/view's recorded draw list as live HUD primitives,
+        or None when this screen has no preview. Resolves the active view the
+        same way `_current_screen_defaults` does — one screen, one rule."""
+        if self._screen_session is None:
+            return None
+        screen_id = self._screen_session.screen_id
+        view = self._screen_session.view
+        cache_key = (screen_id, view)
+        if cache_key in self._screen_preview_items:
+            return self._screen_preview_items[cache_key]
+        entry = (self._screen_previews or {}).get(screen_id)
+        if entry is None:
+            items = None
+        else:
+            if view is not None and view in (entry.get("views") or {}):
+                entry = entry["views"][view]
+            try:
+                items = [hud_item_from_json(spec)
+                         for spec in entry.get("items", ())]
+            except Exception:
+                items = None    # E-37: a stale/corrupt file is not a crash
+        self._screen_preview_items[cache_key] = items
+        return items
 
     def set_selected_widget(self, widget_id):
         """External (screen_details widget-list click) → sync the viewport's
@@ -1818,6 +1888,26 @@ class ViewportPanel(QWidget):
             self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
         self._screen_anim_last_t = t0
         doc = self._screen_session.doc
+        preview = self._current_screen_preview()
+        if preview is not None:
+            # UT-2: the recorded game draw list — real background, real fonts,
+            # real stat rows, and every bit of chrome no widget id covers.
+            for item in preview:
+                self._renderer.submit_hud(item)
+            if self._preview_in_sync():
+                # The recording already shows the open doc, so drawing the
+                # widgets again would only double them. The one exception is
+                # the widget under an in-flight drag, whose live rect no
+                # recording can know yet.
+                dragging = self._selected_widget if self._drag_start else None
+                if dragging in defaults.get("widgets", {}):
+                    self._submit_screen_widget(
+                        dragging, defaults["widgets"][dragging], doc, scale,
+                        ox, oy)
+                return
+            for widget_id, spec in defaults.get("widgets", {}).items():
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+            return
         self._submit_screen_background(doc, scale, ox, oy)
         for widget_id, spec in defaults.get("widgets", {}).items():
             self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)

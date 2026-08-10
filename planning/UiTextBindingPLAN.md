@@ -1,10 +1,3 @@
-<!-- active-plan: UiTextBindingPLAN.md | set: 2026-08-09 -->
-> **Active plan:** UiTextBindingPLAN.md (mirror). Source of truth:
-> `planning/UiTextBindingPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 # UiTextBindingPLAN.md — every stat and string a movable, editable widget
 
 Phased, agent-executable plan (same family as `NewEnemyTypesPLAN.md` /

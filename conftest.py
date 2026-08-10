@@ -147,6 +147,10 @@ TIERS = {
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
     "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
+    # UT-1/UT-6: the text_id binding. `editor` because half of it drives a Qt
+    # ScreenDetailsPanel against a TempDataCase copy — the pure game-side half
+    # (submit_label) rides along rather than living in a second module.
+    "test_ui_text_binding": "editor",
     "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain
     "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
