@@ -59,6 +59,12 @@ class Session:
         # debug pattern: a bare Session a logic test builds is untouched (its
         # level-up roll simply offers nothing beyond the love fallback).
         self.progression_balance = progression_balance
+        # Designer-scripted leveling rides on RunState so the HUD can see it
+        # too (game/core/game_state.py). None-safe the same way every other
+        # host-set optional is: no progression doc -> XP leveling, unchanged.
+        state.scripted_leveling = bool(
+            progression_balance is not None
+            and progression_balance["Timeline"]["scripted_leveling"])
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -395,7 +401,14 @@ class Session:
                 # (prototype game.py:1215-1226 — 10G added the first arm).
                 if st.pending_boss_cutscene:  # -- 10G boss --
                     self._begin_boss_cutscene()
-                elif st.levelup_pending:
+                # Designer-scripted leveling replaces the XP trigger with the
+                # Timeline's authored round; `round_num` is still
+                # pre-increment here (payday `++`s it — see _begin_round_end),
+                # so it IS the round that just finished. The priority chain
+                # (boss cutscene -> level-up -> payday) is unchanged.
+                elif (lv.scripted_level_due(st.village_level, st.round_num,
+                                            self.progression_balance)
+                      if st.scripted_leveling else st.levelup_pending):
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,

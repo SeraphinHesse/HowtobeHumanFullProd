@@ -256,6 +256,18 @@ resolves through.
 the gated construct list + five-mode upgrade button in `building_ui.py`. The modal
 sits at the TOP of `main.py`'s click ladder and swallows keys. (The pure roll/gate
 logic is `game/core` — see that doc.)
+- **Designer-scripted leveling suppresses the XP readout, not the level one.**
+  `Hud._submit_xp` submits `lvl_label` first, then returns early when
+  `RunState.scripted_leveling` — before the `icon_xp` / `xp_bar` / `xp_text`
+  submits, mirroring the `is_visible(...)` / `.visible` guards already on those
+  three holders. `LVL N` stays (the village level is still a real thing); the
+  bar, its icon and the `40/60` text go, because XP is not a mechanic in that
+  mode. **The floaters need no change here at all** — `award_xp` no-ops
+  upstream, so `xp_events` never fills and `FloaterManager.spawn_xp_events`
+  drains an empty ledger. The window itself is untouched: it lays out any card
+  count, which is what makes `exact_offer_slots` work — but only 4 boxes fit
+  the 640px view at `_BOX_W = 130`, so the editor warns above 4 slots per row
+  rather than the game clamping. Mode detail → `game/core/CLAUDE.md`.
 
 ## Boss UI (10G)
 - **`boss_cutscene.py`** (`BossCutscene`) — the `levelup.py` modal template

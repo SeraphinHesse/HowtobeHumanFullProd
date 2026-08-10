@@ -39,7 +39,16 @@ def scaled_base_income(state, core_balance):
 
 def award_xp(state, amount, world_pos=None):
     """Grant ``amount`` XP, arm ``levelup_pending`` on crossing the threshold,
-    and (given a world position) queue an XP floater for the UI."""
+    and (given a world position) queue an XP floater for the UI.
+
+    Under designer-scripted leveling XP is not a mechanic at all, so this is a
+    no-op — the ONE guard that covers every award site in ``Session``
+    (``_award_building_deaths`` / ``on_base_hit`` / ``_award_enemy_xp`` /
+    ``on_kidnap`` / ``_wipe_round``). It also keeps ``xp_events`` empty, which
+    is what ``game/ui/effects.py``'s ``FloaterManager.spawn_xp_events``
+    drains — so the floaters vanish with no change in the UI layer."""
+    if state.scripted_leveling:
+        return
     state.player_xp += amount
     if world_pos is not None:
         state.xp_events.append((world_pos[0], world_pos[1], amount))

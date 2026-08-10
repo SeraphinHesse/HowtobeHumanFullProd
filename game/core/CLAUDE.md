@@ -297,6 +297,53 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   padding the pool to 3 (the prototype's pad-to-3, `game/core/levelup.py`'s
   `_love_fallback`).
 
+### The TWO leveling modes, and where they branch (designer-scripted leveling)
+`data/balancing/progression.json`'s `Timeline` carries two independent
+booleans (see `data/CLAUDE.md` for their data shape). Both ship `false`, and
+with both off every path below is byte-identical to what it always did.
+- **`scripted_leveling` — WHEN a level is reached.** `Session.__init__` reads
+  it once off `progression_balance` (`None`-safe → `False`, the same
+  host-set-optional shape as `progression_balance` itself) onto
+  **`RunState.scripted_leveling`**, and RunState is where it lives because
+  BOTH the round machine and the HUD have to see it and RunState is already
+  what both read — no new plumbing. Two branch points, and only two:
+  - **`game/core/xp.py::award_xp` early-returns.** That ONE guard covers every
+    award site (`_award_building_deaths`, `on_base_hit`, `_award_enemy_xp`,
+    `on_kidnap`, `_wipe_round`) and keeps `xp_events` empty, which is what
+    `FloaterManager.spawn_xp_events` drains — so the `+1` floaters vanish with
+    no change in `game/ui/effects.py`. `advance_village_level` is UNCHANGED:
+    it still runs on resolve, it just never has meaningful XP to subtract.
+  - **`Session.pre_sim`'s ROUND_END arm** swaps `st.levelup_pending` for
+    `levelup.scripted_level_due(village_level, round_num, progression_balance)`
+    — true iff the Timeline holds a row for `village_level + 1` whose authored
+    `round` is this one. `round_num` is still PRE-increment at ROUND_END
+    (payday `++`s it), so it is the round that just finished. The priority
+    chain (boss cutscene → level-up → payday) is untouched and
+    `resolve_levelup` needed no change (it already clears the now-vestigial
+    `levelup_pending`). **One live consequence**: `levelup_pending` is not
+    consulted at all in this mode, so `cheat_trigger_levelup` fired MID-ENEMY
+    — the one cheat path that merely arms the flag and leaves ROUND_END to
+    open the window — is inert under scripting. Every other cheat path (any
+    phase outside ENEMY/LEVELUP) calls `_begin_levelup` directly and works
+    unchanged.
+  A designer-skipped level simply never fires — consistent with the editor's
+  warn-don't-block round validation. The HUD half (bar/icon/`40/60`
+  suppressed, `LVL N` kept) is `game/ui/CLAUDE.md`.
+- **`exact_offer_slots` — WHAT a level-up shows.** Read straight off
+  `progression_balance` (not RunState — nothing outside the roll needs it) at
+  the top of `roll_levelup_options`, which hands the whole roll to
+  `levelup.exact_levelup_options`: the row for `village_level + 1` walked in
+  order, `null` → `_love_fallback`, an already-claimed reward DROPPED
+  (`_reward_claimed`: `type_unlocked` for an unlock card, `tiers_unlocked_for
+  (...) > idx` for a tier card), everything dropped → ONE love card, no row at
+  all → `OPTION_COUNT` love cards. `OPTION_COUNT` still governs the random
+  path only. Nothing de-duplicates: duplicates are legal in this mode by
+  design, so what the designer authored is what the player sees.
+  **The window's geometry is the real cap** — `game/ui/levelup.py::layout`
+  lays out any `n`, but at `_BOX_W = 130` more than 4 boxes overflow the 640px
+  view, so the EDITOR warns above 4 slots per row rather than the game
+  clamping (`editor/timeline_ops.py::round_warnings`).
+
 The UI half of level-up (`game/ui/levelup.py`, XP bar, gated construct list) lives
 in `game/ui/CLAUDE.md`.
 

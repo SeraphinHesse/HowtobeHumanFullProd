@@ -109,10 +109,10 @@ def build_board(rows):
     return tm, scene, occ
 
 
-def make_session(rows=("bs",), core=CORE, rng=None):
+def make_session(rows=("bs",), core=CORE, rng=None, progression=PROGRESSION):
     tm, scene, occ = build_board(rows)
     session = Session.create(Spawner(), tm, ENEM, core, BUILD, rng=rng,
-                             progression_balance=PROGRESSION)
+                             progression_balance=progression)
     return session, tm, scene, occ
 
 
@@ -954,6 +954,179 @@ class TestXpAwardSites(unittest.TestCase):
         base.get_component(Health).damage(10 ** 6)
         session.pre_sim(0.1, scene)
         self.assertEqual(st.player_xp, 0)
+
+
+# ---------------------------------------------------------------------------
+def scripted_progression(schedule, exact=False, rows=None):
+    """A deep copy of the pinned Timeline with a fresh schedule staged in.
+
+    ``schedule`` is ``{village_level: round}``; ``rows`` optionally replaces
+    a level's ``offer_slots`` with a list of ``(kind, building_type,
+    tier_index)`` tuples (``None`` for an empty slot). Built through
+    ``editor.timeline_ops`` — the sanctioned pure helper — never by hand."""
+    doc = copy.deepcopy(PROGRESSION)
+    doc["Timeline"]["levels"] = []
+    timeline_ops.set_scripted_leveling(doc, True)
+    timeline_ops.set_exact_offer_slots(doc, exact)
+    for village_level, round_num in schedule.items():
+        timeline_ops.add_level(doc, village_level, round_num)
+    for village_level, slots in (rows or {}).items():
+        timeline_ops.add_level(doc, village_level, schedule.get(village_level, 0))
+        for index, card in enumerate(slots):
+            if card is None:
+                timeline_ops.add_slot(doc, village_level)
+            else:
+                timeline_ops.assign_slot(doc, village_level, index, *card)
+    return doc
+
+
+class TestScriptedLeveling(unittest.TestCase):
+    """Timeline.scripted_leveling: XP off, level-ups on authored rounds."""
+
+    def test_award_xp_is_a_no_op_and_leaves_the_floater_ledger_empty(self):
+        state = RunState()
+        state.xp_threshold = 50
+        state.scripted_leveling = True
+        xpmod.award_xp(state, 999, world_pos=(3.0, 4.0))
+        self.assertEqual(state.player_xp, 0)
+        self.assertEqual(state.xp_events, [])
+        self.assertFalse(state.levelup_pending)
+
+    def test_award_xp_still_works_with_the_flag_off(self):
+        state = RunState()
+        state.xp_threshold = 50
+        xpmod.award_xp(state, 999, world_pos=(3.0, 4.0))
+        self.assertEqual(state.player_xp, 999)
+        self.assertEqual(state.xp_events, [(3.0, 4.0, 999)])
+        self.assertTrue(state.levelup_pending)
+
+    def test_session_reads_the_flag_off_the_progression_doc(self):
+        session, _tm, _scene, _occ = make_session()
+        self.assertFalse(session.state.scripted_leveling)
+
+        session, _tm, _scene, _occ = make_session(
+            progression=scripted_progression({2: 3}))
+        self.assertTrue(session.state.scripted_leveling)
+
+    def test_no_progression_doc_at_all_leaves_the_flag_off(self):
+        session, _tm, _scene, _occ = make_session(progression=None)
+        self.assertFalse(session.state.scripted_leveling)
+
+    def test_scripted_level_due_only_on_the_authored_round(self):
+        doc = scripted_progression({1: 0, 2: 3, 3: 8})
+        # At level 1 the NEXT level is 2, authored for round 3.
+        self.assertFalse(lv.scripted_level_due(1, 2, doc))
+        self.assertTrue(lv.scripted_level_due(1, 3, doc))
+        self.assertFalse(lv.scripted_level_due(1, 4, doc))
+        # ...and at level 2 it is level 3's round that matters, not level 2's.
+        self.assertFalse(lv.scripted_level_due(2, 3, doc))
+        self.assertTrue(lv.scripted_level_due(2, 8, doc))
+
+    def test_a_level_with_no_authored_row_never_fires(self):
+        doc = scripted_progression({1: 0, 2: 3})
+        self.assertFalse(any(lv.scripted_level_due(2, r, doc) for r in range(60)))
+
+    def test_scripted_level_due_is_none_safe(self):
+        self.assertFalse(lv.scripted_level_due(1, 1, None))
+
+    def test_round_end_opens_the_window_on_the_authored_round_only(self):
+        session, _tm, scene, _occ = make_session(
+            rng=NoShuffle, progression=scripted_progression({1: 0, 2: 2}))
+        st = session.state
+
+        # Round 1 is not level 2's authored round -> straight to payday.
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 1
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.INCOME)
+        self.assertEqual(st.village_level, 1)
+
+        # Round 2 is -> the modal opens, payday is deferred.
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 2
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.LEVELUP)
+
+    def test_a_pending_xp_levelup_is_ignored_while_scripted(self):
+        """The authored round is the ONLY trigger under scripted leveling.
+
+        Note the one live consequence: `cheat_trigger_levelup` fired MID-ENEMY
+        only arms `levelup_pending` and relies on ROUND_END to open the window,
+        so that one cheat path is inert in this mode. Every other cheat path
+        (outside ENEMY/LEVELUP) calls `_begin_levelup` directly and is
+        unaffected."""
+        session, _tm, scene, _occ = make_session(
+            rng=NoShuffle, progression=scripted_progression({1: 0, 2: 9}))
+        st = session.state
+        st.levelup_pending = True          # stale/irrelevant under scripting
+        st.phase, st.phase_timer, st.round_num = GamePhase.ROUND_END, 0.0, 1
+        session.pre_sim(0.1, scene)
+        self.assertEqual(st.phase, GamePhase.INCOME)
+
+
+class TestExactOfferSlots(unittest.TestCase):
+    """Timeline.exact_offer_slots: the row IS the card set."""
+
+    def roll(self, doc, state):
+        return lv.roll_levelup_options(state, BUILD, CORE, NoShuffle, doc)
+
+    def fresh_state(self):
+        return RunState.from_balance(CORE, BUILD)
+
+    def test_a_null_slot_becomes_a_love_card(self):
+        doc = scripted_progression({2: 1}, exact=True, rows={2: [None, None]})
+        options = self.roll(doc, self.fresh_state())
+        self.assertEqual([o["kind"] for o in options], ["fallback", "fallback"])
+        self.assertEqual(options[0]["amount"], XP["levelup_love_reward"])
+
+    def test_the_row_is_shown_verbatim_in_order(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), None]})
+        state = self.fresh_state()
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["tier", "fallback"])
+        self.assertEqual(options[0]["building_type"], "defence")
+        self.assertEqual(options[0]["tier_index"], 1)
+
+    def test_an_already_claimed_card_is_dropped_not_padded(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), ("tier", "defence", 2)]})
+        state = self.fresh_state()
+        state.tiers_unlocked["defence"] = 2     # tier_index 1 researched
+        options = self.roll(doc, state)
+        self.assertEqual([o["tier_index"] for o in options], [2])
+
+    def test_every_card_claimed_shows_exactly_one_love_card(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True,
+            rows={2: [("tier", "defence", 1), ("tier", "defence", 2)]})
+        state = self.fresh_state()
+        state.tiers_unlocked["defence"] = 3     # both researched
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["fallback"])
+
+    def test_a_claimed_unlock_card_is_dropped_too(self):
+        doc = scripted_progression(
+            {2: 1}, exact=True, rows={2: [("unlock", "blocker", 0), None]})
+        state = self.fresh_state()
+        state.unlocked_buildings["blocker"] = True
+        options = self.roll(doc, state)
+        self.assertEqual([o["kind"] for o in options], ["fallback"])
+
+    def test_a_level_with_no_row_falls_back_to_three_love_cards(self):
+        doc = scripted_progression({2: 1}, exact=True)   # level 2 has no slots
+        state = self.fresh_state()
+        state.village_level = 5                          # level 6 has no row
+        options = self.roll(doc, state)
+        self.assertEqual(len(options), lv.OPTION_COUNT)
+        self.assertTrue(all(o["kind"] == "fallback" for o in options))
+
+    def test_the_flag_off_keeps_the_random_pool_roll(self):
+        doc = scripted_progression({2: 1}, exact=False, rows={2: [None]})
+        options = self.roll(doc, self.fresh_state())
+        # The random path always pads to OPTION_COUNT; the exact path would
+        # have returned the single authored (null -> love) slot.
+        self.assertEqual(len(options), lv.OPTION_COUNT)
 
 
 # ---------------------------------------------------------------------------

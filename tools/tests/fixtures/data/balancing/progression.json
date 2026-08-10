@@ -1,5 +1,6 @@
 {
   "Timeline": {
+    "exact_offer_slots": false,
     "levels": [
       {
         "offer_slots": [
@@ -46,6 +47,7 @@
             }
           }
         ],
+        "round": 0,
         "village_level": 1
       },
       {
@@ -107,6 +109,7 @@
             }
           }
         ],
+        "round": 10,
         "village_level": 2
       },
       {
@@ -119,6 +122,7 @@
             }
           }
         ],
+        "round": 17,
         "village_level": 5
       },
       {
@@ -180,6 +184,7 @@
             }
           }
         ],
+        "round": 20,
         "village_level": 7
       },
       {
@@ -192,6 +197,7 @@
             }
           }
         ],
+        "round": 25,
         "village_level": 9
       },
       {
@@ -274,6 +280,7 @@
             }
           }
         ],
+        "round": 30,
         "village_level": 12
       },
       {
@@ -286,8 +293,10 @@
             }
           }
         ],
+        "round": 40,
         "village_level": 17
       }
-    ]
+    ],
+    "scripted_leveling": false
   }
 }

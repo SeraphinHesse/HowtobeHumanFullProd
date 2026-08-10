@@ -60,7 +60,34 @@ validating writer; don't hand-edit the JSON.
   sprite-slot vocabulary — see the Asset data section below), so it does not
   auto-render as a generic recursive form in the editor's balancing panel —
   it gets its own bespoke drag-and-drop panel instead (`editor/panels/
-  timeline.py`, T5). T2 shipped only the schema + an empty seed
+  timeline.py`, T5).
+  **`Timeline` carries two required sibling booleans, both shipped `false`,
+  and each `levels[]` row a required `round`** (designer-scripted leveling —
+  the `TileUnlocking.spawn_recede_enabled` / `EnemyScaling.spawn_ramp_enabled`
+  boolean-flag precedent). They are INDEPENDENT switches over two different
+  questions, and with both `false` the runtime is byte-identical to before
+  they existed:
+  - `scripted_leveling` answers **WHEN** a level is reached. On, the player
+    reaches level N at the END of that row's `round`, every run, and XP stops
+    being a mechanic entirely (`game/core/xp.py::award_xp` no-ops, so
+    `xp_events` never fills and the HUD's XP bar/icon/`40/60` text are
+    suppressed — `LVL N` stays). A level with no row NEVER fires and there is
+    no XP fallback, so past the last authored level the player stops
+    levelling. `round` is ignored for `village_level: 1` (the run starts
+    there) and ignored entirely while the flag is `false`; it is bounds-policy
+    0–1000 like every other round/level number.
+  - `exact_offer_slots` answers **WHAT** a level-up shows. On, a row stops
+    meaning "these cards become eligible from here on" and becomes the literal
+    card set: a `null` slot is a `+Love` card at `core.XP.levelup_love_reward`,
+    an already-claimed card is DROPPED from the row (not padded over), an
+    all-claimed row shows ONE `+Love`, and a level with no row falls back to
+    today's 3. Duplicate `(building_type, tier_index)` placements become legal
+    in this mode — `editor/timeline_ops.py::validate_uniqueness` skips that
+    check (the `village_level` uniqueness check still holds in both modes).
+  The rounds seeded on levels 1–12 came from the panel's own best-case curve
+  (level 1 → 0); they are a starting schedule, not a derived value — nothing
+  recomputes them.
+  T2 shipped only the schema + an empty seed
   (`{"Timeline": {"levels": []}}`); T6's migration
   (`tools/migrate_timeline_from_unlock_min_round.py`) then populated it from
   every building tier's then-existing `unlock_min_round`, and T4 made it the
