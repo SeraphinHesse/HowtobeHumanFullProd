@@ -267,8 +267,8 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.2,
             "dmg": 100,
-            "hp": 2000,
-            "move_speed": 2.7
+            "hp": 1700,
+            "move_speed": 2.0
           }
         },
         {
@@ -1099,7 +1099,7 @@
         },
         {
           "count_per_round": 5.0,
-          "count_start": 51.0,
+          "count_start": 30.0,
           "per_round": {
             "dmg": 0,
             "hp": 0,
