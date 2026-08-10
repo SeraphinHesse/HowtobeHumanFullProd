@@ -1115,6 +1115,45 @@ class TestDigger(unittest.TestCase):
                 self.assertFalse(e.get_component(PathAgent).no_melee)
                 self.assertIsNone(e.get_component(BurrowAgent))
 
+    # -- the min-target-distance preference -----------------------------------
+
+    def test_prefers_a_target_at_least_min_distance_away(self):
+        """Two claimable structures: one closer than
+        `min_target_distance_tiles`, one clearing it. The Digger must claim
+        the FARTHER one despite it not being the literal nearest."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        self.assertGreater(min_dist, 1)     # the fixture must exercise this
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)   # too close: excluded
+        far_col = spawn_col - (min_dist + 2)    # clears the minimum
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(far_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual(burrow.min_target_distance_tiles, min_dist)
+        self.assertEqual((pa.target_col, pa.target_row), (far_col, 0))
+
+    def test_falls_back_to_the_near_target_when_nothing_clears_the_minimum(self):
+        """No candidate clears `min_target_distance_tiles` -> claim the only
+        (near) one rather than standing down. The near column is also inside
+        `dig_range_tiles` at this fixture, so it may submerge on the very
+        first tick — that's correct, not a bug this test is checking; the
+        thing under test is the CLAIM, and that the Digger goes on to erupt
+        normally rather than getting stuck."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (near_col, 0))
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+
     # -- the state machine -------------------------------------------------
 
     def test_submerges_at_exactly_dig_range_tiles(self):
@@ -1134,6 +1173,37 @@ class TestDigger(unittest.TestCase):
                 break
         self.assertEqual(burrow.state, BURROW_SUBMERGED)
         self.assertEqual(dist_before, DIGGER["dig_range_tiles"])
+
+    def test_never_submerges_on_a_tile_a_building_occupies(self):
+        """A single-row board so the walk physically crosses the obstacle's
+        tile (the `no_melee` regression's own technique). An UNRELATED
+        `economic` building (not a "structure" hunt candidate) sits exactly
+        `dig_range_tiles` from the real target — the first column the submerge
+        trigger goes true. Absent the fix the Digger would submerge standing
+        on it; the fix must relocate it to the nearest CLEAR tile first (col 7,
+        the next tile toward the target — the ring search's first valid hit)."""
+        tm, scene, occ = self._board()
+        target_col = 2
+        place_building(tm, tm.get(target_col, 0), "blocker", 9999, BUILD,
+                       scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (target_col, 0))
+        obstacle_col = target_col + DIGGER["dig_range_tiles"]
+        place_building(tm, tm.get(obstacle_col, 0), "economic", 9999, BUILD,
+                       scene, occ)
+
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        sub_col = round(dig.transform.wx)
+        sub_row = round(dig.transform.wy)
+        self.assertNotEqual(sub_col, obstacle_col)
+        self.assertIsNone(tm.get(sub_col, sub_row).occupant)
+        self.assertEqual((sub_col, sub_row), (obstacle_col - 1, 0))
+        self.assertAlmostEqual(burrow.start_wx, obstacle_col - 1)
+        self.assertAlmostEqual(burrow.start_wy, 0.0)
 
     def test_untargetable_and_undamageable_while_submerged(self):
         tm, scene, occ = self._board()

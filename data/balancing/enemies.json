@@ -371,7 +371,7 @@
         ]
       },
       "dig_range_tiles": 6,
-      "dig_speed": 1.0,
+      "dig_speed": 0.8,
       "emerge_cooldown": 2.4,
       "endgame_scaling": {
         "count": 1.0,
@@ -430,7 +430,7 @@
             "attack_range_tiles": 1,
             "attack_speed": 1.0,
             "dmg": 2000,
-            "hp": 1800,
+            "hp": 300,
             "move_speed": 1.0
           }
         },
@@ -473,6 +473,7 @@
       ],
       "hunts": "structure",
       "kidnapping": false,
+      "min_target_distance_tiles": 3,
       "registry_group": "Digger",
       "start_round": 32
     },
