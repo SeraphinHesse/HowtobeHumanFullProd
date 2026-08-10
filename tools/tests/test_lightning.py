@@ -662,7 +662,7 @@ class TestCheatMenuActions(unittest.TestCase):
         return x + w // 2, y + h // 2
 
     def test_buttons_return_their_actions(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         expected = ("add_love", "skip_round", "trigger_levelup", "inf_money",
                     "unlock_all")
@@ -673,7 +673,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertIsNone(menu.hit(0, 0))          # off-panel click swallowed
 
     def test_goto_round_field_digits_only_max_4_commit(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))   # click-to-focus
         self.assertTrue(menu.field_focused)
@@ -685,7 +685,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertEqual(menu.handle_key("", "return"), ("goto_round", 207))
 
     def test_empty_or_invalid_commit_is_a_noop(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))
         self.assertIsNone(menu.handle_key("", "return"))   # empty field
@@ -696,7 +696,7 @@ class TestCheatMenuActions(unittest.TestCase):
     def test_reopen_resets_the_round_field(self):
         # Review finding: open() must clear the input state every time
         # (prototype clears _buf/_active on open).
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))
         menu.handle_key("4", None)
@@ -708,7 +708,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertFalse(menu.field_focused)
 
     def test_escape_closes_and_all_other_keys_swallowed(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         self.assertEqual(menu.handle_key("", "escape"), "close")
         self.assertIsNone(menu.handle_key("p", None))  # not the quick-skip!

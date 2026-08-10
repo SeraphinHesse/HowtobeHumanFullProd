@@ -26,7 +26,7 @@ from game.ui import widgets
 from game.ui.main_menu import MainMenu
 from game.ui.player_intro import PlayerIntroScreen
 
-VW, VH = 1280, 720
+VW, VH = 640, 360
 
 
 def center(rect):

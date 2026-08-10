@@ -29,7 +29,13 @@ from editor.panels.selector import (
     _VIEW_ROLE,
     SelectorPanel,
 )
-from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
+from editor.panels.viewport import (
+    SCREEN_H,
+    SCREEN_W,
+    ViewportPanel,
+    logical_resolution,
+    surface_to_qimage,
+)
 from editor.ui_screen_session import VIEW_ORDER, UIScreenSession, ordered_views
 from engine import data_io
 from engine.render import HudLines, HudRect, HudSprite, HudText
@@ -550,9 +556,26 @@ class TestOrderedViews(unittest.TestCase):
             ("unlock", "aaa_custom", "zzz_custom"))
 
 
+class TestLogicalResolution(TempDataCase):
+    """UR-1: the screen-mode canvas size comes from data/display.json — the
+    ONE place the logical resolution is stated — not from a literal."""
+
+    def test_screen_constants_match_display_json(self):
+        self.assertEqual((SCREEN_W, SCREEN_H), logical_resolution())
+
+    def test_reads_the_given_data_dir(self):
+        display = data_io.load_validated(
+            self.data_dir / "display.json",
+            self.data_dir / "schemas" / "display.schema.json")
+        self.assertEqual(
+            logical_resolution(self.data_dir),
+            (display["window_w"], display["window_h"]))
+
+
 class TestViewportScreenMode(TempDataCase):
-    """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
-    degrade with no defaults, click/drag/nudge interaction."""
+    """B4 §1c: fixed SCREEN_W x SCREEN_H canvas (data/display.json's
+    resolution) through submit_hud only, graceful degrade with no defaults,
+    click/drag/nudge interaction."""
 
     def setUp(self):
         super().setUp()
@@ -675,6 +698,42 @@ class TestViewportScreenMode(TempDataCase):
         sprites = [c for c in calls if isinstance(c, HudSprite)]
         self.assertEqual(len(sprites), 1)
         self.assertEqual(sprites[0].animation, "hover")
+
+
+class TestScreenScaleOffset(TempDataCase):
+    """UR-3: the ONE fit triple every screen-mode consumer reads — hit-test,
+    drag and the scaled blit alike. Below 1.0 it is a fractional downscale
+    that always fits; at or above 1.0 it snaps down to a whole multiple, so
+    the pixel-art preview duplicates every source pixel equally (the game's
+    SCALED upscale is an exact integer too)."""
+
+    def make_viewport(self, w, h):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(w, h)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def test_smaller_widget_downscales_and_centres(self):
+        panel = self.make_viewport(SCREEN_W // 2, SCREEN_H)
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertLess(scale, 1.0)
+        self.assertGreaterEqual(ox, 0)
+        self.assertGreaterEqual(oy, 0)
+        # letterboxed axis: the canvas is centred inside the widget
+        self.assertAlmostEqual(SCREEN_H * scale + 2 * oy, panel.height(), delta=1)
+
+    def test_double_size_widget_snaps_to_an_integer_scale(self):
+        panel = self.make_viewport(SCREEN_W * 2, SCREEN_H * 2)
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+
+    def test_fractional_upscale_snaps_down(self):
+        panel = self.make_viewport(int(SCREEN_W * 2.6), int(SCREEN_H * 2.6))
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+        self.assertLessEqual(SCREEN_W * scale + ox, panel.width())
+        self.assertLessEqual(SCREEN_H * scale + oy, panel.height())
 
 
 class TestViewportScreenModeViews(TempDataCase):

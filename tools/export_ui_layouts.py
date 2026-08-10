@@ -39,6 +39,8 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from engine import data_io  # noqa: E402
+from game.ui import strings  # noqa: E402
+from tools import screen_mocks  # noqa: E402
 
 # Alphabetical, stable order (plan line 282's 12 screen ids, + Phase 3's
 # "overlays" — the map-overlay toggle pills, added the sanctioned "drop in a
@@ -53,15 +55,11 @@ SCREEN_IDS = [
 
 # Common mock state (§1.3): every screen construction reads these where it
 # needs a love/round number at all (menu screens need neither — "idle
-# defaults").
-_LOVE = 123
-_ROUND = 7
-_COMMON_NOTE = f"love={_LOVE}, round={_ROUND}"
-
-# A starts-unlocked building type (Stone Thrower) — a safe, always-buildable
-# pick for the building_panel's ConstructPreview mock (game/buildings/
-# CLAUDE.md: "only defence/economic start unlocked").
-_MOCK_BUILDING_TYPE = "defence"
+# defaults"). UT-2 moved the mock state itself into `tools/screen_mocks.py`
+# so the preview generator builds from the SAME objects this file reads
+# default geometry off; these are re-exported names, not a second copy.
+_COMMON_NOTE = screen_mocks.COMMON_NOTE
+_MOCK_BUILDING_TYPE = screen_mocks.MOCK_BUILDING_TYPE
 
 # -- UH-4: cosmetic human names for widget ids (D4 — the id stays the on-disk
 # contract everywhere; this mapping only feeds an OPTIONAL `display_name` that
@@ -84,6 +82,27 @@ _DISPLAY_NAMES = {
         "preview_cancel_btn": "Construct cancel button",
         "preview_close_btn": "Construct preview close button",
         "preview_dice_btn": "Construct preview dice button",
+        # UT-3 text. The ~40 stat/base-info row ids are NOT listed: their
+        # names are derived from their own resolved text (see
+        # `_derived_display_name`), so renaming a stat renames its two
+        # widgets in the editor list too.
+        "unlock_title": "Unlock header",
+        "unlock_hint": "Unlock subtitle",
+        "unlock_blocked": "Not-adjacent warning",
+        "construct_title": "Build header",
+        "upgrade_title": "Building name header",
+        "upgrade_name": "Rename box text",
+        "upgrade_tier_level": "Tier / level line",
+        "died_last_round": "Died-last-round tag",
+        "next_tier_header": "Next-tier card header",
+        "upgrade_hint": "Action button hint",
+        "base_info_title": "The Hole header",
+        "move_title": "Move header",
+        "move_name": "Moving building name",
+        "move_pick": "Pick-a-tile instruction",
+        "move_hint_1": "Move hint line 1",
+        "move_hint_2": "Move hint line 2",
+        "move_hint_cancel": "Move cancel instruction",
     },
     "main_menu": {
         "backdrop": "Background backdrop",
@@ -185,20 +204,60 @@ def _apply_display_names(screen_id, entry):
     ``_widgets_from_ids``/the ``_build_*`` builders (R1 — none of them receive
     the screen id)."""
     names = _DISPLAY_NAMES.get(screen_id)
-    if not names:
+    if names is None:
         return
     for key, value in entry.items():
         if key == "widgets":
-            for widget_id, spec in value.items():
-                name = names.get(widget_id)
-                if name:
-                    spec["display_name"] = name
+            _name_widgets(names, value)
         elif key == "views":
             for view in value.values():
-                for widget_id, spec in view.get("widgets", {}).items():
-                    name = names.get(widget_id)
-                    if name:
-                        spec["display_name"] = name
+                _name_widgets(names, view.get("widgets", {}))
+
+
+def _name_widgets(names, widgets):
+    for widget_id, spec in widgets.items():
+        name = names.get(widget_id) or _derived_display_name(widget_id, spec)
+        if name:
+            spec["display_name"] = name
+
+
+def _derived_display_name(widget_id, spec):
+    """A human name DERIVED from the widget's own text (UT-3), for the id
+    families too numerous to list — the ~40 ``stat_<key>_label`` /
+    ``stat_<key>_value`` pairs and the base-info rows.
+
+    Reading it off the resolved `sample` rather than a second hand-written
+    table means renaming a stat in `strings.json` renames it in the editor's
+    widget list too, with no exporter edit.
+    """
+    for suffix, kind in (("_label", "label"), ("_value", "value")):
+        if not widget_id.endswith(suffix):
+            continue
+        stem = widget_id[: -len(suffix)]
+        base = spec.get("sample")
+        if base is None:
+            # A value cell's template is "{value}" — name it after its row's
+            # LABEL sibling instead, which is what a designer looks for.
+            base = _row_label_text(stem)
+        if base:
+            return f"{base} {kind}"
+    return None
+
+
+def _row_label_text(stem):
+    """The resolved label text of the row `stem` names, or None."""
+    for text_id in (f"building.stat.{stem[len('stat_'):]}"
+                    if stem.startswith("stat_") else None,
+                    f"building.base_info.{stem[len('info_'):]}"
+                    if stem.startswith("info_") else None,
+                    f"building.upgrade.{stem}"):
+        if text_id is None:
+            continue
+        try:
+            return strings.T(text_id)
+        except (KeyError, IndexError):
+            continue
+    return None
 
 
 def _logical_resolution(data_root):
@@ -223,8 +282,21 @@ def _widget_entry(kind, widget):
     phase report)."""
     x, y, w, h = getattr(widget, "rect", (0, 0, 0, 0))
     label = getattr(widget, "label", "") or ""
-    return {"rect": [int(x), int(y), int(w), int(h)], "kind": kind,
-            "label": label}
+    entry = {"rect": [int(x), int(y), int(w), int(h)], "kind": kind,
+             "label": label}
+    # UT-1/UT-3: the string-table key this widget resolves its text through,
+    # plus the resolved text when the template takes no placeholders. A
+    # TEMPLATED id gets no `sample` — the exporter cannot know the kwargs the
+    # call site passes, and the editor has the recorded preview beside it
+    # showing the real substituted text anyway.
+    text_id = getattr(widget, "text_id", None)
+    if text_id:
+        entry["text_id"] = text_id
+        try:
+            entry["sample"] = strings.T(text_id)
+        except (KeyError, IndexError):
+            pass
+    return entry
 
 
 def _widgets_from_ids(ids):
@@ -306,160 +378,43 @@ def _build_hud(view_w, view_h, data_root):
 # The exporter used to superimpose all four BuildingUI modes plus the
 # ConstructPreview modal into one flattened snapshot the game never shows,
 # recording mode-dependent geometry (e.g. action_btn) from __init__ before any
-# mode builder ran. Each view below builds its OWN fresh BuildingUI (never
-# shared — this is the determinism guarantee at the object level: no mode's
-# state leaks into another's rect/label) and records only the ids that mode
-# actually draws (building_ui.py hover/click dispatch + the mode builders).
-_BP_VIEW_ORDER = ("unlock", "construct", "upgrade", "base_info", "preview")
-
-# Per-view id membership — mirrors building_ui.py's mode dispatch exactly
-# (unlock/construct/upgrade panel views + the base_info stand-in + the
-# ConstructPreview modal's own disjoint "preview_*" namespace).
-_BP_UNLOCK_IDS = ("panel", "close_btn", "action_btn")
-_BP_CONSTRUCT_IDS = ("panel", "close_btn")
-_BP_UPGRADE_IDS = ("panel", "close_btn", "action_btn", "rename_dice_btn",
-                   "move_btn")
-_BP_BASE_INFO_IDS = ("panel", "close_btn", "boss_btn", "boss_close_btn")
-
-# Fixed unlock-cost mock (view §2: "mock values go in the view's mock_note") —
-# any deterministic constant works since the union exists for the id set, not
-# per-mode cost accuracy.
-_MOCK_UNLOCK_COST = 40
-
-
-def _bp_view_widgets(panel, id_names):
-    """``_widgets_from_ids`` over a fixed subset of a BuildingUI's mode-
-    independent ``ids`` — every view/union entry still routes through the
-    one entry-construction path (``_widget_entry``/``_widgets_from_ids``)."""
-    return _widgets_from_ids({name: panel.ids[name] for name in id_names})
-
-
-def _build_bp_unlock(view_w, view_h, ui_balance):
-    from types import SimpleNamespace
-
-    from game.ui.building_ui import BuildingUI
-
-    panel = BuildingUI(view_w, view_h, ui_balance)
-    tile = SimpleNamespace(col=0, row=0)
-    panel.selected_tiles = [tile]
-    # A minimal stand-in "session" exposing only the three callables
-    # ``_build_unlock`` reads (building_ui.py:472-476) — no real tilemap.
-    session = SimpleNamespace(tilemap=SimpleNamespace(
-        get_chunk_for_tile=lambda t: [t],
-        unlock_cost=lambda t: _MOCK_UNLOCK_COST,
-        can_unlock=lambda t: True,
-    ))
-    panel._build_unlock(session)
-    widgets = _bp_view_widgets(panel, _BP_UNLOCK_IDS)
-    note = (f"{_COMMON_NOTE}; mock tile (0,0), a single-tile chunk, fixed "
-            f"unlock_cost={_MOCK_UNLOCK_COST}, can_unlock=True (always "
-            "adjacent)")
-    return {"widgets": widgets, "mock_note": note}
-
-
-def _build_bp_construct(view_w, view_h, ui_balance):
-    from game.ui.building_ui import BuildingUI
-
-    panel = BuildingUI(view_w, view_h, ui_balance)
-    widgets = _bp_view_widgets(panel, _BP_CONSTRUCT_IDS)
-    note = (f"{_COMMON_NOTE}; construct cards are dynamic-count and "
-            "deliberately un-id'd (B3 rule) — they inherit "
-            "defaults.button_skin instead of an individual override")
-    return {"widgets": widgets, "mock_note": note}
-
-
-def _build_bp_upgrade(view_w, view_h, ui_balance, buildings_balance,
-                      core_balance):
-    from types import SimpleNamespace
-
-    from game.buildings.registry import create
-    from game.core.game_state import RunState
-    from game.ui.building_ui import BuildingUI
-
-    panel = BuildingUI(view_w, view_h, ui_balance)
-    building = create(_MOCK_BUILDING_TYPE, 0, 0, buildings_balance)
-    tile = SimpleNamespace(col=0, row=0)
-    panel._selected = building
-    panel.selected_tiles = [tile]
-    panel._buildings_balance = buildings_balance
-    # Open item ruling #3: a real, freshly-constructed run-state
-    # (``RunState.from_balance``) constructs headlessly with no world, so it
-    # is preferred over a SimpleNamespace stand-in. ``upgrade_gate`` on a
-    # freshly-created tier-0/level-1 building resolves the "in_tier" branch
-    # deterministically (measured: `upgrade_gate` -> ("in_tier", None, 10)
-    # for the mock building type) without touching any research/round field.
-    panel._session = SimpleNamespace(
-        state=RunState.from_balance(core_balance, buildings_balance))
-    panel._build_upgrade()
-    widgets = _bp_view_widgets(panel, _BP_UPGRADE_IDS)
-    note = (f"{_COMMON_NOTE}; a freshly created {_MOCK_BUILDING_TYPE!r} "
-            "building (tier 0, level 1) with a fresh "
-            "RunState.from_balance() run-state — upgrade_gate resolves "
-            "'in_tier' deterministically")
-    return {"widgets": widgets, "mock_note": note}
-
-
-def _build_bp_base_info(view_w, view_h, ui_balance):
-    from game.ui.building_ui import BuildingUI
-
-    # base_info's ids (panel/close_btn/boss_btn/boss_close_btn) are all
-    # mode-independent (built once in __init__, Storm Priest rework removed
-    # the one id that used to need a forced builder call: lightning_btn).
-    panel = BuildingUI(view_w, view_h, ui_balance)
-    widgets = _bp_view_widgets(panel, _BP_BASE_INFO_IDS)
-    return {"widgets": widgets, "mock_note": _COMMON_NOTE}
-
-
-def _build_bp_preview(view_w, view_h, ui_balance, buildings_balance):
-    from game.buildings.registry import build_cost
-    from game.ui.building_ui import ConstructPreview
-
-    # ConstructPreview's disjoint "preview_*" ids (mid-game: a building
-    # chosen, the construct-confirm modal open) — its own ids/apply pass runs
-    # once in __init__.
-    tier_idx = 0
-    cost = build_cost(_MOCK_BUILDING_TYPE, buildings_balance, tier_idx)
-    preview = ConstructPreview(
-        _MOCK_BUILDING_TYPE, cost, buildings_balance, ui_balance,
-        view_w, view_h, count=1, tier_idx=tier_idx)
-    widgets = _widgets_from_ids(preview.ids)
-    note = (f"{_COMMON_NOTE}; ConstructPreview({_MOCK_BUILDING_TYPE!r}) "
-            "modal open, count=1, tier_idx=0 (preview_cancel_btn present "
-            "iff ui.Timing.construct_show_cancel)")
-    return {"widgets": widgets, "mock_note": note}
-
+# mode builder ran. Each view now builds its OWN fresh BuildingUI (never
+# shared — the determinism guarantee at the object level: no mode's state
+# leaks into another's rect/label) and records only the ids that mode actually
+# draws.
+#
+# UT-2 moved that construction into `tools/screen_mocks.build_bp_view`, which
+# `tools/screen_preview.py` also drives to record the per-view DRAW LIST. One
+# mock state, two artifacts — the editor's draggable boxes and the preview
+# behind them cannot disagree about where a widget is. The mocks are also
+# fully submit-able now (a real `Session` over the pinned starter map instead
+# of the old `SimpleNamespace` stand-ins), which is what makes the preview a
+# real picture rather than a crash.
 
 def _build_building_panel(view_w, view_h, data_root):
     """Five per-mode views (D2) + a deterministic first-wins union over
-    ``_BP_VIEW_ORDER`` as the top-level ``widgets`` (the game's known-id set,
-    ``game/ui/skinning.py:190-194`` — unchanged by this phase; the game never
-    reads ``views``)."""
-    from game.core.balance import load_balance
+    ``BP_VIEW_ORDER`` as the top-level ``widgets`` (the game's known-id set,
+    ``game/ui/skinning.py:190-194`` — the game never reads ``views``)."""
+    balances = screen_mocks.load_balances(data_root)
+    session = screen_mocks.build_session(data_root, balances)
 
-    buildings_balance = load_balance(data_root, "buildings")
-    ui_balance = load_balance(data_root, "ui")
-    core_balance = load_balance(data_root, "core")
-
-    views = {
-        "unlock": _build_bp_unlock(view_w, view_h, ui_balance),
-        "construct": _build_bp_construct(view_w, view_h, ui_balance),
-        "upgrade": _build_bp_upgrade(
-            view_w, view_h, ui_balance, buildings_balance, core_balance),
-        "base_info": _build_bp_base_info(view_w, view_h, ui_balance),
-        "preview": _build_bp_preview(view_w, view_h, ui_balance,
-                                     buildings_balance),
-    }
+    views = {}
+    for view_name in screen_mocks.BP_VIEW_ORDER:
+        bp = screen_mocks.build_bp_view(view_name, view_w, view_h, balances,
+                                        session)
+        views[view_name] = {"widgets": _widgets_from_ids(bp.ids),
+                            "mock_note": bp.note}
 
     widgets = {}
-    for view_name in _BP_VIEW_ORDER:
+    for view_name in screen_mocks.BP_VIEW_ORDER:
         for widget_id, entry in views[view_name]["widgets"].items():
             if widget_id not in widgets:
                 widgets[widget_id] = entry
 
     note = (f"{_COMMON_NOTE}; first-wins union of the five per-mode views "
-            f"{_BP_VIEW_ORDER} for ids shared across modes (panel/"
-            "close_btn) — see views.<name>.mock_note for that mode's own "
-            "mock state")
+            f"{screen_mocks.BP_VIEW_ORDER} for ids shared across modes "
+            "(panel/close_btn) — see views.<name>.mock_note for that mode's "
+            "own mock state")
     return widgets, note, views
 
 
@@ -488,7 +443,7 @@ def _build_boss_cutscene(view_w, view_h, data_root):
     # The option descs format live BossBonuses magnitudes in — geometry only
     # lands in the export, but the screen still needs a real core balance.
     screen = BossCutscene(view_w, view_h, load_balance(data_root, "core"))
-    screen.open(1, "win")  # R3 contract: open(1, "win") + layout(1280, 720)
+    screen.open(1, "win")  # R3 contract: open(1, "win") + layout(640, 360)
     return _widgets_from_ids(screen.ids), "open(1, 'win')"
 
 
@@ -566,25 +521,84 @@ def build_screen_defaults(screen_id, view_w, view_h, data_root):
     return entry
 
 
-def main(data_root=None, output_dir=None):
-    """Regenerate ``<output_dir>/ui/screen_defaults.json``. ``data_root``
-    defaults to the repo's ``data/``, ``output_dir`` to ``data_root`` itself —
-    both injectable so tests can regenerate into a tempdir without touching
-    the live tree (§1.6)."""
+def _configure_strings(data_root):
+    """Bind the string table to THIS data root's `strings.json`, exactly as
+    `game/main.py` does at boot (UT-3).
+
+    Without it both artifacts would record the module's unconfigured
+    fallbacks — identical today (a pin test proves it), but silently stale the
+    moment a designer edits a template, which is precisely the edit the editor
+    re-records a preview for.
+    """
+    data_root = Path(data_root)
+    doc = data_io.load_validated(data_root / "ui" / "strings.json",
+                                 data_root / "schemas" / "strings.schema.json")
+    strings.configure_strings(doc)
+
+
+def write_previews(data_root, output_dir, view_w, view_h, *, overrides=None,
+                   output_path=None):
+    """Regenerate ``<output_dir>/ui/screen_previews.json`` — the DRAW LIST the
+    editor's screen mode replays (UT-2).
+
+    ``overrides`` (``{screen_id: override_doc}``) applies a designer's screen
+    JSON before recording, which is how the editor re-renders an UNSAVED doc:
+    it writes the open doc to a temp file, runs us with ``--overrides``, and
+    replays the result. ``output_path`` redirects the write for exactly that
+    case, so a preview render never touches the committed file.
+
+    The committed file is always recorded OVERRIDE-FREE (``overrides=None``),
+    for the same reason ``screen_defaults.json`` is: the two layers must stay
+    distinguishable.
+    """
+    from game.ui.skinning import ScreenSkinning
+    from tools import screen_preview
+
+    skinning = None
+    if overrides:
+        skinning = ScreenSkinning.from_overrides(overrides)
+    captured = screen_preview.capture_all(data_root, view_w, view_h,
+                                          skinning=skinning)
+    doc = screen_preview.serialize_all(captured)
+    if output_path is None:
+        output_path = Path(output_dir) / "ui" / "screen_previews.json"
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    schema_path = Path(data_root) / "schemas" / "screen_previews.schema.json"
+    data_io.write_validated(doc, output_path, schema_path)
+    return doc
+
+
+def main(data_root=None, output_dir=None, *, overrides=None,
+         previews_out=None, previews_only=False):
+    """Regenerate ``<output_dir>/ui/screen_defaults.json`` and
+    ``screen_previews.json``. ``data_root`` defaults to the repo's ``data/``,
+    ``output_dir`` to ``data_root`` itself — both injectable so tests can
+    regenerate into a tempdir without touching the live tree (§1.6).
+
+    ``previews_only`` skips the defaults pass: the editor's "re-render this
+    unsaved doc" path wants the picture, not a rewritten committed layout
+    file.
+    """
     data_root = Path(data_root) if data_root is not None else REPO / "data"
     output_dir = Path(output_dir) if output_dir is not None else data_root
 
     view_w, view_h = _logical_resolution(data_root)
+    _configure_strings(data_root)
 
-    output = {
-        screen_id: build_screen_defaults(screen_id, view_w, view_h, data_root)
-        for screen_id in SCREEN_IDS
-    }
+    if not previews_only:
+        output = {
+            screen_id: build_screen_defaults(screen_id, view_w, view_h,
+                                             data_root)
+            for screen_id in SCREEN_IDS
+        }
+        output_path = output_dir / "ui" / "screen_defaults.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        schema_path = data_root / "schemas" / "screen_defaults.schema.json"
+        data_io.write_validated(output, output_path, schema_path)
 
-    output_path = output_dir / "ui" / "screen_defaults.json"
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    schema_path = data_root / "schemas" / "screen_defaults.schema.json"
-    data_io.write_validated(output, output_path, schema_path)
+    write_previews(data_root, output_dir, view_w, view_h, overrides=overrides,
+                   output_path=previews_out)
     return 0
 
 
@@ -592,9 +606,24 @@ def _parse_args(argv):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-root", type=Path, default=None)
     parser.add_argument("--output-dir", type=Path, default=None)
+    parser.add_argument(
+        "--overrides", type=Path, default=None,
+        help="JSON file of {screen_id: override_doc} to apply before "
+             "recording the preview (the editor's unsaved-doc render)")
+    parser.add_argument(
+        "--previews-out", type=Path, default=None,
+        help="write the preview draw list here instead of "
+             "<output-dir>/ui/screen_previews.json")
+    parser.add_argument(
+        "--previews-only", action="store_true",
+        help="skip the screen_defaults.json pass")
     return parser.parse_args(argv)
 
 
 if __name__ == "__main__":
     args = _parse_args(sys.argv[1:])
-    sys.exit(main(data_root=args.data_root, output_dir=args.output_dir))
+    _overrides = (data_io.load_json(args.overrides)
+                  if args.overrides is not None else None)
+    sys.exit(main(data_root=args.data_root, output_dir=args.output_dir,
+                  overrides=_overrides, previews_out=args.previews_out,
+                  previews_only=args.previews_only))

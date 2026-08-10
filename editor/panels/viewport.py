@@ -8,8 +8,9 @@ map node is selected): the open MapSession's doc rendered with layer eyes +
 zone tints, ghost previews on the overlay layer, grid lines through the
 engine's E-24 overlay primitive, and mouse tools whose cell picking goes
 through engine.coords.screen_to_world ONLY (E-3 — no iso math here); and
-SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed 1280x720
-logical canvas scaled-to-fit the widget, submitted entirely through
+SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed logical
+canvas at data/display.json's resolution (UR-1: that file is the ONE place
+the resolution is stated) scaled-to-fit the widget, submitted entirely through
 Renderer.submit_hud (HudSprite for skinned widgets, editor.panels.
 _screen_primitives' flat-rect fallback for unskinned ones — E-37 degrade,
 never a game/ui import). In map mode the LEFT button drives the armed tool
@@ -22,8 +23,13 @@ SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
 real SDL window. The surface is converted to a QImage and painted in
 paintEvent — the sanctioned QImage-copy fallback (PLAN §7), >=60fps at
-1280x720 (numbers in editor/CLAUDE.md).
+1280x720 (numbers in editor/CLAUDE.md). That literal is a RECORD of the
+editor-window size the measurement was taken at, not the logical screen
+canvas — the canvas is data/display.json's resolution (see
+logical_resolution below). Do not de-literalise it; it would falsify the
+measurement.
 """
+import copy
 import math
 import os
 import time
@@ -53,6 +59,7 @@ from engine.render import (
     Renderer,
     RenderItem,
     fit_factor,
+    hud_item_from_json,
     sprite_anchor_screen,
 )
 
@@ -106,13 +113,36 @@ HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
-# -- screen mode (B4, R3): fixed 1280x720 logical canvas, scaled-to-fit -----
-SCREEN_W, SCREEN_H = 1280, 720   # data/display.json's canonical resolution
+# -- screen mode (B4, R3): fixed logical canvas, scaled-to-fit --------------
+
+
+def logical_resolution(data_dir=None):
+    """The logical screen-canvas size, read from ``data/display.json``.
+
+    UR-1: that file is the ONE place in the repo that states the logical
+    resolution — nothing here carries a literal fallback, because a fallback
+    would be exactly the second source of truth this helper deletes. A missing
+    or invalid display.json therefore raises rather than silently drawing at
+    the wrong size.
+
+    ``data_dir`` defaults to the repo's ``data/`` (the same root the rest of
+    the editor's module-level loads use). The parameter exists so a caller
+    with its own data root can ask; making the panel itself per-instance
+    data-root aware is UR-3's job, not this helper's.
+    """
+    root = Path(data_dir) if data_dir is not None else REPO / "data"
+    display = data_io.load_validated(
+        root / "display.json", root / "schemas" / "display.schema.json")
+    return display["window_w"], display["window_h"]
+
+
+SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
+LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
-NUDGE_STEP = 1         # arrow-key nudge, in LOGICAL (1280x720) pixels
+NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -234,10 +264,16 @@ class ViewportPanel(QWidget):
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
 
         # -- screen mode state (B4, R3): all mutation goes through the open
-        # UIScreenSession's undo stack; all rect math in LOGICAL (1280x720)
-        # pixels, converted to SCREEN pixels only at submission/hit-test time
+        # UIScreenSession's undo stack; all rect math in LOGICAL canvas
+        # (SCREEN_W x SCREEN_H) pixels, converted to SCREEN pixels only at
+        # submission/hit-test time
         self._screen_session = None
         self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
+        # UT-2: the recorded draw list (data/ui/screen_previews.json) and its
+        # per-(screen, view) deserialized cache — see _current_screen_preview.
+        self._screen_previews = {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = {}
         self._selected_widget = None
         self._selected_field_mode = None   # None | "move" | "resize"
         self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
@@ -247,6 +283,9 @@ class ViewportPanel(QWidget):
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
+        # UR-3: the logical SCREEN_W x SCREEN_H canvas the screen preview is
+        # rendered into before it is scaled up once (see `_screen_canvas`).
+        self._screen_canvas_surface = None
         # Button-state dropdown (idle/hover/pressed/disabled), same floating-
         # child pattern as the entity-preview animation combo above.
         self._state_combo = _NoWheelComboBox(self)
@@ -432,9 +471,10 @@ class ViewportPanel(QWidget):
 
     # -- screen mode (B4, R3) -------------------------------------------------
 
-    def set_screen_mode(self, session, defaults=None):
+    def set_screen_mode(self, session, defaults=None, previews=None):
         """A UIScreenSession with an open doc → screen mode: a FIXED
-        1280x720 logical canvas, scaled-to-fit the viewport widget (no
+        SCREEN_W x SCREEN_H logical canvas (data/display.json's resolution),
+        scaled-to-fit the viewport widget (no
         viewport-driven zoom like map mode — the whole canvas is always
         visible at one computed scale, like the entity preview's parked
         camera). None → leaves screen mode.
@@ -450,6 +490,7 @@ class ViewportPanel(QWidget):
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
         self._screen_defaults = defaults if defaults is not None else {}
+        self.refresh_screen_previews(previews)
         self._selected_widget = None
         self._selected_field_mode = None
         self._resize_corner = None
@@ -473,6 +514,68 @@ class ViewportPanel(QWidget):
         """"Refresh Layouts" finished (B3's exporter ran): re-render with the
         freshly re-read data/ui/screen_defaults.json — no mode change."""
         self._screen_defaults = defaults or {}
+
+    def refresh_screen_previews(self, previews, recorded_doc=None):
+        """Swap in a freshly generated `screen_previews.json` (UT-2) — the
+        real draw list this screen produces in game, recorded by
+        `tools/export_ui_layouts.py`. `None`/`{}` degrades to the pre-UT-2
+        flat-box rendering (E-37), which is also what a screen the generator
+        does not cover gets.
+
+        `recorded_doc` is the override doc the list was recorded AGAINST —
+        `None` means the committed file, which is always recorded
+        override-free (i.e. `{}`). It is what `_preview_in_sync` compares the
+        live doc to; see there for why that matters.
+
+        Items are deserialized ONCE here, not per frame: a screen's list runs
+        to dozens of primitives and `_submit_screen_items` runs every 16 ms.
+        """
+        self._screen_previews = previews or {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = copy.deepcopy(
+            {} if recorded_doc is None else recorded_doc)
+
+    def _preview_in_sync(self):
+        """True when the recorded draw list already reflects the OPEN doc.
+
+        This is the whole correctness argument for the replay. A recording is
+        a picture of one exact doc; the moment a designer changes anything it
+        describes the past. In sync, the recording IS the screen and the
+        editor draws nothing but selection chrome over it. Out of sync (an
+        edit landed, or a saved doc carries overrides and no re-record has
+        finished yet) the editor ALSO draws every id'd widget from
+        defaults+overrides on top — the pre-UT-2 behaviour, so an override can
+        never be invisible. Those widgets briefly ghost against their recorded
+        selves; a stale picture that hides your edit is the worse failure.
+        """
+        if self._screen_session is None:
+            return False
+        return self._screen_session.doc == self._preview_recorded_doc
+
+    def _current_screen_preview(self):
+        """The open screen/view's recorded draw list as live HUD primitives,
+        or None when this screen has no preview. Resolves the active view the
+        same way `_current_screen_defaults` does — one screen, one rule."""
+        if self._screen_session is None:
+            return None
+        screen_id = self._screen_session.screen_id
+        view = self._screen_session.view
+        cache_key = (screen_id, view)
+        if cache_key in self._screen_preview_items:
+            return self._screen_preview_items[cache_key]
+        entry = (self._screen_previews or {}).get(screen_id)
+        if entry is None:
+            items = None
+        else:
+            if view is not None and view in (entry.get("views") or {}):
+                entry = entry["views"][view]
+            try:
+                items = [hud_item_from_json(spec)
+                         for spec in entry.get("items", ())]
+            except Exception:
+                items = None    # E-37: a stale/corrupt file is not a crash
+        self._screen_preview_items[cache_key] = items
+        return items
 
     def set_selected_widget(self, widget_id):
         """External (screen_details widget-list click) → sync the viewport's
@@ -535,12 +638,28 @@ class ViewportPanel(QWidget):
         return entry
 
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the 1280x720 logical
-        canvas inside the current widget size (screen mode never zooms)."""
+        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size (screen mode never
+        zooms).
+
+        UR-3: a fitted scale of 1.0 or more is snapped DOWN to a whole number
+        (1x, 2x, 3x). The preview is pixel art blitted through one
+        `transform.scale` (`_render_screen_frame`), and a fractional upscale
+        duplicates some source pixels and not others — the game's own SCALED
+        upscale is an exact integer multiple, so this is what a player sees.
+        Below 1.0 the fractional downscale stays exactly as before (there is
+        no honest integer answer there, and 1x would overflow the widget).
+        The offsets are floored to whole pixels for the same reason the snap
+        lives HERE and not at the blit: hit-testing, dragging and the blit all
+        read this one triple, so they cannot disagree."""
         w, h = max(1, self.width()), max(1, self.height())
         scale = min(w / SCREEN_W, h / SCREEN_H)
+        if scale >= 1.0:
+            scale = float(math.floor(scale))
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
-        return scale, (w - scaled_w) / 2, (h - scaled_h) / 2
+        return (scale,
+                float(math.floor((w - scaled_w) / 2)),
+                float(math.floor((h - scaled_h) / 2)))
 
     def _to_screen_rect(self, rect, scale, ox, oy):
         x, y, w, h = rect
@@ -1506,7 +1625,7 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             self._submit_map_items()
         elif self.in_screen_mode():
-            self._submit_screen_items(t0)
+            self._render_screen_frame(t0)
         else:
             g = self._coords.geometry
             for row in range(g.map_rows):
@@ -1720,8 +1839,82 @@ class ViewportPanel(QWidget):
 
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 
-    def _submit_screen_items(self, t0):
+    def _screen_canvas(self):
+        """The reusable logical canvas, always exactly the CURRENT
+        SCREEN_W x SCREEN_H (re-allocated if `data/display.json` changed the
+        resolution under us — never a literal size)."""
+        size = (SCREEN_W, SCREEN_H)
+        if self._screen_canvas_surface is None \
+                or self._screen_canvas_surface.get_size() != size:
+            self._screen_canvas_surface = pygame.Surface(size)
+        return self._screen_canvas_surface
+
+    def _render_screen_frame(self, t0):
+        """UR-3: render the screen at its LOGICAL size, then scale the
+        finished surface once — the same pipeline shape `game/main.py` gets
+        from `pygame.SCALED`.
+
+        Scaling the geometry instead (what this did before) left `HudText` at
+        its absolute font-preset pixel size while every box around it grew or
+        shrank, so the editor's label/box ratio was wrong by exactly 1/scale
+        and a designer comparing the two would re-tune fonts that are already
+        right. `HudText` carries no scale field, so the only parity-true fix
+        is to scale the whole rendered surface.
+
+        Editor chrome (selection outline, handles, caption, the E-37
+        placeholder, the letterbox edge) is deliberately NOT scaled: it is
+        submitted afterwards in SCREEN pixels and flushed by `render_frame`'s
+        own flush — two flushes, one Renderer (ED-22), because `flush` clears
+        the queue."""
         scale, ox, oy = self._screen_scale_offset()
+        canvas = self._screen_canvas()
+        canvas.fill(BACKGROUND)
+        self._submit_screen_items(t0, 1.0, 0.0, 0.0)
+        self._renderer.flush(canvas)
+        scaled = pygame.transform.scale(
+            canvas, (round(SCREEN_W * scale), round(SCREEN_H * scale)))
+        self._surface.blit(scaled, (int(ox), int(oy)))
+        self._submit_screen_chrome(scale, ox, oy)
+
+    def _submit_screen_items(self, t0, scale, ox, oy):
+        """The screen's CONTENT (background + widgets). Called with the
+        identity triple (1.0, 0, 0) because it draws into the logical canvas;
+        the `(scale, ox, oy)` parameters stay so `_to_screen_rect` remains the
+        one placement rule shared with hit-testing."""
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return          # E-37 placeholder is chrome — see below
+        if self._screen_anim_last_t is not None:
+            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
+        self._screen_anim_last_t = t0
+        doc = self._screen_session.doc
+        preview = self._current_screen_preview()
+        if preview is not None:
+            # UT-2: the recorded game draw list — real background, real fonts,
+            # real stat rows, and every bit of chrome no widget id covers.
+            for item in preview:
+                self._renderer.submit_hud(item)
+            if self._preview_in_sync():
+                # The recording already shows the open doc, so drawing the
+                # widgets again would only double them. The one exception is
+                # the widget under an in-flight drag, whose live rect no
+                # recording can know yet.
+                dragging = self._selected_widget if self._drag_start else None
+                if dragging in defaults.get("widgets", {}):
+                    self._submit_screen_widget(
+                        dragging, defaults["widgets"][dragging], doc, scale,
+                        ox, oy)
+                return
+            for widget_id, spec in defaults.get("widgets", {}).items():
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+            return
+        self._submit_screen_background(doc, scale, ox, oy)
+        for widget_id, spec in defaults.get("widgets", {}).items():
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+
+    def _submit_screen_chrome(self, scale, ox, oy):
+        """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
+        edge, the selection outline/handles/caption, and the E-37 message."""
         defaults = self._current_screen_defaults()
         if not defaults:
             # E-37: no data/ui/screen_defaults.json yet (pre-B3, or a broken
@@ -1732,18 +1925,21 @@ class ViewportPanel(QWidget):
             self._renderer.submit_hud(HudText(
                 "no layout defaults yet — click Refresh Layouts",
                 (cx, cy), "lg", NO_DEFAULTS_COLOR, align="center"))
-            return
-        if self._screen_anim_last_t is not None:
-            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
-        self._screen_anim_last_t = t0
-        doc = self._screen_session.doc
-        self._submit_screen_background(doc, scale, ox, oy)
-        for widget_id, spec in defaults.get("widgets", {}).items():
-            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
-        if self._selected_widget is not None \
+        self._submit_screen_letterbox(scale, ox, oy)
+        if defaults and self._selected_widget is not None \
                 and self._selected_widget in defaults.get("widgets", {}):
             self._submit_screen_selection(self._selected_widget, defaults,
                                           scale, ox, oy)
+
+    def _submit_screen_letterbox(self, scale, ox, oy):
+        """A muted 1px frame on the drawn canvas edge, so the letterbox bars
+        are visibly outside it — at 640x360 in a wide dock those bars are
+        large, and a dark screen background otherwise reads as 'the canvas is
+        the whole panel'."""
+        w, h = SCREEN_W * scale, SCREEN_H * scale
+        self._renderer.submit_hud(HudLines(
+            ((ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)),
+            LETTERBOX_EDGE_COLOR, width=1, closed=True))
 
     def _submit_screen_background(self, doc, scale, ox, oy):
         """Background comes ONLY from the open doc's own override — the

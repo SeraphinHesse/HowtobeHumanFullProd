@@ -32,7 +32,7 @@ ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
-VIEW_W, VIEW_H = 1280, 720
+VIEW_W, VIEW_H = 640, 360
 
 
 def make_world():
@@ -331,18 +331,23 @@ class TestPreviews(unittest.TestCase):
         return panel, tile.occupant
 
     def test_next_level_rows_show_upgraded_stats(self):
+        # UT-3: stat rows are keyed by STAT KEY, not by display label — the
+        # hover preview matches on the key now, so renaming a stat in
+        # strings.json can no longer silently break the green highlight.
         panel, b = self._place_defender()
         rows = dict(panel._next_level_rows(b))
         d = b.tier_data()
-        self.assertEqual(rows["HP"], d["base_hp"] + d["hp_per_level"])
-        self.assertEqual(rows["Damage"], d["base_dmg"] + d["dmg_per_level"])
+        self.assertEqual(rows["hp"], d["base_hp"] + d["hp_per_level"])
+        self.assertEqual(rows["damage"], d["base_dmg"] + d["dmg_per_level"])
 
     def test_next_tier_card_reads_tier_two(self):
+        # UT-3: the card returns the bare tier NAME; the "Next: {name}"
+        # wrapper is the id'd header widget's own string template.
         panel, b = self._place_defender()
-        slot, header, rows = panel._next_tier_card(b)
+        slot, next_name, rows = panel._next_tier_card(b)
         tier2 = b._tiers[1]
-        self.assertEqual(header, f"Next: {tier2['name']}")
-        self.assertEqual(dict(rows)["HP"], tier2["base_hp"])
+        self.assertEqual(next_name, tier2["name"])
+        self.assertEqual(dict(rows)["hp"], tier2["base_hp"])
 
 
 class TestIncomeSources(unittest.TestCase):

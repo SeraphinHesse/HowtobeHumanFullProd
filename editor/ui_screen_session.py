@@ -16,6 +16,14 @@ Clearing a field therefore prunes now-empty parent containers
 (``widgets/<id>`` then ``widgets`` itself) so a fully-reset widget disappears
 from the doc rather than lingering as ``{}``.
 
+**UT-1: the session holds a SECOND doc**, the global string table
+``data/ui/strings.json``, so a designer can edit the TEMPLATE behind a
+widget's ``text_id`` in the same panel (and the same undo stack) as its rect
+and colour. It is deliberately not per-screen: one id, one text, everywhere.
+``save()`` writes it only when it changed, and ``strings_dirty`` is a value
+comparison rather than a latch so undoing the only template edit un-dirties it
+again.
+
 Qt-only, no game imports (TestPurity).
 """
 import copy
@@ -49,6 +57,14 @@ def screen_path(data_dir, screen_id):
 
 def screen_schema_path(data_dir):
     return Path(data_dir) / "schemas" / "ui_screen.schema.json"
+
+
+def strings_path(data_dir):
+    return Path(data_dir) / "ui" / "strings.json"
+
+
+def strings_schema_path(data_dir):
+    return Path(data_dir) / "schemas" / "strings.schema.json"
 
 
 def _remove_pruning(doc, path):
@@ -109,13 +125,33 @@ class UIScreenSession(QObject):
         self.doc = None
         self.screen_id = None
         self.view = None
+        # UT-1: the GLOBAL string table (data/ui/strings.json), edited
+        # alongside the screen doc — see push_string. `None` when the file is
+        # missing or invalid, which disables template editing rather than
+        # failing the whole screen-mode entry (E-37 grace, editor side).
+        self.strings_doc = None
+        self._strings_clean = None
         self.undo_stack = QUndoStack(self)
 
     # -- lifecycle -------------------------------------------------------------
 
     @property
     def dirty(self):
-        return self.doc is not None and not self.undo_stack.isClean()
+        if self.doc is None:
+            return False
+        return not self.undo_stack.isClean() or self.strings_dirty
+
+    @property
+    def strings_dirty(self):
+        """True when the open string table differs from what is on disk.
+
+        Compared by VALUE rather than tracked with a flag, because string
+        edits share the screen doc's one `QUndoStack` — undoing the only
+        template edit must un-dirty the table again, which a latch cannot do.
+        """
+        if self.strings_doc is None:
+            return False
+        return self.strings_doc != self._strings_clean
 
     def open(self, screen_id):
         self.doc = data_io.load_validated(
@@ -123,9 +159,19 @@ class UIScreenSession(QObject):
             screen_schema_path(self._data_dir))
         self.screen_id = screen_id
         self.view = None
+        self._load_strings()
         self.undo_stack.clear()
         self.screen_opened.emit(screen_id)
         return self.doc
+
+    def _load_strings(self):
+        try:
+            doc = data_io.load_validated(strings_path(self._data_dir),
+                                         strings_schema_path(self._data_dir))
+        except Exception:
+            doc = None
+        self.strings_doc = doc
+        self._strings_clean = copy.deepcopy(doc)
 
     def set_view(self, view_id):
         """Set the active view (or None for the screen's single implicit
@@ -140,6 +186,11 @@ class UIScreenSession(QObject):
         data_io.write_validated(
             self.doc, screen_path(self._data_dir, self.screen_id),
             screen_schema_path(self._data_dir))
+        if self.strings_dirty:
+            data_io.write_validated(
+                self.strings_doc, strings_path(self._data_dir),
+                strings_schema_path(self._data_dir))
+            self._strings_clean = copy.deepcopy(self.strings_doc)
         self.undo_stack.setClean()
 
     def screen_ids(self):
@@ -151,9 +202,15 @@ class UIScreenSession(QObject):
     # -- undoable edits (ED-24) — viewport/screen_details push through these --
 
     def _push(self, path, old, new, text):
+        self._push_doc(self.doc, path, old, new, text)
+
+    def _push_doc(self, doc, path, old, new, text):
+        """`_push` against an explicit doc — the screen override doc for every
+        widget/background/defaults edit, the global string table for
+        `push_string`. Both share this session's one undo stack."""
         if old == new:
             return
-        self.undo_stack.push(_DocFieldCommand(self.doc, path, old, new, text))
+        self.undo_stack.push(_DocFieldCommand(doc, path, old, new, text))
 
     def push_move(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
@@ -182,3 +239,24 @@ class UIScreenSession(QObject):
     def push_default_field(self, field_key, old_value, new_value):
         self._push(("defaults", field_key), old_value, new_value,
                    f"edit defaults.{field_key}")
+
+    def push_string(self, text_id, old_value, new_value):
+        """Rewrite ONE `data/ui/strings.json` template, undoably (UT-1, D2).
+
+        The string table is GLOBAL, not per-screen: a widget's `text_id`
+        points into it, and editing the template here changes that text
+        everywhere it is used. It rides this session's one `QUndoStack` (so
+        Ctrl+Z crosses both docs in the order the designer made the edits) but
+        writes to its own doc, saved by `save()` only when it actually
+        changed.
+
+        `new_value` is never `None` — the table is a closed key set
+        (`additionalProperties: false`, every key `required`), so a template
+        can be rewritten but never removed. Editing an id the table does not
+        already carry is refused for the same reason; adding a key is a schema
+        change, i.e. a code change (D3).
+        """
+        if self.strings_doc is None or text_id not in self.strings_doc:
+            return
+        self._push_doc(self.strings_doc, (text_id,), old_value, new_value,
+                       f"edit text {text_id}")

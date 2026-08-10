@@ -33,7 +33,7 @@ from game.core.boss_bonuses import choice_desc
 
 from .skinning import ScreenSkinning, is_visible
 from .widgets import (
-    anim_ms, contains, submit_centered, submit_panel
+    anim_ms, contains, submit_centered, submit_label, submit_panel
 )
 from . import widgets
 from .strings import T
@@ -41,8 +41,8 @@ from .strings import T
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
 _LOSS_RED = (220, 100, 100)
-_BOX_W, _BOX_H, _GAP = 180, 130, 20
-_DOWN_SHIFT = 20               # boxes sit 20 px below true centre (prototype)
+_BOX_W, _BOX_H, _GAP = 90, 65, 10
+_DOWN_SHIFT = 10               # boxes sit 10 px below true centre (prototype)
 
 SCREEN_ID = "boss_cutscene"
 
@@ -73,9 +73,17 @@ class BossCutscene:
         # scope per the "dynamic/enum-varying text" rule). subtitle is a
         # fixed, non-varying string, so — like every other screen's static
         # title — `label` is a legitimate override field for it.
-        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
+        # UT-5: both go out through ``submit_label`` now, so a ``visible``
+        # override is honoured. ``headline`` keeps ``text_id=None`` on purpose
+        # — it picks ONE OF TWO string ids from the runtime outcome, the same
+        # ``text=`` escape hatch ``hud.py``'s phase banner uses.
+        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
+                                         text_id=None, align="center",
+                                         visible=True)
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
                                          text_color=widgets.C_UI_TEXT_DIM,
+                                         align="center", visible=True,
+                                         text_id=None,
                                          label="How will we react?")
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
@@ -113,8 +121,8 @@ class BossCutscene:
         # json + the golden parity stream).
         self._headline.rect = (
             cx, top - layout_h(self._headline.font_key)
-            - layout_h(self._subtitle.font_key) - 28, 0, 0)
-        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 12,
+            - layout_h(self._subtitle.font_key) - 14, 0, 0)
+        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 6,
                               0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
@@ -156,18 +164,18 @@ class BossCutscene:
         headline = T("boss_cutscene.headline_win" if won
                      else "boss_cutscene.headline_loss")
         color = _WIN_GREEN if won else _LOSS_RED
-        submit_centered(renderer, headline, self._headline.rect[0],
-                        self._headline.rect[1], self._headline.font_key, color)
-        submit_centered(renderer, self._subtitle.label, self._subtitle.rect[0],
-                        self._subtitle.rect[1], self._subtitle.font_key,
-                        self._subtitle.text_color)
-        prefix = "Win" if won else "Loss"
+        submit_label(renderer, self._headline, text=headline, color=color)
+        submit_label(renderer, self._subtitle)
+        prefix = T("boss_cutscene.prefix_win" if won
+                   else "boss_cutscene.prefix_loss")
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(
                 (("A", self.box_a), ("B", self.box_b))):
             if not is_visible(box):
                 continue
-            self._submit_box(renderer, box, prefix + option,
+            self._submit_box(renderer, box,
+                             T("boss_cutscene.box_label", prefix=prefix,
+                               option=option),
                              choice_desc(set_idx, option, self.core_balance),
                              i == self.hovered, t)
 
@@ -188,13 +196,13 @@ class BossCutscene:
             renderer.submit_hud(HudRect(
                 rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2
-        cursor = y + 12
+        cursor = y + 6
         label_color = (box.text_color if box.text_color is not None
                        else (widgets.C_GOLD if hovered else widgets.C_UI_TEXT))
         submit_centered(renderer, label, cx, cursor, box.font_key, label_color)
         # layout_h: this cursor position lands directly in HudText.pos
         # entries the golden parity stream captures.
-        cursor += layout_h(box.font_key) + 10
+        cursor += layout_h(box.font_key) + 5
         for line in desc.split("\n"):
             submit_centered(renderer, line, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 2

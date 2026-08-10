@@ -53,6 +53,83 @@ class TestUILayoutExportStaleness(unittest.TestCase):
         self.assertEqual(bytes_a, bytes_b)
 
 
+class TestScreenPreviewExport(unittest.TestCase):
+    """UT-2: the same staleness + determinism gates for the recorded draw
+    list the editor's screen-mode preview replays."""
+
+    def test_committed_previews_are_fresh(self):
+        live_bytes = (REPO / "data" / "ui" / "screen_previews.json").read_bytes()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            export_main(data_root=REPO / "data", output_dir=tmpdir)
+            temp_bytes = (tmpdir / "ui" / "screen_previews.json").read_bytes()
+        self.assertEqual(
+            temp_bytes, live_bytes,
+            "committed screen_previews.json is stale; run "
+            "`py tools/export_ui_layouts.py`")
+
+    def test_previews_are_deterministic(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            export_main(data_root=REPO / "data", output_dir=Path(a))
+            export_main(data_root=REPO / "data", output_dir=Path(b))
+            self.assertEqual(
+                (Path(a) / "ui" / "screen_previews.json").read_bytes(),
+                (Path(b) / "ui" / "screen_previews.json").read_bytes())
+
+    def test_upgrade_view_records_the_real_stat_rows(self):
+        """The motivating case: the editor must be able to show the Build/
+        Upgrade panel as the player sees it, stat rows and all."""
+        import json
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            export_main(data_root=REPO / "data", output_dir=Path(tmpdir))
+            doc = json.loads(
+                (Path(tmpdir) / "ui" / "screen_previews.json").read_text(
+                    encoding="utf-8"))
+        items = doc["building_panel"]["views"]["upgrade"]["items"]
+        texts = [i["text"] for i in items if i["type"] == "text"]
+        for expected in ("HP", "Damage", "Range"):
+            self.assertIn(expected, texts)
+
+    def test_overrides_move_the_recorded_widget(self):
+        """`--overrides` is what lets the editor re-record an UNSAVED doc."""
+        import json
+
+        from tools import export_ui_layouts as export
+
+        moved = {"main_menu": {"widgets": {"title": {"rect": [7, 9, 0, 0]}}}}
+        with tempfile.TemporaryDirectory() as tmpdir:
+            out = Path(tmpdir) / "previews.json"
+            view_w, view_h = export._logical_resolution(REPO / "data")
+            export.write_previews(REPO / "data", Path(tmpdir), view_w, view_h,
+                                  overrides=moved, output_path=out)
+            doc = json.loads(out.read_text(encoding="utf-8"))
+        positions = [tuple(i["pos"]) for i in doc["main_menu"]["items"]
+                     if i["type"] == "text"]
+        self.assertIn((7, 9), positions)
+
+
+class TestHudItemRoundTrip(unittest.TestCase):
+    """The JSON round-trip lives in `engine/render/hud.py` because BOTH the
+    recorder (`tools/`) and the replay (`editor/`) need it and neither may
+    import the other."""
+
+    def test_every_primitive_round_trips(self):
+        from engine.render import (
+            HudLines, HudRect, HudSprite, HudText, hud_item_from_json,
+            hud_item_to_json,
+        )
+
+        for item in (
+            HudRect((1, 2, 3, 4), (5, 6, 7), border_radius=2, width=1),
+            HudText("hi", (8, 9), "md", (1, 2, 3, 4), align="center"),
+            HudSprite("ui_button", (1, 2), (3, 4), tint=(9, 9, 9),
+                      flip=True, animation="hover", anim_time_ms=17),
+            HudLines(((0, 0), (1, 1)), (2, 3, 4), width=3, closed=True),
+        ):
+            self.assertEqual(hud_item_from_json(hud_item_to_json(item)), item)
+
+
 class TestBuildingPanelViews(unittest.TestCase):
     """UH-1: ``building_panel`` gains a five-key ``views`` object mirroring
     the game's mode dispatch (building_ui.py hover/click branches). Regenerate
@@ -153,15 +230,34 @@ class TestWidgetDisplayNames(unittest.TestCase):
                     encoding="utf-8"))
 
     def test_building_panel_top_level_fully_mapped(self):
-        """Full coverage gate (orchestrator ruling #2): every top-level
-        ``building_panel`` widget id carries the mapped ``display_name``."""
+        """Coverage gate: every top-level ``building_panel`` widget id carries
+        a ``display_name`` — the listed ones from ``_DISPLAY_NAMES``, and (UT-3)
+        the ~40 stat/base-info row ids from the DERIVED rule, which reads a
+        row's own resolved text so renaming a stat renames its widgets too."""
         widgets = self.defaults["building_panel"]["widgets"]
-        self.assertEqual(set(widgets.keys()),
-                         set(self._BUILDING_PANEL_NAMES.keys()))
+        self.assertTrue(
+            set(self._BUILDING_PANEL_NAMES).issubset(set(widgets)))
         for widget_id, expected_name in self._BUILDING_PANEL_NAMES.items():
             self.assertEqual(
                 widgets[widget_id].get("display_name"), expected_name,
                 f"{widget_id!r} display_name mismatch")
+        unnamed = [w for w, spec in widgets.items()
+                   if not spec.get("display_name")]
+        self.assertEqual(unnamed, [], "every widget needs a display name")
+
+    def test_stat_rows_carry_derived_names_and_text_ids(self):
+        """UT-3's motivating contract: each stat is TWO movable widgets, and
+        each knows the string-table key it draws its text from."""
+        widgets = self.defaults["building_panel"]["views"]["upgrade"]["widgets"]
+        self.assertEqual(widgets["stat_hp_label"]["text_id"],
+                         "building.stat.hp")
+        self.assertEqual(widgets["stat_hp_label"]["display_name"], "HP label")
+        self.assertEqual(widgets["stat_hp_value"]["text_id"],
+                         "building.stat.value")
+        self.assertEqual(widgets["stat_hp_value"]["display_name"], "HP value")
+        # the two are independently placeable — different default anchors
+        self.assertNotEqual(widgets["stat_hp_label"]["rect"],
+                            widgets["stat_hp_value"]["rect"])
 
     def test_action_btn_spot_check(self):
         widgets = self.defaults["building_panel"]["widgets"]

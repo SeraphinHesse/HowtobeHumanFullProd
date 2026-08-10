@@ -163,6 +163,7 @@ from .widgets import (
     submit_bar, submit_centered, submit_text
 )
 from . import widgets
+from .strings import T
 
 # Income/upkeep/XP/painter/boost floater colours + lifetimes are
 # data/balancing/vfx.json procedural.floaters now (ESV-6, closing the plan's
@@ -176,8 +177,12 @@ from . import widgets
 # _params_from_balance below.
 
 # -- 10G boss: announcement + HP-bar constants ------------------------------
-_ANNOUNCE_L1 = "SOMETHING BIG"
-_ANNOUNCE_L2 = "IS APPROACHING!"
+# UT-5: the two banner lines, the boss-bar label and its hp/max readout are
+# `data/ui/strings.json` templates now (`effects.*`), resolved through T() at
+# the draw site. They get no widget id: this module is FX, not a screen — it
+# has no `ids` dict and every one of these positions is computed inline from
+# the view size or a world point, and the anchor-rect convention says an id
+# needs a STORED rect first.
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
 _BOSS_HUD_BAR_LIFT = 55                      # y = view_h - 55
 # Every OVERHEAD bar (boss included) comes from `submit_enemy_hp_bars`. Width
@@ -463,7 +468,8 @@ class FloaterManager:
         for col, row, amount, kind in state.income_events:
             color = (widgets.C_GOLD if kind == "income"
                      else self._vfx_params.floaters.upkeep_color)
-            text = f"+{amount}" if amount >= 0 else str(amount)
+            text = (T("effects.floater_gain", amount=amount) if amount >= 0
+                    else T("effects.floater_loss", amount=amount))
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
 
@@ -475,7 +481,8 @@ class FloaterManager:
         fl = self._vfx_params.floaters
         for wx, wy, amount in state.xp_events:
             self._floaters.append(
-                _Floater(wx, wy, f"+{amount}", fl.xp_color, fl.xp_life))
+                _Floater(wx, wy, T("effects.floater_xp", amount=amount),
+                         fl.xp_color, fl.xp_life))
         state.xp_events.clear()
 
     def spawn_painter_events(self, state):
@@ -598,7 +605,8 @@ class FloaterManager:
             self._play("building_destroyed", wx, wy)
             np = b.get_component(Nameplate)
             if log is not None and np is not None and np.custom_name:
-                log.post(f"{np.custom_name} has been killed")
+                log.post(T("game_log.building_killed",
+                           name=np.custom_name))
         # drop stale ids so a long run can't grow the map unbounded
         if len(self._building_alive) > 2 * len(seen) + 16:
             self._building_alive = {
@@ -1120,9 +1128,10 @@ class FloaterManager:
         cx = view_w // 2
         # layout_h: a screen-centred layout position (engine/render/fonts.py).
         cy = view_h // 2 - layout_h("xl") - 6
-        submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)
-        submit_centered(renderer, _ANNOUNCE_L2, cx, cy + layout_h("xl") + 8,
-                        "xl", color)
+        submit_centered(renderer, T("effects.announce_line1"), cx, cy, "xl",
+                        color)
+        submit_centered(renderer, T("effects.announce_line2"), cx,
+                        cy + layout_h("xl") + 8, "xl", color)
 
     def submit_boss_bars(self, renderer, cs, scene, phase, view_w, view_h):
         """The bottom-centre boss HUD bar while a live boss walks (prototype
@@ -1148,7 +1157,8 @@ class FloaterManager:
         ratio = health.hp / health.max_hp if health.max_hp else 0.0
         submit_bar(renderer, x, y, w, h, ratio,
                    bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN, border=(0, 0, 0))
-        submit_text(renderer, "BOSS", (x - 10, y - 2), "md", widgets.C_HP_RED,
-                    align="right")
-        submit_text(renderer, f"{health.hp}/{health.max_hp}",
+        submit_text(renderer, T("effects.boss_bar_label"), (x - 10, y - 2),
+                    "md", widgets.C_HP_RED, align="right")
+        submit_text(renderer, T("effects.boss_bar_hp", hp=health.hp,
+                                max_hp=health.max_hp),
                     (x + w + 10, y - 2), "md", widgets.C_UI_TEXT)

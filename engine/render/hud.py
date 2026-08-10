@@ -7,7 +7,7 @@ is resolved to a DrawCall by the renderer; the other three are passed through
 as-is and isinstance-dispatched by the pygame backend, exactly like
 OverlayLines. All coordinates are screen-space pixels.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 
 @dataclass(frozen=True)
@@ -76,3 +76,66 @@ class HudLines:
     color: tuple
     width: int = 1
     closed: bool = False
+
+
+# -- JSON round-trip (UT-2) --------------------------------------------------
+#
+# A recorded draw list crosses a process boundary as JSON: `tools/` records
+# what a game screen submits, the EDITOR replays it in its screen-mode preview
+# (`data/ui/screen_previews.json`). Both sides consume `engine/`, and neither
+# may import the other, so the one serialization rule lives here beside the
+# dataclasses it describes rather than being written twice.
+
+#: `type` tag -> dataclass. The tag is the on-disk contract
+#: (`screen_previews.schema.json`'s enum); the class name is an implementation
+#: detail, so renaming either stays local.
+HUD_ITEM_TYPES = {
+    "rect": HudRect,
+    "text": HudText,
+    "sprite": HudSprite,
+    "lines": HudLines,
+}
+_HUD_TAG_BY_CLASS = {cls: tag for tag, cls in HUD_ITEM_TYPES.items()}
+
+
+def _jsonable(value):
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def hud_item_to_json(item):
+    """One HUD primitive -> a plain JSON dict `{type, ...fields}`.
+
+    EVERY field is emitted, defaults included, so a reader never has to know
+    this module's default values — and a default changed here shows up as a
+    real diff in the generated file rather than silently re-meaning every
+    existing entry.
+    """
+    tag = _HUD_TAG_BY_CLASS.get(type(item))
+    if tag is None:
+        raise TypeError(f"not a HUD primitive: {item!r}")
+    out = {"type": tag}
+    for f in fields(item):
+        out[f.name] = _jsonable(getattr(item, f.name))
+    return out
+
+
+def _detuple(value):
+    """Every JSON array back to a tuple, at every depth — `HudLines.points` is
+    a tuple OF point tuples, and a half-restored `([0, 0], ...)` compares
+    unequal to the item it was written from."""
+    if isinstance(value, (list, tuple)):
+        return tuple(_detuple(v) for v in value)
+    return value
+
+
+def hud_item_from_json(spec):
+    """The inverse of `hud_item_to_json`. JSON arrays come back as tuples —
+    what every downstream consumer unpacks. Unknown keys are ignored so a file
+    written by a newer field set still loads."""
+    data = dict(spec)
+    cls = HUD_ITEM_TYPES[data.pop("type")]
+    kwargs = {f.name: _detuple(data[f.name])
+              for f in fields(cls) if f.name in data}
+    return cls(**kwargs)

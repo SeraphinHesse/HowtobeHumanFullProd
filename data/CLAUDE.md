@@ -558,6 +558,43 @@ validating writer; don't hand-edit the JSON.
   directory exception needed for this one file. Editor previews render from
   defaults + overrides only. Merge conflicts on two branches resolve by
   re-running the exporter (deterministic output).
+- **`data/ui/screen_previews.json` (UT-2)**: the SECOND generated-but-committed
+  UI artifact, pairing normally by stem with `schemas/screen_previews.schema
+  .json`. Where `screen_defaults.json` records each named widget's default
+  RECT, this records the whole **draw list** each screen produces —
+  `{screen_id: {items: [...]}}`, plus `views` for `building_panel` — as
+  serialized `HudRect`/`HudText`/`HudSprite`/`HudLines` (`type` tag + every
+  field, defaults included). The editor's screen mode REPLAYS it behind its
+  draggable widget boxes, so a designer sees the real panel — background,
+  fonts, sprites, stat rows, dividers, every bit of chrome no widget id covers
+  — instead of placeholder rectangles.
+  - Written by the same `tools/export_ui_layouts.py` run that writes
+    `screen_defaults.json`, from the SAME mock state (`tools/screen_mocks.py`
+    — one state, two artifacts, so the boxes and the picture behind them can
+    never disagree about where a widget is). Never hand-edited; merge
+    conflicts resolve by re-running the exporter.
+  - **Recorded OVERRIDE-FREE**, for the same reason the defaults are: the two
+    layers must stay distinguishable. The editor re-records against an
+    UNSAVED doc via `--previews-only --overrides <file> --previews-out <file>`
+    into a temp path, never over the committed one.
+  - Determinism is load-bearing (it is committed): fixed cursor, `dt=0.0`,
+    `anim_ms=0`, a seeded RNG, and a session over the PINNED `first_light` map
+    rather than whichever map is active — flipping the active map must not
+    churn the file. `tools/tests/test_ui_layout_export.py` gates both
+    staleness and determinism.
+  - The JSON round-trip itself lives in `engine/render/hud.py`
+    (`hud_item_to_json`/`hud_item_from_json`), beside the dataclasses it
+    describes, because the recorder (`tools/`) and the replay (`editor/`) both
+    need it and neither may import the other.
+- **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
+  `screen_defaults.json` widget record, and `text_id` is also an optional
+  per-widget override in `ui_screen.schema.json`. `text_id` is the
+  `strings.json` key the widget resolves its text through — the binding that
+  lets the editor show and edit a dynamic readout's TEXT instead of calling it
+  code-owned. `sample` is that template resolved when it takes NO placeholders;
+  a templated id gets none, because the exporter cannot know the kwargs the
+  call site passes (the recorded preview shows the real substituted text
+  beside it instead).
 - **SCHEMA-PAIRING EXCEPTION (the directory rule — now THREE + ONE)**:
   `data/ui/screens/*.json` (any stem, the screen id) → `ui_screen.schema.json`
   (exact parallel to `data/maps/*.json` → `map_file.schema.json`).

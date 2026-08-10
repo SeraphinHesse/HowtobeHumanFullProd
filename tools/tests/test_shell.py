@@ -16,7 +16,7 @@ from game.ui import Shell
 
 REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
-VW, VH = 1280, 720
+VW, VH = 640, 360
 
 
 class _FakeAssets:
