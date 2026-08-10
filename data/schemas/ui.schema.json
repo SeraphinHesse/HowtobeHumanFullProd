@@ -142,6 +142,12 @@
       "additionalProperties": false,
       "description": "UI interaction timing and layout toggles.",
       "properties": {
+        "batch_exclusion_flash_duration": {
+          "description": "Seconds a building's tile flashes red after it was excluded from a multi-select batch action (e.g. a mid-tier building left out of the batch ADVANCE click).",
+          "maximum": 60,
+          "minimum": 0,
+          "type": "number"
+        },
         "confirm_on_right_side": {
           "description": "If true the confirm button sits on the right side of the construct preview.",
           "type": "boolean"
@@ -158,6 +164,7 @@
         }
       },
       "required": [
+        "batch_exclusion_flash_duration",
         "confirm_on_right_side",
         "construct_show_cancel",
         "not_enough_love_duration"

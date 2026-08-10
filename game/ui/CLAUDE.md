@@ -657,21 +657,58 @@ imports:
   **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
   path from the plain in-tier batch above.** `_batch_advance_targets`
   (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
-  every building whose next tier is reachable right now — regardless of its
-  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
-  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
-  UPGRADE batch. Clicking it, for each target: pays and applies any
-  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
-  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
-  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
-  LOVE" flash the in-tier batch uses). A building that can never reach its
-  next tier right now (already at the final tier, next tier unresearched,
-  or round-gated) is excluded from the batch/cost entirely — left for the
-  player to handle separately once it qualifies. **A single selection is
-  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
-  tiles) <= 1`, so one selected building still upgrades one in-tier level
-  per click and advances tier separately, via the original primary-only
-  branch in `_upgrade_click`, byte-identical to before this fix.
+  every building that is ALREADY AT ITS TIER MAX and whose next tier is
+  reachable right now — the same gate `upgrade_gate` uses for a single
+  selection — and, when that set is non-empty, `_build_upgrade` shows ONE
+  combined `"ADVANCE ×n  <cost>"` button instead of the plain UPGRADE
+  batch. Clicking it, for each target: pays the next tier's advance cost,
+  calls `advance_tier()`, then `lightning.sync_level_from_tier` — all gated
+  by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH LOVE"
+  flash the in-tier batch uses). **A building still mid-tier is NEVER swept
+  into this batch, even once its next tier is fully researched** — a
+  regression fix (`fix/batch-advance-tier-max-only`): the batch used to
+  include a mid-tier building too, bundling catch-up cost for every
+  remaining in-tier level plus the next tier's build cost into the total,
+  so multi-selecting two freshly-placed buildings (e.g. two level-1 Flute
+  Players, 5 love apiece to level up) could silently jump from an expected
+  "UPGRADE ×2  10" to "ADVANCE ×2  90" the moment their next tier had been
+  researched, with no user action beyond selecting a second tile. A
+  mid-tier building now simply stays in the plain in-tier
+  `_batch_upgrade_targets` batch instead, priced at its own next-level
+  cost — exactly like a single selection would show. A building that can
+  never reach its next tier at all (already at the final tier, next tier
+  unresearched, or round-gated) is still excluded from the batch/cost
+  entirely — left for the player to handle separately once it qualifies.
+  **A single selection is unaffected**: `_batch_advance_targets` returns
+  `[]` for `len(selected_tiles) <= 1`, so one selected building still
+  upgrades one in-tier level per click and advances tier separately, via
+  the original primary-only branch in `_upgrade_click`, byte-identical to
+  before this fix.
+  - **Mixed-selection note**: if a multi-selection has SOME buildings at
+    tier max (ADVANCE-eligible) and some still mid-tier, the combined
+    button shows ADVANCE for the eligible subset only — the mid-tier ones
+    are left out of that click entirely (not charged, not advanced) rather
+    than folded into a bigger combined action; the player upgrades them
+    separately, e.g. by reselecting just those tiles.
+  - **Exclusion is never silent (fix/batch-advance-tier-max-only).**
+    `_flag_batch_exclusions(acted_on)` runs at the moment EITHER batch
+    click (ADVANCE or the plain in-tier UPGRADE) actually applies: any
+    currently-selected building not in that click's `acted_on` set — mid-
+    tier and left out of ADVANCE, or structurally unable to reach its next
+    tier at all (final tier / unresearched / round-gated) — gets its tile
+    stamped into `self._exclusion_flash` (`{(col, row): seconds
+    remaining}`, seeded from `ui.json Timing.batch_exclusion_flash_
+    duration`, 2.0s shipped). `update(dt)` counts it down and drops the
+    entry at zero; `submit()` draws a `widgets.C_RED` `submit_tile_diamond`
+    for every tile still in the dict, in the SAME un-gated-by-`self.visible`
+    block as `_highlight_tiles`/`_highlight_edges` (so it still reads even
+    if the panel closes right after the click). A single selection never
+    populates it (`_flag_batch_exclusions` no-ops for `len(selected_tiles)
+    <= 1` — there is no "excluded" building to flag when only one is
+    selected). Not stamped when the click fails on affordability (the
+    "NOT ENOUGH LOVE" button flash already covers that case, and nothing
+    was acted on for ANY selected building, so there is nothing to
+    contrast against).
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name

@@ -13,13 +13,20 @@ split: ``place_building`` / ``upgrade`` never touch RunState).
 
 **fix/batch-tier-advance**: tier ADVANCE now batches too —
 ``_batch_advance_targets`` (``game.core.levelup.advance_batch_plan``) sweeps
-a multi-selection for every building whose next tier is reachable right now,
-catching each one up through any remaining in-tier levels before advancing
-it, one combined all-or-nothing cost. A building that can never reach its
-next tier yet (already at the final tier, next tier unresearched, or
-round-gated) is excluded from the batch and left untouched. A single
-selection is unaffected — it still upgrades/advances one step at a time via
-the primary-only path.
+a multi-selection for every building that is ALREADY at its tier max AND
+whose next tier is reachable right now, one combined all-or-nothing cost. A
+building still mid-tier is never included here even if its next tier is
+researched (it stays in the plain in-tier ``_batch_upgrade_targets`` batch,
+priced at its own next-level cost) — this is what stops a fresh multi-select
+from silently pricing at a full catch-up-plus-advance sum. A building that
+can never reach its next tier at all (already at the final tier, next tier
+unresearched, or round-gated) is excluded from the batch and left untouched.
+A single selection is unaffected — it still upgrades/advances one step at a
+time via the primary-only path. **Exclusion is never silent**: the moment
+either batch click actually applies, every selected building it left out
+gets a red `submit_tile_diamond` flash on its tile for
+`ui.json Timing.batch_exclusion_flash_duration` seconds
+(`_flag_batch_exclusions`, `_exclusion_flash`).
 
 10A wired the research gates: the construct list only offers types the run has
 earned, and the upgrade button runs the five-mode ``levelup.upgrade_gate``
@@ -582,6 +589,13 @@ class BuildingUI:
         self.view_h = view_h
         self._ui_balance = ui_balance
         self._flash_dur = ui_balance["Timing"]["not_enough_love_duration"]
+        self._batch_exclusion_flash_dur = ui_balance["Timing"][
+            "batch_exclusion_flash_duration"]
+        # -- fix/batch-advance-tier-max-only: {(col, row): seconds remaining}
+        # for a building a multi-select batch action's click just left OUT
+        # of that click (mid-tier / final-tier / unresearched / round-gated)
+        # -- decremented in `update`, drawn as a red tile flash in `submit`. --
+        self._exclusion_flash = {}
         self.panel_w = 130
         self.panel_x = view_w - self.panel_w
         self.panel_rect = (self.panel_x, 0, self.panel_w, view_h)
@@ -983,10 +997,13 @@ class BuildingUI:
 
     def _batch_advance_targets(self):
         """``[(building, cost, levels_needed)]`` across a multi-selection
-        whose next tier is reachable right now (``game.core.levelup.
-        advance_batch_plan``) — a building that can never get there no
-        matter how much love is spent (already at the final tier, next tier
-        unresearched, or round-gated) is excluded. Empty for a single
+        whose next tier is reachable right now AND is already at its tier
+        max (``game.core.levelup.advance_batch_plan``) — a building still
+        mid-tier is excluded here even if its next tier is researched (it
+        stays in ``_batch_upgrade_targets`` instead, priced at its own
+        next-level cost); a building that can never get there no matter how
+        much love is spent (already at the final tier, next tier
+        unresearched, or round-gated) is excluded too. Empty for a single
         selection: ``_upgrade_click``'s primary-only ADVANCE path covers
         that case unchanged."""
         if len(self.selected_tiles) <= 1:
@@ -1002,6 +1019,24 @@ class BuildingUI:
             if eligible:
                 out.append((b, cost, levels_needed))
         return out
+
+    def _flag_batch_exclusions(self, acted_on):
+        """Stamp a red tile-flash timer (``_exclusion_flash``) on every
+        currently-selected building NOT in ``acted_on`` — feedback for a
+        multi-select batch action whose click just left it out (mid-tier
+        when the batch is ADVANCE, or unable to reach its next tier at all:
+        already at the final tier, next tier unresearched, or round-gated).
+        A single selection never has an "excluded" building, so this is a
+        no-op there."""
+        if len(self.selected_tiles) <= 1:
+            return
+        for t in self.selected_tiles:
+            b = t.occupant
+            if b is None or getattr(b, "building_type", None) == "base":
+                continue
+            if b not in acted_on:
+                self._exclusion_flash[(t.col, t.row)] = (
+                    self._batch_exclusion_flash_dur)
 
     def _build_upgrade(self):
         mode, cost, label, hint = self._upgrade_state(self._selected)
@@ -1424,6 +1459,8 @@ class BuildingUI:
                                                 "NOT ENOUGH LOVE")
                     return True
                 st.spend_love(total)
+                self._flag_batch_exclusions(
+                    {tb for tb, _c, _l in advance_targets})
                 for tb, c, levels_needed in advance_targets:
                     for _ in range(levels_needed):
                         tb.upgrade()
@@ -1467,6 +1504,7 @@ class BuildingUI:
                                                 T("building.flash.not_enough_love"))
                     return True
                 st.spend_love(total)
+                self._flag_batch_exclusions({tb for tb, _c in targets})
                 for tb, _c in targets:
                     tb.upgrade()
                     sync_wall_art_era(st, tb, session.enemies_balance)  # wall-era-art
@@ -1584,9 +1622,18 @@ class BuildingUI:
             btn.update(dt)
         if self.preview is not None:
             self.preview.update(dt)
+        if self._exclusion_flash:
+            for key in list(self._exclusion_flash):
+                remaining = self._exclusion_flash[key] - dt
+                if remaining <= 0:
+                    del self._exclusion_flash[key]
+                else:
+                    self._exclusion_flash[key] = remaining
 
     def submit(self, renderer, session):
         t = anim_ms(self._clock)
+        for col, row in self._exclusion_flash:
+            submit_tile_diamond(renderer, col, row, widgets.C_RED)
         for col, row, color in self._highlight_tiles:
             submit_tile_diamond(renderer, col, row, color)
         # Each selected wall builder's actual EDGES, as thick world-space

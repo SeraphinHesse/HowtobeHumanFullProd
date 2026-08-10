@@ -230,10 +230,8 @@ def _next_tier_gate(state, building, buildings_balance, progression_balance):
     """The next-tier half of the classifier below, independent of whether the
     building is currently AT its tier max — ``(mode, next_name, cost)`` using
     the same four post-tier-max modes ``upgrade_gate`` returns. Shared by
-    ``upgrade_gate`` (which only consults this once ``at_tier_max()``) and
-    ``advance_batch_plan`` (which needs it regardless of current level, since
-    the current TIER — not the level within it — is what decides whether a
-    next tier exists/is researched/is offerable).
+    ``upgrade_gate`` and ``advance_batch_plan``, both of which only consult
+    it once ``at_tier_max()`` is already true.
 
     ``tier_hidden``'s ``cost`` carries the village_level the next tier
     unlocks at (TimelinePLAN D5 — always exactly true, unlike showing the
@@ -272,30 +270,19 @@ def advance_batch_plan(state, building, buildings_balance, progression_balance):
     """``(eligible, total_cost, levels_needed)`` for the multi-select batch
     ADVANCE action (``game/ui/building_ui.py``'s ``_batch_advance_targets``).
 
-    ``eligible`` is False when the building can never reach its next tier
-    right now no matter how much love is spent — already at the final tier
-    (``max_tier``), the next tier not yet researched (``tier_locked``), or
-    not yet offerable per the Timeline (``tier_hidden``); those buildings are
-    left for the player to handle separately (a plain in-tier UPGRADE, or
-    once research/the Timeline catches up). When eligible (``tier_upgrade``,
-    whether or not the building is at its tier max RIGHT NOW), ``total_cost``
-    sums every remaining in-tier level-up needed to reach this tier's max
-    level (projected via ``upgrade_cost()``'s own formula, without mutating
-    the building) plus the next tier's advance cost; ``levels_needed`` is how
-    many ``upgrade()`` calls that catch-up takes (0 if already at tier max)."""
+    ``eligible`` requires the building to ALREADY be at its tier max —
+    the same gate a single selection's own upgrade button uses
+    (``upgrade_gate`` only offers ADVANCE once ``at_tier_max()``). A
+    building still mid-tier is never swept into this batch, even when its
+    next tier is fully researched: it stays in the plain in-tier UPGRADE
+    batch instead (``_batch_upgrade_targets``), which prices at its own
+    next-level cost, not a catch-up-plus-tier-advance sum. ``total_cost`` is
+    therefore just the next tier's advance cost, and ``levels_needed`` is
+    always 0 (nothing left to catch up on)."""
+    if not building.at_tier_max():
+        return False, 0, 0
     mode, _next_name, tier_cost = _next_tier_gate(
         state, building, buildings_balance, progression_balance)
     if mode != "tier_upgrade":
         return False, 0, 0
-    tier_data = building.tier_data()
-    max_levels = tier_data["levels"]
-    base = tier_data["upgrade_cost_base"]
-    increment = tier_data["upgrade_cost_increment"]
-    lvl = building.get_component(TierState).current_level_in_tier
-    catchup_cost = 0
-    levels_needed = 0
-    while lvl < max_levels:
-        catchup_cost += base + (lvl - 1) * increment
-        lvl += 1
-        levels_needed += 1
-    return True, catchup_cost + tier_cost, levels_needed
+    return True, tier_cost, 0

@@ -16,6 +16,7 @@ from engine.core import Scene
 from engine.physics import TileOccupancy
 from game.buildings.components import Nameplate, TierState
 from game.core import Session, load_balance
+from game.core.levelup import timeline_level_for
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
@@ -32,6 +33,7 @@ ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
+PROGRESSION_BAL = load_balance(FIXTURE_DATA, "progression")
 VIEW_W, VIEW_H = 640, 360
 
 
@@ -153,10 +155,16 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
             lvl = t.occupant.get_component(TierState).current_level_in_tier
             self.assertEqual(lvl, 2)
 
-    def test_batch_advance_catches_up_and_sums_multiple(self):
-        """fix/batch-tier-advance: a multi-selection where every building can
-        reach the next tier -- one already at tier max, one still mid-tier --
-        advances BOTH in one click, one combined cost (catch-up + advance)."""
+    def test_batch_advance_excludes_mid_tier_building_from_selection(self):
+        """fix/batch-advance-tier-max-only: a multi-selection with one
+        building already at tier max and one still mid-tier -- only the
+        tier-max building is swept into the ADVANCE batch (no catch-up cost
+        bundled for the mid-tier one); the mid-tier building is left
+        untouched by this click and stays available via the plain in-tier
+        UPGRADE batch instead. Regression test for the "2 flute players
+        costing 90 instead of 10" bug: a mid-tier building must never be
+        priced as if it were catching up to tier max just because it shares
+        a selection with one that already is."""
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
         tiles = [tm.get(2, 1), tm.get(2, 2)]
@@ -164,37 +172,111 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         self._open_construct(panel, session, tiles)
         panel.handle_click(*click(panel.preview.confirm_btn), session,
                            BUILDINGS_BAL, scene, occupancy)
-        b_ready, b_catchup = (t.occupant for t in tiles)
+        b_ready, b_mid_tier = (t.occupant for t in tiles)
         b_ready.get_component(TierState).current_level_in_tier = 3  # tier max
-        # b_catchup stays at level 1 -- needs 2 more in-tier levels first
-        session.state.round_num = 10
+        # b_mid_tier stays at level 1 -- still mid-tier
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = timeline_level_for(
+            "defence", 1, PROGRESSION_BAL)
         session.state.tiers_unlocked["defence"] = 2  # Slinger researched
 
         tier0 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]
         tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
                       ["tiers"][1]["build_cost"])
-        catchup = sum(
-            tier0["upgrade_cost_base"] + (lvl - 1) * tier0["upgrade_cost_increment"]
-            for lvl in (1, 2))
-        expected_total = tier1_cost + (tier1_cost + catchup)
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
                             selected_tiles=tiles)
         self.assertEqual(panel.mode, "upgrade")
-        targets = panel._batch_advance_targets()
-        self.assertEqual({t[0] for t in targets}, {b_ready, b_catchup})
+        advance_targets = panel._batch_advance_targets()
+        self.assertEqual({t[0] for t in advance_targets}, {b_ready})
+        upgrade_targets = panel._batch_upgrade_targets()
+        self.assertEqual({t[0] for t in upgrade_targets}, {b_mid_tier})
         self.assertIn("ADVANCE", panel.action_btn.label)
-        self.assertEqual(panel._action_cost, expected_total)
+        self.assertEqual(panel._action_cost, tier1_cost)
 
-        session.state.love = expected_total + 5
+        session.state.love = tier1_cost + 5
         love_before = session.state.love
         panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
                            scene, occupancy)
-        self.assertEqual(session.state.love, love_before - expected_total)
-        for b in (b_ready, b_catchup):
-            ts = b.get_component(TierState)
-            self.assertEqual(ts.current_tier, 1)
-            self.assertEqual(ts.current_level_in_tier, 1)
+        self.assertEqual(session.state.love, love_before - tier1_cost)
+        self.assertEqual(b_ready.get_component(TierState).current_tier, 1)
+        # untouched: not advanced, not charged
+        mid_ts = b_mid_tier.get_component(TierState)
+        self.assertEqual(mid_ts.current_tier, 0)
+        self.assertEqual(mid_ts.current_level_in_tier, 1)
+
+    def test_batch_advance_flags_excluded_building_with_red_flash(self):
+        """A building left out of a batch ADVANCE click gets a timed red
+        tile flash instead of no feedback at all -- and it decays after
+        its configured duration."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        b_ready, b_mid_tier = (t.occupant for t in tiles)
+        b_ready.get_component(TierState).current_level_in_tier = 3  # tier max
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = timeline_level_for(
+            "defence", 1, PROGRESSION_BAL)
+        session.state.tiers_unlocked["defence"] = 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel._exclusion_flash, {})
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+
+        ready_key = (tiles[0].col, tiles[0].row)
+        excluded_key = (tiles[1].col, tiles[1].row)
+        self.assertNotIn(ready_key, panel._exclusion_flash)
+        self.assertIn(excluded_key, panel._exclusion_flash)
+        remaining = panel._exclusion_flash[excluded_key]
+        self.assertGreater(remaining, 0)
+
+        panel.update(remaining + 0.01)
+        self.assertEqual(panel._exclusion_flash, {})
+
+    def test_batch_upgrade_stays_plain_when_no_building_is_at_tier_max(self):
+        """Regression test for the reported bug: two freshly-placed
+        buildings, both still mid-tier, with their next tier already
+        researched. Before fix/batch-advance-tier-max-only this silently
+        showed the ADVANCE batch (catch-up-plus-tier-advance summed across
+        both), not the plain per-level UPGRADE batch a player selecting two
+        fresh buildings would expect."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        # both buildings stay at level 1 of tier 1 -- neither is tier-max
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = timeline_level_for(
+            "defence", 1, PROGRESSION_BAL)
+        session.state.tiers_unlocked["defence"] = 2  # next tier researched
+
+        tier0 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]
+        per_building_cost = tier0["upgrade_cost_base"]  # level 1 -> 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel._batch_advance_targets(), [])
+        self.assertNotIn("ADVANCE", panel.action_btn.label)
+        self.assertEqual(panel._action_cost, per_building_cost * 2)
+
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love,
+                         love_before - per_building_cost * 2)
+        for t in tiles:
+            ts = t.occupant.get_component(TierState)
+            self.assertEqual(ts.current_tier, 0)
+            self.assertEqual(ts.current_level_in_tier, 2)
 
     def test_batch_advance_excludes_buildings_that_cannot_reach_next_tier(self):
         """A building already at its FINAL tier can't advance no matter what
@@ -210,7 +292,9 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         b_eligible, b_stuck = (t.occupant for t in tiles)
         b_eligible.get_component(TierState).current_level_in_tier = 3
         b_stuck.get_component(TierState).current_tier = 2  # Pistoleer (final tier)
-        session.state.round_num = 10
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = timeline_level_for(
+            "defence", 1, PROGRESSION_BAL)
         session.state.tiers_unlocked["defence"] = 2
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
@@ -237,7 +321,9 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
                            BUILDINGS_BAL, scene, occupancy)
         for t in tiles:
             t.occupant.get_component(TierState).current_level_in_tier = 3
-        session.state.round_num = 10
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = timeline_level_for(
+            "defence", 1, PROGRESSION_BAL)
         session.state.tiers_unlocked["defence"] = 2
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,

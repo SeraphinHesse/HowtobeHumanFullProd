@@ -545,10 +545,13 @@ class TestUpgradeGate(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestAdvanceBatchPlan(unittest.TestCase):
-    """``advance_batch_plan`` (fix/batch-tier-advance) — whether a building
-    can reach its next tier right now no matter what, and the combined
-    catch-up + advance cost when it can. Powers the upgrade panel's
-    multi-select batch ADVANCE action (``game/ui/building_ui.py``)."""
+    """``advance_batch_plan`` (fix/batch-tier-advance; narrowed by
+    fix/batch-advance-tier-max-only) — whether a building is ALREADY at its
+    tier max and can reach its next tier right now. A building still
+    mid-tier is never eligible here, even when its next tier is researched
+    — that keeps the multi-select batch ADVANCE action
+    (``game/ui/building_ui.py``) from silently bundling catch-up cost into
+    the total the moment a second tile joins the selection."""
 
     def defender(self):
         tm, scene, occ = build_board(["bb", "bb"])
@@ -557,15 +560,6 @@ class TestAdvanceBatchPlan(unittest.TestCase):
         b, _ = place_building(tm, tm.get(1, 1), "defence", st.love, BUILD,
                               scene, occ, state=st)
         return st, b
-
-    @staticmethod
-    def _catchup_cost(tier_data, from_level):
-        total, lvl = 0, from_level
-        while lvl < tier_data["levels"]:
-            total += (tier_data["upgrade_cost_base"]
-                      + (lvl - 1) * tier_data["upgrade_cost_increment"])
-            lvl += 1
-        return total
 
     def test_eligible_at_tier_max_needs_no_catchup(self):
         st, b = self.defender()
@@ -578,18 +572,19 @@ class TestAdvanceBatchPlan(unittest.TestCase):
         self.assertEqual(levels_needed, 0)
         self.assertEqual(cost, DEF_T2["build_cost"])
 
-    def test_eligible_mid_tier_bundles_catchup_cost(self):
-        """Not yet at the tier cap -- the batch action still counts it in,
-        bundling the remaining in-tier level-up(s) into the total."""
+    def test_ineligible_mid_tier_even_when_next_tier_researched(self):
+        """fix/batch-advance-tier-max-only: not yet at the tier cap -- the
+        batch ADVANCE action excludes it even though its next tier is fully
+        researched, so it can't silently bundle catch-up cost for every
+        remaining in-tier level into the total. It stays in the plain
+        in-tier UPGRADE batch instead, priced at its own next-level cost."""
         st, b = self.defender()                        # level 1 of tier 1
         st.village_level = DEF_T2_LEVEL
         st.tiers_unlocked["defence"] = 2
         eligible, cost, levels_needed = lv.advance_batch_plan(
             st, b, BUILD, PROGRESSION)
-        self.assertTrue(eligible)
-        self.assertEqual(levels_needed, 2)              # level 1 -> 3
-        self.assertEqual(cost,
-                         self._catchup_cost(DEF_T1, 1) + DEF_T2["build_cost"])
+        self.assertFalse(eligible)
+        self.assertEqual((cost, levels_needed), (0, 0))
 
     def test_ineligible_when_next_tier_unresearched(self):
         """At the tier cap but the next tier isn't RESEARCHED yet -- no

@@ -24,6 +24,7 @@
     "cutscene_length": 44.2
   },
   "Timing": {
+    "batch_exclusion_flash_duration": 2.0,
     "confirm_on_right_side": true,
     "construct_show_cancel": true,
     "not_enough_love_duration": 1.5
