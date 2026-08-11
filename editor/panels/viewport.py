@@ -8,8 +8,9 @@ map node is selected): the open MapSession's doc rendered with layer eyes +
 zone tints, ghost previews on the overlay layer, grid lines through the
 engine's E-24 overlay primitive, and mouse tools whose cell picking goes
 through engine.coords.screen_to_world ONLY (E-3 — no iso math here); and
-SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed 1280x720
-logical canvas scaled-to-fit the widget, submitted entirely through
+SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed logical
+canvas at data/display.json's resolution (UR-1: that file is the ONE place
+the resolution is stated) scaled-to-fit the widget, submitted entirely through
 Renderer.submit_hud (HudSprite for skinned widgets, editor.panels.
 _screen_primitives' flat-rect fallback for unskinned ones — E-37 degrade,
 never a game/ui import). In map mode the LEFT button drives the armed tool
@@ -22,8 +23,13 @@ SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
 real SDL window. The surface is converted to a QImage and painted in
 paintEvent — the sanctioned QImage-copy fallback (PLAN §7), >=60fps at
-1280x720 (numbers in editor/CLAUDE.md).
+1280x720 (numbers in editor/CLAUDE.md). That literal is a RECORD of the
+editor-window size the measurement was taken at, not the logical screen
+canvas — the canvas is data/display.json's resolution (see
+logical_resolution below). Do not de-literalise it; it would falsify the
+measurement.
 """
+import copy
 import math
 import os
 import time
@@ -37,7 +43,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import anchor_ops, tilemap_ops, vfx_params
+from editor import anchor_ops, tilemap_ops, vfx_params, widget_tree
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
@@ -53,6 +59,7 @@ from engine.render import (
     Renderer,
     RenderItem,
     fit_factor,
+    hud_item_from_json,
     sprite_anchor_screen,
 )
 
@@ -81,6 +88,19 @@ DESPAWN_COLOR = (245, 110, 210)
 # the reserve's cyan and the despawn's magenta; one cell can legitimately carry
 # all three marks, so each number is also drawn at its own y offset
 STAGE_COLOR = (150, 255, 90)
+# tile-condition mark outlines — ONE hue per condition NAME (the fourth
+# overlay's brush value is a name, not a number), each chosen to stay legible
+# against the reserve's cyan, the despawn's magenta and the stage's lime, and
+# against each other. A name with no entry here falls back to
+# CONDITION_DEFAULT_COLOR, so a fifth condition added to the schema still
+# draws (E-37) — it just shares the fallback hue until a colour is chosen.
+CONDITION_COLORS = {
+    "grass": (255, 235, 120),    # pale yellow
+    "mountain": (170, 170, 185),  # slate grey
+    "pond": (80, 140, 255),      # deep blue (vs the reserve's turquoise)
+    "forest": (0, 170, 95),      # deep green (vs the stage's lime)
+}
+CONDITION_DEFAULT_COLOR = (255, 255, 255)
 
 # ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
 # regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
@@ -93,13 +113,40 @@ HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
-# -- screen mode (B4, R3): fixed 1280x720 logical canvas, scaled-to-fit -----
-SCREEN_W, SCREEN_H = 1280, 720   # data/display.json's canonical resolution
+# -- screen mode (B4, R3): fixed logical canvas, scaled-to-fit --------------
+
+
+def logical_resolution(data_dir=None):
+    """The logical screen-canvas size, read from ``data/display.json``.
+
+    UR-1: that file is the ONE place in the repo that states the logical
+    resolution — nothing here carries a literal fallback, because a fallback
+    would be exactly the second source of truth this helper deletes. A missing
+    or invalid display.json therefore raises rather than silently drawing at
+    the wrong size.
+
+    ``data_dir`` defaults to the repo's ``data/`` (the same root the rest of
+    the editor's module-level loads use). The parameter exists so a caller
+    with its own data root can ask; making the panel itself per-instance
+    data-root aware is UR-3's job, not this helper's.
+    """
+    root = Path(data_dir) if data_dir is not None else REPO / "data"
+    display = data_io.load_validated(
+        root / "display.json", root / "schemas" / "display.schema.json")
+    return display["window_w"], display["window_h"]
+
+
+SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
+# P-3: the dimmer outline drawn around every widget that will come along when
+# the selected one is dragged. Deliberately the same hue as SELECTION_COLOR,
+# darkened — "these belong to the selection", not "these are also selected".
+SUBTREE_COLOR = (150, 130, 50)
+LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
-NUDGE_STEP = 1         # arrow-key nudge, in LOGICAL (1280x720) pixels
+NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -121,6 +168,7 @@ class ViewportPanel(QWidget):
     reserve_number_picked = Signal(int)   # picker on a mark → palette spinbox
     despawn_number_picked = Signal(int)   # picker on a despawn mark → spinbox
     stage_number_picked = Signal(int)     # picker on a stage-zone mark → spinbox
+    condition_picked = Signal(str)        # picker on a condition mark → brush
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
     anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
     anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
@@ -179,10 +227,14 @@ class ViewportPanel(QWidget):
         # the Stage Zones brush: True when armed (same shape again)
         self._armed_stage = None
         self._stage_number = 1     # stage number newly painted marks carry
+        # the Tile Conditions brush: the armed condition NAME when armed (the
+        # same shape again, except the brush carries a value — one button per
+        # condition, so the value is the name, never a number)
+        self._armed_condition = None
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
                       "camera": True, "start_area": True, "tutorial": True,
                       "spawn_reserve": True, "despawnable_spawn": True,
-                      "stage_zones": True}
+                      "stage_zones": True, "tile_conditions": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
@@ -197,6 +249,10 @@ class ViewportPanel(QWidget):
         # stage-zone stroke accumulator + the value it writes (None = erase)
         self._stage_stroke = None
         self._stage_stroke_value = None
+        # tile-condition stroke accumulator + the condition NAME it writes
+        # (None = erase)
+        self._condition_stroke = None
+        self._condition_stroke_value = None
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
         self._camera_drag = False
@@ -212,19 +268,33 @@ class ViewportPanel(QWidget):
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
 
         # -- screen mode state (B4, R3): all mutation goes through the open
-        # UIScreenSession's undo stack; all rect math in LOGICAL (1280x720)
-        # pixels, converted to SCREEN pixels only at submission/hit-test time
+        # UIScreenSession's undo stack; all rect math in LOGICAL canvas
+        # (SCREEN_W x SCREEN_H) pixels, converted to SCREEN pixels only at
+        # submission/hit-test time
         self._screen_session = None
         self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
+        # UT-2: the recorded draw list (data/ui/screen_previews.json) and its
+        # per-(screen, view) deserialized cache — see _current_screen_preview.
+        self._screen_previews = {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = {}
         self._selected_widget = None
         self._selected_field_mode = None   # None | "move" | "resize"
         self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
         self._drag_start = None            # SCREEN-pixel QPointF at press
         self._drag_orig_rect = None        # effective LOGICAL rect at press
         self._drag_orig_override_rect = None  # doc override at press, or None
+        # P-3: the descendants a move drag carries along —
+        # [(widget_id, effective rect at press, doc override at press | None)].
+        # Empty for a resize (resizing does NOT cascade) and for a childless
+        # widget.
+        self._drag_subtree = []
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
+        # UR-3: the logical SCREEN_W x SCREEN_H canvas the screen preview is
+        # rendered into before it is scaled up once (see `_screen_canvas`).
+        self._screen_canvas_surface = None
         # Button-state dropdown (idle/hover/pressed/disabled), same floating-
         # child pattern as the entity-preview animation combo above.
         self._state_combo = _NoWheelComboBox(self)
@@ -385,6 +455,7 @@ class ViewportPanel(QWidget):
         self._reserve_stroke = None
         self._despawn_stroke = None
         self._stage_stroke = None
+        self._condition_stroke = None
         self._anchor = None
         self._base_drag = False
         self._start_area_drag = False
@@ -409,9 +480,10 @@ class ViewportPanel(QWidget):
 
     # -- screen mode (B4, R3) -------------------------------------------------
 
-    def set_screen_mode(self, session, defaults=None):
+    def set_screen_mode(self, session, defaults=None, previews=None):
         """A UIScreenSession with an open doc → screen mode: a FIXED
-        1280x720 logical canvas, scaled-to-fit the viewport widget (no
+        SCREEN_W x SCREEN_H logical canvas (data/display.json's resolution),
+        scaled-to-fit the viewport widget (no
         viewport-driven zoom like map mode — the whole canvas is always
         visible at one computed scale, like the entity preview's parked
         camera). None → leaves screen mode.
@@ -427,12 +499,14 @@ class ViewportPanel(QWidget):
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
         self._screen_defaults = defaults if defaults is not None else {}
+        self.refresh_screen_previews(previews)
         self._selected_widget = None
         self._selected_field_mode = None
         self._resize_corner = None
         self._drag_start = None
         self._drag_orig_rect = None
         self._drag_orig_override_rect = None
+        self._drag_subtree = []
         self._screen_state = "idle"
         self._reset_screen_anim_clock()
         if self.in_screen_mode():
@@ -450,6 +524,68 @@ class ViewportPanel(QWidget):
         """"Refresh Layouts" finished (B3's exporter ran): re-render with the
         freshly re-read data/ui/screen_defaults.json — no mode change."""
         self._screen_defaults = defaults or {}
+
+    def refresh_screen_previews(self, previews, recorded_doc=None):
+        """Swap in a freshly generated `screen_previews.json` (UT-2) — the
+        real draw list this screen produces in game, recorded by
+        `tools/export_ui_layouts.py`. `None`/`{}` degrades to the pre-UT-2
+        flat-box rendering (E-37), which is also what a screen the generator
+        does not cover gets.
+
+        `recorded_doc` is the override doc the list was recorded AGAINST —
+        `None` means the committed file, which is always recorded
+        override-free (i.e. `{}`). It is what `_preview_in_sync` compares the
+        live doc to; see there for why that matters.
+
+        Items are deserialized ONCE here, not per frame: a screen's list runs
+        to dozens of primitives and `_submit_screen_items` runs every 16 ms.
+        """
+        self._screen_previews = previews or {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = copy.deepcopy(
+            {} if recorded_doc is None else recorded_doc)
+
+    def _preview_in_sync(self):
+        """True when the recorded draw list already reflects the OPEN doc.
+
+        This is the whole correctness argument for the replay. A recording is
+        a picture of one exact doc; the moment a designer changes anything it
+        describes the past. In sync, the recording IS the screen and the
+        editor draws nothing but selection chrome over it. Out of sync (an
+        edit landed, or a saved doc carries overrides and no re-record has
+        finished yet) the editor ALSO draws every id'd widget from
+        defaults+overrides on top — the pre-UT-2 behaviour, so an override can
+        never be invisible. Those widgets briefly ghost against their recorded
+        selves; a stale picture that hides your edit is the worse failure.
+        """
+        if self._screen_session is None:
+            return False
+        return self._screen_session.doc == self._preview_recorded_doc
+
+    def _current_screen_preview(self):
+        """The open screen/view's recorded draw list as live HUD primitives,
+        or None when this screen has no preview. Resolves the active view the
+        same way `_current_screen_defaults` does — one screen, one rule."""
+        if self._screen_session is None:
+            return None
+        screen_id = self._screen_session.screen_id
+        view = self._screen_session.view
+        cache_key = (screen_id, view)
+        if cache_key in self._screen_preview_items:
+            return self._screen_preview_items[cache_key]
+        entry = (self._screen_previews or {}).get(screen_id)
+        if entry is None:
+            items = None
+        else:
+            if view is not None and view in (entry.get("views") or {}):
+                entry = entry["views"][view]
+            try:
+                items = [hud_item_from_json(spec)
+                         for spec in entry.get("items", ())]
+            except Exception:
+                items = None    # E-37: a stale/corrupt file is not a crash
+        self._screen_preview_items[cache_key] = items
+        return items
 
     def set_selected_widget(self, widget_id):
         """External (screen_details widget-list click) → sync the viewport's
@@ -512,12 +648,28 @@ class ViewportPanel(QWidget):
         return entry
 
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the 1280x720 logical
-        canvas inside the current widget size (screen mode never zooms)."""
+        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size (screen mode never
+        zooms).
+
+        UR-3: a fitted scale of 1.0 or more is snapped DOWN to a whole number
+        (1x, 2x, 3x). The preview is pixel art blitted through one
+        `transform.scale` (`_render_screen_frame`), and a fractional upscale
+        duplicates some source pixels and not others — the game's own SCALED
+        upscale is an exact integer multiple, so this is what a player sees.
+        Below 1.0 the fractional downscale stays exactly as before (there is
+        no honest integer answer there, and 1x would overflow the widget).
+        The offsets are floored to whole pixels for the same reason the snap
+        lives HERE and not at the blit: hit-testing, dragging and the blit all
+        read this one triple, so they cannot disagree."""
         w, h = max(1, self.width()), max(1, self.height())
         scale = min(w / SCREEN_W, h / SCREEN_H)
+        if scale >= 1.0:
+            scale = float(math.floor(scale))
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
-        return scale, (w - scaled_w) / 2, (h - scaled_h) / 2
+        return (scale,
+                float(math.floor((w - scaled_w) / 2)),
+                float(math.floor((h - scaled_h) / 2)))
 
     def _to_screen_rect(self, rect, scale, ox, oy):
         x, y, w, h = rect
@@ -531,28 +683,151 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return list(override.get("rect", base))
 
+    def _widget_text(self, widget_id, spec):
+        """The text this widget currently DRAWS, best-effort — used only to
+        measure a position-only anchor's hit box. Preference order mirrors
+        what the game resolves at draw time: the doc's own `label` override,
+        else the live `strings.json` template the widget is bound to (so a
+        designer's own edit to that template immediately resizes the box),
+        else the exporter's resolved `sample`, else the default `label`."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        if override.get("label"):
+            return override["label"]
+        text_id = override.get("text_id") or spec.get("text_id")
+        if text_id:
+            table = getattr(self._screen_session, "strings_doc", None) or {}
+            if table.get(text_id):
+                return table[text_id]
+        return spec.get("sample") or spec.get("label") or ""
+
+    def _interaction_rect(self, widget_id, defaults):
+        """The widget's editor-side hit/outline box in LOGICAL pixels: its
+        effective rect, with any zero-extent axis grown to the measured size
+        of its text (`_screen_primitives.interaction_rect`). Distinct from
+        `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
+        anchor still stores w/h 0."""
+        spec = defaults.get("widgets", {}).get(widget_id) or {}
+        return _screen_primitives.interaction_rect(
+            self._effective_rect(widget_id, defaults),
+            text=self._widget_text(widget_id, spec),
+            font_key=self._widget_font_key(widget_id, spec),
+            align=spec.get("align", "left"))
+
+    def _widget_font_key(self, widget_id, spec):
+        """The font the widget's text is drawn at: the doc's own `font`
+        override, else the exporter-recorded `font_key`, else the screen's
+        `defaults.font`, else "md" (the same fallback chain
+        `_submit_screen_widget` uses to draw it)."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return (override.get("font") or spec.get("font_key")
+                or style.get("font") or "md")
+
+    def _is_anchor_widget(self, widget_id, defaults):
+        """True when the widget stores no size — it can be MOVED but not
+        resized (there is nothing for a resize to write, and forcing a size
+        onto a text anchor would change what the game draws)."""
+        return _screen_primitives.is_anchor_rect(
+            self._effective_rect(widget_id, defaults))
+
+    # -- widget parenting (P-3/P-5) -----------------------------------------
+    # The hierarchy is DATA (`screen_defaults.json`'s `parent`, plus the open
+    # doc's own re-parenting override) resolved by the pure
+    # `editor/widget_tree.py`. It is an AUTHORING relationship only: the
+    # cascade below rewrites ABSOLUTE rects at EDIT time, and the game's own
+    # `layout()` still recomputes every default each frame with no cascade
+    # (plan D2).
+
+    def _screen_tree(self, defaults):
+        """`{parent_id: [child_id, ...]}` for the open screen+view."""
+        return widget_tree.build_tree(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_parents(self, defaults):
+        """`{widget_id: parent_id | None}` for the open screen+view."""
+        return widget_tree.parent_map(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_descendants(self, widget_id, defaults):
+        """Every widget that moves when `widget_id` moves."""
+        return widget_tree.descendants(self._screen_tree(defaults), widget_id)
+
+    def _hidden_subtrees(self, defaults):
+        """Every widget the preview must skip because an ANCESTOR is hidden
+        (P-5/D4) — not drawn, not hit-testable.
+
+        Visibility inherits in the editor PREVIEW only: the saved `visible`
+        override stays per-widget and the game keeps resolving each widget's
+        own flag, exactly as now. Same argument as D2 — the editor models the
+        hierarchy, the data does not smuggle it into the game.
+
+        Computed as a SET once per frame / once per hit-test rather than
+        walked per widget: both callers loop over every id, and a per-widget
+        ancestor walk would rebuild the parent map ~85 times on
+        `building_panel`. The common case (nothing hidden) exits before
+        building a tree at all.
+        """
+        overrides = self._screen_session.doc.get("widgets", {})
+        hidden_roots = [widget_id for widget_id in defaults.get("widgets", {})
+                        if overrides.get(widget_id, {}).get("visible") is False]
+        if not hidden_roots:
+            return frozenset()
+        tree = self._screen_tree(defaults)
+        out = set()
+        for widget_id in hidden_roots:
+            out.update(widget_tree.descendants(tree, widget_id))
+        return frozenset(out)
+
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
     def _hit_widget(self, pos, defaults):
-        """Topmost widget rect under `pos` (SCREEN pixels) — reverse
-        submission order, since a later HUD submission draws over an
-        earlier one. Invisible widgets (visible=False override) can't be
-        hit."""
+        """The widget under `pos` (SCREEN pixels), or None. Invisible widgets
+        (visible=False override) can't be hit.
+
+        Hit-tests the INTERACTION rect, not the stored one: a position-only
+        text anchor stores a zero-area rect and would otherwise be
+        unreachable with a mouse.
+
+        **The SMALLEST candidate wins**, not the last-submitted one. Two
+        reasons, and the second is the one that bites:
+          * It is what a designer expects — clicking a readout that sits on a
+            panel selects the readout, the way every UI editor behaves.
+          * The editor submits widgets in `screen_defaults.json` key order
+            (alphabetical), which is NOT the game's panel->button->text
+            submission order, so "last drawn" here is meaningless. Live
+            example: `hud.income_text` sits inside `hud.love_panel`, and
+            reverse-key-order made the panel swallow every click on the Love
+            per round readout — one of the widgets the designer specifically
+            asked to be able to edit.
+        Ties (identical area) fall back to the later key, preserving the old
+        behaviour where nothing distinguishes two candidates."""
         scale, ox, oy = self._screen_scale_offset()
         doc = self._screen_session.doc
-        for widget_id in reversed(list(defaults.get("widgets", {}))):
+        hidden = self._hidden_subtrees(defaults)   # P-5: inherited visibility
+        best, best_area = None, None
+        for widget_id in defaults.get("widgets", {}):
             if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
                 continue
+            if widget_id in hidden:
+                continue
             sx, sy, sw, sh = self._to_screen_rect(
-                self._effective_rect(widget_id, defaults), scale, ox, oy)
-            if sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh:
-                return widget_id
-        return None
+                self._interaction_rect(widget_id, defaults), scale, ox, oy)
+            if not (sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh):
+                continue
+            area = sw * sh
+            if best_area is None or area <= best_area:
+                best, best_area = widget_id, area
+        return best
 
     def _hit_resize_handle(self, pos, defaults):
         """One of the 4 corner handles of the CURRENTLY selected widget, or
-        None — handles only exist once something is already selected."""
+        None — handles only exist once something is already selected, and
+        never on a position-only anchor (nothing to resize)."""
         if self._selected_widget is None:
+            return None
+        if self._is_anchor_widget(self._selected_widget, defaults):
             return None
         scale, ox, oy = self._screen_scale_offset()
         sx, sy, sw, sh = self._to_screen_rect(
@@ -614,6 +889,28 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         self._drag_orig_override_rect = (
             list(override["rect"]) if "rect" in override else None)
+        # P-3: a MOVE carries the whole subtree; a RESIZE carries nothing
+        # (proportional resize of a text anchor is meaningless, and
+        # half-scaled children are a common way to destroy a layout by
+        # accident — plan Q2).
+        self._drag_subtree = (
+            self._captured_subtree(widget_id, defaults) if mode == "move"
+            else [])
+
+    def _captured_subtree(self, widget_id, defaults):
+        """`[(child_id, effective rect at press, doc override at press)]` for
+        every descendant — the full old/new the one undo command needs, never
+        a delta (`map_session`'s stroke-command contract)."""
+        overrides = self._screen_session.doc.get("widgets", {})
+        captured = []
+        for child_id in self._screen_descendants(widget_id, defaults):
+            child_override = overrides.get(child_id, {})
+            captured.append((
+                child_id,
+                self._effective_rect(child_id, defaults),
+                list(child_override["rect"]) if "rect" in child_override
+                else None))
+        return captured
 
     def _screen_move(self, event):
         if self._drag_start is None or self._selected_widget is None:
@@ -625,13 +922,20 @@ class ViewportPanel(QWidget):
         pos = event.position()
         dx = (pos.x() - self._drag_start.x()) / scale
         dy = (pos.y() - self._drag_start.y()) / scale
+        doc = self._screen_session.doc
         if self._selected_field_mode == "resize":
             new_rect = self._resized_rect(
                 self._drag_orig_rect, self._resize_corner, dx, dy)
         else:
             x, y, w, h = self._drag_orig_rect
             new_rect = [round(x + dx), round(y + dy), w, h]
-        doc = self._screen_session.doc
+            # P-3: the same delta on every descendant, applied to ITS OWN
+            # rect at press — never to the rect the last move event wrote, so
+            # rounding cannot accumulate across a long drag.
+            for child_id, (cx, cy, cw, ch), _old in self._drag_subtree:
+                doc.setdefault("widgets", {}).setdefault(
+                    child_id, {})["rect"] = [round(cx + dx), round(cy + dy),
+                                             cw, ch]
         doc.setdefault("widgets", {}).setdefault(
             self._selected_widget, {})["rect"] = new_rect
 
@@ -648,22 +952,45 @@ class ViewportPanel(QWidget):
         old_rect = self._drag_orig_override_rect
         if mode == "resize":
             self._screen_session.push_resize(widget_id, old_rect, new_rect)
+        elif self._drag_subtree:
+            # ONE undoable command over the whole subtree (P-3): the live
+            # mutation above already wrote every new rect, and pushing
+            # re-applies the same values, which is idempotent — the exact
+            # argument the single-widget drag already relies on.
+            self._screen_session.push_move_subtree(
+                [(widget_id, old_rect, new_rect)]
+                + [(child_id, child_old,
+                    self._effective_rect(child_id, defaults))
+                   for child_id, _orig, child_old in self._drag_subtree])
         else:
             self._screen_session.push_move(widget_id, old_rect, new_rect)
+        self._drag_subtree = []
 
     def _nudge_selected(self, ddx, ddy):
         """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
         directly (no live-drag preview needed) — QUndoStack.push() calls
-        redo() itself, which is what actually mutates the doc."""
+        redo() itself, which is what actually mutates the doc.
+
+        Cascades exactly like a drag (P-3): it shares `push_move`'s contract,
+        so a keyboard nudge and a mouse drag on the same parent must move the
+        same widgets."""
         defaults = self._current_screen_defaults()
         widget_id = self._selected_widget
         if not defaults or widget_id is None:
             return
+        dx, dy = ddx * NUDGE_STEP, ddy * NUDGE_STEP
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         old_rect = list(override["rect"]) if "rect" in override else None
         x, y, w, h = self._effective_rect(widget_id, defaults)
-        new_rect = [x + ddx * NUDGE_STEP, y + ddy * NUDGE_STEP, w, h]
-        self._screen_session.push_move(widget_id, old_rect, new_rect)
+        new_rect = [x + dx, y + dy, w, h]
+        subtree = self._captured_subtree(widget_id, defaults)
+        if not subtree:
+            self._screen_session.push_move(widget_id, old_rect, new_rect)
+            return
+        self._screen_session.push_move_subtree(
+            [(widget_id, old_rect, new_rect)]
+            + [(child_id, child_old, [cx + dx, cy + dy, cw, ch])
+               for child_id, (cx, cy, cw, ch), child_old in subtree])
 
     # -- palette state (MainWindow wires the PalettePanel signals to these)
     def set_tool(self, name):
@@ -681,6 +1008,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
@@ -693,6 +1021,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -707,6 +1036,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_camera(self, slot):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
@@ -721,6 +1051,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
@@ -735,6 +1066,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_tutorial_flute(self, slot):
         """Arm the First Flute brush (paint = place/move the single "first
@@ -750,6 +1082,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_tutorial_stone(self, slot):
         """Arm the First Stone brush (paint = place/move the single "first
@@ -765,6 +1098,7 @@ class ViewportPanel(QWidget):
         self._armed_spawn_reserve = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def arm_spawn_reserve(self):
         """Arm the Spawnable Background brush (paint = mark the cell with the
@@ -781,6 +1115,7 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_despawn = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def set_reserve_number(self, n):
         """The stage number newly painted marks carry (palette spinbox)."""
@@ -800,6 +1135,7 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
         self._armed_stage = None
+        self._armed_condition = None
 
     def set_despawn_number(self, n):
         """The stage number newly painted despawn marks carry (palette
@@ -820,11 +1156,30 @@ class ViewportPanel(QWidget):
         self._armed_tutorial_stone = None
         self._armed_spawn_reserve = None
         self._armed_despawn = None
+        self._armed_condition = None
 
     def set_stage_number(self, n):
         """The stage number newly painted stage-zone marks carry (palette
         spinbox)."""
         self._stage_number = int(n)
+
+    def arm_tile_condition(self, name):
+        """Arm ONE tile-condition brush (paint = force that condition on the
+        cell, erase = clear the mark). The fourth overlay brush, and the only
+        one that carries a VALUE rather than a bool: the palette has one button
+        per condition NAME, so arming names the condition. Clears every other
+        armed brush."""
+        self._armed_condition = name
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
 
     def set_deco_flip(self, on):
         """Mirror-flip toggle for the armed deco brush — an orthogonal
@@ -985,6 +1340,29 @@ class ViewportPanel(QWidget):
                     tilemap_ops.stage_bucket(doc, *cell, self._stage_number),
                     "stage zone bucket fill")
             return
+        if self._armed_condition is not None:
+            # the tile-condition mark is an INVISIBLE OVERLAY too — its own ops
+            # over doc.tile_conditions, likewise BEFORE the terrain-code
+            # branches. The only difference from the three above: the painted
+            # value is the armed condition NAME, not a spinbox number.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_condition(doc, *cell)
+                if picked is not None:
+                    self.condition_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._armed_condition if self._tool == "paint" else None
+                self._condition_stroke_value = value
+                self._condition_stroke = tilemap_ops.set_condition(
+                    doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_condition_stroke(
+                    tilemap_ops.condition_bucket(
+                        doc, *cell, self._armed_condition),
+                    "tile condition bucket fill")
+            return
         if self._tool == "picker":
             code = tilemap_ops.pick(doc, *cell)
             if code is not None:
@@ -1035,6 +1413,14 @@ class ViewportPanel(QWidget):
                 self._stage_stroke_value))
             self._stroke_last = cell
             return
+        if self._condition_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the stage stroke above
+            self._condition_stroke.extend(tilemap_ops.condition_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._condition_stroke_value))
+            self._stroke_last = cell
+            return
         if self._stroke is not None and cell is not None \
                 and cell != self._stroke_last:
             # Bresenham-interpolate between events so fast drags don't gap
@@ -1082,6 +1468,11 @@ class ViewportPanel(QWidget):
                 self._stage_stroke, "stage zone stroke")
             self._stage_stroke = None
             self._stroke_last = None
+        elif self._condition_stroke is not None:
+            self._map_session.push_condition_stroke(
+                self._condition_stroke, "tile condition stroke")
+            self._condition_stroke = None
+            self._stroke_last = None
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
@@ -1106,6 +1497,12 @@ class ViewportPanel(QWidget):
                     self._map_session.push_stage_stroke(
                         op(doc, *self._anchor, *cell, self._stage_number),
                         f"stage zone {self._tool}")
+                elif self._armed_condition is not None:
+                    op = (tilemap_ops.condition_line if self._tool == "line"
+                          else tilemap_ops.condition_rect)
+                    self._map_session.push_condition_stroke(
+                        op(doc, *self._anchor, *cell, self._armed_condition),
+                        f"tile condition {self._tool}")
                 else:
                     op = (tilemap_ops.line if self._tool == "line"
                           else tilemap_ops.rect_fill)
@@ -1140,6 +1537,8 @@ class ViewportPanel(QWidget):
             return   # its ghost is the OUTLINE drawn by the despawn overlay
         if self._armed_stage is not None:
             return   # its ghost is the OUTLINE drawn by the stage-zone overlay
+        if self._armed_condition is not None:
+            return   # its ghost is the OUTLINE drawn by the condition overlay
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
         if self._armed_base is not None:
@@ -1411,7 +1810,7 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             self._submit_map_items()
         elif self.in_screen_mode():
-            self._submit_screen_items(t0)
+            self._render_screen_frame(t0)
         else:
             g = self._coords.geometry
             for row in range(g.map_rows):
@@ -1461,6 +1860,7 @@ class ViewportPanel(QWidget):
         self._submit_spawn_reserve(doc, cmin, cmax, rmin, rmax)
         self._submit_despawn(doc, cmin, cmax, rmin, rmax)
         self._submit_stage_zones(doc, cmin, cmax, rmin, rmax)
+        self._submit_tile_conditions(doc, cmin, cmax, rmin, rmax)
         if self._grid_lines:
             # bound the grid to the visible window too (a 1024-line full grid
             # would swamp the overlay pass)
@@ -1597,10 +1997,113 @@ class ViewportPanel(QWidget):
             self._renderer.submit_hud(HudText(
                 str(number), (sx, sy + 14), "sm", STAGE_COLOR, align="center"))
 
+    def _submit_tile_conditions(self, doc, cmin, cmax, rmin, rmax):
+        """The tile-condition marks: the FOURTH twin of _submit_spawn_reserve —
+        a single-tile closed diamond OUTLINE through the E-24 overlay primitive
+        plus a `HudText` label, one hue per condition NAME (CONDITION_COLORS)
+        so the four are tellable apart from each other and from the reserve
+        (cyan) / despawn (magenta) / stage (lime) marks. Its label sits BELOW
+        all three of their numbers (reserve sy-6, despawn sy+4, stage sy+14,
+        condition sy+24) so a cell carrying all four marks stays readable.
+        Editor-only chrome; the game draws nothing for the mark itself.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the other three overlays are."""
+        if not self._eyes["tile_conditions"]:
+            return
+        for (col, row), name in doc.tile_conditions.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            color = CONDITION_COLORS.get(name, CONDITION_DEFAULT_COLOR)
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                name.upper(), (sx, sy + 24), "sm", color, align="center"))
+
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 
-    def _submit_screen_items(self, t0):
+    def _screen_canvas(self):
+        """The reusable logical canvas, always exactly the CURRENT
+        SCREEN_W x SCREEN_H (re-allocated if `data/display.json` changed the
+        resolution under us — never a literal size)."""
+        size = (SCREEN_W, SCREEN_H)
+        if self._screen_canvas_surface is None \
+                or self._screen_canvas_surface.get_size() != size:
+            self._screen_canvas_surface = pygame.Surface(size)
+        return self._screen_canvas_surface
+
+    def _render_screen_frame(self, t0):
+        """UR-3: render the screen at its LOGICAL size, then scale the
+        finished surface once — the same pipeline shape `game/main.py` gets
+        from `pygame.SCALED`.
+
+        Scaling the geometry instead (what this did before) left `HudText` at
+        its absolute font-preset pixel size while every box around it grew or
+        shrank, so the editor's label/box ratio was wrong by exactly 1/scale
+        and a designer comparing the two would re-tune fonts that are already
+        right. `HudText` carries no scale field, so the only parity-true fix
+        is to scale the whole rendered surface.
+
+        Editor chrome (selection outline, handles, caption, the E-37
+        placeholder, the letterbox edge) is deliberately NOT scaled: it is
+        submitted afterwards in SCREEN pixels and flushed by `render_frame`'s
+        own flush — two flushes, one Renderer (ED-22), because `flush` clears
+        the queue."""
         scale, ox, oy = self._screen_scale_offset()
+        canvas = self._screen_canvas()
+        canvas.fill(BACKGROUND)
+        self._submit_screen_items(t0, 1.0, 0.0, 0.0)
+        self._renderer.flush(canvas)
+        scaled = pygame.transform.scale(
+            canvas, (round(SCREEN_W * scale), round(SCREEN_H * scale)))
+        self._surface.blit(scaled, (int(ox), int(oy)))
+        self._submit_screen_chrome(scale, ox, oy)
+
+    def _submit_screen_items(self, t0, scale, ox, oy):
+        """The screen's CONTENT (background + widgets). Called with the
+        identity triple (1.0, 0, 0) because it draws into the logical canvas;
+        the `(scale, ox, oy)` parameters stay so `_to_screen_rect` remains the
+        one placement rule shared with hit-testing."""
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return          # E-37 placeholder is chrome — see below
+        if self._screen_anim_last_t is not None:
+            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
+        self._screen_anim_last_t = t0
+        doc = self._screen_session.doc
+        # P-5: resolved ONCE per frame and threaded into every submit below.
+        hidden = self._hidden_subtrees(defaults)
+        preview = self._current_screen_preview()
+        if preview is not None:
+            # UT-2: the recorded game draw list — real background, real fonts,
+            # real stat rows, and every bit of chrome no widget id covers.
+            for item in preview:
+                self._renderer.submit_hud(item)
+            if self._preview_in_sync():
+                # The recording already shows the open doc, so drawing the
+                # widgets again would only double them. The one exception is
+                # the widget under an in-flight drag, whose live rect no
+                # recording can know yet.
+                dragging = self._selected_widget if self._drag_start else None
+                if dragging in defaults.get("widgets", {}):
+                    self._submit_screen_widget(
+                        dragging, defaults["widgets"][dragging], doc, scale,
+                        ox, oy, hidden)
+                return
+            for widget_id, spec in defaults.get("widgets", {}).items():
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                           hidden)
+            return
+        self._submit_screen_background(doc, scale, ox, oy)
+        for widget_id, spec in defaults.get("widgets", {}).items():
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+
+    def _submit_screen_chrome(self, scale, ox, oy):
+        """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
+        edge, the selection outline/handles/caption, and the E-37 message."""
         defaults = self._current_screen_defaults()
         if not defaults:
             # E-37: no data/ui/screen_defaults.json yet (pre-B3, or a broken
@@ -1611,18 +2114,21 @@ class ViewportPanel(QWidget):
             self._renderer.submit_hud(HudText(
                 "no layout defaults yet — click Refresh Layouts",
                 (cx, cy), "lg", NO_DEFAULTS_COLOR, align="center"))
-            return
-        if self._screen_anim_last_t is not None:
-            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
-        self._screen_anim_last_t = t0
-        doc = self._screen_session.doc
-        self._submit_screen_background(doc, scale, ox, oy)
-        for widget_id, spec in defaults.get("widgets", {}).items():
-            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
-        if self._selected_widget is not None \
+        self._submit_screen_letterbox(scale, ox, oy)
+        if defaults and self._selected_widget is not None \
                 and self._selected_widget in defaults.get("widgets", {}):
             self._submit_screen_selection(self._selected_widget, defaults,
                                           scale, ox, oy)
+
+    def _submit_screen_letterbox(self, scale, ox, oy):
+        """A muted 1px frame on the drawn canvas edge, so the letterbox bars
+        are visibly outside it — at 640x360 in a wide dock those bars are
+        large, and a dark screen background otherwise reads as 'the canvas is
+        the whole panel'."""
+        w, h = SCREEN_W * scale, SCREEN_H * scale
+        self._renderer.submit_hud(HudLines(
+            ((ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)),
+            LETTERBOX_EDGE_COLOR, width=1, closed=True))
 
     def _submit_screen_background(self, doc, scale, ox, oy):
         """Background comes ONLY from the open doc's own override — the
@@ -1638,14 +2144,16 @@ class ViewportPanel(QWidget):
         elif "color" in background:
             self._renderer.submit_hud(HudRect(dest, tuple(background["color"])))
 
-    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy):
+    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy,
+                              hidden=()):
         override = doc.get("widgets", {}).get(widget_id, {})
         if override.get("visible") is False:
             return
+        if widget_id in hidden:
+            return   # P-5/D4: an ancestor is hidden, so this is too
         rect = override.get("rect", spec["rect"])
         kind = spec["kind"]
         label = override.get("label", spec["label"])
-        dest = self._to_screen_rect(rect, scale, ox, oy)
         style = doc.get("defaults", {})
         skin = override.get("skin")
         if skin is None:
@@ -1653,7 +2161,19 @@ class ViewportPanel(QWidget):
                 skin = style.get("button_skin")
             elif kind == "panel":
                 skin = style.get("panel_skin")
-        font_key = override.get("font", style.get("font", "md"))
+        # The recorded `font_key` joins the chain (it did not exist before):
+        # measuring/drawing a readout at "md" when the game draws it at "xl"
+        # made the flat-box fallback disagree with the real screen.
+        font_key = (override.get("font") or spec.get("font_key")
+                    or style.get("font") or "md")
+        if _screen_primitives.is_anchor_rect(rect):
+            # A position-only anchor has no box to centre in; measure the
+            # same box the designer clicks and outlines (`_interaction_rect`),
+            # so the fallback text lands on the glyphs' real spot.
+            rect = _screen_primitives.interaction_rect(
+                rect, text=self._widget_text(widget_id, spec),
+                font_key=font_key, align=spec.get("align", "left"))
+        dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
             # D6/UH-6: tint from the widget's own `tint` key — `color` on a
@@ -1678,15 +2198,40 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
 
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        # P-3: a dimmer outline around every widget that will come along when
+        # this one is dragged, so the designer sees the subtree BEFORE moving
+        # it rather than discovering it afterwards. Drawn first, so the
+        # selection's own bright outline stays on top where they overlap.
+        for child_id in self._screen_descendants(widget_id, defaults):
+            cx, cy, cw, ch = self._to_screen_rect(
+                self._interaction_rect(child_id, defaults), scale, ox, oy)
+            self._renderer.submit_hud(HudLines(
+                ((cx, cy), (cx + cw, cy), (cx + cw, cy + ch), (cx, cy + ch)),
+                SUBTREE_COLOR, width=1, closed=True))
+        # The INTERACTION rect, so a position-only text anchor gets a visible
+        # outline over its glyphs instead of a zero-area (invisible) one — the
+        # outline must be exactly what `_hit_widget` tests, or the designer
+        # would be aiming at a box that isn't where they can click.
         x, y, w, h = self._to_screen_rect(
-            self._effective_rect(widget_id, defaults), scale, ox, oy)
+            self._interaction_rect(widget_id, defaults), scale, ox, oy)
         self._renderer.submit_hud(HudLines(
             ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
             SELECTION_COLOR, width=2, closed=True))
-        half = HANDLE_PX / 2
-        for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+        if self._is_anchor_widget(widget_id, defaults):
+            # Move-only: no corner handles (`_hit_resize_handle` refuses them
+            # too), and a small marker ON the stored anchor point so the
+            # designer can see WHICH point the X/Y fields address — for a
+            # centre/right-aligned label that is not the outline's corner.
+            ax, ay, _w, _h = self._to_screen_rect(
+                self._effective_rect(widget_id, defaults), scale, ox, oy)
+            half = HANDLE_PX / 2
             self._renderer.submit_hud(HudRect(
-                (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+                (ax - half, ay - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        else:
+            half = HANDLE_PX / 2
+            for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+                self._renderer.submit_hud(HudRect(
+                    (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
         # UH-4: a small caption above the outline naming the selected widget
         # (display name, falls back to the code id — D4, `widget_display_name`
         # is the ONE resolution rule shared with the widget list). Clamped to

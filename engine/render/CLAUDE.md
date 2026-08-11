@@ -24,6 +24,17 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever
   interleaves layers, the ground cache breaks.
 
+## Pixel quantizer (`item.round_half_up`, JitteryMapFix)
+`engine/render/item.py` exports `round_half_up(v)` = `floor(v + 0.5)` — THE
+quantizer for screen coordinates: the backend's dests/sizes/points and the
+ground cache's scroll delta + blit offset all use it instead of builtin
+`round()`. `round()` is banker's (half-to-even): two dests both ending in .5
+could land on different pixels, and a pan crossing a .5 tie double-stepped
+2px per item, inconsistently — one half of the layers-desync-while-panning
+bug (the other half is the integer-pan invariant in `engine/coords/
+CLAUDE.md`). One expression for the `fit_factor` reason: a second copy would
+drift. Pinned in `test_render.TestPixelQuantizer`.
+
 ## Anchor convention (ER-1)
 A frame blits **centred on the tile**: horizontally on its world position,
 vertically on the tile diamond's CENTRE — `world_to_screen(...)y +
@@ -174,6 +185,28 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   Revisit by eye if real UI art turns out to be high-res: only the 4 edges + the
   centre are ever resampled, so it is a one-line swap. Tests: `test_nine_slice.py`.
 
+## Crop (`DrawCall.crop_rect`), HUD only (feature-enemy-intro-dialogue)
+A `HudSprite` may carry `crop = (x, y, w, h)` (frame-px, resolved by
+`renderer.py` onto `DrawCall.crop_rect`) — a source SUB-RECT drawn instead of
+the whole resolved frame, stretched to `size` exactly like the whole-frame
+case. `None` (default) is a no-op; the grey-X placeholder never carries one.
+- **`backend.py`'s `_cropped(surface, rect)`** clamps the rect into the
+  surface's own bounds (never raises — E-37, the `_nine_patch`/`_clamp_pair`
+  tolerance style) and memoizes the resulting subsurface in the SAME weak
+  `_scale_cache`, under a `("crop", (x, y, w, h))` key — distinct from
+  `_nine_patch`'s `("9p", size, margins)` key, so the two kinds can't collide.
+  `draw()` resolves the crop FIRST, then feeds the cropped surface into the
+  existing `_scaled`/`_nine_patch` step in its place — the cropped surface is
+  itself a valid, stable cache key, so "crop, then stretch to dest size"
+  needs no new scaling code.
+- **Incoherent combined with `slice` on the same entry, by design, not
+  guarded**: nine-slice margins are authored against the FULL frame, not a
+  crop sub-rect. No shipped manifest entry combines the two; a future one
+  that does gets an unspecified (not a crash) composite.
+- World sprites (`RenderItem`/`SpriteAnimator`) do not carry a crop — HUD
+  only, same scope as `slice`/`tint`. `game/ui/enemy_intro.py`'s enlarged
+  enemy-art dialogue is the first (and so far only) consumer.
+
 ## HUD pass + fonts (Phase 9B)
 - **`render/hud.py`** (E-12) — four frozen, pure, screen-space dataclasses:
   `HudRect`, `HudText`, `HudSprite`, `HudLines`. The host calls
@@ -189,6 +222,14 @@ world-sprite `DrawCall` never sets it (world sprites keep uniform zoom scaling).
   keyword). Same slot/animation/time contract as `RenderItem`: a missing animation
   row falls back to idle, a single-frame track is time-invariant, and the defaults
   make the resolved `DrawCall` byte-identical to the pre-A1 one.
+- **`HudSprite.hidden_frames` (feature-enemy-intro-dialogue)** — an optional
+  tuple of frame-COLUMN indices, appended after `crop` (see above), threaded
+  by `renderer.py` into `assets.frame(..., extra_hidden=hud.hidden_frames or
+  None)`. `Manifest.current_frame`'s `extra_hidden` (`engine/assets/
+  CLAUDE.md`) UNIONS it with whatever the manifest row's own `hidden` list
+  already drops for that animation — a per-caller narrowing, never a
+  widening. Deliberately HUD-only: `RenderItem`/`SpriteAnimator` gained no
+  matching field, since no world-sprite consumer needs one yet.
 - **`render/backend.py` HUD pass** — dispatch is `isinstance`: `HudRect`
   (`pygame.draw.rect` with `border_radius`/`width`), `HudLines`
   (`pygame.draw.lines`), `HudText` (rendered via the fonts cache, blitted at

@@ -16,6 +16,14 @@ Clearing a field therefore prunes now-empty parent containers
 (``widgets/<id>`` then ``widgets`` itself) so a fully-reset widget disappears
 from the doc rather than lingering as ``{}``.
 
+**UT-1: the session holds a SECOND doc**, the global string table
+``data/ui/strings.json``, so a designer can edit the TEMPLATE behind a
+widget's ``text_id`` in the same panel (and the same undo stack) as its rect
+and colour. It is deliberately not per-screen: one id, one text, everywhere.
+``save()`` writes it only when it changed, and ``strings_dirty`` is a value
+comparison rather than a latch so undoing the only template edit un-dirties it
+again.
+
 Qt-only, no game imports (TestPurity).
 """
 import copy
@@ -25,6 +33,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from engine import data_io
+from editor.widget_tree import PARENT_KEY
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -51,6 +60,56 @@ def screen_schema_path(data_dir):
     return Path(data_dir) / "schemas" / "ui_screen.schema.json"
 
 
+def strings_path(data_dir):
+    return Path(data_dir) / "ui" / "strings.json"
+
+
+def strings_schema_path(data_dir):
+    return Path(data_dir) / "schemas" / "strings.schema.json"
+
+
+class _NoParent:
+    """Sentinel for an explicit JSON ``null`` override, as distinct from
+    ``None``, which every push_* method already spends on "no override — the
+    key is ABSENT".
+
+    Exactly one key needs the distinction (UiEditorParentingPLAN D3): a
+    widget's ``parent``. Absent means "keep the exporter's default parent";
+    ``null`` means "the designer REJECTED it — this widget is a root". Undoing
+    a re-root has to put the default back, so the two states cannot share a
+    representation.
+
+    ``__deepcopy__`` returns the singleton itself: ``_DocFieldCommand``
+    deep-copies both old and new, and a copied sentinel would silently stop
+    being recognised.
+    """
+
+    def __deepcopy__(self, _memo):
+        return self
+
+    def __copy__(self):
+        return self
+
+    def __repr__(self):
+        return "NO_PARENT"
+
+
+#: The one instance — compare with ``is``, never ``==``.
+NO_PARENT = _NoParent()
+
+
+def parent_override(widget_override):
+    """The stored ``parent`` override in push_field's own vocabulary:
+    ``None`` when the key is ABSENT, ``NO_PARENT`` when it is an explicit
+    JSON null, else the parent id. The ONE place the three states are read,
+    so the panel's combo, its reset button and the tree drop cannot disagree
+    about what "old" was."""
+    if PARENT_KEY not in (widget_override or {}):
+        return None
+    value = widget_override[PARENT_KEY]
+    return NO_PARENT if value is None else value
+
+
 def _remove_pruning(doc, path):
     """Remove doc[path[0]]...[path[-1]], then remove any parent dict along
     the way that becomes empty (never removes the doc root itself)."""
@@ -74,7 +133,9 @@ def _set_at(doc, path, value):
 
 
 def _apply_field(doc, path, value):
-    if value is None:
+    if value is NO_PARENT:
+        _set_at(doc, path, None)   # a REAL JSON null (D3) — see _NoParent
+    elif value is None:
         _remove_pruning(doc, path)
     else:
         _set_at(doc, path, value)
@@ -99,6 +160,34 @@ class _DocFieldCommand(QUndoCommand):
         _apply_field(self._doc, self._path, copy.deepcopy(self._old))
 
 
+class _DocFieldsCommand(QUndoCommand):
+    """SEVERAL fields set/cleared as ONE undo step — the multi-widget twin of
+    ``_DocFieldCommand``, modelled on ``map_session``'s stroke commands: a
+    change LIST of full old/new values, never a delta, so pushing after the
+    viewport already mutated the doc live (a drag in progress) is idempotent.
+
+    Its one user is the parenting cascade (UiEditorParentingPLAN P-3): moving
+    a parent rewrites the absolute rect of the parent AND every descendant,
+    and one Ctrl+Z has to put all of them back.
+    """
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc = doc
+        self._changes = [(tuple(path), copy.deepcopy(old), copy.deepcopy(new))
+                         for path, old, new in changes]
+
+    def redo(self):
+        for path, _old, new in self._changes:
+            _apply_field(self._doc, path, copy.deepcopy(new))
+
+    def undo(self):
+        # Reverse order so the pruning of a shared parent container
+        # (`widgets/<id>`) unwinds in the order it was built.
+        for path, old, _new in reversed(self._changes):
+            _apply_field(self._doc, path, copy.deepcopy(old))
+
+
 class UIScreenSession(QObject):
     screen_opened = Signal(str)   # screen_id — a (different) doc is now open
     view_changed = Signal(object)  # view_id (str) or None — active view changed
@@ -109,13 +198,33 @@ class UIScreenSession(QObject):
         self.doc = None
         self.screen_id = None
         self.view = None
+        # UT-1: the GLOBAL string table (data/ui/strings.json), edited
+        # alongside the screen doc — see push_string. `None` when the file is
+        # missing or invalid, which disables template editing rather than
+        # failing the whole screen-mode entry (E-37 grace, editor side).
+        self.strings_doc = None
+        self._strings_clean = None
         self.undo_stack = QUndoStack(self)
 
     # -- lifecycle -------------------------------------------------------------
 
     @property
     def dirty(self):
-        return self.doc is not None and not self.undo_stack.isClean()
+        if self.doc is None:
+            return False
+        return not self.undo_stack.isClean() or self.strings_dirty
+
+    @property
+    def strings_dirty(self):
+        """True when the open string table differs from what is on disk.
+
+        Compared by VALUE rather than tracked with a flag, because string
+        edits share the screen doc's one `QUndoStack` — undoing the only
+        template edit must un-dirty the table again, which a latch cannot do.
+        """
+        if self.strings_doc is None:
+            return False
+        return self.strings_doc != self._strings_clean
 
     def open(self, screen_id):
         self.doc = data_io.load_validated(
@@ -123,9 +232,19 @@ class UIScreenSession(QObject):
             screen_schema_path(self._data_dir))
         self.screen_id = screen_id
         self.view = None
+        self._load_strings()
         self.undo_stack.clear()
         self.screen_opened.emit(screen_id)
         return self.doc
+
+    def _load_strings(self):
+        try:
+            doc = data_io.load_validated(strings_path(self._data_dir),
+                                         strings_schema_path(self._data_dir))
+        except Exception:
+            doc = None
+        self.strings_doc = doc
+        self._strings_clean = copy.deepcopy(doc)
 
     def set_view(self, view_id):
         """Set the active view (or None for the screen's single implicit
@@ -140,6 +259,11 @@ class UIScreenSession(QObject):
         data_io.write_validated(
             self.doc, screen_path(self._data_dir, self.screen_id),
             screen_schema_path(self._data_dir))
+        if self.strings_dirty:
+            data_io.write_validated(
+                self.strings_doc, strings_path(self._data_dir),
+                strings_schema_path(self._data_dir))
+            self._strings_clean = copy.deepcopy(self.strings_doc)
         self.undo_stack.setClean()
 
     def screen_ids(self):
@@ -151,13 +275,43 @@ class UIScreenSession(QObject):
     # -- undoable edits (ED-24) — viewport/screen_details push through these --
 
     def _push(self, path, old, new, text):
+        self._push_doc(self.doc, path, old, new, text)
+
+    def _push_doc(self, doc, path, old, new, text):
+        """`_push` against an explicit doc — the screen override doc for every
+        widget/background/defaults edit, the global string table for
+        `push_string`. Both share this session's one undo stack."""
         if old == new:
             return
-        self.undo_stack.push(_DocFieldCommand(self.doc, path, old, new, text))
+        self.undo_stack.push(_DocFieldCommand(doc, path, old, new, text))
 
     def push_move(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
                    f"move {widget_id}")
+
+    def push_move_subtree(self, changes, text=None):
+        """ONE undoable command moving a widget AND every descendant
+        (UiEditorParentingPLAN P-3, D2).
+
+        ``changes`` is ``[(widget_id, old_rect, new_rect), ...]`` — full
+        rects, never deltas, ``None`` meaning "no override" exactly as
+        ``push_move`` does. Rows whose old and new agree are dropped, and a
+        cascade that comes down to a single widget is left to ``push_move``
+        by the caller: this method exists for the subtree case, not to
+        replace it.
+
+        The saved doc stays ABSOLUTE (D2) — the cascade happens here, at edit
+        time, and the game's own ``layout()`` is untouched.
+        """
+        real = [c for c in changes if c[1] != c[2]]
+        if not real:
+            return
+        label = text or f"move {real[0][0]} + {len(real) - 1} child(ren)"
+        self.undo_stack.push(_DocFieldsCommand(
+            self.doc,
+            [(("widgets", widget_id, "rect"), old, new)
+             for widget_id, old, new in real],
+            label))
 
     def push_resize(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
@@ -182,3 +336,24 @@ class UIScreenSession(QObject):
     def push_default_field(self, field_key, old_value, new_value):
         self._push(("defaults", field_key), old_value, new_value,
                    f"edit defaults.{field_key}")
+
+    def push_string(self, text_id, old_value, new_value):
+        """Rewrite ONE `data/ui/strings.json` template, undoably (UT-1, D2).
+
+        The string table is GLOBAL, not per-screen: a widget's `text_id`
+        points into it, and editing the template here changes that text
+        everywhere it is used. It rides this session's one `QUndoStack` (so
+        Ctrl+Z crosses both docs in the order the designer made the edits) but
+        writes to its own doc, saved by `save()` only when it actually
+        changed.
+
+        `new_value` is never `None` — the table is a closed key set
+        (`additionalProperties: false`, every key `required`), so a template
+        can be rewritten but never removed. Editing an id the table does not
+        already carry is refused for the same reason; adding a key is a schema
+        change, i.e. a code change (D3).
+        """
+        if self.strings_doc is None or text_id not in self.strings_doc:
+            return
+        self._push_doc(self.strings_doc, (text_id,), old_value, new_value,
+                       f"edit text {text_id}")

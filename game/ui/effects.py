@@ -150,10 +150,10 @@ from engine.render import (
 from game.anchors import anchor_world_point
 from engine.render.fonts import layout_h
 from engine.vfx import (
-    AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
-    GoldParams, LightningParams, MuzzleParams, ProjectileParams,
-    ShardBurstParams, SlashParams, SplatterParams, VfxParams, VfxSystem,
-    spawn_play_once,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, DrummerAuraParams,
+    FloaterParams, GoldParams, LightningParams, MuzzleParams,
+    ProjectileParams, ShardBurstParams, SlashParams, SplatterParams,
+    VfxParams, VfxSystem, spawn_play_once,
 )
 from game.buildings.components import BeamAttacker, Nameplate, TierState
 from game.core.lightning import LightningCaster
@@ -163,6 +163,7 @@ from .widgets import (
     submit_bar, submit_centered, submit_text
 )
 from . import widgets
+from .strings import T
 
 # Income/upkeep/XP/painter/boost floater colours + lifetimes are
 # data/balancing/vfx.json procedural.floaters now (ESV-6, closing the plan's
@@ -176,12 +177,18 @@ from . import widgets
 # _params_from_balance below.
 
 # -- 10G boss: announcement + HP-bar constants ------------------------------
-_ANNOUNCE_L1 = "SOMETHING BIG"
-_ANNOUNCE_L2 = "IS APPROACHING!"
+# UT-5: the two banner lines, the boss-bar label and its hp/max readout are
+# `data/ui/strings.json` templates now (`effects.*`), resolved through T() at
+# the draw site. They get no widget id: this module is FX, not a screen — it
+# has no `ids` dict and every one of these positions is computed inline from
+# the view size or a world point, and the anchor-rect convention says an id
+# needs a STORED rect first.
 # The "lost a life" banner reuses the boss announce's fade/hold/fade timings
 # and its centred two-line layout, with its own independent clock and its own
-# colour (the HP red — this is a loss, not a warning). Copy stays a code
-# constant here, exactly like the two above.
+# colour (the HP red — this is a loss, not a warning). Its copy stays a code
+# constant here rather than joining the `effects.*` string ids: `strings.json`
+# is a closed schema set, so adding two ids is a coupled data+schema change
+# that this feature deliberately does not make.
 _LIFE_LOST_L1 = "YOU"
 _LIFE_LOST_L2 = "LOST 1 LIFE"
 _BOSS_HUD_BAR_W, _BOSS_HUD_BAR_H = 200, 12   # bottom-centre bar (hud.py:356)
@@ -208,6 +215,17 @@ _CHARGE_BAR_SLATE = (70, 70, 90)          # empty/just-fired ramp start
 _CHARGE_BAR_READY_YELLOW = (255, 240, 80)  # ramp end == hud.py's ready colour
 _CHARGE_BAR_LIFT = 8   # px below the HP-bar baseline, so the two don't overlap
 # -- /feature-storm-acolyte-multi-build --
+
+# -- Drummer buff-range indicator + buffed-enemy arrow (very-simple placeholder
+# visuals): the arrow's SHAPE/colour are code chrome (like HP_BAR_*'s bar
+# geometry above) — only its swappable ART (the vfx_buff_arrow slot) is a
+# designer lever. The ring's colour/pulse ARE balancing (procedural.
+# drummer_aura), since it has no image slot to swap.
+BUFF_ARROW_SLOT = "vfx_buff_arrow"
+_BUFF_ARROW_W, _BUFF_ARROW_H = 10, 8   # base-zoom px, fixed screen size
+_BUFF_ARROW_GAP = 3                    # px above the HP-bar anchor point
+_BUFF_ARROW_GOLD = (255, 200, 50)      # placeholder colour == widgets.C_GOLD
+# -- /Drummer buff-range indicator + buffed-enemy arrow --
 
 # -- 10J FX: spark/gold/death-shard/muzzle/slash/splatter params live in
 # data/balancing/vfx.json now (ESV-3a) — see _params_from_balance below. The
@@ -341,10 +359,19 @@ def _params_from_balance(vfx):
         lift_frac=pr["lift_frac"])
     # -- /Fix 2 ----------------------------------------------------------
 
+    # -- Drummer buff-range telegraph ring --------------------------------
+    da = proc["drummer_aura"]
+    drummer_aura = DrummerAuraParams(
+        color=_color(da["color"]), alpha_min=da["alpha_min"],
+        alpha_max=da["alpha_max"], pulse_period_s=da["pulse_period_s"],
+        segments=da["segments"])
+    # -- /Drummer buff-range telegraph ring --------------------------------
+
     return spark_presets, VfxParams(
         death_burst=death_burst, muzzle=muzzle, slash=slash, gold=gold,
         splatter=splatter, beam=beam, crater=crater, lightning=lightning,
-        announce=announce, floaters=floaters, projectile=projectile)
+        announce=announce, floaters=floaters, projectile=projectile,
+        drummer_aura=drummer_aura)
 
 
 def _triggers_from_balance(vfx):
@@ -441,6 +468,11 @@ class FloaterManager:
         self._building_alive = {} # id(building) -> alive (death watcher)
         self._enemy_cooldowns = {}  # id(enemy) -> last EnemyCombat.cooldown
         self.log = None           # GameLog, wired by the host
+        # vfx-projectile-spritesheets: a persistent ms clock for the beam's
+        # has-art HudSprite (a looping "idle" track needs a monotonic
+        # anim_time_ms, the same role _announce_age plays for the boss
+        # banner's fade — but this one never resets).
+        self._beam_clock_ms = 0.0
         # ESV-3a: the particle/gold/slash/splatter emitters live in
         # engine.vfx now. rng is the stdlib `random` MODULE (not a fresh
         # Random()) so draws keep coming from the same global stream the old
@@ -467,6 +499,10 @@ class FloaterManager:
         self.scene = None    # Scene, wired by the host
         self.cs = None       # CoordinateSystem, wired by the host (ESV-6)
         # -- /ESV-5/6 --
+        # Drummer buff-range telegraph: a manager-owned seconds clock, the
+        # hud.py `self._clock` XP-pulse precedent, driving the ring's smooth
+        # sine breathe (submit_drummer_auras) — accumulated in update(dt).
+        self._clock = 0.0
 
     def spawn_income_events(self, state):
         if not self._enabled:
@@ -474,7 +510,8 @@ class FloaterManager:
         for col, row, amount, kind in state.income_events:
             color = (widgets.C_GOLD if kind == "income"
                      else self._vfx_params.floaters.upkeep_color)
-            text = f"+{amount}" if amount >= 0 else str(amount)
+            text = (T("effects.floater_gain", amount=amount) if amount >= 0
+                    else T("effects.floater_loss", amount=amount))
             self._floaters.append(
                 _Floater(col + 0.5, row + 0.5, text, color, self._life))
 
@@ -486,7 +523,8 @@ class FloaterManager:
         fl = self._vfx_params.floaters
         for wx, wy, amount in state.xp_events:
             self._floaters.append(
-                _Floater(wx, wy, f"+{amount}", fl.xp_color, fl.xp_life))
+                _Floater(wx, wy, T("effects.floater_xp", amount=amount),
+                         fl.xp_color, fl.xp_life))
         state.xp_events.clear()
 
     def spawn_painter_events(self, state):
@@ -609,7 +647,8 @@ class FloaterManager:
             self._play("building_destroyed", wx, wy)
             np = b.get_component(Nameplate)
             if log is not None and np is not None and np.custom_name:
-                log.post(f"{np.custom_name} has been killed")
+                log.post(T("game_log.building_killed",
+                           name=np.custom_name))
         # drop stale ids so a long run can't grow the map unbounded
         if len(self._building_alive) > 2 * len(seen) + 16:
             self._building_alive = {
@@ -730,6 +769,7 @@ class FloaterManager:
         self._vfx.clear()  # -- 10J: particles / gold / slashes / splatters
 
     def update(self, dt):
+        self._clock += dt
         for f in self._floaters:
             f.age += dt
         self._floaters = [f for f in self._floaters if f.age < f.life]
@@ -746,6 +786,8 @@ class FloaterManager:
             if self._life_lost_age >= total:
                 self._life_lost_age = None
         self._vfx.update(dt)  # -- 10J: particles / gold / slashes --
+        # vfx-projectile-spritesheets: the beam's has-art HudSprite anim clock.
+        self._beam_clock_ms += dt * 1000.0
 
     @property
     def active(self):
@@ -840,8 +882,23 @@ class FloaterManager:
         vanishes during its target-death cooldown. Screen-space HudLines (no
         alpha glow — 10J). Params from ``self._vfx_params.beam`` (ESV-3b) — the
         clamp to ``len(colors) - 1`` is geometry (the ramp is a fixed 3-stop
-        shape), not itself a tunable. Draws no random numbers."""
+        shape), not itself a tunable. Draws no random numbers.
+
+        vfx-projectile-spritesheets: a designer-imported ``vfx_beam`` sheet
+        REPLACES the line with a looping ``HudSprite`` at the target's screen
+        point — the same has-art signal ``submit_projectiles`` already uses
+        (``assets.animation_total_ms(slot, "idle") is not None``). A fixed
+        sprite at a point, not a stretched/rotated beam texture: ``HudSprite``
+        has no rotation support, so this is the same toggle shape the
+        projectile dot already has, not a new engine primitive. Sized off the
+        manifest's own frame size (``self.assets.frame_size``), zoom-scaled —
+        no new balancing key. No art -> the HudLines line, byte-identical to
+        before this existed."""
         bp = self._vfx_params.beam
+        zoom = cs.camera.zoom
+        has_art = (self.assets is not None
+                  and self.assets.animation_total_ms("vfx_beam", "idle")
+                  is not None)
         for b in scene.by_tag("combat"):
             beam = b.get_component(BeamAttacker)
             if beam is None:
@@ -849,13 +906,21 @@ class FloaterManager:
             target = getattr(beam, "_target", None)
             if target is None or not getattr(target, "alive", False):
                 continue
+            tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
+                                        target.transform.wy + 0.5)
+            if has_art:
+                fw, fh = self.assets.frame_size("vfx_beam")
+                size = (max(1, int(fw * zoom)), max(1, int(fh * zoom)))
+                dest = (int(tx - size[0] / 2), int(ty - size[1] / 2))
+                renderer.submit_hud(HudSprite(
+                    "vfx_beam", dest, size, animation="idle",
+                    anim_time_ms=int(self._beam_clock_ms)))
+                continue
             tier = b.get_component(TierState).current_tier
             color = bp.colors[min(tier, len(bp.colors) - 1)]
             ox, oy = cs.world_to_screen(b.transform.wx + 0.5, b.transform.wy + 0.5)
-            tx, ty = cs.world_to_screen(target.transform.wx + 0.5,
-                                        target.transform.wy + 0.5)
             # crystal-ball height: origin_lift_tiles tile-heights above centre
-            top = int(cs.geometry.tile_h * cs.camera.zoom * bp.origin_lift_tiles)
+            top = int(cs.geometry.tile_h * zoom * bp.origin_lift_tiles)
             renderer.submit_hud(HudLines(
                 ((int(ox), int(oy) - top), (int(tx), int(ty))),
                 color, width=bp.width_base + tier))
@@ -880,6 +945,40 @@ class FloaterManager:
             pts = _polygon_ring(cx + 0.5, cy + 0.5, r, cp.segments)
             renderer.submit_overlay_polys(
                 pts, cp.color + (int(cp.alpha * frac),))
+
+    def submit_drummer_auras(self, renderer, cs, scene):
+        """A pulsing world-space ring around every ALIVE Drummer, sized to
+        its own live ``DrummerAura.support_range`` — always visible while
+        the Drummer is alive (no click/toggle needed, per the user's own
+        design call), so the ring can never disagree with the real buff
+        area it telegraphs. Uses the SAME ``_polygon_ring`` world-unit N-gon
+        technique ``submit_craters`` draws the mortar scorch with, but reads
+        the radius off the live component every frame instead of a spawned
+        GameObject's own state — there is no separate fade clock, the ring
+        simply stops being drawn the frame the Drummer dies.
+
+        Purely a placeholder telegraph: colour/alpha bounds/segments come
+        from ``self._vfx_params.drummer_aura`` (balancing-tunable, ESV-3b
+        style — not a swappable sprite, unlike the buff arrow below), and
+        the alpha breathes smoothly between them on a
+        ``pulse_period_s``-second sine cycle off this manager's own
+        ``self._clock`` (the ``hud.py`` XP-bar level-up pulse shape)."""
+        from game.enemies.components import DrummerAura
+
+        dp = self._vfx_params.drummer_aura
+        t = 0.5 + 0.5 * math.sin(
+            self._clock * (2 * math.pi / dp.pulse_period_s))
+        alpha = int(dp.alpha_min + (dp.alpha_max - dp.alpha_min) * t)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            aura = e.get_component(DrummerAura)
+            if aura is None:
+                continue
+            wx, wy = e.transform.world_pos
+            pts = _polygon_ring(wx + 0.5, wy + 0.5, aura.support_range,
+                                dp.segments)
+            renderer.submit_overlay_polys(pts, dp.color + (alpha,))
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
@@ -1056,6 +1155,59 @@ class FloaterManager:
                            bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN)
                 slot += 1
 
+    def submit_buff_arrows(self, renderer, cs, scene):
+        """A little golden arrow above any ALIVE enemy carrying an active
+        buff (``BuffState.sources`` non-empty — today always a Drummer's
+        aura, NE-3, but this deliberately keys off "any active buff" rather
+        than the source type, per the user's own design call). Shown
+        independently of the HP bar's own "hide at full HP" rule — a
+        buffed-but-undamaged enemy still gets the arrow.
+
+        Anchored off the SAME ``hp_bar`` point (or its ``_sprite_top``
+        fallback) ``submit_enemy_hp_bars`` uses, offset one arrow-height +
+        gap above it — a deliberately SIMPLER placeholder than that method:
+        it does not stack multiple enemies sharing a tile, since a buffed
+        unit's arrow is a status flag, not a competing bar.
+
+        Interchangeable placeholder art (E-37 shape): the ``vfx_buff_arrow``
+        slot draws as a real sprite once imported; with no art yet it draws
+        a small procedural golden triangle instead, so the feature is
+        visible today with zero art asset required."""
+        from game.enemies.components import BuffState
+
+        zoom = cs.camera.zoom
+        assets = getattr(renderer, "assets", None)
+        has_art = (assets is not None
+                   and assets.animation_total_ms(BUFF_ARROW_SLOT, "idle")
+                   is not None)
+        for e in scene.by_tag("enemy"):
+            if not getattr(e, "alive", False):
+                continue
+            buffs = e.get_component(BuffState)
+            if buffs is None or not buffs.sources:
+                continue
+            h = getattr(e, "HP_BAR_H", _ENEMY_BAR_FALLBACK[1])
+            pad = getattr(e, "HP_BAR_PAD", _ENEMY_BAR_FALLBACK[2])
+            point = anchor_world_point(assets, cs, e, "hp_bar")
+            if point is not None:
+                x_c, y_c = cs.world_to_screen(*point)
+            else:
+                cx, cy = cs.world_to_screen(e.transform.wx + 0.5,
+                                            e.transform.wy + 0.5)
+                top = _sprite_top(renderer, cs, e, cy, zoom)
+                x_c, y_c = cx, top - pad * zoom
+            y = int(y_c) - h - _BUFF_ARROW_GAP
+            w = _BUFF_ARROW_W
+            if has_art:
+                renderer.submit_hud(HudSprite(
+                    BUFF_ARROW_SLOT,
+                    (int(x_c - w / 2), y - _BUFF_ARROW_H), (w, _BUFF_ARROW_H)))
+            else:
+                pts = ((int(x_c - w / 2), y),
+                       (int(x_c), y + _BUFF_ARROW_H),
+                       (int(x_c + w / 2), y))
+                renderer.submit_hud(HudLines(pts, _BUFF_ARROW_GOLD, width=2))
+
     # -- feature-storm-acolyte-multi-build: per-caster charge bars ----------
 
     def submit_lightning_charge_bars(self, renderer, cs, scene):
@@ -1165,9 +1317,10 @@ class FloaterManager:
         if self._announce_age is not None:
             color = ap.color + (int(ap.max_alpha * self._announce_k(
                 self._announce_age)),)
-            submit_centered(renderer, _ANNOUNCE_L1, cx, cy, "xl", color)
-            submit_centered(renderer, _ANNOUNCE_L2, cx, cy + layout_h("xl") + 8,
+            submit_centered(renderer, T("effects.announce_line1"), cx, cy,
                             "xl", color)
+            submit_centered(renderer, T("effects.announce_line2"), cx,
+                            cy + layout_h("xl") + 8, "xl", color)
         if self._life_lost_age is not None:
             # widgets.C_HP_RED is read as an ATTRIBUTE at call time, never
             # import-bound — configure_palette() rebinds it (game/ui/CLAUDE.md).
@@ -1201,7 +1354,8 @@ class FloaterManager:
         ratio = health.hp / health.max_hp if health.max_hp else 0.0
         submit_bar(renderer, x, y, w, h, ratio,
                    bg=widgets.C_HP_RED, fill=widgets.C_HP_GREEN, border=(0, 0, 0))
-        submit_text(renderer, "BOSS", (x - 10, y - 2), "md", widgets.C_HP_RED,
-                    align="right")
-        submit_text(renderer, f"{health.hp}/{health.max_hp}",
+        submit_text(renderer, T("effects.boss_bar_label"), (x - 10, y - 2),
+                    "md", widgets.C_HP_RED, align="right")
+        submit_text(renderer, T("effects.boss_bar_hp", hp=health.hp,
+                                max_hp=health.max_hp),
                     (x + w + 10, y - 2), "md", widgets.C_UI_TEXT)

@@ -46,13 +46,19 @@ PAUSE_SPEED_IDX = 3
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
-                 buildings_balance, registry=None, rng=None, occupancy=None):
+                 buildings_balance, registry=None, rng=None, occupancy=None,
+                 progression_balance=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
         self.enemies_balance = enemies_balance
         self.core_balance = core_balance
         self.buildings_balance = buildings_balance
+        # TimelinePLAN T4: the sole source of unlock timing (tier_offerable/
+        # upgrade_gate). Optional, host-set, None-safe — the tutorial_gate/
+        # debug pattern: a bare Session a logic test builds is untouched (its
+        # level-up roll simply offers nothing beyond the love fallback).
+        self.progression_balance = progression_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
@@ -99,17 +105,24 @@ class Session:
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
-               buildings_balance, registry=None, rng=None, occupancy=None):
+               buildings_balance, registry=None, rng=None, occupancy=None,
+               progression_balance=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance, buildings_balance),
                    spawner, tilemap, enemies_balance, core_balance,
-                   buildings_balance, registry, rng, occupancy)
+                   buildings_balance, registry, rng, occupancy,
+                   progression_balance)
 
     @property
     def frozen(self):
-        """LEVELUP / BOSS_CUTSCENE are fully modal: no updates, no animations,
-        no combat (prototype ``_update_gameplay`` returns immediately)."""
-        return self.state.phase in (GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE)
+        """LEVELUP / BOSS_CUTSCENE / ENEMY_INTRO are fully modal: no updates,
+        no animations, no combat (prototype ``_update_gameplay`` returns
+        immediately). ENEMY_INTRO (feature-enemy-intro-dialogue) freezes the
+        SAME way even though it sits BEFORE the wave spawns, not after
+        ROUND_END like the other two — it just holds the phase at
+        BUILDING-equivalent stillness until every queued dialogue closes."""
+        return self.state.phase in (
+            GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE, GamePhase.ENEMY_INTRO)
 
     # -- combat speed (10F) -----------------------------------------------
 
@@ -337,7 +350,23 @@ class Session:
             st.boss_lives_snapshot = st.base_lives
             st.boss_events.append(st.round_num)
         # -- /10G --
-        st.phase = GamePhase.ENEMY
+        # -- feature-enemy-intro-dialogue: queue any designer-authored intro
+        # dialogues whose round matches THIS round, BEFORE the wave actually
+        # starts. spawner.begin_round() above already queued the wave — that
+        # is fine, pre_sim never drains it outside GamePhase.ENEMY, so nothing
+        # spawns while ENEMY_INTRO holds. Two-or-more entries sharing this
+        # round is legal and IS the "queue them" case (they show one after
+        # another via Session.resolve_enemy_intro()). No match (the common
+        # case, and always true on a fresh EnemyIntro.entries: []) leaves this
+        # byte-identical to before the feature existed.
+        matches = [e for e in self.core_balance["EnemyIntro"]["entries"]
+                   if e["round"] == st.round_num]
+        if matches:
+            st.pending_enemy_intros = matches
+            st.phase = GamePhase.ENEMY_INTRO
+        else:
+            st.phase = GamePhase.ENEMY
+        # -- /feature-enemy-intro-dialogue --
         self._wipe_pending = False
 
     # -- per-frame dispatch (prototype _update_gameplay) ------------------
@@ -430,7 +459,8 @@ class Session:
         self._levelup_return_phase = return_phase
         # -- /10H --
         st.levelup_options = lv.roll_levelup_options(
-            st, self.buildings_balance, self.core_balance, self.rng)
+            st, self.buildings_balance, self.core_balance, self.rng,
+            self.progression_balance)
         st.phase = GamePhase.LEVELUP
 
     def resolve_levelup(self, option, scene=None):
@@ -506,6 +536,21 @@ class Session:
         else:
             run_payday(st, self.tilemap, self.core_balance,
                        self.occupancy, scene, self.debug)  # -> INCOME
+
+    # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
+
+    def resolve_enemy_intro(self):
+        """Pop the entry the host just finished showing (its close animation
+        ended, whether by the hold timer or a manual close). Queued entries
+        show one after another: the host re-opens ``pending_enemy_intros[0]``
+        each time this leaves the list non-empty. Once it drains, the round
+        actually starts — the SAME ``GamePhase.ENEMY`` transition
+        ``end_turn()`` would have made directly had nothing matched."""
+        st = self.state
+        if st.pending_enemy_intros:
+            st.pending_enemy_intros.pop(0)
+        if not st.pending_enemy_intros:
+            st.phase = GamePhase.ENEMY
 
     # -- XP award sites (10A) ---------------------------------------------
 

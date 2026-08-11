@@ -10,7 +10,10 @@ the duck-typed values the combat sweep reads (``alive`` / ``dmg``) are guard-saf
 since 10G (nearest-building hunting with re-path-on-kill, the ``"boss"`` scene
 tag), ``Formation`` since ER-4 (the 2×2 marching column that dies at half HP and
 scatters regulars — pure data over the ER-1/ER-2/ER-3 mechanics, no new code
-path). Each subclass resolves its own stat subtree + slot prefix and little else.
+path), ``Sniper`` since NE-1 (the first RANGED type: it halts at
+``PathAgent.stand_off_range`` tiles from its committed target and fires there,
+never closing to melee). Each subclass resolves its own stat subtree + slot
+prefix and little else.
 
 Stats are resolved at CONSTRUCTION into component fields, since ES-2 from the
 type's OWN per-era rows (``EnemyTypes.<type>.eras[era]``): fully manual absolute
@@ -40,7 +43,10 @@ from game.map.pathfinder import (
     find_path, find_path_ignoring_walls,
     find_path_to_nearest_non_base_building,
 )
-from .components import _HUNT_QUERIES, DeathSpawn, EnemyCombat, Kidnap, PathAgent
+from .components import (
+    _HUNT_QUERIES, BURROW_SUBMERGED, BuffState, BurrowAgent, DeathSpawn,
+    DrummerAura, EnemyCombat, Kidnap, PathAgent,
+)
 
 # spawn_counts key -> the etype it spawns. The ORDER is load-bearing twice
 # over: it fixes how many draws a death burst takes from the injected `rng`
@@ -107,6 +113,12 @@ class Enemy(GameObject):
     # every other type keeps the plain `death_spawn`. ONE class attr rather
     # than a per-type __init__ override — the resolved fields are identical.
     DEATH_SPAWN_KEY = "death_spawn"
+    # NE-2: does this type ever HALT to melee a building blocking its path?
+    # False for the Digger alone — see PathAgent.no_melee for why a 0-damage
+    # halt would be a permanent soft-lock rather than a slow fight. A class
+    # attr, not balancing: it is a property of the type's mechanics (the
+    # EXTRA_TAGS / DEATH_SPAWN_KEY shape), not a number a designer tunes.
+    NO_MELEE = False
     # Overhead HP bar, read by game/ui/effects.py; base-zoom px, widths
     # prototype-exact. PAD is only the GAP above the sprite's head — how high
     # the bar actually floats is measured off the sprite as the renderer draws
@@ -136,7 +148,21 @@ class Enemy(GameObject):
         footprint, sprite_scale = self.resolve_fit(block, era)
         components = [
             Health(max_hp=hp, hp=hp),
-            PathAgent(footprint=footprint, hunt=block["hunts"]),
+            # NE-3: the buff ledger every enemy carries. FIRST after Health so
+            # a contribution that expires this frame has already been undone
+            # before PathAgent reads the buffed move speed and EnemyCombat
+            # reads the buffed damage/attack clock below. Inert (and near
+            # free) on every unit no Drummer has ever reached — the `Kidnap`
+            # "declared field, usually inert" shape.
+            BuffState(),
+            PathAgent(footprint=footprint, hunt=block["hunts"],
+                      no_melee=self.NO_MELEE,
+                      stand_off_range=self.resolve_stand_off_range(block)),
+            # NE-2: the navigation-adjacent slot — AFTER PathAgent (so it can
+            # act on the walk/halt decision just made) and BEFORE Movement (so
+            # a freeze it applies takes effect the same frame). Empty for every
+            # type but the Digger.
+            *self.nav_components(block),
             Movement(speed=speed),
             EnemyCombat(dmg=dmg, attack_speed=attack_speed),
             RangeSensor(range_tiles=attack_range),
@@ -160,6 +186,7 @@ class Enemy(GameObject):
             # per-frame clock re-pin wins).
             Kidnap(enabled=bool(block["kidnapping"])),
         ]
+        components.extend(self.extra_components(block))
         super().__init__(
             name=self.ETYPE,
             tags=("enemy",) + self.EXTRA_TAGS,
@@ -169,6 +196,18 @@ class Enemy(GameObject):
         # Transient caches (E-11 allows underscore attrs; non-authoritative).
         self._balance = enemies_balance
         self._tilemap = tilemap
+        # NE-2 — the SCENE seam, parallel to `_tilemap` above. A GameObject
+        # never receives the scene (`Scene.update` calls `on_spawn()` with no
+        # arguments), and `Component` cannot reach it either, which is why
+        # `CorpseFade._scene`/`Kidnap._scene` are both wired externally by
+        # their one transition site. The Digger needs it for TWO things
+        # `_tilemap` cannot answer — who else is a live Digger (the exclusive
+        # claim) and where to put the dirt pile — so it is cached here once,
+        # for the whole type hierarchy, rather than threaded through four call
+        # signatures. `Spawner` sets it at both of its construction sites
+        # (the wave pop and `_spawn_child`); a hand-built headless enemy leaves
+        # it None, which every reader treats as "no scene, no rivals".
+        self._scene = None
         self._col = col
         self._row = row
         self._enemy_era = era
@@ -181,6 +220,24 @@ class Enemy(GameObject):
         # dict through it.
         pa._cond_weights = dict(block["condition_path_weights"])
 
+    # -- per-type extra components (NE-3 seam) -----------------------------
+
+    @classmethod
+    def extra_components(cls, block):
+        """Components only THIS type carries, appended after the shared list.
+
+        The ONE seam for "a type needs a mechanism nothing else has", so a
+        subclass never has to reimplement ``__init__`` just to add one
+        component (and never has to re-derive the era/stat/fit resolution it
+        would have to copy to do that). Base: nothing — every stock type is
+        exactly the shared list.
+
+        Kept a ``classmethod`` beside ``resolve_fit``/``endgame_factors``: it
+        reads only the already-resolved balancing ``block``, and it is called
+        BEFORE ``GameObject.__init__`` has run, so it must not touch instance
+        state."""
+        return ()
+
     # -- render fit / footprint (BR-1 seam) --------------------------------
 
     @classmethod
@@ -189,12 +246,33 @@ class Enemy(GameObject):
 
         The ONE seam deciding WHERE a type's render fit lives, so
         ``__init__`` and the spawner's pre-construction ``_footprint_of``
-        can never disagree. Every type but the Boss keeps them FLAT at its
-        ``EnemyTypes`` root (ES-2/D10 — only numbers that scale with the round
-        went per-era); the Boss overrides it, because BR-1 made every boss
-        variable per-era. A classmethod, not an instance method: the spawner
-        needs the footprint to pick a spawn tile BEFORE the enemy exists."""
-        return int(block["footprint"]), float(block["sprite_scale"])
+        can never disagree. **Every type's render fit is PER-ERA**: an
+        era-shaped type carries the pair in its own ``eras[]`` rows, and the
+        Boss overrides this to read its ``stats[]`` table (it has no
+        ``eras``). Both were single FLAT keys at the type root until BR-1
+        moved the Boss's, and this change moved everyone else's — a designer
+        must be able to make a late-era body physically bigger than an early
+        one (an era-4 Formation is 4x4 where its era-0 is 2x2).
+
+        Past the last authored era the row clamps: ``endgame_scaling`` carries
+        no ``footprint``/``sprite_scale`` factor, deliberately, so a size never
+        grows on its own past the table.
+
+        A classmethod, not an instance method: the spawner needs the footprint
+        to pick a spawn tile BEFORE the enemy exists."""
+        row = resolve_era_row(block["eras"], era, cls.endgame_factors(block))
+        return int(row["footprint"]), float(row["sprite_scale"])
+
+    @classmethod
+    def nav_components(cls, block):
+        """Extra components spliced between ``PathAgent`` and ``Movement``
+        (NE-2). ``()`` for every type but the Digger, whose ``BurrowAgent``
+        must see the agent's decision for the frame and be able to stop the
+        locomotion that would otherwise act on it. A seam rather than an
+        ``__init__`` override, for the ``resolve_fit``/``resolve_phase_row``
+        reason: the component ORDER is the invariant, and keeping ONE
+        construction site is what guarantees it."""
+        return ()
 
     @classmethod
     def resolve_phase_row(cls, ds, era):
@@ -208,6 +286,21 @@ class Enemy(GameObject):
         row, because D5 wants the era-0 boss to stage at half health while
         eras 1-4 keep firing at actual death."""
         return ds
+
+    @classmethod
+    def resolve_stand_off_range(cls, block):
+        """How many tiles short of its committed target this type halts and
+        opens fire (NE-1) — ``PathAgent.stand_off_range``.
+
+        The same shape as ``resolve_fit``/``endgame_factors``: a SEAM, so the
+        `stand_off_range` balancing leaf lives only on the block of a type that
+        actually has the mechanic, instead of being forced onto all six other
+        `EnemyTypes` entries at 0 just to keep a flat read honest. ``0`` here is
+        NOT a code-side default for an authored value (G-7) — it is the
+        statement "this type has no stand-off", the exact counterpart of
+        ``endgame_factors`` returning ``None`` for everything but the Boss.
+        ``Sniper`` is the one override."""
+        return 0
 
     @classmethod
     def endgame_factors(cls, block):
@@ -337,7 +430,11 @@ class Enemy(GameObject):
 
     @property
     def dmg(self):
-        return self.get_component(EnemyCombat).dmg
+        """What this enemy hits for RIGHT NOW — the raw stat plus any live
+        Drummer buff (NE-3, ``EnemyCombat.buffed_dmg``). Unbuffed it returns
+        the raw field unchanged, so every pre-NE-3 reader (the base-hit
+        branch of the combat sweep, its telemetry) is byte-identical."""
+        return self.get_component(EnemyCombat).buffed_dmg
 
     # -- the delayed second phase (BR-3) -----------------------------------
 
@@ -453,10 +550,12 @@ class SiegeCannon(Enemy):
 
 
 class Formation(Enemy):
-    """A marching column — many soldiers moving as one body (ER-4). Two tiles
-    square (``footprint: 2``, ER-2 clearance pathing: it only stands where all
-    four tiles are clear, so it cannot thread a one-tile gap a walker slips
-    through). Its stats come from its own ``eras`` rows like every other type.
+    """A marching column — many soldiers moving as one body (ER-4). A
+    multi-tile block that GROWS: ``footprint`` is per-era like every other
+    number now, and it ships 2, 2, 3, 3, 4 across eras 0-4 (ER-2 clearance
+    pathing: it only stands where every tile of its block is clear, so it
+    cannot thread a gap a walker slips through, and by era 4 it needs a 4x4).
+    Its stats come from its own ``eras`` rows like every other type.
 
     It has NO break state: ``death_spawn.at_hp_fraction`` 0.5 makes ``alive``
     False at half HP (D4 — breaking formation IS dying), and the ER-3 pipeline
@@ -473,6 +572,47 @@ class Formation(Enemy):
     DEFAULT_SLOT = "formation_stage_1"
     STAT_SUBTREE = ("Formation",)
     HP_BAR_W = 32                    # a 2-tile body; siege 24, boss 48
+
+
+class Sniper(Enemy):
+    """The Sniper (NE-1) — the first enemy that fights at RANGE.
+
+    Every other type is a melee unit: `attack_range_tiles` exists on all of
+    them and is read by nothing on the enemy's own attack path, so they all
+    walk until something physically blocks them and then punch it. The Sniper
+    walks at the nearest ATTACK-CAPABLE building (`hunts: "defence"` — NE-0
+    widened that category from the single `defence` type to mortars, Storm
+    Priests and Sun Scorchers too), halts at `stand_off_range` tiles from it,
+    and fires on its `attack_speed` cooldown from there. It never closes.
+
+    **It adds no attack code.** The stand-off halt is `PathAgent`'s
+    `stand_off_range`/`in_range` pair (both default-off, so the melee path is
+    byte-identical for every other type) and the firing is the SAME
+    `EnemyCombat.update()` clock, whose gate widened from `blocked` to
+    `blocked or in_range`. Re-targeting when its victim dies is likewise the
+    existing `repath_on_kill` dead-target watch, which is gated on `not
+    blocked` — and a stand-off unit is never blocked, so it fires unchanged.
+
+    **The ranged hit lands instantly on cooldown** (v1): there is no
+    projectile-travel system for enemies, and building one was deliberately
+    NOT part of this phase. A muzzle/arrow visual is a `/replace-visual` pass.
+
+    Four class attrs plus the one seam override — no `__init__`, no
+    `on_spawn`, no `_resolve_stats` (the base `STAT_SUBTREE` resolver reads its
+    own `EnemyTypes.Sniper.eras` rows), no `_resolve_era`, no `EXTRA_TAGS`."""
+
+    ETYPE = "sniper"
+    REGISTRY_GROUP = "Sniper"
+    DEFAULT_SLOT = "sniper_stage_1"
+    STAT_SUBTREE = ("Sniper",)
+
+    @classmethod
+    def resolve_stand_off_range(cls, block):
+        # The ONE override of the NE-1 seam. Flat at the type root like
+        # `footprint`/`kidnapping` (D10): standing off at 2 tiles is this
+        # type's IDENTITY, not a number that scales with the round, so it is
+        # deliberately not an era-row leaf.
+        return int(block["stand_off_range"])
 
 
 class Commander(Enemy):
@@ -502,6 +642,131 @@ class Commander(Enemy):
     DEFAULT_SLOT = "commander_stage_1"
     STAT_SUBTREE = ("Commander",)
     HP_BAR_W, HP_BAR_H = 24, 2       # siege-sized (D8), no boss 48×4 bar
+
+
+class Tutorial(Enemy):
+    """Round 0's forced enemy (add-enemy dispatch, user decision) — split off
+    Standard so the tutorial's scripted spawn can be tuned independently of
+    the real Walker. It reuses the Walker's registry group/slots (no new art)
+    and Standard's era-0 stats verbatim, but ``EnemyTypes.Tutorial.hunts`` is
+    ``"any_non_base"`` (Boss/Commander's value) rather than ``"base"``, so it
+    targets buildings instead of walking straight at the hole. No override
+    needed for that: the generic ``Enemy.on_spawn`` already dispatches on the
+    data block's ``hunts`` value (see game/enemies/CLAUDE.md's "Prey hunting"
+    section)."""
+
+    ETYPE = "tutorial"
+    REGISTRY_GROUP = "Walker"
+    DEFAULT_SLOT = "enemy_stage_1_v1"
+    STAT_SUBTREE = ("Tutorial",)
+
+
+class Digger(Enemy):
+    """The Digger (NE-2) — the burrower that erupts under a claimed structure.
+
+    The one type that is a genuine new state machine rather than data over the
+    existing one. It walks visibly at a structure it has EXCLUSIVELY claimed
+    (``hunts: "structure"``), submerges untargetable at ``dig_range_tiles``,
+    travels underground, erupts for one large ``dmg`` hit, then re-claims. The
+    machine itself is ``BurrowAgent``; this class is the four class attrs, the
+    three seams it needs, and nothing else.
+
+    * **``NO_MELEE = True``** — it has no attack outside digging, so a halt on
+      an incidental blocker would be a 0-damage soft-lock (``PathAgent.
+      no_melee``).
+    * **``repath_on_kill`` stays OFF** (hence the ``on_spawn`` override, which
+      does NOT call the generic non-base branch): the agent's generic re-path
+      would re-run the hunt with no claim exclusion, and would silently accept
+      the empty-goal-set fallback to the hole. ``BurrowAgent.retarget`` is the
+      only re-targeting path, at spawn and after every eruption alike.
+    * **``targetable``** is overridden off the SUBMERGED state — the exact
+      duck-typed contract the boss's second phase already uses, so combat
+      targeting, in-flight projectiles, the lightning storm and both HP bars
+      drop a burrowed Digger with no per-site change.
+    * **``kidnapping: false``** in balancing: Diggers do not kidnap.
+    """
+
+    ETYPE = "digger"
+    REGISTRY_GROUP = "Digger"
+    DEFAULT_SLOT = "digger_stage_1"
+    STAT_SUBTREE = ("Digger",)
+    NO_MELEE = True
+
+    @classmethod
+    def nav_components(cls, block):
+        return (BurrowAgent(
+            dig_range_tiles=int(block["dig_range_tiles"]),
+            dig_speed=float(block["dig_speed"]),
+            emerge_cooldown=float(block["emerge_cooldown"]),
+            min_target_distance_tiles=int(block["min_target_distance_tiles"])),)
+
+    def _resolve_stats(self, balance, era, position_in_era=1):
+        """The era row as usual, with ``move_speed`` REPLACED by the flat
+        ``dig_speed`` — the design brief's "one speed value for both phases".
+        Doing it here rather than trusting the two to be authored equal is what
+        makes overground and underground provably the same number; the era
+        rows still carry their own ``move_speed`` because ``$defs/type_era_row``
+        requires it and the balancing panel renders it."""
+        hp, dmg, _speed, attack_speed, attack_range = super()._resolve_stats(
+            balance, era, position_in_era)
+        dig_speed = float(balance["EnemyTypes"]["Digger"]["dig_speed"])
+        return (hp, dmg, dig_speed, attack_speed, attack_range)
+
+    def on_spawn(self):
+        """Claim a structure and walk at it — ``BurrowAgent.retarget``, never
+        the generic hunt branch (see the class docstring). Deliberately leaves
+        ``PathAgent.repath_on_kill`` at False."""
+        burrow = self.get_component(BurrowAgent)
+        burrow.retarget(self, self.get_component(PathAgent),
+                        self.get_component(Movement), self._tilemap)
+
+    @property
+    def targetable(self):
+        """False while burrowed — nothing can shoot a Digger underground."""
+        burrow = self.get_component(BurrowAgent)
+        if burrow is not None and burrow.state == BURROW_SUBMERGED:
+            return False
+        return super().targetable
+
+
+class Drummer(Enemy):
+    """The Drummer (NE-3) — the game's first SUPPORT enemy.
+
+    It marches at the hole like a walker (``hunts: "base"``, so the generic
+    ``Enemy.on_spawn`` takes the original byte-identical walk-to-the-base
+    branch: no ``repath_on_kill``, no building hunting) and hits for almost
+    nothing. Its whole contribution is the aura: every enemy standing within
+    Chebyshev ``support_range`` of it gets a share of its
+    ``hp``/``dmg``/``move_speed``/``attack_speed`` increases, stacking
+    additively per Drummer and fading 4 seconds after leaving the radius.
+
+    The ONLY thing that makes it different from a walker is one extra
+    component (``DrummerAura``) through the ``extra_components`` seam — no
+    ``__init__``, no ``on_spawn``, no ``_resolve_stats`` (D8's rule for the
+    Commander applies here too: the base ``STAT_SUBTREE`` resolver reads its
+    own ``EnemyTypes.Drummer.eras`` rows), no ``_resolve_era``, no
+    ``EXTRA_TAGS``. ``sprite_scale`` 1.15 is the brief's "slightly taller"
+    cosmetic ask and is pure data.
+
+    Note the ``support_range_increase`` leaf is deliberately NOT read here —
+    see ``game/enemies/CLAUDE.md``; it ships as an inert 0 so the data shape
+    is future-proof, pending a user decision on whether support range is
+    meant to grow at all."""
+
+    ETYPE = "drummer"
+    REGISTRY_GROUP = "Drummer"
+    DEFAULT_SLOT = "drummer_stage_1"
+    STAT_SUBTREE = ("Drummer",)
+
+    @classmethod
+    def extra_components(cls, block):
+        return (DrummerAura(
+            support_range=int(block["support_range"]),
+            hp_increase=float(block["hp_increase"]),
+            dmg_increase=float(block["dmg_increase"]),
+            move_speed_increase=float(block["move_speed_increase"]),
+            attack_speed_increase=float(block["attack_speed_increase"]),
+        ),)
 
 
 class Boss(Enemy):
@@ -549,10 +814,11 @@ class Boss(Enemy):
 
     @classmethod
     def resolve_fit(cls, block, era):
-        # BR-1: the boss is the ONE type whose footprint/sprite_scale are
-        # per-era — they live in its `stats[era]` row with every other boss
-        # variable, not flat at the type root. Resolved (clamped, and past the
-        # table endgame-scaled) here too, so the spawner can ask before a Boss
+        # Every type's fit is per-era; the Boss's just lives somewhere else.
+        # BR-1 put footprint/sprite_scale in its `stats[era]` row with every
+        # other boss variable, and it carries no `eras[]` for the base
+        # implementation to read. Resolved (clamped, and past the table
+        # endgame-scaled) here too, so the spawner can ask before a Boss
         # instance exists.
         st = cls._stat_row(block, era)
         return int(st["footprint"]), float(st["sprite_scale"])
@@ -630,8 +896,12 @@ ENEMY_CLASSES = {
     "raider": Raider,
     "siege": SiegeCannon,
     "formation": Formation,
+    "sniper": Sniper,
     "commander": Commander,
+    "digger": Digger,
+    "drummer": Drummer,
     "boss": Boss,
+    "tutorial": Tutorial,
 }
 
 

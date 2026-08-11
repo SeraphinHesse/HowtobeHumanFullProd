@@ -1169,7 +1169,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1178,16 +1178,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1205,7 +1199,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1214,16 +1208,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1241,7 +1229,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1251,15 +1239,9 @@
             5,
             6,
             7,
-            9,
+            8,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1277,7 +1259,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1288,14 +1270,8 @@
             6,
             7,
             8,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            9,
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1313,7 +1289,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1325,13 +1301,7 @@
             7,
             8,
             9,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            10
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1349,25 +1319,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1385,7 +1349,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1394,16 +1358,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1421,25 +1379,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1457,25 +1409,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1493,25 +1439,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1529,25 +1469,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1565,7 +1499,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1573,17 +1507,11 @@
             3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1601,7 +1529,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1610,16 +1538,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1673,10 +1595,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
+            2,
             3,
             4,
             5,
@@ -1685,13 +1607,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1709,11 +1625,11 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
             2,
+            3,
             4,
             5,
             6,
@@ -1721,13 +1637,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1745,7 +1655,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             1,
             2,
@@ -1757,13 +1667,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1781,25 +1685,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
-            1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1817,25 +1715,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
-            2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1853,25 +1745,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
+            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2780,27 +2666,171 @@
       ],
       "sheet": "imported/deco_tree_v9.png"
     },
+    "digger_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "drummer_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "drummer_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "drummer_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "drummer_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
     "enemy_stage_1_v1": {
       "anchors": {
         "beam_endpoint": [
           3,
-          -2
+          -9
         ],
         "floater_origin": [
-          2,
-          -14
+          3,
+          -7
         ],
         "hp_bar": [
-          3,
-          -19
+          2,
+          -25
         ],
         "impact": [
-          3,
-          0
+          4,
+          -11
         ],
         "muzzle": [
-          -19,
-          -8
+          -14,
+          -14
         ]
       },
       "frame_h": 96,
@@ -2811,12 +2841,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2824,42 +2851,9 @@
         },
         {
           "animation": "attack",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1
-          ],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2871,7 +2865,7 @@
       "anchors": {
         "beam_endpoint": [
           3,
-          -3
+          -7
         ],
         "floater_origin": [
           4,
@@ -2879,15 +2873,15 @@
         ],
         "hp_bar": [
           3,
-          -19
+          -27
         ],
         "impact": [
           3,
-          1
+          -11
         ],
         "muzzle": [
-          -20,
-          -8
+          -14,
+          -15
         ]
       },
       "frame_h": 96,
@@ -2898,12 +2892,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2912,66 +2903,36 @@
         {
           "animation": "attack",
           "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
+          "frames": 9,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "imported/enemy_stage_1_v2.png"
     },
-    "enemy_stage_2": {
+    "enemy_stage_1_v3": {
       "anchors": {
         "beam_endpoint": [
-          4,
-          -1
+          3,
+          -11
         ],
         "floater_origin": [
-          3,
-          -14
+          4,
+          -7
         ],
         "hp_bar": [
           1,
-          -20
+          -26
         ],
         "impact": [
           3,
-          0
+          -9
         ],
         "muzzle": [
-          -19,
-          -8
+          -13,
+          -15
         ]
       },
       "frame_h": 96,
@@ -2982,12 +2943,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2996,35 +2954,96 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
+          "frames": 9,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v3.png"
+    },
+    "enemy_stage_1_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -9
+        ],
+        "floater_origin": [
+          3,
+          -6
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          3,
+          -12
+        ],
+        "muzzle": [
+          -14,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "death",
+          "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
-          "animation": "death",
+          "animation": "attack",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v4.png"
+    },
+    "enemy_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -10
+        ],
+        "floater_origin": [
+          2,
+          -8
+        ],
+        "hp_bar": [
+          3,
+          -26
+        ],
+        "impact": [
+          3,
+          -9
+        ],
+        "muzzle": [
+          -17,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
           "fps": 6,
           "frames": 8,
           "hidden": [],
@@ -3397,14 +3416,7 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6
-          ],
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -4770,6 +4782,24 @@
       ],
       "sheet": "imported/meditator_t1_lvl1.png"
     },
+    "moving_sign": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/moving_sign.png"
+    },
     "painter_t1_lvl1": {
       "anchors": {
         "floater_origin": [
@@ -5041,7 +5071,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5050,7 +5080,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5060,7 +5090,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5069,7 +5100,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5078,7 +5109,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5088,7 +5119,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5097,7 +5129,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5106,7 +5138,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5116,7 +5148,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5144,7 +5177,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5153,7 +5186,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5163,7 +5196,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5172,7 +5206,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5181,7 +5215,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5191,7 +5225,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5200,7 +5235,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5209,7 +5244,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5219,7 +5254,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5247,7 +5283,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5256,7 +5292,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5266,7 +5302,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5275,7 +5312,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -5284,7 +5321,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5294,7 +5331,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5303,7 +5341,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -5312,7 +5350,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -5322,7 +5360,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6153,6 +6192,96 @@
       ],
       "sheet": "imported/slinger_t2_lvl3.png"
     },
+    "sniper_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_5": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
     "stone_thrower_t1_lvl1": {
       "anchors": {
         "hp_bar": [
@@ -6279,8 +6408,8 @@
             13,
             14
           ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 6,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -6393,8 +6522,8 @@
             13,
             14
           ],
-          "loop_count": 7,
-          "loop_end": 3,
+          "loop_count": 5,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -6879,23 +7008,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
+            3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6913,7 +7039,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6922,14 +7048,11 @@
             4,
             5,
             6,
-            7,
             8,
             9,
+            10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6947,7 +7070,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6957,13 +7080,10 @@
             5,
             6,
             7,
-            8,
             9,
             10,
-            12,
-            13,
-            14,
-            15
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -6981,7 +7101,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -6992,12 +7112,9 @@
             6,
             7,
             8,
-            9,
             10,
             11,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7015,7 +7132,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7027,11 +7144,8 @@
             7,
             8,
             9,
-            10,
             11,
-            12,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7049,23 +7163,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7083,23 +7194,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7117,9 +7225,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7130,17 +7238,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -7151,9 +7256,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -7164,10 +7269,7 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7185,23 +7287,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
+            8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7219,10 +7318,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7232,17 +7331,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -7253,10 +7349,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -7266,17 +7362,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_forest": {
       "frame_h": 32,
@@ -7287,23 +7380,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
+            7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7321,23 +7411,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
+            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -7355,7 +7442,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7364,14 +7451,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_spawning_b": {
       "frame_h": 32,
@@ -7382,7 +7473,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -7391,14 +7482,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "trio_t3_lvl1": {
       "anchors": {
@@ -8240,6 +8335,24 @@
         4,
         4
       ]
+    },
+    "vfx_dirt_pile": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_dirt_pile.png"
     },
     "wall_builder": {
       "anchors": {

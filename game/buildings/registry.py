@@ -97,9 +97,23 @@ def place_building(tilemap, tile, building_type, love, buildings_balance,
             and (tile.col, tile.row) in getattr(state, "used_painter_tiles", ())):
         raise PlacementError(
             f"tile ({tile.col},{tile.row}) already sold a painting")
+    # Building Movement: neither endpoint of a move in progress may host a new
+    # building — the vacated origin and the reserved destination are both
+    # ordinary BUILDABLE tiles (deliberately, so enemies keep walking through
+    # them), so `is_moving` is the only thing that tells them apart. Enforced
+    # HERE, the single legal placement path, exactly like the painter-tile bar
+    # above; the panel's tile-picking is only a convenience. `getattr` keeps
+    # the pre-feature tilemap stubs some logic tests build working.
+    is_moving = getattr(tilemap, "is_moving", None)
+    if is_moving is not None and is_moving(tile.col, tile.row):
+        raise PlacementError(
+            f"tile ({tile.col},{tile.row}) is part of a move in progress")
     # 10D: boosters may not be placed cardinally adjacent to another booster
     # (prototype ``Game.place_building`` 'boost_adjacent' — cardinal-4, diagonals
-    # allowed). Enforced HERE, the single legal placement path.
+    # allowed). Enforced HERE, the single legal placement path. Deliberately a
+    # FIXED cardinal-4 check, independent of `BoostBuildings.globals.range_tiles`/
+    # `.range_shape` (the configurable buff/curse range, `game/buildings/boost.py`)
+    # — a designer widening the buff range does not change this placement rule.
     if building_type.startswith("boost_"):
         for dc, dr in ((0, -1), (0, 1), (-1, 0), (1, 0)):
             adj = tilemap.get(tile.col + dc, tile.row + dr)

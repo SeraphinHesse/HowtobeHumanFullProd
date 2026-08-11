@@ -324,7 +324,9 @@
         "walk",
         "attack",
         "death",
-        "kidnap"
+        "kidnap",
+        "dig",
+        "emerge"
       ],
       "display_name": "Enemies",
       "frame_h": 96,
@@ -336,7 +338,9 @@
               "label": "Era 1",
               "slots": [
                 "enemy_stage_1_v1",
-                "enemy_stage_1_v2"
+                "enemy_stage_1_v2",
+                "enemy_stage_1_v3",
+                "enemy_stage_1_v4"
               ]
             },
             {
@@ -531,6 +535,99 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "digger_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "digger_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "digger_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "digger_stage_4"
+              ]
+            }
+          ],
+          "label": "Digger"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "sniper_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "sniper_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "sniper_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "sniper_stage_4"
+              ]
+            },
+            {
+              "label": "Era 5",
+              "slots": [
+                "sniper_stage_5"
+              ]
+            }
+          ],
+          "label": "Sniper"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "drummer_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "drummer_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "drummer_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "drummer_stage_4"
+              ]
+            }
+          ],
+          "label": "Drummer"
         }
       ],
       "key": "enemies"
@@ -668,7 +765,8 @@
             {
               "label": "Panel",
               "slots": [
-                "ui_panel"
+                "ui_panel",
+                "ui_panel_v2"
               ]
             },
             {
@@ -758,6 +856,12 @@
           "slots": [
             "tutorial_stone"
           ]
+        },
+        {
+          "label": "Moving Sign",
+          "slots": [
+            "moving_sign"
+          ]
         }
       ],
       "key": "core"
@@ -780,7 +884,10 @@
             "vfx_slash",
             "vfx_crater",
             "vfx_projectile",
-            "vfx_shell"
+            "vfx_shell",
+            "vfx_dirt_pile",
+            "vfx_buff_arrow",
+            "vfx_beam"
           ]
         }
       ],
@@ -1060,28 +1167,163 @@
         {
           "children": [
             {
-              "label": "Bush Wall",
-              "slots": [
-                "wall_t1_lvl1",
-                "wall_t1_lvl2",
-                "wall_t1_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t1_lvl1",
+                    "wall_t1_lvl2",
+                    "wall_t1_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t1_lvl1_era1",
+                    "wall_t1_lvl2_era1",
+                    "wall_t1_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t1_lvl1_era2",
+                    "wall_t1_lvl2_era2",
+                    "wall_t1_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t1_lvl1_era3",
+                    "wall_t1_lvl2_era3",
+                    "wall_t1_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t1_lvl1_era4",
+                    "wall_t1_lvl2_era4",
+                    "wall_t1_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t1_lvl1_era5",
+                    "wall_t1_lvl2_era5",
+                    "wall_t1_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Bush Wall"
             },
             {
-              "label": "Wooden Wall",
-              "slots": [
-                "wall_t2_lvl1",
-                "wall_t2_lvl2",
-                "wall_t2_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t2_lvl1",
+                    "wall_t2_lvl2",
+                    "wall_t2_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t2_lvl1_era1",
+                    "wall_t2_lvl2_era1",
+                    "wall_t2_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t2_lvl1_era2",
+                    "wall_t2_lvl2_era2",
+                    "wall_t2_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t2_lvl1_era3",
+                    "wall_t2_lvl2_era3",
+                    "wall_t2_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t2_lvl1_era4",
+                    "wall_t2_lvl2_era4",
+                    "wall_t2_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t2_lvl1_era5",
+                    "wall_t2_lvl2_era5",
+                    "wall_t2_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Wooden Wall"
             },
             {
-              "label": "Stone Wall",
-              "slots": [
-                "wall_t3_lvl1",
-                "wall_t3_lvl2",
-                "wall_t3_lvl3"
-              ]
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t3_lvl1",
+                    "wall_t3_lvl2",
+                    "wall_t3_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t3_lvl1_era1",
+                    "wall_t3_lvl2_era1",
+                    "wall_t3_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t3_lvl1_era2",
+                    "wall_t3_lvl2_era2",
+                    "wall_t3_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t3_lvl1_era3",
+                    "wall_t3_lvl2_era3",
+                    "wall_t3_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t3_lvl1_era4",
+                    "wall_t3_lvl2_era4",
+                    "wall_t3_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t3_lvl1_era5",
+                    "wall_t3_lvl2_era5",
+                    "wall_t3_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Stone Wall"
             }
           ],
           "label": "Wall"

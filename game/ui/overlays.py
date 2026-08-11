@@ -5,13 +5,16 @@ owns every 10I UI surface so ``hud.py`` (edited by 10G/10H) carries no 10I
 diff:
 
 * **World condition tint** — a coloured diamond on every non-GRASS,
-  non-BACKGROUND tile inside the visible window (prototype ``tile.py:25-30,
-  166-173``), drawn under buildings/highlights.
+  non-BACKGROUND, non-SPAWNING tile inside the visible window (prototype
+  ``tile.py:25-30, 166-173``), drawn under buildings/highlights. A tile keeps
+  its rolled condition while SPAWNING — only the draw is skipped, so the
+  diamond reappears once the tile converts to COMBAT (spawn recede).
 * **RANGE toggle** — red diamonds over the union of every alive defender's
-  Chebyshev range square, using RAW ``range_tiles()`` (prototype
-  ``hud.py:399-430`` / ``game.py:2012-2019``). The Maw Mortar IS included
-  (its exclusion is pathfinding-only); ``"boost"``-tagged occupants contribute
-  their 4-cardinal plus-shape.
+  range footprint, using RAW ``range_tiles()`` (prototype ``hud.py:399-430``
+  / ``game.py:2012-2019``), shaped per an optional duck-typed
+  ``range_shape()`` (Chebyshev square when absent; a booster's shape is
+  configurable, ``game/buildings/boost.py``). The Maw Mortar IS included
+  (its exclusion is pathfinding-only).
 * **HEATMAP toggle** — the PREVIOUS round's distinct-enemy traffic per tile,
   blue→yellow→red ramp (prototype ``hud.py:432-470`` / ``game.py:1344-1349,
   927-932``). ``track`` accumulates during the ENEMY phase and snapshots on
@@ -45,6 +48,7 @@ default and becomes JSON-overridable for free through that id (the generic
 per-widget ``label`` override).
 """
 from engine.render import HudRect
+from game.buildings import range_shape
 from game.buildings.components import TierState
 from game.core.phases import GamePhase
 from game.map.conditions import draws_tint
@@ -65,8 +69,6 @@ _COND_TINT = {
     TileCondition.FOREST: (30, 100, 30),
 }
 
-# The boost plus-shape (cardinal neighbours only — prototype hud.py:411-420).
-_PLUS_DIRS = ((0, -1), (0, 1), (-1, 0), (1, 0))
 
 # TIER OVERVIEW fill alpha (a plain int — safe as a module constant, unlike a
 # colour). Designer-picked yellow/pink/blue (a same-hue purple ramp read as
@@ -131,11 +133,17 @@ class MapOverlays:
         self.show_heatmap = False
         self.show_tier_overview = False
         # Left of the phase banner, stacked above it (the banner sits at
-        # view_h-26; hud End Turn owns the bottom-right corner). The row runs
-        # left to right, 74 wide with a 4px gap: 12, 90, 168.
-        self.range_btn = Button((12, view_h - 72, 74, 26), "RANGE", "sm")
-        self.heatmap_btn = Button((90, view_h - 72, 74, 26), "HEATMAP", "sm")
-        self.tier_overview_btn = Button((168, view_h - 72, 74, 26),
+        # view_h-13; hud End Turn owns the bottom-right corner).
+        # UR-5: 41 wide, not UR-2's halved 37 — "HEATMAP" measures 35px at
+        # "sm" (unhalved), leaving 1px of margin a side in a 37px pill. The
+        # gap between the two grows 2 -> 4 to keep them from touching.
+        # The third pill is sized the same way: "TIER OVERVIEW" is 13
+        # characters against "HEATMAP"'s 7, i.e. ~65px at "sm", so it gets a
+        # 69px pill (2px of margin a side) on the same row and the same 4px
+        # gap: 6, 51, 96.
+        self.range_btn = Button((6, view_h - 36, 41, 13), "RANGE", "sm")
+        self.heatmap_btn = Button((51, view_h - 36, 41, 13), "HEATMAP", "sm")
+        self.tier_overview_btn = Button((96, view_h - 36, 69, 13),
                                         "TIER OVERVIEW", "sm")
         # Heatmap accumulators: distinct enemy ids per tile while the ENEMY
         # phase runs; snapshot to counts on the phase edge.
@@ -217,25 +225,27 @@ class MapOverlays:
 
     @staticmethod
     def range_coverage(tilemap):
-        """Union of covered tiles for the RANGE overlay: a Chebyshev square
-        per alive built occupant with duck-typed RAW ``range_tiles() > 0``
-        (mortar included — the aoe exclusion is pathfinding-only), plus the
-        4-cardinal plus-shape per ``"boost"``-tagged occupant."""
+        """Union of covered tiles for the RANGE overlay: the tile-offset
+        geometry (``game/buildings/range_shape.py``) per alive built occupant
+        with duck-typed RAW ``range_tiles() > 0`` (mortar included — the aoe
+        exclusion is pathfinding-only). ``range_shape()`` picks the shape
+        (defaults to a Chebyshev square when absent — every defence building;
+        a booster defines it, defaulting to ``"plus"``, `game/buildings/
+        boost.py`)."""
         covered = set()
         for tile in tilemap.built_tiles():
             b = tile.occupant
             if b is None or not getattr(b, "alive", False):
                 continue
             rfn = getattr(b, "range_tiles", None)
-            if rfn is not None:
-                r = int(rfn())
-                if r > 0:
-                    for dc in range(-r, r + 1):
-                        for dr in range(-r, r + 1):
-                            covered.add((tile.col + dc, tile.row + dr))
-            if "boost" in getattr(b, "tags", ()):
-                for dc, dr in _PLUS_DIRS:
-                    covered.add((tile.col + dc, tile.row + dr))
+            if rfn is None:
+                continue
+            r = int(rfn())
+            if r <= 0:
+                continue
+            shape = getattr(b, "range_shape", lambda: "square")()
+            for dc, dr in range_shape.offsets(r, shape):
+                covered.add((tile.col + dc, tile.row + dr))
         return covered
 
     # -- render --------------------------------------------------------------
@@ -249,7 +259,8 @@ class MapOverlays:
         for r in range(max(0, rmin), min(tilemap.rows - 1, rmax) + 1):
             for c in range(max(0, cmin), min(tilemap.cols - 1, cmax) + 1):
                 t = tilemap.get(c, r)
-                if t is None or t.state == TileState.BACKGROUND:
+                if t is None or t.state in (TileState.BACKGROUND,
+                                             TileState.SPAWNING):
                     continue
                 tint = _COND_TINT.get(t.condition)
                 # The diamond is a FALLBACK now: a tile whose condition art is

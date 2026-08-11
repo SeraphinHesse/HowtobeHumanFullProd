@@ -35,7 +35,7 @@ CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
 UI = load_balance(FIXTURE_DATA, "ui")
 
-VIEW_W, VIEW_H = 1280, 720
+VIEW_W, VIEW_H = 640, 360
 FIELD = ["bsssss"] + ["ssssss"] * 5
 PANEL_MODES = ("unlock", "construct", "upgrade", "base_info")
 

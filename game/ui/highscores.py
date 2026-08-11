@@ -59,16 +59,16 @@ def skill_label(value):
 
 # Column offsets from the table's left edge. The three numeric columns are
 # RIGHT-aligned, so their offset is the column's RIGHT edge.
-_TABLE_W = 760
+_TABLE_W = 380
 _COL_NAME = 0
-_COL_SKILL = 300
-_COL_ROUND_R = 520
-_COL_BUILT_R = 640
-_COL_KILLS_R = 760
-_ROW_H = 28
-_HEADER_GAP = 30          # header baseline -> first viewport row
-_TABLE_TOP = 140
-_BOTTOM_PAD = 24          # viewport bottom -> BACK button top
+_COL_SKILL = 150
+_COL_ROUND_R = 260
+_COL_BUILT_R = 320
+_COL_KILLS_R = 380
+_ROW_H = 14
+_HEADER_GAP = 15          # header baseline -> first viewport row
+_TABLE_TOP = 70
+_BOTTOM_PAD = 12          # viewport bottom -> BACK button top
 
 SCREEN_ID = "highscores"
 
@@ -88,7 +88,7 @@ class HighscoresScreen:
         #: ``Shell.handle_scroll`` duck-types on ``callable(screen.scroll)``.
         self.scroll_offset = 0
         self.visible_rows = 1
-        self.back_btn = Button((0, 0, 200, 46), "BACK")
+        self.back_btn = Button((0, 0, 100, 23), "BACK")
         self._backdrop = SimpleNamespace(rect=(0, 0, view_w, view_h), color=_BG)
         self._title = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
                                       text_color=widgets.C_GOLD,
@@ -128,9 +128,9 @@ class HighscoresScreen:
     # -- layout ------------------------------------------------------------
 
     def layout(self, view_w, view_h):
-        self.back_btn.rect = (view_w // 2 - 100, view_h - 90, 200, 46)
+        self.back_btn.rect = (view_w // 2 - 50, view_h - 45, 100, 23)
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, 70, 0, 0)
+        self._title.rect = (view_w // 2, 35, 0, 0)
         self._header.rect = (view_w // 2 - _TABLE_W // 2, _TABLE_TOP,
                              _TABLE_W, 0)
         self.ids = {
@@ -206,7 +206,7 @@ class HighscoresScreen:
 
         if not self.rows:
             submit_centered(renderer, "No runs recorded yet.", cx,
-                            self._viewport_top + 20, "md",
+                            self._viewport_top + 10, "md",
                             widgets.C_UI_TEXT_DIM)
             return
 
@@ -226,4 +226,4 @@ class HighscoresScreen:
                 renderer,
                 f"{self.scroll_offset + 1}-{self.scroll_offset + len(window)}"
                 f" of {len(self.rows)}  -  scroll for more",
-                cx, self.back_btn.rect[1] - 22, "sm", widgets.C_UI_TEXT_DIM)
+                cx, self.back_btn.rect[1] - 11, "sm", widgets.C_UI_TEXT_DIM)

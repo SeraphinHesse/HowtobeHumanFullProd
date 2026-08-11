@@ -324,7 +324,9 @@
         "walk",
         "attack",
         "death",
-        "kidnap"
+        "kidnap",
+        "dig",
+        "emerge"
       ],
       "display_name": "Enemies",
       "frame_h": 96,
@@ -336,7 +338,9 @@
               "label": "Era 1",
               "slots": [
                 "enemy_stage_1_v1",
-                "enemy_stage_1_v2"
+                "enemy_stage_1_v2",
+                "enemy_stage_1_v3",
+                "enemy_stage_1_v4"
               ]
             },
             {
@@ -425,8 +429,8 @@
               "label": "Era 1",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_1"
                 }
               ]
@@ -435,8 +439,8 @@
               "label": "Era 2",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_2"
                 }
               ]
@@ -445,8 +449,8 @@
               "label": "Era 3",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_3"
                 }
               ]
@@ -455,8 +459,8 @@
               "label": "Era 4",
               "slots": [
                 {
-                  "frame_h": 128,
-                  "frame_w": 128,
+                  "frame_h": 32,
+                  "frame_w": 64,
                   "key": "formation_stage_4"
                 }
               ]
@@ -493,7 +497,11 @@
             {
               "label": "Era 4",
               "slots": [
-                "boss_era_4"
+                {
+                  "frame_h": 128,
+                  "frame_w": 128,
+                  "key": "boss_era_4"
+                }
               ]
             }
           ],
@@ -527,6 +535,99 @@
             }
           ],
           "label": "Commander"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "digger_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "digger_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "digger_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "digger_stage_4"
+              ]
+            }
+          ],
+          "label": "Digger"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "sniper_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "sniper_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "sniper_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "sniper_stage_4"
+              ]
+            },
+            {
+              "label": "Era 5",
+              "slots": [
+                "sniper_stage_5"
+              ]
+            }
+          ],
+          "label": "Sniper"
+        },
+        {
+          "children": [
+            {
+              "label": "Era 1",
+              "slots": [
+                "drummer_stage_1"
+              ]
+            },
+            {
+              "label": "Era 2",
+              "slots": [
+                "drummer_stage_2"
+              ]
+            },
+            {
+              "label": "Era 3",
+              "slots": [
+                "drummer_stage_3"
+              ]
+            },
+            {
+              "label": "Era 4",
+              "slots": [
+                "drummer_stage_4"
+              ]
+            }
+          ],
+          "label": "Drummer"
         }
       ],
       "key": "enemies"
@@ -605,9 +706,55 @@
         {
           "children": [
             {
-              "label": "Button",
+              "label": "Menu Button",
               "slots": [
                 "ui_button"
+              ]
+            },
+            {
+              "label": "End Turn",
+              "slots": [
+                "ui_button_end_turn"
+              ]
+            },
+            {
+              "label": "Pause",
+              "slots": [
+                "ui_button_pause"
+              ]
+            },
+            {
+              "label": "Panel Button",
+              "slots": [
+                {
+                  "frame_h": 23,
+                  "frame_w": 70,
+                  "key": "ui_button_panel"
+                }
+              ]
+            },
+            {
+              "label": "Construct Card",
+              "slots": [
+                "ui_button_card"
+              ]
+            },
+            {
+              "label": "Cheat Menu",
+              "slots": [
+                "ui_button_cheat"
+              ]
+            },
+            {
+              "label": "Overlay Pill",
+              "slots": [
+                "ui_button_pill"
+              ]
+            },
+            {
+              "label": "Choice Box",
+              "slots": [
+                "ui_choice_box"
               ]
             }
           ],
@@ -708,6 +855,12 @@
           "slots": [
             "tutorial_stone"
           ]
+        },
+        {
+          "label": "Moving Sign",
+          "slots": [
+            "moving_sign"
+          ]
         }
       ],
       "key": "core"
@@ -730,7 +883,9 @@
             "vfx_slash",
             "vfx_crater",
             "vfx_projectile",
-            "vfx_shell"
+            "vfx_shell",
+            "vfx_dirt_pile",
+            "vfx_buff_arrow"
           ]
         }
       ],
@@ -751,7 +906,8 @@
               "slots": [
                 "deco_rock",
                 "deco_rock_v2",
-                "deco_rock_v3"
+                "deco_rock_v3",
+                "deco_rock_v4"
               ]
             },
             {
@@ -764,7 +920,10 @@
                 "deco_bush_v5",
                 "deco_bush_v6",
                 "deco_bush_v7",
-                "deco_bush_v8"
+                "deco_bush_v8",
+                "deco_bush_v9",
+                "deco_bush_v10",
+                "deco_bush_v11"
               ]
             },
             {
@@ -774,7 +933,12 @@
                 "deco_tree_v2",
                 "deco_tree_v3",
                 "deco_tree_v4",
-                "deco_tree_v5"
+                "deco_tree_v5",
+                "deco_tree_v6",
+                "deco_tree_v7",
+                "deco_tree_v8",
+                "deco_tree_v9",
+                "deco_tree_v10"
               ]
             },
             {
@@ -784,7 +948,8 @@
                 "deco_prop_1_v2",
                 "deco_prop_1_v3",
                 "deco_prop_1_v4",
-                "deco_prop_1_v5"
+                "deco_prop_1_v5",
+                "deco_prop_1_v6"
               ]
             },
             {
@@ -800,7 +965,10 @@
                 "deco_prop_2_v8",
                 "deco_prop_2_v9",
                 "deco_prop_2_v10",
-                "deco_prop_2_v11"
+                "deco_prop_2_v11",
+                "deco_prop_2_v12",
+                "deco_prop_2_v13",
+                "deco_prop_2_v14"
               ]
             },
             {
@@ -809,12 +977,161 @@
                 "deco_prop_3",
                 "deco_prop_3_v2"
               ]
+            },
+            {
+              "label": "Prop 4",
+              "slots": [
+                "deco_prop_4",
+                "deco_prop_4_v2",
+                "deco_prop_4_v3",
+                "deco_prop_4_v4",
+                "deco_prop_4_v5"
+              ]
             }
           ],
           "label": "Props"
         }
       ],
       "key": "deco"
+    },
+    {
+      "animations": [
+        "idle"
+      ],
+      "display_name": "Tile Conditions",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_grass_buildable"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_grass_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_grass_combat"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_grass_spawning"
+              ]
+            }
+          ],
+          "label": "Grass"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_mountain_buildable",
+                "cond_mountain_buildable_v2",
+                "cond_mountain_buildable_v3",
+                "cond_mountain_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_mountain_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_mountain_combat",
+                "cond_mountain_combat_v2",
+                "cond_mountain_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_mountain_spawning"
+              ]
+            }
+          ],
+          "label": "Mountain"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_pond_buildable",
+                "cond_pond_buildable_v2",
+                "cond_pond_buildable_v3",
+                "cond_pond_buildable_v4"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_pond_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_pond_combat",
+                "cond_pond_combat_v2",
+                "cond_pond_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_pond_spawning"
+              ]
+            }
+          ],
+          "label": "Pond"
+        },
+        {
+          "children": [
+            {
+              "label": "Buildable",
+              "slots": [
+                "cond_forest_buildable"
+              ]
+            },
+            {
+              "label": "Built",
+              "slots": [
+                "cond_forest_built"
+              ]
+            },
+            {
+              "label": "Combat",
+              "slots": [
+                "cond_forest_combat",
+                "cond_forest_combat_v2",
+                "cond_forest_combat_v3"
+              ]
+            },
+            {
+              "label": "Spawning",
+              "slots": [
+                "cond_forest_spawning"
+              ]
+            }
+          ],
+          "label": "Forest"
+        }
+      ],
+      "key": "conditions"
     },
     {
       "animations": [
@@ -832,6 +1149,185 @@
         }
       ],
       "key": "backgrounds"
+    },
+    {
+      "animations": [
+        "idle",
+        "edge_se",
+        "edge_sw",
+        "edge_nw",
+        "edge_ne"
+      ],
+      "display_name": "Walls",
+      "frame_h": 96,
+      "frame_w": 64,
+      "groups": [
+        {
+          "children": [
+            {
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t1_lvl1",
+                    "wall_t1_lvl2",
+                    "wall_t1_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t1_lvl1_era1",
+                    "wall_t1_lvl2_era1",
+                    "wall_t1_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t1_lvl1_era2",
+                    "wall_t1_lvl2_era2",
+                    "wall_t1_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t1_lvl1_era3",
+                    "wall_t1_lvl2_era3",
+                    "wall_t1_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t1_lvl1_era4",
+                    "wall_t1_lvl2_era4",
+                    "wall_t1_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t1_lvl1_era5",
+                    "wall_t1_lvl2_era5",
+                    "wall_t1_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Bush Wall"
+            },
+            {
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t2_lvl1",
+                    "wall_t2_lvl2",
+                    "wall_t2_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t2_lvl1_era1",
+                    "wall_t2_lvl2_era1",
+                    "wall_t2_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t2_lvl1_era2",
+                    "wall_t2_lvl2_era2",
+                    "wall_t2_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t2_lvl1_era3",
+                    "wall_t2_lvl2_era3",
+                    "wall_t2_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t2_lvl1_era4",
+                    "wall_t2_lvl2_era4",
+                    "wall_t2_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t2_lvl1_era5",
+                    "wall_t2_lvl2_era5",
+                    "wall_t2_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Wooden Wall"
+            },
+            {
+              "children": [
+                {
+                  "label": "Base",
+                  "slots": [
+                    "wall_t3_lvl1",
+                    "wall_t3_lvl2",
+                    "wall_t3_lvl3"
+                  ]
+                },
+                {
+                  "label": "Era 1",
+                  "slots": [
+                    "wall_t3_lvl1_era1",
+                    "wall_t3_lvl2_era1",
+                    "wall_t3_lvl3_era1"
+                  ]
+                },
+                {
+                  "label": "Era 2",
+                  "slots": [
+                    "wall_t3_lvl1_era2",
+                    "wall_t3_lvl2_era2",
+                    "wall_t3_lvl3_era2"
+                  ]
+                },
+                {
+                  "label": "Era 3",
+                  "slots": [
+                    "wall_t3_lvl1_era3",
+                    "wall_t3_lvl2_era3",
+                    "wall_t3_lvl3_era3"
+                  ]
+                },
+                {
+                  "label": "Era 4",
+                  "slots": [
+                    "wall_t3_lvl1_era4",
+                    "wall_t3_lvl2_era4",
+                    "wall_t3_lvl3_era4"
+                  ]
+                },
+                {
+                  "label": "Era 5",
+                  "slots": [
+                    "wall_t3_lvl1_era5",
+                    "wall_t3_lvl2_era5",
+                    "wall_t3_lvl3_era5"
+                  ]
+                }
+              ],
+              "label": "Stone Wall"
+            }
+          ],
+          "label": "Wall"
+        }
+      ],
+      "key": "walls"
     }
   ]
 }

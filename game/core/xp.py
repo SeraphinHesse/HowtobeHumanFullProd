@@ -12,8 +12,10 @@ Two prototype behaviours worth keeping straight:
   so surplus carries forward. A single resolve grants exactly one level, and a
   carried-over surplus re-arms ``levelup_pending`` on the next kill.
 """
-# etype (Enemy.ETYPE) -> the core.json XP key that pays for it.
-_XP_KEY = {
+# etype (Enemy.ETYPE) -> the core.json XP key that pays for it. Public (not
+# module-private) since TimelinePLAN T3: game/core/xp_curve.py imports this
+# rather than re-declaring it, so the two vocabularies can never drift.
+XP_KEY_FOR_ETYPE = {
     "standard": "xp_per_standard_enemy",
     "raider": "xp_per_raider",
     "siege": "xp_per_siege_enemy",
@@ -24,7 +26,7 @@ _XP_KEY = {
 def xp_for_etype(etype, core_balance):
     """XP granted by killing one enemy of ``etype``. Unknown -> standard."""
     xp = core_balance["XP"]
-    return xp[_XP_KEY.get(etype, "xp_per_standard_enemy")]
+    return xp[XP_KEY_FOR_ETYPE.get(etype, "xp_per_standard_enemy")]
 
 
 def scaled_base_income(state, core_balance):

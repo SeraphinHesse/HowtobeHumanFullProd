@@ -14,6 +14,7 @@ from .pathfinder import (
     find_path_to_nearest_defence,
     find_path_to_nearest_economic,
     find_path_to_nearest_non_base_building,
+    find_path_to_nearest_structure,
     nearest_non_base_building_tile,
 )
 from .picking import tile_at_screen, world_to_tile
@@ -40,6 +41,7 @@ __all__ = [
     "find_path_to_nearest_defence",
     "find_path_to_nearest_economic",
     "find_path_to_nearest_non_base_building",
+    "find_path_to_nearest_structure",
     "nearest_non_base_building_tile",
     "tile_at_screen",
     "world_to_tile",

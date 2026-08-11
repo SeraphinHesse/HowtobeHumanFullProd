@@ -459,6 +459,12 @@
           "minimum": 0,
           "type": "number"
         },
+        "footprint": {
+          "description": "This era's tile footprint for this type: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and ER-2 clearance pathing. Per-era for every era-shaped type, so a later era can be physically bigger than an early one (the Boss carries the same pair inside its own stats[] rows). Clamps past the last authored era -- endgame_scaling has no footprint factor.",
+          "maximum": 8,
+          "minimum": 1,
+          "type": "integer"
+        },
         "per_round": {
           "additionalProperties": false,
           "description": "Flat additive stat growth per round WITHIN this era: stats + (round_in_era - 1) * per_round. All zero = stats step once per era and sit flat between steps. attack_speed and attack_range_tiles deliberately have no in-era growth.",
@@ -488,6 +494,12 @@
             "move_speed"
           ],
           "type": "object"
+        },
+        "sprite_scale": {
+          "description": "Extra render multiplier applied AFTER this era's footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1. Per-era alongside footprint. Clamps past the last authored era -- endgame_scaling has no sprite_scale factor.",
+          "maximum": 8,
+          "minimum": 0.1,
+          "type": "number"
         },
         "stats": {
           "additionalProperties": false,
@@ -537,7 +549,9 @@
       "required": [
         "count_per_round",
         "count_start",
+        "footprint",
         "per_round",
+        "sprite_scale",
         "stats"
       ],
       "type": "object"
@@ -618,11 +632,12 @@
               "$ref": "#/$defs/boss_endgame_scaling"
             },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -691,18 +706,13 @@
               "minItems": 1,
               "type": "array"
             },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
-              "type": "integer"
-            },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -716,12 +726,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "start_round": {
               "description": "First round commanders appear. 0 with the shipped all-zero era counts means the schedule is armed but emits nothing (BR-2 keeps the type dormant).",
               "maximum": 1000,
@@ -734,12 +738,200 @@
             "death_spawn",
             "endgame_scaling",
             "eras",
-            "footprint",
             "hunts",
             "kidnapping",
             "registry_group",
-            "sprite_scale",
             "start_round"
+          ],
+          "type": "object"
+        },
+        "Digger": {
+          "additionalProperties": false,
+          "description": "The Digger (NE-2). A burrower that walks visibly at a structure it has EXCLUSIVELY claimed (hunts: \"structure\" - no two live Diggers ever commit to the same building), submerges untargetable once within dig_range_tiles of it, travels underground, and erupts for one large hit before claiming the next one. It has NO attack outside digging and never halts to melee an incidental blocker en route (PathAgent.no_melee) - a 0-damage halt would soft-lock it forever. It does not kidnap. A NORMAL era-shaped type otherwise: hp and the eruption dmg come from its own eras rows through the same base resolver Standard/SiegeCannon use, and footprint/sprite_scale stay FLAT here (only the Boss carries them per-era, BR-1/D10).",
+          "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dig_range_tiles": {
+              "description": "How close (Chebyshev tiles, measured to the nearest tile of the target's block) the Digger gets before it submerges. It is untargetable from that moment until it erupts, so this is ALSO the size of the window defenders get to kill it: raising it makes the Digger much harder to stop. It doubles as the underground travel distance - the dig lasts dig_range_tiles / dig_speed seconds regardless of how far the target actually is. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "dig_speed": {
+              "description": "Tiles per second while burrowed - and ALSO this type's overground move speed (one speed value for both phases, per the design brief). game/enemies/enemy.py's Digger._resolve_stats substitutes it for the era row's move_speed at construction, so the era rows' own move_speed is inert for this type and the two can never disagree. STARTING VALUE, tune in the editor.",
+              "maximum": 60,
+              "minimum": 0.01,
+              "type": "number"
+            },
+            "emerge_cooldown": {
+              "description": "Minimum seconds the Digger must stay on the surface after emerging before it is allowed to submerge and dig back in again - counted from the moment it emerges to the moment it may next dig in. 0 never delays it (byte-identical to before this leaf existed). STARTING VALUE, tune in the editor.",
+              "maximum": 60,
+              "minimum": 0,
+              "type": "number"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's stats and count schedule, one row per era, era 0 first. stats.dmg is the ERUPTION hit - the one big blow it deals on surfacing, not a per-swing melee value. stats.move_speed is INERT (dig_speed replaces it, see above), and attack_speed/attack_range_tiles are decorative for this type: it never uses the cooldown-gated melee path at all.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "structure",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
+            "min_target_distance_tiles": {
+              "description": "The minimum Chebyshev-tile distance the Digger prefers when choosing which structure to hunt (BurrowAgent.retarget). It falls back to the plain nearest unclaimed structure when nothing on the board clears this minimum. STARTING VALUE, tune in the editor.",
+              "maximum": 64,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "start_round": {
+              "description": "First round Diggers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "condition_path_weights",
+            "death_spawn",
+            "dig_range_tiles",
+            "dig_speed",
+            "endgame_scaling",
+            "eras",
+            "hunts",
+            "kidnapping",
+            "min_target_distance_tiles",
+            "registry_group",
+            "start_round",
+            "emerge_cooldown"
+          ],
+          "type": "object"
+        },
+        "Drummer": {
+          "additionalProperties": false,
+          "description": "The Drummer (NewEnemyTypesPLAN NE-3) -- the game's first SUPPORT enemy. It marches at the hole like a walker (hunts \"base\") and hits for almost nothing; its contribution is the aura. Every enemy standing within Chebyshev support_range of a live Drummer gets that Drummer's hp/dmg/move_speed/attack_speed increases, stacking ADDITIVELY per Drummer (two Drummers in range is exactly twice one) and fading 4 seconds after leaving the radius. The hp increase is a real heal: it raises current HP by the same amount it raises max HP, and shrinks both back on decay. A NORMAL era-shaped type -- its own hp/dmg/move_speed scale per era like every other type's, while the five increase/support leaves below are FLAT type-level knobs. Every value here is a STARTING value, tunable from the balancing panel with no code change.",
+          "properties": {
+            "attack_speed_increase": {
+              "description": "How much faster each buffed enemy attacks, as a fraction: 0.10 = +10%. The underlying leaf is an INTERVAL in seconds, so the game divides by (1 + the summed bonus) -- a bigger number here always means more swings per second. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "dmg_increase": {
+              "description": "How much extra damage each buffed enemy deals, as a fraction of its own dmg: 0.15 = +15%. Applied before the tile-condition damage bonus, so the two compound. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's OWN stats and count schedule, one row per era, era 0 first. Rows 0-1 are unreachable filler while start_round is 25 (that lands in era 2). Variable length: add a row for another era, and past the last row endgame_scaling compounds.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "hp_increase": {
+              "description": "How much max HP each buffed enemy gains, as a fraction of its UNBUFFED max: 0.15 = +15%. It HEALS on apply (current HP rises by the same amount, so it is real survivability, not headroom) and shrinks back -- clamping current HP if needed -- when the contribution decays. Sized off the unbuffed max, so N Drummers give exactly N x this instead of compounding.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn. The Drummer walks straight at the hole (\"base\") like a Standard walker: it has no building-hunting behaviour and never arms PathAgent.repath_on_kill.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "structure",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on. False for the Drummer: a support unit that walks off the board stops supporting.",
+              "type": "boolean"
+            },
+            "move_speed_increase": {
+              "description": "How much faster each buffed enemy walks, as a fraction of its own move_speed: 0.15 = +15%. Applied to the unit's base speed BEFORE the tile-condition penalty and the min_speed_fraction floor. Additive across Drummers.",
+              "maximum": 10,
+              "minimum": 0,
+              "type": "number"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link): matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "start_round": {
+              "description": "First round drummers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "support_range": {
+              "description": "Aura radius in TILES, measured as Chebyshev distance from the Drummer's own tile (1 = the eight surrounding tiles). The Drummer never buffs itself.",
+              "maximum": 32,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "support_range_increase": {
+              "description": "INERT AS SHIPPED (NE-3): the design's variable list names it, but no code path grows support_range over rounds or eras, so this value is read by nothing today. It exists at 0 so the data shape is ready if range growth is confirmed as wanted; changing it has NO effect until that mechanic is built.",
+              "maximum": 32,
+              "minimum": 0,
+              "type": "number"
+            }
+          },
+          "required": [
+            "attack_speed_increase",
+            "condition_path_weights",
+            "death_spawn",
+            "dmg_increase",
+            "endgame_scaling",
+            "eras",
+            "hp_increase",
+            "hunts",
+            "kidnapping",
+            "move_speed_increase",
+            "registry_group",
+            "start_round",
+            "support_range",
+            "support_range_increase"
           ],
           "type": "object"
         },
@@ -764,18 +956,13 @@
               "minItems": 1,
               "type": "array"
             },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
-              "type": "integer"
-            },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -789,12 +976,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "start_round": {
               "description": "First round formations appear.",
               "maximum": 1000,
@@ -807,11 +988,9 @@
             "death_spawn",
             "endgame_scaling",
             "eras",
-            "footprint",
             "hunts",
             "kidnapping",
             "registry_group",
-            "sprite_scale",
             "start_round"
           ],
           "type": "object"
@@ -837,18 +1016,13 @@
               "minItems": 1,
               "type": "array"
             },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
-              "type": "integer"
-            },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -862,12 +1036,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "start_round": {
               "description": "First round raiders appear.",
               "maximum": 1000,
@@ -880,11 +1048,9 @@
             "death_spawn",
             "endgame_scaling",
             "eras",
-            "footprint",
             "hunts",
             "kidnapping",
             "registry_group",
-            "sprite_scale",
             "start_round"
           ],
           "type": "object"
@@ -910,18 +1076,13 @@
               "minItems": 1,
               "type": "array"
             },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
-              "type": "integer"
-            },
             "hunts": {
-              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
               "enum": [
                 "base",
                 "economic",
                 "defence",
+                "structure",
                 "any_non_base"
               ],
               "type": "string"
@@ -947,12 +1108,6 @@
               "minLength": 1,
               "type": "string"
             },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "start_round": {
               "description": "First round siege cannons appear.",
               "maximum": 1000,
@@ -965,13 +1120,78 @@
             "death_spawn",
             "endgame_scaling",
             "eras",
-            "footprint",
             "hunts",
             "kidnapping",
             "mix_ratio",
             "queue_lead_count",
             "registry_group",
-            "sprite_scale",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "Sniper": {
+          "additionalProperties": false,
+          "description": "The Sniper (NewEnemyTypesPLAN NE-1) - the first RANGED enemy. It walks at the nearest attack-capable building (hunts \"defence\", widened by NE-0 to mortars/Storm Priests/Sun Scorchers as well as plain defenders), halts stand_off_range tiles short of it and fires on its attack_speed cooldown from there, never closing to melee. Every other type's attack_range_tiles is read only by the DEFENDER range gate; this is the first block whose unit fights at range itself. A NORMAL era-shaped type otherwise: its stats resolve through the same base per-era resolver as Standard/SiegeCannon, and footprint/sprite_scale stay FLAT at this root (only the Boss carries them per-era, BR-1/D10). The shipped numbers are a STARTING point tuned against the SiegeCannon curve (high dmg, long range, slow attack, low HP, below-average speed) and are fully retunable in the editor with no code change.",
+          "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's stats and count schedule, one row per era, era 0 first. Variable length: add a row for another era, and past the last row endgame_scaling compounds.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
+            },
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "structure",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "stand_off_range": {
+              "description": "NE-1: how many tiles short of its COMMITTED target this type halts and opens fire, instead of walking until something physically blocks it. Chebyshev, measured block-to-block (the same nearest-tile rule the defender range gate uses), re-checked every frame while a non-base target is committed. 0 is the ordinary melee behaviour every other enemy type has, and is why this leaf lives only on the blocks of types that actually have the mechanic. Deliberately FLAT/per-type like footprint and kidnapping, NOT an era-row leaf: standing off is this type's identity, not a number that scales with the round. Keep it at or below attack_range_tiles or the unit halts outside its own reach and plinks at nothing - there is deliberately no runtime guard, the editor bounds are the fence.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "start_round": {
+              "description": "First round snipers appear.",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "condition_path_weights",
+            "death_spawn",
+            "endgame_scaling",
+            "eras",
+            "hunts",
+            "kidnapping",
+            "registry_group",
+            "stand_off_range",
             "start_round"
           ],
           "type": "object"
@@ -997,11 +1217,65 @@
               "minItems": 1,
               "type": "array"
             },
-            "footprint": {
-              "description": "Tile footprint: the unit occupies footprint x footprint tiles. Drives BOTH the render fit (its sprite is downscaled to footprint*tile_w wide, never upscaled) and, from ER-2, clearance pathing. 1 = a normal one-tile enemy.",
-              "maximum": 8,
-              "minimum": 1,
+            "hunts": {
+              "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\"/\"structure\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence/_structure). \"economic\" is economic+meditator+painter. \"defence\" is every ATTACK-CAPABLE building -- defence, aoe_defence, storm_priest, sun_scorcher: NE-0 widened it from the single \"defence\" type, a deliberate balance change that also widens what SiegeCannon hunts from its existing start_round. \"structure\" (NE-0) is every non-economy, non-boost, non-base building -- blocker and wall_builder plus those four attack types. \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
+              "enum": [
+                "base",
+                "economic",
+                "defence",
+                "structure",
+                "any_non_base"
+              ],
+              "type": "string"
+            },
+            "kidnapping": {
+              "description": "If true, this type's killing blow on a building carries it home instead of the enemy walking on: the enemy retags to \"kidnapper\", counts as dead for scoring, hoists the building's sprite and walks to the nearest spawn tile, and the building's tile is freed for good (no payday revive).",
+              "type": "boolean"
+            },
+            "registry_group": {
+              "description": "The data/slots.json enemies group label this type's sprites live under (editor-side link, fix-editor-preview-footprint): NOT always the same string as this EnemyTypes key (e.g. Standard -> \"Walker\", SiegeCannon -> \"Siege Cannon\") — must be matched by this field, never by string convention.",
+              "minLength": 1,
+              "type": "string"
+            },
+            "start_round": {
+              "description": "First round standard walkers appear.",
+              "maximum": 1000,
+              "minimum": 0,
               "type": "integer"
+            }
+          },
+          "required": [
+            "condition_path_weights",
+            "death_spawn",
+            "endgame_scaling",
+            "eras",
+            "hunts",
+            "kidnapping",
+            "registry_group",
+            "start_round"
+          ],
+          "type": "object"
+        },
+        "Tutorial": {
+          "additionalProperties": false,
+          "description": "The Tutorial enemy (add-enemy dispatch, user decision). Round 0's forced walker, split off Standard so the tutorial's scripted spawn can be tuned independently: it carries Standard's era-0 stats verbatim (footprint, sprite_scale, condition_path_weights, kidnapping, registry_group \"Walker\" -- reusing the Walker's slots, no new art) but hunts \"any_non_base\" instead of \"base\", so it targets buildings like the Boss/Commander rather than walking straight at the hole. Never scales beyond era 0 -- round 0 is always era 0 (D11) and nothing else spawns it.",
+          "properties": {
+            "condition_path_weights": {
+              "$ref": "#/$defs/condition_path_weights"
+            },
+            "death_spawn": {
+              "$ref": "#/$defs/death_spawn"
+            },
+            "endgame_scaling": {
+              "$ref": "#/$defs/type_endgame_scaling"
+            },
+            "eras": {
+              "description": "This type's stats and count schedule, one row per era, era 0 first. Variable length: add a row for another era, and past the last row endgame_scaling compounds.",
+              "items": {
+                "$ref": "#/$defs/type_era_row"
+              },
+              "minItems": 1,
+              "type": "array"
             },
             "hunts": {
               "description": "What this type paths toward on spawn (Art/prey-hunting). \"base\" walks straight at the hole, attacking whatever blocks it en route -- the original, unchanged behaviour. \"economic\"/\"defence\" hunt the nearest alive building of that category, chosen by geometric distance and routed by weighted cost (find_path_to_nearest_economic/_defence). \"any_non_base\" (the Boss) hunts the nearest alive non-base building of ANY kind, the hole strictly last. Every value except \"base\" arms PathAgent.repath_on_kill, so the unit re-targets when its victim dies.",
@@ -1022,14 +1296,8 @@
               "minLength": 1,
               "type": "string"
             },
-            "sprite_scale": {
-              "description": "Extra render multiplier applied AFTER the footprint fit (1.0 = fit exactly). The deliberate knob for low-res art, which is never auto-upscaled; may exceed 1.",
-              "maximum": 8,
-              "minimum": 0.1,
-              "type": "number"
-            },
             "start_round": {
-              "description": "First round standard walkers appear.",
+              "description": "First round commanders appear. 0 with the shipped all-zero era counts means the schedule is armed but emits nothing (BR-2 keeps the type dormant).",
               "maximum": 1000,
               "minimum": 0,
               "type": "integer"
@@ -1040,11 +1308,9 @@
             "death_spawn",
             "endgame_scaling",
             "eras",
-            "footprint",
             "hunts",
             "kidnapping",
             "registry_group",
-            "sprite_scale",
             "start_round"
           ],
           "type": "object"
@@ -1053,10 +1319,14 @@
       "required": [
         "Boss",
         "Commander",
+        "Digger",
+        "Drummer",
         "Formation",
         "Raider",
         "SiegeCannon",
-        "Standard"
+        "Sniper",
+        "Standard",
+        "Tutorial"
       ],
       "type": "object"
     },

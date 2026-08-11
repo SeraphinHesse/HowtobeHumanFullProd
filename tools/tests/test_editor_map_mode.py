@@ -377,6 +377,32 @@ class TestStageZones(MapModeCase):
         self.assertEqual(doc.stage_zones, before)
 
 
+class TestTileConditions(MapModeCase):
+    """The tile-condition brush: ONE undo command per stroke, undo restores
+    exactly the marks that were there before, redo puts the stroke back. The
+    brush value is a condition NAME (from the schema enum), not a number."""
+
+    def test_condition_stroke_undo_redo(self):
+        doc = self.open_map()
+        doc.tile_conditions[(14, 15)] = "pond"   # a pre-existing mark
+        before = dict(doc.tile_conditions)
+        palette = self.window.palette
+        palette.set_mode("tile_conditions")
+        name = palette._condition_names()[1]     # schema order, not a literal
+        palette.arm_tile_condition(name)
+        palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.tile_conditions[cell], name)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.tile_conditions, before)
+        self.session.undo_stack.redo()
+        for cell in cells:
+            self.assertEqual(doc.tile_conditions[cell], name)
+
+
 class TestRenderPath(MapModeCase):
     """ED-22: eyes/tints/grid observed at the engine backend, not via Qt."""
 

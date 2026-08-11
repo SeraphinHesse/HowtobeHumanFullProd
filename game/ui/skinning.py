@@ -36,11 +36,13 @@ _DEFAULTS_FILE = ("ui", "screen_defaults.json")
 _DEFAULTS_SCHEMA = "screen_defaults.schema.json"
 
 #: JSON override key -> the widget attribute it mutates. Everything else
-#: (rect/skin/label/color/text_color/visible/tint) maps 1:1 onto the same
-#: name — ``tint`` (D6/UH-6, the sheet-multiply color for a skinned widget)
-#: needs no entry here for exactly that reason: ``apply``'s generic setattr
-#: loop already threads it onto the widget for free, the same way it always
-#: has for ``skin``.
+#: (rect/skin/label/color/text_color/visible/tint/text_id) maps 1:1 onto the
+#: same name — ``tint`` (D6/UH-6, the sheet-multiply color for a skinned
+#: widget) and ``text_id`` (UT-1, the ``data/ui/strings.json`` key a label
+#: holder resolves its text through — see ``widgets.submit_label``) need no
+#: entry here for exactly that reason: ``apply``'s generic setattr loop
+#: already threads them onto the widget for free, the same way it always has
+#: for ``skin``.
 _SPEC_TO_ATTR = {"font": "font_key"}
 
 
@@ -113,6 +115,19 @@ class ScreenSkinning:
         self._overrides = load_screen_overrides(data_dir)
         self._defaults = load_screen_defaults(data_dir)
         self._validated_ids = set()  # screen ids whose override was checked
+
+    @classmethod
+    def from_overrides(cls, overrides):
+        """A disk-free instance over an IN-MEMORY ``{screen_id: doc}`` map
+        (UT-2). The preview generator uses it to record what a designer's
+        UNSAVED screen doc would look like in game, without staging a whole
+        temp ``data/`` tree. Id validation stays off (no defaults doc), which
+        is right for a preview: an editor mid-edit is allowed to be wrong."""
+        self = cls.__new__(cls)
+        self._overrides = dict(overrides or {})
+        self._defaults = None
+        self._validated_ids = set()
+        return self
 
     @classmethod
     def empty(cls):

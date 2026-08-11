@@ -11,6 +11,100 @@ module, so it imports pygame only *transitively*); visuals go out as the engine
 HUD layer (G-6). The shell therefore lives in **`game/ui/shell.py`**, NOT
 `game/core` (that would be circular).
 
+## The logical surface is 640x360 (UR-2)
+
+Every pixel constant in `game/ui` is authored against a **640x360 logical
+surface** — `data/display.json`'s `window_w`/`window_h`, the ONE place the
+resolution is stated. SDL `SCALED` upscales it to the monitor and remaps mouse
+coordinates back down, so hit-testing and every widget rect work unchanged;
+nothing in `game/ui` should ever restate the resolution as a literal.
+
+Phase UR-2 halved every 1280-scale constant here: positions, container
+dimensions (panel/button/popup/modal), and the paddings/gaps internal to a
+container that itself halved. What deliberately did **not** halve:
+
+- **`data/ui/fonts.json`'s seven presets.** They were always the prototype's
+  640-scale values and became correct the moment the surface flipped —
+  halving them is precisely the double-scale bug UR-2 existed to delete. Zero
+  edits to that file or `engine/render/fonts.py`. If a screen's text now
+  overflows a halved container, the fix is the container, not the preset.
+- **Colours, alphas, `border_radius`, `width=` line widths, `max_lines`
+  counts, and timings** — all scale-free.
+- **Sub-4px nudges** (`+3`, `+2`, 1px hairlines) — halving them rounds to
+  invisible.
+
+`hud.py`'s `_ICON_SIZE`/`_ICON_GAP` carry an explicit **UR-5 review** note at
+the change site: they were halved against the plan's own worked example,
+because they are sized against the HUD rows they sit inside. UR-5 **kept** them
+at 9/2 — measured, an 18px icon does not fit the 17px love pill.
+
+### A text ROW STEP is font-scale — never halve it (UR-5)
+
+The corollary of "fonts.json did not halve", and the single defect class UR-5
+found most of. **The vertical step between two stacked text rows, and the
+height of any box sized to hold text, are 640-scale already** — they are
+functions of `layout_h(font_key)`, not of the surface. UR-2 halved several of
+them with the containers around them, and the rows landed on top of each other:
+`hud.py`'s income/lives/tiles column stepped 8px against a 13px `md` line,
+`game_log.py`'s `_LINE_STEP` 6px against an 11px `sm` line, and `levelup.py`'s
+option box ended up smaller than its own contents (and narrow enough to
+silently truncate 5 of the 41 shipped explanations at `max_lines=4`).
+
+So, when you write one: **derive it from `layout_h`, do not spell it as a
+literal** — `hud._readout_step()` / `_readout_bottom()` are the pattern, and
+anything anchored *below* a text stack (the speed-button row) derives from that
+stack's bottom rather than restating a y. Call it, never a module constant: a
+constant evaluated at import freezes the pre-`configure_fonts` fallback
+metrics. The same rule governs a button's height — `Button.submit` centres its
+label on `layout_h(font_key)`, so a button shorter than that overhangs top and
+bottom.
+
+**The follow-up sweep** caught the sites UR-5 itself missed:
+`tutorial_message.py`'s wrapped message lines (11 vs `md` 13 — the shipped
+`lives_intro` modal every new player sees) and seven steps in
+`building_ui.py`, which now derives all of them through one local
+**`_row_step(font_key, leading=1)`** (the `hud._readout_step()` shape). Two
+things that sweep established and the next one should keep:
+- **`leading=0` is a real answer for a height-constrained stack.** The
+  `ConstructPreview` stat list uses it because a leading pixel per row would
+  push its 5-row worst case onto the CONFIRM/CANCEL row of a 170×150 modal.
+  Each such call site states the fit arithmetic inline; every other step takes
+  the default 1px.
+- **A step and the hit test that divides by it are ONE number.** The boss
+  history popup's row step is read by `_submit_boss_popup` *and* by `hover()`'s
+  `(my - top) // step` row probe — they call the same `_row_step("md")`.
+- The boss popup **grew 130 → 158px** so the corrected 14/12 steps keep the six
+  choice rows the old layout held and stop the 2-line hover tooltip overhanging
+  CLOSE. That moved `boss_close_btn`, so `data/ui/screen_defaults.json` was
+  regenerated (`py tools/export_ui_layouts.py`) — one rect, `building_panel`
+  only. `test_ui_skinning.py`'s `building_panel` baseline is `[]` (the harness
+  never selects a building), so **the pin does not protect this module** —
+  arithmetic in the call-site comments is the check.
+
+### Click-target floor + static-label fit (UR-5)
+
+`tools/tests/test_ui_min_targets.py` walks every screen's `ids` (captured from
+`tools/export_ui_layouts.py`'s own builders, so a new screen is covered for
+free) and asserts three things about every `kind == "button"`: its smaller
+dimension is **>= 12 logical px**, its static label fits in `w - 4`, and the
+button is at least `layout_h(font_key)` tall. Filter on the `kind` from the ids
+PAIR, never on `type(widget)` — panels/labels/bars are not click targets.
+
+Controls between 12 and 16px are **printed as a non-blocking lint, never
+asserted.** `SCALED` preserves physical screen area (12 logical px == 24
+physical px at the 2x reference monitor), so a small control does not actually
+shrink under the pointer; the real risk is sub-pixel mouse remapping at
+non-integer monitor scales, which is `planning/UiResolutionPLAN.md` §5's
+acknowledged out-of-scope caveat. **Do not mass-resize controls to silence the
+lint** — it is a playtest worklist.
+
+**Known deferred item — the world renders too close.** The surface halved but
+`data/geometry.json`'s `zoom_levels` and the 64x32 iso tile pitch did not, so
+less of the board is visible at a given zoom step. That is deliberate and out
+of `game/ui`'s hands (`planning/UiResolutionPLAN.md` §3, a separate future
+plan covering `zoom_levels`, the camera clamp and `visible_tile_window`
+culling). **Never compensate for it from a UI file.**
+
 ## In-round UI (9G)
 `game/ui/{widgets,hud,building_ui,effects,game_over}.py`: HUD (love panel, round,
 base HP, End Turn, phase banner), unlock/construct/upgrade/base-info panel modes,
@@ -98,7 +192,7 @@ upgrade), which needed NO change for this.
 The phase banner is no longer the bottom-left six-way phase name. Same holder,
 same `phase_label` id, same `label` kind, same `hud_phase` font and same
 `_phase_color(phase, …)` tint — three things changed:
-- **Position**: it moved out of `layout()`'s fixed `(12, view_h - 26)` into
+- **Position**: it moved out of `layout()`'s fixed `(6, view_h - 13)` into
   `_layout_readouts()`, stacked one `layout_h("hud_phase") + 4` above
   `round_label` and left-aligned on the End Turn button's own left edge (i.e.
   the bottom-right cluster). It HAD to move passes: the anchor is now relative
@@ -184,6 +278,40 @@ multi-tile footprint) — see `game/anchors.py`'s module docstring and
 formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
 resolves through.
 
+## Drummer buff-range telegraph + buffed-enemy arrow (feature, very-simple placeholders)
+Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
+`game/main.py` beside their closest existing analog:
+- **`submit_drummer_auras`** (world-overlay pass, beside `submit_craters`) — a
+  pulsing ring around every ALIVE Drummer enemy, sized to its own live
+  `DrummerAura.support_range` (`game/enemies/components.py`) — always
+  visible while the Drummer lives, no click/toggle. Same `_polygon_ring`
+  world-unit N-gon technique the mortar crater uses, but re-derives the
+  radius from the live component every frame instead of a spawned
+  GameObject's own fade clock — there is no separate `Crater`-style
+  GameObject here, and no fade: the ring simply stops the frame the Drummer
+  dies. Colour/alpha bounds/segment count are balancing (`procedural.
+  drummer_aura`, `data/CLAUDE.md`), and it is deliberately NOT swappable art
+  — there is no scaling-sprite-to-a-live-radius mechanism anywhere in the
+  engine to reuse, so this stays procedural like the mortar crater it
+  mirrors. The alpha breathes on a `pulse_period_s`-second sine cycle off a
+  NEW `FloaterManager.self._clock` (seconds, accumulated in `update(dt)`) —
+  the `hud.py` XP-bar level-up pulse shape, generalised to a per-manager
+  clock rather than a per-screen one.
+- **`submit_buff_arrows`** (HUD pass, beside `submit_enemy_hp_bars`) — a
+  little golden arrow above any ALIVE enemy with an active buff
+  (`BuffState.sources` non-empty — today always a Drummer's aura, but keyed
+  off "any active buff" generically, not the source type). Shown
+  independently of the HP bar's own "hide at full HP" rule. Anchors off the
+  SAME `hp_bar` point (or `_sprite_top` fallback) the HP bars use, offset
+  above it — a deliberately SIMPLER placeholder than the HP-bar pass: it
+  does not implement per-tile stacking for multiple buffed enemies sharing a
+  tile, since the arrow is a status flag, not a competing bar. IS swappable
+  art (E-37): a new `vfx` category slot, `vfx_buff_arrow` — imported art
+  draws as a `HudSprite`; with none imported it draws a small procedural
+  golden triangle outline instead (`_BUFF_ARROW_GOLD`, a code chrome
+  constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
+  ART is a designer lever here, not the placeholder's own shape/colour).
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -252,6 +380,48 @@ logic is `game/core` — see that doc.)
   `cs.pan(-ox, -oy)` wrap around the world render branch (NO clamp between),
   parameters from `Boss.shake.{interval,strength}`, active only while ENEMY
   phase + a live `"boss"` in the scene.
+
+## Enemy intro dialogue sprite/animation controls (feature-enemy-intro-dialogue)
+`game/ui/enemy_intro.py`'s `EnemyIntroWindow` (session/phase wiring →
+`game/core/CLAUDE.md`'s matching section) plays its sprite as a LOOPING
+spritesheet animation, not a static frame, with per-entry crop/offset/flip/
+tint/speed/hidden-frame controls — every field on `data/balancing/core.json`'s
+`EnemyIntro.entries[i]` beyond `sprite_w`/`sprite_h`.
+- **One continuous clock, not the world's `SpriteAnimator` clock.** The
+  window owns `self._clock` (float seconds, reset to `0.0` in `open()`,
+  incremented by `dt` in `update()` for as long as `visible`) — the
+  `boss_cutscene.py` pattern for a UI screen's own independent animation
+  time. `submit()` converts it once via `widgets.anim_ms(self._clock *
+  entry["anim_speed"])` into the `HudSprite`'s `anim_time_ms`; the animation
+  loops for the ENTIRE open+hold+close lifetime (a deliberate simplification
+  — no per-entry "loop vs. play-once-then-freeze" mode).
+- **`sprite_slot` may be ANY imported sprite**, any category — `game/core/
+  CLAUDE.md`'s section covers the generated enum. `animation` names one of
+  that slot's manifest rows; a mismatch (e.g. an `enemies`-vocabulary name on
+  a `ui` slot) degrades to idle rather than erroring, the manifest's own
+  tolerance.
+- **`crop_x/y/w/h`**: a source sub-rect (frame-px) drawn instead of the whole
+  frame, still stretched to `sprite_w`×`sprite_h` — `crop_w == 0 and crop_h
+  == 0` means no crop (the `fit_tiles == 0` sentinel convention). Composed
+  into a `HudSprite.crop` tuple; the actual crop-then-scale work is
+  `engine/render/backend.py`'s `_cropped` (`engine/render/CLAUDE.md`).
+- **`sprite_offset_x/y`** nudge the sprite's dest box off its default
+  horizontally-centered position — added directly into the `(cx - sw//2,
+  cursor)` dest computation; they do NOT move the panel's text cursor, only
+  the sprite's own draw box.
+- **`sprite_flip_h`** wires straight to `HudSprite.flip` (a pre-existing
+  field — no engine work needed).
+- **`background_tint` `[r, g, b, a]`** draws a `HudRect` behind the sprite,
+  sized to match its box, submitted immediately before the sprite's
+  `HudSprite` (the house "panel/background first" HUD-submission-order rule,
+  above). Its alpha COMPOSES with the window's own open/close fade
+  (`round(bg_a * window_alpha / 255)`) rather than fighting it. `a == 0`
+  (the shipped default) is invisible, so an un-tinted entry looks identical
+  to before this feature.
+- **`hidden_frames`**: extra frame-column indices to skip for THIS entry,
+  passed as `HudSprite.hidden_frames` → `Manifest.current_frame`'s
+  `extra_hidden` (`engine/assets/CLAUDE.md`) — UNIONS with, never overrides,
+  whatever the manifest row's own `hidden` list already drops.
 
 ## Shell + menus (9H)
 `game/ui/shell.py` wraps a run — ports the prototype's `GameState` shell
@@ -472,6 +642,64 @@ The pure rules live in `game/core/lightning.py` (see `game/core/CLAUDE.md`);
   `submit_lightning`, world-overlay pass (before the panel), not the later
   HP-bar section.
 
+## Move Building (Building Movement)
+The upgrade panel's fifth mode + a second preview modal. Rules live in
+`game/buildings/movement.py` (`game/buildings/CLAUDE.md`); this module is the
+picker and the confirmation.
+- **`BuildingUI.move_btn`** — a mode-independent `Button` built once in
+  `__init__` (the `boss_btn`/`_dice_up` pattern) with the id `move_btn`, and
+  positioned by `_build_move_btn` directly under `action_btn` in upgrade mode.
+  **Visible only on a SINGLE selection** — a move is not batchable (unlike
+  UPGRADE/ADVANCE, which do batch — see the fix/batch-tier-advance note
+  below). A Wall Builder gets the button DISABLED + relabelled
+  `CANNOT BE MOVED` with an `_upgrade_hint`, the same mechanism
+  `RESEARCH REQUIRED`/`NEXT TIER LOCKED` use; `start_move` is the real
+  enforcement.
+- **`mode == "move_select"`** — a fifth panel mode. `_build_move_select` fills
+  `_highlight_tiles` with every `buildable_tiles()` tile that is not already
+  `tilemap.is_moving`, in the new `widgets.C_MOVE_HIGHLIGHT` (cyan; a plain
+  code constant NOT in `_PALETTE_KEYS`, the `C_TUTORIAL_HIGHLIGHT`
+  precedent). The panel body becomes a short instruction card
+  (`_submit_move_select`). **The panel only ever handles panel-space clicks**,
+  so `_move_select_click` just cancels back to upgrade; the destination TILE
+  pick is `game/main.py`'s (see `game/CLAUDE.md`). `dismiss()` gained one more
+  rung — move_select peels back to upgrade before the bare-panel close.
+- **`MovePreview`** — the `ConstructPreview` sibling, minus the name field,
+  the dice and the stat list (nothing about the building changes, it just
+  relocates): display name, `Cost`/`Time` lines (`Free`/`Instant` at zero),
+  destination coords, CONFIRM/CANCEL. It reuses the SAME
+  `ui.Timing.construct_show_cancel`/`confirm_on_right_side` chrome keys and
+  the SAME `preview_*` id namespace, and mirrors `ConstructPreview`'s public
+  surface (`hover`/`confirm_hovered`/`update`/`handle_click`/`handle_key`/
+  `submit` + `confirm_btn`) closely enough that `main.py`'s existing
+  `panel.preview is not None` modal branch drives it with **no
+  preview-class-specific code**. `_preview_click` is the one place that
+  branches, on `isinstance(self.preview, MovePreview)`.
+- **`_do_move`** mirrors `_do_place`: re-check love (a race since the modal
+  opened), call `start_move` in a `try/except MoveError` (flash
+  `CANNOT MOVE THERE` — the destination got taken), spend, log, close the
+  panel outright (the building has vacated its tile, so there is nothing left
+  to show). **CANCEL leaves `mode == "move_select"`** so the player picks a
+  different tile — nothing has moved yet, the same reading `_construct_click`'s
+  cancel has (back to the card list, not to a closed panel).
+- **`open_for_tile` refuses to open construct mode on a move endpoint** —
+  both endpoints are plain BUILDABLE tiles, so without this the panel would
+  offer cards `place_building` then refuses. Convenience only; the bar itself
+  is in `place_building`.
+- **The path line (building-move-manhattan-distance fix)**: once a
+  destination tile is picked (i.e. `self.preview` is a `MovePreview`),
+  `BuildingUI.submit()` draws an L-shaped cyan (`widgets.C_MOVE_HIGHLIGHT`)
+  world-space line from the building's tile centre to the destination's —
+  column-first, then row, matching the straight-line-only tiles
+  `move_distance()` counts (`game/buildings/CLAUDE.md`). It is NOT a live
+  mouse-hover trace: nothing is drawn during plain `move_select` picking,
+  only once a destination has actually been chosen and the confirm modal is
+  open. It sits beside `_highlight_tiles`/`_highlight_edges`, before the
+  `self.visible` guard, and reads `self.preview.building`/`.dest_tile`
+  straight off the live preview object every frame rather than caching
+  separate state — it disappears for free the instant `self.preview` is
+  cleared (confirm, cancel, or close all already do that).
+
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
 ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries
@@ -487,9 +715,12 @@ the diamond is drawn only where `game.map.conditions.draws_tint` says so — no
 art, or an entry that opts back in. Empty map ⇒ every non-grass tile keeps its
 diamond, i.e. the pre-art look. The sprite itself is NOT drawn here: it goes out
 on the `terrain` layer from `game/map/conditions.py`), the RANGE overlay
-(union Chebyshev squares from RAW `range_tiles()`, mortar INCLUDED — its
-exclusion is pathfinding-only — plus a cardinal plus-shape per `"boost"`
-occupant), and the HEATMAP overlay (previous round's distinct-enemy traffic:
+(union of footprints from RAW `range_tiles()`, mortar INCLUDED — its
+exclusion is pathfinding-only — shaped per an optional duck-typed
+`range_shape()`, `game/buildings/range_shape.py`: Chebyshev square when
+absent, or a booster's configurable `"plus"`/`"square"`,
+`BoostBuildings.globals.range_shape` — booster-range-config feature), and the
+HEATMAP overlay (previous round's distinct-enemy traffic:
 `track()` accumulates `id(e)` per tile during ENEMY and snapshots counts on the
 phase edge; blue→yellow→red ramp in `heat_color`). `widgets.cond_label(name)`
 (condition label + colour, keyed by `TileCondition.name` — the label text is
@@ -506,8 +737,9 @@ raw.
 
 ## TIER OVERVIEW pill (`btn_tier_overview`)
 The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE
-(x=12) and HEATMAP (x=90) at **x=168** (74 wide, 4px gap) on the same
-`view_h - 72` row. Active ⇒ every PLAYER-BUILT building's tile gets one
+(x=6, 41 wide) and HEATMAP (x=51, 41 wide) at **x=96** (69 wide — "TIER
+OVERVIEW" is 13 characters, ~65px at `sm`, so it needs a wider pill than its
+two neighbours; same 4px gap) on the same `view_h - 36` row. Active ⇒ every PLAYER-BUILT building's tile gets one
 alpha-filled diamond tinted by its current IN-TIER level.
 - **No mutual exclusion, anywhere.** `show_tier_overview` is a plain third
   flag beside `show_range`/`show_heatmap`, and `submit()` runs its pass as an
@@ -576,9 +808,44 @@ imports:
   .open_for_tile(..., selected_tiles=[primary, …])` batches: **unlock**
   dedups 2×2 chunks (`_unlock_chunks` frozenset key, summed cost, "UNLOCK n
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
-  only, **in-tier upgrade** sums `_batch_upgrade_targets`; tier ADVANCE stays
-  primary-only. Range diamond only when the selection is a single tile. The
-  base never batches.
+  only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
+  when the selection is a single tile. The base never batches.
+  **fix/batch-tier-advance, reworked into a two-stage catch-up-then-advance
+  flow: a multi-selection's UPGRADE/ADVANCE button is now ONE unified path**,
+  replacing what used to be two separate behaviors (a plain in-tier batch,
+  and a separate combined advance batch that won outright the moment any
+  selected building was advance-eligible). Priority in both
+  `_build_upgrade` and `_upgrade_click`: **Stage A** —
+  `_batch_upgrade_targets` sweeps the WHOLE selection (not gated on the
+  primary tile's own mode, unlike before) for every building below level 3
+  of its current tier; whenever that set is non-empty the button shows
+  `"UPGRADE ×n  <cost>"` and a click levels each of them up one step, one
+  combined cost. **Stage B** only runs once Stage A's sweep is empty — i.e.
+  every selected building has already reached level 3 — and is exactly the
+  old advance-batch logic: `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps for every building whose
+  next tier is reachable right now, and `_build_upgrade` shows ONE combined
+  `"ADVANCE ×n  <cost>"` button. Clicking it, for each target: pays and
+  applies any remaining in-tier `upgrade()` calls needed to reach this
+  tier's max level (always 0 by the time Stage B runs, since Stage A already
+  drained them), then one `advance_tier()`, then
+  `lightning.sync_level_from_tier` — all gated by ONE all-or-nothing total
+  (no partial batch, same "NOT ENOUGH LOVE" flash the in-tier batch uses). A
+  building that can never reach its next tier right now (already at the
+  final tier, next tier unresearched, or round-gated) is excluded from
+  Stage B's batch/cost entirely and left sitting at level 3, untouched — it
+  never blocks the rest of the selection. **This closes the old grey-out
+  bug**: previously, the plain in-tier batch only fired when the *primary*
+  selected tile's own mode was `"in_tier"`, so a primary that was itself
+  blocked (tier maxed but unresearched, or at its final tier) disabled the
+  whole button even when other selected buildings still needed and could
+  take a plain upgrade; Stage A's whole-selection sweep fixes that by
+  construction. **A single selection is unaffected**: both
+  `_batch_upgrade_targets` and `_batch_advance_targets` are only consulted
+  when `len(selected_tiles) > 1`, so one selected building still
+  upgrades/advances one step at a time via the original primary-only
+  branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
+  this rework.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
@@ -1090,6 +1357,65 @@ data, so the two can never silently drift apart.
   `data/ui/screen_defaults.json` was regenerated (`py
   tools/export_ui_layouts.py`) to reflect the three previously-`""` labels.
 
+## Dynamic-count content IS individually overridable now (editable-ui-widgets)
+
+**This reverses the "Dynamic-count content is NOT individually overridable in
+v1" bullet above** (kept there as history — read this section for what is
+true). A designer asked for the buy options to be real editable widgets, and
+the old rule's actual constraint was never "the count varies": it was "there
+is no stable id to attach an override to". Both cases turn out to have one.
+
+- **`levelup.py`'s option boxes** — the roll offers 1-3, but there have always
+  been exactly THREE slots, so each gets an index id: `option_box_0..2`.
+  `self._boxes` holds one `SimpleNamespace(rect, skin, color, visible)` per
+  slot; `layout()` computes the default centred row as before, stores it into
+  the holders, ids only the slots this roll filled, calls `skinning.apply`,
+  and **then** rebuilds `self.rects` FROM the holders — so an overridden rect
+  drives `hover`/`hit` as well as the draw, and `self.rects` (which
+  `test_levelup.py` reads directly) can never disagree with what is on screen.
+  Per-box `skin` beats the screen-level `defaults.panel_skin`; `color` follows
+  the "`None` means compute" convention, so an un-overridden box draws its two
+  raw hover-tinted rects exactly as before.
+  - **ANTI-SOFTLOCK**: this modal has no dismiss path — the player MUST pick
+    one — so `_box_visible` ignores `visible: false` WHOLESALE if it would
+    hide every offered box. Hiding one or two does what you asked; hiding all
+    of them gets you a playable game instead of a frozen one.
+- **`building_ui.py`'s construct cards** — id'd `card_<building_type>`
+  (`_CARD_ID_PREFIX`), the type being the stable key. Because a card's Button
+  is REBUILT on every `_build_construct` (its label carries a live price),
+  `_clear_card_ids()` sweeps the previous build's entries out of `self.ids`
+  first — otherwise `skinning.apply` would keep writing onto a dead Button and
+  a type that stopped being buildable would linger forever. The cards now
+  follow every other id'd button's rules: `is_visible` gates submit AND
+  hit, `hover()` is called then `hovered and= is_visible` (never skipped
+  outright), and `button_kwargs` forwards `color`/`text_color`.
+  `defaults.button_skin` remains the fallback for a card with no `skin` of
+  its own.
+- **Recording them is a `tools/screen_mocks.py` change**, not an exporter
+  special case: `LEVELUP_OPTIONS` grew to three cards and the `construct` view
+  unlocks every RESEARCH type first, so every slot and every card lands in
+  `screen_defaults.json`. Details → `editor/panels/CLAUDE.md`.
+- **Still un-id'd, and still for the stated reason**: the boss-history popup
+  body and `credits`' role/name rows — genuinely unbounded lists with no
+  stable key per row. `defaults` remains their styling seam.
+
+**Golden-parity note**: all of the above is a rendering NO-OP. Capturing with
+`LEVELUP_OPTIONS` truncated back to its original two reproduces the previous
+`test_ui_skinning.py` baseline byte-for-byte on every screen — the pin's
+`levelup` entry was regenerated only because its INPUT (three mock cards
+instead of two) changed, not its code.
+
+## `hud.round_label` carries its own alignment
+`align="center"` moved from the `submit_label` CALL SITE onto the holder. It
+is a constant property of that label (it is centred on the End Turn button),
+and `tools/export_ui_layouts.py` reads alignment off the holder to tell the
+editor which way the text spreads from its stored anchor — left as a call-site
+override it recorded as `"left"` and the editor put the Round counter's hit box
+half a label to the right of the glyphs. Every other centred label in `game/ui`
+already declared it on the holder; this was the one that did not. **If you add
+a label whose alignment never varies, declare it on the holder**; reserve the
+`align=` argument for a call site that genuinely varies it.
+
 ## Global UI string table (Phase C)
 `data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
 `label` override above structurally cannot: text that varies by runtime/enum
@@ -1134,15 +1460,124 @@ reference to a resolved VALUE, only to the `T` function).
   The editor's Strings panel (`editor/panels/strings_panel.py`,
   `editor/strings_ops.py`) writes `strings.json` and stops there; the game
   re-reads it at its own next boot.
-- **Not yet migrated (scope note)**: this phase covered `hud.py` in full,
+- **Migration status**: Phase C covered `hud.py` in full,
   `widgets.cond_label`, `levelup.py`'s heading/cost/tier-progress lines, and
-  `boss_cutscene.py`'s win/loss headline. `building_ui.py`'s many per-mode
-  dynamic labels (action-button text, stat rows, the boss-history popup),
-  `effects.py`'s floater/announce text, and the remaining menu screens'
-  templated strings (`game_over.py`'s stat lines, `add_name.py`'s pool
-  counter, `credits.py`) are STILL plain f-strings/module literals — good
-  candidates for the same treatment, deliberately left for a follow-up pass
-  rather than migrated wholesale in one phase.
+  `boss_cutscene.py`'s win/loss headline. UT-3 took `building_ui.py`, UT-4
+  the rest of `hud.py`, and **UT-5 the remaining screens + `effects.py`** —
+  see the UT-5 section below. There is no known un-migrated user-visible
+  string left in `game/ui`; what stays a Python literal now does so for a
+  stated reason (a static title on the per-widget `label` mechanism, or a
+  runtime-authored value), not because nobody got to it.
+
+## `text_id` — a widget's text is DATA now (UT-1 … UT-4)
+
+The 10L-B widget contract gained a fifth override key beside `rect`/`skin`/
+`font`/`color`/`text_color`/`visible`/`tint`: **`text_id`**, the
+`data/ui/strings.json` key a label-bearing widget resolves its text through.
+It needs no `_SPEC_TO_ATTR` entry — `ScreenSkinning.apply`'s one generic
+setattr loop threads it onto the holder for free, exactly like `skin`/`tint`.
+
+**`widgets.submit_label(renderer, holder, **fmt)` is THE idiom.** It resolves
+`T(holder.text_id, **fmt)`, reads geometry/font/colour/alignment off the
+holder (i.e. off whatever `apply()` last wrote), and skips a hidden or empty
+one. Build the holder with `widgets.label_holder(...)`, whose defaults encode
+the text-label convention (an `(x, y, 0, 0)` ANCHOR, W/H nominal 0, stored in
+`layout()` so the exporter reads a real position and a rect override moves the
+text). **Never re-implement the resolution inline** — a call site that reads
+`holder.text_id` itself is the drift this helper exists to prevent.
+
+Three escape hatches, all deliberate:
+- **`text=`** overrides both, for runs whose CONTENT is authored at runtime
+  and no template can produce: a building's player-typed name, the rename
+  box's live buffer, a phase banner that picks one of six ids by enum. The
+  holder still owns position, font and colour — only the characters are not
+  the designer's.
+- **`color=`** is the code-computed fallback used when no `text_color`
+  override is set (the "`None` means compute" convention).
+- A holder with no `text_id` falls back to its static `label` — the pre-UT-1
+  behaviour, unchanged, and still the right answer for a fixed title.
+
+### Per-stat widgets (`building_ui.py`, UT-3)
+
+`_building_stats(b)` returns `(stat_key, value)` — **not** `(label, value)`.
+The label is the widget's own `building.stat.<key>` template. Every key in
+`STAT_KEYS` owns TWO id'd widgets, `stat_<key>_label` and `stat_<key>_value`,
+so a designer can place a stat's NAME and its NUMBER independently. Rules:
+
+- **`_layout_upgrade_rows()` stacks the SHOWN subset**, and it runs from
+  `_build_upgrade` — before any `submit()`, therefore before
+  `skinning.apply` — which is what makes a rect override win. Rows below an
+  overridden one keep their own defaults (the no-cascade convention).
+- A stat the selected building lacks keeps its canonical-order anchor from
+  `_build_text_holders`, so the exporter still records a real position for
+  its two ids.
+- The hover next-level preview matches on the **key**, so renaming a stat in
+  `strings.json` can no longer silently break the green highlight — which it
+  could when the match was on label text.
+- `boosted_stats()` still returns display labels; `_BOOSTED_STAT_KEYS` maps
+  them, rather than widening that method's contract for its one consumer.
+  `game/buildings/boost.py`'s four classes carry `_boost_stat_key` beside
+  `_boost_label` for the same reason.
+- **Dynamic-count content keeps the construct-card rule**: the next-tier
+  card's three rows and `ConstructPreview`'s stat list get no per-row id, but
+  their labels resolve through the SAME `building.stat.*` ids, so a rename
+  reaches them too.
+
+### The remaining screens + `effects.py` (UT-5)
+
+The same conversion, screen by screen. The rule that decided **id vs. plain
+`T()`** everywhere below is the anchor-rect convention already stated above:
+**a widget id needs a STORED rect first.** Copy whose position is computed
+inline from another widget's rect at submit time gets its text into
+`strings.json` and stops there — giving it an id would mean inventing a
+stored anchor for it, which is a layout change, and UT-5 is explicitly not
+allowed to move a pixel.
+
+- **New ids (all additive; `screen_defaults.json` gained widgets, nothing
+  moved)**: `game_over`'s three run-stat rows
+  (`stat_round`/`stat_buildings`/`stat_enemies`), `levelup`'s `heading`,
+  `settings`' `dm_label`/`dm_value`/`audio_label`/`audio_note` plus one
+  `label_<attr>` per FX toggle row (the sibling of its existing
+  `btn_toggle_<attr>` — a row's NAME and its ON/OFF control are
+  independently placeable, the per-stat rule), and `add_name`'s
+  `hint`/`msg_text`/`pool_count`.
+- **`text=` (runtime-authored content, holder still owns everything else)**:
+  `boss_cutscene`'s headline (a 2-of-2 enum pick), `settings`' display-mode
+  value, `add_name`'s feedback line, `game_over`'s numbers.
+- **String ids, no widget id**: `cheat_menu`'s round-field placeholder and
+  `add_name`'s name-field placeholder (both positioned off their field's
+  rect), `credits`' two row columns (dynamic-count rows, so `credits.role`/
+  `credits.name` are `{value}`-shaped templates the way `building.stat.value`
+  is), and every string in `effects.py` — the announce banner, the boss HUD
+  bar's label + `hp/max`, the four floater texts, and the "<name> has been
+  killed" game-log line. **`effects.py` is FX, not a screen**: it has no
+  `ids` dict at all and every position is a world point or a view-relative
+  centre, so `T()` is the whole of its binding.
+- **Deliberately unchanged**: `main_menu`, `pause`, `overlays` and
+  `tutorial_message` carry no templated or un-id'd copy — every string on
+  them is either a static title/button caption already served by the
+  per-widget `label` override (which is documented above as the right answer
+  for a fixed string, and which `test_ui_text_binding`'s
+  `test_unbound_widget_keeps_the_per_widget_label` pins on `main_menu.title`)
+  or runtime script text (`tutorial_message`) with an id'd holder already.
+  `game_log`'s lines are posted messages — its one `log` id styles them and
+  their text belongs to whoever posted it.
+- **The three code-only screens** (`highscores`, `player_intro`,
+  `debug_settings`) were NOT added to `tools/export_ui_layouts.py`'s
+  `SCREEN_IDS`, nor was `tutorial_message`. The plan floated it as a
+  deliberate scope addition; adding a screen there also adds an entry to
+  `screen_previews.json`, and UT-5's landing condition is a byte-empty diff
+  on that file. It stays a separate change.
+
+### What is still code-owned, and why
+
+Not everything became data. `hud.py`'s income-breakdown tooltip and lightning
+readout are hover/phase-gated overlays with no stored rect (they are drawn
+from a computed position at submit time), so they carry no id — their TEXT is
+already `T()`-bound and editable, only their POSITION is not. The same goes
+for `building_ui.py`'s terrain badge/tooltip and the boss-history rows.
+Giving one of those an id means giving it a stored rect first (the anchor-rect
+convention above), not just wrapping the draw call.
 
 ## The love glyph is GONE
 `widgets.HEART` (`"♥"`) and every `{heart}` placeholder are DELETED — the
@@ -1195,6 +1630,24 @@ trigger call sites in `main.py`, never unified into one state machine:
 - **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
+- **Skip is a 2-second HOLD, not a single click/key (cutscene-hold-to-skip).**
+  `SKIP_HOLD_SECONDS` (`cutscene_player.py`) plus `CutscenePlayer._skip_hold`/
+  `update_skip_hold(dt, held)`/`skip_progress` live on the class itself, not
+  at either `main.py` call site — so both `intro` and `first_end_turn`, and
+  any future registry entry built through the same `CutscenePlayer`, get the
+  hold behavior for free. `held` is a single host-computed bool (left mouse
+  button OR spacebar OR escape currently down, polled every frame via
+  `pygame.mouse.get_pressed()`/`pygame.key.get_pressed()` — **every other
+  input is inert** during a cutscene, not just non-skipping); the event loop
+  no longer calls `.skip()` on a discrete `KEYDOWN`/`MOUSEBUTTONDOWN` at all,
+  it only swallows events (`continue`) so nothing leaks to menu/world
+  handling. `update_skip_hold` resets the accumulator to 0 the instant
+  `held` goes false (an early release costs the whole progress, not a
+  partial credit) and no-ops once `done` (never double-fires `skip()` the
+  same frame the video ends naturally). `widgets.submit_progress_ring`
+  (`widgets.py`, composed from `HudLines` — no arc/pie HUD primitive exists)
+  draws the small ring at a FIXED screen point (`view_w // 2, view_h - 60`),
+  identical whether the hold is mouse or keyboard.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the

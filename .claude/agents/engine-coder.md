@@ -47,12 +47,13 @@ it as a cross-package finding — never cross the boundary yourself.
 2. Locate code via graphify, then read the pointed-at files.
 
 ## Exit gate (before reporting done)
-- **Umbrella workflow — run the MINIMAL gate only.** While this branch is
-  feeding an umbrella branch, do the least test needed to prove your diff:
-  `py tools/smoke.py` green + `py tools/testgate.py check --affected` — **0
-  failures, 0 errors.** Nothing wider. **Never run the full suite** — the full
-  run happens exactly once, after the work is merged into the umbrella branch,
-  and is owned by whoever does that merge. Not you.
+- **Run the MINIMAL gate. You NEVER run the full suite.** Do the least test that
+  proves your diff: `py tools/smoke.py` green + `py tools/testgate.py check
+  --affected` — **0 failures, 0 errors.** Nothing wider. The single full run is
+  owned by the orchestrator, once, after your work lands. Not you. See
+  §"Test Suite Policy" in the root CLAUDE.md. Read the `GATE INFO` line to see
+  what was actually selected, and never start a second run while one is in
+  flight.
   The suite is green; there is no baseline and no tolerated failure. A red test
   clearly outside your diff is a finding to report, not a rabbit hole.
 

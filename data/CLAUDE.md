@@ -48,8 +48,26 @@ validating writer; don't hand-edit the JSON.
   PNGs (committed — they are content, not build artifacts).
 
 ## Balancing files (Phase 4 D-10/11/12, restructured Phase 9A)
-- Six domains exist: `balancing/{buildings,enemies,map,ui,core,vfx}.json`,
-  each with `schemas/<domain>.schema.json`. **`vfx` is the newest (ESV-3a)**:
+- Seven domains exist: `balancing/{buildings,enemies,map,ui,core,vfx,
+  progression}.json`, each with `schemas/<domain>.schema.json`.
+  **`progression` is the newest (TimelinePLAN T2)**: the Timeline editor
+  feature's authored building-unlock schedule — `Timeline.levels[]`, one
+  sparse entry per player `village_level` that has offer slots authored,
+  each slot an `assignment` object (`kind: "unlock"|"tier"`, `building_type`,
+  `tier_index`) or `null` for an empty, still-persisted slot. It is registered
+  in `game/core/balance.py::DOMAINS` for runtime loading; it is deliberately
+  **not** a `data/slots.json` category (that registry is unrelated
+  sprite-slot vocabulary — see the Asset data section below), so it does not
+  auto-render as a generic recursive form in the editor's balancing panel —
+  it gets its own bespoke drag-and-drop panel instead (`editor/panels/
+  timeline.py`, T5). T2 shipped only the schema + an empty seed
+  (`{"Timeline": {"levels": []}}`); T6's migration
+  (`tools/migrate_timeline_from_unlock_min_round.py`) then populated it from
+  every building tier's then-existing `unlock_min_round`, and T4 made it the
+  SOLE source of unlock-timing eligibility at runtime
+  (`game/core/levelup.py::timeline_level_for`, threaded onto `Session.
+  progression_balance`) — `unlock_min_round` itself is deleted from
+  `buildings.json`. **`vfx` was the previous newest (ESV-3a)**:
   it promoted `vfx` from an asset-only `slots.json` category to a full
   balancing domain (`editor/domains.py::domains()` derives the domain list,
   so this needed zero editor edits — see `/add-category`). Its `procedural`
@@ -101,7 +119,16 @@ validating writer; don't hand-edit the JSON.
   a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
   a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
-  touches no schema. Since **Phase 9A** the other
+  touches no schema. **The Drummer buff-range telegraph feature** added a
+  sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
+  `pulse_period_s`/`segments`) — the pulsing ring `game/ui/effects.py`'s
+  `submit_drummer_auras` draws around a live Drummer enemy, sized to that
+  enemy's own (pre-existing) `EnemyTypes.Drummer.support_range` value, not
+  this block. It also added one new `vfx` category slot,
+  `vfx_buff_arrow` — the little golden arrow shown above any enemy with an
+  active buff; unlike the ring, the arrow IS swappable art (E-37: with no
+  art imported it falls back to a small procedural golden triangle, drawn
+  by `submit_buff_arrows`). Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects
@@ -113,14 +140,77 @@ validating writer; don't hand-edit the JSON.
   `ui:FX/bg_art/enabled`, `ui:FX/income_floaters_enabled`,
   `ui:FX/boss_announce/enabled`, `core:TheHole/building_revive`,
   `core:XP/xp_from_buildings`).
-- **Enemy sizing leaves (ER-1; per-era for the Boss since BR-1)**: each
-  `enemies.json` `EnemyTypes/*` block carries
-  a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
-  its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
-  `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
-  art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
-  `Boss/stats` row were deleted from content AND schema in the same change:
-  nothing read them, and render size now derives from the footprint.
+- **`buildings.json`'s `BuildingsGlobal.Movement` group (Building Movement)**
+  — the 8 tunables for moving an already-placed building: `money_cost_enabled`
+  / `time_cost_enabled` (the two off-switches; off ⇒ that axis is a flat 0),
+  `base_love_cost` / `love_cost_increase_increment` / `love_cost_increase`,
+  `base_moving_time` / `moving_time_increase_increment` /
+  `moving_time_increase`. Both axes resolve as `base + (distance // increment)
+  * increase` over the **Chebyshev** tile distance. **Both `*_increment` keys
+  carry `minimum: 1`, and that is load-bearing, not cosmetic** — the formula
+  floor-divides by them, so a schema-permitted 0 would be a div-by-zero at
+  runtime. Shipped defaults (10 / 2 / 10 / 1 / 2 / 1) make a 3-tile move cost
+  20 love and take 2 rounds. Read by `game/buildings/movement.py`, which is
+  handed the subtree and never opens a file.
+- **`building_type` + `card_slots` (TimelinePLAN T1/D3)**: each of the TWELVE
+  building-type groups in `buildings.json` (`DefenceBuildings.{BasicDefence,
+  AOEDefence,BeamDefence,StormPriest}`, `EconomyBuildings.{Musicians,Painters,
+  Meditators}`, `BoostBuildings.{Speed,Damage,HP}`, `StructureBuildings.
+  {Blocker,WallBuilder}`) carries two REQUIRED fields exposing what only
+  `game/buildings/*.py` class attributes said before. `building_type` (string)
+  is the `game/buildings/research.py` `RESEARCH`/`LEAF_CLASSES` key —
+  identity, not a tunable (`"defence"`, `"economic"`, `"sun_scorcher"`, … —
+  three of them do NOT match their group name). `card_slots` (exactly 3
+  strings) is one `slots.json` asset-slot key per tier, computed the way
+  `game/core/levelup.py::_tier_option` does: a flat `SLOT` wins for the
+  structure lines (`["blocker","blocker","blocker"]`), otherwise
+  `f"{TIER_SPRITES[idx]}_t{idx+1}_lvl1"`. Same **`registry_group` precedent**
+  as the enemy blocks above: the editor may never import `game/`, so a link
+  that existed only as a Python constant becomes real data, and the Python
+  constants stay as an UN-refactored second home pinned against drift by
+  `tools/tests/test_balancing_data.py::TestBuildingTypeAndCardSlots`. T1
+  shipped as pure exposure (nothing read either field yet); both are read
+  now — `editor/timeline_ops.py::load_building_catalog` (the Timeline
+  panel's browse-list source, T5) and `tools/migrate_timeline_from_
+  unlock_min_round.py` (T6) both walk `building_type`/`card_slots` for
+  every group.
+- **`slots.json`'s `core` category gained a `"Moving Sign"` one-slot group**
+  (`moving_sign`, 64×96, `["idle"]`) — the signpost the game draws on both
+  endpoints of a move in progress. `core` is the right home: it already holds
+  every flat, single-variant world-marker slot (`base_hole`,
+  `camera_startpoint`, `start_area`, `tutorial_flute`, `tutorial_stone`) at
+  the same frame size and vocabulary. Unlike the two tutorial markers this one
+  IS a real sprite; its committed starting art was generated by
+  `tools/gen_moving_sign_sheet.py` (deterministic, re-runnable, writes the
+  sheet AND its manifest entry — the `tools/gen_wall_sheets.py` pattern), and
+  is ordinary editable D-31 content, not a build artifact.
+- **Enemy sizing leaves (ER-1; PER-ERA for every type)**: `footprint` (int
+  tiles, 1–8: the unit occupies footprint² tiles and its sprite is downscaled
+  to `footprint*tile_w` wide, never upscaled) and `sprite_scale` (number
+  0.1–8, applied AFTER that fit — the knob for low-res art) are a **required
+  pair on every per-era row**: `$defs/type_era_row` for the nine era-shaped
+  types, `$defs/boss_stat` for the Boss (which carries no `eras[]`).
+  - **They were FLAT at the `EnemyTypes/*` root and no longer exist there.**
+    BR-1 moved the Boss's; the per-era-footprint change moved every other
+    type's and deleted the root keys outright, so there is exactly ONE home
+    per type and no fallback that can disagree with it. Same reason both
+    times: a designer must be able to make a late-era body physically bigger
+    than an early one.
+  - **The Formation is the one type whose size actually changes** —
+    `2, 2, 3, 3, 4` across eras 0–4, finally matching the 2×2-column
+    description its schema and docstrings always carried while the data
+    shipped `1`. Every other type ships `footprint: 1` in every row, and
+    `sprite_scale: 1.0` except the Drummer's `1.15` (its "slightly taller"
+    cosmetic ask, now repeated in all five of its rows).
+  - **`endgame_scaling` deliberately carries no `footprint`/`sprite_scale`
+    factor** (only the Boss's `endgame_boss_scaling` does). Past the last
+    authored era an era-shaped type's size CLAMPS. Adding one is a schema
+    change, on purpose: `era_math.resolve_era_row` matches factors to leaves
+    BY NAME, so a size quietly growing past the table would be an easy
+    accident.
+  - The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
+    `Boss/stats` row were deleted from content AND schema back in ER-1:
+    nothing read them, and render size derives from the footprint.
 - **`registry_group` (fix-editor-preview-footprint)**: each `EnemyTypes/*`
   block also carries a required `registry_group` string — the
   `data/slots.json` "enemies" group label that type's sprites live under
@@ -158,15 +248,18 @@ validating writer; don't hand-edit the JSON.
     `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
     live inside each `stats[]` row, so every boss variable is per-era.
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
-    `start_round`, `footprint`, `sprite_scale`, `death_spawn`, `registry_group`,
-    `kidnapping`, `hunts`, `condition_path_weights`, `mix_ratio`,
-    `queue_lead_count`. Only numbers that scale with the round went per-era.
-    **BR-1 carved out ONE exception**: the Boss's `footprint`/`sprite_scale`
-    are per-era (in its `stats[]` rows), because a designer must be able to
-    make the era-4 boss physically bigger than the era-0 one. Every other type
-    — and every other key in that list — is unchanged. `editor/sprite_fit.py`
-    reads BOTH shapes since **BR-5** (it read only the flat pair before, so
-    every boss slot preview silently drew at the render defaults).
+    `start_round`, `death_spawn`, `registry_group`, `kidnapping`, `hunts`,
+    `condition_path_weights`, `mix_ratio`, `queue_lead_count`. Only numbers
+    that scale with the round went per-era.
+    **`footprint`/`sprite_scale` LEFT this list.** BR-1 carved them out for
+    the Boss alone (into its `stats[]` rows); the per-era-footprint change
+    then did the same for all nine era-shaped types (into `$defs/
+    type_era_row`) and DELETED the flat root keys — so the render fit is now
+    per-era everywhere, with no flat home left anywhere. See the "Enemy
+    sizing leaves" bullet above. `editor/sprite_fit.py` resolves `eras[]`,
+    `stats[]` and (as a last resort, for a hand-built doc) the block root —
+    it read only the flat pair until **BR-5**, which is why every boss slot
+    preview silently drew at the render defaults for four phases.
   - **`Boss.second_phase` is the SECOND carve-out (BR-5)**: its
     `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` left
     the block root for a 5-row `staging` array (`$defs/second_phase_row`),
@@ -250,13 +343,17 @@ validating writer; don't hand-edit the JSON.
 - **Schema shape (9A)**: tier/struct subschemas live in each schema's
   `$defs`, referenced via **local `#/$defs/` refs only** (plain
   `jsonschema.validate` resolves in-document refs fine; cross-file still
-  forbidden). Every object level in all five balancing domains keeps
+  forbidden). Every object level in all seven balancing domains keeps
   `additionalProperties:false` + full `required`, no exceptions (the former
-  `era_unlock_round` group-level key was the last one read as optional by
-  convention anywhere near buildings — it never actually was schema-optional,
-  and it is deleted now that the meditator/beam/wall-builder round gate is a
-  single `tiers[0].unlock_min_round`, no separate era key). No `allOf`
-  composition (it breaks `additionalProperties:false`).
+  `era_unlock_round` group-level key was read as optional by convention
+  anywhere near buildings — it never actually was schema-optional, and was
+  deleted once the meditator/beam/wall-builder round gate became a single
+  per-tier `unlock_min_round`, no separate era key. **TimelinePLAN T4 went
+  further and deleted `unlock_min_round` itself** — every tier `$def`'s
+  eligibility gate is now `data/balancing/progression.json`'s Timeline
+  placement, not a `buildings.json` round value at all; see that domain's
+  entry above and `game/buildings/CLAUDE.md`'s "Research / gating seam"
+  section). No `allOf` composition (it breaks `additionalProperties:false`).
   `random_names` has `minItems:1` and NO `maxItems` (the 9H add-name menu
   appends). Bounds policy, documented per-domain in the schema description:
   fractions/chances 0–1, HP/DMG (×10) 0–100000, costs/counts 0–10000,
@@ -273,6 +370,19 @@ validating writer; don't hand-edit the JSON.
   `write_validated` — never hand-format).
 
 ## Asset data (Phase 5, D-30/31/32 specifics)
+- **A schema enum spanning EVERY slot category is GENERATED, not
+  hand-maintained (feature-enemy-intro-dialogue's animation follow-up)**:
+  `core.schema.json`'s `$defs.enemy_intro_entry.sprite_slot` enum (every
+  slot key in `data/slots.json`, any category) and its sibling `animation`
+  enum (the union of every category's `animations` vocabulary) are written by
+  `tools/gen_sprite_slot_enum.py` — read the live `SlotRegistry`, rewrite
+  both enums in place, deterministic/idempotent. Re-run it after adding a
+  slot or changing a category's `animations` list;
+  `tools/tests/test_schema_slot_sync.py` fails CI if the committed enum
+  drifted from `slots.json`. This is the first schema field in the repo
+  referencing slots across the whole registry rather than one category — the
+  hand-maintained, single-category precedent (`vfx.schema.json`'s
+  `trigger_row.sprite_slot`) is unaffected and stays hand-typed.
 - **`slots.json` location is a deliberate D-32 deviation**: SPEC says
   `data/schemas/slots.*`, but `tools/smoke.py` skips `data/schemas/` when
   validating, and the registry must be validated content — so it lives at
@@ -334,19 +444,31 @@ validating writer; don't hand-edit the JSON.
 - **`walls` is an asset-only category too** (no `balancing/walls.json`, no
   `schemas/walls.schema.json` — that absence is exactly what keeps it out of
   `editor/domains.py::domains()`), holding the art for the WallBuilder's
-  destructible edge walls: one `Wall` group with three variant-family children
-  (`Bush Wall`/`Wooden Wall`/`Stone Wall`), 9 slots, `wall_t{1..3}_lvl{1..3}`.
-  64×96 like buildings — a wall rises above its tile. Its animation vocabulary
-  is NOT a set of animations but a set of SIDES: `["idle", "edge_se",
+  destructible edge walls: one `Wall` group with three tier children
+  (`Bush Wall`/`Wooden Wall`/`Stone Wall`), each now (wall-era-art feature) a
+  NESTED node — a `Base` variant-family child (the original 9 slots,
+  `wall_t{1..3}_lvl{1..3}`, unchanged) plus open-ended `Era 1`..`Era 5`
+  sibling children (`wall_t{tier}_lvl{level}_era{n}`, all art-less until a
+  designer imports through the normal asset-import flow — E-37 grey-X-free).
+  Legal with zero schema change: `slots.schema.json`'s group node already
+  recurses `children` to arbitrary depth. `game/buildings/structure.py`'s
+  `WallBuilder.wall_era_slot()` resolves the era key off a stamp frozen at
+  placement/upgrade time (`game/core/wall_era.py`); `game/map/wall_render.py`
+  tries it before falling back to the `Base` key. 64×96 like buildings — a
+  wall rises above its tile. Its animation vocabulary is NOT a set of
+  animations but a set of SIDES: `["idle", "edge_se",
   "edge_sw", "edge_nw", "edge_ne"]`, one manifest row per isometric tile-diamond
   side (row 0 stays `idle`, schema-forced, and holds a generic preview segment
   for the editor's slot list). `game/map/wall_render.py` owns the neighbour
   delta → side-row table; a frame blits centred on the tile centre, so in a
   64×96 frame the diamond's corners are fixed at top `(32,32)`, right `(64,48)`,
-  bottom `(32,64)`, left `(0,48)`. The committed starting art was generated by
+  bottom `(32,64)`, left `(0,48)`. The committed starting art (the `Base`
+  tier/level slots only) was generated by
   `tools/gen_wall_sheets.py` (deterministic, re-runnable, writes the 9 sheets
   AND their manifest entries) — it is ordinary editable D-31 content, not a
-  build artifact: repaint or re-import it freely.
+  build artifact: repaint or re-import it freely. The `Era N` slots ship with
+  no generator and no manifest entries — real art lands via the editor's
+  normal per-slot import, same as any other un-imported slot.
 - **Variant families**: a leaf group whose slots are INTERCHANGEABLE art for
   one thing. `enemies` eras (`Walker → Era 2 → [enemy_stage_2,
   enemy_stage_2_v2]`), `deco` prop TYPES (`Props → Rock → [deco_rock,
@@ -467,6 +589,92 @@ validating writer; don't hand-edit the JSON.
   directory exception needed for this one file. Editor previews render from
   defaults + overrides only. Merge conflicts on two branches resolve by
   re-running the exporter (deterministic output).
+- **`data/ui/screen_previews.json` (UT-2)**: the SECOND generated-but-committed
+  UI artifact, pairing normally by stem with `schemas/screen_previews.schema
+  .json`. Where `screen_defaults.json` records each named widget's default
+  RECT, this records the whole **draw list** each screen produces —
+  `{screen_id: {items: [...]}}`, plus `views` for `building_panel` — as
+  serialized `HudRect`/`HudText`/`HudSprite`/`HudLines` (`type` tag + every
+  field, defaults included). The editor's screen mode REPLAYS it behind its
+  draggable widget boxes, so a designer sees the real panel — background,
+  fonts, sprites, stat rows, dividers, every bit of chrome no widget id covers
+  — instead of placeholder rectangles.
+  - Written by the same `tools/export_ui_layouts.py` run that writes
+    `screen_defaults.json`, from the SAME mock state (`tools/screen_mocks.py`
+    — one state, two artifacts, so the boxes and the picture behind them can
+    never disagree about where a widget is). Never hand-edited; merge
+    conflicts resolve by re-running the exporter.
+  - **Recorded OVERRIDE-FREE**, for the same reason the defaults are: the two
+    layers must stay distinguishable. The editor re-records against an
+    UNSAVED doc via `--previews-only --overrides <file> --previews-out <file>`
+    into a temp path, never over the committed one.
+  - Determinism is load-bearing (it is committed): fixed cursor, `dt=0.0`,
+    `anim_ms=0`, a seeded RNG, and a session over the PINNED `first_light` map
+    rather than whichever map is active — flipping the active map must not
+    churn the file. `tools/tests/test_ui_layout_export.py` gates both
+    staleness and determinism.
+  - The JSON round-trip itself lives in `engine/render/hud.py`
+    (`hud_item_to_json`/`hud_item_from_json`), beside the dataclasses it
+    describes, because the recorder (`tools/`) and the replay (`editor/`) both
+    need it and neither may import the other.
+- **`widget.font_key` / `widget.align` (editable-ui-widgets)**: two more
+  OPTIONAL keys on a `screen_defaults.json` widget record, both pure DRAW
+  HINTS for the editor — nothing in the game reads them back. They exist so
+  the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
+  whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
+  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
+  therefore impossible to click, drag or even see selected in the editor
+  despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
+  preset the text is drawn at (so the editor MEASURES it at the right size
+  instead of guessing `md`); `align` is `left|center|right`, which way the
+  glyphs spread from the stored x. Both are recorded by
+  `tools/export_ui_layouts.py::_widget_entry` ONLY when the widget actually
+  carries them (`align` additionally only when it is not the `left` default),
+  so every button/panel entry stays byte-identical. The editor side is
+  `editor/panels/_screen_primitives.interaction_rect`.
+- **Per-slot buy-option ids**: `levelup`'s `option_box_0..2` and
+  `building_panel`'s `card_<building_type>` are ordinary widget records in
+  this file now — the "dynamic-count content gets no id" rule is lifted (see
+  `game/ui/CLAUDE.md`). They are recorded from `tools/screen_mocks.py` state
+  chosen to cover every slot: `LEVELUP_OPTIONS` holds THREE cards (the roll's
+  maximum) and the `construct` view unlocks every RESEARCH type before
+  building its cards. Widen that mock state, not the exporter, if a future
+  screen needs the same treatment.
+- **`widget.parent` (UiEditorParentingPLAN P-1/P-2)**: one more OPTIONAL key
+  on a `screen_defaults.json` widget record (a string, the id of another
+  widget in the SAME screen and view), and a matching OPTIONAL `parent` in
+  `ui_screen.schema.json`'s per-widget override object — the only per-widget
+  override key whose type is `["string", "null"]` rather than a bare type.
+  It is **AUTHORING metadata: nothing in `game/` reads it, ever.** The editor
+  cascades a move at EDIT time and the saved rects stay ABSOLUTE, so the
+  game's documented "no cascade" convention (`game/ui/CLAUDE.md`) and its flat
+  `setattr` apply loop are untouched — adding a runtime resolution step is
+  explicitly the parked P-6 idea, not this one.
+  - **Three states, and they are all different.** ABSENT in the override =
+    keep whatever `screen_defaults.json` says (itself absent = a root
+    widget). A STRING = the designer re-parented it. An explicit JSON
+    `null` = the designer REJECTED the default parent and re-rooted the
+    widget, which is why the override's type admits null while the defaults'
+    does not. `editor/ui_screen_session.py`'s `parent_override()` is the ONE
+    accessor that reads them apart.
+  - The defaults are written by `tools/export_ui_layouts.py`'s `_PARENTS`
+    (explicit pairs) + `_PARENT_CONTAINERS` (per-screen "everything else
+    belongs to this container"), and ONLY when the parent id is present in
+    the same widgets map — so each of `building_panel`'s five views parents to
+    whichever container it actually shows, and no view ever points at an
+    absent id. A dangling or cyclic chain resolves to ROOT in the editor
+    rather than raising (`editor/widget_tree.py`), so a hand-edit cannot hang
+    a Qt paint handler.
+- **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
+  `screen_defaults.json` widget record, and `text_id` is also an optional
+  per-widget override in `ui_screen.schema.json`. `text_id` is the
+  `strings.json` key the widget resolves its text through — the binding that
+  lets the editor show and edit a dynamic readout's TEXT instead of calling it
+  code-owned. `sample` is that template resolved when it takes NO placeholders;
+  a templated id gets none, because the exporter cannot know the kwargs the
+  call site passes (the recorded preview shows the real substituted text
+  beside it instead).
 - **SCHEMA-PAIRING EXCEPTION (the directory rule — now THREE + ONE)**:
   `data/ui/screens/*.json` (any stem, the screen id) → `ui_screen.schema.json`
   (exact parallel to `data/maps/*.json` → `map_file.schema.json`).
@@ -637,6 +845,22 @@ validating writer; don't hand-edit the JSON.
   marks of any of the three kinds the runtime's implicit recede behaves exactly
   as it did before this feature) — existing maps were migrated to
   `"stage_zones": []`. Runtime precedence → `game/map/CLAUDE.md`.
+- **`tile_conditions` — the designer-painted TILE-CONDITION overrides.** The
+  FOURTH overlay of the same shape, and the first whose value is a NAME rather
+  than a stage number: `{col, row, condition}` marks, `condition` an **enum of
+  `grass`/`mountain`/`pond`/`forest`**. Same invisibility (no render emitter
+  touches it — the game's own condition-ART emitter draws conditions off the
+  runtime `Tile`, never off this field), same (row, col)-sorted list on disk /
+  `{(col, row): "pond"}` dict in memory on `TileMapDoc`, same `validate_doc`
+  bounds check. **That enum is the SINGLE source of the four names** — the game
+  maps it through `tiles.py`'s `CONDITION_BY_MAP_KEY`, the editor reads it
+  through `engine.tilemap.condition_codes_from_schema`, and neither hardcodes
+  the list. A marked cell takes that condition and is **excluded from the
+  runtime's random condition roll**; a mark wins everywhere, including
+  BACKGROUND tiles and the starting unlocked pocket, which the roll itself
+  skips. An empty array is the "nothing painted, the whole map rolls" state —
+  existing maps were migrated to `"tile_conditions": []`. Runtime precedence →
+  `game/map/CLAUDE.md`; the brush → `editor/panels/CLAUDE.md`.
 - **`balancing/map.json` `TileUnlocking.spawn_recede_enabled`** (bool, default
   `true`) is the master switch for the OLD implicit recede rule only — `false`
   and the band never recedes on unlock, whatever the reserve state. It does not

@@ -83,8 +83,8 @@
   },
   "TileUnlocking": {
     "adjacent_unlock_only": true,
-    "base_unlock_cost": 10,
+    "base_unlock_cost": 7,
     "spawn_recede_enabled": true,
-    "unlock_cost_distance_mod": 2
+    "unlock_cost_distance_mod": 4
   }
 }

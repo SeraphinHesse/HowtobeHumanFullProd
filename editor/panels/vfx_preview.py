@@ -38,6 +38,7 @@ ESV-3b's `beam`/`crater`/`lightning`/`announce` show up with zero edits
 here. A family with no emitter binding (today: `floaters`) shows a
 graceful-degrade placeholder (E-37) instead of raising.
 """
+import math
 import os
 import random
 import time
@@ -52,6 +53,7 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QColorDialog,
     QComboBox,
+    QFileDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
@@ -61,13 +63,14 @@ from PySide6.QtWidgets import (
 )
 
 from editor import domains, vfx_params
+from editor.asset_import import import_idle_sheet
 from editor.panels.balancing import _NoWheelDoubleSpinBox, _NoWheelSpinBox
 from editor.panels.viewport import surface_to_qimage
 from engine import data_io
 from engine.assets import load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import HudRect, HudSprite, Renderer, RenderItem
+from engine.render import HudLines, HudRect, HudSprite, Renderer, RenderItem
 from engine.vfx import VfxSystem
 
 REPO = Path(__file__).resolve().parents[2]
@@ -115,6 +118,20 @@ _EMIT_FAMILIES = ("spark", "death_burst", "muzzle", "slash", "gold_highlight",
 # of `_EMIT_FAMILIES` and given its own small preview path instead
 # (`_submit_projectile_preview`), driven by `render_frame`'s own frame timer.
 _PROJECTILE_FAMILY = "projectile"
+_CRATER_FAMILY = "crater"
+_BEAM_FAMILY = "beam"
+# vfx-projectile-spritesheets: crater/beam are the SAME shape as projectile —
+# continuous/impact objects the game draws itself, not a VfxSystem burst — so
+# they join it as SUPPORTED, non-degrading previews with their own small
+# `_submit_crater_preview`/`_submit_beam_preview` paths.
+_POINT_FX_FAMILIES = (_PROJECTILE_FAMILY, _CRATER_FAMILY, _BEAM_FAMILY)
+# family -> the ONE fixed vfx_* slot its "Import Spritesheet…" button
+# targets. `projectile` has no entry here — it swaps between two slots via
+# `_shell_check`, resolved by `_current_import_slot()` instead. Every other
+# procedural family (spark/muzzle/slash/hit/death/etc.) binds art per-EVENT
+# through the `triggers` table's `sprite_slot` field, not a fixed family
+# slot, so it has no button here — out of scope.
+_POINT_FX_SLOTS = {_CRATER_FAMILY: "vfx_crater", _BEAM_FAMILY: "vfx_beam"}
 
 
 class VfxPreviewPanel(QWidget):
@@ -175,6 +192,11 @@ class VfxPreviewPanel(QWidget):
         # defender) and shell (mortar) params/slot.
         self._shell_check = QCheckBox("shell")
         self._shell_check.toggled.connect(self._on_shell_toggled)
+        # vfx-projectile-spritesheets: the working-space import affordance —
+        # visible whenever the current family resolves to a fixed vfx_* slot
+        # (`_current_import_slot()`), which is projectile/crater/beam only.
+        self._import_btn = QPushButton("Import Spritesheet…")
+        self._import_btn.clicked.connect(self._on_import_clicked)
 
         top_row = QHBoxLayout()
         top_row.addWidget(QLabel("Family"))
@@ -183,6 +205,7 @@ class VfxPreviewPanel(QWidget):
         top_row.addWidget(self._strong_check)
         top_row.addWidget(self._large_check)
         top_row.addWidget(self._shell_check)
+        top_row.addWidget(self._import_btn)
         top_row.addStretch(1)
 
         self._loop_check = QCheckBox("Loop")
@@ -295,11 +318,12 @@ class VfxPreviewPanel(QWidget):
 
     def _set_family(self, name):
         self._family = name
-        supported = name in _EMIT_FAMILIES or name == _PROJECTILE_FAMILY
+        supported = name in _EMIT_FAMILIES or name in _POINT_FX_FAMILIES
         self._preset_combo.setVisible(name == "spark")
         self._strong_check.setVisible(name == "muzzle")
         self._large_check.setVisible(name == "slash")
         self._shell_check.setVisible(name == _PROJECTILE_FAMILY)
+        self._refresh_import_btn()
         self._degrade_label.setText(
             "" if supported else f"no preview for {name!r} yet")
         self._degrade_label.setVisible(not supported)
@@ -308,11 +332,50 @@ class VfxPreviewPanel(QWidget):
         self._rebuild_colors()
         if name in _EMIT_FAMILIES:
             self._emit()
-        elif name == _PROJECTILE_FAMILY:
+        elif name in _POINT_FX_FAMILIES:
             # Not a VfxSystem family (no self._system to rebuild/reseed) —
-            # just restart the flight clock, mirroring _emit()'s own
+            # just restart the flight/loop clock, mirroring _emit()'s own
             # self._loop_clock reset for every other family switch.
             self._loop_clock = 0.0
+
+    def _current_import_slot(self):
+        """The fixed ``vfx_*`` slot the current family's Import button
+        targets, or ``None`` for a family with no single fixed slot (every
+        family but projectile/crater/beam binds art per-event through the
+        `triggers` table's `sprite_slot` field instead)."""
+        if self._family == _PROJECTILE_FAMILY:
+            return "vfx_shell" if self._shell else "vfx_projectile"
+        return _POINT_FX_SLOTS.get(self._family)
+
+    def _refresh_import_btn(self):
+        self._import_btn.setVisible(self._current_import_slot() is not None)
+
+    def _on_import_clicked(self):
+        """Import a PNG into the current family's fixed slot via the SAME
+        Qt-free single-idle-row helper the palette's importer uses
+        (`editor.asset_import.import_idle_sheet`), then reload the panel's
+        own AssetStore so the preview switches from procedural to sprite
+        immediately (ED-42 — no restart)."""
+        slot = self._current_import_slot()
+        if slot is None:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Spritesheet", "", "Images (*.png)")
+        if not path:
+            return
+        import_idle_sheet(self._data_dir, self._registry, slot, Path(path))
+        self.reload_assets()
+
+    def reload_assets(self):
+        """Re-read the manifest from disk after an import (ED-42, the
+        `viewport.reload_assets` pattern) so a freshly imported spritesheet
+        resolves without an editor restart. Camera state lives in
+        `self._coords`, untouched."""
+        self._manifest = load_manifest(
+            self._data_dir / "sprites" / "asset_manifest.json")
+        self._assets = AssetStore(manifest=self._manifest, registry=self._registry,
+                                  sprites_dir=self._data_dir / "sprites")
+        self._renderer = Renderer(self._coords, self._assets)
 
     def _on_preset_changed(self, name):
         if not name:
@@ -531,6 +594,94 @@ class VfxPreviewPanel(QWidget):
             self._renderer.submit_hud(HudRect(
                 (dest[0], dest[1], size, size), color, border_radius=size // 2))
 
+    # -- the `crater`/`beam` families (vfx-projectile-spritesheets): not
+    # VfxSystem particle emitters either, same shape as `projectile` above --
+
+    @staticmethod
+    def _ring_points(cx, cy, r, segments):
+        """A regular polygon's screen points around `(cx, cy)` — a local,
+        editor-only reimplementation of `game/ui/effects.py`'s private
+        `_polygon_ring` helper (`editor/` may never import `game/ui`, the
+        same duplication `editor/vfx_params.py`'s module docstring already
+        carries). Used only for the crater's no-art preview outline."""
+        segments = max(3, int(segments))
+        return tuple(
+            (cx + r * math.cos(2 * math.pi * i / segments),
+             cy + r * math.sin(2 * math.pi * i / segments))
+            for i in range(segments))
+
+    def _submit_crater_preview(self, dt):
+        """A designer-imported `vfx_crater` sheet previews as a looping
+        sprite at the impact point (`animation="idle"`, sized off the
+        manifest's own frame size); with no art, a rough polygon-ring
+        outline approximating the procedural `Crater` mark (color/segments
+        from `procedural.crater` via `editor/vfx_params.py::crater_params`,
+        the same adapter every other family already uses) — a simplified
+        stand-in for the real alpha-filled, radius-scaled ring
+        `game/ui/effects.py::submit_craters` draws in-game, not a pixel
+        match. Loop timing mirrors `_submit_projectile_preview`."""
+        if self._balancing is None:
+            return
+        proc = self._balancing.staged_value("procedural")
+        if _CRATER_FAMILY not in proc:
+            return
+        cp = vfx_params.crater_params(proc[_CRATER_FAMILY])
+        if self._loop_check.isChecked():
+            self._loop_clock += dt
+        g = self._coords.geometry
+        col, row = g.map_cols // 2, g.map_rows // 2
+        cx, cy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+        zoom = self._coords.camera.zoom
+        has_art = self._assets.animation_total_ms("vfx_crater", "idle") is not None
+        if has_art:
+            fw, fh = self._assets.frame_size("vfx_crater")
+            size = (max(1, int(fw * zoom)), max(1, int(fh * zoom)))
+            dest = (int(cx - size[0] / 2), int(cy - size[1] / 2))
+            interval = max(self._loop_interval, 0.001)
+            anim_ms = int((self._loop_clock % interval) * 1000.0)
+            self._renderer.submit_hud(HudSprite(
+                "vfx_crater", dest, size, animation="idle",
+                anim_time_ms=anim_ms))
+            return
+        r = g.tile_h * zoom * 1.5
+        points = self._ring_points(cx, cy, r, cp.segments)
+        self._renderer.submit_hud(HudLines(points, cp.color, closed=True))
+
+    def _submit_beam_preview(self, dt):
+        """A designer-imported `vfx_beam` sheet previews as a looping sprite
+        at the target point — the SAME fixed-sprite-at-a-point shape
+        `game/ui/effects.py::submit_beams` draws in-game (never a stretched/
+        rotated beam texture — `HudSprite` has no rotation support); with no
+        art, a plain line from origin to target using `procedural.beam`'s
+        first ramp colour. Loop timing mirrors `_submit_projectile_preview`."""
+        if self._balancing is None:
+            return
+        proc = self._balancing.staged_value("procedural")
+        if _BEAM_FAMILY not in proc:
+            return
+        bp = vfx_params.beam_params(proc[_BEAM_FAMILY])
+        if self._loop_check.isChecked():
+            self._loop_clock += dt
+        g = self._coords.geometry
+        col, row = g.map_cols // 2, g.map_rows // 2
+        ox, oy = self._coords.world_to_screen(col - 1.5, row)
+        tx, ty = self._coords.world_to_screen(col + 1.5, row)
+        zoom = self._coords.camera.zoom
+        has_art = self._assets.animation_total_ms("vfx_beam", "idle") is not None
+        if has_art:
+            fw, fh = self._assets.frame_size("vfx_beam")
+            size = (max(1, int(fw * zoom)), max(1, int(fh * zoom)))
+            dest = (int(tx - size[0] / 2), int(ty - size[1] / 2))
+            interval = max(self._loop_interval, 0.001)
+            anim_ms = int((self._loop_clock % interval) * 1000.0)
+            self._renderer.submit_hud(HudSprite(
+                "vfx_beam", dest, size, animation="idle",
+                anim_time_ms=anim_ms))
+            return
+        self._renderer.submit_hud(HudLines(
+            ((int(ox), int(oy)), (int(tx), int(ty))),
+            bp.colors[0], width=bp.width_base))
+
     # -- surface lifecycle, sized to the surface sub-widget ------------------
 
     def _resize_surface(self):
@@ -565,6 +716,10 @@ class VfxPreviewPanel(QWidget):
             self._system.submit_hud(self._renderer, self._coords)
         elif self._family == _PROJECTILE_FAMILY:
             self._submit_projectile_preview(dt)
+        elif self._family == _CRATER_FAMILY:
+            self._submit_crater_preview(dt)
+        elif self._family == _BEAM_FAMILY:
+            self._submit_beam_preview(dt)
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self._surface_widget.update()

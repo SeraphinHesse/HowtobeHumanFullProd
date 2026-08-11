@@ -14,7 +14,8 @@ os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
 
 import pygame
 
-from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
+from game.ui.cutscene_player import (
+    SKIP_HOLD_SECONDS, CutscenePlayer, load_cutscene_registry)
 from tools.tests.fixture_data import FIXTURE_DATA
 
 
@@ -86,6 +87,56 @@ class TestCutscenePlayerAudio(unittest.TestCase):
         player = CutscenePlayer(FIXTURE_DATA, self.registry["intro"])
         player.release()
         player.release()
+
+
+class TestCutscenePlayerSkipHold(unittest.TestCase):
+    """cutscene-hold-to-skip: the 2s hold timer lives on CutscenePlayer
+    itself, so it's exercised directly rather than through main.py's event
+    loop. Fixture entries have no real video file, so a freshly-constructed
+    player is already `done` (VideoSource's graceful-skip path) — tests that
+    need an in-progress video force `player._video.done = False` (a plain
+    public attribute on VideoSource) to isolate the hold-timer logic from
+    video availability."""
+
+    def setUp(self):
+        pygame.init()
+        registry = load_cutscene_registry(FIXTURE_DATA)
+        self.player = CutscenePlayer(FIXTURE_DATA, registry["intro"])
+        self.player._video.done = False  # simulate an in-progress video
+
+    def test_hold_below_threshold_does_not_skip(self):
+        self.player.update_skip_hold(SKIP_HOLD_SECONDS - 0.5, True)
+        self.assertFalse(self.player.done)
+        self.assertLess(self.player.skip_progress, 1.0)
+        self.assertGreater(self.player.skip_progress, 0.0)
+
+    def test_hold_reaching_threshold_skips(self):
+        self.player.update_skip_hold(SKIP_HOLD_SECONDS, True)
+        self.assertTrue(self.player.done)
+        self.assertEqual(self.player.skip_progress, 1.0)
+
+    def test_release_before_threshold_resets_progress(self):
+        self.player.update_skip_hold(SKIP_HOLD_SECONDS - 0.1, True)
+        self.assertGreater(self.player.skip_progress, 0.0)
+        self.player.update_skip_hold(0.016, False)
+        self.assertFalse(self.player.done)
+        self.assertEqual(self.player.skip_progress, 0.0)
+        # a fresh hold afterward starts from zero, not where it left off
+        self.player.update_skip_hold(SKIP_HOLD_SECONDS - 0.5, True)
+        self.assertFalse(self.player.done)
+
+    def test_never_held_never_skips(self):
+        for _ in range(10):
+            self.player.update_skip_hold(1.0, False)
+        self.assertFalse(self.player.done)
+        self.assertEqual(self.player.skip_progress, 0.0)
+
+    def test_no_op_once_already_done(self):
+        registry = load_cutscene_registry(FIXTURE_DATA)
+        player = CutscenePlayer(FIXTURE_DATA, registry["intro"])
+        self.assertTrue(player.done)  # missing video -> already done
+        player.update_skip_hold(SKIP_HOLD_SECONDS, True)  # must not raise
+        self.assertTrue(player.done)
 
 
 if __name__ == "__main__":

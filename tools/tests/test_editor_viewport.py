@@ -29,7 +29,13 @@ from editor.panels.selector import (
     _VIEW_ROLE,
     SelectorPanel,
 )
-from editor.panels.viewport import SCREEN_H, SCREEN_W, ViewportPanel, surface_to_qimage
+from editor.panels.viewport import (
+    SCREEN_H,
+    SCREEN_W,
+    ViewportPanel,
+    logical_resolution,
+    surface_to_qimage,
+)
 from editor.ui_screen_session import VIEW_ORDER, UIScreenSession, ordered_views
 from engine import data_io
 from engine.render import HudLines, HudRect, HudSprite, HudText
@@ -221,6 +227,27 @@ def paint_bytes(panel):
     return pygame.image.tobytes(panel._surface, "RGB")
 
 
+def tree_items(tree):
+    """Every item in a `QTreeWidget`, depth-first — the flat view these tests
+    used to get for free from `QListWidget.item(i)` before
+    UiEditorParentingPLAN P-4 turned the screen-mode widget list into the
+    parent TREE (D6). The `UserRole` = code id contract is unchanged; only
+    the container is."""
+    out = []
+
+    def walk(item):
+        for i in range(item.childCount()):
+            child = item.child(i)
+            out.append(child)
+            walk(child)
+
+    for i in range(tree.topLevelItemCount()):
+        top = tree.topLevelItem(i)
+        out.append(top)
+        walk(top)
+    return out
+
+
 DRAFT_ENTRY = {
     "sheet": "imported/painter_t1_lvl1.png",
     "frame_w": 64, "frame_h": 96, "offset_x": 0, "offset_y": 0,
@@ -387,8 +414,10 @@ class TestSelectorScreensBranch(TempDataCase):
         screens_branch = ui_root.child(0)
         # B1's original 12 + Phase 3's "overlays" (the map-overlay toggle
         # pills) + TU-6's "tutorial_message" (the guided-tutorial message
-        # box), each added the sanctioned "drop in a file + ids" way.
-        self.assertEqual(screens_branch.childCount(), 14)
+        # box) + feature-enemy-intro-dialogue's "enemy_intro" (the enemy/boss
+        # introduction dialogue window), each added the sanctioned "drop in a
+        # file + ids" way.
+        self.assertEqual(screens_branch.childCount(), 15)
 
     def test_screen_leaf_emits_screen_selected_not_node_selected(self):
         selector = self.track(SelectorPanel(data_dir=self.data_dir))
@@ -548,9 +577,26 @@ class TestOrderedViews(unittest.TestCase):
             ("unlock", "aaa_custom", "zzz_custom"))
 
 
+class TestLogicalResolution(TempDataCase):
+    """UR-1: the screen-mode canvas size comes from data/display.json — the
+    ONE place the logical resolution is stated — not from a literal."""
+
+    def test_screen_constants_match_display_json(self):
+        self.assertEqual((SCREEN_W, SCREEN_H), logical_resolution())
+
+    def test_reads_the_given_data_dir(self):
+        display = data_io.load_validated(
+            self.data_dir / "display.json",
+            self.data_dir / "schemas" / "display.schema.json")
+        self.assertEqual(
+            logical_resolution(self.data_dir),
+            (display["window_w"], display["window_h"]))
+
+
 class TestViewportScreenMode(TempDataCase):
-    """B4 §1c: fixed 1280x720 canvas through submit_hud only, graceful
-    degrade with no defaults, click/drag/nudge interaction."""
+    """B4 §1c: fixed SCREEN_W x SCREEN_H canvas (data/display.json's
+    resolution) through submit_hud only, graceful degrade with no defaults,
+    click/drag/nudge interaction."""
 
     def setUp(self):
         super().setUp()
@@ -673,6 +719,42 @@ class TestViewportScreenMode(TempDataCase):
         sprites = [c for c in calls if isinstance(c, HudSprite)]
         self.assertEqual(len(sprites), 1)
         self.assertEqual(sprites[0].animation, "hover")
+
+
+class TestScreenScaleOffset(TempDataCase):
+    """UR-3: the ONE fit triple every screen-mode consumer reads — hit-test,
+    drag and the scaled blit alike. Below 1.0 it is a fractional downscale
+    that always fits; at or above 1.0 it snaps down to a whole multiple, so
+    the pixel-art preview duplicates every source pixel equally (the game's
+    SCALED upscale is an exact integer too)."""
+
+    def make_viewport(self, w, h):
+        panel = self.track(ViewportPanel(data_dir=self.data_dir))
+        panel.resize(w, h)
+        panel.show()
+        _APP.processEvents()
+        return panel
+
+    def test_smaller_widget_downscales_and_centres(self):
+        panel = self.make_viewport(SCREEN_W // 2, SCREEN_H)
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertLess(scale, 1.0)
+        self.assertGreaterEqual(ox, 0)
+        self.assertGreaterEqual(oy, 0)
+        # letterboxed axis: the canvas is centred inside the widget
+        self.assertAlmostEqual(SCREEN_H * scale + 2 * oy, panel.height(), delta=1)
+
+    def test_double_size_widget_snaps_to_an_integer_scale(self):
+        panel = self.make_viewport(SCREEN_W * 2, SCREEN_H * 2)
+        scale, _ox, _oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+
+    def test_fractional_upscale_snaps_down(self):
+        panel = self.make_viewport(int(SCREEN_W * 2.6), int(SCREEN_H * 2.6))
+        scale, ox, oy = panel._screen_scale_offset()
+        self.assertEqual(scale, 2.0)
+        self.assertLessEqual(SCREEN_W * scale + ox, panel.width())
+        self.assertLessEqual(SCREEN_H * scale + oy, panel.height())
 
 
 class TestViewportScreenModeViews(TempDataCase):
@@ -967,12 +1049,13 @@ class TestScreenDetailsPanel(TempDataCase):
 
     def test_screen_details_widget_list_mirrors_defaults(self):
         panel, session = self.make()
-        items = [panel.widget_list.item(i).text()
-                for i in range(panel.widget_list.count())]
-        self.assertEqual(set(items), {"btn_new_game", "btn_settings", "title"})
+        items = tree_items(panel.widget_list)
+        self.assertEqual({i.text(0) for i in items},
+                         {"btn_new_game", "btn_settings", "title"})
         selected = []
         panel.widget_selected.connect(selected.append)
-        panel.widget_list.setCurrentRow(items.index("title"))
+        panel.widget_list.setCurrentItem(
+            next(i for i in items if i.text(0) == "title"))
         self.assertEqual(selected, ["title"])
         self.assertEqual(panel._current_widget, "title")
 
@@ -1087,35 +1170,30 @@ class TestScreenDetailsPanel(TempDataCase):
         panel.set_session(session, FIXTURE_DEFAULTS_NAMED)
         return panel, session
 
+    def named_items(self, panel):
+        return {i.data(0, Qt.ItemDataRole.UserRole): i
+                for i in tree_items(panel.widget_list)}
+
     def test_widget_list_item_text_is_display_name_tooltip_is_code_id(self):
         panel, _session = self.make_named()
-        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
-                panel.widget_list.item(i)
-                for i in range(panel.widget_list.count())}
-        named_item = items["btn_new_game"]
-        self.assertEqual(named_item.text(), "New Game button")
-        self.assertEqual(named_item.toolTip(), "btn_new_game")
+        named_item = self.named_items(panel)["btn_new_game"]
+        self.assertEqual(named_item.text(0), "New Game button")
+        self.assertEqual(named_item.toolTip(0), "btn_new_game")
         self.assertEqual(
-            named_item.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+            named_item.data(0, Qt.ItemDataRole.UserRole), "btn_new_game")
 
     def test_widget_list_falls_back_to_raw_id_when_unmapped(self):
         panel, _session = self.make_named()
-        items = {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole):
-                panel.widget_list.item(i)
-                for i in range(panel.widget_list.count())}
-        unmapped_item = items["btn_settings"]
-        self.assertEqual(unmapped_item.text(), "btn_settings")
-        self.assertEqual(unmapped_item.toolTip(), "btn_settings")
+        unmapped_item = self.named_items(panel)["btn_settings"]
+        self.assertEqual(unmapped_item.text(0), "btn_settings")
+        self.assertEqual(unmapped_item.toolTip(0), "btn_settings")
 
     def test_selection_signal_still_carries_the_code_id(self):
         panel, _session = self.make_named()
         selected = []
         panel.widget_selected.connect(selected.append)
-        for row in range(panel.widget_list.count()):
-            item = panel.widget_list.item(row)
-            if item.data(Qt.ItemDataRole.UserRole) == "btn_new_game":
-                panel.widget_list.setCurrentRow(row)
-                break
+        panel.widget_list.setCurrentItem(
+            self.named_items(panel)["btn_new_game"])
         self.assertEqual(selected, ["btn_new_game"])
         self.assertEqual(panel._current_widget, "btn_new_game")
 
@@ -1124,9 +1202,9 @@ class TestScreenDetailsPanel(TempDataCase):
         panel.select_widget("btn_new_game")
         current = panel.widget_list.currentItem()
         self.assertIsNotNone(current)
-        self.assertEqual(current.text(), "New Game button")
+        self.assertEqual(current.text(0), "New Game button")
         self.assertEqual(
-            current.data(Qt.ItemDataRole.UserRole), "btn_new_game")
+            current.data(0, Qt.ItemDataRole.UserRole), "btn_new_game")
         self.assertEqual(panel._current_widget, "btn_new_game")
 
     def test_display_name_round_trips_as_code_id_on_disk(self):
@@ -1171,8 +1249,8 @@ class TestScreenDetailsPanelViews(TempDataCase):
 
     def widget_ids(self, panel):
         # Code ids live on UserRole; item TEXT is the UH-4 display name.
-        return {panel.widget_list.item(i).data(Qt.ItemDataRole.UserRole)
-               for i in range(panel.widget_list.count())}
+        return {i.data(0, Qt.ItemDataRole.UserRole)
+               for i in tree_items(panel.widget_list)}
 
     def test_widget_list_follows_the_active_view(self):
         panel, session = self.make()
@@ -1259,9 +1337,10 @@ class TestMainWindowVfxMode(TempDataCase):
         # details_pane (0) + map_details (1) + screen_details (2) +
         # game_theme (3, UH-6 — it took the index ESV-5 freed when the vfx
         # preview moved INTO details_pane) + cutscenes (4, TU-3) +
-        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C). The point
-        # of the pin is that the vfx preview is NOT a stack page of its own.
-        self.assertEqual(window.right_stack.count(), 7)
+        # tutorial_panel (5, TU-4) + strings_panel (6, Phase C) +
+        # timeline (7, TimelinePLAN T5). The point of the pin is that the
+        # vfx preview is NOT a stack page of its own.
+        self.assertEqual(window.right_stack.count(), 8)
         self.assertIs(window.vfx_preview.parent().parent(), window.details_pane)
 
         window.selector.select_domain("vfx")
@@ -1419,7 +1498,7 @@ class TestPurity(unittest.TestCase):
             "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
-            "editor.ui_screen_session, "
+            "editor.ui_screen_session, editor.widget_tree, "
             "editor.anchor_ops, "
             "editor.sprite_fit, "
             "editor.vfx_params, "
@@ -1433,13 +1512,17 @@ class TestPurity(unittest.TestCase):
             "editor.panels.game_theme, editor.theme_ops, "
             "editor.panels.cutscenes, "
             "editor.panels.tutorial_panel, editor.tutorial_ops, "
+            "editor.panels.timeline, "
             "editor.font_import, "
             "editor.panels.strings_panel, editor.strings_ops, "
             "editor.panels.vfx_preview, "
             "editor.thats_my_producer, "
+            "editor.timeline_curve, editor.timeline_ops, "
             # ES-1: the editor consumes engine.era_math from ES-5 (D7) — the
             # module must stay pure of game/ for that import to be legal.
-            "engine.era_math; "
+            # TimelinePLAN T3: editor.timeline_curve also consumes
+            # engine.xp_curve for the same reason (D7).
+            "engine.era_math, engine.xp_curve; "
             "assert not any(m == 'game' or m.startswith('game.') for m in sys.modules), "
             "'editor imported game/'"
         )

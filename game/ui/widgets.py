@@ -15,10 +15,14 @@ they equal the stock file). Every consumer reads ``widgets.C_GOLD`` etc. via
 attribute access, never ``from .widgets import C_GOLD`` (an early binding a
 later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 """
-from engine.render import HudRect, HudSprite, HudText
+import math
+from types import SimpleNamespace
+
+from engine.render import HudLines, HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
 
 from . import strings
+from .skinning import is_visible
 
 _METRICS = TextMetrics()
 
@@ -60,6 +64,11 @@ C_UI_TEXT_DIM = (150, 140, 120)
 C_HIGHLIGHT = (255, 230, 60)         # selected tile
 C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
 C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
+# Building Movement: the "you can move the selected building here" tiles. A
+# plain code constant, NOT palette-data-backed — the same deliberate exception
+# `C_TUTORIAL_HIGHLIGHT` above is (see `_PALETTE_KEYS`, which both are absent
+# from, and game/ui/CLAUDE.md's palette section).
+C_MOVE_HIGHLIGHT = (80, 200, 255)    # move-destination tiles (cyan)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
@@ -204,6 +213,71 @@ def submit_centered(renderer, text, cx, cy, font_key, color):
     renderer.submit_hud(HudText(text, (cx, cy), font_key, color, align="center"))
 
 
+def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
+                 text_color=None, align="left", visible=True):
+    """A ``label``-kind widget holder for an id'd piece of text (UT-1).
+
+    The ``SimpleNamespace`` shadow object every screen already builds by hand
+    for its static titles, with the two UT-1 fields folded in — written once
+    here so the ~90 converted call sites do not each restate the field list.
+
+    ``rect`` follows the text-label convention (``game/ui/CLAUDE.md``): an
+    ``(x, y, 0, 0)`` ANCHOR POINT, W/H nominal ``0``, computed and STORED in
+    ``layout()`` so a rect override moves the text and the exporter reads a
+    real position.
+
+    ``text_id`` names a ``data/ui/strings.json`` key: the text is resolved
+    through ``T()`` at draw time, so the template is designer-editable and the
+    live values stay code-owned. A holder with no ``text_id`` falls back to its
+    static ``label`` — the pre-UT-1 behaviour, unchanged.
+    """
+    return SimpleNamespace(rect=rect, text_id=text_id, label=label,
+                           font_key=font_key, text_color=text_color,
+                           align=align, visible=visible)
+
+
+def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
+    """Draw an id'd label holder (UT-1) — THE idiom for text a screen names in
+    its ``ids`` dict.
+
+    Text comes from ``T(holder.text_id, **fmt)`` when the holder carries a
+    ``text_id``, else from its static ``holder.label``. Geometry, font, colour,
+    alignment and visibility all come off the holder, i.e. from whatever
+    ``ScreenSkinning.apply()`` last wrote onto it — which is why this must be
+    called AFTER ``apply()``, like every other override-reading draw.
+
+    ``text`` bypasses both for the handful of runs whose content is authored
+    at RUNTIME rather than templated — a building's player-typed name, a live
+    text-entry buffer. Those still get an id'd holder (so their position,
+    font and colour are designer-owned); only the characters are not the
+    designer's to write.
+
+    ``color`` is the code-computed fallback used when no ``text_color``
+    override is set (the "``None`` means compute" convention every other
+    override key already follows); ``align`` likewise overrides the holder's
+    own for a call site that varies it. An empty resolved string draws
+    nothing — a hidden or unset label is a no-op, never a blank ``HudText``.
+    """
+    if not is_visible(holder):
+        return
+    text_id = getattr(holder, "text_id", None)
+    if text is None:
+        if text_id:
+            text = strings.T(text_id, **fmt)
+        else:
+            text = getattr(holder, "label", "") or ""
+    if not text:
+        return
+    tcol = getattr(holder, "text_color", None)
+    if tcol is None:
+        tcol = color if color is not None else C_UI_TEXT
+    if align is None:
+        align = getattr(holder, "align", "left") or "left"
+    rect = holder.rect
+    renderer.submit_hud(HudText(text, (rect[0], rect[1]),
+                                holder.font_key, tcol, align=align))
+
+
 def submit_tile_diamond(renderer, col, row, color, width=2):
     """A world-space diamond outline around tile ``(col, row)`` — a selection /
     range / unlock highlight. Uses the overlay pass (world points, converted via
@@ -235,7 +309,7 @@ def submit_ui_box_highlight(renderer, rect, color=None, width=3):
     renderer.submit_hud(HudRect(rect, color, width=width))
 
 
-def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=24,
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=12,
                             font_key="lg"):
     """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
     ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
@@ -260,6 +334,35 @@ def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
         renderer.submit_hud(HudRect((x, y, int(w * ratio), h), fill))
     if border is not None:
         renderer.submit_hud(HudRect((x, y, w, h), border, width=1))
+
+
+def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
+                          bg=None, fill=None, width=2, segments=32):
+    """A small circular hold-progress indicator (cutscene hold-to-skip): a
+    dim full ring plus a bright arc from 12 o'clock clockwise proportional
+    to ``ratio`` (clamped to [0, 1]). Composed from ``HudLines`` — no arc/pie
+    HUD primitive exists (`engine/render/hud.py`), the same reason
+    ``submit_ui_box_highlight``/``submit_tutorial_banner`` above compose
+    from existing primitives instead of adding a new engine one. Colors
+    default to ``None`` and resolve here, not at def time — the UH-6
+    rebind-safety convention every helper in this file follows."""
+    if bg is None:
+        bg = C_UI_TEXT_DIM
+    if fill is None:
+        fill = C_GOLD
+    ratio = max(0.0, min(1.0, ratio))
+    bg_pts = tuple(
+        (cx + radius * math.sin(2 * math.pi * i / segments),
+         cy - radius * math.cos(2 * math.pi * i / segments))
+        for i in range(segments + 1))
+    renderer.submit_hud(HudLines(bg_pts, bg, width=width, closed=True))
+    if ratio > 0:
+        n = max(1, round(segments * ratio))
+        arc_pts = tuple(
+            (cx + radius * math.sin(2 * math.pi * ratio * i / n),
+             cy - radius * math.cos(2 * math.pi * ratio * i / n))
+            for i in range(n + 1))
+        renderer.submit_hud(HudLines(arc_pts, fill, width=width))
 
 
 class Button:

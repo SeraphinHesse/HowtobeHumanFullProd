@@ -21,7 +21,10 @@ main(max_frames=None) lets the window be driven headlessly under
 QT_QPA_PLATFORM=offscreen (mirrors game/main.py's max_frames convention
 for tools/smoke.py). Frames are driven by a QTimer — no busy-spin.
 """
+import copy
+import json
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -66,6 +69,7 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
+from editor.panels.timeline import TimelinePanel
 from editor.panels.tutorial_panel import TutorialPanel
 from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
@@ -75,13 +79,17 @@ from engine.render.fonts import configure_fonts
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
+#: UT-2: how long a burst of screen-doc edits settles before the preview is
+#: re-recorded. Long enough that a held arrow key or a drag does not spawn a
+#: subprocess per event, short enough to read as "it just updates".
+_PREVIEW_DEBOUNCE_MS = 300
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "drunken_donuts_logo.png"
 PREFS_PATH = REPO / ".editor_prefs.json"
 
 
 class MainWindow(QMainWindow):
     def __init__(self, max_frames=None, data_dir=None, prefs_path=None,
-                 auto_refresh_layouts=True):
+                 auto_refresh_layouts=True, preview_renders=None):
         super().__init__()
         self._prefs_path = Path(prefs_path) if prefs_path is not None else PREFS_PATH
         self.setWindowTitle("How To Be Human — editor")
@@ -117,7 +125,11 @@ class MainWindow(QMainWindow):
         self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
         self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
         self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
+        self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
+        self._screen_previews = {}   # cached data/ui/screen_previews.json (UT-2)
+        self._preview_dir = None     # UT-2 scratch dir, created on first render
+        self._preview_rendered_doc = {}  # the doc the in-flight render draws
         # UH-6/D5 (+ UH-Font-A): configure the engine font cache from
         # data/ui/fonts.json + the active custom font family at boot, same
         # as game/main.py, so screen-mode preview text metrics match the
@@ -137,6 +149,13 @@ class MainWindow(QMainWindow):
         # a view/screen switch while already in screen mode). Injectable so
         # tests never spawn a real subprocess.
         self._auto_refresh_layouts = auto_refresh_layouts
+        # UT-2: injectable for the same reason auto_refresh_layouts is — the
+        # test suite must never spawn a real render subprocess. Defaults to
+        # FOLLOWING that flag rather than to True: the two answer the same
+        # question ("may this window spawn export subprocesses?"), and every
+        # existing test already passes auto_refresh_layouts=False.
+        self._preview_renders = (auto_refresh_layouts if preview_renders is None
+                                 else preview_renders)
         self._screen_mode_entered = False
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
@@ -186,6 +205,8 @@ class MainWindow(QMainWindow):
         self.palette.stage_armed.connect(self.viewport.arm_stage)
         self.palette.stage_number_changed.connect(
             self.viewport.set_stage_number)
+        self.palette.tile_condition_armed.connect(
+            self.viewport.arm_tile_condition)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
@@ -196,6 +217,7 @@ class MainWindow(QMainWindow):
         self.palette.background_slot_armed.connect(
             self._on_background_slot_armed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
+        self.timeline.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
         self.viewport.reserve_number_picked.connect(
             self.palette.set_reserve_number)
@@ -203,6 +225,8 @@ class MainWindow(QMainWindow):
             self.palette.set_despawn_number)
         self.viewport.stage_number_picked.connect(
             self.palette.set_stage_number)
+        self.viewport.condition_picked.connect(
+            self.palette.arm_tile_condition)
         self.viewport.cursor_world.connect(self._on_cursor_world)
         self.map_session.map_opened.connect(self._on_session_map_opened)
         self.map_session.active_changed.connect(
@@ -243,6 +267,10 @@ class MainWindow(QMainWindow):
         # panels/strings_panel.py's module docstring); the game re-reads it
         # at its own next boot.
         self.selector.strings_selected.connect(self._on_strings_selected)
+        # Timeline wiring (TimelinePLAN T5): the "Timeline" leaf -> right_stack;
+        # reload on entry, the same convention as every other selection-driven
+        # panel.
+        self.selector.timeline_selected.connect(self._on_timeline_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -284,6 +312,16 @@ class MainWindow(QMainWindow):
         self.run_controls.launched.connect(self._on_launched)
         self.run_controls.started.connect(self._on_build_started)
         self.run_controls.finished.connect(self._on_build_finished)
+        # UT-2: every screen-doc edit re-records the preview against the
+        # UNSAVED doc, debounced — `indexChanged` fires on push AND on
+        # undo/redo, i.e. exactly the moments the picture goes stale.
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(_PREVIEW_DEBOUNCE_MS)
+        self._preview_timer.timeout.connect(self._render_screen_preview)
+        self.screen_session.undo_stack.indexChanged.connect(
+            self._schedule_preview_render)
+        self.run_controls.preview_rendered.connect(self._on_preview_rendered)
         self.run_controls.build_state_changed.connect(
             self._update_playbuild_enabled)
         self._update_playbuild_enabled(self.run_controls.can_playbuild())
@@ -404,6 +442,7 @@ class MainWindow(QMainWindow):
         self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
         self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
         self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
+        self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -545,10 +584,18 @@ class MainWindow(QMainWindow):
             self.run_controls.export_layouts()
         self._screen_mode_entered = True
         self._screen_defaults = self._load_screen_defaults()
-        self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
+        self._screen_previews = self._load_screen_previews()
+        self.viewport.set_screen_mode(self.screen_session, self._screen_defaults,
+                                      self._screen_previews)
         self.screen_details.set_defaults(self._screen_defaults)
         self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.screen_details)
+        # UT-2: the COMMITTED preview is recorded override-free, so a screen
+        # whose saved doc carries overrides opens out of sync (widgets drawn
+        # over their recorded selves). One re-record on entry settles it; a
+        # screen with an empty doc is already in sync and needs none.
+        if self.screen_session.doc:
+            self._schedule_preview_render()
 
     def _leave_screen_mode(self):
         # the session keeps its (possibly dirty) doc — reselecting the same
@@ -562,8 +609,78 @@ class MainWindow(QMainWindow):
         """data/ui/screen_defaults.json (B3's exporter output). Missing or
         invalid → {} — screen mode's own E-37 graceful-degrade path handles
         that (a placeholder message, never a raise)."""
-        path = self._data_dir / "ui" / "screen_defaults.json"
-        schema = self._data_dir / "schemas" / "screen_defaults.schema.json"
+        return self._load_generated_ui_doc("screen_defaults")
+
+    def _load_screen_previews(self):
+        """data/ui/screen_previews.json (UT-2's recorded draw list). Same
+        degrade-to-{} contract as the defaults: a screen with no preview falls
+        back to the flat-box rendering, which is exactly the pre-UT-2 look."""
+        return self._load_generated_ui_doc("screen_previews")
+
+    # -- UT-2: live screen-preview re-record -------------------------------
+
+    def _schedule_preview_render(self, *_args):
+        """Debounce a re-record. Dragging a widget pushes one command per
+        release and the spinboxes one per commit, but a designer holding an
+        arrow key can fire many — one subprocess per keypress would thrash,
+        and only the last doc is worth drawing."""
+        if not self._preview_renders or not self.viewport.in_screen_mode():
+            return
+        self._preview_timer.start()
+
+    def _render_screen_preview(self):
+        """Write the open (unsaved) doc to a temp file and have the exporter
+        re-record this screen's draw list against it.
+
+        The doc goes out as `{screen_id: doc}` — the same shape
+        `ScreenSkinning.from_overrides` takes — so the recorded picture is
+        what the GAME would draw with these overrides, not an editor
+        approximation of them.
+        """
+        session = self.screen_session
+        if session.doc is None:
+            return
+        tmp = self._preview_tmpdir()
+        overrides = tmp / "overrides.json"
+        out = tmp / "screen_previews.json"
+        try:
+            overrides.write_text(
+                json.dumps({session.screen_id: session.doc}), encoding="utf-8")
+        except OSError:
+            return      # a temp dir we cannot write is not worth a crash
+        # Snapshot WHAT we are rendering, not what the doc says when the
+        # render finishes — a second edit mid-render must not be mistaken for
+        # "already drawn" (viewport._preview_in_sync).
+        self._preview_rendered_doc = copy.deepcopy(session.doc)
+        self.run_controls.render_preview(overrides, out)
+
+    def _preview_tmpdir(self):
+        if self._preview_dir is None:
+            self._preview_dir = Path(tempfile.mkdtemp(prefix="htbh-preview-"))
+        return self._preview_dir
+
+    def _on_preview_rendered(self, code):
+        """The re-record finished. A non-zero exit leaves the previous picture
+        up rather than blanking the viewport — a screen mid-edit can be
+        momentarily unrenderable, and flashing to empty boxes is worse than a
+        frame of stale geometry."""
+        if code != 0 or self._preview_dir is None:
+            return
+        out = self._preview_dir / "screen_previews.json"
+        if not out.exists():
+            return
+        try:
+            doc = data_io.load_validated(
+                out, self._data_dir / "schemas" / "screen_previews.schema.json")
+        except Exception:   # noqa: BLE001 - a bad render degrades, never raises
+            return
+        self._screen_previews = doc
+        self.viewport.refresh_screen_previews(
+            doc, recorded_doc=self._preview_rendered_doc)
+
+    def _load_generated_ui_doc(self, stem):
+        path = self._data_dir / "ui" / f"{stem}.json"
+        schema = self._data_dir / "schemas" / f"{stem}.schema.json"
         if not path.exists():
             return {}
         try:
@@ -594,7 +711,9 @@ class MainWindow(QMainWindow):
             # (ED-42) so "Refresh Layouts" also picks up new skins.
             self.viewport.reload_assets()
             self._screen_defaults = self._load_screen_defaults()
+            self._screen_previews = self._load_screen_previews()
             self.viewport.refresh_screen_defaults(self._screen_defaults)
+            self.viewport.refresh_screen_previews(self._screen_previews)
             self.screen_details.set_defaults(self._screen_defaults)
             self.selector.refresh_screens()
             self.statusBar().showMessage("Layouts refreshed", 5000)
@@ -1104,6 +1223,17 @@ class MainWindow(QMainWindow):
         panels/strings_panel.py's module docstring."""
         self.strings_panel.set_strings()
         self.right_stack.setCurrentWidget(self.strings_panel)
+
+    # -- Timeline panel (TimelinePLAN T5) --------------------------------------
+
+    def _on_timeline_selected(self):
+        """The selector's Timeline leaf: reload fresh from disk (mirrors
+        every other selection-driven panel's "reload on entry" convention)
+        and show the panel. No saved-signal consumer — progression.json has
+        no editor-side render to reconfigure (the strings.json precedent);
+        the game re-reads it at its own next boot."""
+        self.timeline.set_timeline()
+        self.right_stack.setCurrentWidget(self.timeline)
 
     # -- frame drive ---------------------------------------------------------
 

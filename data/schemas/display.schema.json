@@ -2,10 +2,18 @@
   "$id": "display.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
-  "description": "Window-host tunables consumed by game/main.py (G-1, G-7). window_w/window_h: window size in pixels. fps: engine loop target frame rate (E-25 target is 60). caption: window title text.",
+  "description": "Window-host tunables consumed by game/main.py (G-1, G-7). window_w/window_h: window size in pixels. fps: engine loop target frame rate (E-25 target is 60). caption: window title text. display_mode: the BOOT display mode the settings screen's SET DEFAULT button persists.",
   "properties": {
     "caption": {
       "minLength": 1,
+      "type": "string"
+    },
+    "display_mode": {
+      "enum": [
+        "windowed",
+        "borderless",
+        "fullscreen"
+      ],
       "type": "string"
     },
     "fps": {
@@ -23,6 +31,7 @@
   },
   "required": [
     "caption",
+    "display_mode",
     "fps",
     "window_h",
     "window_w"

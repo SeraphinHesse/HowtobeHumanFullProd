@@ -1,0 +1,6664 @@
+{
+  "add_name": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          12,
+          20,
+          14
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          205,
+          115,
+          230,
+          130
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          205,
+          115,
+          230,
+          130
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xl",
+        "pos": [
+          320,
+          125
+        ],
+        "text": "ADD A NAME",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          320,
+          146
+        ],
+        "text": "Appears on the building-naming dice button.",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          217,
+          169,
+          206,
+          18
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "rect": [
+          217,
+          169,
+          206,
+          18
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          221,
+          173
+        ],
+        "text": "_",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          217,
+          206
+        ],
+        "text": "Names in pool: 3",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          217,
+          217,
+          80,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          217,
+          217,
+          80,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          257,
+          219
+        ],
+        "text": "ADD NAME",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          358,
+          217,
+          65,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          358,
+          217,
+          65,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          390,
+          219
+        ],
+        "text": "BACK",
+        "type": "text"
+      }
+    ]
+  },
+  "boss_cutscene": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          0,
+          0,
+          0,
+          210
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          100,
+          220,
+          100
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          101
+        ],
+        "text": "Cutscene: Round Won :)",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          139
+        ],
+        "text": "How will we react?",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          225,
+          158,
+          90,
+          65
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          225,
+          158,
+          90,
+          65
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          270,
+          164
+        ],
+        "text": "WinA",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          270,
+          184
+        ],
+        "text": "Per unbuilt tile, buildings",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          270,
+          197
+        ],
+        "text": "deal +1 extra damage",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          325,
+          158,
+          90,
+          65
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          325,
+          158,
+          90,
+          65
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          370,
+          164
+        ],
+        "text": "WinB",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          370,
+          184
+        ],
+        "text": "Per building placed, buildings",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          370,
+          197
+        ],
+        "text": "deal +1 extra damage",
+        "type": "text"
+      }
+    ]
+  },
+  "building_panel": {
+    "items": [],
+    "views": {
+      "base_info": {
+        "items": [
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              629,
+              4
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              517,
+              8
+            ],
+            "text": "THE HOLE",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              36
+            ],
+            "text": "Lives",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              36
+            ],
+            "text": "3",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              51
+            ],
+            "text": "Wave",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              51
+            ],
+            "text": "1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              66
+            ],
+            "text": "Enemies killed",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              66
+            ],
+            "text": "0",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              81
+            ],
+            "text": "Buildings",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              81
+            ],
+            "text": "0",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              96
+            ],
+            "text": "Base income",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              96
+            ],
+            "text": "5/round",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              210,
+              118,
+              16
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              210,
+              118,
+              16
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              211
+            ],
+            "text": "BOSS CHOICES",
+            "type": "text"
+          }
+        ]
+      },
+      "construct": {
+        "items": [
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              629,
+              4
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              517,
+              8
+            ],
+            "text": "BUILD",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              32,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              32,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              36
+            ],
+            "text": "Stone Thrower  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              57,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              57,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              61
+            ],
+            "text": "Flute Player  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              86
+            ],
+            "text": "Maw Mortar  35",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              111
+            ],
+            "text": "Sun Scorcher  40",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              136
+            ],
+            "text": "Storm Acolyte  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              161
+            ],
+            "text": "Cave Painter  20",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              186
+            ],
+            "text": "Meditator  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              211
+            ],
+            "text": "Speed Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              236
+            ],
+            "text": "Attack Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              261
+            ],
+            "text": "Health Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              286
+            ],
+            "text": "Blocker  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              311
+            ],
+            "text": "Bush Wall Builder  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "font_key": "sm",
+            "pos": [
+              540,
+              342
+            ],
+            "text": "Terrain: Grass",
+            "type": "text"
+          }
+        ]
+      },
+      "preview": {
+        "items": [
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              629,
+              4
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              517,
+              8
+            ],
+            "text": "BUILD",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              32,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              32,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              36
+            ],
+            "text": "Stone Thrower  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              57,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              57,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              61
+            ],
+            "text": "Flute Player  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              86
+            ],
+            "text": "Maw Mortar  35",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              111
+            ],
+            "text": "Sun Scorcher  40",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              136
+            ],
+            "text": "Storm Acolyte  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              161
+            ],
+            "text": "Cave Painter  20",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              186
+            ],
+            "text": "Meditator  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              211
+            ],
+            "text": "Speed Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              236
+            ],
+            "text": "Attack Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              261
+            ],
+            "text": "Health Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              286
+            ],
+            "text": "Blocker  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              311
+            ],
+            "text": "Bush Wall Builder  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "font_key": "sm",
+            "pos": [
+              540,
+              342
+            ],
+            "text": "Terrain: Grass",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              235,
+              105,
+              170,
+              150
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              235,
+              105,
+              170,
+              150
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              243,
+              153,
+              136,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              243,
+              153,
+              136,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              382,
+              153,
+              15,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              382,
+              153,
+              15,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              389,
+              154
+            ],
+            "text": "⚄",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              327,
+              231,
+              70,
+              17
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              327,
+              231,
+              70,
+              17
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              362,
+              232
+            ],
+            "text": "CONFIRM",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              243,
+              231,
+              70,
+              17
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              243,
+              231,
+              70,
+              17
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              278,
+              232
+            ],
+            "text": "CANCEL",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              388,
+              108,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              388,
+              108,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              395,
+              108
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              320,
+              111
+            ],
+            "text": "Stone Thrower",
+            "type": "text"
+          },
+          {
+            "align": "center",
+            "color": [
+              255,
+              200,
+              50
+            ],
+            "font_key": "md",
+            "pos": [
+              320,
+              127
+            ],
+            "text": "Cost  10",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              143
+            ],
+            "text": "Name:",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              247,
+              156
+            ],
+            "text": "click to name",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              174
+            ],
+            "text": "HP",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              397,
+              174
+            ],
+            "text": "120",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              185
+            ],
+            "text": "Damage",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              397,
+              185
+            ],
+            "text": "28",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              196
+            ],
+            "text": "Range",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              397,
+              196
+            ],
+            "text": "1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              207
+            ],
+            "text": "Atk speed",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              397,
+              207
+            ],
+            "text": "1.0s",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              243,
+              218
+            ],
+            "text": "Upkeep",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              397,
+              218
+            ],
+            "text": "0",
+            "type": "text"
+          }
+        ]
+      },
+      "unlock": {
+        "items": [
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              629,
+              4
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              517,
+              8
+            ],
+            "text": "UNLOCK TILE",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              517,
+              35
+            ],
+            "text": "Unlocks a 2x2 area",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              75,
+              118,
+              18
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              75,
+              118,
+              18
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              575,
+              76
+            ],
+            "text": "UNLOCK  7",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "rect": [
+              536,
+              340,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "font_key": "sm",
+            "pos": [
+              540,
+              342
+            ],
+            "text": "Terrain: Grass",
+            "type": "text"
+          }
+        ]
+      },
+      "upgrade": {
+        "items": [
+          {
+            "border_radius": 0,
+            "color": [
+              42,
+              34,
+              68
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              510,
+              0,
+              130,
+              360
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              622,
+              4,
+              14,
+              13
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              629,
+              4
+            ],
+            "text": "X",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              517,
+              5
+            ],
+            "text": "Stone Thrower",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              517,
+              20,
+              98,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              517,
+              20,
+              98,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              520,
+              22
+            ],
+            "text": "click here to change name",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              618,
+              20,
+              14,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              618,
+              20,
+              14,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              625,
+              21
+            ],
+            "text": "⚄",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              34
+            ],
+            "text": "Stone Thrower — Level 1",
+            "type": "text"
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              40,
+              32,
+              58
+            ],
+            "rect": [
+              536,
+              45,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 0,
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "rect": [
+              536,
+              45,
+              78,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "left",
+            "color": [
+              100,
+              180,
+              80
+            ],
+            "font_key": "sm",
+            "pos": [
+              540,
+              47
+            ],
+            "text": "Terrain: Grass",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              58
+            ],
+            "text": "HP",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              58
+            ],
+            "text": "120",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              72
+            ],
+            "text": "Damage",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              72
+            ],
+            "text": "28",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              86
+            ],
+            "text": "Range",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              86
+            ],
+            "text": "1",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              100
+            ],
+            "text": "Atk speed",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              100
+            ],
+            "text": "1.0s",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "md",
+            "pos": [
+              517,
+              114
+            ],
+            "text": "Upkeep",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              633,
+              114
+            ],
+            "text": "0",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              517,
+              133
+            ],
+            "text": "Damage dealt",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              633,
+              133
+            ],
+            "text": "0",
+            "type": "text"
+          },
+          {
+            "align": "left",
+            "color": [
+              150,
+              140,
+              120
+            ],
+            "font_key": "sm",
+            "pos": [
+              517,
+              145
+            ],
+            "text": "Damage taken",
+            "type": "text"
+          },
+          {
+            "align": "right",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "sm",
+            "pos": [
+              633,
+              145
+            ],
+            "text": "0",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              300,
+              118,
+              18
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              300,
+              118,
+              18
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "lg",
+            "pos": [
+              575,
+              301
+            ],
+            "text": "UPGRADE  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              322,
+              118,
+              15
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              322,
+              118,
+              15
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              323
+            ],
+            "text": "MOVE BUILDING",
+            "type": "text"
+          }
+        ]
+      }
+    }
+  },
+  "cheat_menu": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          0,
+          0,
+          0,
+          150
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          258,
+          108,
+          124,
+          144
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          258,
+          108,
+          124,
+          144
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          112
+        ],
+        "text": "CHEATS",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          365,
+          111,
+          14,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          365,
+          111,
+          14,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          372,
+          111
+        ],
+        "text": "X",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          124,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          124,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          124
+        ],
+        "text": "+10 Love",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          139,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          139,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          139
+        ],
+        "text": "Skip Round",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          154,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          154,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          154
+        ],
+        "text": "LEVEL UP",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          169,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          169,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          169
+        ],
+        "text": "Infinite Money",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          184,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          184,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          184
+        ],
+        "text": "Unlock All Tech",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          263,
+          199,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          199,
+          114,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          199
+        ],
+        "text": "Debug Log",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          216,
+          114,
+          1
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          263,
+          218
+        ],
+        "text": "Jump to round:",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          263,
+          227,
+          48,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          263,
+          227,
+          48,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          266,
+          229
+        ],
+        "text": "round",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          314,
+          227,
+          63,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          314,
+          227,
+          63,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          345,
+          228
+        ],
+        "text": "Go to Round",
+        "type": "text"
+      }
+    ]
+  },
+  "credits": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          12,
+          20,
+          14
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          35
+        ],
+        "text": "CREDITS",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          75
+        ],
+        "text": "Producer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          75
+        ],
+        "text": "Seraphin Hesse",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          90
+        ],
+        "text": "Game Design Lead",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          90
+        ],
+        "text": "Fabian Krüger",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          105
+        ],
+        "text": "Art Lead",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          105
+        ],
+        "text": "Hendrik Wagner",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          120
+        ],
+        "text": "Programming Lead",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          120
+        ],
+        "text": "Johann Heinrich",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          142
+        ],
+        "text": "UI Lead/2D Artist",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          142
+        ],
+        "text": "Alicia Jaison",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          157
+        ],
+        "text": "2D Artist",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          157
+        ],
+        "text": "Varvara Kozačuk",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          172
+        ],
+        "text": "2D Artist",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          172
+        ],
+        "text": "Jakob Dahlkar",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          194
+        ],
+        "text": "Game Designer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          194
+        ],
+        "text": "Joel Hoch",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          209
+        ],
+        "text": "Game Designer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          209
+        ],
+        "text": "Benjamin Riese",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          231
+        ],
+        "text": "Programmer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          231
+        ],
+        "text": "Pantelis Charalambous",
+        "type": "text"
+      },
+      {
+        "align": "right",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          300,
+          246
+        ],
+        "text": "Programmer",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          340,
+          246
+        ],
+        "text": "Alfons Kavalic",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          270,
+          315,
+          100,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          270,
+          315,
+          100,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          319
+        ],
+        "text": "BACK",
+        "type": "text"
+      }
+    ]
+  },
+  "game_log": {
+    "items": [
+      {
+        "align": "left",
+        "color": [
+          220,
+          200,
+          155,
+          255
+        ],
+        "font_key": "sm",
+        "pos": [
+          4,
+          344
+        ],
+        "text": "Test message",
+        "type": "text"
+      }
+    ]
+  },
+  "game_over": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          10,
+          5,
+          15
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          210,
+          55,
+          55
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          120
+        ],
+        "text": "THE COLONY WAS DESTROYED",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          165
+        ],
+        "text": "Round Reached: 4",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          179
+        ],
+        "text": "Buildings Placed: 2",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          193
+        ],
+        "text": "Enemies Killed: 9",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          235,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          235,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          239
+        ],
+        "text": "RETURN TO MENU",
+        "type": "text"
+      }
+    ]
+  },
+  "hud": {
+    "items": [
+      {
+        "border_radius": 4,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          6,
+          6,
+          95,
+          17
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 4,
+        "color": [
+          150,
+          135,
+          185
+        ],
+        "rect": [
+          6,
+          6,
+          95,
+          17
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          9,
+          10
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_love",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "align": "left",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xl",
+        "pos": [
+          20,
+          9
+        ],
+        "text": "25",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "hud_lvl",
+        "pos": [
+          107,
+          6
+        ],
+        "text": "LVL 1",
+        "type": "text"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          107,
+          21
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_xp",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          48,
+          34,
+          66
+        ],
+        "rect": [
+          118,
+          23,
+          55,
+          4
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          118,
+          23,
+          55,
+          4
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          118,
+          28
+        ],
+        "text": "0/50",
+        "type": "text"
+      },
+      {
+        "border_radius": 4,
+        "color": [
+          40,
+          32,
+          58
+        ],
+        "rect": [
+          6,
+          23,
+          95,
+          49
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 4,
+        "color": [
+          150,
+          135,
+          185
+        ],
+        "rect": [
+          6,
+          23,
+          95,
+          49
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "left",
+        "color": [
+          214,
+          96,
+          136
+        ],
+        "font_key": "sm",
+        "pos": [
+          8,
+          25
+        ],
+        "text": "+5/round",
+        "type": "text"
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          8,
+          41
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          9,
+          9
+        ],
+        "slot_key": "ui_icon_lives",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "align": "left",
+        "color": [
+          200,
+          55,
+          55
+        ],
+        "font_key": "md",
+        "pos": [
+          19,
+          41
+        ],
+        "text": "LIVES 3",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "md",
+        "pos": [
+          8,
+          57
+        ],
+        "text": "0/4 tiles",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "hud_phase",
+        "pos": [
+          552,
+          287
+        ],
+        "text": "Building Phase",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "md",
+        "pos": [
+          592,
+          307
+        ],
+        "text": "ROUND 1",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          552,
+          320,
+          80,
+          1
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          552,
+          322,
+          80,
+          30
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          552,
+          322,
+          80,
+          30
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          592,
+          329
+        ],
+        "text": "END TURN",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          587,
+          6,
+          45,
+          15
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          587,
+          6,
+          45,
+          15
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          609,
+          7
+        ],
+        "text": "PAUSE",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          6,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          6,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "sm",
+        "pos": [
+          20,
+          77
+        ],
+        "text": "1×",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "rect": [
+          6,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 2
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          50,
+          45,
+          70
+        ],
+        "rect": [
+          37,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          37,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          51,
+          77
+        ],
+        "text": "1.5×",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          50,
+          45,
+          70
+        ],
+        "rect": [
+          68,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          68,
+          76,
+          28,
+          14
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          82,
+          77
+        ],
+        "text": "2×",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          6,
+          93,
+          45,
+          14
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          6,
+          93,
+          45,
+          14
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          28,
+          94
+        ],
+        "text": "DRAG SEL",
+        "type": "text"
+      }
+    ]
+  },
+  "levelup": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          0,
+          0,
+          0,
+          185
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          65
+        ],
+        "text": "CHOOSE YOUR REWARD",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          121,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          121,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          186,
+          108
+        ],
+        "text": "Card A",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "sm",
+        "pos": [
+          186,
+          162
+        ],
+        "text": "Cost  5",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          186,
+          175
+        ],
+        "text": "does a thing",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          255,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          255,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          320,
+          108
+        ],
+        "text": "Old Name",
+        "type": "text"
+      },
+      {
+        "closed": false,
+        "color": [
+          80,
+          210,
+          80
+        ],
+        "points": [
+          [
+            318,
+            124
+          ],
+          [
+            320,
+            121
+          ],
+          [
+            322,
+            124
+          ]
+        ],
+        "type": "lines",
+        "width": 2
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          126
+        ],
+        "text": "Card B",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          320,
+          193
+        ],
+        "text": "tiered thing",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          320,
+          243
+        ],
+        "text": "Tier 2 of 3",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          389,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          389,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          454,
+          108
+        ],
+        "text": "Card C",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "sm",
+        "pos": [
+          454,
+          162
+        ],
+        "text": "Cost  12",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          454,
+          175
+        ],
+        "text": "a third thing",
+        "type": "text"
+      }
+    ]
+  },
+  "main_menu": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          18,
+          30,
+          20
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "anim_time_ms": 0,
+        "animation": "idle",
+        "crop": null,
+        "dest": [
+          0,
+          0
+        ],
+        "flip": false,
+        "hidden_frames": [],
+        "size": [
+          640,
+          360
+        ],
+        "slot_key": "main_menu_bg",
+        "tint": null,
+        "type": "sprite"
+      },
+      {
+        "align": "center",
+        "color": [
+          168,
+          105,
+          222
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          105
+        ],
+        "text": "HOW TO BE HUMAN",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          168,
+          105,
+          222
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          125
+        ],
+        "text": "defend the munckins",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          150,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          150,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          155
+        ],
+        "text": "START NEW GAME",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          180,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          180,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          185
+        ],
+        "text": "PLAY DEBUG",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          210,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          210,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          215
+        ],
+        "text": "ADD A NAME",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          240,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          240,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          245
+        ],
+        "text": "HIGHSCORES",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          270,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          270,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          275
+        ],
+        "text": "SETTINGS",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          300,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          300,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          305
+        ],
+        "text": "CREDITS",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          240,
+          330,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          240,
+          330,
+          160,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          335
+        ],
+        "text": "QUIT",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          405,
+          180,
+          30,
+          26
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          405,
+          180,
+          30,
+          26
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          420,
+          185
+        ],
+        "text": "SET",
+        "type": "text"
+      }
+    ]
+  },
+  "overlays": {
+    "items": [
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          6,
+          324,
+          41,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          6,
+          324,
+          41,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          26,
+          325
+        ],
+        "text": "RANGE",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          51,
+          324,
+          41,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          51,
+          324,
+          41,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          71,
+          325
+        ],
+        "text": "HEATMAP",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          96,
+          324,
+          69,
+          13
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          96,
+          324,
+          69,
+          13
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "sm",
+        "pos": [
+          130,
+          325
+        ],
+        "text": "TIER OVERVIEW",
+        "type": "text"
+      }
+    ]
+  },
+  "pause": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          0,
+          0,
+          0,
+          150
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 6,
+        "color": [
+          24,
+          20,
+          40
+        ],
+        "rect": [
+          245,
+          100,
+          150,
+          160
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 6,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          245,
+          100,
+          150,
+          160
+        ],
+        "type": "rect",
+        "width": 2
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xl",
+        "pos": [
+          320,
+          116
+        ],
+        "text": "PAUSED",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          142,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          142,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          146
+        ],
+        "text": "RESUME",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          171,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          171,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          175
+        ],
+        "text": "SETTINGS",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          200,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          200,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          204
+        ],
+        "text": "QUIT TO MENU",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          260,
+          229,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          260,
+          229,
+          120,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          233
+        ],
+        "text": "QUIT GAME",
+        "type": "text"
+      }
+    ]
+  },
+  "settings": {
+    "items": [
+      {
+        "border_radius": 0,
+        "color": [
+          12,
+          20,
+          14
+        ],
+        "rect": [
+          0,
+          0,
+          640,
+          360
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "xxl",
+        "pos": [
+          320,
+          90
+        ],
+        "text": "SETTINGS",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          320,
+          108
+        ],
+        "text": "Display Mode",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          125
+        ],
+        "text": "FULLSCREEN",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          245,
+          122,
+          20,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          245,
+          122,
+          20,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          255,
+          124
+        ],
+        "text": "<",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          375,
+          122,
+          20,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          375,
+          122,
+          20,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          385,
+          124
+        ],
+        "text": ">",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          245,
+          160
+        ],
+        "text": "Income Floaters",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          350,
+          156,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          350,
+          156,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          372,
+          158
+        ],
+        "text": "ON",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          245,
+          188
+        ],
+        "text": "Background Art",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          350,
+          184,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          350,
+          184,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          372,
+          186
+        ],
+        "text": "ON",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          245,
+          216
+        ],
+        "text": "Gore",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          350,
+          212,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          350,
+          212,
+          45,
+          20
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          372,
+          214
+        ],
+        "text": "ON",
+        "type": "text"
+      },
+      {
+        "align": "left",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          245,
+          237
+        ],
+        "text": "Master Audio",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          275,
+          249,
+          90,
+          6
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          275,
+          249,
+          72,
+          6
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          320,
+          259
+        ],
+        "text": "(no audio yet)",
+        "type": "text"
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          75,
+          60,
+          115
+        ],
+        "rect": [
+          270,
+          279,
+          100,
+          23
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 3,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          270,
+          279,
+          100,
+          23
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "lg",
+        "pos": [
+          320,
+          283
+        ],
+        "text": "BACK",
+        "type": "text"
+      }
+    ]
+  }
+}

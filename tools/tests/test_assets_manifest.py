@@ -246,6 +246,54 @@ class TestCurrentFrame(unittest.TestCase):
         self.assertEqual(m.current_frame("s", "attack", 0), (1, 0))
 
 
+class TestCurrentFrameExtraHidden(unittest.TestCase):
+    """feature-enemy-intro-dialogue: a per-CALL frame-column narrowing on top
+    of whatever the manifest row's own `hidden` already dropped."""
+
+    def manifest(self):
+        e = entry_from_dict("s", entry_dict([row(frames=4, fps=8)]))
+        return Manifest({"s": e})
+
+    def test_no_extra_hidden_is_unaffected(self):
+        m = self.manifest()
+        self.assertEqual(m.current_frame("s", "idle", 0, extra_hidden=None), (0, 0))
+        self.assertEqual(m.current_frame("s", "idle", 0, extra_hidden=()), (0, 0))
+
+    def test_extra_hidden_removes_a_column_from_the_walk(self):
+        m = self.manifest()   # durs 125ms each; without extra_hidden: 0,1,2,3
+        self.assertEqual(m.current_frame("s", "idle", 0, extra_hidden={1}),
+                         (0, 0))
+        self.assertEqual(m.current_frame("s", "idle", 130, extra_hidden={1}),
+                         (0, 2))   # column 1 skipped, next up is column 2
+
+    def test_extra_hidden_unions_with_baked_hidden_never_widens(self):
+        # manifest already hides column 0; extra_hidden narrows further to {2,3}
+        e = entry_from_dict("s", entry_dict([row(frames=4, fps=8, hidden=(0,))]))
+        m = Manifest({"s": e})
+        self.assertEqual(m.current_frame("s", "idle", 0, extra_hidden={1}),
+                         (0, 2))
+        # extra_hidden naming an ALREADY-hidden column changes nothing (union,
+        # not an override) — column 0 was never coming back
+        self.assertEqual(
+            m.current_frame("s", "idle", 0, extra_hidden={0}),
+            m.current_frame("s", "idle", 0, extra_hidden=None))
+
+    def test_hiding_every_frame_degrades_to_unfiltered(self):
+        m = self.manifest()
+        # extra_hidden covering the whole timeline would leave nothing to
+        # play — falls back to the unfiltered timeline rather than raising
+        # or resolving to nothing.
+        self.assertEqual(
+            m.current_frame("s", "idle", 0, extra_hidden={0, 1, 2, 3}),
+            m.current_frame("s", "idle", 0, extra_hidden=None))
+
+    def test_single_remaining_frame_short_circuits(self):
+        m = self.manifest()
+        self.assertEqual(
+            m.current_frame("s", "idle", 99999, extra_hidden={0, 1, 2}),
+            (0, 3))
+
+
 class TestManifestOverride(unittest.TestCase):
     def test_override_returns_new_manifest(self):
         base = Manifest()

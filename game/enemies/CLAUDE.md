@@ -1,4 +1,4 @@
-# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4)
+# CLAUDE.md — game/enemies (Phases 9E + 10F + 10G + ER-4 + NE-1 + NE-2 + NE-3)
 
 `Enemy(GameObject)` walker + `Spawner` + a type-agnostic combat sweep, porting the
 prototype's `src/enemies/*` and `game.py` enemy/spawn/combat loops. You reached
@@ -6,7 +6,14 @@ here from `game/CLAUDE.md`. **All five enemy types are LIVE**: Standard + Raider
 SiegeCannon since 10F, `Boss` since 10G, `Formation` since ER-4 (`spawner.py`
 `ENABLE_RAIDERS`/`ENABLE_SIEGE`/`ENABLE_BOSS`/`ENABLE_FORMATION = True`); the
 sixth, `Commander`, exists since BR-2 with `ENABLE_COMMANDER = True` but ships
-**dormant** — see its section below. When you
+**dormant** — see its section below. The seventh, **`Sniper`, is LIVE since NE-1**
+(`ENABLE_SNIPER = True`, `start_round: 26`) and is the first type that fights at
+RANGE — see "Ranged stand-off" below. The eighth, **`Digger`, is LIVE since
+NE-2** (`ENABLE_DIGGER = True`, from `start_round: 35`) and is the one type
+that adds a genuinely new state machine — see its section below. The ninth,
+**`Drummer`, is LIVE since NE-3** (`ENABLE_DRUMMER = True`, from round 25) and
+brings the game's FIRST buff/aura mechanism with it — read its section before
+adding any status effect. When you
 change enemy conventions, update THIS doc. **Adding an enemy type? Use the
 `/add-enemy` skill.**
 
@@ -43,13 +50,20 @@ package (D7).
   clamp — and the old "past tier 5 stats freeze while counts climb forever"
   cliff is gone.
 - **D10 — `hunts` and `condition_path_weights` are PER-TYPE, NOT per-era**, and
-  so are `kidnapping`, `footprint`, `sprite_scale` (**except on the Boss since
-  BR-1** — see the Boss section), `death_spawn`,
-  `registry_group`, `start_round`, `mix_ratio`, `queue_lead_count`. The
+  so are `kidnapping`, `death_spawn`, `registry_group`, `start_round`,
+  `mix_ratio`, `queue_lead_count`. The
   restructure moved only the numbers that scale with the round. A Raider hunts
   economic buildings in era 0 and in era 9 — nothing in the "Prey hunting"
   section below is era-indexed or was touched by this rework. Promoting them
   into era rows later would be additive; do not pre-build it.
+  - **`footprint`/`sprite_scale` ARE per-era, on every type, and have no flat
+    home left.** They were on this list until BR-1 carved out the Boss; the
+    per-era-footprint change then moved every era-shaped type's pair into its
+    own `eras[]` rows (`$defs/type_era_row`) and DELETED the type-root keys.
+    A body's size is a number that scales with the round after all — the
+    Formation grows 2→2→3→3→4 across eras 0–4. **`endgame_scaling` carries no
+    factor for either**, so past the last authored era a size clamps; only
+    the Boss's `endgame_boss_scaling` can grow one.
 - Editor support: era arrays are `minItems 1` with no `maxItems`, so the
   balancing panel's ER-5 `+ Row`/`− Row` buttons work on them, and every era ≥ 1
   field shows a greyed previous-era reference (D9, `editor/panels/CLAUDE.md`).
@@ -150,15 +164,23 @@ package (D7).
 - **EVERY boss variable is PER-ERA (BR-1).** `footprint`, `sprite_scale` and
   `shake: {interval, strength}` were single GLOBAL keys on `EnemyTypes.Boss`
   shared by all five bosses; they now live in each `stats[]` row and the
-  global keys are DELETED. The Boss is the one type this is true of — every
-  other type keeps them flat at its root (D10 above).
+  global keys are DELETED. `shake` is still the Boss's alone; `footprint`/
+  `sprite_scale` are no longer — the per-era-footprint change did the same
+  move for all nine era-shaped types, into their `eras[]` rows (D10 above).
+  What stays boss-specific is only WHERE its pair lives (`stats[]`, since it
+  has no `eras[]`) and that `endgame_boss_scaling` can grow it past the table.
   - **`Enemy.resolve_fit(block, era)` is the ONE seam** deciding *where* a
     type's `(footprint, sprite_scale)` lives. A `classmethod`, because
     `spawner._footprint_of` needs the footprint to pick a spawn tile BEFORE
     the enemy exists — so `__init__` and the clearance filter can never read
-    different values. Base returns the flat keys; `Boss` overrides it to read
-    its clamped `stats[era]` row (`Boss._stat_row`). `_pick_spawn_tile` passes
-    `_boss_era` for a boss and `_era` for everything else.
+    different values. **Both sides of it are per-era now**: the base resolves
+    the type's own `eras[era]` row through `era_math.resolve_era_row` (with
+    `cls.endgame_factors(block)`, which is `None` for everything but the
+    Boss, so it plainly clamps); `Boss` overrides it to read its clamped
+    `stats[era]` row (`Boss._stat_row`), because it carries no `eras[]`.
+    The base used to return two flat type-root keys, which no longer exist.
+    `_pick_spawn_tile` passes `_boss_era` for a boss and `_era` for
+    everything else.
   - **The shake is read off the LIVE boss**, not re-derived from the round
     number: `Boss.shake` is a duck-typed property (a dict COPY) beside
     `era`/`death_spawned`, and `game/main.py`'s camera-shake driver takes it
@@ -323,10 +345,11 @@ invariant: BR-3 wires it to the boss's second phase.
   `_resolve_era`, no `EXTRA_TAGS` — so no `"boss"` scene tag and therefore no
   camera shake and no boss HUD bar, both of which key off that tag.
 - **It is a NORMAL era type** (D8): the base `STAT_SUBTREE`-driven resolver
-  reads its own `EnemyTypes.Commander.eras` rows, and `footprint` /
-  `sprite_scale` stay FLAT at its root — the Boss is still the ONE type whose
-  render fit is per-era (BR-1), and `Boss._resolve_stats` is still the ONE
-  surviving override in the module. Do not add one here.
+  reads its own `EnemyTypes.Commander.eras` rows — including its `footprint` /
+  `sprite_scale`, which sit in those rows like every other era-shaped type's
+  (they were flat at the block root until the per-era-footprint change).
+  `Boss._resolve_stats` is still the ONE surviving stat override in the
+  module. Do not add one here.
 - **It hunts buildings like the Boss with no boss-specific code**: `hunts:
   "any_non_base"` is all it takes — the generic `Enemy.on_spawn` runs the
   goal-set query, arms `PathAgent.repath_on_kill` and calls `adopt_goal`
@@ -357,6 +380,396 @@ invariant: BR-3 wires it to the boss's second phase.
   placeholder state (a slot with no `asset_manifest.json` entry is legal and
   common). Real art lands via `/replace-visual`.
 
+## Ranged stand-off (NE-1) — `PathAgent.stand_off_range` / `in_range`
+**Until NE-1 every enemy in the game was a melee unit.** `attack_range_tiles`
+and `RangeSensor` exist on all of them and are read by the DEFENDER range gate
+(`combat.py`) only — *nothing* consulted them for an enemy's own attack, so
+every type walked until something physically blocked it and then punched that.
+The Sniper is the first exception, and it is built out of one flag pair, not a
+second combat system.
+- **`PathAgent.stand_off_range: int = 0` and `PathAgent.in_range: bool =
+  False`, both default-off** — the `goal_is_base`/`repath_on_kill` precedent
+  exactly. At `stand_off_range == 0` the check short-circuits on its first
+  comparison, so **every other type's `update()` is byte-identical** (pinned by
+  `test_enemies.TestStandOffIsOffForEveryOtherType`, which also asserts the
+  melee block-and-attack path still sets `blocked` and never `in_range`).
+- **`in_range` is the RANGED TWIN OF `blocked`.** `EnemyCombat.update()`'s gate
+  widened from `pa.blocked` to `pa.blocked or pa.in_range` — that `or` is the
+  entire combat change. The cooldown tick, the condition-modified damage, the
+  `RoundStats` credit, the debug hook and the kidnap arming are the same lines
+  they always were. **Do not add a second attack path**; if a ranged mechanic
+  cannot be expressed as "halt, then run the existing clock", it wants its own
+  component, not a fork of this one.
+- **The check runs EVERY frame, BEFORE the wall/blocker scan**, against the
+  COMMITTED target (BP-3's `target_col`/`target_row`) — so a stand-off unit
+  halts on geometry and **normally never reaches `blocked` at all**. Distance
+  is `components.block_distance`, a block-to-block Chebyshev (per-axis clamp,
+  then max) — the same "nearest tile of the block, not its centre" rule
+  `combat.py`'s `_chebyshev` uses, so a footprint-N body measures the way the
+  rest of the game measures.
+- **Crossing into range CLEARS `blocked`/`_target`/`_wall_target`.** From that
+  point the victim is resolved from the committed target, so a stale melee
+  engagement would otherwise have the unit shooting whatever last blocked it
+  instead of its actual prey. Leaving range (only ever via `_repath`) clears
+  `in_range` and restores the walk animation; `mv.speed` comes back through the
+  normal `_condition_speed()` write at the bottom of `update()`.
+- **`PathAgent.committed_target(tm)` is the ONE resolver for "who am I
+  shooting".** `_target_alive` is now one line over it — the block-wide,
+  dead-occupant-safe scan is written once. `EnemyCombat` calls it only when
+  `_target is None and in_range` (the blocker scan never ran), and the existing
+  `target is None or not alive` guard below covers a corpse, so a ranged unit
+  can no more hit a dead building than a melee one can.
+- **Re-targeting needed NO new code.** The BP-3 dead-target watch is gated on
+  `not blocked`, and a stand-off unit is never blocked — so the frame its
+  victim dies it re-paths through the ordinary `_repath`. Verified, not
+  assumed: `TestSniper.test_retargets_when_its_victim_dies`.
+- **`begin_kidnap` clears `in_range` beside `blocked`** (`kidnap.py`). No
+  shipped type is both a kidnapper and a stand-off unit (Sniper is
+  `kidnapping: false`), but the two flags feed one gate and must be cleared
+  together or a carrier would keep firing all the way home.
+- **The balancing leaf lives ONLY on blocks that have the mechanic**, reached
+  through `Enemy.resolve_stand_off_range(block)` — a classmethod seam of the
+  exact shape as `resolve_fit`/`resolve_phase_row`/`endgame_factors`, returning
+  `0` for every class and overridden only by `Sniper`. That `0` is not a G-7
+  code-side default for an authored value; it is the statement "this type has
+  no stand-off", which is what lets the six other `EnemyTypes` blocks stay free
+  of a `stand_off_range: 0` they would never use.
+
+## Sniper (NE-1)
+The ranged stand-off type. **Four class attrs plus the one seam override** — no
+`__init__`, no `on_spawn`, no `_resolve_stats` (the base `STAT_SUBTREE`
+resolver reads its own `EnemyTypes.Sniper.eras` rows), no `_resolve_era`, no
+`EXTRA_TAGS`, no `resolve_fit`.
+- **It hunts `"defence"`, which NE-0 WIDENED** to every attack-capable building
+  (`_ATTACK_BUILDING_TYPES` — defence, aoe_defence, storm_priest,
+  sun_scorcher), so it stands off from mortars and Storm Priests too, not just
+  plain Defenders. That widening is a prerequisite, not an implementation
+  detail: with the old single-literal predicate the Sniper would walk past
+  three quarters of the player's guns.
+- **`stand_off_range` is FLAT at the type root, like `kidnapping`/`hunts`
+  (D10)** — standing off at 2 tiles is the type's identity, not a number that
+  scales with the round. (It was written here as "like `footprint`"; that
+  comparison is dead — `footprint` went per-era for every type.) Keep it at or below `attack_range_tiles` or the unit
+  halts outside its own reach; there is deliberately no runtime guard (the
+  editor bounds are the fence), same policy as `death_spawn`'s
+  `spawn_hp_fraction` footgun.
+- **Seed stats are a STARTING POINT, fully retunable in the editor with no code
+  change.** Era 0 ships `hp 150 / dmg 140 / move_speed 0.85 / attack_speed 2.6
+  / attack_range_tiles 2`, `stand_off_range 2`, `start_round 26` — the
+  qualitative brief (high damage, long range, slow attack, low HP, below-average
+  speed) grounded against SiegeCannon era 0 (280/100/1.0/1.9/range 2). Eras 1–4
+  follow the SiegeCannon growth-curve shape; `attack_speed` and
+  `attack_range_tiles` stay flat between eras, as they do for every other type.
+- **Composition: body-mixed, LAST in `_compose`, never on a boss round.**
+  `_sniper_group` is called after `_commander_group` for the standing rng
+  reason (an earlier call site shifts every other group's draw sequence and
+  moves the deterministic wave fixtures). It draws nothing below round 26, so
+  every wave under that round is byte-identical to BR-5; from 26 on it is a
+  real, deliberate wave change. It does not lead the queue — a sniper at the
+  head of the wave would out-range the player's defences before anything
+  arrived to draw fire — and it is absent from boss rounds for the same
+  `$defs/spawn_counts`-is-shared reason the Formation is (see that section).
+- **No projectile visual in v1**: the hit applies instantly on cooldown, the
+  same tick model as a melee swing minus the adjacency requirement. A
+  muzzle-flash/arrow pass is a follow-up `/replace-visual`, and building an
+  enemy projectile-travel system was explicitly out of NE-1's scope.
+- Its five `data/slots.json` era slots (`sniper_stage_1..5`) ship art-less —
+  the normal grey-X placeholder state, exactly like the Commander's.
+
+## Digger (NE-2) — the burrow / claim / emerge machine
+The one type that is a genuine NEW state machine rather than data over the
+existing one. `ETYPE "digger"`, `REGISTRY_GROUP "Digger"`, `STAT_SUBTREE
+("Digger",)`, `hunts: "structure"` (NE-0's category, whose first consumer this
+is), `kidnapping: false`, footprint 1, `start_round: 35`,
+`spawner.ENABLE_DIGGER = True`. It walks visibly at a structure it has
+EXCLUSIVELY claimed, submerges untargetable at `dig_range_tiles`, travels
+underground, erupts for ONE large `dmg` hit, then claims the next one.
+
+- **`PathAgent.no_melee` (new, default OFF — every existing type
+  byte-identical) is a DURABLE RULE, not a Digger detail.** When set, `update()`
+  skips the halt-and-attack scan WHOLESALE: no `_wall_edge_ahead`, no
+  `_blocker_ahead`, `blocked` never latches, `_target`/`_wall_target` stay
+  `None`, and `EnemyCombat` (which ticks only while blocked) therefore never
+  runs. **Routing is untouched** — the unit still walks the ordinary weighted
+  path, around or through buildings exactly as before; it just never physically
+  STOPS for one. It exists because a Digger has no attack outside digging: a
+  halt on an incidental blocker would be a **permanent 0-damage soft-lock**,
+  not a slow fight, because the thing it stopped for can never die. Any future
+  type with no melee attack wants this flag, and any type WITH one must not
+  have it.
+- **`BurrowAgent` (`components.py`, beside `PathAgent`/`EnemyCombat`) is the
+  machine**, and carrying one is what MAKES a unit a burrower — the claim scan
+  identifies rivals by "has a `BurrowAgent`", never by class or `ETYPE`, so a
+  second burrower would share the claim pool for free. Declared JSON-safe state
+  only (E-11): `state` (plain strings `BURROW_WALKING`/`_SUBMERGED`/`_EMERGE`),
+  `dig_range_tiles`, `dig_speed`, `dig_timer`, `dig_duration`,
+  `start_wx`/`start_wy`, `emerge_cooldown`/`cooldown_remaining` (below).
+  - **WALKING** — ordinary `PathAgent` movement. Each frame it measures
+    Chebyshev distance from its tile to the target's BLOCK (`block_tiles`, the
+    same reason `_target_alive` scans the block: `target_col/_row` is the goal
+    ANCHOR, not necessarily the body). At `<= dig_range_tiles` it submerges. It
+    ALSO watches the target's liveness itself — see the `repath_on_kill` bullet.
+  - **SUBMERGED** — `PathAgent.frozen = True` (the BR-3/`carrying` precedent:
+    inert agent, inert `EnemyCombat`) **and the waypoints are DROPPED**, not
+    merely `speed = 0`. Load-bearing: the underground lerp writes the transform
+    directly, and a still-loaded waypoint list could let `Movement.advance`
+    cross an arrival threshold and latch `arrived` on a path the unit is no
+    longer walking. Progress is a pure internal lerp from the entry point to
+    the target tile over `dig_range_tiles / dig_speed` seconds — so the body is
+    exactly ON the target when the clock runs out, and "emerge where you are"
+    on an interrupt is free rather than a second position to track. The sprite
+    holds the `dig` frame (`anim_time_ms` re-pinned every frame — the
+    `Kidnap.frozen` finding, since `SpriteAnimator.update` always advances its
+    own clock) AND is fully **hidden** (`SpriteAnimator.visible = False`,
+    `engine/core/CLAUDE.md`) — a NEW generic engine field added specifically for
+    this, default `True` so every other sprite in the game is byte-identical.
+    **Blanking `slot_key` to hide it would still be WRONG**: an unknown key
+    resolves to the grey-X placeholder, which is worse than nothing — `visible`
+    is the real seam. Only the dirt pile (below) marks the spot while burrowed.
+  - **EMERGE** — entered by the clock expiring (snap onto the target tile, deal
+    the hit) OR, per D5, the instant the target dies to anything else (surface
+    where we are, deal NOTHING, do not wait out the timer). The re-target
+    happens on the NEXT tick, deliberately: it makes EMERGE an observable state
+    a one-shot emerge animation can play in, and holding the claim one extra
+    frame changes nothing (it is being released either way). `visible` flips
+    back to `True` immediately, and `cooldown_remaining` is armed to
+    `emerge_cooldown` — see the surface-cooldown bullet below.
+  - **The eruption hit is `EnemyCombat.update()`'s single-target damage
+    application verbatim** — `_effective_dmg(pa)` (so the 10I terrain bonus
+    still applies) → `Health.damage` → the `RoundStats.dmg_taken_this_round`
+    credit → `_damage_hook` at exactly that credit line. No kidnap arming
+    (Diggers ship `kidnapping: false`).
+- **`emerge_cooldown` (balancing) / `cooldown_remaining` (runtime) — a minimum
+  surface timer, user-requested follow-up to NE-2.** Counted from the moment
+  the Digger comes UP (a strike or a D5 no-damage interrupt both arm it — see
+  `_emerge`) to the moment it is next allowed to dig back IN. It changes
+  nothing else about the cycle: the Digger still releases its claim and walks
+  toward its next target immediately on emerging, exactly as before: the
+  cooldown only holds off `_tick_walking`'s submerge check — even once already
+  standing on a brand new, in-range target — until `cooldown_remaining` drains
+  to zero (ticked down every WALKING frame, including while stood down with
+  nothing claimed). `0.0` is a no-op (a hand-built headless Digger with no
+  balancing behind it is byte-identical to before this existed); the shipped
+  `EnemyTypes.Digger.emerge_cooldown` is `3.0` seconds, a flat type-root leaf
+  like `dig_speed`/`dig_range_tiles` (D10 — a starting value, tune in the
+  editor).
+- **`Digger.targetable` is overridden off the SUBMERGED state** — the exact
+  duck-typed contract BR-3 built for the boss's second phase, so combat
+  targeting, in-flight projectiles, the lightning storm and BOTH HP bars drop a
+  burrowed Digger with **no per-site change anywhere**.
+- **`repath_on_kill` stays OFF for the Digger, and that is why
+  `Digger.on_spawn` overrides the generic one.** `PathAgent._repath` would
+  re-run `_HUNT_QUERIES["structure"]` with no claim exclusion, and would
+  silently accept the query's empty-goal-set fallback to the hole.
+  `BurrowAgent.retarget` is the ONE re-targeting path — at spawn and after
+  every eruption alike.
+- **`Enemy.nav_components(block)` is the seam** placing `BurrowAgent` between
+  `PathAgent` and `Movement`: after the agent's walk/halt decision for the
+  frame, before the locomotion that would act on it. `()` for every other type.
+  Same shape as `resolve_fit`/`resolve_phase_row` — the component ORDER is the
+  invariant, so it stays at ONE construction site.
+- **`Digger._resolve_stats` substitutes the flat `dig_speed` for the era row's
+  `move_speed`** — the brief's "one speed value for both phases", made provable
+  in code rather than trusted to two authored numbers staying equal. The era
+  rows still carry `move_speed` (`$defs/type_era_row` requires it and the
+  balancing panel renders it); for this type alone it is INERT, and the schema
+  description says so.
+
+### The exclusive claim
+**A claim is nothing but another Digger's `PathAgent.target_col/_row`** — there
+is no registry, and nothing to leak. `BurrowAgent.claimed_tiles` scans
+`scene.by_tag("enemy")` for other live burrowers and passes their committed
+tiles as `exclude` into `find_path_to_nearest_structure`, which threads it into
+`_goal_tiles`' predicate (`game/map/CLAUDE.md`). A claim releases itself when
+its owner re-targets (its own `target_col` moves) or dies (it drops off
+`by_tag("enemy")`, which also excludes retagged kidnappers and corpses).
+- **No target after exclusion ⇒ STAND DOWN**: visible, idle, harmless, no
+  waypoints, `target_col = -1`, and `goal_is_base` forced back OFF (a stale
+  `True` would fire a phantom base breach on the next reported arrival — the
+  `begin_kidnap` finding). Diggers only build towards buildings; they do NOT
+  fall back to attacking the hole. **This branch is detected via
+  `goal_is_base`**, because `_hunt` falls back to the base path for an empty
+  goal set — that fallback is the query's way of saying "nothing left to hunt",
+  and `adopt_goal` is what turns it into a readable flag.
+- **`Enemy._scene` — the new transient seam** (parallel to `_tilemap`,
+  underscore-prefixed and non-authoritative per E-11). A `GameObject` is never
+  handed the scene (`Scene.update` calls `on_spawn()` with no arguments) and a
+  `Component` cannot reach it either, which is why `CorpseFade._scene` and
+  `Kidnap._scene` are both wired externally by their one transition site. The
+  Digger needs the scene for two things `_tilemap` cannot answer — who else is
+  a live Digger, and where to put the dirt pile — so it is cached ONCE on the
+  whole `Enemy` hierarchy rather than threaded through four call signatures.
+  **`Spawner._attach_scene(enemy, scene)` sets it at BOTH of the spawner's
+  construction sites** (the wave pop in `update` and `_spawn_child`),
+  immediately before `scene.spawn`, so it is already there when `on_spawn()`
+  takes the first claim. A named helper rather than two inline assignments so
+  the sites cannot drift — and because NE-3's Drummer needs the identical seam
+  and must share it, not clone it. A hand-built headless
+  enemy leaves it `None`, which every reader treats as "no scene, no rivals" —
+  single-Digger behaviour, never a crash.
+
+### The dirt pile (`dirt_pile.py`)
+`DirtPile`/`DirtPileFade`/`spawn_dirt_pile` — the exact shape of `corpse.py`,
+in **its own module** rather than as a sibling there: a `Corpse` is *the dead
+enemy's own sprite playing its own death row* and is constructed FROM an enemy;
+a dirt pile is a fixed world decal with one shared slot (`vfx_dirt_pile`) and no
+relationship to the unit that made it. Same pattern, different subject, and the
+design pillar is small single-purpose files. Tagged **`"dirt_pile"`, never
+`"enemy"`**, with no `alive`/Health/PathAgent, so it is invisible to every
+gameplay query exactly as a `Corpse` is. Its lifetime is **the dig duration**
+(passed in by `BurrowAgent`, not read from a manifest track), so the mound is on
+the board for precisely as long as the Digger is under it — and the fade clock
+takes the same speed-scaled `sim_dt`, so that holds at 1×/1.5×/2×. **Real art
+since `tools/gen_dirt_pile_sheet.py`** — a one-shot generator that crops
+`base_hole` (the map's own "hole" — the thing the whole game protects) to its
+opaque content via `Surface.get_bounding_rect`, scales it up, and centres it on
+a fresh 64×64 `vfx`-category canvas; re-runnable and idempotent, the
+`tools/gen_wall_sheets.py` shape applied to a DERIVED sprite instead of a drawn
+one. Repaint `data/sprites/imported/vfx_dirt_pile.png` freely — the script is
+only how it was seeded.
+
+### Digger balancing (`EnemyTypes.Digger`)
+A NORMAL era-shaped type — its own `eras[]` rows through the base
+`STAT_SUBTREE` resolver, `footprint`/`sprite_scale` among them (1 and 1.0 in
+every row; they were flat at the root until the per-era-footprint change).
+Four things are specific to it, all flagged as STARTING VALUES in their schema
+descriptions:
+- **`dig_speed`** (flat, tiles/sec) — burrowed AND overground speed.
+- **`dig_range_tiles`** (flat, default 6) — the submerge trigger distance, and
+  therefore also the underground travel distance and the size of the window
+  defenders get to kill it. Raising it makes the Digger much harder to stop.
+- **`emerge_cooldown`** (flat, seconds, default 3.0) — the minimum time it
+  must stand on the surface after emerging before it may submerge again (see
+  the `BurrowAgent` bullet above). `0` restores the pre-cooldown behaviour
+  exactly (submerge the instant it is back in range of a claimed target).
+- **`stats.dmg` per era IS the eruption hit**, not a per-swing melee value —
+  seeded 900/1400/2000/2700/3500 against `hp` 900/1300/1800/2400/3100.
+  `attack_speed`/`attack_range_tiles` are decorative for this type (it never
+  uses the cooldown-gated melee path at all), and `stats.move_speed` is inert.
+- Counts start at `start_round: 35` (era 3) and trickle: 1 at round 35, +1 per
+  5 rounds. `_digger_group` is called **LAST** in `_compose`, after
+  `_commander_group` — the same newest-last rng rule the Formation and the
+  Commander follow — and mixed into the shuffled body, never queue-leading.
+- **Diggers never spawn on a boss round**, the same deliberate rule (and the
+  same `$defs/spawn_counts` reason) the Formation section spells out: adding a
+  `digger` key to `Boss.round_counts` would force one into all 14 shared
+  death-spawn rows. One `+ self._digger_group(...)` into `_boss_round`'s `rest`
+  if it is ever wanted. Pinned by
+  `test_enemies.TestDigger.test_no_diggers_on_a_boss_round`.
+
+## Drummer (NE-3) — the FIRST buff/aura mechanism in the game
+A support unit that marches at the hole like a walker (`hunts: "base"`, so the
+generic `Enemy.on_spawn` takes the original byte-identical branch) and hits for
+almost nothing. Everything it does is the aura. **Read this before adding any
+status effect, buff, debuff or aura to anything** — the per-source model below
+is the pattern, and a second one would be a second state machine for the same
+question.
+
+- **The subclass is four class attrs plus ONE extra component.** `ETYPE
+  "drummer"`, `REGISTRY_GROUP "Drummer"`, `DEFAULT_SLOT "drummer_stage_1"`,
+  `STAT_SUBTREE ("Drummer",)`. No `__init__`, no `on_spawn`, no
+  `_resolve_stats` (the Commander's D8 rule holds: the base `STAT_SUBTREE`
+  resolver reads its own `EnemyTypes.Drummer.eras` rows; the Boss's is still
+  the ONE override in the module), no `_resolve_era`, no `EXTRA_TAGS`, default
+  14×2 HP bar. `sprite_scale` 1.15 is the "slightly taller" cosmetic ask and is
+  pure data.
+- **`Enemy.extra_components(block)` is the seam for "this type needs a
+  mechanism nothing else has"** — a classmethod beside `resolve_fit` /
+  `resolve_phase_row` / `endgame_factors`, returning components appended after
+  the shared list. Base returns `()`, so every stock type is byte-identical.
+  It exists so a subclass never has to reimplement `__init__` (and re-derive
+  the era/stat/fit resolution it would have to copy to do that) just to add
+  one component. It is called BEFORE `GameObject.__init__` has run, so it must
+  read only the resolved balancing block, never instance state.
+- **Two components, split by capability — the `DeathSpawn`/`advance_second_
+  phase` rule again.** `BuffState` is the passive LEDGER and owns every
+  consequence; `DrummerAura` is the SCANNER and owns nothing.
+  - **`BuffState` is on EVERY enemy type's component list** (second, right
+    after `Health`), the `Kidnap` "declared field, usually inert" shape: empty
+    it costs one dict-truthiness test per frame. It is second on purpose — a
+    contribution that expires this frame is undone before `PathAgent` reads
+    the buffed move speed and `EnemyCombat` reads the buffed damage/clock in
+    the same frame. **Nothing pins any type's component list or count**
+    (checked: `test_core.py`'s `len(go2.components)` is a generic GameObject,
+    not an enemy), which is what made adding it to all seven types safe.
+  - **`DrummerAura` lives only on Drummer instances** and does one thing per
+    frame: scan `scene.by_tag("enemy")` and re-apply THIS drummer's
+    contribution to everything within Chebyshev `support_range`. It keeps no
+    list of who it has buffed, so it can die at any moment without leaking a
+    buff. It never buffs itself. Cost is `drummers × enemies` tile tests per
+    frame; drummers are 1–4 per wave by design.
+- **The ledger is keyed by SOURCE, and that one decision buys both D6 and
+  D7.** `BuffState.sources` maps the buffing `GameObject.id` (a uuid hex —
+  which is what keeps the whole thing JSON-safe, E-11) to
+  `{"hp": int, "dmg": float, "move_speed": float, "attack_speed": float,
+  "decay": float}`. `hp` is an ABSOLUTE amount; the other three are FRACTIONS.
+  - **Stacking is additive** (D7): `total(key)` sums every live contribution,
+    so two Drummers are exactly twice one. Each grant is sized off
+    `base_max_hp` (`Health.max_hp` minus every live hp grant), **never off the
+    already-buffed max** — that is the difference between additive and
+    compounding, and it is why `hp` is stored as an amount and not a fraction.
+  - **Decay is per source and needs no "left the radius" event** (D7):
+    `apply` re-pins that ONE source's `decay` to `BUFF_DECAY_SECONDS` (4.0, a
+    module constant — the `CARRY_OFFSET_TILES` precedent, deliberately NOT a
+    balancing leaf) every frame it is sustained. "Four seconds after leaving"
+    is simply the fourth second after the last frame anything re-pinned it.
+  - **The clock lives on `BuffState`, not on the aura** — load-bearing: a
+    Drummer that DIES stops re-pinning, and its buff then fades on the same 4s
+    clock with no component of its own left to run. Put the timer on the
+    source and a killed Drummer's buff would either hang forever or vanish
+    instantly.
+- **`_grant_hp(delta)` is the ONE place `Health` is touched**, both
+  directions, which is what makes grant and un-grant provably symmetric (D6):
+  a positive delta raises `max_hp` AND `hp` by the same amount (a real heal,
+  not headroom); a negative one shrinks `max_hp` and clamps `hp` **only if it
+  is now above the new max** (a unit already damaged below it keeps what it
+  has). Re-applying an UNCHANGED amount touches `Health` not at all — that is
+  what stops a parked Drummer from healing a wounded unit to full every frame.
+- **The other three stats are READ-SITE multipliers, never written into the
+  component field.** `buff_total(owner, key)` is the guarded front door (0.0
+  for a building/stub/no-contributions owner). Three sites, one per stat, and
+  each is the *only* place its stat is resolved:
+  - `EnemyCombat.buffed_dmg` — read by `Enemy.dmg` (base hits + the combat
+    sweep's telemetry) AND by `_effective_dmg` (blocking-building and wall
+    attacks, which layer the tile-condition bonus **on top** of it, so the two
+    compound). One property, so an aura can never reach one and miss the other.
+  - `EnemyCombat.buffed_attack_speed` — the leaf is an INTERVAL, so a bonus
+    **divides**: `attack_speed / (1 + bonus)`. +10% means 10% more swings, not
+    10% slower. Both `self.cooldown = …` resets read it.
+  - `PathAgent._condition_speed()` — scales `_real_speed` **before** the
+    terrain penalty and the `min_speed_fraction` floor. This has to be the
+    site: writing a bonus into `Movement.speed` directly is overwritten by
+    this method on the very next walking frame.
+- **`Enemy._scene` — the scene transient, set by `Spawner._attach_scene`.**
+  `Scene` hands objects no reference to itself (`on_spawn()` takes no
+  argument), so a component that must QUERY the world needs the host that
+  builds the enemy to give it one. An underscore transient exactly like
+  `PathAgent._tilemap` / `Kidnap._scene` (legal past the E-11 setattr seal),
+  set at BOTH spawner construction sites — the wave pop and `_spawn_child`, so
+  a death-spawn or second-phase child is as world-aware as a queued one. An
+  enemy built outside the spawner simply has no `_scene`, and every consumer
+  treats that as inert. **This is also the seam NE-2's Digger claim wants** —
+  do not invent a second one.
+- **Composition**: `_drummer_group` is called LAST in `_compose`, after
+  `_commander_group` — the same rng rule every newer group follows (an earlier
+  call site moves every deterministic wave fixture). Body-mixed, never
+  queue-leading: a support unit ahead of the units it supports buffs nothing.
+  Zero before round 25, so rounds 0–24 are byte-identical to BR-5. **Drummers
+  never spawn on a boss round**, exactly like Formations and for exactly the
+  same reason (`Boss.round_counts` is `$defs/spawn_counts`, shared with every
+  `death_spawn.spawns` row); it is a one-line `+ self._drummer_group(...)`
+  into `_boss_round`'s `rest` if that is ever wanted.
+- **OPEN ITEM, flagged not resolved — `attack_speed_increase` and
+  `support_range_increase`.** The design's prose says the Drummer buffs
+  "dmg/hp/movement speed"; its own variable list also names those two. NE-3
+  implemented the more specific list, so the data shape is future-proof:
+  `attack_speed_increase` IS wired and live (0.10), and
+  **`support_range_increase` is a deliberately INERT leaf at 0 — nothing reads
+  it and there is no era-growth mechanic behind it.** Do not "finish" either
+  one on your own initiative; the scope question is the user's to answer.
+  Pinned by `test_enemies.TestDrummer.test_support_range_increase_is_inert_
+  as_shipped`, which goes red the moment someone wires it up.
+
 ## Prey hunting + per-type terrain weights (Chunk 3 + Chunk 4)
 Two independent per-type balancing knobs, both threaded through `PathAgent`
 transients set once by `Enemy.__init__` (E-11: a dict/str resolved from
@@ -366,15 +779,45 @@ inspector can show; `_cond_weights` is a transient because a dict is not
 JSON-safe).
 
 - **`EnemyTypes.<type>.hunts`** (required enum `"base" | "economic" |
-  "defence" | "any_non_base"`) drives `PathAgent.hunt` (declared field,
-  default `"base"`). `Enemy.on_spawn` is now generic over it:
+  "defence" | "structure" | "any_non_base"`) drives `PathAgent.hunt` (declared
+  field, default `"base"`). **A hunt is nothing but a PREDICATE over the
+  occupant's `building_type`** fed through the one shared
+  `_hunt()`/`_goal_tiles()` body in `game/map/pathfinder.py` — adding a
+  category is a new module-level set + a new `find_path_to_nearest_*` wrapper +
+  a `_HUNT_QUERIES` row + the schema enum, never new pathfinding machinery.
+  The four category sets, all in `pathfinder.py`:
+  - `_ECONOMY_BUILDING_TYPES` = `{economic, meditator, painter}`.
+  - **`_ATTACK_BUILDING_TYPES` = `{defence, aoe_defence, storm_priest,
+    sun_scorcher}` — NE-0 WIDENED `"defence"` from the single literal
+    `building_type == "defence"`.** It is a deliberate, user-approved BALANCE
+    change to an existing type, not a refactor: `SiegeCannon` already ships
+    `hunts: "defence"`, so from NE-0 it also paths to mortars, Storm Priests
+    and Sun Scorchers, starting at its unchanged `start_round: 14`.
+  - **`_STRUCTURE_BUILDING_TYPES` = `{blocker, wall_builder, defence,
+    aoe_defence, storm_priest, sun_scorcher}` — the NE-0 `"structure"`
+    category**, i.e. every non-economy, non-boost, non-base building.
+    Blockers/wall builders are the common case but it is deliberately not
+    limited to them. Spelled out literally rather than derived from the attack
+    set: the two answer different questions, so a future attack-capable
+    building must be added to BOTH on purpose. Landed in NE-0 with **no
+    consumer** — the Digger (NE-2) is the first type to carry it — so that a
+    mistake in the predicate shows up against `SiegeCannon`'s existing test
+    coverage first.
+  - `"any_non_base"` stays `building_type != "base"` (no set — the boss's
+    `_non_base_goals`).
+  The roster partitions exactly: structure ∪ economy ∪ the three `boost_*` ∪
+  `base` IS every `BUILDING_TYPE` the game ships, and attack ⊂ structure —
+  asserted, not just documented, by `test_pathfinder.TestHuntCategories`,
+  which runs each predicate against the WHOLE building-type roster so a new
+  type no category claims is visible.
+  `Enemy.on_spawn` is generic over the hunt string:
   - `"base"` (Standard, Formation) keeps the ORIGINAL walk-to-the-hole
     behaviour byte-for-byte — `find_path` with the `find_path_ignoring_walls`
     fallback, `repath_on_kill` never armed, `goal_is_base` stays at its
     default `True`. This is what keeps every pre-Chunk-4 fixture green.
   - Any other value runs the matching goal-set query
     (`game/map/pathfinder.py`'s `find_path_to_nearest_economic` /
-    `_defence` / `_non_base_building`, dispatched through a module-level
+    `_defence` / `_structure` / `_non_base_building`, dispatched through a module-level
     `_HUNT_QUERIES` dict in `components.py` — the ONE place the
     hunt-string → query mapping lives, imported by both `enemy.py` and
     `components.py`'s own `PathAgent._repath`, so the two can never
@@ -389,9 +832,15 @@ JSON-safe).
     boss-specific left in it. `Boss` is now `_resolve_era` + `_resolve_stats`
     + `era` only. Fenced by `tools/tests/test_boss.py` (unchanged — the
     generic path reproduces its behaviour exactly).
-  - Seeded values (byte-identical to 10F/10G, "ships behaviourally neutral"):
-    `Standard`/`Formation` `"base"`, `Raider` `"economic"`, `SiegeCannon`
-    `"defence"`, `Boss` `"any_non_base"`.
+  - Seeded values (NE-0 added no `hunts` value to any type, it only changed
+    what `"defence"` MEANS and added a then-unused category; **NE-1's
+    `Sniper` is the first NEW consumer of the widened `"defence"`; NE-2 is
+    what armed `"structure"`, on the new `Digger`** — which does NOT route
+    through the generic `Enemy.on_spawn` branch below, because it needs the
+    claim exclusion; see the Digger section above):
+    `Standard`/`Formation`/`Drummer` `"base"`, `Raider` `"economic"`,
+    `SiegeCannon`/`Sniper` `"defence"`, `Boss`/`Commander` `"any_non_base"`,
+    `Digger` `"structure"`.
 - **`EnemyTypes.<type>.condition_path_weights`** (required `{forest, mountain,
   pond}`, same bounds as `map.json`'s `Pathfinding.content_weights`) is this
   type's OWN terrain path-cost profile, threaded as `PathAgent._cond_weights`
@@ -446,9 +895,22 @@ on one `Spawner` yields byte-identical output to composing round 1 fresh
 (pinned by `test_enemies.py`'s `TestSpawnComposition` round-zero tests).
 
 ## Formation (ER-4)
-The 2×2 marching column. **It adds no mechanism** — it is the first consumer of
+The marching column, and **the one type whose body actually GROWS**:
+`footprint` is `2, 2, 3, 3, 4` across eras 0–4 (per-era for every type now —
+D10 above). It shipped a flat `1` for the whole of ER-4 despite this section,
+its schema description and its own docstring all calling it 2×2; the per-era
+change is what finally made the data agree with the design.
+
+**It adds no mechanism** — it is the first consumer of
 ER-1 (per-slot frame size), ER-2 (footprint clearance pathing) and ER-3
 (`death_spawn`), all three driven purely from `data/balancing/enemies.json`.
+- **A 3×3/4×4 body leans much harder on two existing behaviours**, neither of
+  which changed. `_pick_spawn_tile` only spawns it where its whole N×N block
+  is spawn zone and falls back to an UNFILTERED pick when no tile qualifies —
+  on a map with a thin spawn band an era-4 Formation will take that fallback,
+  which is the designed "never drop an enemy from a wave" outcome, not a bug.
+  And its art is a 64×32 per-slot frame auto-fit to `footprint*tile_w` and
+  never upscaled, so a 4×4 draws at its sheet size until real art lands.
 - **The subclass is four class attrs, nothing else.** No `__init__`, no
   `on_spawn`, no `_resolve_stats`, no `EXTRA_TAGS`, no component wiring, no
   break state machine.
@@ -738,9 +1200,11 @@ precedent is `game/ui/widgets.py`'s `set_skin_hit_test`.
   when the blocker dies (the route already runs through that now-passable tile). It
   caches the map as `PathAgent._tilemap` — a deliberate environment-reference
   transient, exactly like `Movement._owner`.
-- **`PathAgent.footprint` (ER-2)** — an `int` field fed from
-  `EnemyTypes.<type>.footprint` (G-7; `Enemy.__init__` reads it off the resolved
-  `STAT_SUBTREE` block, no code-side default). The unit occupies an N×N block
+- **`PathAgent.footprint` (ER-2)** — an `int` field fed from the type's own
+  `eras[era].footprint` (the Boss's `stats[era].footprint`) via the ONE
+  `Enemy.resolve_fit` seam (G-7 — no code-side default anywhere). It is
+  resolved ONCE at construction, so a unit keeps the size of the era it
+  spawned in for its whole life. The unit occupies an N×N block
   whose **anchor is the MIN corner** (the body extends right and down); the whole
   rule set + the helper functions live in `game/map/CLAUDE.md` / `pathfinder.py`
   and are imported, never re-derived. Consequences in this package:

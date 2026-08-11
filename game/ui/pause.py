@@ -29,8 +29,8 @@ _ACTION_IDS = {
     "resume": "btn_resume", "settings": "btn_settings",
     "quit_to_menu": "btn_quit_to_menu", "quit": "btn_quit_game",
 }
-_PW, _PH = 300, 320
-_BTN_W, _BTN_H, _GAP = 240, 46, 12
+_PW, _PH = 150, 160
+_BTN_W, _BTN_H, _GAP = 120, 23, 6
 _TITLE = "PAUSED"
 
 SCREEN_ID = "pause"
@@ -56,12 +56,12 @@ class PauseScreen:
         py = view_h // 2 - _PH // 2
         self.rect = (px, py, _PW, _PH)
         x = view_w // 2 - _BTN_W // 2
-        y = py + 84
+        y = py + 42
         for btn, _ in self.buttons:
             btn.rect = (x, y, _BTN_W, _BTN_H)
             y += _BTN_H + _GAP
         self._backdrop.rect = (0, 0, view_w, view_h)
-        self._title.rect = (view_w // 2, py + 32, 0, 0)
+        self._title.rect = (view_w // 2, py + 16, 0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
             "title": ("label", self._title),
