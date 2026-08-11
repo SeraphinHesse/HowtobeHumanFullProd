@@ -712,13 +712,21 @@
             {
               "label": "End Turn",
               "slots": [
-                "ui_button_end_turn"
+                {
+                  "frame_h": 50,
+                  "frame_w": 72,
+                  "key": "ui_button_end_turn"
+                }
               ]
             },
             {
               "label": "Pause",
               "slots": [
-                "ui_button_pause"
+                {
+                  "frame_h": 49,
+                  "frame_w": 48,
+                  "key": "ui_button_pause"
+                }
               ]
             },
             {
@@ -763,7 +771,9 @@
             {
               "label": "Panel",
               "slots": [
-                "ui_panel"
+                "ui_panel",
+                "ui_panel_v2",
+                "ui_panel_v3"
               ]
             },
             {
