@@ -61,7 +61,7 @@ _STRINGS = {
     "building.btn.dice": "⚄",
     "building.btn.move": "MOVE BUILDING",
     "building.btn.move_blocked": "CANNOT BE MOVED",
-    "building.construct.card": "{name}  {cost}",
+    "building.construct.card": "{name}",
     "building.construct.title": "BUILD",
     "building.flash.cannot_move": "CANNOT MOVE THERE",
     "building.flash.not_enough_love": "NOT ENOUGH LOVE",
