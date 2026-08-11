@@ -1415,6 +1415,9 @@ and a price pill with the baked love icon — each part independently id'd,
 placeable and skinnable in the UI editor. Seven ids per buildable type, all
 sharing the ONE `card_` prefix, so `_clear_card_ids()` needed no change:
 
+Widths below are the **no-override** ones (`cw` = 118); with a `panel` rect
+authored they follow it — see "the card column FOLLOWS the `panel` container".
+
 | id | kind | rect (relative to the card at `(cx, y)`) |
 |---|---|---|
 | `card_<btype>` | button | `(cx, y, 118, 40)` — the parent, and the click target |
@@ -1447,6 +1450,37 @@ sharing the ONE `card_` prefix, so `_clear_card_ids()` needed no change:
   changed the committed file.
 - **The love icon is a sprite, not a glyph** (`ui_icon_love`, the `hud.py`
   idiom) — `widgets.HEART` stays deleted.
+- **The card BODY is submitted first, then the portrait on top of it.**
+  `Renderer.submit_hud` appends and nothing sorts it, so submission order IS
+  z-order, and the portrait sits wholly inside the body's rect — submit the
+  portrait first and a skinned body hides it outright. This is latent while
+  `defaults.button_skin` is unset (the body draws as a flat rect and the
+  portrait survives) and breaks the screen the moment a designer skins the
+  card, so it is pinned by `TestCardDrawOrder` rather than left to the eye.
+- **The card column FOLLOWS the `panel` container** (`_card_column()`, reading
+  `ScreenSkinning.widget_rect(screen_id, "panel")`), so `cx`/`cw` above are the
+  authored panel inset by `_CARD_INSET`, not the ctor's `panel_x`/`panel_w`.
+  This is what a designer resizing the panel in the editor needs: static
+  widgets can be dragged one by one, but cards are DYNAMIC-count content laid
+  out in code and carry no authorable position, so without this they stay
+  stranded in the old panel's footprint. Note `self.panel_x`/`panel_w` are
+  ctor CODE defaults that never see the override — only `panel_rect` is
+  refreshed, and only at submit, i.e. AFTER `_build_construct` has run — which
+  is why the authored rect is read directly. **No override falls back to the
+  code defaults**, so `screen_defaults.json` (recorded with the disk-free
+  `ScreenSkinning.empty()`) is byte-unchanged by any of this.
+  - **Hand-pinning the 12 `card_<btype>` rects is NOT the way to move the
+    column, and actively breaks it**: an authored rect reaches only the card
+    BODY, while that card's portrait/name/price children stay on the code
+    layout — so the parts of every card drift apart down the list. A designer
+    who did this against the pre-tree 21px card left twelve stale pins behind
+    that tore the whole screen up; `TestCardColumnFollowsThePanel` guards it.
+- **The price pill names its own skin** (`_CARD_PRICE_SKIN`, `ui_button_pill`)
+  instead of inheriting the body's `defaults.button_skin`: the body art is a
+  full-card 9-slice and stretching it through a 74×14 pill reads as a squashed
+  card. Baked for the same reason `_CARD_LOVE_ICON` is — it names one specific
+  piece of art; a designer wanting another overrides `card_<btype>_price`'s
+  `skin` per card, leaving the body alone.
 - **Two screen-level bools**, both in `data/ui/screens/building_panel.json`'s
   `defaults` (read fresh via `_card_defaults()`, the `defaults.button_skin`
   precedent — `defaults` values are never id-validated, so `ScreenSkinning`

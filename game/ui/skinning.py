@@ -169,6 +169,18 @@ class ScreenSkinning:
         override = self._overrides.get(screen_id)
         return (override or {}).get("defaults") or {}
 
+    def widget_rect(self, screen_id: str, name: str) -> Optional[tuple]:
+        """The authored ``rect`` for ONE widget id, or ``None`` when the
+        designer never moved it. The companion to ``defaults()``: dynamic-count
+        content (construct cards, …) is laid out in CODE and so cannot be
+        re-authored id-by-id in the editor, but it still has to sit INSIDE a
+        container the designer *did* move. Reading that container's rect here
+        is what lets it follow. Reads the already-in-memory override — no disk
+        I/O, safe every frame/every construction."""
+        spec = self._widgets_spec(screen_id).get(name)
+        rect = (spec or {}).get("rect")
+        return _as_tuple(rect) if rect else None
+
     def screen_background(self, screen_id: str) -> Optional[Dict]:
         """``{"slot": ...}`` or ``{"color": (...)}`` for a submit-time
         background override, or ``None``. Reads the already-in-memory

@@ -111,7 +111,7 @@ _CARD_LOVE_ICON = "ui_icon_love"
 # The name's second row and the price button share one pixel of the card's
 # 40px height; the glyphs themselves do not touch, since "sm" draws 9px tall
 # inside its 11px layout box.
-_CARD_INSET = 6            # card x = panel_x + this; w = panel_w - 2*this
+_CARD_INSET = 6            # card column inset inside the panel (`_card_column`)
 _CARD_H = 40
 _CARD_GAP = 4              # list pitch = _CARD_H + _CARD_GAP
 _CARD_PAD = 3              # portrait inset from the card's top-left corner
@@ -122,6 +122,13 @@ _CARD_PRICE_H = 14
 _CARD_ICON = 10            # love icon side, inside the price button
 _CARD_LIST_TOP = 32        # first card's y at scroll offset 0
 _CARD_LIST_BOTTOM_PAD = 30 # clearance for the terrain badge at the panel foot
+# The price pill carries its OWN skin rather than inheriting the card body's
+# `defaults.button_skin`: the body is a full-card 9-slice, and stretching that
+# same art through a 74x14 pill reads as a squashed card. Baked here for the
+# same reason `_CARD_LOVE_ICON` is — it names a specific piece of art, and a
+# designer who wants another one overrides `card_<btype>_price`'s `skin` in the
+# editor, per card, without touching the body.
+_CARD_PRICE_SKIN = "ui_button_pill"
 # -- /construct-card geometry ---------------------------------------------
 
 # 10I: tooltip chrome — dark panel, 1px border in the condition colour
@@ -1024,6 +1031,25 @@ class BuildingUI:
         """
         return self.skinning.defaults(self.screen_id)
 
+    def _card_column(self):
+        """``(x, w)`` of the card column — the panel's own box, inset.
+
+        Cards are DYNAMIC-count content: they are laid out in code and cannot
+        be re-authored id-by-id in the editor the way a static widget can. So
+        when a designer resizes or moves the `panel` container, the column has
+        to follow it in code or it is left stranded in the old panel's
+        footprint. `self.panel_x`/`panel_w` are the ctor's CODE defaults and
+        never see the override (only `panel_rect` is refreshed, and only at
+        submit — after `_build_construct` has already run), which is exactly
+        why the authored rect is read straight off the skinning here.
+
+        No override (every screen that ships one absent, and the disk-free
+        `ScreenSkinning.empty()` the exporter records with) falls back to the
+        code defaults, so `screen_defaults.json` is unchanged by this."""
+        rect = self.skinning.widget_rect(self.screen_id, "panel")
+        px, pw = (rect[0], rect[2]) if rect else (self.panel_x, self.panel_w)
+        return px + _CARD_INSET, pw - 2 * _CARD_INSET
+
     def _card_list_viewport(self):
         """``(top, bottom)`` of the scrolling card list. Derived, never a
         literal: the bottom clears the terrain badge `_submit_construct` draws
@@ -1115,8 +1141,7 @@ class BuildingUI:
         # once for every card (a no-op price-wise for every type without the
         # multiplier key).
         repeat_count = count_tag(self._session.tilemap, LIGHTNING_SOURCE_TAG)
-        cx = self.panel_x + _CARD_INSET
-        cw = self.panel_w - 2 * _CARD_INSET
+        cx, cw = self._card_column()
         col_x = cx + _CARD_COL_X                 # the right column's left edge
         col_w = cw - _CARD_COL_X - _CARD_PAD     # name wrap width + price width
         step = _row_step("sm")
@@ -1140,7 +1165,7 @@ class BuildingUI:
                       _CARD_PORTRAIT, _CARD_PORTRAIT),
                 skin=self._card_portrait_slot(btype, tier_idx), visible=True)
             price = Button((col_x, y + _CARD_PRICE_TOP, col_w, _CARD_PRICE_H),
-                           "", "sm", skin=skin)
+                           "", "sm", skin=_CARD_PRICE_SKIN)
             icon = SimpleNamespace(
                 rect=(col_x + _CARD_PAD, y + _CARD_PRICE_TOP + 2,
                       _CARD_ICON, _CARD_ICON),
@@ -1986,16 +2011,22 @@ class BuildingUI:
             parts = self._card_parts.get(btype)
             if parts is None or not self._card_in_viewport(btn.rect):
                 continue
-            # panels first
+            # The card BODY first: it is this tree's background, and the HUD
+            # queue is drawn in pure submission order (`Renderer.submit_hud`
+            # appends; nothing sorts), so anything submitted after it lands on
+            # top. Drawing the portrait first instead hides it completely the
+            # moment the body carries real art — the whole 34x34 sits inside
+            # the body's rect. That stayed invisible for as long as
+            # `defaults.button_skin` was unset and the body drew as a flat
+            # rect, and broke the screen the day a designer skinned the card.
+            if is_visible(btn):
+                btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
+            # then the portrait, on top of the body it sits in
             if is_visible(parts.portrait):
                 submit_panel(renderer, parts.portrait.rect,
                              skin=parts.portrait.skin,
                              tint=getattr(parts.portrait, "tint", None),
                              anim_ms=anim_ms)
-            # then the buttons — the card body before the price pill sitting
-            # on top of it
-            if is_visible(btn):
-                btn.submit(renderer, anim_ms=anim_ms, **button_kwargs(btn))
             if is_visible(parts.price):
                 parts.price.submit(renderer, anim_ms=anim_ms,
                                    **button_kwargs(parts.price))
