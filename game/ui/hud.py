@@ -624,7 +624,14 @@ class Hud:
         is pending the bar reads full and pulses gold (prototype `_render_xp`).
         10L-B: rect/font/track-colour are overridable (``lvl_label``/
         ``xp_bar``/``xp_text``); the ratio + pulse fill stay code-owned (a
-        game-state value, like every other HUD readout)."""
+        game-state value, like every other HUD readout).
+
+        Under designer-scripted leveling XP is not a mechanic, so the bar, the
+        icon and the `40/60` text are all suppressed — `LVL N` stays, since the
+        village level itself is still very much a thing."""
+        submit_label(renderer, self._lvl_label, n=st.village_level)
+        if st.scripted_leveling:
+            return
         if st.levelup_pending:
             ratio = 1.0
             # 0.5 Hz sine between the purple and gold ends of the ramp
@@ -634,7 +641,6 @@ class Hud:
         else:
             ratio = st.player_xp / st.xp_threshold if st.xp_threshold else 0.0
             fill = _XP_PURPLE
-        submit_label(renderer, self._lvl_label, n=st.village_level)
         # -- 10L wave-3: xp icon, left of the bar --------------------------
         if is_visible(self._icon_xp):
             submit_panel(renderer, self._icon_xp.rect,

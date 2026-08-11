@@ -1523,12 +1523,56 @@ calls):
   groups carry a `building_type` key rather than a hardcoded family list, so
   a new `/add-building` type needs no editor change here. Tier index 0 is
   always the `"unlock"` card; indices 1/2 are `"tier"` cards.
+- **Two toolbar checkboxes flip what the whole panel MEANS** (designer-scripted
+  leveling), each with an `_InfoButton` in the house style, both staged like
+  every other edit and both defaulting OFF — with both off the panel looks and
+  behaves exactly as the bullets above describe. They are seeded from the
+  loaded doc with `blockSignals(True)` around `setChecked`, the
+  `balancing.py` "populate, then connect" rule: filling the form must never
+  dirty it. The tutorial panel's root-level `skippable`/
+  `first_loss_costs_life` booleans are the shape being copied.
+  - **Scripted leveling** (`Timeline.scripted_leveling`) — the designer
+    authors WHEN each level is reached. `_LevelRow.set_level` swaps its
+    read-only `"Level N — best-case round ~R"` header for an editable
+    `_NoWheelSpinBox` (0–1000) bound to that row's `round`, **hidden for level
+    1** (the run starts there, so its round is never read); `_TimelineGraph`
+    ticks the AUTHORED schedule instead of the computed crossings (a new
+    `set_ticks`, separate from `set_curve` — the curve depends only on
+    core/enemies balancing and still never recomputes on a Timeline edit,
+    but the ticks move on every round edit); and the caption swaps to
+    "authored schedule" wording. The spinbox is built ONCE in
+    `_LevelRow.__init__` and only shown/hidden, and `set_level_round`
+    deliberately does NOT rebuild the row — rebuilding would destroy the
+    widget the designer is typing into, which is why this one staged edit
+    breaks the panel's otherwise-universal "the row rebuilds" convention.
+  - **Exact offer slots** (`Timeline.exact_offer_slots`) — a row becomes the
+    literal card set, so duplicate placements are intended and
+    `_refresh_placed_state` **stops greying placed browse cards**. That
+    greying only ever existed to prevent a duplicate that
+    `validate_uniqueness` would reject at Save, and that check is off in this
+    mode — the two must be turned off together or the panel would forbid
+    through the UI what the writer happily accepts.
+- **Round-schedule problems WARN, they never block** (user decision).
+  `timeline_ops.round_warnings(doc)` returns human-readable strings for
+  duplicate rounds, a level not scheduled after the one before it, and rows
+  wider than `MAX_SLOTS_PER_LEVEL` (4 — above that the game's level-up window
+  overflows its 640px view); `village_level` 1 is skipped in the round checks
+  since its round is unused. They surface in a non-blocking label under the
+  toolbar, refreshed by `_refresh_mode_labels` after every mutation, and
+  `save_progression` deliberately does NOT consult them — Save stays enabled.
+  This is the opposite stance from `validate_uniqueness`, which still RAISES:
+  a duplicate `village_level` is ambiguous, a clumsy schedule is just clumsy.
 - **Testing note**: a real OS-level drag gesture cannot be reliably
   synthesized under an offscreen `QApplication`. `test_timeline_panel.py`
   drives the panel's own mutation methods directly for most coverage, plus
   ONE test constructing a real `QMimeData` and calling `_SlotWidget.
   dropEvent` directly — the standard Qt-test workaround, exercising the
   actual drop-handling code path rather than only the method it delegates to.
+  Its cases **pin the fixture by emptying `_doc["Timeline"]["levels"]`**
+  before authoring: they count rows and slots, and reading whatever schedule
+  ships today is the exact "never assert against live `data/` content" trap
+  the Testing section above describes (two of them had already gone red that
+  way).
 
 ## Verify
 Launch `py editor/main.py` and exercise the changed panel; for data-writing

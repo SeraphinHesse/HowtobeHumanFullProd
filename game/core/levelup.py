@@ -58,6 +58,30 @@ def tiers_for(btype, buildings_balance):
     return _group(btype, buildings_balance)["tiers"]
 
 
+def _timeline_row(progression_balance, village_level):
+    """The Timeline's authored row for ``village_level``, or ``None`` when it
+    has none (including when ``progression_balance`` is ``None`` itself — the
+    same bare-``Session`` tolerance ``timeline_level_for`` carries)."""
+    if progression_balance is None:
+        return None
+    for level in progression_balance["Timeline"]["levels"]:
+        if level["village_level"] == village_level:
+            return level
+    return None
+
+
+def scripted_level_due(village_level, round_num, progression_balance):
+    """Designer-scripted leveling: does the NEXT village level fall due at the
+    end of ``round_num``? True iff the Timeline holds a row for
+    ``village_level + 1`` whose authored ``round`` is ``round_num``.
+
+    A level the designer left off the Timeline simply never fires — the same
+    warn-don't-block stance the editor's round validation takes; past the last
+    authored level the player stops levelling, and there is no XP fallback."""
+    row = _timeline_row(progression_balance, village_level + 1)
+    return row is not None and row["round"] == round_num
+
+
 def timeline_level_for(btype, idx, progression_balance):
     """The ``village_level`` at which ``(btype, idx)`` first becomes
     offerable, per the Timeline's authored schedule — the SOLE source of
@@ -214,6 +238,56 @@ def _love_fallback(core_balance):
 
 # -- the roll ---------------------------------------------------------------
 
+def _reward_claimed(state, kind, btype, idx):
+    """Has the player already been granted what this authored card offers?
+    An unlock card is spent once the TYPE is unlocked; a tier card once that
+    tier is researched (``apply_levelup_option`` stores ``tier_no == idx + 1``,
+    so researched means ``tiers_unlocked_for(...) > idx``)."""
+    if kind == "unlock":
+        return type_unlocked(state, btype)
+    return tiers_unlocked_for(state, btype) > idx
+
+
+def exact_levelup_options(state, buildings_balance, core_balance,
+                          progression_balance):
+    """``Timeline.exact_offer_slots``: the level being reached shows EXACTLY
+    the cards its row authors, in row order — no shuffle, no eligibility pool.
+
+    A null slot pays the repeatable love fallback; a card whose reward is
+    already claimed is DROPPED (not padded over, so the row shrinks); a row
+    that ends up empty shows ONE love card. A village_level with no row at all
+    falls back to today's ``OPTION_COUNT`` love cards, exactly like an
+    under-populated level in the random path.
+
+    Duplicate placements are legal in this mode (the editor stops enforcing
+    ``(building_type, tier_index)`` uniqueness), so nothing here de-duplicates:
+    what the designer authored is what the player sees."""
+    row = _timeline_row(progression_balance, state.village_level + 1)
+    if row is None:
+        return [_love_fallback(core_balance) for _ in range(OPTION_COUNT)]
+    options = []
+    for slot in row["offer_slots"]:
+        assignment = slot["assignment"]
+        if assignment is None:
+            options.append(_love_fallback(core_balance))
+            continue
+        btype = assignment["building_type"]
+        idx = assignment["tier_index"]
+        spec = RESEARCH.get(btype)
+        # A card naming a type this build has no leaf/research row for is
+        # skipped rather than crashed on, the same guard the random roll's
+        # own loop opens with.
+        if btype not in LEAF_CLASSES or spec is None:
+            continue
+        if _reward_claimed(state, assignment["kind"], btype, idx):
+            continue
+        if assignment["kind"] == "unlock":
+            options.append(_unlock_option(btype, spec, buildings_balance))
+        else:
+            options.append(_tier_option(btype, idx, buildings_balance, spec))
+    return options or [_love_fallback(core_balance)]
+
+
 def roll_levelup_options(state, buildings_balance, core_balance, rng,
                           progression_balance):
     """Three option dicts: a unique shuffled draw from the eligible pool, padded
@@ -221,7 +295,15 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng,
     ``progression_balance`` (TimelinePLAN) is the sole source of WHICH
     tiers/unlocks are eligible; the shuffle/take-3/fallback-pad logic below
     is otherwise byte-identical to before that change — only pool
-    membership was repointed."""
+    membership was repointed.
+
+    ``Timeline.exact_offer_slots`` swaps the whole roll out for
+    ``exact_levelup_options`` above: the row stops being an eligibility floor
+    and becomes the literal card set."""
+    if (progression_balance is not None
+            and progression_balance["Timeline"]["exact_offer_slots"]):
+        return exact_levelup_options(
+            state, buildings_balance, core_balance, progression_balance)
     pool = []
     for btype, spec in RESEARCH.items():
         if btype not in LEAF_CLASSES:

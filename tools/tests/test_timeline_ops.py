@@ -21,7 +21,8 @@ class TimelineOpsCase(unittest.TestCase):
         shutil.copytree(REPO / "data", self.data_dir)
 
     def empty_doc(self):
-        return {"Timeline": {"levels": []}}
+        return {"Timeline": {"levels": [], "scripted_leveling": False,
+                             "exact_offer_slots": False}}
 
 
 class TestLevelAndSlotOps(TimelineOpsCase):
@@ -63,6 +64,103 @@ class TestLevelAndSlotOps(TimelineOpsCase):
         timeline_ops.add_slot(doc, 1)
         timeline_ops.remove_slot(doc, 1, 5)  # must not raise
         self.assertEqual(len(doc["Timeline"]["levels"][0]["offer_slots"]), 1)
+
+    def test_add_level_seeds_the_authored_round(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 4, 17)
+        self.assertEqual(timeline_ops.level_round(doc, 4), 17)
+
+    def test_add_level_defaults_the_round_to_zero(self):
+        doc = self.empty_doc()
+        timeline_ops.add_slot(doc, 4)   # implicit creation, no round given
+        self.assertEqual(timeline_ops.level_round(doc, 4), 0)
+
+    def test_set_level_round_stages_and_missing_level_is_a_no_op(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 2)
+        timeline_ops.set_level_round(doc, 2, 9)
+        timeline_ops.set_level_round(doc, 99, 5)  # must not raise
+        self.assertEqual(timeline_ops.level_round(doc, 2), 9)
+        self.assertIsNone(timeline_ops.level_round(doc, 99))
+
+
+class TestModeFlags(TimelineOpsCase):
+    def test_flags_default_off_and_round_trip_through_save_load(self):
+        doc = self.empty_doc()
+        self.assertFalse(timeline_ops.scripted_leveling(doc))
+        self.assertFalse(timeline_ops.exact_offer_slots(doc))
+
+        timeline_ops.set_scripted_leveling(doc, True)
+        timeline_ops.set_exact_offer_slots(doc, True)
+        timeline_ops.save_progression(doc, self.data_dir)
+
+        reloaded = timeline_ops.load_progression(self.data_dir)
+        self.assertTrue(timeline_ops.scripted_leveling(reloaded))
+        self.assertTrue(timeline_ops.exact_offer_slots(reloaded))
+
+    def test_exact_mode_allows_a_duplicate_placement_normal_mode_rejects(self):
+        doc = self.empty_doc()
+        timeline_ops.assign_slot(doc, 1, 0, "unlock", "blocker", 0)
+        timeline_ops.assign_slot(doc, 2, 0, "unlock", "blocker", 0)
+        with self.assertRaises(ValueError):
+            timeline_ops.validate_uniqueness(doc)
+
+        timeline_ops.set_exact_offer_slots(doc, True)
+        timeline_ops.validate_uniqueness(doc)  # must not raise
+
+    def test_duplicate_village_level_still_raises_in_exact_mode(self):
+        doc = self.empty_doc()
+        timeline_ops.set_exact_offer_slots(doc, True)
+        doc["Timeline"]["levels"] = [
+            {"village_level": 1, "round": 0, "offer_slots": []},
+            {"village_level": 1, "round": 2, "offer_slots": []},
+        ]
+        with self.assertRaises(ValueError):
+            timeline_ops.validate_uniqueness(doc)
+
+
+class TestRoundWarnings(TimelineOpsCase):
+    def test_an_increasing_schedule_warns_about_nothing(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 1, 0)
+        timeline_ops.add_level(doc, 2, 5)
+        timeline_ops.add_level(doc, 3, 9)
+        self.assertEqual(timeline_ops.round_warnings(doc), [])
+
+    def test_a_non_increasing_pair_warns(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 2, 9)
+        timeline_ops.add_level(doc, 3, 4)
+        warnings = timeline_ops.round_warnings(doc)
+        self.assertTrue(any("not scheduled after" in w for w in warnings))
+
+    def test_a_duplicate_round_warns(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 2, 7)
+        timeline_ops.add_level(doc, 3, 7)
+        warnings = timeline_ops.round_warnings(doc)
+        self.assertTrue(any("both scheduled for round 7" in w for w in warnings))
+
+    def test_level_1s_round_is_ignored_by_the_ordering_check(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 1, 500)   # unused by the runtime
+        timeline_ops.add_level(doc, 2, 5)
+        self.assertEqual(timeline_ops.round_warnings(doc), [])
+
+    def test_too_many_slots_warns(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 2, 5)
+        for _ in range(timeline_ops.MAX_SLOTS_PER_LEVEL + 1):
+            timeline_ops.add_slot(doc, 2)
+        warnings = timeline_ops.round_warnings(doc)
+        self.assertTrue(any("only fits" in w for w in warnings))
+
+    def test_save_does_not_consult_the_warnings(self):
+        doc = self.empty_doc()
+        timeline_ops.add_level(doc, 2, 9)
+        timeline_ops.add_level(doc, 3, 4)   # a warned-about schedule
+        timeline_ops.save_progression(doc, self.data_dir)  # must not raise
+        self.assertEqual(timeline_ops.load_progression(self.data_dir), doc)
 
 
 class TestAssignAndClear(TimelineOpsCase):
