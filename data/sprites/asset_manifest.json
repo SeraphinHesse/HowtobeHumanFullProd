@@ -2836,7 +2836,7 @@
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
-      "offset_y": 0,
+      "offset_y": -32,
       "rows": [
         {
           "animation": "idle",
@@ -8335,6 +8335,24 @@
         4,
         4
       ]
+    },
+    "vfx_crater": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_crater.png"
     },
     "vfx_dirt_pile": {
       "frame_h": 64,
