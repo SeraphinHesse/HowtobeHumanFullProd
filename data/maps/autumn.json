@@ -7447,26 +7447,6 @@
       "col": 508,
       "row": 504,
       "slot": "deco_prop_2_v16"
-    },
-    {
-      "col": 502,
-      "row": 506,
-      "slot": "deco_prop_2_v16"
-    },
-    {
-      "col": 507,
-      "row": 511,
-      "slot": "deco_prop_2_v16"
-    },
-    {
-      "col": 502,
-      "row": 513,
-      "slot": "deco_prop_2_v16"
-    },
-    {
-      "col": 503,
-      "row": 516,
-      "slot": "deco_prop_2_v16"
     }
   ],
   "despawnable_spawn": [
@@ -25457,8 +25437,8 @@
     }
   ],
   "start_area": {
-    "col": 512,
-    "row": 512,
+    "col": 513,
+    "row": 513,
     "slot": "start_area"
   },
   "terrain": [
