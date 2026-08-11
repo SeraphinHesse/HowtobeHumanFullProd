@@ -17,7 +17,13 @@
               "kind": "unlock",
               "tier_index": 0
             }
-          },
+          }
+        ],
+        "round": 0,
+        "village_level": 1
+      },
+      {
+        "offer_slots": [
           {
             "assignment": {
               "building_type": "boost_damage",
@@ -54,8 +60,8 @@
             }
           }
         ],
-        "round": 0,
-        "village_level": 1
+        "round": 7,
+        "village_level": 2
       },
       {
         "offer_slots": [
@@ -75,25 +81,25 @@
           }
         ],
         "round": 10,
-        "village_level": 2
-      },
-      {
-        "offer_slots": [
-          {
-            "assignment": {
-              "building_type": "defence",
-              "kind": "tier",
-              "tier_index": 1
-            }
-          }
-        ],
-        "round": 14,
         "village_level": 3
       },
       {
         "offer_slots": [
           {
             "assignment": {
+              "building_type": "defence",
+              "kind": "tier",
+              "tier_index": 1
+            }
+          }
+        ],
+        "round": 13,
+        "village_level": 4
+      },
+      {
+        "offer_slots": [
+          {
+            "assignment": {
               "building_type": "economic",
               "kind": "tier",
               "tier_index": 1
@@ -107,8 +113,8 @@
             }
           }
         ],
-        "round": 19,
-        "village_level": 4
+        "round": 17,
+        "village_level": 5
       },
       {
         "offer_slots": [
@@ -127,8 +133,8 @@
             }
           }
         ],
-        "round": 25,
-        "village_level": 5
+        "round": 20,
+        "village_level": 6
       },
       {
         "offer_slots": [
@@ -140,14 +146,14 @@
             }
           }
         ],
-        "round": 29,
-        "village_level": 6
+        "round": 23,
+        "village_level": 7
       },
       {
         "offer_slots": [
           {
             "assignment": {
-              "building_type": "boost_damage",
+              "building_type": "boost_hp",
               "kind": "tier",
               "tier_index": 1
             }
@@ -161,7 +167,7 @@
           },
           {
             "assignment": {
-              "building_type": "boost_hp",
+              "building_type": "boost_damage",
               "kind": "tier",
               "tier_index": 1
             }
@@ -174,8 +180,8 @@
             }
           }
         ],
-        "round": 30,
-        "village_level": 7
+        "round": 27,
+        "village_level": 8
       },
       {
         "offer_slots": [
@@ -208,8 +214,8 @@
             }
           }
         ],
-        "round": 36,
-        "village_level": 8
+        "round": 30,
+        "village_level": 9
       },
       {
         "offer_slots": [
@@ -228,8 +234,8 @@
             }
           }
         ],
-        "round": 38,
-        "village_level": 9
+        "round": 33,
+        "village_level": 10
       },
       {
         "offer_slots": [
@@ -269,21 +275,21 @@
             }
           }
         ],
-        "round": 43,
-        "village_level": 10
+        "round": 37,
+        "village_level": 11
       },
       {
         "offer_slots": [
           {
             "assignment": {
-              "building_type": "painter",
+              "building_type": "meditator",
               "kind": "tier",
               "tier_index": 2
             }
           },
           {
             "assignment": {
-              "building_type": "meditator",
+              "building_type": "painter",
               "kind": "tier",
               "tier_index": 2
             }
@@ -317,15 +323,45 @@
             }
           }
         ],
-        "round": 46,
-        "village_level": 11
+        "round": 40,
+        "village_level": 12
       },
       {
         "offer_slots": [],
-        "round": 49,
-        "village_level": 12
+        "round": 43,
+        "village_level": 13
+      },
+      {
+        "offer_slots": [],
+        "round": 45,
+        "village_level": 14
+      },
+      {
+        "offer_slots": [],
+        "round": 50,
+        "village_level": 15
+      },
+      {
+        "offer_slots": [],
+        "round": 53,
+        "village_level": 16
+      },
+      {
+        "offer_slots": [],
+        "round": 57,
+        "village_level": 17
+      },
+      {
+        "offer_slots": [],
+        "round": 60,
+        "village_level": 18
+      },
+      {
+        "offer_slots": [],
+        "round": 63,
+        "village_level": 19
       }
     ],
-    "scripted_leveling": false
+    "scripted_leveling": true
   }
 }
