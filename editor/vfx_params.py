@@ -21,6 +21,7 @@ from engine.vfx import (
     BeamParams,
     BurstParams,
     CraterParams,
+    DrummerAuraParams,
     FloaterParams,
     GoldParams,
     LightningParams,
@@ -168,6 +169,20 @@ def projectile_params(pr):
         lift_frac=pr["lift_frac"])
 
 
+def drummer_aura_params(da):
+    """Mirrors ``game/ui/effects.py::_params_from_balance``'s new
+    ``drummer_aura`` read. Like ``floaters``/``projectile``, it carries no
+    preview lever of its own (``_EMIT_FAMILIES`` degrades it to the
+    graceful-placeholder branch — it is a live-component-driven ring, not a
+    particle this preview emits) — required purely so ``VfxParams`` (a
+    required, no-default field, G-7) stays constructible for every OTHER
+    family's preview."""
+    return DrummerAuraParams(
+        color=color(da["color"]), alpha_min=da["alpha_min"],
+        alpha_max=da["alpha_max"], pulse_period_s=da["pulse_period_s"],
+        segments=da["segments"])
+
+
 def params_from_balance(proc):
     """Mirrors ``game/ui/effects.py::_params_from_balance``'s structure, but
     takes the already-unwrapped ``procedural`` dict — the vfx preview panel
@@ -188,4 +203,5 @@ def params_from_balance(proc):
         lightning=lightning_params(proc["lightning"]),
         announce=announce_params(proc["announce"]),
         floaters=floater_params(proc["floaters"]),
-        projectile=projectile_params(proc["projectile"]))
+        projectile=projectile_params(proc["projectile"]),
+        drummer_aura=drummer_aura_params(proc["drummer_aura"]))

@@ -5,9 +5,21 @@ resolves them into DrawCalls (screen space, concrete surface) for the
 backend. LAYERS is the fixed named draw order (E-26); HUD is drawn by the
 host after flush, not through the item pipeline.
 """
+import math
 from dataclasses import dataclass
 
 LAYERS = ("ground", "terrain", "entities", "deco", "overlay")
+
+
+def round_half_up(v):
+    """THE pixel quantizer for screen coordinates (backend dests/points, the
+    ground cache's scroll/blit offsets). Builtin round() is banker's
+    (half-to-even): two dests both ending in .5 can round OPPOSITE ways, and a
+    pan crossing a .5 tie can double-step 2px — per item, inconsistently.
+    floor(x + 0.5) breaks every tie the same way, so equal sub-pixel phases
+    always land on the same pixel. One expression for the same reason as
+    fit_factor: a second copy would drift the moment the rule changes."""
+    return math.floor(v + 0.5)
 
 
 @dataclass(frozen=True)

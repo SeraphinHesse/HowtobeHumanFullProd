@@ -885,7 +885,9 @@
             "vfx_crater",
             "vfx_projectile",
             "vfx_shell",
-            "vfx_dirt_pile"
+            "vfx_dirt_pile",
+            "vfx_buff_arrow",
+            "vfx_beam"
           ]
         }
       ],

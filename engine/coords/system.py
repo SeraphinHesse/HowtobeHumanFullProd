@@ -47,10 +47,19 @@ class CoordinateSystem:
         return (layer_index, wx + wy, wy)
 
     # -- camera (E-5): pure state mutation, no input handling ------------
+    #
+    # INTEGER-PAN INVARIANT: every mutator below leaves pan_x/pan_y whole.
+    # Pan is in screen pixels, and a fractional pan makes each render path
+    # quantize it independently at blit time — the ground cache steps at one
+    # global threshold while per-item sprites (deco/conditions) step at
+    # per-item sub-pixel phases, so the layers visibly desync while panning
+    # (worst at zoom 0.5, where frame-width/2 terms land on quarter pixels).
+    # Fractions only ever entered via clamp-centring and zoom-recentre
+    # division; rounding them here is imperceptible (≤ half a pixel, once).
 
     def pan(self, dx, dy):
-        self.camera.pan_x += dx
-        self.camera.pan_y += dy
+        self.camera.pan_x = round(self.camera.pan_x + dx)
+        self.camera.pan_y = round(self.camera.pan_y + dy)
 
     def set_zoom(self, zoom):
         if zoom not in self.geometry.zoom_levels:
@@ -75,8 +84,8 @@ class CoordinateSystem:
         """Clamp pan so the viewport stays on the map; if the map is smaller
         than the viewport on an axis, centre it instead."""
         min_x, min_y, max_x, max_y = self.map_pixel_bounds()
-        self.camera.pan_x = _clamp_axis(self.camera.pan_x, min_x, max_x, viewport_w)
-        self.camera.pan_y = _clamp_axis(self.camera.pan_y, min_y, max_y, viewport_h)
+        self.camera.pan_x = round(_clamp_axis(self.camera.pan_x, min_x, max_x, viewport_w))
+        self.camera.pan_y = round(_clamp_axis(self.camera.pan_y, min_y, max_y, viewport_h))
 
     def visible_tile_window(self, viewport_w, viewport_h, margin=0):
         """Integer (col_min, col_max, row_min, row_max) of the tiles whose

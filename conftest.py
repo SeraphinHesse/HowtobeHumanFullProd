@@ -76,6 +76,7 @@ TIERS = {
     "test_bake_ui_sheets": "core",  # 10L wave 3: UI sheet baker
     "test_balancing_data": "core",
     "test_base_building": "core",
+    "test_beam_crater_sprites": "core",  # vfx-projectile-spritesheets: has-art toggle
     "test_boost": "core",
     "test_boss": "core",
     "test_building_movement": "core",  # Building Movement: move_cost/start_move
@@ -112,6 +113,7 @@ TIERS = {
     "test_layout_h_invariant": "core",  # Fix 1 (phase-10L wave3): layout_h pin
     "test_levelup": "core",
     "test_lightning": "core",
+    "test_map_overlays": "core",  # MapOverlays: the TIER OVERVIEW toggle pill
     "test_movement": "core",
     "test_names": "core",
     "test_nine_slice": "core",

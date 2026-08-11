@@ -263,6 +263,21 @@ reads it straight off `VfxParams` in `submit_projectiles`. Every direct
 switching every family in its combo, not just by reasoning about the
 dataclass.
 
+**Drummer buff-range telegraph (feature)** appended `DrummerAuraParams` the
+same way — one more required `drummer_aura` field on `VfxParams`
+(`procedural.drummer_aura`: colour, `alpha_min`/`alpha_max`, `pulse_period_s`,
+`segments`). It is the sixth dataclass `VfxSystem` never touches, and unlike
+`CraterParams`/`LightningParams` it owns no cosmetic fade-lifetime field
+either — the ring it describes is drawn fresh every frame straight off the
+live `DrummerAura` component (`game/enemies/components.py`) for as long as
+the Drummer enemy is alive, never spawned as its own scene GameObject.
+`game/ui/effects.py::submit_drummer_auras` reads it off `VfxParams.
+drummer_aura` and draws through the same `_polygon_ring` helper the mortar
+crater uses, with the alpha breathing over a sine pulse keyed off
+`FloaterManager`'s own `self._clock` (the `hud.py` XP-bar pulse shape). Every
+direct `VfxParams(...)` construction needed a `drummer_aura=` argument again
+(`editor/vfx_params.py`, `tools/tests/test_vfx.py`'s `VFX_PARAMS` fixture).
+
 ## Hard rules (whole package)
 - **pygame imports are allowed ONLY in** `render/`'s backend, `render/fonts.py`,
   `render/ground_cache.py`, the asset surface cache (`assets/store.py`,
