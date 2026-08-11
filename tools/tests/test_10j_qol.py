@@ -16,6 +16,7 @@ from engine.core import Scene
 from engine.physics import TileOccupancy
 from game.buildings.components import Nameplate, TierState
 from game.core import Session, load_balance
+from game.core import levelup as lv
 from game.enemies import Spawner
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
@@ -32,7 +33,13 @@ ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
 VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
+PROGRESSION_BAL = load_balance(FIXTURE_DATA, "progression")
 VIEW_W, VIEW_H = 640, 360
+# Slinger (defence tier index 1)'s Timeline placement -- the village_level a
+# batch-advance test must reach for `tier_offerable` to allow it, since the
+# Timeline is the SOLE source of tier eligibility (progression_balance=None
+# on a bare Session, as `make_world()` builds, always reads "not offerable").
+DEF_T2_LEVEL = lv.timeline_level_for("defence", 1, PROGRESSION_BAL)
 
 
 def make_world():
@@ -153,10 +160,13 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
             lvl = t.occupant.get_component(TierState).current_level_in_tier
             self.assertEqual(lvl, 2)
 
-    def test_batch_advance_catches_up_and_sums_multiple(self):
-        """fix/batch-tier-advance: a multi-selection where every building can
-        reach the next tier -- one already at tier max, one still mid-tier --
-        advances BOTH in one click, one combined cost (catch-up + advance)."""
+    def test_batch_catches_up_to_level_3_then_advances_together(self):
+        """Catch-up-then-advance rework: a multi-selection where one building
+        is already at tier max and another is still mid-tier does NOT
+        combine catch-up + advance into one click any more. Stage A first
+        levels the laggard up to level 3 (one step per click, the maxed
+        building untouched); only once BOTH are at level 3 does Stage B
+        (ADVANCE) appear and advance them together."""
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
         tiles = [tm.get(2, 1), tm.get(2, 2)]
@@ -167,30 +177,55 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         b_ready, b_catchup = (t.occupant for t in tiles)
         b_ready.get_component(TierState).current_level_in_tier = 3  # tier max
         # b_catchup stays at level 1 -- needs 2 more in-tier levels first
-        session.state.round_num = 10
         session.state.tiers_unlocked["defence"] = 2  # Slinger researched
+        session.progression_balance = PROGRESSION_BAL  # Slinger offerable...
+        session.state.village_level = DEF_T2_LEVEL     # ...at this level
 
         tier0 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]
         tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
                       ["tiers"][1]["build_cost"])
-        catchup = sum(
-            tier0["upgrade_cost_base"] + (lvl - 1) * tier0["upgrade_cost_increment"]
-            for lvl in (1, 2))
-        expected_total = tier1_cost + (tier1_cost + catchup)
+        base, incr = tier0["upgrade_cost_base"], tier0["upgrade_cost_increment"]
+        step_cost = lambda lvl: base + (lvl - 1) * incr  # noqa: E731
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
                             selected_tiles=tiles)
         self.assertEqual(panel.mode, "upgrade")
-        targets = panel._batch_advance_targets()
-        self.assertEqual({t[0] for t in targets}, {b_ready, b_catchup})
-        self.assertIn("ADVANCE", panel.action_btn.label)
-        self.assertEqual(panel._action_cost, expected_total)
 
-        session.state.love = expected_total + 5
+        # Stage A, click 1: only the laggard is in the batch (level 1 -> 2);
+        # the already-maxed building is untouched.
+        targets = panel._batch_upgrade_targets()
+        self.assertEqual([t[0] for t in targets], [b_catchup])
+        self.assertIn("UPGRADE", panel.action_btn.label)
+        self.assertEqual(panel._action_cost, step_cost(1))
         love_before = session.state.love
         panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
                            scene, occupancy)
-        self.assertEqual(session.state.love, love_before - expected_total)
+        self.assertEqual(session.state.love, love_before - step_cost(1))
+        self.assertEqual(b_catchup.get_component(TierState).current_level_in_tier, 2)
+        self.assertEqual(b_ready.get_component(TierState).current_level_in_tier, 3)
+
+        # Stage A, click 2: level 2 -> 3, still just the laggard.
+        self.assertIn("UPGRADE", panel.action_btn.label)
+        self.assertEqual(panel._action_cost, step_cost(2))
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - step_cost(2))
+        self.assertEqual(b_catchup.get_component(TierState).current_level_in_tier, 3)
+
+        # Both buildings are now at level 3 -- Stage A's sweep is empty, so
+        # Stage B (ADVANCE) takes over, covering BOTH together.
+        self.assertEqual(panel._batch_upgrade_targets(), [])
+        targets = panel._batch_advance_targets()
+        self.assertEqual({t[0] for t in targets}, {b_ready, b_catchup})
+        self.assertIn("ADVANCE", panel.action_btn.label)
+        expected_advance = tier1_cost * 2
+        self.assertEqual(panel._action_cost, expected_advance)
+
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - expected_advance)
         for b in (b_ready, b_catchup):
             ts = b.get_component(TierState)
             self.assertEqual(ts.current_tier, 1)
@@ -198,8 +233,11 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
 
     def test_batch_advance_excludes_buildings_that_cannot_reach_next_tier(self):
         """A building already at its FINAL tier can't advance no matter what
-        -- it's silently excluded from the batch and left untouched, while
-        the eligible one in the same selection still advances."""
+        -- Stage A still catches it up to level 3 like any other selected
+        building (it just never gets a next tier to advance into), and
+        Stage B then silently excludes it from the ADVANCE batch, leaving it
+        at level 3 while the eligible building in the same selection still
+        advances."""
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
         tiles = [tm.get(2, 1), tm.get(2, 2)]
@@ -210,11 +248,24 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         b_eligible, b_stuck = (t.occupant for t in tiles)
         b_eligible.get_component(TierState).current_level_in_tier = 3
         b_stuck.get_component(TierState).current_tier = 2  # Pistoleer (final tier)
-        session.state.round_num = 10
+        # b_stuck stays at level 1 of its final tier -- still needs catch-up
         session.state.tiers_unlocked["defence"] = 2
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = DEF_T2_LEVEL
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
                             selected_tiles=tiles)
+        # Stage A: b_stuck still needs catching up within its own (final)
+        # tier, even though it can never advance beyond it.
+        targets = panel._batch_upgrade_targets()
+        self.assertEqual([t[0] for t in targets], [b_stuck])
+        for _ in range(2):  # level 1 -> 2 -> 3
+            panel.handle_click(*click(panel.action_btn), session,
+                               BUILDINGS_BAL, scene, occupancy)
+        self.assertEqual(b_stuck.get_component(TierState).current_level_in_tier, 3)
+
+        # Stage B: only b_eligible is advance-eligible now; b_stuck is
+        # excluded (no next tier exists) and left untouched.
         targets = panel._batch_advance_targets()
         self.assertEqual([t[0] for t in targets], [b_eligible])
 
@@ -226,6 +277,35 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
         self.assertEqual(session.state.love, love_before - tier1_cost)
         self.assertEqual(b_eligible.get_component(TierState).current_tier, 1)
         self.assertEqual(b_stuck.get_component(TierState).current_tier, 2)
+        self.assertEqual(b_stuck.get_component(TierState).current_level_in_tier, 3)
+
+    def test_batch_upgrade_not_blocked_by_blocked_primary(self):
+        """Regression for the grey-out bug: the PRIMARY selected building
+        being blocked (tier maxed, next tier not yet researched) must not
+        disable a batch that a non-primary selected building could still
+        take. `_batch_upgrade_targets` sweeps the whole selection, not just
+        the primary."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        primary, other = (t.occupant for t in tiles)
+        primary.get_component(TierState).current_level_in_tier = 3  # tier max
+        # Next tier is NOT researched (tiers_unlocked left at its default),
+        # so primary's own mode is neither "in_tier" nor "tier_upgrade" --
+        # under the old primary-gated logic this alone disabled the button.
+        # `other` stays at level 1 (plain "in_tier").
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel.mode, "upgrade")
+        self.assertTrue(panel.action_btn.enabled)
+        self.assertIn("UPGRADE", panel.action_btn.label)
+        targets = panel._batch_upgrade_targets()
+        self.assertEqual([t[0] for t in targets], [other])
 
     def test_batch_advance_all_or_nothing_when_unaffordable(self):
         tm, scene, occupancy, session = make_world()
@@ -237,8 +317,9 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
                            BUILDINGS_BAL, scene, occupancy)
         for t in tiles:
             t.occupant.get_component(TierState).current_level_in_tier = 3
-        session.state.round_num = 10
         session.state.tiers_unlocked["defence"] = 2
+        session.progression_balance = PROGRESSION_BAL
+        session.state.village_level = DEF_T2_LEVEL
 
         panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
                             selected_tiles=tiles)

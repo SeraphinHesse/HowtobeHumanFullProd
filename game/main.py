@@ -993,8 +993,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 continue
             st = shell.state
             if st == GameState.CUTSCENE:
-                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    intro_player.skip()
+                # skip is now a 2s hold (left click/space/esc), polled
+                # continuously below — this branch only swallows input.
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
@@ -1012,8 +1012,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             # -- TU-5: an in-gameplay cutscene overlay consumes ALL input
             # while active (mirrors the CUTSCENE branch above) --
             if gp["cutscene"] is not None:
-                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    gp["cutscene"].skip()
+                # skip is now a 2s hold (left click/space/esc), polled
+                # continuously below — this branch only swallows input.
                 continue
             # TU-6: the guided-chain whitelist lives at the existing choke
             # points instead (message-box click-swallow in
@@ -1169,12 +1169,16 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
 
         mx, my = pygame.mouse.get_pos()
         held = pygame.mouse.get_pressed()[0]   # 10L-A: skinned pressed state
+        keys = pygame.key.get_pressed()
+        # cutscene hold-to-skip: left click, space, or esc held continuously
+        skip_held = held or keys[pygame.K_SPACE] or keys[pygame.K_ESCAPE]
 
         # 2. simulate / update — per state
         _t_sim0 = time.perf_counter()
         st = shell.state
         if st == GameState.CUTSCENE:
             intro_player.update(dt)
+            intro_player.update_skip_hold(dt, skip_held)
             if intro_player.done:
                 intro_player.release()
                 shell.to_main_menu()
@@ -1194,6 +1198,7 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                     gp["cutscene"] = requested
             if gp["cutscene"] is not None:
                 gp["cutscene"].update(dt)
+                gp["cutscene"].update_skip_hold(dt, skip_held)
                 if gp["cutscene"].done:
                     gp["cutscene"].release()
                     gp["cutscene"] = None
@@ -1447,8 +1452,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             surf = intro_player.frame_surface()
             if surf is not None:
                 window.blit(surf, (0, 0))
+            widgets.submit_progress_ring(
+                renderer, view_w // 2, view_h - 60, 10,
+                intro_player.skip_progress)
             renderer.submit_hud(HudText(
-                "press any key to skip", (view_w // 2, view_h - 40),
+                "hold to skip", (view_w // 2, view_h - 40),
                 "md", (210, 210, 210), align="center"))
             _t_flush_start = time.perf_counter()
             renderer.flush(window)
@@ -1660,8 +1668,11 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
                 surf = gp["cutscene"].frame_surface()
                 if surf is not None:
                     window.blit(surf, (0, 0))
+                widgets.submit_progress_ring(
+                    renderer, view_w // 2, view_h - 60, 10,
+                    gp["cutscene"].skip_progress)
                 renderer.submit_hud(HudText(
-                    "press any key to skip", (view_w // 2, view_h - 40),
+                    "hold to skip", (view_w // 2, view_h - 40),
                     "md", (210, 210, 210), align="center"))
                 renderer.flush(window)
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --

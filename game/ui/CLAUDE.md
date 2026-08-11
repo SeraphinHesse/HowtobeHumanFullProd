@@ -639,6 +639,19 @@ picker and the confirmation.
   both endpoints are plain BUILDABLE tiles, so without this the panel would
   offer cards `place_building` then refuses. Convenience only; the bar itself
   is in `place_building`.
+- **The path line (building-move-manhattan-distance fix)**: once a
+  destination tile is picked (i.e. `self.preview` is a `MovePreview`),
+  `BuildingUI.submit()` draws an L-shaped cyan (`widgets.C_MOVE_HIGHLIGHT`)
+  world-space line from the building's tile centre to the destination's —
+  column-first, then row, matching the straight-line-only tiles
+  `move_distance()` counts (`game/buildings/CLAUDE.md`). It is NOT a live
+  mouse-hover trace: nothing is drawn during plain `move_select` picking,
+  only once a destination has actually been chosen and the confirm modal is
+  open. It sits beside `_highlight_tiles`/`_highlight_edges`, before the
+  `self.visible` guard, and reads `self.preview.building`/`.dest_tile`
+  straight off the live preview object every frame rather than caching
+  separate state — it disappears for free the instant `self.preview` is
+  cleared (confirm, cancel, or close all already do that).
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
@@ -688,24 +701,42 @@ imports:
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
   only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
   when the selection is a single tile. The base never batches.
-  **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
-  path from the plain in-tier batch above.** `_batch_advance_targets`
-  (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
-  every building whose next tier is reachable right now — regardless of its
-  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
-  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
-  UPGRADE batch. Clicking it, for each target: pays and applies any
-  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
-  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
-  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
-  LOVE" flash the in-tier batch uses). A building that can never reach its
-  next tier right now (already at the final tier, next tier unresearched,
-  or round-gated) is excluded from the batch/cost entirely — left for the
-  player to handle separately once it qualifies. **A single selection is
-  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
-  tiles) <= 1`, so one selected building still upgrades one in-tier level
-  per click and advances tier separately, via the original primary-only
-  branch in `_upgrade_click`, byte-identical to before this fix.
+  **fix/batch-tier-advance, reworked into a two-stage catch-up-then-advance
+  flow: a multi-selection's UPGRADE/ADVANCE button is now ONE unified path**,
+  replacing what used to be two separate behaviors (a plain in-tier batch,
+  and a separate combined advance batch that won outright the moment any
+  selected building was advance-eligible). Priority in both
+  `_build_upgrade` and `_upgrade_click`: **Stage A** —
+  `_batch_upgrade_targets` sweeps the WHOLE selection (not gated on the
+  primary tile's own mode, unlike before) for every building below level 3
+  of its current tier; whenever that set is non-empty the button shows
+  `"UPGRADE ×n  <cost>"` and a click levels each of them up one step, one
+  combined cost. **Stage B** only runs once Stage A's sweep is empty — i.e.
+  every selected building has already reached level 3 — and is exactly the
+  old advance-batch logic: `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps for every building whose
+  next tier is reachable right now, and `_build_upgrade` shows ONE combined
+  `"ADVANCE ×n  <cost>"` button. Clicking it, for each target: pays and
+  applies any remaining in-tier `upgrade()` calls needed to reach this
+  tier's max level (always 0 by the time Stage B runs, since Stage A already
+  drained them), then one `advance_tier()`, then
+  `lightning.sync_level_from_tier` — all gated by ONE all-or-nothing total
+  (no partial batch, same "NOT ENOUGH LOVE" flash the in-tier batch uses). A
+  building that can never reach its next tier right now (already at the
+  final tier, next tier unresearched, or round-gated) is excluded from
+  Stage B's batch/cost entirely and left sitting at level 3, untouched — it
+  never blocks the rest of the selection. **This closes the old grey-out
+  bug**: previously, the plain in-tier batch only fired when the *primary*
+  selected tile's own mode was `"in_tier"`, so a primary that was itself
+  blocked (tier maxed but unresearched, or at its final tier) disabled the
+  whole button even when other selected buildings still needed and could
+  take a plain upgrade; Stage A's whole-selection sweep fixes that by
+  construction. **A single selection is unaffected**: both
+  `_batch_upgrade_targets` and `_batch_advance_targets` are only consulted
+  when `len(selected_tiles) > 1`, so one selected building still
+  upgrades/advances one step at a time via the original primary-only
+  branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
+  this rework.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
@@ -1567,6 +1598,24 @@ trigger call sites in `main.py`, never unified into one state machine:
 - **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
+- **Skip is a 2-second HOLD, not a single click/key (cutscene-hold-to-skip).**
+  `SKIP_HOLD_SECONDS` (`cutscene_player.py`) plus `CutscenePlayer._skip_hold`/
+  `update_skip_hold(dt, held)`/`skip_progress` live on the class itself, not
+  at either `main.py` call site — so both `intro` and `first_end_turn`, and
+  any future registry entry built through the same `CutscenePlayer`, get the
+  hold behavior for free. `held` is a single host-computed bool (left mouse
+  button OR spacebar OR escape currently down, polled every frame via
+  `pygame.mouse.get_pressed()`/`pygame.key.get_pressed()` — **every other
+  input is inert** during a cutscene, not just non-skipping); the event loop
+  no longer calls `.skip()` on a discrete `KEYDOWN`/`MOUSEBUTTONDOWN` at all,
+  it only swallows events (`continue`) so nothing leaks to menu/world
+  handling. `update_skip_hold` resets the accumulator to 0 the instant
+  `held` goes false (an early release costs the whole progress, not a
+  partial credit) and no-ops once `done` (never double-fires `skip()` the
+  same frame the video ends naturally). `widgets.submit_progress_ring`
+  (`widgets.py`, composed from `HudLines` — no arc/pie HUD primitive exists)
+  draws the small ring at a FIXED screen point (`view_w // 2, view_h - 60`),
+  identical whether the hold is mouse or keyboard.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the

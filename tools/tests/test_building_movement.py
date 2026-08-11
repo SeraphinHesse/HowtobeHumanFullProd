@@ -1,7 +1,8 @@
 """Building Movement: the move seam (game/buildings/movement.py).
 
 Covers the three things the feature's correctness rests on:
-1. the Chebyshev + floor-divided cost/time formulas (and the two off-switches),
+1. the Manhattan (straight-line-only) + floor-divided cost/time formulas
+   (and the two off-switches),
 2. ``start_move``'s validation + the "a move in transit is represented by
    ABSENCE" contract — the origin goes back to plain BUILDABLE with no
    occupant, the building leaves the scene, and BOTH endpoints are barred from
@@ -52,12 +53,13 @@ def board():
 
 
 class TestFormula(unittest.TestCase):
-    def test_distance_is_chebyshev(self):
+    def test_distance_is_manhattan(self):
         self.assertEqual(move_distance(0, 0, 3, 0), 3)
         self.assertEqual(move_distance(0, 0, 0, 3), 3)
-        # a diagonal costs the same as a straight run of the same span
-        self.assertEqual(move_distance(0, 0, 3, 3), 3)
-        self.assertEqual(move_distance(5, 5, 2, 4), 3)
+        # no diagonal shortcut — a move that changes both axes sums them,
+        # it does not take the max of the two
+        self.assertEqual(move_distance(0, 0, 3, 3), 6)
+        self.assertEqual(move_distance(5, 5, 2, 4), 4)
 
     def test_worked_example_from_the_spec(self):
         """3 tiles at the shipped defaults (base 10 / +10 per 2 tiles, base 1
@@ -81,6 +83,37 @@ class TestFormula(unittest.TestCase):
 
 
 class TestStartMove(unittest.TestCase):
+    def test_unowned_tiles_between_endpoints_count_like_any_other(self):
+        """The straight-line span between a building's tile and its
+        destination may cross tiles the player has not unlocked yet ('c' =
+        TileState.COMBAT, not BUILDABLE/BUILT — Tile.is_unlocked is False).
+        move_distance carries no tilemap/ownership check at all, so those
+        tiles must cost exactly what an equal-span move over an
+        all-BUILDABLE board costs — the quoted price/time depends only on
+        the two endpoint coordinates, unowned tiles included or not."""
+        mixed = synth([
+            "bbbccc",
+            "bbbccc",
+            "bbbccc",
+            "cccbbb",
+            "cccbbb",
+            "cccbbb",
+        ])
+        scene, occ = Scene(), TileOccupancy()
+        b, _ = place_building(mixed, mixed.get(1, 1), "defence", 9999, BAL,
+                              scene, occ)
+        scene.update(0.0)
+        cost, rounds = start_move(mixed, b, mixed.get(4, 4), MOVE, 9999,
+                                  occ, scene)
+
+        full_tm, full_scene, full_occ, full_b = board()
+        full_cost, full_rounds = start_move(
+            full_tm, full_b, full_tm.get(4, 4), MOVE, 9999, full_occ,
+            full_scene)
+
+        self.assertEqual((cost, rounds), (full_cost, full_rounds))
+        self.assertEqual(cost, move_cost(move_distance(1, 1, 4, 4), MOVE))
+
     def test_in_transit_is_represented_by_absence(self):
         tm, scene, occ, b = board()
         cost, rounds = start_move(tm, b, tm.get(4, 1), MOVE, 9999, occ, scene)

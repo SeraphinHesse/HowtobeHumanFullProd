@@ -18,6 +18,17 @@ conventions, update THIS doc.
   windowed tile culling so arbitrarily large maps cost only their visible window.
 
 ## Conventions
+- **Integer-pan invariant (JitteryMapFix)**: every camera mutator (`pan`,
+  `clamp`, `center_on` via its clamp) leaves `pan_x`/`pan_y` WHOLE. Pan is in
+  screen pixels; a fractional pan (which only ever leaked in via
+  clamp-centring and zoom-recentre division) makes each render path quantize
+  it independently at blit time — the ground cache steps at one global
+  threshold while per-item sprites (deco/conditions) step at per-item
+  sub-pixel phases, so the layers visibly desynced while panning (worst at
+  zoom 0.5, where `frame_w/2 · zoom` terms land on quarter pixels). Pinned by
+  `test_coords.TestCamera.test_mutators_keep_pan_integer`. Direct `Camera(...)`
+  construction stays float-capable (tests, the ground cache's private anchor
+  camera); the invariant lives in the mutators, not the dataclass.
 - **Geometry** comes from `data/geometry.json` +
   `data/schemas/geometry.schema.json` via
   `engine.coords.load_coordinate_system(data_dir)` (E-1). Camera pan is in screen

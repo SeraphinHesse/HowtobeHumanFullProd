@@ -16,6 +16,11 @@ from engine import data_io
 from engine.audio import play_music, stop_music
 from engine.video import VideoSource
 
+#: hold-to-skip threshold (left click / space / esc), shared by every
+#: registry entry — a code constant, not a balancing value (mirrors other
+#: UI-interaction constants like main.py's drag threshold).
+SKIP_HOLD_SECONDS = 2.0
+
 
 def load_cutscene_registry(data_dir):
     """Load + schema-validate ``data/video/cutscenes.json`` into an id-keyed
@@ -41,6 +46,7 @@ class CutscenePlayer:
         audio_name = entry.get("audio")
         self._audio_path = data_dir / "video" / audio_name if audio_name \
             else None
+        self._skip_hold = 0.0
 
     @property
     def enabled(self):
@@ -64,6 +70,27 @@ class CutscenePlayer:
 
     def update(self, dt):
         self._video.update(dt)
+
+    def update_skip_hold(self, dt, held):
+        """Accumulates while ``held`` (left click/space/esc, host-decided)
+        is down; calls ``skip()`` once ``SKIP_HOLD_SECONDS`` is reached.
+        Releasing before the threshold resets the accumulator to 0 — a
+        no-op once the video is already ``done`` (never re-fires ``skip()``
+        the same frame the video ends naturally)."""
+        if self.done:
+            return
+        if not held:
+            self._skip_hold = 0.0
+            return
+        self._skip_hold += dt
+        if self._skip_hold >= SKIP_HOLD_SECONDS:
+            self.skip()
+
+    @property
+    def skip_progress(self):
+        """Fraction [0, 1] of the hold threshold reached so far — the host
+        draws this as a progress ring."""
+        return min(1.0, self._skip_hold / SKIP_HOLD_SECONDS)
 
     def frame_surface(self):
         return self._video.frame_surface()
