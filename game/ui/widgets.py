@@ -15,9 +15,10 @@ they equal the stock file). Every consumer reads ``widgets.C_GOLD`` etc. via
 attribute access, never ``from .widgets import C_GOLD`` (an early binding a
 later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 """
+import math
 from types import SimpleNamespace
 
-from engine.render import HudRect, HudSprite, HudText
+from engine.render import HudLines, HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
 
 from . import strings
@@ -333,6 +334,35 @@ def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):
         renderer.submit_hud(HudRect((x, y, int(w * ratio), h), fill))
     if border is not None:
         renderer.submit_hud(HudRect((x, y, w, h), border, width=1))
+
+
+def submit_progress_ring(renderer, cx, cy, radius, ratio, *,
+                          bg=None, fill=None, width=2, segments=32):
+    """A small circular hold-progress indicator (cutscene hold-to-skip): a
+    dim full ring plus a bright arc from 12 o'clock clockwise proportional
+    to ``ratio`` (clamped to [0, 1]). Composed from ``HudLines`` — no arc/pie
+    HUD primitive exists (`engine/render/hud.py`), the same reason
+    ``submit_ui_box_highlight``/``submit_tutorial_banner`` above compose
+    from existing primitives instead of adding a new engine one. Colors
+    default to ``None`` and resolve here, not at def time — the UH-6
+    rebind-safety convention every helper in this file follows."""
+    if bg is None:
+        bg = C_UI_TEXT_DIM
+    if fill is None:
+        fill = C_GOLD
+    ratio = max(0.0, min(1.0, ratio))
+    bg_pts = tuple(
+        (cx + radius * math.sin(2 * math.pi * i / segments),
+         cy - radius * math.cos(2 * math.pi * i / segments))
+        for i in range(segments + 1))
+    renderer.submit_hud(HudLines(bg_pts, bg, width=width, closed=True))
+    if ratio > 0:
+        n = max(1, round(segments * ratio))
+        arc_pts = tuple(
+            (cx + radius * math.sin(2 * math.pi * ratio * i / n),
+             cy - radius * math.cos(2 * math.pi * ratio * i / n))
+            for i in range(n + 1))
+        renderer.submit_hud(HudLines(arc_pts, fill, width=width))
 
 
 class Button:
