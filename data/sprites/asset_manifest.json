@@ -8041,7 +8041,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable_b.png"
     },
     "tile_cliff": {
       "frame_h": 32,
@@ -8103,7 +8103,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_combat.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -8134,7 +8134,7 @@
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_buildable.png"
+      "sheet": "imported/tile_combat_b.png"
     },
     "tile_forest": {
       "frame_h": 32,
