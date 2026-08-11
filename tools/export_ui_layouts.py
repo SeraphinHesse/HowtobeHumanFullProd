@@ -175,6 +175,7 @@ _DISPLAY_NAMES = {
     "overlays": {
         "btn_range": "Range overlay toggle",
         "btn_heatmap": "Heatmap overlay toggle",
+        "btn_tier_overview": "Tier overview toggle",
     },
     "enemy_intro": {
         "panel": "Enemy intro panel",
@@ -621,7 +622,7 @@ def _build_overlays(view_w, view_h, data_root):
     # BuildingUI's mode-independent ids), so a bare construction is enough.
     screen = MapOverlays(view_w, view_h)
     return (_widgets_from_ids(screen.ids),
-            f"{_COMMON_NOTE} (idle, no world state — the two toggle pills)")
+            f"{_COMMON_NOTE} (idle, no world state — the toggle pills)")
 
 
 _BUILDERS = {

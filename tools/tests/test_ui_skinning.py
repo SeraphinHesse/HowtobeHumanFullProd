@@ -177,6 +177,13 @@ def _screen_captures():
 #: click-target floor), ``main_menu`` (the SET gear widened to hold its label).
 #: The other eight entries are byte-identical, which is what says the change
 #: was contained. Regenerated mechanically from ``_screen_captures()``.
+#: Regenerated a NINTH time (bottom-right phase readout): ``hud``'s
+#: ``phase_label`` moved from the bottom-LEFT corner into the bottom-RIGHT
+#: cluster, directly above the round label, and its copy became the two-state
+#: "Building Phase"/"Defending Phase" instead of the six-way ``hud.phase.*``
+#: string-table lookup. Exactly ONE primitive in the entry changed (text +
+#: pos, same index) — nothing else moved, and every other screen's entry is
+#: byte-identical.
 _BASELINE = {
     "main_menu": [
         HudRect(rect=(0, 0, 640, 360), color=(18, 30, 20), border_radius=0, width=0),
@@ -350,7 +357,7 @@ _BASELINE = {
         HudSprite(slot_key='ui_icon_lives', dest=(8, 41), size=(9, 9), tint=None, flip=False, animation='idle', anim_time_ms=0),
         HudText(text='LIVES 3', pos=(19, 41), font_key='md', color=(200, 55, 55), align='left'),
         HudText(text='0/4 tiles', pos=(8, 57), font_key='md', color=(150, 140, 120), align='left'),
-        HudText(text='BUILDING', pos=(6, 347), font_key='hud_phase', color=(150, 140, 120), align='left'),
+        HudText(text='Building Phase', pos=(552, 287), font_key='hud_phase', color=(150, 140, 120), align='left'),
         HudText(text='ROUND 1', pos=(592, 307), font_key='md', color=(150, 140, 120), align='center'),
         HudRect(rect=(552, 320, 80, 1), color=(80, 65, 120), border_radius=0, width=0),
         HudRect(rect=(552, 322, 80, 30), color=(75, 60, 115), border_radius=3, width=0),
@@ -703,6 +710,10 @@ class TestReviewFixLabelRects(unittest.TestCase):
 
     def test_five_label_ids_have_a_real_default_rect(self):
         hud = Hud(VIEW_W, VIEW_H)
+        # phase_label moved into the End-Turn-relative second ids pass (the
+        # round_label precedent), which __init__'s layout() does not run — the
+        # exporter's _build_hud calls it the same way.
+        hud._layout_readouts()
         cheat = CheatMenu(VIEW_W, VIEW_H)
         boss = BossCutscene(VIEW_W, VIEW_H, CORE)
         boss.open(1, "win")
@@ -747,7 +758,7 @@ class TestReviewFixLabelRects(unittest.TestCase):
         hud.update(0.0, *OFF, session, panel, False)
         items = _capture(lambda r: hud.submit(r, session, VIEW_W, VIEW_H))
         phase = next(i for i in items
-                    if isinstance(i, HudText) and i.text == "BUILDING")
+                    if isinstance(i, HudText) and i.text == "Building Phase")
         self.assertEqual(phase.pos, (500, 501))
 
     def test_boss_cutscene_headline_rect_override_moves_the_recorded_text(self):

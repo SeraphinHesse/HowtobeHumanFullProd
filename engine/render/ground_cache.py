@@ -30,6 +30,7 @@ import pygame
 
 from engine.coords import Camera, CoordinateSystem
 
+from .item import round_half_up as _round
 from .renderer import Renderer
 
 
@@ -82,8 +83,8 @@ class GroundCache:
 
         # Integer pixel scroll to realign the surface with the new pan; sub-pixel
         # remainder is absorbed by blit()'s float offset (anchor stays put for it).
-        sx = -round(pan[0] - self._anchor_pan[0])
-        sy = -round(pan[1] - self._anchor_pan[1])
+        sx = -_round(pan[0] - self._anchor_pan[0])
+        sy = -_round(pan[1] - self._anchor_pan[1])
         if sx == 0 and sy == 0:
             return
         cw, ch = self._surface.get_size()
@@ -105,7 +106,7 @@ class GroundCache:
         m = self._margin
         dx = self._anchor_pan[0] - cam.pan_x - m
         dy = self._anchor_pan[1] - cam.pan_y - m
-        target.blit(self._surface, (round(dx), round(dy)))
+        target.blit(self._surface, (_round(dx), _round(dy)))
 
     # -- internals ----------------------------------------------------------
 

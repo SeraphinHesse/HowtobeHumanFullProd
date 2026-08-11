@@ -69,6 +69,17 @@
       "vy_max": -10.0,
       "vy_min": -80.0
     },
+    "drummer_aura": {
+      "alpha_max": 150,
+      "alpha_min": 30,
+      "color": [
+        90,
+        200,
+        220
+      ],
+      "pulse_period_s": 0.5,
+      "segments": 16
+    },
     "floaters": {
       "boost_color": [
         255,

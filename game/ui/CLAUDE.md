@@ -188,6 +188,36 @@ upgrade), which needed NO change for this.
   tools/export_ui_layouts.py`) — the sanctioned "a screen's default geometry
   changed on purpose" path. Nothing already in either artifact moved.
 
+## Phase readout (`phase_label`) — bottom-RIGHT, two states
+The phase banner is no longer the bottom-left six-way phase name. Same holder,
+same `phase_label` id, same `label` kind, same `hud_phase` font and same
+`_phase_color(phase, …)` tint — three things changed:
+- **Position**: it moved out of `layout()`'s fixed `(6, view_h - 13)` into
+  `_layout_readouts()`, stacked one `layout_h("hud_phase") + 4` above
+  `round_label` and left-aligned on the End Turn button's own left edge (i.e.
+  the bottom-right cluster). It HAD to move passes: the anchor is now relative
+  to the post-override `end_turn` rect, exactly like `round_label` — which is
+  also why `__init__` seeds it with a `(0, 0, 0, 0)` placeholder rect and
+  `tools/export_ui_layouts.py`'s `_build_hud` (which already calls
+  `_layout_readouts()`) still exports a real position.
+- **Copy**: `_phase_panel_text(phase)` — `"Building Phase"` for
+  `GamePhase.BUILDING`, `"Defending Phase"` for every other phase. The six-way
+  `_PHASE_LABEL_ID` map and `_phase_label_text` are DELETED; the two strings
+  are code constants (the `effects.py` `_ANNOUNCE_L*` precedent) rather than
+  new string-table ids, because `configure_strings` fails loud on a key-set
+  mismatch and two literals do not justify a coupled `strings.json` +
+  `strings.py` + `test_strings_data.py` change. **The six `hud.phase.*` ids
+  are therefore live in the string table but referenced by no code** — a
+  string-table follow-up pass owns cleaning that up.
+- **It is drawn inside the `if not self._panel_open` right-edge cluster**, not
+  unconditionally: the building panel is a full-height 260px right sidebar and
+  the HUD submits AFTER it, so an unconditional draw at this position would
+  paint over an open panel. Same rule and same reason as `round_label`.
+- **Golden pin**: exactly one primitive in `test_ui_skinning.py`'s `hud`
+  baseline changed (text + pos, same index) and `data/ui/screen_defaults.json`'s
+  `hud.phase_label.rect` was patched to match — the sanctioned "a screen's
+  default geometry changed on purpose" path.
+
 ## Overhead HP bars
 `effects.py` draws them in TWO passes, both reading live scene state and both
 hiding the bar at full HP (the prototype rule):
@@ -248,6 +278,40 @@ multi-tile footprint) — see `game/anchors.py`'s module docstring and
 formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
 resolves through.
 
+## Drummer buff-range telegraph + buffed-enemy arrow (feature, very-simple placeholders)
+Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
+`game/main.py` beside their closest existing analog:
+- **`submit_drummer_auras`** (world-overlay pass, beside `submit_craters`) — a
+  pulsing ring around every ALIVE Drummer enemy, sized to its own live
+  `DrummerAura.support_range` (`game/enemies/components.py`) — always
+  visible while the Drummer lives, no click/toggle. Same `_polygon_ring`
+  world-unit N-gon technique the mortar crater uses, but re-derives the
+  radius from the live component every frame instead of a spawned
+  GameObject's own fade clock — there is no separate `Crater`-style
+  GameObject here, and no fade: the ring simply stops the frame the Drummer
+  dies. Colour/alpha bounds/segment count are balancing (`procedural.
+  drummer_aura`, `data/CLAUDE.md`), and it is deliberately NOT swappable art
+  — there is no scaling-sprite-to-a-live-radius mechanism anywhere in the
+  engine to reuse, so this stays procedural like the mortar crater it
+  mirrors. The alpha breathes on a `pulse_period_s`-second sine cycle off a
+  NEW `FloaterManager.self._clock` (seconds, accumulated in `update(dt)`) —
+  the `hud.py` XP-bar level-up pulse shape, generalised to a per-manager
+  clock rather than a per-screen one.
+- **`submit_buff_arrows`** (HUD pass, beside `submit_enemy_hp_bars`) — a
+  little golden arrow above any ALIVE enemy with an active buff
+  (`BuffState.sources` non-empty — today always a Drummer's aura, but keyed
+  off "any active buff" generically, not the source type). Shown
+  independently of the HP bar's own "hide at full HP" rule. Anchors off the
+  SAME `hp_bar` point (or `_sprite_top` fallback) the HP bars use, offset
+  above it — a deliberately SIMPLER placeholder than the HP-bar pass: it
+  does not implement per-tile stacking for multiple buffed enemies sharing a
+  tile, since the arrow is a status flag, not a competing bar. IS swappable
+  art (E-37): a new `vfx` category slot, `vfx_buff_arrow` — imported art
+  draws as a `HudSprite`; with none imported it draws a small procedural
+  golden triangle outline instead (`_BUFF_ARROW_GOLD`, a code chrome
+  constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
+  ART is a designer lever here, not the placeholder's own shape/colour).
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
@@ -278,6 +342,23 @@ logic is `game/core` — see that doc.)
   `data/balancing/vfx.json procedural.announce`, read off
   `FloaterManager._vfx_params.announce` — the two copy strings and the
   timings stay put, screen-skinning/`ui.json` territory respectively);
+  **The "YOU / LOST 1 LIFE" banner rides both of those two members** (added
+  after ESV-6): `spawn_life_lost_events(state)` drains the new
+  `RunState.life_lost_events` ledger (`Session.on_base_hit` appends the round
+  number inside its `charge` branch, so a TU-7 waived tutorial loss announces
+  nothing) into its own independent clock, `self._life_lost_age`, and
+  `submit_announce` draws it as a second centred two-line banner beneath the
+  boss one, in `widgets.C_HP_RED` (attribute-read, never import-bound). It
+  SHARES the `ui.FX.boss_announce` fade/hold/fade timings (factored out into
+  `_announce_k(age)`) but deliberately NOT the `enabled` flag — that is a
+  boss-FX toggle, and a lost life must always be signposted. **Neither the
+  drain nor the draw needed a new host wiring line**: `spawn_boss_events` is
+  already the frame's "drain the announce ledgers" hook and calls
+  `spawn_life_lost_events` itself, and `submit_announce` is already the
+  frame's announce draw. No coalescing exists or is needed — `_wipe_pending`/
+  `_wipe_round` end the round on the first base hit, so the ledger can hold
+  at most one entry per round by construction. Covered by
+  `tools/tests/test_10j_qol.py::TestLifeLostBanner`.
   `submit_boss_bars(renderer, cs, scene, phase, view_w, view_h)`
   finds the live boss via `scene.by_tag("boss")` and draws the bottom-centre
   200×12 HUD bar ("BOSS" + `hp/max`, ENEMY phase only). Its **overhead** bar is
@@ -605,13 +686,28 @@ picker and the confirmation.
   both endpoints are plain BUILDABLE tiles, so without this the panel would
   offer cards `place_building` then refuses. Convenience only; the bar itself
   is in `place_building`.
+- **The path line (building-move-manhattan-distance fix)**: once a
+  destination tile is picked (i.e. `self.preview` is a `MovePreview`),
+  `BuildingUI.submit()` draws an L-shaped cyan (`widgets.C_MOVE_HIGHLIGHT`)
+  world-space line from the building's tile centre to the destination's —
+  column-first, then row, matching the straight-line-only tiles
+  `move_distance()` counts (`game/buildings/CLAUDE.md`). It is NOT a live
+  mouse-hover trace: nothing is drawn during plain `move_select` picking,
+  only once a destination has actually been chosen and the confirm modal is
+  open. It sits beside `_highlight_tiles`/`_highlight_edges`, before the
+  `self.visible` guard, and reads `self.preview.building`/`.dest_tile`
+  straight off the live preview object every frame rather than caching
+  separate state — it disappears for free the instant `self.preview` is
+  cleared (confirm, cancel, or close all already do that).
 
 ## Map overlays + terrain badges (10I)
 `game/ui/overlays.py` (`MapOverlays`, pure — covered by the purity scan) owns
 ALL of 10I's UI so `hud.py` (10G boss bar + 10H lightning both edit it) carries
-no 10I diff: two persistent bottom-left toggle pills (`RANGE`/`HEATMAP`, gold
-rim + gold label when active; clicks consumed in `main.py`'s ladder between the
-End-Turn branch and the panel, `over()` feeds the pan-arming `over_ui` check),
+no 10I diff: **three** persistent bottom-left toggle pills
+(`RANGE`/`HEATMAP`/`TIER OVERVIEW` — the third added later, see its own section
+below; gold rim + gold label when active; clicks consumed in `main.py`'s ladder
+between the End-Turn branch and the panel, `over()` feeds the pan-arming
+`over_ui` check),
 the world condition tint (windowed — never a full-grid scan; a **FALLBACK**
 since condition art landed: `MapOverlays.condition_art` is the host's
 `{slot: tint_overlay}` map over the condition slots that have imported art, and
@@ -639,6 +735,66 @@ deliberately unlisted, prototype-exact); the tooltip draws last/on top.
 `effective_range_tiles()` when present (mountain +1); the RANGE overlay stays
 raw.
 
+## TIER OVERVIEW pill (`btn_tier_overview`)
+The third `MapOverlays` toggle pill, added after 10I, sitting beside RANGE
+(x=6, 41 wide) and HEATMAP (x=51, 41 wide) at **x=96** (69 wide — "TIER
+OVERVIEW" is 13 characters, ~65px at `sm`, so it needs a wider pill than its
+two neighbours; same 4px gap) on the same `view_h - 36` row. Active ⇒ every PLAYER-BUILT building's tile gets one
+alpha-filled diamond tinted by its current IN-TIER level.
+- **No mutual exclusion, anywhere.** `show_tier_overview` is a plain third
+  flag beside `show_range`/`show_heatmap`, and `submit()` runs its pass as an
+  independent `if` after the heatmap's. It composes with Heatmap, Range, the
+  selection/drag-select highlights and the Upgrade UI by construction — there
+  is no "active overlay" concept in this class to be exclusive about. Its pass
+  is drawn LAST of the three, so a tier tint reads on top of a range square.
+- **Keyed by LEVEL WITHIN THE CURRENT TIER, not by the tier itself** — a
+  designer decision made after live playtesting (an earlier per-TIER colour
+  design, one colour per `TierState.current_tier`, was rejected: the
+  playtester's expectation was that the 3-colour cycle should RESET at every
+  tier advance, so a level-1 Slinger, tier 2, reads identically to a level-1
+  Stone Thrower, tier 1 — both gold — rather than getting its own "tier 2"
+  colour). Resolved by the module-private `_level_color(level_in_tier)` off
+  `TierState.current_level_in_tier` (1-indexed) — a FUNCTION, not a
+  module-level tuple, because every `widgets.C_*` must be a fresh attribute
+  read (see "Fonts + palette are DATA now"). It clamps to the last entry, so
+  a future 4th level renders rather than raising. **Colours are
+  designer-picked yellow / pink / blue** (level 1/2/3) — two same-hue ramps
+  were tried and rejected first (a purple shade ramp read as
+  indistinguishable grey; a red/gold/green ramp still wasn't distinct
+  enough), so the final trio is three maximally-different hues instead of a
+  ramp. Neither pink nor blue exists in the shared `widgets.C_*` palette:
+  level 1 is `C_GOLD` (a real yellow), level 2 reuses `C_PURPLE` (the closest
+  existing colour to pink), level 3 reuses the POND entry of this same
+  file's `_COND_TINT` dict (the only blue anywhere here) rather than
+  inventing new, unreused colours. `_COND_TINT` is a plain
+  prototype-verbatim module dict, never rebound by `configure_palette` —
+  indexing it directly carries none of the early-binding risk a
+  `widgets.C_*` copy would. `_TIER_OVERVIEW_ALPHA` (110) is a plain int and
+  is therefore safe as a module constant.
+- **The base is tag-gated out, not component-gated out.** `BaseBuilding` DOES
+  carry a `TierState` (`base_building.py`), and its tile is BUILT, so
+  `get_component(TierState) is None` would NOT skip it — the pass skips any
+  occupant carrying the `"base"` tag (G-3 tag discipline, never a
+  `building_type == "base"` string test). The `None`-occupant and
+  `None`-component guards stay as well, so an odd occupant can never raise.
+- **`game.ui -> game.buildings.components` is the sanctioned read**
+  (`building_ui.py`/`effects.py` already import it; `game.buildings` imports
+  no `game.ui`, so there is no cycle).
+- **Cost profile**: `tilemap.built_tiles()` is the `_by_state` index, i.e.
+  O(built tiles) — never a full-map per-frame scan (the large-map invariant).
+- **Label**: `"TIER OVERVIEW"` is the code-owned default exactly like
+  `"RANGE"`/`"HEATMAP"`; giving the button the `btn_tier_overview` id is what
+  makes it JSON-overridable, through the generic per-widget `label` override
+  (no schema change — `ui_screen.schema.json`'s `widgets.<id>.label` is
+  already free-form).
+- **Artifacts**: `data/ui/screen_defaults.json` was regenerated (`py
+  tools/export_ui_layouts.py`) — ONLY the `overlays` entry moved (a new
+  `btn_tier_overview` row + its `mock_note`), which is what says the change
+  was contained; `data/ui/screens/overlays.json` gained the matching
+  `ui_button_pill` skin. `test_ui_skinning.py`'s golden `_BASELINE` needed NO
+  change — it pins the original 12 screens and has never covered `overlays`.
+  Tests: `tools/tests/test_map_overlays.py`.
+
 ## QOL + FX sweep (10J)
 The engine grew per-pixel alpha (RGBA `HudRect`/`HudText` + the filled
 `submit_overlay_polys` — see `engine/render/CLAUDE.md`), which unblocked the
@@ -654,24 +810,42 @@ imports:
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
   only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
   when the selection is a single tile. The base never batches.
-  **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
-  path from the plain in-tier batch above.** `_batch_advance_targets`
-  (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
-  every building whose next tier is reachable right now — regardless of its
-  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
-  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
-  UPGRADE batch. Clicking it, for each target: pays and applies any
-  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
-  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
-  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
-  LOVE" flash the in-tier batch uses). A building that can never reach its
-  next tier right now (already at the final tier, next tier unresearched,
-  or round-gated) is excluded from the batch/cost entirely — left for the
-  player to handle separately once it qualifies. **A single selection is
-  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
-  tiles) <= 1`, so one selected building still upgrades one in-tier level
-  per click and advances tier separately, via the original primary-only
-  branch in `_upgrade_click`, byte-identical to before this fix.
+  **fix/batch-tier-advance, reworked into a two-stage catch-up-then-advance
+  flow: a multi-selection's UPGRADE/ADVANCE button is now ONE unified path**,
+  replacing what used to be two separate behaviors (a plain in-tier batch,
+  and a separate combined advance batch that won outright the moment any
+  selected building was advance-eligible). Priority in both
+  `_build_upgrade` and `_upgrade_click`: **Stage A** —
+  `_batch_upgrade_targets` sweeps the WHOLE selection (not gated on the
+  primary tile's own mode, unlike before) for every building below level 3
+  of its current tier; whenever that set is non-empty the button shows
+  `"UPGRADE ×n  <cost>"` and a click levels each of them up one step, one
+  combined cost. **Stage B** only runs once Stage A's sweep is empty — i.e.
+  every selected building has already reached level 3 — and is exactly the
+  old advance-batch logic: `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps for every building whose
+  next tier is reachable right now, and `_build_upgrade` shows ONE combined
+  `"ADVANCE ×n  <cost>"` button. Clicking it, for each target: pays and
+  applies any remaining in-tier `upgrade()` calls needed to reach this
+  tier's max level (always 0 by the time Stage B runs, since Stage A already
+  drained them), then one `advance_tier()`, then
+  `lightning.sync_level_from_tier` — all gated by ONE all-or-nothing total
+  (no partial batch, same "NOT ENOUGH LOVE" flash the in-tier batch uses). A
+  building that can never reach its next tier right now (already at the
+  final tier, next tier unresearched, or round-gated) is excluded from
+  Stage B's batch/cost entirely and left sitting at level 3, untouched — it
+  never blocks the rest of the selection. **This closes the old grey-out
+  bug**: previously, the plain in-tier batch only fired when the *primary*
+  selected tile's own mode was `"in_tier"`, so a primary that was itself
+  blocked (tier maxed but unresearched, or at its final tier) disabled the
+  whole button even when other selected buildings still needed and could
+  take a plain upgrade; Stage A's whole-selection sweep fixes that by
+  construction. **A single selection is unaffected**: both
+  `_batch_upgrade_targets` and `_batch_advance_targets` are only consulted
+  when `len(selected_tiles) > 1`, so one selected building still
+  upgrades/advances one step at a time via the original primary-only
+  branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
+  this rework.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
@@ -991,7 +1165,7 @@ sets one).
   `love_text`, `lvl_label`, `xp_bar` (kind `bar` — background/fill as ONE
   widget, the schema's `color` key maps to the track color; the fill ratio +
   levelup-pending pulse stay code-owned), `xp_text`, `income_text`,
-  `lives_text`, `tiles_text`, `phase_label`, `round_label`, `btn_end_turn`,
+  `lives_text`, `tiles_text`, `phase_label` (see below), `round_label`, `btn_end_turn`,
   `btn_pause` — plus (wave-3 phase 4) three baked icon slots, `icon_love`,
   `icon_xp`, `icon_lives`: `panel`-kind holders (`rect`/`skin`/`visible`)
   routed through the skinned `submit_panel()` path with a CODE-default skin
@@ -1050,8 +1224,9 @@ sets one).
   `.visible` attribute directly (equivalent to `is_visible`) since B2 and
   needed no change.
 - **A 13th screen: `overlays`** (Phase 3) — `game/ui/overlays.py`
-  (`MapOverlays`, the RANGE/HEATMAP toggle pills) gained its own
-  `data/ui/screens/overlays.json` + `ids` (`btn_range`, `btn_heatmap`) the
+  (`MapOverlays`, the toggle pills) gained its own
+  `data/ui/screens/overlays.json` + `ids` (`btn_range`, `btn_heatmap`, and
+  since the tier-overview feature `btn_tier_overview`) the
   sanctioned way this section always supported: "drop in a file + ids", not
   limited to the original 12. Since one `MapOverlays` is built per run and
   never re-laid-out (`view_w`/`view_h` fixed for its whole lifetime),
@@ -1455,6 +1630,24 @@ trigger call sites in `main.py`, never unified into one state machine:
 - **Only one `pygame.mixer.music` channel exists.** Starting a cutscene's
   companion track replaces whatever background music was already playing;
   nothing restores it afterward (no drift/resume correction in scope).
+- **Skip is a 2-second HOLD, not a single click/key (cutscene-hold-to-skip).**
+  `SKIP_HOLD_SECONDS` (`cutscene_player.py`) plus `CutscenePlayer._skip_hold`/
+  `update_skip_hold(dt, held)`/`skip_progress` live on the class itself, not
+  at either `main.py` call site — so both `intro` and `first_end_turn`, and
+  any future registry entry built through the same `CutscenePlayer`, get the
+  hold behavior for free. `held` is a single host-computed bool (left mouse
+  button OR spacebar OR escape currently down, polled every frame via
+  `pygame.mouse.get_pressed()`/`pygame.key.get_pressed()` — **every other
+  input is inert** during a cutscene, not just non-skipping); the event loop
+  no longer calls `.skip()` on a discrete `KEYDOWN`/`MOUSEBUTTONDOWN` at all,
+  it only swallows events (`continue`) so nothing leaks to menu/world
+  handling. `update_skip_hold` resets the accumulator to 0 the instant
+  `held` goes false (an early release costs the whole progress, not a
+  partial credit) and no-ops once `done` (never double-fires `skip()` the
+  same frame the video ends naturally). `widgets.submit_progress_ring`
+  (`widgets.py`, composed from `HudLines` — no arc/pie HUD primitive exists)
+  draws the small ring at a FIXED screen point (`view_w // 2, view_h - 60`),
+  identical whether the hold is mouse or keyboard.
 
 ## Tutorial message box + guided-chain highlights (Phase TU-6)
 - **`game/ui/tutorial_message.py`** (`TutorialMessageScreen`) — the
