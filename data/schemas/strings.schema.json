@@ -157,7 +157,7 @@
       "type": "string"
     },
     "building.construct.card": {
-      "description": "One construct-mode card's caption. `name` is the tier's display name, `cost` the love price (which escalates for repeat-priced types).",
+      "description": "One construct-mode card's NAME block, wrapped to at most two rows. `name` is the tier's display name. The card's love price is a separate widget on the card and resolves through `building.stat.value`.",
       "type": "string"
     },
     "building.construct.title": {
@@ -745,4 +745,3 @@
   "title": "strings",
   "type": "object"
 }
-

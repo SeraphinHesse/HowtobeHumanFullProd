@@ -815,6 +815,131 @@
             }
           ],
           "label": "Backgrounds"
+        },
+        {
+          "children": [
+            {
+              "label": "Stone Thrower",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_defence"
+                }
+              ]
+            },
+            {
+              "label": "Flute Player",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_economic"
+                }
+              ]
+            },
+            {
+              "label": "Maw Mortar",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_aoe_defence"
+                }
+              ]
+            },
+            {
+              "label": "Sun Scorcher",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_sun_scorcher"
+                }
+              ]
+            },
+            {
+              "label": "Storm Priest",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_storm_priest"
+                }
+              ]
+            },
+            {
+              "label": "Painter",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_painter"
+                }
+              ]
+            },
+            {
+              "label": "Meditator",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_meditator"
+                }
+              ]
+            },
+            {
+              "label": "Boost Speed",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_speed"
+                }
+              ]
+            },
+            {
+              "label": "Boost Damage",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_damage"
+                }
+              ]
+            },
+            {
+              "label": "Boost HP",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_boost_hp"
+                }
+              ]
+            },
+            {
+              "label": "Blocker",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_blocker"
+                }
+              ]
+            },
+            {
+              "label": "Wall Builder",
+              "slots": [
+                {
+                  "frame_h": 96,
+                  "frame_w": 64,
+                  "key": "card_portrait_wall_builder"
+                }
+              ]
+            }
+          ],
+          "label": "Card Portraits"
         }
       ],
       "key": "ui"
@@ -882,7 +1007,11 @@
             "vfx_muzzle",
             "vfx_death",
             "vfx_slash",
-            "vfx_crater",
+            {
+              "frame_h": 96,
+              "frame_w": 64,
+              "key": "vfx_crater"
+            },
             "vfx_projectile",
             "vfx_shell",
             "vfx_dirt_pile",

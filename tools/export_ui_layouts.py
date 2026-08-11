@@ -40,6 +40,7 @@ if str(REPO) not in sys.path:
 
 from engine import data_io  # noqa: E402
 from game.ui import strings  # noqa: E402
+from game.ui.building_ui import _CARD_ID_PREFIX  # noqa: E402
 from tools import screen_mocks  # noqa: E402
 
 # Alphabetical, stable order (plan line 282's 12 screen ids, + Phase 3's
@@ -310,6 +311,25 @@ def _apply_display_names(screen_id, entry):
                 _parent_widgets(screen_id, view.get("widgets", {}))
 
 
+def _derived_parent(widget_id, widgets):
+    """The parent of a widget whose id ENCODES it, or None.
+
+    One rule today: a construct card is a widget tree (`card_<btype>` holding
+    `card_<btype>_portrait` / `_name` / `_name_2` / `_price` / `_price_icon` /
+    `_price_text`), and the card ids are DYNAMIC — one per buildable building
+    type — so `_PARENTS` cannot spell the pairs out the way it does for the
+    preview modal's four fixed buttons. The longest matching card id wins, so
+    a building type whose name is a prefix of another's could not steal a
+    child.
+    """
+    if not widget_id.startswith(_CARD_ID_PREFIX):
+        return None
+    candidates = [w for w in widgets
+                  if w != widget_id and widget_id.startswith(w + "_")
+                  and w.startswith(_CARD_ID_PREFIX)]
+    return max(candidates, key=len) if candidates else None
+
+
 def _parent_widgets(screen_id, widgets):
     """Write ``spec["parent"]`` for every widget of ONE widgets map (P-2).
 
@@ -317,11 +337,17 @@ def _parent_widgets(screen_id, widgets):
     so a per-mode view that does not show the container leaves its widgets as
     roots instead of pointing at an absent id. Every other id simply gets no
     key (D-3 minimality — the reader's absent-means-root rule does the rest).
+
+    Precedence, highest first: an explicit `_PARENTS` pair, then `_derived_
+    parent` (the construct card's own children), then the screen's
+    `_PARENT_CONTAINERS` fallback. The derived rule has to beat the container
+    or every card CHILD would parent to `panel` alongside its card instead of
+    nesting under it.
     """
     explicit = _PARENTS.get(screen_id, {})
     container, exempt = _PARENT_CONTAINERS.get(screen_id, (None, ()))
     for widget_id, spec in widgets.items():
-        parent = explicit.get(widget_id)
+        parent = explicit.get(widget_id) or _derived_parent(widget_id, widgets)
         if parent is None and container is not None \
                 and widget_id != container and widget_id not in exempt:
             parent = container
@@ -329,9 +355,51 @@ def _parent_widgets(screen_id, widgets):
             spec["parent"] = parent
 
 
-def _name_widgets(names, widgets):
+def _card_human_names(widgets):
+    """``{card_id: "Stone Thrower"}`` — each construct card's building name.
+
+    The card BODY carries an empty label since the card became a widget tree,
+    so the name comes off its name ROWS: `card_<btype>_name` holds the whole
+    name (row 2 is empty — the panel wraps it at draw time, never here, so the
+    committed artifact never depends on a live font measurement)."""
+    rows = {}
     for widget_id, spec in widgets.items():
-        name = names.get(widget_id) or _derived_display_name(widget_id, spec)
+        for suffix in ("_name", "_name2"):
+            if widget_id.startswith(_CARD_ID_PREFIX) \
+                    and widget_id.endswith(suffix):
+                rows.setdefault(widget_id[: -len(suffix)], {})[suffix] = \
+                    spec.get("label") or ""
+    return {card: " ".join(v for _, v in sorted(parts.items()) if v).strip()
+            for card, parts in rows.items()}
+
+
+def _card_part_display_name(widget_id, card_names):
+    """``"Stone Thrower card"`` / ``"Stone Thrower card price icon"`` for any
+    id in a construct card's tree, or None. The longest owning card id wins,
+    so a building type whose name prefixes another's cannot claim its
+    children."""
+    if not widget_id.startswith(_CARD_ID_PREFIX):
+        return None
+    owners = [c for c in card_names
+              if widget_id == c or widget_id.startswith(c + "_")]
+    if not owners:
+        return None
+    card = max(owners, key=len)
+    human = card_names[card]
+    if not human:
+        return None
+    if widget_id == card:
+        return f"{human} card"
+    part = widget_id[len(card) + 1:].replace("_", " ")
+    return f"{human} card {part}"
+
+
+def _name_widgets(names, widgets):
+    card_names = _card_human_names(widgets)
+    for widget_id, spec in widgets.items():
+        name = (names.get(widget_id)
+                or _card_part_display_name(widget_id, card_names)
+                or _derived_display_name(widget_id, spec))
         if name:
             spec["display_name"] = name
 

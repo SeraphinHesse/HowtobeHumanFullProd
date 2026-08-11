@@ -486,6 +486,20 @@ validating writer; don't hand-edit the JSON.
   64×96; map tiles 64×32; ui / vfx 64×64 (except `ui_bg_main_menu`, 480×270 by
   per-slot override); backgrounds 480×270 (10K full-frame menu art, drawn as a
   screen-space `HudSprite` — not a world sprite). All data — edit `slots.json`.
+- **`ui` → "Card Portraits" (construct-card-widget-tree)**: twelve leaf
+  children, one per building type, each holding a single
+  `card_portrait_<building_type>` slot at a **per-slot 64×96 frame-size
+  override** (buildings are 64×96 while the `ui` category is 64×64 — the
+  `ui_bg_main_menu` precedent). All twelve ship art-less. They are the
+  OPT-IN portrait source for the construct panel's cards: nothing draws
+  them until BOTH a designer imports art AND
+  `data/ui/screens/building_panel.json`'s `defaults.use_card_portrait_slot`
+  is on; either missing falls back to the building's own tier sprite (E-37,
+  never a grey X). Leaf CHILDREN rather than a flat `slots` list because a
+  flat `ui` leaf makes "+ Variant" silently die (see the variant-family
+  bullet above). Adding these grew the generated cross-category
+  `sprite_slot` enum — `tools/gen_sprite_slot_enum.py` was re-run, as
+  `test_schema_slot_sync.py` requires.
 - **`ui` animation vocabulary is the four button states** (10L-A):
   `["idle", "hover", "pressed", "disabled"]` — one sheet per widget skin, one
   manifest ROW per state (row 0 = idle, schema-enforced as everywhere), and each
@@ -577,7 +591,16 @@ validating writer; don't hand-edit the JSON.
   `background: {slot} | {color}` sets the background (slot key OR RGB[A]);
   `defaults: {button_skin?, panel_skin?, font?, text_color?}` applies per-kind
   styling to DYNAMIC-count content that carries no id (construct cards, the
-  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`);
+  boss-history popup, levelup's option boxes — `ScreenSkinning.defaults()`).
+  **Two `building_panel`-only BOOLS join it** (construct-card-widget-tree):
+  `price_is_click_target` (only the card's price pill opens the construct
+  preview, instead of the whole card) and `use_card_portrait_slot` (the card
+  portrait draws the `card_portrait_<building_type>` family instead of the
+  building's tier sprite). Both default false when absent, so an existing
+  screen doc that predates them keeps validating and rendering unchanged;
+  `defaults` values are never id-validated, so neither needed editor code.
+  Behaviour → `game/ui/CLAUDE.md`'s construct-card section.
+  Finally,
   `widgets: {<id>: {rect?, skin?, font?, color?, text_color?, label?,
   visible?}}` overrides any named widget's properties.
 - **`data/ui/screen_defaults.json`**: generated-but-committed file, written by

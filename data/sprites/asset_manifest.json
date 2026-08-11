@@ -9101,6 +9101,24 @@
         4
       ]
     },
+    "vfx_crater": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": -42,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 6,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_crater.png"
+    },
     "vfx_dirt_pile": {
       "frame_h": 64,
       "frame_w": 64,
@@ -9118,6 +9136,42 @@
         }
       ],
       "sheet": "imported/vfx_dirt_pile.png"
+    },
+    "vfx_projectile": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_projectile.png"
+    },
+    "vfx_shell": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_shell.png"
     },
     "wall_builder": {
       "anchors": {
