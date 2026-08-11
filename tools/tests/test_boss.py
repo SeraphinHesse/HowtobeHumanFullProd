@@ -1132,8 +1132,23 @@ class TestBossDoesNotRewind(unittest.TestCase):
         pa = boss.get_component(PathAgent)
         # Walk until the boss is mid-tile (not on a centre), then kill its
         # target out from under it — the exact rewind trigger.
-        while abs(boss.transform.wx - round(boss.transform.wx)) < 0.25:
+        #
+        # BOUNDED on purpose. This was a bare `while`, and when the boss stopped
+        # moving it span forever: the test did not fail, it HUNG, and under
+        # xdist the hang took the whole CI job down with it while reporting
+        # nothing at all. A test that cannot finish is strictly worse than a
+        # test that fails, so the loop now gives up and says what it saw.
+        # 250 frames at 0.02 is 5 simulated seconds — the boss covers a tile in
+        # well under one at any era's speed.
+        for _ in range(250):
+            if abs(boss.transform.wx - round(boss.transform.wx)) >= 0.25:
+                break
             scene.update(0.02)
+        else:
+            self.fail(
+                "the boss never left its tile centre in 5 simulated seconds — "
+                f"stuck at wx={boss.transform.wx!r}, blocked={pa.blocked}, "
+                f"target={(pa.target_col, pa.target_row)}")
         near.get_component(Health).damage(10 ** 9)
         scene.update(0.02)                       # the re-path frame
         self.assertEqual((pa.target_col, pa.target_row), (2, 0))
