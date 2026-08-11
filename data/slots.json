@@ -1030,7 +1030,11 @@
             "vfx_muzzle",
             "vfx_death",
             "vfx_slash",
-            "vfx_crater",
+            {
+              "frame_h": 96,
+              "frame_w": 64,
+              "key": "vfx_crater"
+            },
             "vfx_projectile",
             "vfx_shell",
             "vfx_dirt_pile",
@@ -1088,7 +1092,16 @@
                 "deco_tree_v7",
                 "deco_tree_v8",
                 "deco_tree_v9",
-                "deco_tree_v10"
+                "deco_tree_v10",
+                "deco_tree_v11",
+                "deco_tree_v12",
+                "deco_tree_v13",
+                "deco_tree_v14",
+                "deco_tree_v15",
+                "deco_tree_v16",
+                "deco_tree_v17",
+                "deco_tree_v18",
+                "deco_tree_v19"
               ]
             },
             {
@@ -1099,7 +1112,14 @@
                 "deco_prop_1_v3",
                 "deco_prop_1_v4",
                 "deco_prop_1_v5",
-                "deco_prop_1_v6"
+                "deco_prop_1_v6",
+                "deco_prop_1_v7",
+                {
+                  "frame_h": 96,
+                  "frame_w": 96,
+                  "key": "deco_prop_1_v8"
+                },
+                "deco_prop_1_v9"
               ]
             },
             {
@@ -1118,7 +1138,9 @@
                 "deco_prop_2_v11",
                 "deco_prop_2_v12",
                 "deco_prop_2_v13",
-                "deco_prop_2_v14"
+                "deco_prop_2_v14",
+                "deco_prop_2_v15",
+                "deco_prop_2_v16"
               ]
             },
             {
@@ -1135,7 +1157,8 @@
                 "deco_prop_4_v2",
                 "deco_prop_4_v3",
                 "deco_prop_4_v4",
-                "deco_prop_4_v5"
+                "deco_prop_4_v5",
+                "deco_prop_4_v6"
               ]
             }
           ],
