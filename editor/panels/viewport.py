@@ -43,7 +43,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import anchor_ops, tilemap_ops, vfx_params
+from editor import anchor_ops, tilemap_ops, vfx_params, widget_tree
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
@@ -139,6 +139,10 @@ def logical_resolution(data_dir=None):
 SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
+# P-3: the dimmer outline drawn around every widget that will come along when
+# the selected one is dragged. Deliberately the same hue as SELECTION_COLOR,
+# darkened — "these belong to the selection", not "these are also selected".
+SUBTREE_COLOR = (150, 130, 50)
 LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
@@ -280,6 +284,11 @@ class ViewportPanel(QWidget):
         self._drag_start = None            # SCREEN-pixel QPointF at press
         self._drag_orig_rect = None        # effective LOGICAL rect at press
         self._drag_orig_override_rect = None  # doc override at press, or None
+        # P-3: the descendants a move drag carries along —
+        # [(widget_id, effective rect at press, doc override at press | None)].
+        # Empty for a resize (resizing does NOT cascade) and for a childless
+        # widget.
+        self._drag_subtree = []
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
@@ -497,6 +506,7 @@ class ViewportPanel(QWidget):
         self._drag_start = None
         self._drag_orig_rect = None
         self._drag_orig_override_rect = None
+        self._drag_subtree = []
         self._screen_state = "idle"
         self._reset_screen_anim_clock()
         if self.in_screen_mode():
@@ -720,6 +730,46 @@ class ViewportPanel(QWidget):
         return _screen_primitives.is_anchor_rect(
             self._effective_rect(widget_id, defaults))
 
+    # -- widget parenting (P-3/P-5) -----------------------------------------
+    # The hierarchy is DATA (`screen_defaults.json`'s `parent`, plus the open
+    # doc's own re-parenting override) resolved by the pure
+    # `editor/widget_tree.py`. It is an AUTHORING relationship only: the
+    # cascade below rewrites ABSOLUTE rects at EDIT time, and the game's own
+    # `layout()` still recomputes every default each frame with no cascade
+    # (plan D2).
+
+    def _screen_tree(self, defaults):
+        """`{parent_id: [child_id, ...]}` for the open screen+view."""
+        return widget_tree.build_tree(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_parents(self, defaults):
+        """`{widget_id: parent_id | None}` for the open screen+view."""
+        return widget_tree.parent_map(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_descendants(self, widget_id, defaults):
+        """Every widget that moves when `widget_id` moves."""
+        return widget_tree.descendants(self._screen_tree(defaults), widget_id)
+
+    def _hidden_by_ancestor(self, widget_id, defaults, parents=None):
+        """The nearest ancestor of `widget_id` carrying `visible: False`, or
+        None (P-5/D4).
+
+        Visibility inherits in the editor PREVIEW only — the saved `visible`
+        override stays per-widget and the game keeps resolving each widget's
+        own flag, exactly as now. `parents` may be passed in by a caller that
+        already built the map (the hit-test loops over every widget)."""
+        overrides = self._screen_session.doc.get("widgets", {})
+        if parents is None:
+            parents = self._screen_parents(defaults)
+        for ancestor in widget_tree.ancestors(parents, widget_id):
+            if overrides.get(ancestor, {}).get("visible") is False:
+                return ancestor
+        return None
+
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
     def _hit_widget(self, pos, defaults):
@@ -826,6 +876,28 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         self._drag_orig_override_rect = (
             list(override["rect"]) if "rect" in override else None)
+        # P-3: a MOVE carries the whole subtree; a RESIZE carries nothing
+        # (proportional resize of a text anchor is meaningless, and
+        # half-scaled children are a common way to destroy a layout by
+        # accident — plan Q2).
+        self._drag_subtree = (
+            self._captured_subtree(widget_id, defaults) if mode == "move"
+            else [])
+
+    def _captured_subtree(self, widget_id, defaults):
+        """`[(child_id, effective rect at press, doc override at press)]` for
+        every descendant — the full old/new the one undo command needs, never
+        a delta (`map_session`'s stroke-command contract)."""
+        overrides = self._screen_session.doc.get("widgets", {})
+        captured = []
+        for child_id in self._screen_descendants(widget_id, defaults):
+            child_override = overrides.get(child_id, {})
+            captured.append((
+                child_id,
+                self._effective_rect(child_id, defaults),
+                list(child_override["rect"]) if "rect" in child_override
+                else None))
+        return captured
 
     def _screen_move(self, event):
         if self._drag_start is None or self._selected_widget is None:
@@ -837,13 +909,20 @@ class ViewportPanel(QWidget):
         pos = event.position()
         dx = (pos.x() - self._drag_start.x()) / scale
         dy = (pos.y() - self._drag_start.y()) / scale
+        doc = self._screen_session.doc
         if self._selected_field_mode == "resize":
             new_rect = self._resized_rect(
                 self._drag_orig_rect, self._resize_corner, dx, dy)
         else:
             x, y, w, h = self._drag_orig_rect
             new_rect = [round(x + dx), round(y + dy), w, h]
-        doc = self._screen_session.doc
+            # P-3: the same delta on every descendant, applied to ITS OWN
+            # rect at press — never to the rect the last move event wrote, so
+            # rounding cannot accumulate across a long drag.
+            for child_id, (cx, cy, cw, ch), _old in self._drag_subtree:
+                doc.setdefault("widgets", {}).setdefault(
+                    child_id, {})["rect"] = [round(cx + dx), round(cy + dy),
+                                             cw, ch]
         doc.setdefault("widgets", {}).setdefault(
             self._selected_widget, {})["rect"] = new_rect
 
@@ -860,22 +939,45 @@ class ViewportPanel(QWidget):
         old_rect = self._drag_orig_override_rect
         if mode == "resize":
             self._screen_session.push_resize(widget_id, old_rect, new_rect)
+        elif self._drag_subtree:
+            # ONE undoable command over the whole subtree (P-3): the live
+            # mutation above already wrote every new rect, and pushing
+            # re-applies the same values, which is idempotent — the exact
+            # argument the single-widget drag already relies on.
+            self._screen_session.push_move_subtree(
+                [(widget_id, old_rect, new_rect)]
+                + [(child_id, child_old,
+                    self._effective_rect(child_id, defaults))
+                   for child_id, _orig, child_old in self._drag_subtree])
         else:
             self._screen_session.push_move(widget_id, old_rect, new_rect)
+        self._drag_subtree = []
 
     def _nudge_selected(self, ddx, ddy):
         """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
         directly (no live-drag preview needed) — QUndoStack.push() calls
-        redo() itself, which is what actually mutates the doc."""
+        redo() itself, which is what actually mutates the doc.
+
+        Cascades exactly like a drag (P-3): it shares `push_move`'s contract,
+        so a keyboard nudge and a mouse drag on the same parent must move the
+        same widgets."""
         defaults = self._current_screen_defaults()
         widget_id = self._selected_widget
         if not defaults or widget_id is None:
             return
+        dx, dy = ddx * NUDGE_STEP, ddy * NUDGE_STEP
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         old_rect = list(override["rect"]) if "rect" in override else None
         x, y, w, h = self._effective_rect(widget_id, defaults)
-        new_rect = [x + ddx * NUDGE_STEP, y + ddy * NUDGE_STEP, w, h]
-        self._screen_session.push_move(widget_id, old_rect, new_rect)
+        new_rect = [x + dx, y + dy, w, h]
+        subtree = self._captured_subtree(widget_id, defaults)
+        if not subtree:
+            self._screen_session.push_move(widget_id, old_rect, new_rect)
+            return
+        self._screen_session.push_move_subtree(
+            [(widget_id, old_rect, new_rect)]
+            + [(child_id, child_old, [cx + dx, cy + dy, cw, ch])
+               for child_id, (cx, cy, cw, ch), child_old in subtree])
 
     # -- palette state (MainWindow wires the PalettePanel signals to these)
     def set_tool(self, name):
@@ -2076,6 +2178,16 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
 
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        # P-3: a dimmer outline around every widget that will come along when
+        # this one is dragged, so the designer sees the subtree BEFORE moving
+        # it rather than discovering it afterwards. Drawn first, so the
+        # selection's own bright outline stays on top where they overlap.
+        for child_id in self._screen_descendants(widget_id, defaults):
+            cx, cy, cw, ch = self._to_screen_rect(
+                self._interaction_rect(child_id, defaults), scale, ox, oy)
+            self._renderer.submit_hud(HudLines(
+                ((cx, cy), (cx + cw, cy), (cx + cw, cy + ch), (cx, cy + ch)),
+                SUBTREE_COLOR, width=1, closed=True))
         # The INTERACTION rect, so a position-only text anchor gets a visible
         # outline over its glyphs instead of a zero-area (invisible) one — the
         # outline must be exactly what `_hit_widget` tests, or the designer

@@ -115,6 +115,34 @@ class _DocFieldCommand(QUndoCommand):
         _apply_field(self._doc, self._path, copy.deepcopy(self._old))
 
 
+class _DocFieldsCommand(QUndoCommand):
+    """SEVERAL fields set/cleared as ONE undo step — the multi-widget twin of
+    ``_DocFieldCommand``, modelled on ``map_session``'s stroke commands: a
+    change LIST of full old/new values, never a delta, so pushing after the
+    viewport already mutated the doc live (a drag in progress) is idempotent.
+
+    Its one user is the parenting cascade (UiEditorParentingPLAN P-3): moving
+    a parent rewrites the absolute rect of the parent AND every descendant,
+    and one Ctrl+Z has to put all of them back.
+    """
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc = doc
+        self._changes = [(tuple(path), copy.deepcopy(old), copy.deepcopy(new))
+                         for path, old, new in changes]
+
+    def redo(self):
+        for path, _old, new in self._changes:
+            _apply_field(self._doc, path, copy.deepcopy(new))
+
+    def undo(self):
+        # Reverse order so the pruning of a shared parent container
+        # (`widgets/<id>`) unwinds in the order it was built.
+        for path, old, _new in reversed(self._changes):
+            _apply_field(self._doc, path, copy.deepcopy(old))
+
+
 class UIScreenSession(QObject):
     screen_opened = Signal(str)   # screen_id — a (different) doc is now open
     view_changed = Signal(object)  # view_id (str) or None — active view changed
@@ -215,6 +243,30 @@ class UIScreenSession(QObject):
     def push_move(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
                    f"move {widget_id}")
+
+    def push_move_subtree(self, changes, text=None):
+        """ONE undoable command moving a widget AND every descendant
+        (UiEditorParentingPLAN P-3, D2).
+
+        ``changes`` is ``[(widget_id, old_rect, new_rect), ...]`` — full
+        rects, never deltas, ``None`` meaning "no override" exactly as
+        ``push_move`` does. Rows whose old and new agree are dropped, and a
+        cascade that comes down to a single widget is left to ``push_move``
+        by the caller: this method exists for the subtree case, not to
+        replace it.
+
+        The saved doc stays ABSOLUTE (D2) — the cascade happens here, at edit
+        time, and the game's own ``layout()`` is untouched.
+        """
+        real = [c for c in changes if c[1] != c[2]]
+        if not real:
+            return
+        label = text or f"move {real[0][0]} + {len(real) - 1} child(ren)"
+        self.undo_stack.push(_DocFieldsCommand(
+            self.doc,
+            [(("widgets", widget_id, "rect"), old, new)
+             for widget_id, old, new in real],
+            label))
 
     def push_resize(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
