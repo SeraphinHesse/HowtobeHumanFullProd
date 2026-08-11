@@ -513,7 +513,7 @@ def _find_path_to_goals(tilemap, start_col, start_row, goals, footprint=1,
     return path
 
 
-def _nearest_goal_tile(goals, start_col, start_row):
+def _nearest_goal_tile(goals, start_col, start_row, min_distance=0):
     """The tile in ``goals`` GEOMETRICALLY nearest to the start, or ``None``
     when ``goals`` is empty (BP-3 / decision D3, generalised — Chunk 4 — from
     the boss-only ``nearest_non_base_building_tile`` into a predicate-free
@@ -525,15 +525,28 @@ def _nearest_goal_tile(goals, start_col, start_row):
     weight, defence-range coverage (+1/tile) and the round-11 damage discount
     (×0.5) all bend the cost field, so the "nearest" building could be clear
     across the map. Ties break lexicographically, so the pick is deterministic
-    for a given board."""
+    for a given board.
+
+    ``min_distance`` (Digger fix, default 0 — every existing caller
+    byte-identical): when positive, restrict the pool to goals at CHEBYSHEV
+    distance ``>= min_distance`` from the start before picking the nearest;
+    if nothing clears that bar, fall back to the nearest of the FULL set. A
+    Chebyshev distance is never negative, so ``min_distance=0`` keeps every
+    goal and changes nothing."""
     if not goals:
         return None
-    return min(goals, key=lambda g: ((g[0] - start_col) ** 2
-                                     + (g[1] - start_row) ** 2, g[0], g[1]))
+    pool = goals
+    if min_distance > 0:
+        far = {g for g in goals
+               if max(abs(g[0] - start_col), abs(g[1] - start_row)) >= min_distance}
+        if far:
+            pool = far
+    return min(pool, key=lambda g: ((g[0] - start_col) ** 2
+                                    + (g[1] - start_row) ** 2, g[0], g[1]))
 
 
 def _hunt(tilemap, start_col, start_row, goals, footprint=1,
-         cond_weights=None):
+         cond_weights=None, min_distance=0):
     """The one hunt-query body (Chunk 4), shared by every prey-hunting
     variant below: choose the nearest goal by squared geometric distance,
     route to it by the ordinary weighted ``_dijkstra`` (D3 — choose by
@@ -548,10 +561,15 @@ def _hunt(tilemap, start_col, start_row, goals, footprint=1,
     boss's ``goal_is_base`` ever becomes True; extracted verbatim from that
     function (formerly the whole of its body) so ``find_path_to_nearest_
     economic``/``_defence`` get the identical distance-choice fix instead of
-    the cost-choice bug they shipped dormant with."""
+    the cost-choice bug they shipped dormant with.
+
+    ``min_distance`` (Digger fix) is threaded ONLY into the target CHOICE
+    (``_nearest_goal_tile``) — the unreachable-target fallback still searches
+    the whole goal set, because reachability always wins over a distance
+    preference, exactly like every other fallback in this module."""
     if not goals:
         return find_path(tilemap, start_col, start_row, footprint, cond_weights)
-    target = _nearest_goal_tile(goals, start_col, start_row)
+    target = _nearest_goal_tile(goals, start_col, start_row, min_distance)
     path = _dijkstra(tilemap, start_col, start_row, {target},
                      ignore_walls=False, footprint=footprint,
                      cond_weights=cond_weights)
@@ -597,7 +615,8 @@ def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1,
 
 
 def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
-                                   cond_weights=None, exclude=None):
+                                   cond_weights=None, exclude=None,
+                                   min_distance=0):
     """Cheapest path to the nearest alive STRUCTURE — every non-economy,
     non-boost, non-base building (``_STRUCTURE_BUILDING_TYPES``: blocker,
     wall builder, and the four attack-capable types) — by geometric distance,
@@ -615,6 +634,12 @@ def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
     candidate for this one. ``None`` (every other caller, including
     ``_HUNT_QUERIES``' generic dispatch) is byte-identical to NE-0.
 
+    ``min_distance`` (Digger fix, default 0): forwarded straight to ``_hunt``'s
+    target-CHOICE preference — see ``_nearest_goal_tile``. This is also the
+    ONE hunt query that takes it, since ``find_path_to_nearest_structure`` is
+    itself the Digger's only caller today; every other hunt category stays at
+    the default and is unaffected.
+
     **Caution — an empty goal set still falls back to the BASE path** (``_hunt``
     does, for every hunt). A caller that must never march at the hole when
     exclusion empties the board — the Digger, which "only builds towards
@@ -627,7 +652,8 @@ def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
         lambda b: getattr(b, "building_type", None) in _STRUCTURE_BUILDING_TYPES,
         exclude,
     )
-    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights,
+                min_distance)
 
 
 def find_path_to_nearest_building(tilemap, start_col, start_row, footprint=1,

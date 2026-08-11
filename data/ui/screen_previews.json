@@ -931,6 +931,476 @@
             "type": "text"
           },
           {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              86
+            ],
+            "text": "Maw Mortar  35",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              111
+            ],
+            "text": "Sun Scorcher  40",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              136
+            ],
+            "text": "Storm Acolyte  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              161
+            ],
+            "text": "Cave Painter  20",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              186
+            ],
+            "text": "Meditator  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              211
+            ],
+            "text": "Speed Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              236
+            ],
+            "text": "Attack Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              261
+            ],
+            "text": "Health Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              286
+            ],
+            "text": "Blocker  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              311
+            ],
+            "text": "Bush Wall Builder  12",
+            "type": "text"
+          },
+          {
             "border_radius": 0,
             "color": [
               40,
@@ -1167,6 +1637,476 @@
               61
             ],
             "text": "Flute Player  10",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              86
+            ],
+            "text": "Maw Mortar  35",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              111
+            ],
+            "text": "Sun Scorcher  40",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              136
+            ],
+            "text": "Storm Acolyte  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              161
+            ],
+            "text": "Cave Painter  20",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              186
+            ],
+            "text": "Meditator  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              211
+            ],
+            "text": "Speed Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              236
+            ],
+            "text": "Attack Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              261
+            ],
+            "text": "Health Booster  12",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              286
+            ],
+            "text": "Blocker  25",
+            "type": "text"
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              75,
+              60,
+              115
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 0
+          },
+          {
+            "border_radius": 3,
+            "color": [
+              80,
+              65,
+              120
+            ],
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ],
+            "type": "rect",
+            "width": 1
+          },
+          {
+            "align": "center",
+            "color": [
+              235,
+              225,
+              195
+            ],
+            "font_key": "md",
+            "pos": [
+              575,
+              311
+            ],
+            "text": "Bush Wall Builder  12",
             "type": "text"
           },
           {
@@ -4158,7 +5098,7 @@
           68
         ],
         "rect": [
-          188,
+          121,
           103,
           130,
           154
@@ -4174,7 +5114,7 @@
           120
         ],
         "rect": [
-          188,
+          121,
           103,
           130,
           154
@@ -4191,7 +5131,7 @@
         ],
         "font_key": "md",
         "pos": [
-          253,
+          186,
           108
         ],
         "text": "Card A",
@@ -4206,7 +5146,7 @@
         ],
         "font_key": "sm",
         "pos": [
-          253,
+          186,
           162
         ],
         "text": "Cost  5",
@@ -4221,7 +5161,7 @@
         ],
         "font_key": "sm",
         "pos": [
-          253,
+          186,
           175
         ],
         "text": "does a thing",
@@ -4235,7 +5175,7 @@
           68
         ],
         "rect": [
-          322,
+          255,
           103,
           130,
           154
@@ -4251,7 +5191,7 @@
           120
         ],
         "rect": [
-          322,
+          255,
           103,
           130,
           154
@@ -4268,7 +5208,7 @@
         ],
         "font_key": "sm",
         "pos": [
-          387,
+          320,
           108
         ],
         "text": "Old Name",
@@ -4283,15 +5223,15 @@
         ],
         "points": [
           [
-            385,
+            318,
             124
           ],
           [
-            387,
+            320,
             121
           ],
           [
-            389,
+            322,
             124
           ]
         ],
@@ -4307,7 +5247,7 @@
         ],
         "font_key": "md",
         "pos": [
-          387,
+          320,
           126
         ],
         "text": "Card B",
@@ -4322,7 +5262,7 @@
         ],
         "font_key": "sm",
         "pos": [
-          387,
+          320,
           193
         ],
         "text": "tiered thing",
@@ -4337,10 +5277,87 @@
         ],
         "font_key": "sm",
         "pos": [
-          387,
+          320,
           243
         ],
         "text": "Tier 2 of 3",
+        "type": "text"
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          42,
+          34,
+          68
+        ],
+        "rect": [
+          389,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 0
+      },
+      {
+        "border_radius": 0,
+        "color": [
+          80,
+          65,
+          120
+        ],
+        "rect": [
+          389,
+          103,
+          130,
+          154
+        ],
+        "type": "rect",
+        "width": 1
+      },
+      {
+        "align": "center",
+        "color": [
+          235,
+          225,
+          195
+        ],
+        "font_key": "md",
+        "pos": [
+          454,
+          108
+        ],
+        "text": "Card C",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          255,
+          200,
+          50
+        ],
+        "font_key": "sm",
+        "pos": [
+          454,
+          162
+        ],
+        "text": "Cost  12",
+        "type": "text"
+      },
+      {
+        "align": "center",
+        "color": [
+          150,
+          140,
+          120
+        ],
+        "font_key": "sm",
+        "pos": [
+          454,
+          175
+        ],
+        "text": "a third thing",
         "type": "text"
       }
     ]

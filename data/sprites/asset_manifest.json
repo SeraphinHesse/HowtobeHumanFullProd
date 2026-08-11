@@ -2814,23 +2814,23 @@
       "anchors": {
         "beam_endpoint": [
           3,
-          -2
+          -9
         ],
         "floater_origin": [
-          2,
-          -14
+          3,
+          -7
         ],
         "hp_bar": [
-          3,
-          -19
+          2,
+          -25
         ],
         "impact": [
-          3,
-          0
+          4,
+          -11
         ],
         "muzzle": [
-          -19,
-          -8
+          -14,
+          -14
         ]
       },
       "frame_h": 96,
@@ -2841,12 +2841,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2854,42 +2851,9 @@
         },
         {
           "animation": "attack",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1
-          ],
+          "fps": 6,
+          "frames": 9,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2901,7 +2865,7 @@
       "anchors": {
         "beam_endpoint": [
           3,
-          -3
+          -7
         ],
         "floater_origin": [
           4,
@@ -2909,15 +2873,15 @@
         ],
         "hp_bar": [
           3,
-          -19
+          -27
         ],
         "impact": [
           3,
-          1
+          -11
         ],
         "muzzle": [
-          -20,
-          -8
+          -14,
+          -15
         ]
       },
       "frame_h": 96,
@@ -2928,12 +2892,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2942,66 +2903,36 @@
         {
           "animation": "attack",
           "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
+          "frames": 9,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "imported/enemy_stage_1_v2.png"
     },
-    "enemy_stage_2": {
+    "enemy_stage_1_v3": {
       "anchors": {
         "beam_endpoint": [
-          4,
-          -1
+          3,
+          -11
         ],
         "floater_origin": [
-          3,
-          -14
+          4,
+          -7
         ],
         "hp_bar": [
           1,
-          -20
+          -26
         ],
         "impact": [
           3,
-          0
+          -9
         ],
         "muzzle": [
-          -19,
-          -8
+          -13,
+          -15
         ]
       },
       "frame_h": 96,
@@ -3012,12 +2943,9 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -3026,35 +2954,96 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
+          "frames": 9,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v3.png"
+    },
+    "enemy_stage_1_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -9
+        ],
+        "floater_origin": [
+          3,
+          -6
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          3,
+          -12
+        ],
+        "muzzle": [
+          -14,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "death",
+          "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
-          "animation": "death",
+          "animation": "attack",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v4.png"
+    },
+    "enemy_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -10
+        ],
+        "floater_origin": [
+          2,
+          -8
+        ],
+        "hp_bar": [
+          3,
+          -26
+        ],
+        "impact": [
+          3,
+          -9
+        ],
+        "muzzle": [
+          -17,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
           "fps": 6,
           "frames": 8,
           "hidden": [],

@@ -43,7 +43,7 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import anchor_ops, tilemap_ops, vfx_params
+from editor import anchor_ops, tilemap_ops, vfx_params, widget_tree
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
 from editor.sprite_fit import slot_draw_fit
@@ -139,6 +139,10 @@ def logical_resolution(data_dir=None):
 SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
+# P-3: the dimmer outline drawn around every widget that will come along when
+# the selected one is dragged. Deliberately the same hue as SELECTION_COLOR,
+# darkened — "these belong to the selection", not "these are also selected".
+SUBTREE_COLOR = (150, 130, 50)
 LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
@@ -280,6 +284,11 @@ class ViewportPanel(QWidget):
         self._drag_start = None            # SCREEN-pixel QPointF at press
         self._drag_orig_rect = None        # effective LOGICAL rect at press
         self._drag_orig_override_rect = None  # doc override at press, or None
+        # P-3: the descendants a move drag carries along —
+        # [(widget_id, effective rect at press, doc override at press | None)].
+        # Empty for a resize (resizing does NOT cascade) and for a childless
+        # widget.
+        self._drag_subtree = []
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
@@ -497,6 +506,7 @@ class ViewportPanel(QWidget):
         self._drag_start = None
         self._drag_orig_rect = None
         self._drag_orig_override_rect = None
+        self._drag_subtree = []
         self._screen_state = "idle"
         self._reset_screen_anim_clock()
         if self.in_screen_mode():
@@ -673,28 +683,151 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return list(override.get("rect", base))
 
+    def _widget_text(self, widget_id, spec):
+        """The text this widget currently DRAWS, best-effort — used only to
+        measure a position-only anchor's hit box. Preference order mirrors
+        what the game resolves at draw time: the doc's own `label` override,
+        else the live `strings.json` template the widget is bound to (so a
+        designer's own edit to that template immediately resizes the box),
+        else the exporter's resolved `sample`, else the default `label`."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        if override.get("label"):
+            return override["label"]
+        text_id = override.get("text_id") or spec.get("text_id")
+        if text_id:
+            table = getattr(self._screen_session, "strings_doc", None) or {}
+            if table.get(text_id):
+                return table[text_id]
+        return spec.get("sample") or spec.get("label") or ""
+
+    def _interaction_rect(self, widget_id, defaults):
+        """The widget's editor-side hit/outline box in LOGICAL pixels: its
+        effective rect, with any zero-extent axis grown to the measured size
+        of its text (`_screen_primitives.interaction_rect`). Distinct from
+        `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
+        anchor still stores w/h 0."""
+        spec = defaults.get("widgets", {}).get(widget_id) or {}
+        return _screen_primitives.interaction_rect(
+            self._effective_rect(widget_id, defaults),
+            text=self._widget_text(widget_id, spec),
+            font_key=self._widget_font_key(widget_id, spec),
+            align=spec.get("align", "left"))
+
+    def _widget_font_key(self, widget_id, spec):
+        """The font the widget's text is drawn at: the doc's own `font`
+        override, else the exporter-recorded `font_key`, else the screen's
+        `defaults.font`, else "md" (the same fallback chain
+        `_submit_screen_widget` uses to draw it)."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return (override.get("font") or spec.get("font_key")
+                or style.get("font") or "md")
+
+    def _is_anchor_widget(self, widget_id, defaults):
+        """True when the widget stores no size — it can be MOVED but not
+        resized (there is nothing for a resize to write, and forcing a size
+        onto a text anchor would change what the game draws)."""
+        return _screen_primitives.is_anchor_rect(
+            self._effective_rect(widget_id, defaults))
+
+    # -- widget parenting (P-3/P-5) -----------------------------------------
+    # The hierarchy is DATA (`screen_defaults.json`'s `parent`, plus the open
+    # doc's own re-parenting override) resolved by the pure
+    # `editor/widget_tree.py`. It is an AUTHORING relationship only: the
+    # cascade below rewrites ABSOLUTE rects at EDIT time, and the game's own
+    # `layout()` still recomputes every default each frame with no cascade
+    # (plan D2).
+
+    def _screen_tree(self, defaults):
+        """`{parent_id: [child_id, ...]}` for the open screen+view."""
+        return widget_tree.build_tree(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_parents(self, defaults):
+        """`{widget_id: parent_id | None}` for the open screen+view."""
+        return widget_tree.parent_map(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_descendants(self, widget_id, defaults):
+        """Every widget that moves when `widget_id` moves."""
+        return widget_tree.descendants(self._screen_tree(defaults), widget_id)
+
+    def _hidden_subtrees(self, defaults):
+        """Every widget the preview must skip because an ANCESTOR is hidden
+        (P-5/D4) — not drawn, not hit-testable.
+
+        Visibility inherits in the editor PREVIEW only: the saved `visible`
+        override stays per-widget and the game keeps resolving each widget's
+        own flag, exactly as now. Same argument as D2 — the editor models the
+        hierarchy, the data does not smuggle it into the game.
+
+        Computed as a SET once per frame / once per hit-test rather than
+        walked per widget: both callers loop over every id, and a per-widget
+        ancestor walk would rebuild the parent map ~85 times on
+        `building_panel`. The common case (nothing hidden) exits before
+        building a tree at all.
+        """
+        overrides = self._screen_session.doc.get("widgets", {})
+        hidden_roots = [widget_id for widget_id in defaults.get("widgets", {})
+                        if overrides.get(widget_id, {}).get("visible") is False]
+        if not hidden_roots:
+            return frozenset()
+        tree = self._screen_tree(defaults)
+        out = set()
+        for widget_id in hidden_roots:
+            out.update(widget_tree.descendants(tree, widget_id))
+        return frozenset(out)
+
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
     def _hit_widget(self, pos, defaults):
-        """Topmost widget rect under `pos` (SCREEN pixels) — reverse
-        submission order, since a later HUD submission draws over an
-        earlier one. Invisible widgets (visible=False override) can't be
-        hit."""
+        """The widget under `pos` (SCREEN pixels), or None. Invisible widgets
+        (visible=False override) can't be hit.
+
+        Hit-tests the INTERACTION rect, not the stored one: a position-only
+        text anchor stores a zero-area rect and would otherwise be
+        unreachable with a mouse.
+
+        **The SMALLEST candidate wins**, not the last-submitted one. Two
+        reasons, and the second is the one that bites:
+          * It is what a designer expects — clicking a readout that sits on a
+            panel selects the readout, the way every UI editor behaves.
+          * The editor submits widgets in `screen_defaults.json` key order
+            (alphabetical), which is NOT the game's panel->button->text
+            submission order, so "last drawn" here is meaningless. Live
+            example: `hud.income_text` sits inside `hud.love_panel`, and
+            reverse-key-order made the panel swallow every click on the Love
+            per round readout — one of the widgets the designer specifically
+            asked to be able to edit.
+        Ties (identical area) fall back to the later key, preserving the old
+        behaviour where nothing distinguishes two candidates."""
         scale, ox, oy = self._screen_scale_offset()
         doc = self._screen_session.doc
-        for widget_id in reversed(list(defaults.get("widgets", {}))):
+        hidden = self._hidden_subtrees(defaults)   # P-5: inherited visibility
+        best, best_area = None, None
+        for widget_id in defaults.get("widgets", {}):
             if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
                 continue
+            if widget_id in hidden:
+                continue
             sx, sy, sw, sh = self._to_screen_rect(
-                self._effective_rect(widget_id, defaults), scale, ox, oy)
-            if sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh:
-                return widget_id
-        return None
+                self._interaction_rect(widget_id, defaults), scale, ox, oy)
+            if not (sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh):
+                continue
+            area = sw * sh
+            if best_area is None or area <= best_area:
+                best, best_area = widget_id, area
+        return best
 
     def _hit_resize_handle(self, pos, defaults):
         """One of the 4 corner handles of the CURRENTLY selected widget, or
-        None — handles only exist once something is already selected."""
+        None — handles only exist once something is already selected, and
+        never on a position-only anchor (nothing to resize)."""
         if self._selected_widget is None:
+            return None
+        if self._is_anchor_widget(self._selected_widget, defaults):
             return None
         scale, ox, oy = self._screen_scale_offset()
         sx, sy, sw, sh = self._to_screen_rect(
@@ -756,6 +889,28 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         self._drag_orig_override_rect = (
             list(override["rect"]) if "rect" in override else None)
+        # P-3: a MOVE carries the whole subtree; a RESIZE carries nothing
+        # (proportional resize of a text anchor is meaningless, and
+        # half-scaled children are a common way to destroy a layout by
+        # accident — plan Q2).
+        self._drag_subtree = (
+            self._captured_subtree(widget_id, defaults) if mode == "move"
+            else [])
+
+    def _captured_subtree(self, widget_id, defaults):
+        """`[(child_id, effective rect at press, doc override at press)]` for
+        every descendant — the full old/new the one undo command needs, never
+        a delta (`map_session`'s stroke-command contract)."""
+        overrides = self._screen_session.doc.get("widgets", {})
+        captured = []
+        for child_id in self._screen_descendants(widget_id, defaults):
+            child_override = overrides.get(child_id, {})
+            captured.append((
+                child_id,
+                self._effective_rect(child_id, defaults),
+                list(child_override["rect"]) if "rect" in child_override
+                else None))
+        return captured
 
     def _screen_move(self, event):
         if self._drag_start is None or self._selected_widget is None:
@@ -767,13 +922,20 @@ class ViewportPanel(QWidget):
         pos = event.position()
         dx = (pos.x() - self._drag_start.x()) / scale
         dy = (pos.y() - self._drag_start.y()) / scale
+        doc = self._screen_session.doc
         if self._selected_field_mode == "resize":
             new_rect = self._resized_rect(
                 self._drag_orig_rect, self._resize_corner, dx, dy)
         else:
             x, y, w, h = self._drag_orig_rect
             new_rect = [round(x + dx), round(y + dy), w, h]
-        doc = self._screen_session.doc
+            # P-3: the same delta on every descendant, applied to ITS OWN
+            # rect at press — never to the rect the last move event wrote, so
+            # rounding cannot accumulate across a long drag.
+            for child_id, (cx, cy, cw, ch), _old in self._drag_subtree:
+                doc.setdefault("widgets", {}).setdefault(
+                    child_id, {})["rect"] = [round(cx + dx), round(cy + dy),
+                                             cw, ch]
         doc.setdefault("widgets", {}).setdefault(
             self._selected_widget, {})["rect"] = new_rect
 
@@ -790,22 +952,45 @@ class ViewportPanel(QWidget):
         old_rect = self._drag_orig_override_rect
         if mode == "resize":
             self._screen_session.push_resize(widget_id, old_rect, new_rect)
+        elif self._drag_subtree:
+            # ONE undoable command over the whole subtree (P-3): the live
+            # mutation above already wrote every new rect, and pushing
+            # re-applies the same values, which is idempotent — the exact
+            # argument the single-widget drag already relies on.
+            self._screen_session.push_move_subtree(
+                [(widget_id, old_rect, new_rect)]
+                + [(child_id, child_old,
+                    self._effective_rect(child_id, defaults))
+                   for child_id, _orig, child_old in self._drag_subtree])
         else:
             self._screen_session.push_move(widget_id, old_rect, new_rect)
+        self._drag_subtree = []
 
     def _nudge_selected(self, ddx, ddy):
         """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
         directly (no live-drag preview needed) — QUndoStack.push() calls
-        redo() itself, which is what actually mutates the doc."""
+        redo() itself, which is what actually mutates the doc.
+
+        Cascades exactly like a drag (P-3): it shares `push_move`'s contract,
+        so a keyboard nudge and a mouse drag on the same parent must move the
+        same widgets."""
         defaults = self._current_screen_defaults()
         widget_id = self._selected_widget
         if not defaults or widget_id is None:
             return
+        dx, dy = ddx * NUDGE_STEP, ddy * NUDGE_STEP
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         old_rect = list(override["rect"]) if "rect" in override else None
         x, y, w, h = self._effective_rect(widget_id, defaults)
-        new_rect = [x + ddx * NUDGE_STEP, y + ddy * NUDGE_STEP, w, h]
-        self._screen_session.push_move(widget_id, old_rect, new_rect)
+        new_rect = [x + dx, y + dy, w, h]
+        subtree = self._captured_subtree(widget_id, defaults)
+        if not subtree:
+            self._screen_session.push_move(widget_id, old_rect, new_rect)
+            return
+        self._screen_session.push_move_subtree(
+            [(widget_id, old_rect, new_rect)]
+            + [(child_id, child_old, [cx + dx, cy + dy, cw, ch])
+               for child_id, (cx, cy, cw, ch), child_old in subtree])
 
     # -- palette state (MainWindow wires the PalettePanel signals to these)
     def set_tool(self, name):
@@ -1888,6 +2073,8 @@ class ViewportPanel(QWidget):
             self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
         self._screen_anim_last_t = t0
         doc = self._screen_session.doc
+        # P-5: resolved ONCE per frame and threaded into every submit below.
+        hidden = self._hidden_subtrees(defaults)
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -1903,14 +2090,16 @@ class ViewportPanel(QWidget):
                 if dragging in defaults.get("widgets", {}):
                     self._submit_screen_widget(
                         dragging, defaults["widgets"][dragging], doc, scale,
-                        ox, oy)
+                        ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
-                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                           hidden)
             return
         self._submit_screen_background(doc, scale, ox, oy)
         for widget_id, spec in defaults.get("widgets", {}).items():
-            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
 
     def _submit_screen_chrome(self, scale, ox, oy):
         """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
@@ -1955,14 +2144,16 @@ class ViewportPanel(QWidget):
         elif "color" in background:
             self._renderer.submit_hud(HudRect(dest, tuple(background["color"])))
 
-    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy):
+    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy,
+                              hidden=()):
         override = doc.get("widgets", {}).get(widget_id, {})
         if override.get("visible") is False:
             return
+        if widget_id in hidden:
+            return   # P-5/D4: an ancestor is hidden, so this is too
         rect = override.get("rect", spec["rect"])
         kind = spec["kind"]
         label = override.get("label", spec["label"])
-        dest = self._to_screen_rect(rect, scale, ox, oy)
         style = doc.get("defaults", {})
         skin = override.get("skin")
         if skin is None:
@@ -1970,7 +2161,19 @@ class ViewportPanel(QWidget):
                 skin = style.get("button_skin")
             elif kind == "panel":
                 skin = style.get("panel_skin")
-        font_key = override.get("font", style.get("font", "md"))
+        # The recorded `font_key` joins the chain (it did not exist before):
+        # measuring/drawing a readout at "md" when the game draws it at "xl"
+        # made the flat-box fallback disagree with the real screen.
+        font_key = (override.get("font") or spec.get("font_key")
+                    or style.get("font") or "md")
+        if _screen_primitives.is_anchor_rect(rect):
+            # A position-only anchor has no box to centre in; measure the
+            # same box the designer clicks and outlines (`_interaction_rect`),
+            # so the fallback text lands on the glyphs' real spot.
+            rect = _screen_primitives.interaction_rect(
+                rect, text=self._widget_text(widget_id, spec),
+                font_key=font_key, align=spec.get("align", "left"))
+        dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
             # D6/UH-6: tint from the widget's own `tint` key — `color` on a
@@ -1995,15 +2198,40 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
 
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        # P-3: a dimmer outline around every widget that will come along when
+        # this one is dragged, so the designer sees the subtree BEFORE moving
+        # it rather than discovering it afterwards. Drawn first, so the
+        # selection's own bright outline stays on top where they overlap.
+        for child_id in self._screen_descendants(widget_id, defaults):
+            cx, cy, cw, ch = self._to_screen_rect(
+                self._interaction_rect(child_id, defaults), scale, ox, oy)
+            self._renderer.submit_hud(HudLines(
+                ((cx, cy), (cx + cw, cy), (cx + cw, cy + ch), (cx, cy + ch)),
+                SUBTREE_COLOR, width=1, closed=True))
+        # The INTERACTION rect, so a position-only text anchor gets a visible
+        # outline over its glyphs instead of a zero-area (invisible) one — the
+        # outline must be exactly what `_hit_widget` tests, or the designer
+        # would be aiming at a box that isn't where they can click.
         x, y, w, h = self._to_screen_rect(
-            self._effective_rect(widget_id, defaults), scale, ox, oy)
+            self._interaction_rect(widget_id, defaults), scale, ox, oy)
         self._renderer.submit_hud(HudLines(
             ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
             SELECTION_COLOR, width=2, closed=True))
-        half = HANDLE_PX / 2
-        for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+        if self._is_anchor_widget(widget_id, defaults):
+            # Move-only: no corner handles (`_hit_resize_handle` refuses them
+            # too), and a small marker ON the stored anchor point so the
+            # designer can see WHICH point the X/Y fields address — for a
+            # centre/right-aligned label that is not the outline's corner.
+            ax, ay, _w, _h = self._to_screen_rect(
+                self._effective_rect(widget_id, defaults), scale, ox, oy)
+            half = HANDLE_PX / 2
             self._renderer.submit_hud(HudRect(
-                (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+                (ax - half, ay - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        else:
+            half = HANDLE_PX / 2
+            for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+                self._renderer.submit_hud(HudRect(
+                    (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
         # UH-4: a small caption above the outline naming the selected widget
         # (display name, falls back to the code id — D4, `widget_display_name`
         # is the ONE resolution rule shared with the widget list). Clamped to

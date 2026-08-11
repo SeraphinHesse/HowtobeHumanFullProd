@@ -246,12 +246,22 @@ class Enemy(GameObject):
 
         The ONE seam deciding WHERE a type's render fit lives, so
         ``__init__`` and the spawner's pre-construction ``_footprint_of``
-        can never disagree. Every type but the Boss keeps them FLAT at its
-        ``EnemyTypes`` root (ES-2/D10 — only numbers that scale with the round
-        went per-era); the Boss overrides it, because BR-1 made every boss
-        variable per-era. A classmethod, not an instance method: the spawner
-        needs the footprint to pick a spawn tile BEFORE the enemy exists."""
-        return int(block["footprint"]), float(block["sprite_scale"])
+        can never disagree. **Every type's render fit is PER-ERA**: an
+        era-shaped type carries the pair in its own ``eras[]`` rows, and the
+        Boss overrides this to read its ``stats[]`` table (it has no
+        ``eras``). Both were single FLAT keys at the type root until BR-1
+        moved the Boss's, and this change moved everyone else's — a designer
+        must be able to make a late-era body physically bigger than an early
+        one (an era-4 Formation is 4x4 where its era-0 is 2x2).
+
+        Past the last authored era the row clamps: ``endgame_scaling`` carries
+        no ``footprint``/``sprite_scale`` factor, deliberately, so a size never
+        grows on its own past the table.
+
+        A classmethod, not an instance method: the spawner needs the footprint
+        to pick a spawn tile BEFORE the enemy exists."""
+        row = resolve_era_row(block["eras"], era, cls.endgame_factors(block))
+        return int(row["footprint"]), float(row["sprite_scale"])
 
     @classmethod
     def nav_components(cls, block):
@@ -540,10 +550,12 @@ class SiegeCannon(Enemy):
 
 
 class Formation(Enemy):
-    """A marching column — many soldiers moving as one body (ER-4). Two tiles
-    square (``footprint: 2``, ER-2 clearance pathing: it only stands where all
-    four tiles are clear, so it cannot thread a one-tile gap a walker slips
-    through). Its stats come from its own ``eras`` rows like every other type.
+    """A marching column — many soldiers moving as one body (ER-4). A
+    multi-tile block that GROWS: ``footprint`` is per-era like every other
+    number now, and it ships 2, 2, 3, 3, 4 across eras 0-4 (ER-2 clearance
+    pathing: it only stands where every tile of its block is clear, so it
+    cannot thread a gap a walker slips through, and by era 4 it needs a 4x4).
+    Its stats come from its own ``eras`` rows like every other type.
 
     It has NO break state: ``death_spawn.at_hp_fraction`` 0.5 makes ``alive``
     False at half HP (D4 — breaking formation IS dying), and the ER-3 pipeline
@@ -682,9 +694,11 @@ class Digger(Enemy):
 
     @classmethod
     def nav_components(cls, block):
-        return (BurrowAgent(dig_range_tiles=int(block["dig_range_tiles"]),
-                            dig_speed=float(block["dig_speed"]),
-                            emerge_cooldown=float(block["emerge_cooldown"])),)
+        return (BurrowAgent(
+            dig_range_tiles=int(block["dig_range_tiles"]),
+            dig_speed=float(block["dig_speed"]),
+            emerge_cooldown=float(block["emerge_cooldown"]),
+            min_target_distance_tiles=int(block["min_target_distance_tiles"])),)
 
     def _resolve_stats(self, balance, era, position_in_era=1):
         """The era row as usual, with ``move_speed`` REPLACED by the flat
@@ -800,10 +814,11 @@ class Boss(Enemy):
 
     @classmethod
     def resolve_fit(cls, block, era):
-        # BR-1: the boss is the ONE type whose footprint/sprite_scale are
-        # per-era — they live in its `stats[era]` row with every other boss
-        # variable, not flat at the type root. Resolved (clamped, and past the
-        # table endgame-scaled) here too, so the spawner can ask before a Boss
+        # Every type's fit is per-era; the Boss's just lives somewhere else.
+        # BR-1 put footprint/sprite_scale in its `stats[era]` row with every
+        # other boss variable, and it carries no `eras[]` for the base
+        # implementation to read. Resolved (clamped, and past the table
+        # endgame-scaled) here too, so the spawner can ask before a Boss
         # instance exists.
         st = cls._stat_row(block, era)
         return int(st["footprint"]), float(st["sprite_scale"])

@@ -834,6 +834,7 @@ class BurrowAgent(Component):
     start_wy: float = 0.0
     emerge_cooldown: float = 0.0     # min seconds on the surface before re-digging
     cooldown_remaining: float = 0.0  # counts down from emerge_cooldown on emerge
+    min_target_distance_tiles: int = 0  # prefer a target this far away (Chebyshev)
 
     def on_added(self, owner):
         self._owner = owner
@@ -871,7 +872,7 @@ class BurrowAgent(Component):
             return
         if (self.cooldown_remaining <= 0
                 and self.distance_to_target(owner, pa) <= self.dig_range_tiles):
-            self._submerge(owner, pa, mv)
+            self._submerge(owner, pa, mv, tm)
 
     def _tick_submerged(self, dt, owner, pa, mv, tm):
         # Pin the sprite clock so the dig pose holds: SpriteAnimator.update
@@ -893,11 +894,25 @@ class BurrowAgent(Component):
 
     # -- transitions -------------------------------------------------------
 
-    def _submerge(self, owner, pa, mv):
+    def _submerge(self, owner, pa, mv, tm):
         self.state = BURROW_SUBMERGED
         speed = self.dig_speed if self.dig_speed > 0 else 1.0
         self.dig_duration = max(1e-6, float(self.dig_range_tiles) / speed)
         self.dig_timer = self.dig_duration
+        # It only digs into TILES and emerges under buildings — never dig
+        # starting on a tile a (possibly unrelated) building already occupies.
+        # The route to the real target is a traversable weight, not
+        # impassable, and `no_melee` never halts for a blocker, so the walk
+        # can legitimately cross another building's tile first. Relocating
+        # here is invisible either way: `visible` flips False in this same
+        # call, below.
+        col = round(owner.transform.wx)
+        row = round(owner.transform.wy)
+        tile = tm.get(col, row)
+        if tile is not None and tile.occupant is not None:
+            col, row = self._nearest_clear_tile(tm, col, row)
+            owner.transform.wx = float(col)
+            owner.transform.wy = float(row)
         self.start_wx = float(owner.transform.wx)
         self.start_wy = float(owner.transform.wy)
         pa.frozen = True
@@ -987,12 +1002,18 @@ class BurrowAgent(Component):
         path — and ``goal_is_base`` True is precisely how the base fallback
         inside ``find_path_to_nearest_structure`` announces "nothing left to
         hunt", which is what makes the stand-down branch below correct rather
-        than a guess."""
+        than a guess.
+
+        ``min_target_distance_tiles`` prefers a claim at least that far
+        (Chebyshev) from the Digger's own tile, falling back to the plain
+        nearest unclaimed structure when nothing clears it — see
+        ``find_path_to_nearest_structure``'s ``min_distance``."""
         col = round(owner.transform.wx)
         row = round(owner.transform.wy)
         path = find_path_to_nearest_structure(
             tm, col, row, footprint=pa.footprint,
-            cond_weights=pa._cond_weights, exclude=self.claimed_tiles(owner))
+            cond_weights=pa._cond_weights, exclude=self.claimed_tiles(owner),
+            min_distance=self.min_target_distance_tiles)
         pa.adopt_goal(path, tm)
         self.state = BURROW_WALKING
         if not path or pa.goal_is_base:
@@ -1065,6 +1086,33 @@ class BurrowAgent(Component):
             if occ is not None and getattr(occ, "alive", False):
                 return occ
         return None
+
+    @staticmethod
+    def _nearest_clear_tile(tm, col, row):
+        """The nearest ``(c, r)`` with no building occupant, by an expanding
+        Chebyshev ring search from ``(col, row)`` — the ``_find_2x2``
+        expanding-window precedent (``game/map/CLAUDE.md``) applied to a
+        single tile instead of a 2x2 block. Falls back to ``(col, row)``
+        itself if literally nothing on the board qualifies (never expected on
+        a real map — the whole spawn/combat zone can't be built solid — but a
+        graceful no-op beats a crash)."""
+        limit = max(tm.cols, tm.rows)
+        for radius in range(limit):
+            if radius == 0:
+                ring = [(col, row)]
+            else:
+                ring = []
+                for dc in range(-radius, radius + 1):
+                    ring.append((col + dc, row - radius))
+                    ring.append((col + dc, row + radius))
+                for dr in range(-radius + 1, radius):
+                    ring.append((col - radius, row + dr))
+                    ring.append((col + radius, row + dr))
+            for c, r in ring:
+                tile = tm.get(c, r)
+                if tile is not None and tile.occupant is None:
+                    return c, r
+        return col, row
 
     @staticmethod
     def _set_anim(owner, name):

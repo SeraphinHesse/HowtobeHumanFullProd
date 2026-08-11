@@ -175,14 +175,33 @@ validating writer; don't hand-edit the JSON.
   `tools/gen_moving_sign_sheet.py` (deterministic, re-runnable, writes the
   sheet AND its manifest entry — the `tools/gen_wall_sheets.py` pattern), and
   is ordinary editable D-31 content, not a build artifact.
-- **Enemy sizing leaves (ER-1; per-era for the Boss since BR-1)**: each
-  `enemies.json` `EnemyTypes/*` block carries
-  a required `footprint` (int tiles, 1–8: the unit occupies footprint² tiles and
-  its sprite is downscaled to `footprint*tile_w` wide, never upscaled) and
-  `sprite_scale` (number 0.1–8, applied AFTER that fit — the knob for low-res
-  art). The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
-  `Boss/stats` row were deleted from content AND schema in the same change:
-  nothing read them, and render size now derives from the footprint.
+- **Enemy sizing leaves (ER-1; PER-ERA for every type)**: `footprint` (int
+  tiles, 1–8: the unit occupies footprint² tiles and its sprite is downscaled
+  to `footprint*tile_w` wide, never upscaled) and `sprite_scale` (number
+  0.1–8, applied AFTER that fit — the knob for low-res art) are a **required
+  pair on every per-era row**: `$defs/type_era_row` for the nine era-shaped
+  types, `$defs/boss_stat` for the Boss (which carries no `eras[]`).
+  - **They were FLAT at the `EnemyTypes/*` root and no longer exist there.**
+    BR-1 moved the Boss's; the per-era-footprint change moved every other
+    type's and deleted the root keys outright, so there is exactly ONE home
+    per type and no fallback that can disagree with it. Same reason both
+    times: a designer must be able to make a late-era body physically bigger
+    than an early one.
+  - **The Formation is the one type whose size actually changes** —
+    `2, 2, 3, 3, 4` across eras 0–4, finally matching the 2×2-column
+    description its schema and docstrings always carried while the data
+    shipped `1`. Every other type ships `footprint: 1` in every row, and
+    `sprite_scale: 1.0` except the Drummer's `1.15` (its "slightly taller"
+    cosmetic ask, now repeated in all five of its rows).
+  - **`endgame_scaling` deliberately carries no `footprint`/`sprite_scale`
+    factor** (only the Boss's `endgame_boss_scaling` does). Past the last
+    authored era an era-shaped type's size CLAMPS. Adding one is a schema
+    change, on purpose: `era_math.resolve_era_row` matches factors to leaves
+    BY NAME, so a size quietly growing past the table would be an easy
+    accident.
+  - The dead `Boss/era_sizes` and the `sprite_w`/`sprite_h` on every
+    `Boss/stats` row were deleted from content AND schema back in ER-1:
+    nothing read them, and render size derives from the footprint.
 - **`registry_group` (fix-editor-preview-footprint)**: each `EnemyTypes/*`
   block also carries a required `registry_group` string — the
   `data/slots.json` "enemies" group label that type's sprites live under
@@ -220,15 +239,18 @@ validating writer; don't hand-edit the JSON.
     `footprint`, `sprite_scale` and `shake` are DELETED from the type root and
     live inside each `stats[]` row, so every boss variable is per-era.
   - **Kept FLAT at the type root, deliberately** (D10, exhaustive):
-    `start_round`, `footprint`, `sprite_scale`, `death_spawn`, `registry_group`,
-    `kidnapping`, `hunts`, `condition_path_weights`, `mix_ratio`,
-    `queue_lead_count`. Only numbers that scale with the round went per-era.
-    **BR-1 carved out ONE exception**: the Boss's `footprint`/`sprite_scale`
-    are per-era (in its `stats[]` rows), because a designer must be able to
-    make the era-4 boss physically bigger than the era-0 one. Every other type
-    — and every other key in that list — is unchanged. `editor/sprite_fit.py`
-    reads BOTH shapes since **BR-5** (it read only the flat pair before, so
-    every boss slot preview silently drew at the render defaults).
+    `start_round`, `death_spawn`, `registry_group`, `kidnapping`, `hunts`,
+    `condition_path_weights`, `mix_ratio`, `queue_lead_count`. Only numbers
+    that scale with the round went per-era.
+    **`footprint`/`sprite_scale` LEFT this list.** BR-1 carved them out for
+    the Boss alone (into its `stats[]` rows); the per-era-footprint change
+    then did the same for all nine era-shaped types (into `$defs/
+    type_era_row`) and DELETED the flat root keys — so the render fit is now
+    per-era everywhere, with no flat home left anywhere. See the "Enemy
+    sizing leaves" bullet above. `editor/sprite_fit.py` resolves `eras[]`,
+    `stats[]` and (as a last resort, for a hand-built doc) the block root —
+    it read only the flat pair until **BR-5**, which is why every boss slot
+    preview silently drew at the render defaults for four phases.
   - **`Boss.second_phase` is the SECOND carve-out (BR-5)**: its
     `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/`spawn_delay` left
     the block root for a 5-row `staging` array (`$defs/second_phase_row`),
@@ -586,6 +608,55 @@ validating writer; don't hand-edit the JSON.
     (`hud_item_to_json`/`hud_item_from_json`), beside the dataclasses it
     describes, because the recorder (`tools/`) and the replay (`editor/`) both
     need it and neither may import the other.
+- **`widget.font_key` / `widget.align` (editable-ui-widgets)**: two more
+  OPTIONAL keys on a `screen_defaults.json` widget record, both pure DRAW
+  HINTS for the editor — nothing in the game reads them back. They exist so
+  the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
+  whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
+  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
+  therefore impossible to click, drag or even see selected in the editor
+  despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
+  preset the text is drawn at (so the editor MEASURES it at the right size
+  instead of guessing `md`); `align` is `left|center|right`, which way the
+  glyphs spread from the stored x. Both are recorded by
+  `tools/export_ui_layouts.py::_widget_entry` ONLY when the widget actually
+  carries them (`align` additionally only when it is not the `left` default),
+  so every button/panel entry stays byte-identical. The editor side is
+  `editor/panels/_screen_primitives.interaction_rect`.
+- **Per-slot buy-option ids**: `levelup`'s `option_box_0..2` and
+  `building_panel`'s `card_<building_type>` are ordinary widget records in
+  this file now — the "dynamic-count content gets no id" rule is lifted (see
+  `game/ui/CLAUDE.md`). They are recorded from `tools/screen_mocks.py` state
+  chosen to cover every slot: `LEVELUP_OPTIONS` holds THREE cards (the roll's
+  maximum) and the `construct` view unlocks every RESEARCH type before
+  building its cards. Widen that mock state, not the exporter, if a future
+  screen needs the same treatment.
+- **`widget.parent` (UiEditorParentingPLAN P-1/P-2)**: one more OPTIONAL key
+  on a `screen_defaults.json` widget record (a string, the id of another
+  widget in the SAME screen and view), and a matching OPTIONAL `parent` in
+  `ui_screen.schema.json`'s per-widget override object — the only per-widget
+  override key whose type is `["string", "null"]` rather than a bare type.
+  It is **AUTHORING metadata: nothing in `game/` reads it, ever.** The editor
+  cascades a move at EDIT time and the saved rects stay ABSOLUTE, so the
+  game's documented "no cascade" convention (`game/ui/CLAUDE.md`) and its flat
+  `setattr` apply loop are untouched — adding a runtime resolution step is
+  explicitly the parked P-6 idea, not this one.
+  - **Three states, and they are all different.** ABSENT in the override =
+    keep whatever `screen_defaults.json` says (itself absent = a root
+    widget). A STRING = the designer re-parented it. An explicit JSON
+    `null` = the designer REJECTED the default parent and re-rooted the
+    widget, which is why the override's type admits null while the defaults'
+    does not. `editor/ui_screen_session.py`'s `parent_override()` is the ONE
+    accessor that reads them apart.
+  - The defaults are written by `tools/export_ui_layouts.py`'s `_PARENTS`
+    (explicit pairs) + `_PARENT_CONTAINERS` (per-screen "everything else
+    belongs to this container"), and ONLY when the parent id is present in
+    the same widgets map — so each of `building_panel`'s five views parents to
+    whichever container it actually shows, and no view ever points at an
+    absent id. A dangling or cyclic chain resolves to ROOT in the editor
+    rather than raising (`editor/widget_tree.py`), so a hand-edit cannot hang
+    a Qt paint handler.
 - **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
   `screen_defaults.json` widget record, and `text_id` is also an optional
   per-widget override in `ui_screen.schema.json`. `text_id` is the

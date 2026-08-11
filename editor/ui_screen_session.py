@@ -33,6 +33,7 @@ from PySide6.QtCore import QObject, Signal
 from PySide6.QtGui import QUndoCommand, QUndoStack
 
 from engine import data_io
+from editor.widget_tree import PARENT_KEY
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -67,6 +68,48 @@ def strings_schema_path(data_dir):
     return Path(data_dir) / "schemas" / "strings.schema.json"
 
 
+class _NoParent:
+    """Sentinel for an explicit JSON ``null`` override, as distinct from
+    ``None``, which every push_* method already spends on "no override — the
+    key is ABSENT".
+
+    Exactly one key needs the distinction (UiEditorParentingPLAN D3): a
+    widget's ``parent``. Absent means "keep the exporter's default parent";
+    ``null`` means "the designer REJECTED it — this widget is a root". Undoing
+    a re-root has to put the default back, so the two states cannot share a
+    representation.
+
+    ``__deepcopy__`` returns the singleton itself: ``_DocFieldCommand``
+    deep-copies both old and new, and a copied sentinel would silently stop
+    being recognised.
+    """
+
+    def __deepcopy__(self, _memo):
+        return self
+
+    def __copy__(self):
+        return self
+
+    def __repr__(self):
+        return "NO_PARENT"
+
+
+#: The one instance — compare with ``is``, never ``==``.
+NO_PARENT = _NoParent()
+
+
+def parent_override(widget_override):
+    """The stored ``parent`` override in push_field's own vocabulary:
+    ``None`` when the key is ABSENT, ``NO_PARENT`` when it is an explicit
+    JSON null, else the parent id. The ONE place the three states are read,
+    so the panel's combo, its reset button and the tree drop cannot disagree
+    about what "old" was."""
+    if PARENT_KEY not in (widget_override or {}):
+        return None
+    value = widget_override[PARENT_KEY]
+    return NO_PARENT if value is None else value
+
+
 def _remove_pruning(doc, path):
     """Remove doc[path[0]]...[path[-1]], then remove any parent dict along
     the way that becomes empty (never removes the doc root itself)."""
@@ -90,7 +133,9 @@ def _set_at(doc, path, value):
 
 
 def _apply_field(doc, path, value):
-    if value is None:
+    if value is NO_PARENT:
+        _set_at(doc, path, None)   # a REAL JSON null (D3) — see _NoParent
+    elif value is None:
         _remove_pruning(doc, path)
     else:
         _set_at(doc, path, value)
@@ -113,6 +158,34 @@ class _DocFieldCommand(QUndoCommand):
 
     def undo(self):
         _apply_field(self._doc, self._path, copy.deepcopy(self._old))
+
+
+class _DocFieldsCommand(QUndoCommand):
+    """SEVERAL fields set/cleared as ONE undo step — the multi-widget twin of
+    ``_DocFieldCommand``, modelled on ``map_session``'s stroke commands: a
+    change LIST of full old/new values, never a delta, so pushing after the
+    viewport already mutated the doc live (a drag in progress) is idempotent.
+
+    Its one user is the parenting cascade (UiEditorParentingPLAN P-3): moving
+    a parent rewrites the absolute rect of the parent AND every descendant,
+    and one Ctrl+Z has to put all of them back.
+    """
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc = doc
+        self._changes = [(tuple(path), copy.deepcopy(old), copy.deepcopy(new))
+                         for path, old, new in changes]
+
+    def redo(self):
+        for path, _old, new in self._changes:
+            _apply_field(self._doc, path, copy.deepcopy(new))
+
+    def undo(self):
+        # Reverse order so the pruning of a shared parent container
+        # (`widgets/<id>`) unwinds in the order it was built.
+        for path, old, _new in reversed(self._changes):
+            _apply_field(self._doc, path, copy.deepcopy(old))
 
 
 class UIScreenSession(QObject):
@@ -215,6 +288,30 @@ class UIScreenSession(QObject):
     def push_move(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,
                    f"move {widget_id}")
+
+    def push_move_subtree(self, changes, text=None):
+        """ONE undoable command moving a widget AND every descendant
+        (UiEditorParentingPLAN P-3, D2).
+
+        ``changes`` is ``[(widget_id, old_rect, new_rect), ...]`` — full
+        rects, never deltas, ``None`` meaning "no override" exactly as
+        ``push_move`` does. Rows whose old and new agree are dropped, and a
+        cascade that comes down to a single widget is left to ``push_move``
+        by the caller: this method exists for the subtree case, not to
+        replace it.
+
+        The saved doc stays ABSOLUTE (D2) — the cascade happens here, at edit
+        time, and the game's own ``layout()`` is untouched.
+        """
+        real = [c for c in changes if c[1] != c[2]]
+        if not real:
+            return
+        label = text or f"move {real[0][0]} + {len(real) - 1} child(ren)"
+        self.undo_stack.push(_DocFieldsCommand(
+            self.doc,
+            [(("widgets", widget_id, "rect"), old, new)
+             for widget_id, old, new in real],
+            label))
 
     def push_resize(self, widget_id, old_rect, new_rect):
         self._push(("widgets", widget_id, "rect"), old_rect, new_rect,

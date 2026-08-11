@@ -25,30 +25,32 @@ _NoWheel* widgets).
 """
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor
+from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QDrag
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QColorDialog,
     QFormLayout,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QToolButton,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from editor import theme_ops
+from editor import theme_ops, widget_tree
 from editor.panels._screen_primitives import widget_display_name
 from editor.panels.balancing import (
     CollapsibleSection,
     _NoWheelComboBox,
     _NoWheelSpinBox,
 )
+from editor.ui_screen_session import NO_PARENT, parent_override
 from editor.panels._screen_rules import (
     TOOLTIP_COLOR_CODE_OWNED,
     TOOLTIP_LABEL_CODE_OWNED,
@@ -74,7 +76,125 @@ TOOLTIP_TEXT_TEMPLATE = (
     "it everywhere this string id is used. {placeholders} are filled in "
     "by the game at runtime.")
 
+# UiEditorParentingPLAN P-4: the tooltip on the outliner. Parenting is an
+# AUTHORING relationship (D2) — say so where the designer meets it, or the
+# tree reads as a promise the game does not keep.
+TOOLTIP_PARENT = (
+    "Which widget this one hangs off in the editor. Moving a parent moves "
+    "its children; resizing one does not. This is an EDITOR relationship — "
+    "the saved rects stay absolute and the game never reads it.")
+
+# P-5/D4: shown on the Visible row when an ANCESTOR is hidden. The preview
+# draws nothing for such a widget, and saying so beats silently drawing
+# nothing — but its own `visible` override is untouched, and so is what the
+# game does with it.
+TOOLTIP_HIDDEN_BY_PARENT = (
+    "Not drawn in the preview because its parent \"{name}\" is hidden. "
+    "Visibility inherits in the EDITOR only — this widget's own Visible flag "
+    "is unchanged, and the game still resolves each widget's flag on its own.")
+
 _RECT_MIN, _RECT_MAX = -4096, 4096
+
+# One custom MIME type carrying the dragged widget's code id.
+# editor/panels/timeline.py is the repo's one prior QDrag/QMimeData user and
+# this copies its shape — including its testing note: a real OS drag cannot be
+# synthesized offscreen, so a test drives `dropEvent` directly.
+_MIME_TYPE = "application/x-htbh-screen-widget"
+
+
+class WidgetTreeWidget(QTreeWidget):
+    """The screen-mode outliner (D6): the widget HIERARCHY, replacing the flat
+    `QListWidget` rather than sitting beside it — a second parallel widget
+    selector would violate the editor's single-selection-model invariant.
+
+    The `Qt.ItemDataRole.UserRole` = code id contract is UNCHANGED, so
+    `widget_selected`/`select_widget` and every `push_*` call site are the
+    same as they were against the list.
+
+    Dragging an item onto another re-parents it; dropping on empty space
+    re-roots it. The view never moves the item itself — it emits
+    `reparent_requested` and the panel writes the change through the normal
+    undoable `push_field` path, then rebuilds from the doc. That is what makes
+    a re-parent undoable, resettable ("↺"/"Reset ALL" cover it with no new
+    code) and impossible to leave disagreeing with the data.
+    """
+
+    reparent_requested = Signal(str, object)   # widget_id, new parent | None
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setHeaderHidden(True)
+        self.setColumnCount(1)
+        self.setDragEnabled(True)
+        self.setAcceptDrops(True)
+        self.setDropIndicatorShown(True)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragDrop)
+        self.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
+        self.setToolTip(TOOLTIP_PARENT)
+        # Injected by the panel (which owns the defaults + the open doc): does
+        # this drop keep the hierarchy a forest? Refusing at drag-MOVE time is
+        # what makes a cycle unrepresentable rather than an error to recover
+        # from (D5, ED-30).
+        self.can_reparent = lambda _widget_id, _new_parent: True
+
+    def _dragged_id(self, event):
+        mime = event.mimeData()
+        if not mime.hasFormat(_MIME_TYPE):
+            return None
+        return bytes(mime.data(_MIME_TYPE)).decode("utf-8") or None
+
+    def _drop_parent(self, event):
+        """The widget id under the cursor, or None for "drop on empty space =
+        make it a root"."""
+        item = self.itemAt(event.position().toPoint())
+        if item is None:
+            return None
+        return item.data(0, Qt.ItemDataRole.UserRole)
+
+    def startDrag(self, _supported_actions):
+        item = self.currentItem()
+        if item is None:
+            return
+        widget_id = item.data(0, Qt.ItemDataRole.UserRole)
+        if not widget_id:
+            return
+        drag = QDrag(self)
+        mime = QMimeData()
+        mime.setData(_MIME_TYPE, str(widget_id).encode("utf-8"))
+        drag.setMimeData(mime)
+        drag.exec(Qt.DropAction.MoveAction)
+
+    def dragEnterEvent(self, event):
+        if self._dragged_id(event) is not None:
+            event.acceptProposedAction()
+
+    def dragMoveEvent(self, event):
+        widget_id = self._dragged_id(event)
+        if widget_id is None or not self.can_reparent(
+                widget_id, self._drop_parent(event)):
+            event.ignore()
+            return
+        event.acceptProposedAction()
+
+    def dropEvent(self, event):
+        widget_id = self._dragged_id(event)
+        if widget_id is None:
+            return
+        new_parent = self._drop_parent(event)
+        if not self.can_reparent(widget_id, new_parent):
+            event.ignore()
+            return
+        # Deliberately NOT calling super(): Qt's own internal move would
+        # reshuffle the items behind the data's back, and the rebuild that
+        # follows `reparent_requested` is the ONE thing that draws this tree.
+        event.acceptProposedAction()
+        self.reparent_requested.emit(widget_id, new_parent)
+
+# Quiet time after the last rect spinbox change before the live edit is
+# committed as one undo step. Long enough to coalesce a burst of arrow
+# clicks / a held arrow key, short enough that Ctrl+Z right after a nudge
+# undoes that nudge.
+_LIVE_COMMIT_MS = 400
 
 
 class ScreenDetailsPanel(QWidget):
@@ -99,6 +219,12 @@ class ScreenDetailsPanel(QWidget):
         # is a no-op rather than writing a redundant override.
         self._rect_baseline = None
         self._rect_effective = None
+        # Commits an in-flight live rect edit after a quiet period — the half
+        # of the gesture `editingFinished` never sees (arrow-button clicks,
+        # a held arrow key).
+        self._live_commit_timer = QTimer(self)
+        self._live_commit_timer.setSingleShot(True)
+        self._live_commit_timer.timeout.connect(self._on_rect_edited)
         self._skin_baseline = None
         self._font_baseline = None
         self._color_baseline = None
@@ -115,8 +241,15 @@ class ScreenDetailsPanel(QWidget):
         layout.addWidget(self._dirty_label)
 
         layout.addWidget(QLabel("Widgets", self))
-        self.widget_list = QListWidget(self)
+        # P-4/D6: a TREE, not a list — same `UserRole` = code id contract.
+        self.widget_list = WidgetTreeWidget(self)
         self.widget_list.currentItemChanged.connect(self._on_widget_list_selected)
+        self.widget_list.reparent_requested.connect(self._on_reparent_requested)
+        self.widget_list.can_reparent = self._can_reparent
+        # widget_id -> its item, rebuilt with the tree. A tree has no
+        # `setCurrentRow`, and walking it on every external selection sync
+        # would be the only place in this panel that searches by id.
+        self._tree_items = {}
         layout.addWidget(self.widget_list)
 
         form = QFormLayout()
@@ -126,9 +259,13 @@ class ScreenDetailsPanel(QWidget):
         self.h_spin = _NoWheelSpinBox(self)
         for spin, (lo, hi) in ((self.x_spin, (_RECT_MIN, _RECT_MAX)),
                                (self.y_spin, (_RECT_MIN, _RECT_MAX)),
-                               (self.w_spin, (1, _RECT_MAX)),
-                               (self.h_spin, (1, _RECT_MAX))):
+                               (self.w_spin, (0, _RECT_MAX)),
+                               (self.h_spin, (0, _RECT_MAX))):
             spin.setRange(lo, hi)
+            # LIVE placement: the widget follows the number as it changes
+            # (arrow clicks, typing, holding an arrow down) instead of only
+            # jumping once Enter/focus-out lands — see `_on_rect_changed`.
+            spin.valueChanged.connect(self._on_rect_changed)
             spin.editingFinished.connect(self._on_rect_edited)
         # ONE reset for the whole rect group — it's stored as a single
         # `rect` key, not four (brief §1d: per-KEY granularity, not per-spin).
@@ -136,6 +273,18 @@ class ScreenDetailsPanel(QWidget):
             (self.x_spin, self.y_spin, self.w_spin, self.h_spin),
             "rect", lambda: self._on_reset_field("rect"))
         form.addRow("Rect (X Y W H)", rect_row)
+
+        # P-4: the keyboard-accessible twin of the tree drag. Both refuse
+        # exactly the same targets (`widget_tree.legal_parents`), so a
+        # designer who cannot drag is not offered a re-parent the tree would
+        # have rejected.
+        self.parent_combo = _NoWheelComboBox(self)
+        self.parent_combo.setToolTip(TOOLTIP_PARENT)
+        self.parent_combo.activated.connect(self._on_parent_changed)
+        parent_row, self.parent_reset_button = self._field_row(
+            (self.parent_combo,), "parent",
+            lambda: self._on_reset_field("parent"))
+        form.addRow("Parent", parent_row)
 
         self.skin_combo = _NoWheelComboBox(self)
         self.skin_combo.activated.connect(self._on_skin_changed)
@@ -355,6 +504,27 @@ class ScreenDetailsPanel(QWidget):
             self._on_screen_opened()
 
     def _refresh_after_undo(self):
+        # Drop (never commit) any in-flight live rect edit: the undo/redo has
+        # just redefined the doc, and pushing a command from inside the undo
+        # stack's own indexChanged would be re-entrant.
+        #
+        # The session OUTLIVES this panel (MainWindow owns both, and the undo
+        # stack keeps emitting during teardown), so by the time this runs the
+        # panel's C++ side may already be gone — the same window-teardown race
+        # `_refresh_dirty` below already swallows. Without the guard the last
+        # undo of a session raises "Internal C++ object already deleted" out
+        # of a Qt slot, which can abort the process.
+        try:
+            self._live_commit_timer.stop()
+        except RuntimeError:
+            return
+        # P-4: an undone/redone re-parent changes the SHAPE of the tree, not
+        # just a field, so the outliner is rebuilt too. Rebuilding drops the
+        # current item, so the selection is restored right after.
+        selected = self._current_widget
+        self._refresh_widget_list()
+        if selected is not None:
+            self.select_widget(selected)
         self._refresh_widget_form()
         self._refresh_background()
         self._refresh_defaults_section()
@@ -389,21 +559,44 @@ class ScreenDetailsPanel(QWidget):
 
     # -- widget list -----------------------------------------------------------
 
+    def _doc_widgets(self):
+        """The open doc's per-widget override map (the second half of what
+        the parent resolver reads)."""
+        if self._session is None or self._session.doc is None:
+            return {}
+        return self._session.doc.get("widgets", {})
+
     def _refresh_widget_list(self):
+        """Rebuild the outliner from `screen_defaults` + the open doc's own
+        `parent` overrides (P-4). This is the ONE thing that draws the tree:
+        every re-parent writes to the doc and then lands back here."""
         self.widget_list.blockSignals(True)
         self.widget_list.clear()
+        self._tree_items = {}
         widgets = self._current_screen_defaults().get("widgets", {})
-        for widget_id, spec in widgets.items():
-            item = QListWidgetItem(widget_display_name(widget_id, spec))
-            item.setToolTip(widget_id)
-            item.setData(Qt.ItemDataRole.UserRole, widget_id)
-            self.widget_list.addItem(item)
+        tree = widget_tree.build_tree(widgets, self._doc_widgets())
+
+        def add(parent_id, parent_item):
+            for widget_id in tree.get(parent_id, ()):
+                spec = widgets.get(widget_id) or {}
+                item = QTreeWidgetItem([widget_display_name(widget_id, spec)])
+                item.setToolTip(0, widget_id)
+                item.setData(0, Qt.ItemDataRole.UserRole, widget_id)
+                if parent_item is None:
+                    self.widget_list.addTopLevelItem(item)
+                else:
+                    parent_item.addChild(item)
+                self._tree_items[widget_id] = item
+                add(widget_id, item)
+
+        add(widget_tree.ROOT, None)
+        self.widget_list.expandAll()   # expanded by default (P-4)
         self.widget_list.blockSignals(False)
 
     def _on_widget_list_selected(self, current, _previous=None):
         if current is None:
             return
-        widget_id = current.data(Qt.ItemDataRole.UserRole)
+        widget_id = current.data(0, Qt.ItemDataRole.UserRole)
         self._populate_widget_form(widget_id)
         self.widget_selected.emit(widget_id)
 
@@ -413,25 +606,95 @@ class ScreenDetailsPanel(QWidget):
         widget_selected (avoids a viewport<->panel selection feedback loop).
         Matches on `Qt.ItemDataRole.UserRole` (the code id), never item TEXT
         — display names are not guaranteed unique, the id is (UH-4)."""
-        target_row = -1
-        for row in range(self.widget_list.count()):
-            if self.widget_list.item(row).data(
-                    Qt.ItemDataRole.UserRole) == widget_id:
-                target_row = row
-                break
         self.widget_list.blockSignals(True)
-        self.widget_list.setCurrentRow(target_row)
+        self.widget_list.setCurrentItem(self._tree_items.get(widget_id))
         self.widget_list.blockSignals(False)
         if widget_id:
             self._populate_widget_form(widget_id)
         else:
+            self._flush_live_rect()
             self._current_widget = None
             self._set_widget_form_enabled(False)
+
+    # -- P-4: re-parenting (the tree drag and its combo twin) ----------------
+
+    def _can_reparent(self, widget_id, new_parent):
+        """The gate BOTH the drop and the combo honour: a widget may never
+        become its own ancestor (D5), and a drop that changes nothing is not
+        an edit."""
+        widgets = self._current_screen_defaults().get("widgets", {})
+        if widget_id not in widgets:
+            return False
+        if new_parent is not None and new_parent not in widgets:
+            return False
+        parents = widget_tree.parent_map(widgets, self._doc_widgets())
+        if parents.get(widget_id) == new_parent:
+            return False
+        return not widget_tree.would_cycle(
+            widget_tree.build_tree(widgets, self._doc_widgets()),
+            widget_id, new_parent)
+
+    def _on_reparent_requested(self, widget_id, new_parent):
+        self._apply_reparent(widget_id, new_parent)
+
+    def _apply_reparent(self, widget_id, new_parent):
+        """Write a re-parent through the ordinary undoable per-key path, so
+        the "↺" reset button and "Reset ALL" cover it with no new code.
+
+        The override is stored only when it DIFFERS from the exporter's own
+        default parent — the same "no redundant override" rule the rect and
+        label rows follow. Re-rooting a widget whose default parent is not
+        already root is the one case that needs an explicit JSON null
+        (`NO_PARENT`, D3): clearing the key would restore the default instead.
+        """
+        if not self._can_reparent(widget_id, new_parent):
+            return
+        widgets = self._current_screen_defaults().get("widgets", {})
+        default_parent = (widgets.get(widget_id) or {}).get(
+            widget_tree.PARENT_KEY)
+        old_value = parent_override(self._doc_widgets().get(widget_id, {}))
+        if new_parent == default_parent:
+            new_value = None                      # back to the default
+        elif new_parent is None:
+            new_value = NO_PARENT                 # explicit re-root
+        else:
+            new_value = new_parent
+        if new_value is old_value or new_value == old_value:
+            return
+        self._session.push_field(
+            widget_id, widget_tree.PARENT_KEY, old_value, new_value)
+        self._refresh_widget_list()
+        self.select_widget(widget_id)
+
+    def _on_parent_changed(self, index):
+        if self._current_widget is None or self._populating:
+            return
+        self._apply_reparent(self._current_widget,
+                             self.parent_combo.itemData(index))
+
+    def _refresh_parent_combo(self, widget_id):
+        """Every id this widget may legally hang off, plus "(none)" for a
+        root — the combo and the tree drop refuse exactly the same set."""
+        widgets = self._current_screen_defaults().get("widgets", {})
+        doc_widgets = self._doc_widgets()
+        combo = self.parent_combo
+        combo.blockSignals(True)
+        combo.clear()
+        combo.addItem("(none)", None)
+        for candidate in widget_tree.legal_parents(
+                widgets, doc_widgets, widget_id):
+            combo.addItem(
+                widget_display_name(candidate, widgets.get(candidate)),
+                candidate)
+        current = widget_tree.parent_map(widgets, doc_widgets).get(widget_id)
+        combo.setCurrentIndex(max(0, combo.findData(current)))
+        combo.blockSignals(False)
 
     # -- per-widget form ---------------------------------------------------
 
     def _set_widget_form_enabled(self, enabled):
         for w in (self.x_spin, self.y_spin, self.w_spin, self.h_spin,
+                  self.parent_combo,
                   self.skin_combo, self.font_combo, self.color_button,
                   self.text_color_button, self.label_edit,
                   self.text_id_combo,
@@ -442,7 +705,8 @@ class ScreenDetailsPanel(QWidget):
             # override exist for THIS key?) from _refresh_reset_buttons,
             # called at the end of _populate_widget_form — but with no
             # widget selected there is nothing to reset, full stop.
-            for btn in (self.rect_reset_button, self.skin_reset_button,
+            for btn in (self.rect_reset_button, self.parent_reset_button,
+                       self.skin_reset_button,
                        self.font_reset_button, self.color_reset_button,
                        self.text_color_reset_button, self.label_reset_button,
                        self.text_id_reset_button, self.visible_reset_button):
@@ -463,6 +727,9 @@ class ScreenDetailsPanel(QWidget):
         means — set by `_refresh_honest_controls`, which runs BEFORE this
         in `_populate_widget_form`."""
         self.rect_reset_button.setEnabled("rect" in override)
+        # `parent` is the one key whose override can legitimately be a JSON
+        # null (an explicit re-root, D3), so this tests PRESENCE, not truth.
+        self.parent_reset_button.setEnabled(widget_tree.PARENT_KEY in override)
         self.skin_reset_button.setEnabled("skin" in override)
         self.font_reset_button.setEnabled("font" in override)
         self.color_reset_button.setEnabled(self._active_color_key() in override)
@@ -553,11 +820,44 @@ class ScreenDetailsPanel(QWidget):
         self.text_id_combo.setEnabled(bindable)
         self.sample_label.setVisible(bool(text_id))
 
+        # P-5/D4: the Visible row says WHY the preview shows nothing when an
+        # ancestor is hidden. The checkbox stays enabled and its own override
+        # is untouched — inheritance is an editor-preview rule, not data.
+        hider = self._hiding_ancestor(self._current_widget)
+        if hider is None:
+            self.visible_check.setText("Visible")
+            self.visible_check.setToolTip("")
+        else:
+            widgets = self._current_screen_defaults().get("widgets", {})
+            name = widget_display_name(hider, widgets.get(hider))
+            self.visible_check.setText(f'Visible  (hidden by parent "{name}")')
+            self.visible_check.setToolTip(
+                TOOLTIP_HIDDEN_BY_PARENT.format(name=name))
+
+    def _hiding_ancestor(self, widget_id):
+        """The nearest ancestor of `widget_id` carrying `visible: False`, or
+        None — the same rule `viewport._hidden_subtrees` draws by, expressed
+        for one widget because this panel only ever asks about the selected
+        one."""
+        if widget_id is None:
+            return None
+        overrides = self._doc_widgets()
+        parents = widget_tree.parent_map(
+            self._current_screen_defaults().get("widgets", {}), overrides)
+        for ancestor in widget_tree.ancestors(parents, widget_id):
+            if overrides.get(ancestor, {}).get("visible") is False:
+                return ancestor
+        return None
+
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
         spec = defaults.get("widgets", {}).get(widget_id)
         if spec is None or self._session is None or self._session.doc is None:
             return
+        # Commit any live rect edit still in flight BEFORE the form re-points
+        # at another widget — `_on_rect_edited` reads `self._current_widget`,
+        # so it must run while that is still the widget being edited.
+        self._flush_live_rect()
         self._current_widget = widget_id
         self._populating = True
         override = self._session.doc.get("widgets", {}).get(widget_id, {})
@@ -574,6 +874,8 @@ class ScreenDetailsPanel(QWidget):
         self.h_spin.setValue(rect[3])
         self._rect_baseline = list(override["rect"]) if "rect" in override else None
         self._rect_effective = list(rect)
+
+        self._refresh_parent_combo(widget_id)
 
         skin = override.get("skin")
         self._skin_baseline = skin
@@ -621,16 +923,86 @@ class ScreenDetailsPanel(QWidget):
         if self._current_widget is not None:
             self._populate_widget_form(self._current_widget)
 
-    def _on_rect_edited(self):
+    # -- live placement (the rect spinboxes) ---------------------------------
+    # A designer nudging X/Y wants to SEE the widget move, not to type a
+    # number and press Enter to find out where it lands. So the rect
+    # spinboxes work exactly like a viewport drag: `valueChanged` mutates
+    # `session.doc` in place (the viewport's 16ms frame timer picks it up on
+    # the next repaint, no signal needed) and ONE undoable `push_move` is
+    # committed at the end of the gesture. `_rect_baseline` — the override
+    # value the command must undo back to — is captured at the START of the
+    # burst and deliberately NOT advanced by the live mutation, so a burst of
+    # 30 arrow clicks is one undo step, not 30.
+    #
+    # "End of the gesture" is whichever comes first: `editingFinished` (Enter
+    # or focus-out) or `_LIVE_COMMIT_MS` of quiet. The timer is what covers
+    # arrow-button clicking and press-and-hold, neither of which ever emits
+    # `editingFinished`.
+
+    def _flush_live_rect(self):
+        """Commit a pending live rect edit now, if there is one."""
+        if self._live_commit_timer.isActive():
+            self._on_rect_edited()
+
+    def _on_rect_changed(self, _value=None):
         if self._current_widget is None or self._populating:
             return
-        new_rect = [self.x_spin.value(), self.y_spin.value(),
-                   self.w_spin.value(), self.h_spin.value()]
+        new_rect = self._current_rect_values()
+        if new_rect == self._live_rect():
+            return
+        self._session.doc.setdefault("widgets", {}).setdefault(
+            self._current_widget, {})["rect"] = new_rect
+        self._live_commit_timer.start(_LIVE_COMMIT_MS)
+
+    def _current_rect_values(self):
+        return [self.x_spin.value(), self.y_spin.value(),
+                self.w_spin.value(), self.h_spin.value()]
+
+    def _live_rect(self):
+        """The rect currently IN the doc for the selected widget (which the
+        live mutation above may already have written), else what is on
+        screen."""
+        override = self._session.doc.get("widgets", {}).get(
+            self._current_widget, {})
+        if "rect" in override:
+            return list(override["rect"])
+        return list(self._rect_effective or [])
+
+    def _on_rect_edited(self):
+        """Commit the in-flight live edit as ONE undoable command. Also the
+        no-op guard for a field that was merely tabbed through."""
+        self._live_commit_timer.stop()
+        if self._current_widget is None or self._populating:
+            return
+        new_rect = self._current_rect_values()
         if new_rect == self._rect_effective:
-            return   # nothing actually changed from what's on screen
+            # Nothing changed from what was on screen when the form was
+            # populated — but a live mutation may still have written and
+            # reverted an override, so drop it rather than leave a redundant
+            # one behind.
+            self._revert_live_rect()
+            return
+        # The live mutation already wrote `new_rect` straight into the doc;
+        # push_move re-applies the same value, which is idempotent (the exact
+        # argument the viewport's drag-then-commit already relies on).
         self._session.push_move(self._current_widget, self._rect_baseline, new_rect)
         self._rect_baseline = new_rect
         self._rect_effective = new_rect
+
+    def _revert_live_rect(self):
+        """Undo an uncommitted live mutation that ended up back where it
+        started — restores the doc to the baseline override (removing the
+        `rect` key entirely when there was none) so nothing is left dirty."""
+        widgets = self._session.doc.get("widgets", {})
+        entry = widgets.get(self._current_widget)
+        if entry is None or "rect" not in entry:
+            return
+        if self._rect_baseline is None:
+            del entry["rect"]
+            if not entry:
+                del widgets[self._current_widget]
+        else:
+            entry["rect"] = list(self._rect_baseline)
 
     def _on_skin_changed(self, index):
         if self._current_widget is None:
@@ -808,8 +1180,17 @@ class ScreenDetailsPanel(QWidget):
         override = self._session.doc.get("widgets", {}).get(widget_id, {})
         if field_key not in override:
             return
-        old_value = override[field_key]
+        # `parent` is the one key whose stored override can be a JSON null (an
+        # explicit re-root, D3); read through the ONE accessor that maps that
+        # to `NO_PARENT`, or the push would compare None == None and no-op.
+        old_value = (parent_override(override)
+                     if field_key == widget_tree.PARENT_KEY
+                     else override[field_key])
         self._session.push_field(widget_id, field_key, old_value, None)
+        if field_key == widget_tree.PARENT_KEY:
+            self._refresh_widget_list()
+            self.select_widget(widget_id)
+            return
         self._refresh_widget_form()
 
     def _on_reset_clicked(self):
@@ -823,7 +1204,13 @@ class ScreenDetailsPanel(QWidget):
         widget_id = self._current_widget
         override = dict(self._session.doc.get("widgets", {}).get(widget_id, {}))
         for field_key, old_value in override.items():
+            if field_key == widget_tree.PARENT_KEY:
+                old_value = parent_override(override)   # JSON null -> NO_PARENT
             self._session.push_field(widget_id, field_key, old_value, None)
+        if widget_tree.PARENT_KEY in override:
+            self._refresh_widget_list()
+            self.select_widget(widget_id)
+            return
         self._refresh_widget_form()
 
     # -- screen-level: background ---------------------------------------------
