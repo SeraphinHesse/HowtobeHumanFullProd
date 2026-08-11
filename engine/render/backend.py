@@ -17,7 +17,7 @@ import pygame
 from engine.assets.nine_slice import clamp_pair as _clamp_pair
 
 from . import fonts
-from .item import OverlayLines, OverlayPolys
+from .item import OverlayLines, OverlayPolys, round_half_up as _round
 
 try:
     # The HUD primitive dataclasses are the parallel 9B half (pure Python in
@@ -139,7 +139,7 @@ def _draw_hud_text(target, call):
         x -= surface.get_width() / 2
     elif call.align == "right":
         x -= surface.get_width()
-    target.blit(surface, (round(x), round(y)))
+    target.blit(surface, (_round(x), _round(y)))
 
 
 def _draw_hud_rect(target, call):
@@ -148,15 +148,15 @@ def _draw_hud_rect(target, call):
                          border_radius=call.border_radius)
         return
     x, y, w, h = call.rect
-    w, h = max(1, round(w)), max(1, round(h))
+    w, h = max(1, _round(w)), max(1, _round(h))
     scratch = pygame.Surface((w, h), pygame.SRCALPHA)
     pygame.draw.rect(scratch, call.color, scratch.get_rect(), call.width,
                      border_radius=call.border_radius)
-    target.blit(scratch, (round(x), round(y)))
+    target.blit(scratch, (_round(x), _round(y)))
 
 
 def _draw_polys(target, call):
-    points = [(round(x), round(y)) for x, y in call.points]
+    points = [(_round(x), _round(y)) for x, y in call.points]
     if not _has_alpha(call.color):
         pygame.draw.polygon(target, call.color, points)
         return
@@ -186,7 +186,7 @@ def draw(target, draw_calls):
                 target.blits(batch, doreturn=False)
                 batch.clear()
             if isinstance(call, OverlayLines):
-                points = [(round(x), round(y)) for x, y in call.points]
+                points = [(_round(x), _round(y)) for x, y in call.points]
                 pygame.draw.lines(target, call.color, call.closed, points,
                                   call.width)
             elif isinstance(call, OverlayPolys):
@@ -194,13 +194,13 @@ def draw(target, draw_calls):
             elif isinstance(call, HudRect):
                 _draw_hud_rect(target, call)
             elif isinstance(call, HudLines):
-                points = [(round(x), round(y)) for x, y in call.points]
+                points = [(_round(x), _round(y)) for x, y in call.points]
                 pygame.draw.lines(target, call.color, call.closed, points,
                                   call.width)
             else:  # HudText
                 _draw_hud_text(target, call)
             continue
-        size = (max(1, round(call.size[0])), max(1, round(call.size[1])))
+        size = (max(1, _round(call.size[0])), max(1, _round(call.size[1])))
         # A crop resolves first (feature-enemy-intro-dialogue) — the cropped
         # surface is then scaled/nine-patched exactly like a full frame would
         # be, since _cropped's result is itself a valid cache key. Known,
@@ -222,6 +222,6 @@ def draw(target, draw_calls):
         if call.tint is not None:
             surface = surface.copy()
             surface.fill(call.tint, special_flags=pygame.BLEND_RGBA_MULT)
-        batch.append((surface, (round(call.dest[0]), round(call.dest[1]))))
+        batch.append((surface, (_round(call.dest[0]), _round(call.dest[1]))))
     if batch:
         target.blits(batch, doreturn=False)
