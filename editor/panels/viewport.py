@@ -754,21 +754,31 @@ class ViewportPanel(QWidget):
         """Every widget that moves when `widget_id` moves."""
         return widget_tree.descendants(self._screen_tree(defaults), widget_id)
 
-    def _hidden_by_ancestor(self, widget_id, defaults, parents=None):
-        """The nearest ancestor of `widget_id` carrying `visible: False`, or
-        None (P-5/D4).
+    def _hidden_subtrees(self, defaults):
+        """Every widget the preview must skip because an ANCESTOR is hidden
+        (P-5/D4) — not drawn, not hit-testable.
 
-        Visibility inherits in the editor PREVIEW only — the saved `visible`
+        Visibility inherits in the editor PREVIEW only: the saved `visible`
         override stays per-widget and the game keeps resolving each widget's
-        own flag, exactly as now. `parents` may be passed in by a caller that
-        already built the map (the hit-test loops over every widget)."""
+        own flag, exactly as now. Same argument as D2 — the editor models the
+        hierarchy, the data does not smuggle it into the game.
+
+        Computed as a SET once per frame / once per hit-test rather than
+        walked per widget: both callers loop over every id, and a per-widget
+        ancestor walk would rebuild the parent map ~85 times on
+        `building_panel`. The common case (nothing hidden) exits before
+        building a tree at all.
+        """
         overrides = self._screen_session.doc.get("widgets", {})
-        if parents is None:
-            parents = self._screen_parents(defaults)
-        for ancestor in widget_tree.ancestors(parents, widget_id):
-            if overrides.get(ancestor, {}).get("visible") is False:
-                return ancestor
-        return None
+        hidden_roots = [widget_id for widget_id in defaults.get("widgets", {})
+                        if overrides.get(widget_id, {}).get("visible") is False]
+        if not hidden_roots:
+            return frozenset()
+        tree = self._screen_tree(defaults)
+        out = set()
+        for widget_id in hidden_roots:
+            out.update(widget_tree.descendants(tree, widget_id))
+        return frozenset(out)
 
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
@@ -795,9 +805,12 @@ class ViewportPanel(QWidget):
         behaviour where nothing distinguishes two candidates."""
         scale, ox, oy = self._screen_scale_offset()
         doc = self._screen_session.doc
+        hidden = self._hidden_subtrees(defaults)   # P-5: inherited visibility
         best, best_area = None, None
         for widget_id in defaults.get("widgets", {}):
             if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
+                continue
+            if widget_id in hidden:
                 continue
             sx, sy, sw, sh = self._to_screen_rect(
                 self._interaction_rect(widget_id, defaults), scale, ox, oy)
@@ -2060,6 +2073,8 @@ class ViewportPanel(QWidget):
             self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
         self._screen_anim_last_t = t0
         doc = self._screen_session.doc
+        # P-5: resolved ONCE per frame and threaded into every submit below.
+        hidden = self._hidden_subtrees(defaults)
         preview = self._current_screen_preview()
         if preview is not None:
             # UT-2: the recorded game draw list — real background, real fonts,
@@ -2075,14 +2090,16 @@ class ViewportPanel(QWidget):
                 if dragging in defaults.get("widgets", {}):
                     self._submit_screen_widget(
                         dragging, defaults["widgets"][dragging], doc, scale,
-                        ox, oy)
+                        ox, oy, hidden)
                 return
             for widget_id, spec in defaults.get("widgets", {}).items():
-                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                           hidden)
             return
         self._submit_screen_background(doc, scale, ox, oy)
         for widget_id, spec in defaults.get("widgets", {}).items():
-            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
 
     def _submit_screen_chrome(self, scale, ox, oy):
         """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
@@ -2127,10 +2144,13 @@ class ViewportPanel(QWidget):
         elif "color" in background:
             self._renderer.submit_hud(HudRect(dest, tuple(background["color"])))
 
-    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy):
+    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy,
+                              hidden=()):
         override = doc.get("widgets", {}).get(widget_id, {})
         if override.get("visible") is False:
             return
+        if widget_id in hidden:
+            return   # P-5/D4: an ancestor is hidden, so this is too
         rect = override.get("rect", spec["rect"])
         kind = spec["kind"]
         label = override.get("label", spec["label"])

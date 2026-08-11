@@ -84,6 +84,15 @@ TOOLTIP_PARENT = (
     "its children; resizing one does not. This is an EDITOR relationship — "
     "the saved rects stay absolute and the game never reads it.")
 
+# P-5/D4: shown on the Visible row when an ANCESTOR is hidden. The preview
+# draws nothing for such a widget, and saying so beats silently drawing
+# nothing — but its own `visible` override is untouched, and so is what the
+# game does with it.
+TOOLTIP_HIDDEN_BY_PARENT = (
+    "Not drawn in the preview because its parent \"{name}\" is hidden. "
+    "Visibility inherits in the EDITOR only — this widget's own Visible flag "
+    "is unchanged, and the game still resolves each widget's flag on its own.")
+
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
 # One custom MIME type carrying the dragged widget's code id.
@@ -810,6 +819,35 @@ class ScreenDetailsPanel(QWidget):
         self.text_id_combo.setVisible(bindable)
         self.text_id_combo.setEnabled(bindable)
         self.sample_label.setVisible(bool(text_id))
+
+        # P-5/D4: the Visible row says WHY the preview shows nothing when an
+        # ancestor is hidden. The checkbox stays enabled and its own override
+        # is untouched — inheritance is an editor-preview rule, not data.
+        hider = self._hiding_ancestor(self._current_widget)
+        if hider is None:
+            self.visible_check.setText("Visible")
+            self.visible_check.setToolTip("")
+        else:
+            widgets = self._current_screen_defaults().get("widgets", {})
+            name = widget_display_name(hider, widgets.get(hider))
+            self.visible_check.setText(f'Visible  (hidden by parent "{name}")')
+            self.visible_check.setToolTip(
+                TOOLTIP_HIDDEN_BY_PARENT.format(name=name))
+
+    def _hiding_ancestor(self, widget_id):
+        """The nearest ancestor of `widget_id` carrying `visible: False`, or
+        None — the same rule `viewport._hidden_subtrees` draws by, expressed
+        for one widget because this panel only ever asks about the selected
+        one."""
+        if widget_id is None:
+            return None
+        overrides = self._doc_widgets()
+        parents = widget_tree.parent_map(
+            self._current_screen_defaults().get("widgets", {}), overrides)
+        for ancestor in widget_tree.ancestors(parents, widget_id):
+            if overrides.get(ancestor, {}).get("visible") is False:
+                return ancestor
+        return None
 
     def _populate_widget_form(self, widget_id):
         defaults = self._current_screen_defaults()
