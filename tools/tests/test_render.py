@@ -607,6 +607,21 @@ class TestCropBackend(unittest.TestCase):
         self.assertEqual(len(backend._scale_cache[src]), 1)
 
 
+class TestPixelQuantizer(unittest.TestCase):
+    """JitteryMapFix: the backend's pixel quantizer breaks .5 ties UP, never
+    half-to-even — banker's rounding made two dests both ending in .5 land on
+    different pixels, and a pan crossing a tie double-step 2px per item."""
+
+    def test_half_up_ties(self):
+        from engine.render.item import round_half_up
+        self.assertEqual(round_half_up(0.5), 1)
+        self.assertEqual(round_half_up(1.5), 2)   # round() gives 2 too
+        self.assertEqual(round_half_up(2.5), 3)   # round() gives 2 — the bug
+        self.assertEqual(round_half_up(-0.5), 0)
+        self.assertEqual(round_half_up(3.2), 3)
+        self.assertEqual(round_half_up(3.7), 4)
+
+
 class TestPurity(unittest.TestCase):
     """Hard rule: coords / data_io / render orchestration / asset metadata
     import no pygame."""

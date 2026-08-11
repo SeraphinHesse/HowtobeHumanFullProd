@@ -24,6 +24,17 @@ itself is pure orchestration. See the engine router's pygame-import allow-list.
   `overlay`. This is a **LOAD-BEARING invariant** — if `depth_key` ever
   interleaves layers, the ground cache breaks.
 
+## Pixel quantizer (`item.round_half_up`, JitteryMapFix)
+`engine/render/item.py` exports `round_half_up(v)` = `floor(v + 0.5)` — THE
+quantizer for screen coordinates: the backend's dests/sizes/points and the
+ground cache's scroll delta + blit offset all use it instead of builtin
+`round()`. `round()` is banker's (half-to-even): two dests both ending in .5
+could land on different pixels, and a pan crossing a .5 tie double-stepped
+2px per item, inconsistently — one half of the layers-desync-while-panning
+bug (the other half is the integer-pan invariant in `engine/coords/
+CLAUDE.md`). One expression for the `fit_factor` reason: a second copy would
+drift. Pinned in `test_render.TestPixelQuantizer`.
+
 ## Anchor convention (ER-1)
 A frame blits **centred on the tile**: horizontally on its world position,
 vertically on the tile diamond's CENTRE — `world_to_screen(...)y +
