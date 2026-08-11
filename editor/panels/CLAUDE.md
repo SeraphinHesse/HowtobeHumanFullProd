@@ -958,6 +958,86 @@ import list.**
   JSON, so a manifest-resolution regression here had no test that could
   have caught it).
 
+## Editable buy options + reachable text anchors (editable-ui-widgets)
+
+The complaint this answers: "the UI editor can't replace many pieces of info
+which should be replaceable; all individual pieces of information need to be
+editable widgets, and so should everything that gets added in, like the buying
+options."
+
+**The HUD readouts were already individual ids** (`love_text`, `income_text`,
+`lvl_label`, `xp_bar`, `round_label`, … — since 10L-B). What was missing was
+any way to *reach* them:
+
+- **A position-only text anchor stores `(x, y, 0, 0)`** — the anchor-rect
+  convention (`game/ui/CLAUDE.md`). Eight of `hud`'s twenty widgets, the phase
+  banner, `boss_cutscene`'s headline and ~40 `building_panel` stat cells are
+  shaped that way. A zero-AREA rect is unclickable, undraggable and invisible
+  when selected, so those widgets existed on disk and nowhere else.
+- **`_screen_primitives.interaction_rect(rect, text=, font_key=, align=)`**
+  (pure) is the fix: it grows a zero-extent axis to the MEASURED size of the
+  widget's live text, floored at a grabbable minimum, and shifts x per
+  `align`. `viewport._interaction_rect` is the ONE place it is called from
+  the panel side, and `_hit_widget` / `_submit_screen_selection` /
+  `_submit_screen_widget`'s label fallback all read it — the outline a
+  designer sees is exactly the box they can click, by construction.
+- **The stored rect is never widened.** A drag/nudge on an anchor still
+  writes x/y and leaves w/h at `0`, so the game's own layout is untouched.
+  `is_anchor_rect` suppresses the four resize handles for such a widget
+  (there is no stored size for a resize to write) and `_submit_screen_selection`
+  draws a single marker on the stored ANCHOR POINT instead — for a
+  centre-aligned label that point is not the outline's corner, and the X/Y
+  fields address the point, not the box.
+- **Two new OPTIONAL `screen_defaults.json` widget keys feed the measurement**:
+  `font_key` and `align` (`data/CLAUDE.md`). Recorded only when the widget
+  carries them, so every button/panel entry stays byte-identical.
+- **Hit-testing picks the SMALLEST candidate, not the last-submitted one.**
+  The editor submits widgets in key (alphabetical) order, which is NOT the
+  game's panel->button->text order, so "topmost" was meaningless here: live
+  example, `hud.income_text` sits inside `hud.love_panel`'s overridden rect
+  and the panel swallowed every click on the Love-per-round readout. Smallest
+  wins is also simply what a designer expects. Ties fall back to the later key.
+
+**Dynamic-count content is individually overridable now** — this REVERSES the
+old "levelup's option boxes / building_ui's construct cards get no id" rule
+that the UI screen customization section still describes for its own history.
+The rule's real constraint was never "the count varies", it was "there is no
+stable id to attach an override to", and both cases have one: an INDEX
+(`option_box_0..2`, the roll's three slots) and a BUILDING TYPE
+(`card_<building_type>`). See `game/ui/CLAUDE.md` for the game side.
+- The exporter records them from the SAME `tools/screen_mocks.py` state the
+  preview generator draws from: `LEVELUP_OPTIONS` grew to three cards (the
+  roll's maximum, so every slot is recorded) and the `construct` view unlocks
+  every RESEARCH type before building its cards (so every card is recorded,
+  by sweeping the RESEARCH table — a new `/add-building` type is covered with
+  no edit).
+- `screen_mocks.BP_VIEW_ID_PREFIXES` generalizes UT-3's single `stat_` prefix
+  rule into `{view: (prefix, ...)}` so `construct` picks up `card_*` the same
+  way `upgrade` picks up `stat_*`.
+
+## Live placement — the rect spinboxes move the widget as you type
+
+`ScreenDetailsPanel`'s X/Y/W/H spinboxes work like a viewport drag rather than
+a form field: `valueChanged` mutates `session.doc[...]["rect"]` in place (the
+16 ms frame timer repaints, no signal needed) and ONE undoable `push_move` is
+committed at the END of the gesture. Previously the widget only jumped once
+Enter or focus-out landed, so a designer nudging a coordinate was typing blind.
+- **End of gesture** = whichever comes first: `editingFinished` (Enter /
+  focus-out) or `_LIVE_COMMIT_MS` (400 ms) of quiet. The timer is what covers
+  arrow-button clicks and press-and-hold, neither of which ever emits
+  `editingFinished`.
+- **`_rect_baseline` is captured at the START of the burst and NOT advanced by
+  the live mutation**, which is what makes 30 arrow clicks one undo step.
+- **`_flush_live_rect()` commits before the form re-points** at another widget
+  (`_populate_widget_form`, `select_widget(None)`) — `_on_rect_edited` reads
+  `self._current_widget`, so it must run while that is still the widget being
+  edited. `_refresh_after_undo` instead STOPS the timer without committing:
+  the undo has just redefined the doc, and pushing from inside the undo
+  stack's own `indexChanged` would be re-entrant. It swallows `RuntimeError`
+  for the same window-teardown race `_refresh_dirty` already guards.
+- **W/H spin minimums went 1 -> 0**, so an anchor widget's real `0` round-trips
+  instead of being clamped to `1` and written back as a bogus size.
+
 ## Phase UT-2/UT-6 — the real screen preview + the Text-template row
 
 - **`ViewportPanel` REPLAYS a recorded draw list** (`data/ui/screen_previews

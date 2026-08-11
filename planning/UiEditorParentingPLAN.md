@@ -1,10 +1,3 @@
-<!-- active-plan: UiEditorParentingPLAN.md | set: 2026-08-11 -->
-> **Active plan:** UiEditorParentingPLAN.md (mirror). Source of truth:
-> `planning/UiEditorParentingPLAN.md`. Do **not** edit this file directly — edit the
-> source in `planning/` and re-run `/setcurrentplan`, or pick a different
-> plan (`/setcurrentplan <name>`, or the editor's Summon a Drunken Robot
-> screen).
-
 # UiEditorParentingPLAN.md — widget parenting and the rest of the Unreal-grade UI editor
 
 Phased, agent-executable plan (same family as `UiTextBindingPLAN.md` /

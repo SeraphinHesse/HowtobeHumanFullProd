@@ -608,6 +608,30 @@ validating writer; don't hand-edit the JSON.
     (`hud_item_to_json`/`hud_item_from_json`), beside the dataclasses it
     describes, because the recorder (`tools/`) and the replay (`editor/`) both
     need it and neither may import the other.
+- **`widget.font_key` / `widget.align` (editable-ui-widgets)**: two more
+  OPTIONAL keys on a `screen_defaults.json` widget record, both pure DRAW
+  HINTS for the editor — nothing in the game reads them back. They exist so
+  the editor can give a POSITION-ONLY TEXT ANCHOR a real hit box: a widget
+  whose `rect` is `(x, y, 0, 0)` (every `hud.py` readout, the phase banner,
+  `boss_cutscene`'s headline, ~40 `building_panel` stat cells — the
+  anchor-rect convention in `game/ui/CLAUDE.md`) has zero AREA, and was
+  therefore impossible to click, drag or even see selected in the editor
+  despite having had an id since B3. `font_key` is the `data/ui/fonts.json`
+  preset the text is drawn at (so the editor MEASURES it at the right size
+  instead of guessing `md`); `align` is `left|center|right`, which way the
+  glyphs spread from the stored x. Both are recorded by
+  `tools/export_ui_layouts.py::_widget_entry` ONLY when the widget actually
+  carries them (`align` additionally only when it is not the `left` default),
+  so every button/panel entry stays byte-identical. The editor side is
+  `editor/panels/_screen_primitives.interaction_rect`.
+- **Per-slot buy-option ids**: `levelup`'s `option_box_0..2` and
+  `building_panel`'s `card_<building_type>` are ordinary widget records in
+  this file now — the "dynamic-count content gets no id" rule is lifted (see
+  `game/ui/CLAUDE.md`). They are recorded from `tools/screen_mocks.py` state
+  chosen to cover every slot: `LEVELUP_OPTIONS` holds THREE cards (the roll's
+  maximum) and the `construct` view unlocks every RESEARCH type before
+  building its cards. Widen that mock state, not the exporter, if a future
+  screen needs the same treatment.
 - **`widget.text_id` / `widget.sample` (UT-1/UT-3)**: two OPTIONAL keys on a
   `screen_defaults.json` widget record, and `text_id` is also an optional
   per-widget override in `ui_screen.schema.json`. `text_id` is the

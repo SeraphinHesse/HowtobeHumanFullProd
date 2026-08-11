@@ -15,6 +15,7 @@
       },
       "btn_add": {
         "display_name": "Add button",
+        "font_key": "lg",
         "kind": "button",
         "label": "ADD NAME",
         "rect": [
@@ -26,6 +27,7 @@
       },
       "btn_back": {
         "display_name": "Back button",
+        "font_key": "lg",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -36,6 +38,8 @@
         ]
       },
       "hint": {
+        "align": "center",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -48,6 +52,8 @@
         "text_id": "add_name.hint"
       },
       "msg_text": {
+        "align": "center",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -69,6 +75,7 @@
         ]
       },
       "pool_count": {
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -81,6 +88,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xl",
         "kind": "label",
         "label": "ADD A NAME",
         "rect": [
@@ -108,6 +116,7 @@
       },
       "box_a": {
         "display_name": "Boss option A box",
+        "font_key": "lg",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -119,6 +128,7 @@
       },
       "box_b": {
         "display_name": "Boss option B box",
+        "font_key": "lg",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -129,7 +139,9 @@
         ]
       },
       "headline": {
+        "align": "center",
         "display_name": "Headline label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "",
         "rect": [
@@ -140,7 +152,9 @@
         ]
       },
       "subtitle": {
+        "align": "center",
         "display_name": "Subtitle label",
+        "font_key": "md",
         "kind": "label",
         "label": "How will we react?",
         "rect": [
@@ -160,6 +174,7 @@
         "widgets": {
           "base_info_title": {
             "display_name": "The Hole header",
+            "font_key": "lg",
             "kind": "label",
             "label": "",
             "rect": [
@@ -173,6 +188,7 @@
           },
           "boss_btn": {
             "display_name": "Boss history button",
+            "font_key": "md",
             "kind": "button",
             "label": "BOSS CHOICES",
             "rect": [
@@ -184,6 +200,7 @@
           },
           "boss_close_btn": {
             "display_name": "Boss history close button",
+            "font_key": "md",
             "kind": "button",
             "label": "CLOSE",
             "rect": [
@@ -195,6 +212,7 @@
           },
           "close_btn": {
             "display_name": "Close button",
+            "font_key": "md",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -206,6 +224,7 @@
           },
           "info_base_income_label": {
             "display_name": "Base income label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -218,7 +237,9 @@
             "text_id": "building.base_info.base_income"
           },
           "info_base_income_value": {
+            "align": "right",
             "display_name": "Base income value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -231,6 +252,7 @@
           },
           "info_buildings_label": {
             "display_name": "Buildings label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -243,7 +265,9 @@
             "text_id": "building.base_info.buildings"
           },
           "info_buildings_value": {
+            "align": "right",
             "display_name": "Buildings value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -256,6 +280,7 @@
           },
           "info_enemies_killed_label": {
             "display_name": "Enemies killed label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -268,7 +293,9 @@
             "text_id": "building.base_info.enemies_killed"
           },
           "info_enemies_killed_value": {
+            "align": "right",
             "display_name": "Enemies killed value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -281,6 +308,7 @@
           },
           "info_lives_label": {
             "display_name": "Lives label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -293,7 +321,9 @@
             "text_id": "building.base_info.lives"
           },
           "info_lives_value": {
+            "align": "right",
             "display_name": "Lives value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -306,6 +336,7 @@
           },
           "info_wave_label": {
             "display_name": "Wave label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -318,7 +349,9 @@
             "text_id": "building.base_info.wave"
           },
           "info_wave_value": {
+            "align": "right",
             "display_name": "Wave value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -343,10 +376,155 @@
         }
       },
       "construct": {
-        "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map — construct cards are dynamic-count and deliberately un-id'd, they inherit defaults.button_skin",
+        "mock_note": "love=123, round=7; the lowest-(row,col) BUILDABLE tile of the 'first_light' map, with EVERY building type unlocked so each construct card (`card_<building_type>`) is recorded — the count is dynamic in game, the ids are not",
         "widgets": {
+          "card_aoe_defence": {
+            "display_name": "Maw Mortar card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Maw Mortar  35",
+            "rect": [
+              516,
+              82,
+              118,
+              21
+            ]
+          },
+          "card_blocker": {
+            "display_name": "Blocker card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Blocker  25",
+            "rect": [
+              516,
+              282,
+              118,
+              21
+            ]
+          },
+          "card_boost_damage": {
+            "display_name": "Attack Booster card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Attack Booster  12",
+            "rect": [
+              516,
+              232,
+              118,
+              21
+            ]
+          },
+          "card_boost_hp": {
+            "display_name": "Health Booster card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Health Booster  12",
+            "rect": [
+              516,
+              257,
+              118,
+              21
+            ]
+          },
+          "card_boost_speed": {
+            "display_name": "Speed Booster card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Speed Booster  12",
+            "rect": [
+              516,
+              207,
+              118,
+              21
+            ]
+          },
+          "card_defence": {
+            "display_name": "Stone Thrower card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Stone Thrower  10",
+            "rect": [
+              516,
+              32,
+              118,
+              21
+            ]
+          },
+          "card_economic": {
+            "display_name": "Flute Player card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Flute Player  10",
+            "rect": [
+              516,
+              57,
+              118,
+              21
+            ]
+          },
+          "card_meditator": {
+            "display_name": "Meditator card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Meditator  12",
+            "rect": [
+              516,
+              182,
+              118,
+              21
+            ]
+          },
+          "card_painter": {
+            "display_name": "Cave Painter card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Cave Painter  20",
+            "rect": [
+              516,
+              157,
+              118,
+              21
+            ]
+          },
+          "card_storm_priest": {
+            "display_name": "Storm Acolyte card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Storm Acolyte  25",
+            "rect": [
+              516,
+              132,
+              118,
+              21
+            ]
+          },
+          "card_sun_scorcher": {
+            "display_name": "Sun Scorcher card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Sun Scorcher  40",
+            "rect": [
+              516,
+              107,
+              118,
+              21
+            ]
+          },
+          "card_wall_builder": {
+            "display_name": "Bush Wall Builder card",
+            "font_key": "md",
+            "kind": "button",
+            "label": "Bush Wall Builder  12",
+            "rect": [
+              516,
+              307,
+              118,
+              21
+            ]
+          },
           "close_btn": {
             "display_name": "Close button",
+            "font_key": "md",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -358,6 +536,7 @@
           },
           "construct_title": {
             "display_name": "Build header",
+            "font_key": "lg",
             "kind": "label",
             "label": "",
             "rect": [
@@ -387,6 +566,7 @@
         "widgets": {
           "preview_cancel_btn": {
             "display_name": "Construct cancel button",
+            "font_key": "lg",
             "kind": "button",
             "label": "CANCEL",
             "rect": [
@@ -398,6 +578,7 @@
           },
           "preview_close_btn": {
             "display_name": "Construct preview close button",
+            "font_key": "md",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -409,6 +590,7 @@
           },
           "preview_confirm_btn": {
             "display_name": "Construct confirm button",
+            "font_key": "lg",
             "kind": "button",
             "label": "CONFIRM",
             "rect": [
@@ -420,6 +602,7 @@
           },
           "preview_dice_btn": {
             "display_name": "Construct preview dice button",
+            "font_key": "md",
             "kind": "button",
             "label": "⚄",
             "rect": [
@@ -447,6 +630,7 @@
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
+            "font_key": "lg",
             "kind": "button",
             "label": "UNLOCK  7",
             "rect": [
@@ -458,6 +642,7 @@
           },
           "close_btn": {
             "display_name": "Close button",
+            "font_key": "md",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -480,6 +665,7 @@
           },
           "unlock_blocked": {
             "display_name": "Not-adjacent warning",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -493,6 +679,7 @@
           },
           "unlock_hint": {
             "display_name": "Unlock subtitle",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -506,6 +693,7 @@
           },
           "unlock_title": {
             "display_name": "Unlock header",
+            "font_key": "lg",
             "kind": "label",
             "label": "",
             "rect": [
@@ -524,6 +712,7 @@
         "widgets": {
           "action_btn": {
             "display_name": "Unlock / Build / Upgrade button",
+            "font_key": "lg",
             "kind": "button",
             "label": "UPGRADE  10",
             "rect": [
@@ -535,6 +724,7 @@
           },
           "close_btn": {
             "display_name": "Close button",
+            "font_key": "md",
             "kind": "button",
             "label": "X",
             "rect": [
@@ -545,7 +735,9 @@
             ]
           },
           "died_last_round": {
+            "align": "center",
             "display_name": "Died-last-round tag",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -559,6 +751,7 @@
           },
           "dmg_dealt_label": {
             "display_name": "Damage dealt label",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -571,7 +764,9 @@
             "text_id": "building.upgrade.dmg_dealt"
           },
           "dmg_dealt_value": {
+            "align": "right",
             "display_name": "Damage dealt value",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -584,6 +779,7 @@
           },
           "dmg_taken_label": {
             "display_name": "Damage taken label",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -596,7 +792,9 @@
             "text_id": "building.upgrade.dmg_taken"
           },
           "dmg_taken_value": {
+            "align": "right",
             "display_name": "Damage taken value",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -609,6 +807,7 @@
           },
           "move_btn": {
             "display_name": "Move building button",
+            "font_key": "md",
             "kind": "button",
             "label": "MOVE BUILDING",
             "rect": [
@@ -620,6 +819,7 @@
           },
           "next_tier_header": {
             "display_name": "Next-tier card header",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -643,6 +843,7 @@
           },
           "rename_dice_btn": {
             "display_name": "Rename dice button",
+            "font_key": "md",
             "kind": "button",
             "label": "⚄",
             "rect": [
@@ -654,6 +855,7 @@
           },
           "stat_atk_speed_base_label": {
             "display_name": "Atk speed base label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -666,7 +868,9 @@
             "text_id": "building.stat.atk_speed_base"
           },
           "stat_atk_speed_base_value": {
+            "align": "right",
             "display_name": "Atk speed base value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -679,6 +883,7 @@
           },
           "stat_atk_speed_label": {
             "display_name": "Atk speed label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -691,7 +896,9 @@
             "text_id": "building.stat.atk_speed"
           },
           "stat_atk_speed_value": {
+            "align": "right",
             "display_name": "Atk speed value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -704,6 +911,7 @@
           },
           "stat_boost_damage_label": {
             "display_name": "Dmg boost/turn label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -716,7 +924,9 @@
             "text_id": "building.stat.boost_damage"
           },
           "stat_boost_damage_value": {
+            "align": "right",
             "display_name": "Dmg boost/turn value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -729,6 +939,7 @@
           },
           "stat_boost_hp_label": {
             "display_name": "HP boost/turn label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -741,7 +952,9 @@
             "text_id": "building.stat.boost_hp"
           },
           "stat_boost_hp_value": {
+            "align": "right",
             "display_name": "HP boost/turn value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -754,6 +967,7 @@
           },
           "stat_boost_label": {
             "display_name": "Boost/turn label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -767,6 +981,7 @@
           },
           "stat_boost_speed_label": {
             "display_name": "Spd boost/turn label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -779,7 +994,9 @@
             "text_id": "building.stat.boost_speed"
           },
           "stat_boost_speed_value": {
+            "align": "right",
             "display_name": "Spd boost/turn value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -791,7 +1008,9 @@
             "text_id": "building.stat.value"
           },
           "stat_boost_value": {
+            "align": "right",
             "display_name": "Boost/turn value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -804,6 +1023,7 @@
           },
           "stat_damage_base_label": {
             "display_name": "Damage base label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -816,7 +1036,9 @@
             "text_id": "building.stat.damage_base"
           },
           "stat_damage_base_value": {
+            "align": "right",
             "display_name": "Damage base value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -829,6 +1051,7 @@
           },
           "stat_damage_label": {
             "display_name": "Damage label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -841,7 +1064,9 @@
             "text_id": "building.stat.damage"
           },
           "stat_damage_value": {
+            "align": "right",
             "display_name": "Damage value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -854,6 +1079,7 @@
           },
           "stat_hp_base_label": {
             "display_name": "HP base label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -866,7 +1092,9 @@
             "text_id": "building.stat.hp_base"
           },
           "stat_hp_base_value": {
+            "align": "right",
             "display_name": "HP base value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -879,6 +1107,7 @@
           },
           "stat_hp_label": {
             "display_name": "HP label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -891,7 +1120,9 @@
             "text_id": "building.stat.hp"
           },
           "stat_hp_value": {
+            "align": "right",
             "display_name": "HP value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -904,6 +1135,7 @@
           },
           "stat_payout_label": {
             "display_name": "Payout label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -916,7 +1148,9 @@
             "text_id": "building.stat.payout"
           },
           "stat_payout_value": {
+            "align": "right",
             "display_name": "Payout value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -929,6 +1163,7 @@
           },
           "stat_pays_in_label": {
             "display_name": "Pays in label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -941,7 +1176,9 @@
             "text_id": "building.stat.pays_in"
           },
           "stat_pays_in_value": {
+            "align": "right",
             "display_name": "Pays in value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -954,6 +1191,7 @@
           },
           "stat_progress_label": {
             "display_name": "Progress label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -966,7 +1204,9 @@
             "text_id": "building.stat.progress"
           },
           "stat_progress_value": {
+            "align": "right",
             "display_name": "Progress value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -979,6 +1219,7 @@
           },
           "stat_range_label": {
             "display_name": "Range label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -991,7 +1232,9 @@
             "text_id": "building.stat.range"
           },
           "stat_range_value": {
+            "align": "right",
             "display_name": "Range value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1004,6 +1247,7 @@
           },
           "stat_streak_label": {
             "display_name": "Streak label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1016,7 +1260,9 @@
             "text_id": "building.stat.streak"
           },
           "stat_streak_value": {
+            "align": "right",
             "display_name": "Streak value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1029,6 +1275,7 @@
           },
           "stat_upkeep_label": {
             "display_name": "Upkeep label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1041,7 +1288,9 @@
             "text_id": "building.stat.upkeep"
           },
           "stat_upkeep_value": {
+            "align": "right",
             "display_name": "Upkeep value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1054,6 +1303,7 @@
           },
           "stat_wall_hp_label": {
             "display_name": "Wall HP label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1066,7 +1316,9 @@
             "text_id": "building.stat.wall_hp"
           },
           "stat_wall_hp_value": {
+            "align": "right",
             "display_name": "Wall HP value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1079,6 +1331,7 @@
           },
           "stat_yield_label": {
             "display_name": "Yield label",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1091,7 +1344,9 @@
             "text_id": "building.stat.yield"
           },
           "stat_yield_value": {
+            "align": "right",
             "display_name": "Yield value",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1103,7 +1358,9 @@
             "text_id": "building.stat.value"
           },
           "upgrade_hint": {
+            "align": "center",
             "display_name": "Action button hint",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1115,6 +1372,7 @@
           },
           "upgrade_name": {
             "display_name": "Rename box text",
+            "font_key": "sm",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1128,6 +1386,7 @@
           },
           "upgrade_tier_level": {
             "display_name": "Tier / level line",
+            "font_key": "md",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1140,6 +1399,7 @@
           },
           "upgrade_title": {
             "display_name": "Building name header",
+            "font_key": "lg",
             "kind": "label",
             "label": "",
             "rect": [
@@ -1155,6 +1415,7 @@
     "widgets": {
       "action_btn": {
         "display_name": "Unlock / Build / Upgrade button",
+        "font_key": "lg",
         "kind": "button",
         "label": "UNLOCK  7",
         "rect": [
@@ -1166,6 +1427,7 @@
       },
       "base_info_title": {
         "display_name": "The Hole header",
+        "font_key": "lg",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1179,6 +1441,7 @@
       },
       "boss_btn": {
         "display_name": "Boss history button",
+        "font_key": "md",
         "kind": "button",
         "label": "BOSS CHOICES",
         "rect": [
@@ -1190,6 +1453,7 @@
       },
       "boss_close_btn": {
         "display_name": "Boss history close button",
+        "font_key": "md",
         "kind": "button",
         "label": "CLOSE",
         "rect": [
@@ -1199,8 +1463,153 @@
           16
         ]
       },
+      "card_aoe_defence": {
+        "display_name": "Maw Mortar card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Maw Mortar  35",
+        "rect": [
+          516,
+          82,
+          118,
+          21
+        ]
+      },
+      "card_blocker": {
+        "display_name": "Blocker card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Blocker  25",
+        "rect": [
+          516,
+          282,
+          118,
+          21
+        ]
+      },
+      "card_boost_damage": {
+        "display_name": "Attack Booster card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Attack Booster  12",
+        "rect": [
+          516,
+          232,
+          118,
+          21
+        ]
+      },
+      "card_boost_hp": {
+        "display_name": "Health Booster card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Health Booster  12",
+        "rect": [
+          516,
+          257,
+          118,
+          21
+        ]
+      },
+      "card_boost_speed": {
+        "display_name": "Speed Booster card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Speed Booster  12",
+        "rect": [
+          516,
+          207,
+          118,
+          21
+        ]
+      },
+      "card_defence": {
+        "display_name": "Stone Thrower card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Stone Thrower  10",
+        "rect": [
+          516,
+          32,
+          118,
+          21
+        ]
+      },
+      "card_economic": {
+        "display_name": "Flute Player card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Flute Player  10",
+        "rect": [
+          516,
+          57,
+          118,
+          21
+        ]
+      },
+      "card_meditator": {
+        "display_name": "Meditator card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Meditator  12",
+        "rect": [
+          516,
+          182,
+          118,
+          21
+        ]
+      },
+      "card_painter": {
+        "display_name": "Cave Painter card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Cave Painter  20",
+        "rect": [
+          516,
+          157,
+          118,
+          21
+        ]
+      },
+      "card_storm_priest": {
+        "display_name": "Storm Acolyte card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Storm Acolyte  25",
+        "rect": [
+          516,
+          132,
+          118,
+          21
+        ]
+      },
+      "card_sun_scorcher": {
+        "display_name": "Sun Scorcher card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Sun Scorcher  40",
+        "rect": [
+          516,
+          107,
+          118,
+          21
+        ]
+      },
+      "card_wall_builder": {
+        "display_name": "Bush Wall Builder card",
+        "font_key": "md",
+        "kind": "button",
+        "label": "Bush Wall Builder  12",
+        "rect": [
+          516,
+          307,
+          118,
+          21
+        ]
+      },
       "close_btn": {
         "display_name": "Close button",
+        "font_key": "md",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -1212,6 +1621,7 @@
       },
       "construct_title": {
         "display_name": "Build header",
+        "font_key": "lg",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1224,7 +1634,9 @@
         "text_id": "building.construct.title"
       },
       "died_last_round": {
+        "align": "center",
         "display_name": "Died-last-round tag",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1238,6 +1650,7 @@
       },
       "dmg_dealt_label": {
         "display_name": "Damage dealt label",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1250,7 +1663,9 @@
         "text_id": "building.upgrade.dmg_dealt"
       },
       "dmg_dealt_value": {
+        "align": "right",
         "display_name": "Damage dealt value",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1263,6 +1678,7 @@
       },
       "dmg_taken_label": {
         "display_name": "Damage taken label",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1275,7 +1691,9 @@
         "text_id": "building.upgrade.dmg_taken"
       },
       "dmg_taken_value": {
+        "align": "right",
         "display_name": "Damage taken value",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1288,6 +1706,7 @@
       },
       "info_base_income_label": {
         "display_name": "Base income label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1300,7 +1719,9 @@
         "text_id": "building.base_info.base_income"
       },
       "info_base_income_value": {
+        "align": "right",
         "display_name": "Base income value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1313,6 +1734,7 @@
       },
       "info_buildings_label": {
         "display_name": "Buildings label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1325,7 +1747,9 @@
         "text_id": "building.base_info.buildings"
       },
       "info_buildings_value": {
+        "align": "right",
         "display_name": "Buildings value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1338,6 +1762,7 @@
       },
       "info_enemies_killed_label": {
         "display_name": "Enemies killed label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1350,7 +1775,9 @@
         "text_id": "building.base_info.enemies_killed"
       },
       "info_enemies_killed_value": {
+        "align": "right",
         "display_name": "Enemies killed value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1363,6 +1790,7 @@
       },
       "info_lives_label": {
         "display_name": "Lives label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1375,7 +1803,9 @@
         "text_id": "building.base_info.lives"
       },
       "info_lives_value": {
+        "align": "right",
         "display_name": "Lives value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1388,6 +1818,7 @@
       },
       "info_wave_label": {
         "display_name": "Wave label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1400,7 +1831,9 @@
         "text_id": "building.base_info.wave"
       },
       "info_wave_value": {
+        "align": "right",
         "display_name": "Wave value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1413,6 +1846,7 @@
       },
       "move_btn": {
         "display_name": "Move building button",
+        "font_key": "md",
         "kind": "button",
         "label": "MOVE BUILDING",
         "rect": [
@@ -1424,6 +1858,7 @@
       },
       "next_tier_header": {
         "display_name": "Next-tier card header",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1447,6 +1882,7 @@
       },
       "preview_cancel_btn": {
         "display_name": "Construct cancel button",
+        "font_key": "lg",
         "kind": "button",
         "label": "CANCEL",
         "rect": [
@@ -1458,6 +1894,7 @@
       },
       "preview_close_btn": {
         "display_name": "Construct preview close button",
+        "font_key": "md",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -1469,6 +1906,7 @@
       },
       "preview_confirm_btn": {
         "display_name": "Construct confirm button",
+        "font_key": "lg",
         "kind": "button",
         "label": "CONFIRM",
         "rect": [
@@ -1480,6 +1918,7 @@
       },
       "preview_dice_btn": {
         "display_name": "Construct preview dice button",
+        "font_key": "md",
         "kind": "button",
         "label": "⚄",
         "rect": [
@@ -1502,6 +1941,7 @@
       },
       "rename_dice_btn": {
         "display_name": "Rename dice button",
+        "font_key": "md",
         "kind": "button",
         "label": "⚄",
         "rect": [
@@ -1513,6 +1953,7 @@
       },
       "stat_atk_speed_base_label": {
         "display_name": "Atk speed base label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1525,7 +1966,9 @@
         "text_id": "building.stat.atk_speed_base"
       },
       "stat_atk_speed_base_value": {
+        "align": "right",
         "display_name": "Atk speed base value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1538,6 +1981,7 @@
       },
       "stat_atk_speed_label": {
         "display_name": "Atk speed label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1550,7 +1994,9 @@
         "text_id": "building.stat.atk_speed"
       },
       "stat_atk_speed_value": {
+        "align": "right",
         "display_name": "Atk speed value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1563,6 +2009,7 @@
       },
       "stat_boost_damage_label": {
         "display_name": "Dmg boost/turn label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1575,7 +2022,9 @@
         "text_id": "building.stat.boost_damage"
       },
       "stat_boost_damage_value": {
+        "align": "right",
         "display_name": "Dmg boost/turn value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1588,6 +2037,7 @@
       },
       "stat_boost_hp_label": {
         "display_name": "HP boost/turn label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1600,7 +2050,9 @@
         "text_id": "building.stat.boost_hp"
       },
       "stat_boost_hp_value": {
+        "align": "right",
         "display_name": "HP boost/turn value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1613,6 +2065,7 @@
       },
       "stat_boost_label": {
         "display_name": "Boost/turn label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1626,6 +2079,7 @@
       },
       "stat_boost_speed_label": {
         "display_name": "Spd boost/turn label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1638,7 +2092,9 @@
         "text_id": "building.stat.boost_speed"
       },
       "stat_boost_speed_value": {
+        "align": "right",
         "display_name": "Spd boost/turn value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1650,7 +2106,9 @@
         "text_id": "building.stat.value"
       },
       "stat_boost_value": {
+        "align": "right",
         "display_name": "Boost/turn value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1663,6 +2121,7 @@
       },
       "stat_damage_base_label": {
         "display_name": "Damage base label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1675,7 +2134,9 @@
         "text_id": "building.stat.damage_base"
       },
       "stat_damage_base_value": {
+        "align": "right",
         "display_name": "Damage base value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1688,6 +2149,7 @@
       },
       "stat_damage_label": {
         "display_name": "Damage label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1700,7 +2162,9 @@
         "text_id": "building.stat.damage"
       },
       "stat_damage_value": {
+        "align": "right",
         "display_name": "Damage value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1713,6 +2177,7 @@
       },
       "stat_hp_base_label": {
         "display_name": "HP base label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1725,7 +2190,9 @@
         "text_id": "building.stat.hp_base"
       },
       "stat_hp_base_value": {
+        "align": "right",
         "display_name": "HP base value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1738,6 +2205,7 @@
       },
       "stat_hp_label": {
         "display_name": "HP label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1750,7 +2218,9 @@
         "text_id": "building.stat.hp"
       },
       "stat_hp_value": {
+        "align": "right",
         "display_name": "HP value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1763,6 +2233,7 @@
       },
       "stat_payout_label": {
         "display_name": "Payout label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1775,7 +2246,9 @@
         "text_id": "building.stat.payout"
       },
       "stat_payout_value": {
+        "align": "right",
         "display_name": "Payout value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1788,6 +2261,7 @@
       },
       "stat_pays_in_label": {
         "display_name": "Pays in label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1800,7 +2274,9 @@
         "text_id": "building.stat.pays_in"
       },
       "stat_pays_in_value": {
+        "align": "right",
         "display_name": "Pays in value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1813,6 +2289,7 @@
       },
       "stat_progress_label": {
         "display_name": "Progress label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1825,7 +2302,9 @@
         "text_id": "building.stat.progress"
       },
       "stat_progress_value": {
+        "align": "right",
         "display_name": "Progress value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1838,6 +2317,7 @@
       },
       "stat_range_label": {
         "display_name": "Range label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1850,7 +2330,9 @@
         "text_id": "building.stat.range"
       },
       "stat_range_value": {
+        "align": "right",
         "display_name": "Range value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1863,6 +2345,7 @@
       },
       "stat_streak_label": {
         "display_name": "Streak label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1875,7 +2358,9 @@
         "text_id": "building.stat.streak"
       },
       "stat_streak_value": {
+        "align": "right",
         "display_name": "Streak value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1888,6 +2373,7 @@
       },
       "stat_upkeep_label": {
         "display_name": "Upkeep label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1900,7 +2386,9 @@
         "text_id": "building.stat.upkeep"
       },
       "stat_upkeep_value": {
+        "align": "right",
         "display_name": "Upkeep value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1913,6 +2401,7 @@
       },
       "stat_wall_hp_label": {
         "display_name": "Wall HP label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1925,7 +2414,9 @@
         "text_id": "building.stat.wall_hp"
       },
       "stat_wall_hp_value": {
+        "align": "right",
         "display_name": "Wall HP value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1938,6 +2429,7 @@
       },
       "stat_yield_label": {
         "display_name": "Yield label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1950,7 +2442,9 @@
         "text_id": "building.stat.yield"
       },
       "stat_yield_value": {
+        "align": "right",
         "display_name": "Yield value",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1963,6 +2457,7 @@
       },
       "unlock_blocked": {
         "display_name": "Not-adjacent warning",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1976,6 +2471,7 @@
       },
       "unlock_hint": {
         "display_name": "Unlock subtitle",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -1989,6 +2485,7 @@
       },
       "unlock_title": {
         "display_name": "Unlock header",
+        "font_key": "lg",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2001,7 +2498,9 @@
         "text_id": "building.unlock.title"
       },
       "upgrade_hint": {
+        "align": "center",
         "display_name": "Action button hint",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2013,6 +2512,7 @@
       },
       "upgrade_name": {
         "display_name": "Rename box text",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2026,6 +2526,7 @@
       },
       "upgrade_tier_level": {
         "display_name": "Tier / level line",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2038,6 +2539,7 @@
       },
       "upgrade_title": {
         "display_name": "Building name header",
+        "font_key": "lg",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2054,6 +2556,7 @@
     "widgets": {
       "btn_add_love": {
         "display_name": "Add Love button",
+        "font_key": "md",
         "kind": "button",
         "label": "+10 Love",
         "rect": [
@@ -2065,6 +2568,7 @@
       },
       "btn_close": {
         "display_name": "Close button",
+        "font_key": "md",
         "kind": "button",
         "label": "X",
         "rect": [
@@ -2076,6 +2580,7 @@
       },
       "btn_goto": {
         "display_name": "Go To Round button",
+        "font_key": "sm",
         "kind": "button",
         "label": "Go to Round",
         "rect": [
@@ -2087,6 +2592,7 @@
       },
       "btn_inf_money": {
         "display_name": "Infinite Money button",
+        "font_key": "md",
         "kind": "button",
         "label": "Infinite Money",
         "rect": [
@@ -2098,6 +2604,7 @@
       },
       "btn_skip_round": {
         "display_name": "Skip Round button",
+        "font_key": "md",
         "kind": "button",
         "label": "Skip Round",
         "rect": [
@@ -2108,6 +2615,7 @@
         ]
       },
       "btn_toggle_debug": {
+        "font_key": "md",
         "kind": "button",
         "label": "Debug Log",
         "rect": [
@@ -2119,6 +2627,7 @@
       },
       "btn_trigger_levelup": {
         "display_name": "Trigger Levelup button",
+        "font_key": "md",
         "kind": "button",
         "label": "LEVEL UP",
         "rect": [
@@ -2130,6 +2639,7 @@
       },
       "btn_unlock_all": {
         "display_name": "Unlock All Tech button",
+        "font_key": "md",
         "kind": "button",
         "label": "Unlock All Tech",
         "rect": [
@@ -2141,6 +2651,7 @@
       },
       "jump_label": {
         "display_name": "Jump label",
+        "font_key": "sm",
         "kind": "label",
         "label": "Jump to round:",
         "rect": [
@@ -2163,6 +2674,7 @@
       },
       "round_field": {
         "display_name": "Round field",
+        "font_key": "sm",
         "kind": "field",
         "label": "",
         "rect": [
@@ -2173,7 +2685,9 @@
         ]
       },
       "title": {
+        "align": "center",
         "display_name": "Title label",
+        "font_key": "lg",
         "kind": "label",
         "label": "CHEATS",
         "rect": [
@@ -2201,6 +2715,7 @@
       },
       "btn_back": {
         "display_name": "Back button",
+        "font_key": "lg",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -2212,6 +2727,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "CREDITS",
         "rect": [
@@ -2228,11 +2744,12 @@
     "widgets": {
       "close_btn": {
         "display_name": "Close button",
+        "font_key": "md",
         "kind": "button",
         "label": "X",
         "rect": [
-          1254,
-          156,
+          614,
+          -24,
           20,
           18
         ]
@@ -2242,8 +2759,8 @@
         "kind": "panel",
         "label": "",
         "rect": [
-          960,
-          150,
+          320,
+          -30,
           320,
           420
         ]
@@ -2255,6 +2772,7 @@
     "widgets": {
       "log": {
         "display_name": "Game log",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2282,6 +2800,7 @@
       },
       "btn_return_to_menu": {
         "display_name": "Return To Menu button",
+        "font_key": "lg",
         "kind": "button",
         "label": "RETURN TO MENU",
         "rect": [
@@ -2292,6 +2811,8 @@
         ]
       },
       "stat_buildings": {
+        "align": "center",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2303,6 +2824,8 @@
         "text_id": "game_over.buildings_placed"
       },
       "stat_enemies": {
+        "align": "center",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2314,6 +2837,8 @@
         "text_id": "game_over.enemies_killed"
       },
       "stat_round": {
+        "align": "center",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2326,6 +2851,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "THE COLONY WAS DESTROYED",
         "rect": [
@@ -2341,6 +2867,8 @@
     "mock_note": "love=123, round=7 (layout() + the _layout_readouts() second pass)",
     "widgets": {
       "btn_drag_select": {
+        "display_name": "Drag-select toggle",
+        "font_key": "sm",
         "kind": "button",
         "label": "DRAG SEL",
         "rect": [
@@ -2352,6 +2880,7 @@
       },
       "btn_end_turn": {
         "display_name": "End Turn button",
+        "font_key": "lg",
         "kind": "button",
         "label": "END TURN",
         "rect": [
@@ -2363,6 +2892,7 @@
       },
       "btn_pause": {
         "display_name": "Pause button",
+        "font_key": "md",
         "kind": "button",
         "label": "PAUSE",
         "rect": [
@@ -2373,6 +2903,8 @@
         ]
       },
       "btn_speed_1_5x": {
+        "display_name": "Speed 1.5x button",
+        "font_key": "sm",
         "kind": "button",
         "label": "1.5×",
         "rect": [
@@ -2383,6 +2915,8 @@
         ]
       },
       "btn_speed_1x": {
+        "display_name": "Speed 1x button",
+        "font_key": "sm",
         "kind": "button",
         "label": "1×",
         "rect": [
@@ -2393,6 +2927,8 @@
         ]
       },
       "btn_speed_2x": {
+        "display_name": "Speed 2x button",
+        "font_key": "sm",
         "kind": "button",
         "label": "2×",
         "rect": [
@@ -2403,6 +2939,7 @@
         ]
       },
       "icon_lives": {
+        "display_name": "Lives icon",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -2413,6 +2950,7 @@
         ]
       },
       "icon_love": {
+        "display_name": "Love icon",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -2423,6 +2961,7 @@
         ]
       },
       "icon_xp": {
+        "display_name": "XP icon",
         "kind": "panel",
         "label": "",
         "rect": [
@@ -2433,6 +2972,8 @@
         ]
       },
       "income_text": {
+        "display_name": "Love per round",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2444,6 +2985,8 @@
         "text_id": "hud.income_net"
       },
       "lives_text": {
+        "display_name": "Lives counter",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2466,6 +3009,8 @@
         ]
       },
       "love_text": {
+        "display_name": "Love counter",
+        "font_key": "xl",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2477,6 +3022,8 @@
         "text_id": "hud.love_display"
       },
       "lvl_label": {
+        "display_name": "Level counter",
+        "font_key": "hud_lvl",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2489,6 +3036,7 @@
       },
       "phase_label": {
         "display_name": "Phase label",
+        "font_key": "hud_phase",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2510,6 +3058,9 @@
         ]
       },
       "round_label": {
+        "align": "center",
+        "display_name": "Round counter",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2521,6 +3072,8 @@
         "text_id": "hud.round"
       },
       "tiles_text": {
+        "display_name": "Tiles counter",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2543,6 +3096,8 @@
         ]
       },
       "xp_text": {
+        "display_name": "XP progress text",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2556,7 +3111,7 @@
     }
   },
   "levelup": {
-    "mock_note": "love=123, round=7 (backdrop only — the 1-3 option boxes are dynamic-count content, not individually overridable)",
+    "mock_note": "love=123, round=7 (opened on 3 mock options — the maximum roll, so every option slot is recorded)",
     "widgets": {
       "backdrop": {
         "display_name": "Background backdrop",
@@ -2570,16 +3125,52 @@
         ]
       },
       "heading": {
+        "align": "center",
+        "display_name": "Heading label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "",
         "rect": [
           320,
-          142,
+          65,
           0,
           0
         ],
         "sample": "CHOOSE YOUR REWARD",
         "text_id": "levelup.heading"
+      },
+      "option_box_0": {
+        "display_name": "Level-up option box 1",
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          121,
+          103,
+          130,
+          154
+        ]
+      },
+      "option_box_1": {
+        "display_name": "Level-up option box 2",
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          255,
+          103,
+          130,
+          154
+        ]
+      },
+      "option_box_2": {
+        "display_name": "Level-up option box 3",
+        "kind": "panel",
+        "label": "",
+        "rect": [
+          389,
+          103,
+          130,
+          154
+        ]
       }
     }
   },
@@ -2599,6 +3190,7 @@
       },
       "btn_add_name": {
         "display_name": "Add A Name button",
+        "font_key": "lg",
         "kind": "button",
         "label": "ADD A NAME",
         "rect": [
@@ -2610,6 +3202,7 @@
       },
       "btn_credits": {
         "display_name": "Credits button",
+        "font_key": "lg",
         "kind": "button",
         "label": "CREDITS",
         "rect": [
@@ -2620,6 +3213,7 @@
         ]
       },
       "btn_highscores": {
+        "font_key": "lg",
         "kind": "button",
         "label": "HIGHSCORES",
         "rect": [
@@ -2631,6 +3225,7 @@
       },
       "btn_new_game": {
         "display_name": "Start New Game button",
+        "font_key": "lg",
         "kind": "button",
         "label": "START NEW GAME",
         "rect": [
@@ -2641,6 +3236,7 @@
         ]
       },
       "btn_play_debug": {
+        "font_key": "lg",
         "kind": "button",
         "label": "PLAY DEBUG",
         "rect": [
@@ -2651,6 +3247,7 @@
         ]
       },
       "btn_play_debug_settings": {
+        "font_key": "lg",
         "kind": "button",
         "label": "SET",
         "rect": [
@@ -2662,6 +3259,7 @@
       },
       "btn_quit": {
         "display_name": "Quit button",
+        "font_key": "lg",
         "kind": "button",
         "label": "QUIT",
         "rect": [
@@ -2673,6 +3271,7 @@
       },
       "btn_settings": {
         "display_name": "Settings button",
+        "font_key": "lg",
         "kind": "button",
         "label": "SETTINGS",
         "rect": [
@@ -2684,6 +3283,7 @@
       },
       "subtitle": {
         "display_name": "Subtitle label",
+        "font_key": "md",
         "kind": "label",
         "label": "defend the munckins",
         "rect": [
@@ -2695,6 +3295,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "HOW TO BE HUMAN",
         "rect": [
@@ -2711,6 +3312,7 @@
     "widgets": {
       "btn_heatmap": {
         "display_name": "Heatmap overlay toggle",
+        "font_key": "sm",
         "kind": "button",
         "label": "HEATMAP",
         "rect": [
@@ -2722,6 +3324,7 @@
       },
       "btn_range": {
         "display_name": "Range overlay toggle",
+        "font_key": "sm",
         "kind": "button",
         "label": "RANGE",
         "rect": [
@@ -2749,6 +3352,7 @@
       },
       "btn_quit_game": {
         "display_name": "Quit Game button",
+        "font_key": "lg",
         "kind": "button",
         "label": "QUIT GAME",
         "rect": [
@@ -2760,6 +3364,7 @@
       },
       "btn_quit_to_menu": {
         "display_name": "Quit To Menu button",
+        "font_key": "lg",
         "kind": "button",
         "label": "QUIT TO MENU",
         "rect": [
@@ -2771,6 +3376,7 @@
       },
       "btn_resume": {
         "display_name": "Resume button",
+        "font_key": "lg",
         "kind": "button",
         "label": "RESUME",
         "rect": [
@@ -2782,6 +3388,7 @@
       },
       "btn_settings": {
         "display_name": "Settings button",
+        "font_key": "lg",
         "kind": "button",
         "label": "SETTINGS",
         "rect": [
@@ -2793,6 +3400,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xl",
         "kind": "label",
         "label": "PAUSED",
         "rect": [
@@ -2809,6 +3417,7 @@
     "widgets": {
       "audio_label": {
         "display_name": "Master Audio label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2821,6 +3430,8 @@
         "text_id": "settings.master_audio"
       },
       "audio_note": {
+        "align": "center",
+        "font_key": "sm",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2845,6 +3456,7 @@
       },
       "btn_back": {
         "display_name": "Back button",
+        "font_key": "lg",
         "kind": "button",
         "label": "BACK",
         "rect": [
@@ -2856,6 +3468,7 @@
       },
       "btn_dm_left": {
         "display_name": "Display mode left button",
+        "font_key": "lg",
         "kind": "button",
         "label": "<",
         "rect": [
@@ -2867,6 +3480,7 @@
       },
       "btn_dm_right": {
         "display_name": "Display mode right button",
+        "font_key": "lg",
         "kind": "button",
         "label": ">",
         "rect": [
@@ -2877,6 +3491,7 @@
         ]
       },
       "btn_set_default": {
+        "font_key": "md",
         "kind": "button",
         "label": "SET DEFAULT",
         "rect": [
@@ -2888,6 +3503,7 @@
       },
       "btn_toggle_bg_art": {
         "display_name": "Background Art toggle",
+        "font_key": "lg",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -2899,6 +3515,7 @@
       },
       "btn_toggle_gore": {
         "display_name": "Gore toggle",
+        "font_key": "lg",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -2910,6 +3527,7 @@
       },
       "btn_toggle_income_floaters": {
         "display_name": "Income Floaters toggle",
+        "font_key": "lg",
         "kind": "button",
         "label": "ON",
         "rect": [
@@ -2920,7 +3538,9 @@
         ]
       },
       "dm_label": {
+        "align": "center",
         "display_name": "Display Mode label",
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2933,6 +3553,8 @@
         "text_id": "settings.display_mode"
       },
       "dm_value": {
+        "align": "center",
+        "font_key": "lg",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2943,6 +3565,7 @@
         ]
       },
       "label_bg_art": {
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2955,6 +3578,7 @@
         "text_id": "settings.toggle.bg_art"
       },
       "label_gore": {
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2967,6 +3591,7 @@
         "text_id": "settings.toggle.gore"
       },
       "label_income_floaters": {
+        "font_key": "md",
         "kind": "label",
         "label": "",
         "rect": [
@@ -2980,6 +3605,7 @@
       },
       "title": {
         "display_name": "Title label",
+        "font_key": "xxl",
         "kind": "label",
         "label": "SETTINGS",
         "rect": [

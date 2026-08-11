@@ -1182,6 +1182,65 @@ data, so the two can never silently drift apart.
   `data/ui/screen_defaults.json` was regenerated (`py
   tools/export_ui_layouts.py`) to reflect the three previously-`""` labels.
 
+## Dynamic-count content IS individually overridable now (editable-ui-widgets)
+
+**This reverses the "Dynamic-count content is NOT individually overridable in
+v1" bullet above** (kept there as history — read this section for what is
+true). A designer asked for the buy options to be real editable widgets, and
+the old rule's actual constraint was never "the count varies": it was "there
+is no stable id to attach an override to". Both cases turn out to have one.
+
+- **`levelup.py`'s option boxes** — the roll offers 1-3, but there have always
+  been exactly THREE slots, so each gets an index id: `option_box_0..2`.
+  `self._boxes` holds one `SimpleNamespace(rect, skin, color, visible)` per
+  slot; `layout()` computes the default centred row as before, stores it into
+  the holders, ids only the slots this roll filled, calls `skinning.apply`,
+  and **then** rebuilds `self.rects` FROM the holders — so an overridden rect
+  drives `hover`/`hit` as well as the draw, and `self.rects` (which
+  `test_levelup.py` reads directly) can never disagree with what is on screen.
+  Per-box `skin` beats the screen-level `defaults.panel_skin`; `color` follows
+  the "`None` means compute" convention, so an un-overridden box draws its two
+  raw hover-tinted rects exactly as before.
+  - **ANTI-SOFTLOCK**: this modal has no dismiss path — the player MUST pick
+    one — so `_box_visible` ignores `visible: false` WHOLESALE if it would
+    hide every offered box. Hiding one or two does what you asked; hiding all
+    of them gets you a playable game instead of a frozen one.
+- **`building_ui.py`'s construct cards** — id'd `card_<building_type>`
+  (`_CARD_ID_PREFIX`), the type being the stable key. Because a card's Button
+  is REBUILT on every `_build_construct` (its label carries a live price),
+  `_clear_card_ids()` sweeps the previous build's entries out of `self.ids`
+  first — otherwise `skinning.apply` would keep writing onto a dead Button and
+  a type that stopped being buildable would linger forever. The cards now
+  follow every other id'd button's rules: `is_visible` gates submit AND
+  hit, `hover()` is called then `hovered and= is_visible` (never skipped
+  outright), and `button_kwargs` forwards `color`/`text_color`.
+  `defaults.button_skin` remains the fallback for a card with no `skin` of
+  its own.
+- **Recording them is a `tools/screen_mocks.py` change**, not an exporter
+  special case: `LEVELUP_OPTIONS` grew to three cards and the `construct` view
+  unlocks every RESEARCH type first, so every slot and every card lands in
+  `screen_defaults.json`. Details → `editor/panels/CLAUDE.md`.
+- **Still un-id'd, and still for the stated reason**: the boss-history popup
+  body and `credits`' role/name rows — genuinely unbounded lists with no
+  stable key per row. `defaults` remains their styling seam.
+
+**Golden-parity note**: all of the above is a rendering NO-OP. Capturing with
+`LEVELUP_OPTIONS` truncated back to its original two reproduces the previous
+`test_ui_skinning.py` baseline byte-for-byte on every screen — the pin's
+`levelup` entry was regenerated only because its INPUT (three mock cards
+instead of two) changed, not its code.
+
+## `hud.round_label` carries its own alignment
+`align="center"` moved from the `submit_label` CALL SITE onto the holder. It
+is a constant property of that label (it is centred on the End Turn button),
+and `tools/export_ui_layouts.py` reads alignment off the holder to tell the
+editor which way the text spreads from its stored anchor — left as a call-site
+override it recorded as `"left"` and the editor put the Round counter's hit box
+half a label to the right of the glyphs. Every other centred label in `game/ui`
+already declared it on the holder; this was the one that did not. **If you add
+a label whose alignment never varies, declare it on the holder**; reserve the
+`align=` argument for a call site that genuinely varies it.
+
 ## Global UI string table (Phase C)
 `data/ui/strings.json` ↔ `game/ui/strings.py` covers what the per-widget
 `label` override above structurally cannot: text that varies by runtime/enum

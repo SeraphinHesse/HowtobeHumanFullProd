@@ -180,16 +180,39 @@ _DISPLAY_NAMES = {
         "panel": "Enemy intro panel",
         "close_btn": "Close button",
     },
+    # Every HUD id is named, not just the six that happened to be listed —
+    # a designer asked for the round counter, love counter, love-per-round,
+    # XP bar and level counter as "individual editable widgets", and they
+    # already WERE individual ids; what was missing was a name to find them
+    # by (and a hit box to grab them by — see `_widget_entry`).
     "hud": {
         "btn_end_turn": "End Turn button",
         "btn_pause": "Pause button",
+        "btn_speed_1x": "Speed 1x button",
+        "btn_speed_1_5x": "Speed 1.5x button",
+        "btn_speed_2x": "Speed 2x button",
+        "btn_drag_select": "Drag-select toggle",
         "love_panel": "Love panel",
         "readout_panel": "Income/lives/tiles panel",
         "phase_label": "Phase label",
+        "love_text": "Love counter",
+        "income_text": "Love per round",
+        "lvl_label": "Level counter",
         "xp_bar": "XP bar",
+        "xp_text": "XP progress text",
+        "lives_text": "Lives counter",
+        "tiles_text": "Tiles counter",
+        "round_label": "Round counter",
+        "icon_love": "Love icon",
+        "icon_xp": "XP icon",
+        "icon_lives": "Lives icon",
     },
     "levelup": {
         "backdrop": "Background backdrop",
+        "heading": "Heading label",
+        "option_box_0": "Level-up option box 1",
+        "option_box_1": "Level-up option box 2",
+        "option_box_2": "Level-up option box 3",
     },
 }
 
@@ -230,6 +253,13 @@ def _derived_display_name(widget_id, spec):
     table means renaming a stat in `strings.json` renames it in the editor's
     widget list too, with no exporter edit.
     """
+    # A construct card names itself after the building it sells. The card's
+    # own label already reads "<Building Name>  <cost>"; the price is live
+    # game state, so only the name half becomes the widget's display name.
+    if widget_id.startswith("card_"):
+        label = spec.get("label") or ""
+        name = label.rsplit("  ", 1)[0].strip() if label else ""
+        return f"{name} card" if name else f"{widget_id[len('card_'):]} card"
     for suffix, kind in (("_label", "label"), ("_value", "value")):
         if not widget_id.endswith(suffix):
             continue
@@ -284,6 +314,22 @@ def _widget_entry(kind, widget):
     label = getattr(widget, "label", "") or ""
     entry = {"rect": [int(x), int(y), int(w), int(h)], "kind": kind,
              "label": label}
+    # The two DRAW hints the editor needs to give a POSITION-ONLY text anchor
+    # (a `rect` whose w/h are 0 — every readout in hud.py, the phase banner,
+    # boss_cutscene's headline, ~40 building_panel stat cells) a real hit box:
+    # what font it is drawn at, and which way its text spreads from the
+    # stored x. Without them such a widget is a zero-area rect — impossible to
+    # click, drag or even see selected in the editor, though its id has been
+    # in `screen_defaults.json` since B3. Both are recorded ONLY when the
+    # widget actually carries them (D-3 minimality; `align` additionally only
+    # when it differs from the "left" default), so every button/panel entry
+    # stays byte-identical.
+    font_key = getattr(widget, "font_key", None)
+    if font_key:
+        entry["font_key"] = font_key
+    align = getattr(widget, "align", None)
+    if align and align != "left":
+        entry["align"] = align
     # UT-1/UT-3: the string-table key this widget resolves its text through,
     # plus the resolved text when the template takes no placeholders. A
     # TEMPLATED id gets no `sample` — the exporter cannot know the kwargs the
@@ -353,13 +399,18 @@ def _build_levelup(view_w, view_h, data_root):
     from game.ui.levelup import LevelupWindow
 
     screen = LevelupWindow(view_w, view_h)
-    # __init__ leaves ids == {} (layout() only runs from open()/layout()
-    # itself — see game/ui/CLAUDE.md); call it directly so "backdrop" emits
-    # without needing a real levelup-option roll.
-    screen.layout(view_w, view_h)
+    # Opened on the SAME three mock options `tools/screen_preview.py` records
+    # its picture from — one state, two artifacts, so the editor's draggable
+    # boxes and the preview behind them cannot disagree. Three because that
+    # is the roll's maximum and each slot is an individually overridable
+    # widget now (`option_box_0..2`); a bare `layout()` on an unopened window
+    # would emit the backdrop and heading only, leaving all three
+    # un-overridable.
+    screen.open(screen_mocks.LEVELUP_OPTIONS)
     return (_widgets_from_ids(screen.ids),
-            f"{_COMMON_NOTE} (backdrop only — the 1-3 option boxes are "
-            "dynamic-count content, not individually overridable)")
+            f"{_COMMON_NOTE} (opened on {len(screen_mocks.LEVELUP_OPTIONS)} "
+            "mock options — the maximum roll, so every option slot is "
+            "recorded)")
 
 
 def _build_hud(view_w, view_h, data_root):

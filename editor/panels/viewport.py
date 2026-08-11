@@ -673,28 +673,98 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return list(override.get("rect", base))
 
+    def _widget_text(self, widget_id, spec):
+        """The text this widget currently DRAWS, best-effort — used only to
+        measure a position-only anchor's hit box. Preference order mirrors
+        what the game resolves at draw time: the doc's own `label` override,
+        else the live `strings.json` template the widget is bound to (so a
+        designer's own edit to that template immediately resizes the box),
+        else the exporter's resolved `sample`, else the default `label`."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        if override.get("label"):
+            return override["label"]
+        text_id = override.get("text_id") or spec.get("text_id")
+        if text_id:
+            table = getattr(self._screen_session, "strings_doc", None) or {}
+            if table.get(text_id):
+                return table[text_id]
+        return spec.get("sample") or spec.get("label") or ""
+
+    def _interaction_rect(self, widget_id, defaults):
+        """The widget's editor-side hit/outline box in LOGICAL pixels: its
+        effective rect, with any zero-extent axis grown to the measured size
+        of its text (`_screen_primitives.interaction_rect`). Distinct from
+        `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
+        anchor still stores w/h 0."""
+        spec = defaults.get("widgets", {}).get(widget_id) or {}
+        return _screen_primitives.interaction_rect(
+            self._effective_rect(widget_id, defaults),
+            text=self._widget_text(widget_id, spec),
+            font_key=self._widget_font_key(widget_id, spec),
+            align=spec.get("align", "left"))
+
+    def _widget_font_key(self, widget_id, spec):
+        """The font the widget's text is drawn at: the doc's own `font`
+        override, else the exporter-recorded `font_key`, else the screen's
+        `defaults.font`, else "md" (the same fallback chain
+        `_submit_screen_widget` uses to draw it)."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return (override.get("font") or spec.get("font_key")
+                or style.get("font") or "md")
+
+    def _is_anchor_widget(self, widget_id, defaults):
+        """True when the widget stores no size — it can be MOVED but not
+        resized (there is nothing for a resize to write, and forcing a size
+        onto a text anchor would change what the game draws)."""
+        return _screen_primitives.is_anchor_rect(
+            self._effective_rect(widget_id, defaults))
+
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
     def _hit_widget(self, pos, defaults):
-        """Topmost widget rect under `pos` (SCREEN pixels) — reverse
-        submission order, since a later HUD submission draws over an
-        earlier one. Invisible widgets (visible=False override) can't be
-        hit."""
+        """The widget under `pos` (SCREEN pixels), or None. Invisible widgets
+        (visible=False override) can't be hit.
+
+        Hit-tests the INTERACTION rect, not the stored one: a position-only
+        text anchor stores a zero-area rect and would otherwise be
+        unreachable with a mouse.
+
+        **The SMALLEST candidate wins**, not the last-submitted one. Two
+        reasons, and the second is the one that bites:
+          * It is what a designer expects — clicking a readout that sits on a
+            panel selects the readout, the way every UI editor behaves.
+          * The editor submits widgets in `screen_defaults.json` key order
+            (alphabetical), which is NOT the game's panel->button->text
+            submission order, so "last drawn" here is meaningless. Live
+            example: `hud.income_text` sits inside `hud.love_panel`, and
+            reverse-key-order made the panel swallow every click on the Love
+            per round readout — one of the widgets the designer specifically
+            asked to be able to edit.
+        Ties (identical area) fall back to the later key, preserving the old
+        behaviour where nothing distinguishes two candidates."""
         scale, ox, oy = self._screen_scale_offset()
         doc = self._screen_session.doc
-        for widget_id in reversed(list(defaults.get("widgets", {}))):
+        best, best_area = None, None
+        for widget_id in defaults.get("widgets", {}):
             if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
                 continue
             sx, sy, sw, sh = self._to_screen_rect(
-                self._effective_rect(widget_id, defaults), scale, ox, oy)
-            if sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh:
-                return widget_id
-        return None
+                self._interaction_rect(widget_id, defaults), scale, ox, oy)
+            if not (sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh):
+                continue
+            area = sw * sh
+            if best_area is None or area <= best_area:
+                best, best_area = widget_id, area
+        return best
 
     def _hit_resize_handle(self, pos, defaults):
         """One of the 4 corner handles of the CURRENTLY selected widget, or
-        None — handles only exist once something is already selected."""
+        None — handles only exist once something is already selected, and
+        never on a position-only anchor (nothing to resize)."""
         if self._selected_widget is None:
+            return None
+        if self._is_anchor_widget(self._selected_widget, defaults):
             return None
         scale, ox, oy = self._screen_scale_offset()
         sx, sy, sw, sh = self._to_screen_rect(
@@ -1962,7 +2032,6 @@ class ViewportPanel(QWidget):
         rect = override.get("rect", spec["rect"])
         kind = spec["kind"]
         label = override.get("label", spec["label"])
-        dest = self._to_screen_rect(rect, scale, ox, oy)
         style = doc.get("defaults", {})
         skin = override.get("skin")
         if skin is None:
@@ -1970,7 +2039,19 @@ class ViewportPanel(QWidget):
                 skin = style.get("button_skin")
             elif kind == "panel":
                 skin = style.get("panel_skin")
-        font_key = override.get("font", style.get("font", "md"))
+        # The recorded `font_key` joins the chain (it did not exist before):
+        # measuring/drawing a readout at "md" when the game draws it at "xl"
+        # made the flat-box fallback disagree with the real screen.
+        font_key = (override.get("font") or spec.get("font_key")
+                    or style.get("font") or "md")
+        if _screen_primitives.is_anchor_rect(rect):
+            # A position-only anchor has no box to centre in; measure the
+            # same box the designer clicks and outlines (`_interaction_rect`),
+            # so the fallback text lands on the glyphs' real spot.
+            rect = _screen_primitives.interaction_rect(
+                rect, text=self._widget_text(widget_id, spec),
+                font_key=font_key, align=spec.get("align", "left"))
+        dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
             # D6/UH-6: tint from the widget's own `tint` key — `color` on a
@@ -1995,15 +2076,30 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
 
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        # The INTERACTION rect, so a position-only text anchor gets a visible
+        # outline over its glyphs instead of a zero-area (invisible) one — the
+        # outline must be exactly what `_hit_widget` tests, or the designer
+        # would be aiming at a box that isn't where they can click.
         x, y, w, h = self._to_screen_rect(
-            self._effective_rect(widget_id, defaults), scale, ox, oy)
+            self._interaction_rect(widget_id, defaults), scale, ox, oy)
         self._renderer.submit_hud(HudLines(
             ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
             SELECTION_COLOR, width=2, closed=True))
-        half = HANDLE_PX / 2
-        for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+        if self._is_anchor_widget(widget_id, defaults):
+            # Move-only: no corner handles (`_hit_resize_handle` refuses them
+            # too), and a small marker ON the stored anchor point so the
+            # designer can see WHICH point the X/Y fields address — for a
+            # centre/right-aligned label that is not the outline's corner.
+            ax, ay, _w, _h = self._to_screen_rect(
+                self._effective_rect(widget_id, defaults), scale, ox, oy)
+            half = HANDLE_PX / 2
             self._renderer.submit_hud(HudRect(
-                (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+                (ax - half, ay - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        else:
+            half = HANDLE_PX / 2
+            for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+                self._renderer.submit_hud(HudRect(
+                    (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
         # UH-4: a small caption above the outline naming the selected widget
         # (display name, falls back to the code id — D4, `widget_display_name`
         # is the ONE resolution rule shared with the widget list). Clamped to

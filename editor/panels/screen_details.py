@@ -25,7 +25,7 @@ _NoWheel* widgets).
 """
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -76,6 +76,12 @@ TOOLTIP_TEXT_TEMPLATE = (
 
 _RECT_MIN, _RECT_MAX = -4096, 4096
 
+# Quiet time after the last rect spinbox change before the live edit is
+# committed as one undo step. Long enough to coalesce a burst of arrow
+# clicks / a held arrow key, short enough that Ctrl+Z right after a nudge
+# undoes that nudge.
+_LIVE_COMMIT_MS = 400
+
 
 class ScreenDetailsPanel(QWidget):
     widget_selected = Signal(object)   # str widget_id | None — viewport follows
@@ -99,6 +105,12 @@ class ScreenDetailsPanel(QWidget):
         # is a no-op rather than writing a redundant override.
         self._rect_baseline = None
         self._rect_effective = None
+        # Commits an in-flight live rect edit after a quiet period — the half
+        # of the gesture `editingFinished` never sees (arrow-button clicks,
+        # a held arrow key).
+        self._live_commit_timer = QTimer(self)
+        self._live_commit_timer.setSingleShot(True)
+        self._live_commit_timer.timeout.connect(self._on_rect_edited)
         self._skin_baseline = None
         self._font_baseline = None
         self._color_baseline = None
@@ -126,9 +138,13 @@ class ScreenDetailsPanel(QWidget):
         self.h_spin = _NoWheelSpinBox(self)
         for spin, (lo, hi) in ((self.x_spin, (_RECT_MIN, _RECT_MAX)),
                                (self.y_spin, (_RECT_MIN, _RECT_MAX)),
-                               (self.w_spin, (1, _RECT_MAX)),
-                               (self.h_spin, (1, _RECT_MAX))):
+                               (self.w_spin, (0, _RECT_MAX)),
+                               (self.h_spin, (0, _RECT_MAX))):
             spin.setRange(lo, hi)
+            # LIVE placement: the widget follows the number as it changes
+            # (arrow clicks, typing, holding an arrow down) instead of only
+            # jumping once Enter/focus-out lands — see `_on_rect_changed`.
+            spin.valueChanged.connect(self._on_rect_changed)
             spin.editingFinished.connect(self._on_rect_edited)
         # ONE reset for the whole rect group — it's stored as a single
         # `rect` key, not four (brief §1d: per-KEY granularity, not per-spin).
@@ -355,6 +371,20 @@ class ScreenDetailsPanel(QWidget):
             self._on_screen_opened()
 
     def _refresh_after_undo(self):
+        # Drop (never commit) any in-flight live rect edit: the undo/redo has
+        # just redefined the doc, and pushing a command from inside the undo
+        # stack's own indexChanged would be re-entrant.
+        #
+        # The session OUTLIVES this panel (MainWindow owns both, and the undo
+        # stack keeps emitting during teardown), so by the time this runs the
+        # panel's C++ side may already be gone — the same window-teardown race
+        # `_refresh_dirty` below already swallows. Without the guard the last
+        # undo of a session raises "Internal C++ object already deleted" out
+        # of a Qt slot, which can abort the process.
+        try:
+            self._live_commit_timer.stop()
+        except RuntimeError:
+            return
         self._refresh_widget_form()
         self._refresh_background()
         self._refresh_defaults_section()
@@ -425,6 +455,7 @@ class ScreenDetailsPanel(QWidget):
         if widget_id:
             self._populate_widget_form(widget_id)
         else:
+            self._flush_live_rect()
             self._current_widget = None
             self._set_widget_form_enabled(False)
 
@@ -558,6 +589,10 @@ class ScreenDetailsPanel(QWidget):
         spec = defaults.get("widgets", {}).get(widget_id)
         if spec is None or self._session is None or self._session.doc is None:
             return
+        # Commit any live rect edit still in flight BEFORE the form re-points
+        # at another widget — `_on_rect_edited` reads `self._current_widget`,
+        # so it must run while that is still the widget being edited.
+        self._flush_live_rect()
         self._current_widget = widget_id
         self._populating = True
         override = self._session.doc.get("widgets", {}).get(widget_id, {})
@@ -621,16 +656,86 @@ class ScreenDetailsPanel(QWidget):
         if self._current_widget is not None:
             self._populate_widget_form(self._current_widget)
 
-    def _on_rect_edited(self):
+    # -- live placement (the rect spinboxes) ---------------------------------
+    # A designer nudging X/Y wants to SEE the widget move, not to type a
+    # number and press Enter to find out where it lands. So the rect
+    # spinboxes work exactly like a viewport drag: `valueChanged` mutates
+    # `session.doc` in place (the viewport's 16ms frame timer picks it up on
+    # the next repaint, no signal needed) and ONE undoable `push_move` is
+    # committed at the end of the gesture. `_rect_baseline` — the override
+    # value the command must undo back to — is captured at the START of the
+    # burst and deliberately NOT advanced by the live mutation, so a burst of
+    # 30 arrow clicks is one undo step, not 30.
+    #
+    # "End of the gesture" is whichever comes first: `editingFinished` (Enter
+    # or focus-out) or `_LIVE_COMMIT_MS` of quiet. The timer is what covers
+    # arrow-button clicking and press-and-hold, neither of which ever emits
+    # `editingFinished`.
+
+    def _flush_live_rect(self):
+        """Commit a pending live rect edit now, if there is one."""
+        if self._live_commit_timer.isActive():
+            self._on_rect_edited()
+
+    def _on_rect_changed(self, _value=None):
         if self._current_widget is None or self._populating:
             return
-        new_rect = [self.x_spin.value(), self.y_spin.value(),
-                   self.w_spin.value(), self.h_spin.value()]
+        new_rect = self._current_rect_values()
+        if new_rect == self._live_rect():
+            return
+        self._session.doc.setdefault("widgets", {}).setdefault(
+            self._current_widget, {})["rect"] = new_rect
+        self._live_commit_timer.start(_LIVE_COMMIT_MS)
+
+    def _current_rect_values(self):
+        return [self.x_spin.value(), self.y_spin.value(),
+                self.w_spin.value(), self.h_spin.value()]
+
+    def _live_rect(self):
+        """The rect currently IN the doc for the selected widget (which the
+        live mutation above may already have written), else what is on
+        screen."""
+        override = self._session.doc.get("widgets", {}).get(
+            self._current_widget, {})
+        if "rect" in override:
+            return list(override["rect"])
+        return list(self._rect_effective or [])
+
+    def _on_rect_edited(self):
+        """Commit the in-flight live edit as ONE undoable command. Also the
+        no-op guard for a field that was merely tabbed through."""
+        self._live_commit_timer.stop()
+        if self._current_widget is None or self._populating:
+            return
+        new_rect = self._current_rect_values()
         if new_rect == self._rect_effective:
-            return   # nothing actually changed from what's on screen
+            # Nothing changed from what was on screen when the form was
+            # populated — but a live mutation may still have written and
+            # reverted an override, so drop it rather than leave a redundant
+            # one behind.
+            self._revert_live_rect()
+            return
+        # The live mutation already wrote `new_rect` straight into the doc;
+        # push_move re-applies the same value, which is idempotent (the exact
+        # argument the viewport's drag-then-commit already relies on).
         self._session.push_move(self._current_widget, self._rect_baseline, new_rect)
         self._rect_baseline = new_rect
         self._rect_effective = new_rect
+
+    def _revert_live_rect(self):
+        """Undo an uncommitted live mutation that ended up back where it
+        started — restores the doc to the baseline override (removing the
+        `rect` key entirely when there was none) so nothing is left dirty."""
+        widgets = self._session.doc.get("widgets", {})
+        entry = widgets.get(self._current_widget)
+        if entry is None or "rect" not in entry:
+            return
+        if self._rect_baseline is None:
+            del entry["rect"]
+            if not entry:
+                del widgets[self._current_widget]
+        else:
+            entry["rect"] = list(self._rect_baseline)
 
     def _on_skin_changed(self, index):
         if self._current_widget is None:
