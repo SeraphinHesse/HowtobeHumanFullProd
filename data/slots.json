@@ -738,6 +738,16 @@
                   "frame_h": 23,
                   "frame_w": 70,
                   "key": "ui_button_panel"
+                },
+                {
+                  "frame_h": 55,
+                  "frame_w": 42,
+                  "key": "ui_button_panel_v2"
+                },
+                {
+                  "frame_h": 30,
+                  "frame_w": 103,
+                  "key": "ui_button_panel_v3"
                 }
               ]
             },
@@ -774,7 +784,11 @@
               "label": "Panel",
               "slots": [
                 "ui_panel",
-                "ui_panel_v2",
+                {
+                  "frame_h": 360,
+                  "frame_w": 167,
+                  "key": "ui_panel_v2"
+                },
                 "ui_panel_v3"
               ]
             },
