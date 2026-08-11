@@ -688,24 +688,42 @@ imports:
   AREAS"), **construct** = cost×count with the chosen name on the FIRST tile
   only, **in-tier upgrade** sums `_batch_upgrade_targets`. Range diamond only
   when the selection is a single tile. The base never batches.
-  **fix/batch-tier-advance: tier ADVANCE now batches too, on a SEPARATE
-  path from the plain in-tier batch above.** `_batch_advance_targets`
-  (`game.core.levelup.advance_batch_plan`) sweeps a multi-selection for
-  every building whose next tier is reachable right now — regardless of its
-  own `upgrade_gate` mode — and, when that set is non-empty, `_build_upgrade`
-  shows ONE combined `"ADVANCE ×n  <cost>"` button instead of the plain
-  UPGRADE batch. Clicking it, for each target: pays and applies any
-  remaining in-tier `upgrade()` calls needed to reach this tier's max level,
-  then one `advance_tier()`, then `lightning.sync_level_from_tier` — all
-  gated by ONE all-or-nothing total (no partial batch, same "NOT ENOUGH
-  LOVE" flash the in-tier batch uses). A building that can never reach its
-  next tier right now (already at the final tier, next tier unresearched,
-  or round-gated) is excluded from the batch/cost entirely — left for the
-  player to handle separately once it qualifies. **A single selection is
-  unaffected**: `_batch_advance_targets` returns `[]` for `len(selected_
-  tiles) <= 1`, so one selected building still upgrades one in-tier level
-  per click and advances tier separately, via the original primary-only
-  branch in `_upgrade_click`, byte-identical to before this fix.
+  **fix/batch-tier-advance, reworked into a two-stage catch-up-then-advance
+  flow: a multi-selection's UPGRADE/ADVANCE button is now ONE unified path**,
+  replacing what used to be two separate behaviors (a plain in-tier batch,
+  and a separate combined advance batch that won outright the moment any
+  selected building was advance-eligible). Priority in both
+  `_build_upgrade` and `_upgrade_click`: **Stage A** —
+  `_batch_upgrade_targets` sweeps the WHOLE selection (not gated on the
+  primary tile's own mode, unlike before) for every building below level 3
+  of its current tier; whenever that set is non-empty the button shows
+  `"UPGRADE ×n  <cost>"` and a click levels each of them up one step, one
+  combined cost. **Stage B** only runs once Stage A's sweep is empty — i.e.
+  every selected building has already reached level 3 — and is exactly the
+  old advance-batch logic: `_batch_advance_targets`
+  (`game.core.levelup.advance_batch_plan`) sweeps for every building whose
+  next tier is reachable right now, and `_build_upgrade` shows ONE combined
+  `"ADVANCE ×n  <cost>"` button. Clicking it, for each target: pays and
+  applies any remaining in-tier `upgrade()` calls needed to reach this
+  tier's max level (always 0 by the time Stage B runs, since Stage A already
+  drained them), then one `advance_tier()`, then
+  `lightning.sync_level_from_tier` — all gated by ONE all-or-nothing total
+  (no partial batch, same "NOT ENOUGH LOVE" flash the in-tier batch uses). A
+  building that can never reach its next tier right now (already at the
+  final tier, next tier unresearched, or round-gated) is excluded from
+  Stage B's batch/cost entirely and left sitting at level 3, untouched — it
+  never blocks the rest of the selection. **This closes the old grey-out
+  bug**: previously, the plain in-tier batch only fired when the *primary*
+  selected tile's own mode was `"in_tier"`, so a primary that was itself
+  blocked (tier maxed but unresearched, or at its final tier) disabled the
+  whole button even when other selected buildings still needed and could
+  take a plain upgrade; Stage A's whole-selection sweep fixes that by
+  construction. **A single selection is unaffected**: both
+  `_batch_upgrade_targets` and `_batch_advance_targets` are only consulted
+  when `len(selected_tiles) > 1`, so one selected building still
+  upgrades/advances one step at a time via the original primary-only
+  branches in `_build_upgrade`/`_upgrade_click`, byte-identical to before
+  this rework.
 - **Name dice + rename row** — "⚄" beside the ConstructPreview name box and in
   the upgrade panel's new rename row (both fill the edit buffer from
   `BuildingsGlobal.random_names`); the upgrade title is now the DISPLAY name
