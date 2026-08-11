@@ -217,24 +217,115 @@ _DISPLAY_NAMES = {
 }
 
 
+# -- UiEditorParentingPLAN P-2: the DEFAULT widget hierarchy (D1) ------------
+# One optional `parent` key per widget record, naming another id in the SAME
+# screen+view. The exporter is the right author for it: `hud.py`'s
+# `_layout_readouts()` literally computes the readouts off `love_panel`'s
+# rect, so "parented sensibly" is a mapping written once here rather than a
+# designer chore. Absent `parent` = a root widget (every screen keeps working
+# before its mapping is filled in), and a parent naming an id that is not in
+# THIS widgets map is never written at all — `building_panel`'s per-mode views
+# each show only a slice of the 85 ids.
+#
+# Parenting is an AUTHORING relationship, not a runtime one (plan D2): the
+# game's own `layout()` still recomputes every default each frame with no
+# cascade, and nothing in `game/` reads this key.
+#
+# {screen_id: {widget_id: parent_id}} — the explicit pairs.
+_PARENTS = {
+    # `_layout_readouts()` places all six off `love_panel`'s rect; the round
+    # counter is drawn above the End Turn button and moves with it.
+    "hud": {
+        "love_text": "love_panel",
+        "icon_love": "love_panel",
+        "lvl_label": "love_panel",
+        "icon_xp": "love_panel",
+        "xp_bar": "love_panel",
+        "xp_text": "love_panel",
+        "income_text": "readout_panel",
+        "lives_text": "readout_panel",
+        "icon_lives": "readout_panel",
+        "tiles_text": "readout_panel",
+        "round_label": "btn_end_turn",
+    },
+    # The construct-preview window is its OWN container, floating over the
+    # building panel — its four buttons belong to it, not to `panel`.
+    "building_panel": {
+        "preview_confirm_btn": "preview_panel",
+        "preview_cancel_btn": "preview_panel",
+        "preview_close_btn": "preview_panel",
+        "preview_dice_btn": "preview_panel",
+    },
+}
+
+# {screen_id: (parent_id, exempt_ids)} — "every OTHER widget on this screen
+# belongs to <parent_id>". These are the screens with one real container that
+# genuinely owns everything else on them: a full-screen `backdrop` behind a
+# menu, or a `panel` holding a wall of rows. Spelling `building_panel`'s ~80
+# stat cells out one pair at a time would be noise that drifts the moment a
+# stat row is added — and there is no judgement in those pairs, the panel owns
+# every one of them.
+#
+# `exempt_ids` are the OTHER roots on that screen. An id already carrying an
+# explicit `_PARENTS` pair above keeps it (explicit wins), and the container
+# itself is never its own child.
+_PARENT_CONTAINERS = {
+    "main_menu": ("backdrop", ()),
+    "pause": ("backdrop", ()),
+    "settings": ("backdrop", ()),
+    "credits": ("backdrop", ()),
+    "game_over": ("backdrop", ()),
+    "boss_cutscene": ("backdrop", ()),
+    "levelup": ("backdrop", ()),
+    # `backdrop` is the full-screen dimmer BEHIND the panel, not a sibling
+    # inside it — the panel and it are both roots.
+    "add_name": ("panel", ("backdrop",)),
+    "cheat_menu": ("panel", ()),
+    "building_panel": ("panel", ("preview_panel",)),
+}
+# `overlays` (2 pills), `game_log` (1 log) and `enemy_intro` (a panel and its
+# close button) are deliberately absent: flat, nothing to express.
+
+
 def _apply_display_names(screen_id, entry):
-    """Annotate ``widget["display_name"]`` wherever a ``widgets`` mapping
-    appears in ``entry`` — the flat top level AND inside every per-mode
-    ``views.<name>`` value (R1: walked by key name so this needs no edit when
-    a screen grows/loses a ``views`` level). Ids absent from
-    ``_DISPLAY_NAMES[screen_id]`` are left untouched — the file stays minimal,
-    fallback-to-id is the reader's job (D4). Does not touch ``_widget_entry``/
-    ``_widgets_from_ids``/the ``_build_*`` builders (R1 — none of them receive
-    the screen id)."""
+    """Annotate ``widget["display_name"]`` and ``widget["parent"]`` wherever a
+    ``widgets`` mapping appears in ``entry`` — the flat top level AND inside
+    every per-mode ``views.<name>`` value (R1: walked by key name so this
+    needs no edit when a screen grows/loses a ``views`` level). Ids absent
+    from ``_DISPLAY_NAMES[screen_id]`` are left untouched — the file stays
+    minimal, fallback-to-id is the reader's job (D4). Does not touch
+    ``_widget_entry``/``_widgets_from_ids``/the ``_build_*`` builders (R1 —
+    none of them receive the screen id)."""
     names = _DISPLAY_NAMES.get(screen_id)
-    if names is None:
-        return
     for key, value in entry.items():
         if key == "widgets":
-            _name_widgets(names, value)
+            if names is not None:
+                _name_widgets(names, value)
+            _parent_widgets(screen_id, value)
         elif key == "views":
             for view in value.values():
-                _name_widgets(names, view.get("widgets", {}))
+                if names is not None:
+                    _name_widgets(names, view.get("widgets", {}))
+                _parent_widgets(screen_id, view.get("widgets", {}))
+
+
+def _parent_widgets(screen_id, widgets):
+    """Write ``spec["parent"]`` for every widget of ONE widgets map (P-2).
+
+    A parent is recorded only when the parent id is present in the SAME map,
+    so a per-mode view that does not show the container leaves its widgets as
+    roots instead of pointing at an absent id. Every other id simply gets no
+    key (D-3 minimality — the reader's absent-means-root rule does the rest).
+    """
+    explicit = _PARENTS.get(screen_id, {})
+    container, exempt = _PARENT_CONTAINERS.get(screen_id, (None, ()))
+    for widget_id, spec in widgets.items():
+        parent = explicit.get(widget_id)
+        if parent is None and container is not None \
+                and widget_id != container and widget_id not in exempt:
+            parent = container
+        if parent is not None and parent != widget_id and parent in widgets:
+            spec["parent"] = parent
 
 
 def _name_widgets(names, widgets):

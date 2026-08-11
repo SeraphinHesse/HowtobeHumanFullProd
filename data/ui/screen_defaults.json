@@ -18,6 +18,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "ADD NAME",
+        "parent": "panel",
         "rect": [
           217,
           217,
@@ -30,6 +31,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "BACK",
+        "parent": "panel",
         "rect": [
           358,
           217,
@@ -42,6 +44,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           320,
           146,
@@ -56,6 +59,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           320,
           193,
@@ -78,6 +82,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           217,
           206,
@@ -91,6 +96,7 @@
         "font_key": "xl",
         "kind": "label",
         "label": "ADD A NAME",
+        "parent": "panel",
         "rect": [
           320,
           125,
@@ -119,6 +125,7 @@
         "font_key": "lg",
         "kind": "panel",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           225,
           158,
@@ -131,6 +138,7 @@
         "font_key": "lg",
         "kind": "panel",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           325,
           158,
@@ -144,6 +152,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           101,
@@ -157,6 +166,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "How will we react?",
+        "parent": "backdrop",
         "rect": [
           320,
           139,
@@ -177,6 +187,7 @@
             "font_key": "lg",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               8,
@@ -191,6 +202,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "BOSS CHOICES",
+            "parent": "panel",
             "rect": [
               516,
               210,
@@ -203,6 +215,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "CLOSE",
+            "parent": "panel",
             "rect": [
               290,
               237,
@@ -215,6 +228,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "X",
+            "parent": "panel",
             "rect": [
               622,
               4,
@@ -227,6 +241,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               96,
@@ -242,6 +257,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               96,
@@ -255,6 +271,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               81,
@@ -270,6 +287,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               81,
@@ -283,6 +301,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               66,
@@ -298,6 +317,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               66,
@@ -311,6 +331,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               36,
@@ -326,6 +347,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               36,
@@ -339,6 +361,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               51,
@@ -354,6 +377,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               51,
@@ -383,6 +407,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Maw Mortar  35",
+            "parent": "panel",
             "rect": [
               516,
               82,
@@ -395,6 +420,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Blocker  25",
+            "parent": "panel",
             "rect": [
               516,
               282,
@@ -407,6 +433,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Attack Booster  12",
+            "parent": "panel",
             "rect": [
               516,
               232,
@@ -419,6 +446,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Health Booster  12",
+            "parent": "panel",
             "rect": [
               516,
               257,
@@ -431,6 +459,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Speed Booster  12",
+            "parent": "panel",
             "rect": [
               516,
               207,
@@ -443,6 +472,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Stone Thrower  10",
+            "parent": "panel",
             "rect": [
               516,
               32,
@@ -455,6 +485,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Flute Player  10",
+            "parent": "panel",
             "rect": [
               516,
               57,
@@ -467,6 +498,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Meditator  12",
+            "parent": "panel",
             "rect": [
               516,
               182,
@@ -479,6 +511,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Cave Painter  20",
+            "parent": "panel",
             "rect": [
               516,
               157,
@@ -491,6 +524,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Storm Acolyte  25",
+            "parent": "panel",
             "rect": [
               516,
               132,
@@ -503,6 +537,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Sun Scorcher  40",
+            "parent": "panel",
             "rect": [
               516,
               107,
@@ -515,6 +550,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "Bush Wall Builder  12",
+            "parent": "panel",
             "rect": [
               516,
               307,
@@ -527,6 +563,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "X",
+            "parent": "panel",
             "rect": [
               622,
               4,
@@ -539,6 +576,7 @@
             "font_key": "lg",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               8,
@@ -569,6 +607,7 @@
             "font_key": "lg",
             "kind": "button",
             "label": "CANCEL",
+            "parent": "preview_panel",
             "rect": [
               243,
               231,
@@ -581,6 +620,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "X",
+            "parent": "preview_panel",
             "rect": [
               388,
               108,
@@ -593,6 +633,7 @@
             "font_key": "lg",
             "kind": "button",
             "label": "CONFIRM",
+            "parent": "preview_panel",
             "rect": [
               327,
               231,
@@ -605,6 +646,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "⚄",
+            "parent": "preview_panel",
             "rect": [
               382,
               153,
@@ -633,6 +675,7 @@
             "font_key": "lg",
             "kind": "button",
             "label": "UNLOCK  7",
+            "parent": "panel",
             "rect": [
               516,
               75,
@@ -645,6 +688,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "X",
+            "parent": "panel",
             "rect": [
               622,
               4,
@@ -668,6 +712,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               98,
@@ -682,6 +727,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               35,
@@ -696,6 +742,7 @@
             "font_key": "lg",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               8,
@@ -715,6 +762,7 @@
             "font_key": "lg",
             "kind": "button",
             "label": "UPGRADE  10",
+            "parent": "panel",
             "rect": [
               516,
               300,
@@ -727,6 +775,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "X",
+            "parent": "panel",
             "rect": [
               622,
               4,
@@ -740,6 +789,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               575,
               157,
@@ -754,6 +804,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               133,
@@ -769,6 +820,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               133,
@@ -782,6 +834,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               145,
@@ -797,6 +850,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               145,
@@ -810,6 +864,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "MOVE BUILDING",
+            "parent": "panel",
             "rect": [
               516,
               322,
@@ -822,6 +877,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               0,
@@ -846,6 +902,7 @@
             "font_key": "md",
             "kind": "button",
             "label": "⚄",
+            "parent": "panel",
             "rect": [
               618,
               20,
@@ -858,6 +915,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               156,
@@ -873,6 +931,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               156,
@@ -886,6 +945,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               100,
@@ -901,6 +961,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               100,
@@ -914,6 +975,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               198,
@@ -929,6 +991,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               198,
@@ -942,6 +1005,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               212,
@@ -957,6 +1021,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               212,
@@ -970,6 +1035,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               170,
@@ -984,6 +1050,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               184,
@@ -999,6 +1066,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               184,
@@ -1013,6 +1081,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               170,
@@ -1026,6 +1095,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               142,
@@ -1041,6 +1111,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               142,
@@ -1054,6 +1125,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               72,
@@ -1069,6 +1141,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               72,
@@ -1082,6 +1155,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               128,
@@ -1097,6 +1171,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               128,
@@ -1110,6 +1185,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               58,
@@ -1125,6 +1201,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               58,
@@ -1138,6 +1215,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               254,
@@ -1153,6 +1231,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               254,
@@ -1166,6 +1245,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               268,
@@ -1181,6 +1261,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               268,
@@ -1194,6 +1275,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               240,
@@ -1209,6 +1291,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               240,
@@ -1222,6 +1305,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               86,
@@ -1237,6 +1321,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               86,
@@ -1250,6 +1335,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               296,
@@ -1265,6 +1351,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               296,
@@ -1278,6 +1365,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               114,
@@ -1293,6 +1381,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               114,
@@ -1306,6 +1395,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               226,
@@ -1321,6 +1411,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               226,
@@ -1334,6 +1425,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               282,
@@ -1349,6 +1441,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               633,
               282,
@@ -1363,6 +1456,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               0,
               0,
@@ -1375,6 +1469,7 @@
             "font_key": "sm",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               520,
               22,
@@ -1389,6 +1484,7 @@
             "font_key": "md",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               34,
@@ -1402,6 +1498,7 @@
             "font_key": "lg",
             "kind": "label",
             "label": "",
+            "parent": "panel",
             "rect": [
               517,
               5,
@@ -1418,6 +1515,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "UNLOCK  7",
+        "parent": "panel",
         "rect": [
           516,
           75,
@@ -1430,6 +1528,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           8,
@@ -1444,6 +1543,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "BOSS CHOICES",
+        "parent": "panel",
         "rect": [
           516,
           210,
@@ -1456,6 +1556,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "CLOSE",
+        "parent": "panel",
         "rect": [
           290,
           237,
@@ -1468,6 +1569,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Maw Mortar  35",
+        "parent": "panel",
         "rect": [
           516,
           82,
@@ -1480,6 +1582,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Blocker  25",
+        "parent": "panel",
         "rect": [
           516,
           282,
@@ -1492,6 +1595,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Attack Booster  12",
+        "parent": "panel",
         "rect": [
           516,
           232,
@@ -1504,6 +1608,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Health Booster  12",
+        "parent": "panel",
         "rect": [
           516,
           257,
@@ -1516,6 +1621,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Speed Booster  12",
+        "parent": "panel",
         "rect": [
           516,
           207,
@@ -1528,6 +1634,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Stone Thrower  10",
+        "parent": "panel",
         "rect": [
           516,
           32,
@@ -1540,6 +1647,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Flute Player  10",
+        "parent": "panel",
         "rect": [
           516,
           57,
@@ -1552,6 +1660,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Meditator  12",
+        "parent": "panel",
         "rect": [
           516,
           182,
@@ -1564,6 +1673,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Cave Painter  20",
+        "parent": "panel",
         "rect": [
           516,
           157,
@@ -1576,6 +1686,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Storm Acolyte  25",
+        "parent": "panel",
         "rect": [
           516,
           132,
@@ -1588,6 +1699,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Sun Scorcher  40",
+        "parent": "panel",
         "rect": [
           516,
           107,
@@ -1600,6 +1712,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Bush Wall Builder  12",
+        "parent": "panel",
         "rect": [
           516,
           307,
@@ -1612,6 +1725,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "X",
+        "parent": "panel",
         "rect": [
           622,
           4,
@@ -1624,6 +1738,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           8,
@@ -1639,6 +1754,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           575,
           157,
@@ -1653,6 +1769,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           133,
@@ -1668,6 +1785,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           133,
@@ -1681,6 +1799,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           145,
@@ -1696,6 +1815,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           145,
@@ -1709,6 +1829,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           96,
@@ -1724,6 +1845,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           96,
@@ -1737,6 +1859,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           81,
@@ -1752,6 +1875,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           81,
@@ -1765,6 +1889,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           66,
@@ -1780,6 +1905,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           66,
@@ -1793,6 +1919,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           36,
@@ -1808,6 +1935,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           36,
@@ -1821,6 +1949,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           51,
@@ -1836,6 +1965,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           51,
@@ -1849,6 +1979,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "MOVE BUILDING",
+        "parent": "panel",
         "rect": [
           516,
           322,
@@ -1861,6 +1992,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           0,
@@ -1885,6 +2017,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "CANCEL",
+        "parent": "preview_panel",
         "rect": [
           243,
           231,
@@ -1897,6 +2030,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "X",
+        "parent": "preview_panel",
         "rect": [
           388,
           108,
@@ -1909,6 +2043,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "CONFIRM",
+        "parent": "preview_panel",
         "rect": [
           327,
           231,
@@ -1921,6 +2056,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "⚄",
+        "parent": "preview_panel",
         "rect": [
           382,
           153,
@@ -1944,6 +2080,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "⚄",
+        "parent": "panel",
         "rect": [
           618,
           20,
@@ -1956,6 +2093,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           156,
@@ -1971,6 +2109,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           156,
@@ -1984,6 +2123,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           100,
@@ -1999,6 +2139,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           100,
@@ -2012,6 +2153,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           198,
@@ -2027,6 +2169,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           198,
@@ -2040,6 +2183,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           212,
@@ -2055,6 +2199,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           212,
@@ -2068,6 +2213,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           170,
@@ -2082,6 +2228,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           184,
@@ -2097,6 +2244,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           184,
@@ -2111,6 +2259,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           170,
@@ -2124,6 +2273,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           142,
@@ -2139,6 +2289,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           142,
@@ -2152,6 +2303,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           72,
@@ -2167,6 +2319,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           72,
@@ -2180,6 +2333,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           128,
@@ -2195,6 +2349,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           128,
@@ -2208,6 +2363,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           58,
@@ -2223,6 +2379,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           58,
@@ -2236,6 +2393,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           254,
@@ -2251,6 +2409,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           254,
@@ -2264,6 +2423,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           268,
@@ -2279,6 +2439,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           268,
@@ -2292,6 +2453,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           240,
@@ -2307,6 +2469,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           240,
@@ -2320,6 +2483,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           86,
@@ -2335,6 +2499,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           86,
@@ -2348,6 +2513,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           296,
@@ -2363,6 +2529,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           296,
@@ -2376,6 +2543,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           114,
@@ -2391,6 +2559,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           114,
@@ -2404,6 +2573,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           226,
@@ -2419,6 +2589,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           226,
@@ -2432,6 +2603,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           282,
@@ -2447,6 +2619,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           633,
           282,
@@ -2460,6 +2633,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           98,
@@ -2474,6 +2648,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           35,
@@ -2488,6 +2663,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           8,
@@ -2503,6 +2679,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           0,
           0,
@@ -2515,6 +2692,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           520,
           22,
@@ -2529,6 +2707,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           34,
@@ -2542,6 +2721,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "",
+        "parent": "panel",
         "rect": [
           517,
           5,
@@ -2559,6 +2739,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "+10 Love",
+        "parent": "panel",
         "rect": [
           263,
           124,
@@ -2571,6 +2752,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "X",
+        "parent": "panel",
         "rect": [
           365,
           111,
@@ -2583,6 +2765,7 @@
         "font_key": "sm",
         "kind": "button",
         "label": "Go to Round",
+        "parent": "panel",
         "rect": [
           314,
           227,
@@ -2595,6 +2778,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Infinite Money",
+        "parent": "panel",
         "rect": [
           263,
           169,
@@ -2607,6 +2791,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Skip Round",
+        "parent": "panel",
         "rect": [
           263,
           139,
@@ -2618,6 +2803,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Debug Log",
+        "parent": "panel",
         "rect": [
           263,
           199,
@@ -2630,6 +2816,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "LEVEL UP",
+        "parent": "panel",
         "rect": [
           263,
           154,
@@ -2642,6 +2829,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "Unlock All Tech",
+        "parent": "panel",
         "rect": [
           263,
           184,
@@ -2654,6 +2842,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "Jump to round:",
+        "parent": "panel",
         "rect": [
           263,
           218,
@@ -2677,6 +2866,7 @@
         "font_key": "sm",
         "kind": "field",
         "label": "",
+        "parent": "panel",
         "rect": [
           263,
           227,
@@ -2690,6 +2880,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "CHEATS",
+        "parent": "panel",
         "rect": [
           320,
           112,
@@ -2718,6 +2909,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "BACK",
+        "parent": "backdrop",
         "rect": [
           270,
           315,
@@ -2730,6 +2922,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "CREDITS",
+        "parent": "backdrop",
         "rect": [
           320,
           35,
@@ -2803,6 +2996,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "RETURN TO MENU",
+        "parent": "backdrop",
         "rect": [
           260,
           235,
@@ -2815,6 +3009,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           179,
@@ -2828,6 +3023,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           193,
@@ -2841,6 +3037,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           165,
@@ -2854,6 +3051,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "THE COLONY WAS DESTROYED",
+        "parent": "backdrop",
         "rect": [
           320,
           120,
@@ -2942,6 +3140,7 @@
         "display_name": "Lives icon",
         "kind": "panel",
         "label": "",
+        "parent": "readout_panel",
         "rect": [
           8,
           41,
@@ -2953,6 +3152,7 @@
         "display_name": "Love icon",
         "kind": "panel",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           9,
           10,
@@ -2964,6 +3164,7 @@
         "display_name": "XP icon",
         "kind": "panel",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           107,
           21,
@@ -2976,6 +3177,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "readout_panel",
         "rect": [
           8,
           25,
@@ -2989,6 +3191,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "readout_panel",
         "rect": [
           19,
           41,
@@ -3013,6 +3216,7 @@
         "font_key": "xl",
         "kind": "label",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           20,
           9,
@@ -3026,6 +3230,7 @@
         "font_key": "hud_lvl",
         "kind": "label",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           107,
           6,
@@ -3063,6 +3268,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "btn_end_turn",
         "rect": [
           592,
           307,
@@ -3076,6 +3282,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "readout_panel",
         "rect": [
           8,
           57,
@@ -3088,6 +3295,7 @@
         "display_name": "XP bar",
         "kind": "bar",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           118,
           23,
@@ -3100,6 +3308,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "love_panel",
         "rect": [
           118,
           28,
@@ -3130,6 +3339,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           65,
@@ -3143,6 +3353,7 @@
         "display_name": "Level-up option box 1",
         "kind": "panel",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           121,
           103,
@@ -3154,6 +3365,7 @@
         "display_name": "Level-up option box 2",
         "kind": "panel",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           255,
           103,
@@ -3165,6 +3377,7 @@
         "display_name": "Level-up option box 3",
         "kind": "panel",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           389,
           103,
@@ -3193,6 +3406,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "ADD A NAME",
+        "parent": "backdrop",
         "rect": [
           240,
           210,
@@ -3205,6 +3419,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "CREDITS",
+        "parent": "backdrop",
         "rect": [
           240,
           300,
@@ -3216,6 +3431,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "HIGHSCORES",
+        "parent": "backdrop",
         "rect": [
           240,
           240,
@@ -3228,6 +3444,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "START NEW GAME",
+        "parent": "backdrop",
         "rect": [
           240,
           150,
@@ -3239,6 +3456,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "PLAY DEBUG",
+        "parent": "backdrop",
         "rect": [
           240,
           180,
@@ -3250,6 +3468,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "SET",
+        "parent": "backdrop",
         "rect": [
           405,
           180,
@@ -3262,6 +3481,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "QUIT",
+        "parent": "backdrop",
         "rect": [
           240,
           330,
@@ -3274,6 +3494,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "SETTINGS",
+        "parent": "backdrop",
         "rect": [
           240,
           270,
@@ -3286,6 +3507,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "defend the munckins",
+        "parent": "backdrop",
         "rect": [
           320,
           125,
@@ -3298,6 +3520,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "HOW TO BE HUMAN",
+        "parent": "backdrop",
         "rect": [
           320,
           105,
@@ -3355,6 +3578,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "QUIT GAME",
+        "parent": "backdrop",
         "rect": [
           260,
           229,
@@ -3367,6 +3591,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "QUIT TO MENU",
+        "parent": "backdrop",
         "rect": [
           260,
           200,
@@ -3379,6 +3604,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "RESUME",
+        "parent": "backdrop",
         "rect": [
           260,
           142,
@@ -3391,6 +3617,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "SETTINGS",
+        "parent": "backdrop",
         "rect": [
           260,
           171,
@@ -3403,6 +3630,7 @@
         "font_key": "xl",
         "kind": "label",
         "label": "PAUSED",
+        "parent": "backdrop",
         "rect": [
           320,
           116,
@@ -3420,6 +3648,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           245,
           237,
@@ -3434,6 +3663,7 @@
         "font_key": "sm",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           259,
@@ -3459,6 +3689,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "BACK",
+        "parent": "backdrop",
         "rect": [
           270,
           279,
@@ -3471,6 +3702,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "<",
+        "parent": "backdrop",
         "rect": [
           245,
           122,
@@ -3483,6 +3715,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": ">",
+        "parent": "backdrop",
         "rect": [
           375,
           122,
@@ -3494,6 +3727,7 @@
         "font_key": "md",
         "kind": "button",
         "label": "SET DEFAULT",
+        "parent": "backdrop",
         "rect": [
           405,
           122,
@@ -3506,6 +3740,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "ON",
+        "parent": "backdrop",
         "rect": [
           350,
           184,
@@ -3518,6 +3753,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "ON",
+        "parent": "backdrop",
         "rect": [
           350,
           212,
@@ -3530,6 +3766,7 @@
         "font_key": "lg",
         "kind": "button",
         "label": "ON",
+        "parent": "backdrop",
         "rect": [
           350,
           156,
@@ -3543,6 +3780,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           108,
@@ -3557,6 +3795,7 @@
         "font_key": "lg",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           320,
           125,
@@ -3568,6 +3807,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           245,
           188,
@@ -3581,6 +3821,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           245,
           216,
@@ -3594,6 +3835,7 @@
         "font_key": "md",
         "kind": "label",
         "label": "",
+        "parent": "backdrop",
         "rect": [
           245,
           160,
@@ -3608,6 +3850,7 @@
         "font_key": "xxl",
         "kind": "label",
         "label": "SETTINGS",
+        "parent": "backdrop",
         "rect": [
           320,
           90,
