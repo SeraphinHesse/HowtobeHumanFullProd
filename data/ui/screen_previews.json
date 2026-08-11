@@ -837,24 +837,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              35
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "stone_thrower_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -902,36 +884,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              35
             ],
-            "rect": [
-              557,
-              56,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "stone_thrower_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              56,
+              56
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -997,24 +983,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              79
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "flute_player_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -1062,36 +1030,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              79
             ],
-            "rect": [
-              557,
-              100,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "flute_player_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              100,
+              100
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -1157,24 +1129,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              123
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "maw_mortar_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -1222,36 +1176,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              123
             ],
-            "rect": [
-              557,
-              144,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "maw_mortar_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              144,
+              144
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -1317,24 +1275,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              167
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "sun_scorcher_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -1382,36 +1322,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              167
             ],
-            "rect": [
-              557,
-              188,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "sun_scorcher_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              188,
+              188
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -1477,24 +1421,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              211
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "storm_priest_i_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -1542,36 +1468,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              211
             ],
-            "rect": [
-              557,
-              232,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "storm_priest_i_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              232,
+              232
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -1637,24 +1567,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              255
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "painter_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -1702,36 +1614,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              255
             ],
-            "rect": [
-              557,
-              276,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "painter_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              276,
+              276
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -1942,24 +1858,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              35
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "stone_thrower_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2007,36 +1905,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              35
             ],
-            "rect": [
-              557,
-              56,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "stone_thrower_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              56,
+              56
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -2102,24 +2004,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              79
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "flute_player_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2167,36 +2051,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              79
             ],
-            "rect": [
-              557,
-              100,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "flute_player_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              100,
+              100
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -2262,24 +2150,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              123
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "maw_mortar_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2327,36 +2197,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              123
             ],
-            "rect": [
-              557,
-              144,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "maw_mortar_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              144,
+              144
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -2422,24 +2296,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              167
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "sun_scorcher_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2487,36 +2343,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              167
             ],
-            "rect": [
-              557,
-              188,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "sun_scorcher_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              188,
+              188
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -2582,24 +2442,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              211
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "storm_priest_i_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2647,36 +2489,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              211
             ],
-            "rect": [
-              557,
-              232,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "storm_priest_i_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              232,
+              232
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",
@@ -2742,24 +2588,6 @@
             "type": "text"
           },
           {
-            "anim_time_ms": 0,
-            "animation": "idle",
-            "crop": null,
-            "dest": [
-              519,
-              255
-            ],
-            "flip": false,
-            "hidden_frames": [],
-            "size": [
-              34,
-              34
-            ],
-            "slot_key": "painter_t1_lvl1",
-            "tint": null,
-            "type": "sprite"
-          },
-          {
             "border_radius": 3,
             "color": [
               75,
@@ -2807,36 +2635,40 @@
             "type": "text"
           },
           {
-            "border_radius": 3,
-            "color": [
-              75,
-              60,
-              115
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
+              519,
+              255
             ],
-            "rect": [
-              557,
-              276,
-              74,
-              14
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
+              34,
+              34
             ],
-            "type": "rect",
-            "width": 0
+            "slot_key": "painter_t1_lvl1",
+            "tint": null,
+            "type": "sprite"
           },
           {
-            "border_radius": 3,
-            "color": [
-              80,
-              65,
-              120
-            ],
-            "rect": [
+            "anim_time_ms": 0,
+            "animation": "idle",
+            "crop": null,
+            "dest": [
               557,
-              276,
+              276
+            ],
+            "flip": false,
+            "hidden_frames": [],
+            "size": [
               74,
               14
             ],
-            "type": "rect",
-            "width": 1
+            "slot_key": "ui_button_pill",
+            "tint": null,
+            "type": "sprite"
           },
           {
             "align": "center",

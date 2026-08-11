@@ -223,6 +223,102 @@ class TestCardListScrolling(unittest.TestCase):
         self.assertEqual(panel.scroll_offset, 0)
 
 
+class TestCardColumnFollowsThePanel(unittest.TestCase):
+    """A designer who resizes the `panel` container in the editor must take
+    the card column with them.
+
+    Cards are dynamic-count content laid out in CODE, so unlike a static
+    widget they cannot be re-authored id-by-id — without this the column stays
+    stranded in the old panel's footprint. Hand-pinning the 12 `card_<btype>`
+    rects is NOT the fix, and is what produced the mash this guards against:
+    it moves each card BODY while that card's portrait/price/name children
+    stay on the code layout, tearing every card apart.
+    """
+
+    def _panel_with(self, rect):
+        from game.ui.skinning import ScreenSkinning
+        balances = screen_mocks.load_balances(DATA)
+        session = screen_mocks.build_session(DATA, balances)
+        sk = ScreenSkinning.from_overrides(
+            {"building_panel": {"widgets": {"panel": {"rect": list(rect)}}}})
+        return screen_mocks.build_bp_view("construct", 640, 360, balances,
+                                          session, skinning=sk).panel
+
+    def test_cards_sit_inside_a_widened_panel(self):
+        px, pw = 472, 167          # the shipped designer panel
+        panel = self._panel_with((px, 0, pw, 360))
+        self.assertTrue(panel.cards)
+        for btype, btn in panel.cards:
+            x, _y, w, _h = btn.rect
+            self.assertGreaterEqual(x, px, btype)
+            self.assertLessEqual(x + w, px + pw, btype)
+
+    def test_children_stay_inside_the_body_after_the_panel_moves(self):
+        panel = self._panel_with((472, 0, 167, 360))
+        for btype, btn in panel.cards:
+            cx, cy, cw, ch = btn.rect
+            parts = panel._card_parts[btype]
+            for child in (parts.portrait, parts.price, parts.icon):
+                x, y, w, h = child.rect
+                self.assertTrue(cx <= x and x + w <= cx + cw
+                                and cy <= y and y + h <= cy + ch,
+                                f"{btype}: {child.rect} escapes {btn.rect}")
+
+    def test_no_override_keeps_the_code_layout(self):
+        """`screen_defaults.json` is recorded with a disk-free skinning, so an
+        absent override must reproduce the ctor geometry exactly."""
+        plain = _panel()
+        self.assertEqual(plain._card_column(),
+                         (plain.panel_x + 6, plain.panel_w - 12))
+
+
+class TestCardDrawOrder(unittest.TestCase):
+    def test_the_body_is_submitted_before_its_portrait(self):
+        """`Renderer.submit_hud` appends and nothing sorts, so submission
+        order IS z-order. The card body is the tree's background and the
+        34x34 portrait sits wholly inside it — submit the portrait first and
+        the body hides it outright as soon as the body carries real art.
+        Invisible while `defaults.button_skin` was unset (the body drew as a
+        flat rect); a screen-breaker the day a designer skinned the card."""
+        panel = _panel()
+        _set_defaults(panel, button_skin="ui_button_card")
+
+        class Rec:
+            def __init__(self):
+                self.sizes = []
+
+            def submit_hud(self, item):
+                size = getattr(item, "size", None)
+                if size:
+                    self.sizes.append(tuple(size))
+
+            def __getattr__(self, name):
+                return lambda *a, **k: None
+
+        rec = Rec()
+        panel.submit(rec, panel._session)
+        btype, btn = panel.cards[0]
+        body = (btn.rect[2], btn.rect[3])
+        portrait = panel._card_parts[btype].portrait.rect[2:]
+        self.assertIn(body, rec.sizes)
+        self.assertIn(tuple(portrait), rec.sizes)
+        self.assertLess(rec.sizes.index(body), rec.sizes.index(tuple(portrait)),
+                        "the card body must be drawn UNDER its portrait")
+
+
+class TestPriceSkin(unittest.TestCase):
+    def test_the_price_pill_does_not_inherit_the_card_body_skin(self):
+        """The body is a full-card 9-slice; stretching that same art through a
+        74x14 pill reads as a squashed card, so the pill names its own."""
+        from game.ui.building_ui import _CARD_PRICE_SKIN
+        panel = _panel()
+        _set_defaults(panel, button_skin="ui_button_card")
+        for btype, btn in panel.cards:
+            self.assertEqual(btn.skin, "ui_button_card", btype)
+            self.assertEqual(panel._card_parts[btype].price.skin,
+                             _CARD_PRICE_SKIN, btype)
+
+
 class TestPortraitSlotRegistry(unittest.TestCase):
     def test_every_building_type_has_a_portrait_slot(self):
         """The `use_card_portrait_slot` switch is only meaningful if the art
