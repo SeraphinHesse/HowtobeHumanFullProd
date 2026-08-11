@@ -881,7 +881,11 @@
             "vfx_muzzle",
             "vfx_death",
             "vfx_slash",
-            "vfx_crater",
+            {
+              "frame_h": 96,
+              "frame_w": 64,
+              "key": "vfx_crater"
+            },
             "vfx_projectile",
             "vfx_shell",
             "vfx_dirt_pile",
