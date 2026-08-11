@@ -66,13 +66,26 @@ BP_VIEW_IDS = {
                   "info_base_income_label", "info_base_income_value"),
 }
 
-#: UT-3: every per-stat id pair belongs to the `upgrade` view. Kept as a
-#: PREFIX rule rather than a listing so adding a stat key needs no edit here.
+#: Id families a view owns by PREFIX rather than by listing, so growing the
+#: family needs no edit here: `{view: (prefix, ...)}`.
+#:   * `upgrade`/`stat_`  — UT-3's per-stat label/value pairs; a new stat key
+#:     is covered automatically.
+#:   * `construct`/`card_` — one construct card per building type; a new
+#:     `/add-building` type is covered automatically.
+BP_VIEW_ID_PREFIXES = {
+    "upgrade": ("stat_",),
+    "construct": ("card_",),
+}
+
+#: Back-compat aliases for the pre-generalization single-family rule.
 BP_STAT_ID_VIEW = "upgrade"
 BP_STAT_ID_PREFIX = "stat_"
 
-#: Mock level-up options (a fallback card + a tier card) — both option shapes
-#: the modal knows how to draw.
+#: Mock level-up options — both option shapes the modal knows how to draw,
+#: and THREE of them because that is the roll's maximum and each slot is now
+#: an individually overridable widget (`option_box_0..2`). Recording only two
+#: would leave the third slot with no entry in `screen_defaults.json`, i.e.
+#: un-selectable in the editor and un-overridable on disk.
 LEVELUP_OPTIONS = [
     {"kind": "fallback", "title": "Card A", "cost": 5,
      "explanation": "does a thing", "prev_name": None, "sprite_key": None,
@@ -80,6 +93,9 @@ LEVELUP_OPTIONS = [
     {"kind": "tier", "title": "Card B", "cost": 0,
      "explanation": "tiered thing", "prev_name": "Old Name",
      "sprite_key": None, "cost_label": None, "tier_no": 2, "tier_max": 3},
+    {"kind": "fallback", "title": "Card C", "cost": 12,
+     "explanation": "a third thing", "prev_name": None, "sprite_key": None,
+     "cost_label": "Cost", "display_cost": 12},
 ]
 
 
@@ -153,14 +169,14 @@ class BPView:
 
         The `preview` view records the modal's own `preview_*` namespace; the
         four panel views record the subset of the panel's mode-independent
-        ids that their mode actually draws.
+        ids that their mode actually draws, plus any prefix-ruled id family
+        this view owns (`BP_VIEW_ID_PREFIXES`).
         """
         if self.preview is not None:
             return dict(self.preview.ids)
         names = list(BP_VIEW_IDS[self.view])
-        if self.view == BP_STAT_ID_VIEW:
-            names += sorted(n for n in self.panel.ids
-                            if n.startswith(BP_STAT_ID_PREFIX))
+        for prefix in BP_VIEW_ID_PREFIXES.get(self.view, ()):
+            names += sorted(n for n in self.panel.ids if n.startswith(prefix))
         return {name: self.panel.ids[name] for name in names}
 
     def submit(self, renderer, session):
@@ -171,6 +187,30 @@ class BPView:
         game does — not the bare modal the ids describe.
         """
         self.panel.submit(renderer, session)
+
+
+def _unlock_every_type(session):
+    """Mark every RESEARCH building type unlocked on the mock session.
+
+    `_build_construct` only emits a card for a type `buildable()` accepts, so
+    a fresh session would record only the handful unlocked at round 1 and the
+    rest would have no `screen_defaults.json` entry — i.e. be invisible to the
+    editor and un-overridable on disk. Sweeps the RESEARCH table rather than
+    naming types, so a new `/add-building` type is covered with no edit here
+    (the same argument `Session.cheat_unlock_all` makes); it writes the state
+    directly rather than calling that cheat, which is gated on GameState and
+    would emit a debug event.
+    """
+    from game.buildings.research import RESEARCH
+
+    state = session.state
+    for btype in RESEARCH:
+        state.unlocked_buildings[btype] = True
+        # Tier 1 only — `buildable()` needs nothing more, and researching
+        # every tier would change the cards' PRICES (they quote the highest
+        # unlocked tier), which is recorded geometry's neighbour in this file.
+        state.tiers_unlocked[btype] = max(
+            1, state.tiers_unlocked.get(btype, 0))
 
 
 def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
@@ -198,10 +238,12 @@ def build_bp_view(view, view_w, view_h, balances, session, skinning=None):
         tile = _first_tile_in_state(tm, TileState.BUILDABLE)
         panel.mode, panel.tile = "construct", tile
         panel.selected_tiles = [tile]
+        _unlock_every_type(session)
         panel._build_construct()
         note = (f"{COMMON_NOTE}; the lowest-(row,col) BUILDABLE tile of the "
-                f"{PINNED_MAP!r} map — construct cards are dynamic-count and "
-                "deliberately un-id'd, they inherit defaults.button_skin")
+                f"{PINNED_MAP!r} map, with EVERY building type unlocked so "
+                "each construct card (`card_<building_type>`) is recorded — "
+                "the count is dynamic in game, the ids are not")
         if view == "preview":
             tier_idx = 0
             cost = build_cost(MOCK_BUILDING_TYPE, buildings, tier_idx)

@@ -765,7 +765,8 @@
             {
               "label": "Panel",
               "slots": [
-                "ui_panel"
+                "ui_panel",
+                "ui_panel_v2"
               ]
             },
             {
@@ -885,6 +886,7 @@
             "vfx_projectile",
             "vfx_shell",
             "vfx_dirt_pile",
+            "vfx_buff_arrow",
             "vfx_beam"
           ]
         }

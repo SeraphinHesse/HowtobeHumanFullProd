@@ -248,8 +248,17 @@ class Hud:
         self._tiles_text = label_holder(font_key="md",
                                         text_color=widgets.C_UI_TEXT_DIM,
                                         text_id="hud.tiles")
+        # align="center" lives on the HOLDER, not on the submit_label call
+        # below: it is a constant property of this label (it is centred on the
+        # End Turn button), and the exporter reads alignment off the holder to
+        # tell the editor which way the text spreads from the stored anchor.
+        # Left as a call-site override it recorded as "left" and the editor
+        # put the Round counter's hit box half a label to the right of the
+        # glyphs. Every other centred label in game/ui already declares it
+        # here; this was the one that did not.
         self._round_label = label_holder(font_key="md",
                                          text_color=widgets.C_UI_TEXT_DIM,
+                                         align="center",
                                          text_id="hud.round")
         # -- 10L wave-3 phase 4: three baked icon slots beside their readouts.
         # Panel-kind holders (rect/skin/visible) routed through the skinned
@@ -535,7 +544,7 @@ class Hud:
                 round_text = (T("hud.round_tutorial")
                               if st.round_num == 0 else None)
                 submit_label(renderer, self._round_label, text=round_text,
-                             align="center", n=st.round_num)
+                             n=st.round_num)
             # a faint separator under the round text keeps the corner legible
             # (panel-kind — submitted before the button it sits near so it
             # never draws on top of it; game/ui/CLAUDE.md "panel -> button ->

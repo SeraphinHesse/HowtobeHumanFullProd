@@ -16,6 +16,7 @@ the shipped starter map + a plain recording stand-in renderer — the
 ``test_hud_panel.py`` / ``test_10j_qol.py`` fixture style.
 """
 import random
+import shutil
 import tempfile
 import unittest
 from pathlib import Path
@@ -143,6 +144,19 @@ def _screen_captures():
 #: change was contained. Note the new SET DEFAULT button does NOT appear here:
 #: the capture builds the screen bare, and ``saved_default`` is then ``None``,
 #: which by design draws no line.
+#: Regenerated an EIGHTH time (editable buy options): the level-up option
+#: boxes became individually overridable widgets (`option_box_0..2`), and
+#: `tools/screen_mocks.LEVELUP_OPTIONS` grew from two mock cards to THREE so
+#: every option SLOT gets recorded — the roll's maximum. So `levelup` is the
+#: only entry that moved, and it moved because its INPUT changed, not its
+#: code: the two existing cards re-centre (a 3-wide row is centred
+#: differently than a 2-wide one) and a third card's five primitives are
+#: appended. **Containment was measured, not assumed**: capturing with
+#: `LEVELUP_OPTIONS` truncated back to its original two reproduces THIS
+#: file's previous baseline byte-for-byte on every screen, `levelup` and
+#: `hud` included — i.e. the option-box holders, the id'd construct cards,
+#: the `button_kwargs` forwarding and `hud.round_label`'s align moving from
+#: its call site onto its holder are all rendering no-ops.
 #: Regenerated a SIXTH time (UR-2: the logical surface flipped 1280x720 ->
 #: 640x360, so EVERY screen's default geometry moved on purpose). This is the
 #: one regeneration where "only one screen changed" is NOT the containment
@@ -302,18 +316,23 @@ _BASELINE = {
     "levelup": [
         HudRect(rect=(0, 0, 640, 360), color=(0, 0, 0, 185), border_radius=0, width=0),
         HudText(text='CHOOSE YOUR REWARD', pos=(320, 65), font_key='xxl', color=(255, 200, 50), align='center'),
-        HudRect(rect=(188, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(188, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Card A', pos=(253, 108), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='Cost  5', pos=(253, 162), font_key='sm', color=(255, 200, 50), align='center'),
-        HudText(text='does a thing', pos=(253, 175), font_key='sm', color=(150, 140, 120), align='center'),
-        HudRect(rect=(322, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
-        HudRect(rect=(322, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
-        HudText(text='Old Name', pos=(387, 108), font_key='sm', color=(150, 140, 120), align='center'),
-        HudLines(points=((385, 124), (387, 121), (389, 124)), color=(80, 210, 80), width=2, closed=False),
-        HudText(text='Card B', pos=(387, 126), font_key='md', color=(235, 225, 195), align='center'),
-        HudText(text='tiered thing', pos=(387, 193), font_key='sm', color=(150, 140, 120), align='center'),
-        HudText(text='Tier 2 of 3', pos=(387, 243), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(121, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(121, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Card A', pos=(186, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Cost  5', pos=(186, 162), font_key='sm', color=(255, 200, 50), align='center'),
+        HudText(text='does a thing', pos=(186, 175), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(255, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(255, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Old Name', pos=(320, 108), font_key='sm', color=(150, 140, 120), align='center'),
+        HudLines(points=((318, 124), (320, 121), (322, 124)), color=(80, 210, 80), width=2, closed=False),
+        HudText(text='Card B', pos=(320, 126), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='tiered thing', pos=(320, 193), font_key='sm', color=(150, 140, 120), align='center'),
+        HudText(text='Tier 2 of 3', pos=(320, 243), font_key='sm', color=(150, 140, 120), align='center'),
+        HudRect(rect=(389, 103, 130, 154), color=(42, 34, 68), border_radius=0, width=0),
+        HudRect(rect=(389, 103, 130, 154), color=(80, 65, 120), border_radius=0, width=1),
+        HudText(text='Card C', pos=(454, 108), font_key='md', color=(235, 225, 195), align='center'),
+        HudText(text='Cost  12', pos=(454, 162), font_key='sm', color=(255, 200, 50), align='center'),
+        HudText(text='a third thing', pos=(454, 175), font_key='sm', color=(150, 140, 120), align='center'),
     ],
     "hud": [
         HudRect(rect=(6, 6, 95, 17), color=(40, 32, 58), border_radius=4, width=0),
@@ -424,25 +443,49 @@ class TestGoldenParity(unittest.TestCase):
 
 
 class ScreenSkinningCase(unittest.TestCase):
-    """A ``ScreenSkinning`` over a tempdir copy of the pinned fixture (which
-    ships NO ``data/ui/screens/`` at all — the "missing directory" graceful
-    path) — never the live repo (T-3/data guard)."""
+    """A ``ScreenSkinning`` over a tempdir copy of the pinned fixture — never
+    the live repo (T-3/data guard).
+
+    The fixture USED to ship no ``data/ui/screens/`` and no
+    ``screen_defaults.json``, so the tests below that exercise the ABSENCE
+    (E-37 degrade) paths simply relied on that. It ships both now — the
+    snapshot is re-mirrored from live ``data/`` by ``fixture_data.refresh()``
+    — and those tests started failing for reasons unconnected to the code
+    they cover. That is exactly the "never assert against fixture state you
+    did not pin" rule (``editor/CLAUDE.md``, the 18 permanently-red tests):
+    a test that needs a file absent must REMOVE it, not assume it. Hence the
+    two helpers below."""
 
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self._tmp.cleanup)
         self.data_dir = fixture_copy(self._tmp.name)
 
+    def drop_screen_defaults(self):
+        """Guarantee ``data/ui/screen_defaults.json`` is absent."""
+        path = self.data_dir / "ui" / "screen_defaults.json"
+        if path.exists():
+            path.unlink()
+
+    def drop_screen_overrides(self):
+        """Guarantee ``data/ui/screens/`` is absent."""
+        screens = self.data_dir / "ui" / "screens"
+        if screens.exists():
+            shutil.rmtree(screens)
+
 
 class TestScreenSkinningLoad(ScreenSkinningCase):
     def test_missing_screens_directory_is_graceful(self):
-        """No data/ui/screens/ at all (today's fixture) -> empty overrides,
-        never a crash (§1.3 E-37 degrade)."""
+        """No data/ui/screens/ at all -> empty overrides, never a crash
+        (§1.3 E-37 degrade). The absence is PINNED, not assumed."""
+        self.drop_screen_overrides()
         skinning = ScreenSkinning(self.data_dir)
         self.assertEqual(skinning._overrides, {})
 
     def test_absent_defaults_file_is_none(self):
-        """data/ui/screen_defaults.json doesn't exist until B3 lands (§1.4)."""
+        """No data/ui/screen_defaults.json -> `_defaults` is None (§1.4).
+        The absence is PINNED, not assumed."""
+        self.drop_screen_defaults()
         skinning = ScreenSkinning(self.data_dir)
         self.assertIsNone(skinning._defaults)
 
@@ -552,6 +595,9 @@ class TestApplyMutatesWidgets(ScreenSkinningCase):
         self.assertEqual(widget.skin, "ui_button")
 
     def test_apply_is_a_noop_with_no_override(self):
+        # PIN the "no override file" precondition — the fixture ships real
+        # screen JSONs now, and main_menu's carries a skin/defaults block.
+        self.drop_screen_overrides()
         skinning = ScreenSkinning(self.data_dir)
         widget = SimpleNamespace(rect=(1, 2, 3, 4), label="stock")
         skinning.apply("main_menu", {"btn_new_game": ("button", widget)})
@@ -571,8 +617,9 @@ class TestIdValidation(ScreenSkinningCase):
         self.assertIn("unknown_id", str(cm.exception))
 
     def test_absent_defaults_file_silent(self):
-        """No screen_defaults.json (B3 not landed) -> unknown ids tolerated,
-        never raise (§1.4)."""
+        """No screen_defaults.json -> unknown ids tolerated, never raise
+        (§1.4). The absence is PINNED, not assumed."""
+        self.drop_screen_defaults()
         skinning = ScreenSkinning(self.data_dir)
         self.assertIsNone(skinning._defaults)
         skinning._overrides["test_screen"] = {
