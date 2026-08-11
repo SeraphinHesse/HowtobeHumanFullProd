@@ -84,6 +84,13 @@
             "label": {
               "type": "string"
             },
+            "parent": {
+              "description": "Designer re-parenting (authoring metadata the game never reads): the widget id this widget hangs off in the editor's outliner, overriding screen_defaults.json's own `parent`. Explicit null re-roots a widget whose default parent the designer rejected — distinct from the key being ABSENT, which keeps the default. A cyclic or dangling chain resolves to root in the editor rather than failing.",
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "rect": {
               "items": {
                 "type": "integer"

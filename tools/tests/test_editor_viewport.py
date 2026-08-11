@@ -1481,7 +1481,7 @@ class TestPurity(unittest.TestCase):
             "editor.run_controls, editor.spawnclaude, editor.theme, "
             "editor.keybinds, editor.settings_dialog, "
             "editor.agent_forms, editor.agent_form_dialog, editor.plans, "
-            "editor.ui_screen_session, "
+            "editor.ui_screen_session, editor.widget_tree, "
             "editor.anchor_ops, "
             "editor.sprite_fit, "
             "editor.vfx_params, "
