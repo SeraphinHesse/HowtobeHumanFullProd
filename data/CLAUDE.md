@@ -119,7 +119,16 @@ validating writer; don't hand-edit the JSON.
   a beam or a lightning bolt, not a one-shot sprite. The same follow-up fixed
   a Fix-1 anchor/offset composition bug (`engine/assets/store.py`'s new
   `offset()` accessor, `game/anchors.py`, `editor/panels/viewport.py`) that
-  touches no schema. Since **Phase 9A** the other
+  touches no schema. **The Drummer buff-range telegraph feature** added a
+  sibling `procedural.drummer_aura` block (`color`/`alpha_min`/`alpha_max`/
+  `pulse_period_s`/`segments`) — the pulsing ring `game/ui/effects.py`'s
+  `submit_drummer_auras` draws around a live Drummer enemy, sized to that
+  enemy's own (pre-existing) `EnemyTypes.Drummer.support_range` value, not
+  this block. It also added one new `vfx` category slot,
+  `vfx_buff_arrow` — the little golden arrow shown above any enemy with an
+  active buff; unlike the ring, the arrow IS swappable art (E-37: with no
+  art imported it falls back to a small procedural golden triangle, drawn
+  by `submit_buff_arrows`). Since **Phase 9A** the other
   five hold the prototype's live tuning verbatim, restructured into the
   REPLAN nested feature tree (see planning/MIGRATION_PLAN.md): PascalCase
   group objects

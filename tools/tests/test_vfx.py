@@ -49,9 +49,10 @@ def ramp_stops(stop_0, stop_1, stop_2):
 from editor import domains
 from engine import data_io
 from engine.vfx import (
-    AnnounceParams, BeamParams, BurstParams, CraterParams, FloaterParams,
-    GoldParams, LightningParams, MuzzleParams, ProjectileParams,
-    ShardBurstParams, SlashParams, SplatterParams, VfxParams, VfxSystem,
+    AnnounceParams, BeamParams, BurstParams, CraterParams, DrummerAuraParams,
+    FloaterParams, GoldParams, LightningParams, MuzzleParams,
+    ProjectileParams, ShardBurstParams, SlashParams, SplatterParams,
+    VfxParams, VfxSystem,
 )
 
 VFX_DATA_PATH = FIXTURE_DATA / "balancing" / "vfx.json"
@@ -134,10 +135,16 @@ PROJECTILE = ProjectileParams(
     stone_color=(185, 180, 170), shell_color=(70, 60, 55),
     stone_size=3, shell_size=5, lift_frac=0.6)
 
+# -- Drummer buff-range telegraph "today" column -----------------------------
+DRUMMER_AURA = DrummerAuraParams(
+    color=(90, 200, 220), alpha_min=30, alpha_max=150,
+    pulse_period_s=0.5, segments=16)
+
 VFX_PARAMS = VfxParams(death_burst=DEATH_BURST, muzzle=MUZZLE, slash=SLASH,
                        gold=GOLD, splatter=SPLATTER, beam=BEAM, crater=CRATER,
                        lightning=LIGHTNING, announce=ANNOUNCE,
-                       floaters=FLOATERS, projectile=PROJECTILE)
+                       floaters=FLOATERS, projectile=PROJECTILE,
+                       drummer_aura=DRUMMER_AURA)
 
 
 def make_system(seed):
@@ -469,6 +476,16 @@ class TestDefaultRoundTrip(unittest.TestCase):
         self.assertEqual(p["stone_size"], 3)
         self.assertEqual(p["shell_size"], 5)
         self.assertEqual(p["lift_frac"], 0.6)
+
+    # -- Drummer buff-range telegraph -----------------------------------
+
+    def test_drummer_aura(self):
+        da = self.data["procedural"]["drummer_aura"]
+        self.assertEqual(da["color"], [90, 200, 220])
+        self.assertEqual(da["alpha_min"], 30)
+        self.assertEqual(da["alpha_max"], 150)
+        self.assertEqual(da["pulse_period_s"], 0.5)
+        self.assertEqual(da["segments"], 16)
 
 
 # ===========================================================================

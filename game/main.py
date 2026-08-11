@@ -1520,6 +1520,9 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_gold_highlights(renderer)
             # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
+            # Drummer buff-range telegraph ring — always visible while a
+            # Drummer is alive, same world-overlay slot as the mortar crater.
+            gp["floaters"].submit_drummer_auras(renderer, cs, world.scene)
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
             # feature-storm-acolyte-multi-build: per-acolyte charge bars
             gp["floaters"].submit_lightning_charge_bars(
@@ -1589,6 +1592,8 @@ def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
             gp["floaters"].submit_enemy_hp_bars(renderer, cs, world.scene)
+            # Golden arrow above any enemy carrying an active buff.
+            gp["floaters"].submit_buff_arrows(renderer, cs, world.scene)
             gp["floaters"].submit(renderer, cs)
             gp["floaters"].submit_projectiles(renderer, cs, world.scene)  # 10J
             gp["floaters"].submit_fx(renderer, cs)  # 10J sparks/shards/slashes

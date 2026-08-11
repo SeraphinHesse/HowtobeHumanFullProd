@@ -248,6 +248,40 @@ multi-tile footprint) — see `game/anchors.py`'s module docstring and
 formula (`engine.render.sprite_anchor_screen`) every anchor consumer now
 resolves through.
 
+## Drummer buff-range telegraph + buffed-enemy arrow (feature, very-simple placeholders)
+Two new `FloaterManager` methods (`game/ui/effects.py`), both wired in
+`game/main.py` beside their closest existing analog:
+- **`submit_drummer_auras`** (world-overlay pass, beside `submit_craters`) — a
+  pulsing ring around every ALIVE Drummer enemy, sized to its own live
+  `DrummerAura.support_range` (`game/enemies/components.py`) — always
+  visible while the Drummer lives, no click/toggle. Same `_polygon_ring`
+  world-unit N-gon technique the mortar crater uses, but re-derives the
+  radius from the live component every frame instead of a spawned
+  GameObject's own fade clock — there is no separate `Crater`-style
+  GameObject here, and no fade: the ring simply stops the frame the Drummer
+  dies. Colour/alpha bounds/segment count are balancing (`procedural.
+  drummer_aura`, `data/CLAUDE.md`), and it is deliberately NOT swappable art
+  — there is no scaling-sprite-to-a-live-radius mechanism anywhere in the
+  engine to reuse, so this stays procedural like the mortar crater it
+  mirrors. The alpha breathes on a `pulse_period_s`-second sine cycle off a
+  NEW `FloaterManager.self._clock` (seconds, accumulated in `update(dt)`) —
+  the `hud.py` XP-bar level-up pulse shape, generalised to a per-manager
+  clock rather than a per-screen one.
+- **`submit_buff_arrows`** (HUD pass, beside `submit_enemy_hp_bars`) — a
+  little golden arrow above any ALIVE enemy with an active buff
+  (`BuffState.sources` non-empty — today always a Drummer's aura, but keyed
+  off "any active buff" generically, not the source type). Shown
+  independently of the HP bar's own "hide at full HP" rule. Anchors off the
+  SAME `hp_bar` point (or `_sprite_top` fallback) the HP bars use, offset
+  above it — a deliberately SIMPLER placeholder than the HP-bar pass: it
+  does not implement per-tile stacking for multiple buffed enemies sharing a
+  tile, since the arrow is a status flag, not a competing bar. IS swappable
+  art (E-37): a new `vfx` category slot, `vfx_buff_arrow` — imported art
+  draws as a `HudSprite`; with none imported it draws a small procedural
+  golden triangle outline instead (`_BUFF_ARROW_GOLD`, a code chrome
+  constant beside `HP_BAR_W`/`HP_BAR_H`, not balancing — only the swappable
+  ART is a designer lever here, not the placeholder's own shape/colour).
+
 ## Level-up UI (10A)
 `game/ui/levelup.py` (`LevelupWindow`, the `game_over.py` template; it lays out on
 `open` because hover/hit run before the first `submit`), an XP bar + `LVL N` in
