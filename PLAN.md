@@ -279,6 +279,16 @@ Named so the next session does not silently expand scope:
   as it was rather than "fixed" into a Linux-flavoured version that would
   flip straight back on the designer's machine. The sibling
   `test_committed_defaults_are_fresh` passes.
+- **`test_editor_panels.TestBalancingPanel::
+  test_enemy_rework_fields_surface_and_are_editable` is RED and was left red**
+  — two subtests, `KeyError: 'EnemyTypes/Standard/footprint'` and
+  `'…/sprite_scale'`. It asserts those keys render as spinboxes at the enemy
+  type ROOT, but the per-era-footprint change moved them into
+  `$defs/type_era_row` and DELETED the flat root keys (`data/CLAUDE.md` says
+  so explicitly), so the test is stale against its own data. **Measured to
+  predate this branch**: identical failure in a throwaway worktree at the
+  unmodified `UIfixing` tip. Nothing in this plan touches `balancing.py`, the
+  enemies schema or `enemies.json`. It belongs to the suite rework, not here.
 
 - **The test suite is broken and needs its own rework** (the user's call this
   session: *"fuck the tests entirely, they're broken and need a rework in
