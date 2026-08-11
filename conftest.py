@@ -172,12 +172,35 @@ TIERS = {
 }
 
 
-def pytest_collection_modifyitems(items):
-    """Stamp each test with its module's tier."""
+#: tier -> per-test timeout budget, in seconds.
+#:
+#: Same doctrine as TIERS: one greppable table that cannot drift out of sync
+#: with itself, rather than a decorator sprinkled across 120 files. pytest.ini
+#: sets the floor (60s); this raises it for the tiers that legitimately need
+#: longer. The editor budget is deliberately roomy — the slowest legitimate
+#: editor test (TestThemeSwitch, ~23s) could degrade 4x and still not trip it,
+#: so a tripped budget means a HANG, not a slow machine.
+#:
+#: A single genuinely-slow test is raised with a one-line reviewable
+#: `@pytest.mark.timeout(n)` on that test. Never widen a whole tier to
+#: accommodate one outlier — that de-fangs the other 400.
+TIER_TIMEOUTS = {"core": 60, "editor": 120, "meta": 60}
+
+
+def pytest_collection_modifyitems(config, items):
+    """Stamp each test with its module's tier, and that tier's timeout."""
+    # Degrade cleanly if pytest-timeout is not installed: the tier markers
+    # still apply, and a `timeout` marker with no plugin to read it is inert.
+    has_timeout = config.pluginmanager.hasplugin("timeout")
     for item in items:
         tier = TIERS.get(item.path.stem)
-        if tier:
-            item.add_marker(getattr(pytest.mark, tier))
+        if not tier:
+            continue
+        item.add_marker(getattr(pytest.mark, tier))
+        # Only stamp when the test has no explicit marker of its own — an
+        # author's `@pytest.mark.timeout(n)` must win over the tier default.
+        if has_timeout and item.get_closest_marker("timeout") is None:
+            item.add_marker(pytest.mark.timeout(TIER_TIMEOUTS[tier]))
 
 
 @pytest.fixture(scope="session", autouse=True)
