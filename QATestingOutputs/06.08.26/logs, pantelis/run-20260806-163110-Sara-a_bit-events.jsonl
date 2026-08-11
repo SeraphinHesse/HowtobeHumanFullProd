@@ -1,0 +1,526 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 1085, "level": 1, "run_id": "run-20260806-163110-Sara-a_bit", "map_id": "summertest3", "seed": null, "love": 25, "lives": 3, "player_name": "Sara", "player_skill": "a_bit"}
+{"t": "place", "round": 1, "phase": "BUILDING", "frame": 4174, "wall_ms": 22850, "building_type": "economic", "col": 512, "row": 512, "cost": 10, "tier": 0}
+{"t": "place", "round": 1, "phase": "BUILDING", "frame": 5793, "wall_ms": 57275, "building_type": "defence", "col": 513, "row": 512, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 1, "phase": "BUILDING", "frame": 6388, "wall_ms": 70399, "wave_size": 1, "enemy_tier": 0, "composition": {"standard": 1}, "love": 0, "lives": 3}
+{"t": "enemy_death", "round": 1, "phase": "ENEMY", "frame": 6962, "wall_ms": 83169, "etype": "standard", "xp": 1, "wx": 513.7864, "wy": 513.0}
+{"t": "round_summary", "round": 1, "phase": "ROUND_END", "frame": 6989, "wall_ms": 83787, "love_start": 0, "love_end": 14, "income_actual": 14, "income_potential": 14, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 9, "building_income_potential": 9, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 14, "net_potential": 14, "dmg_dealt": 56, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 0, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 1, "kills": 1, "leaks": 0, "kidnaps": 0, "buildings_built": 2, "buildings_dead_at_payday": 0, "buildings_placed": 2, "love_spent_buildings": 20, "village_level": 1, "player_xp": 1, "wave_size": 1, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 1, "phase": "ROUND_END", "frame": 6989, "wall_ms": 83787, "income_actual": 14, "income_potential": 14, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 14, "income_by_type": {"base": 5, "economic": 9}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 56}, "dmg_taken_by_type": {}}
+{"t": "place", "round": 2, "phase": "BUILDING", "frame": 7576, "wall_ms": 96301, "building_type": "economic", "col": 513, "row": 513, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 2, "phase": "BUILDING", "frame": 7802, "wall_ms": 101160, "wave_size": 3, "enemy_tier": 0, "composition": {"standard": 3}, "love": 4, "lives": 3}
+{"t": "enemy_death", "round": 2, "phase": "ENEMY", "frame": 8294, "wall_ms": 112025, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 2, "phase": "ENEMY", "frame": 8396, "wall_ms": 114361, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 2, "phase": "ENEMY", "frame": 8487, "wall_ms": 116374, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "round_summary", "round": 2, "phase": "ROUND_END", "frame": 8514, "wall_ms": 116993, "love_start": 4, "love_end": 23, "income_actual": 19, "income_potential": 19, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 14, "building_income_potential": 14, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 19, "net_potential": 19, "dmg_dealt": 168, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 50, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 3, "kills": 3, "leaks": 0, "kidnaps": 0, "buildings_built": 3, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 1, "player_xp": 4, "wave_size": 3, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 2, "phase": "ROUND_END", "frame": 8514, "wall_ms": 116993, "income_actual": 19, "income_potential": 19, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 23, "income_by_type": {"base": 5, "economic": 14}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 168}, "dmg_taken_by_type": {"economic": 50}}
+{"t": "place", "round": 3, "phase": "BUILDING", "frame": 9452, "wall_ms": 137552, "building_type": "defence", "col": 513, "row": 510, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 3, "phase": "BUILDING", "frame": 9649, "wall_ms": 141866, "wave_size": 5, "enemy_tier": 0, "composition": {"standard": 5}, "love": 1, "lives": 3}
+{"t": "enemy_death", "round": 3, "phase": "ENEMY", "frame": 10297, "wall_ms": 156139, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 3, "phase": "ENEMY", "frame": 10389, "wall_ms": 158199, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 3, "phase": "ENEMY", "frame": 10481, "wall_ms": 160213, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 3, "phase": "ENEMY", "frame": 10573, "wall_ms": 162226, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "enemy_death", "round": 3, "phase": "ENEMY", "frame": 10666, "wall_ms": 164250, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 513.0}
+{"t": "round_summary", "round": 3, "phase": "ROUND_END", "frame": 10693, "wall_ms": 164860, "love_start": 1, "love_end": 24, "income_actual": 23, "income_potential": 23, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 18, "building_income_potential": 18, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 23, "net_potential": 23, "dmg_dealt": 280, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 90, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 5, "kills": 5, "leaks": 0, "kidnaps": 0, "buildings_built": 4, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 1, "player_xp": 9, "wave_size": 5, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 3, "phase": "ROUND_END", "frame": 10693, "wall_ms": 164860, "income_actual": 23, "income_potential": 23, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 24, "income_by_type": {"base": 5, "economic": 18}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 280}, "dmg_taken_by_type": {"economic": 90}}
+{"t": "place", "round": 4, "phase": "BUILDING", "frame": 11186, "wall_ms": 175933, "building_type": "defence", "col": 515, "row": 512, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 4, "phase": "BUILDING", "frame": 12235, "wall_ms": 200504, "wave_size": 7, "enemy_tier": 0, "composition": {"standard": 7}, "love": 7, "lives": 3}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12716, "wall_ms": 212027, "etype": "standard", "xp": 1, "wx": 514.8847999999998, "wy": 511.0}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12805, "wall_ms": 214163, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.114}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12846, "wall_ms": 215144, "etype": "standard", "xp": 1, "wx": 514.8548, "wy": 511.0}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12868, "wall_ms": 215666, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12937, "wall_ms": 217300, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 12949, "wall_ms": 217590, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 4, "phase": "ENEMY", "frame": 13074, "wall_ms": 220496, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.1104}
+{"t": "round_summary", "round": 4, "phase": "ROUND_END", "frame": 13100, "wall_ms": 221114, "love_start": 7, "love_end": 30, "income_actual": 23, "income_potential": 23, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 18, "building_income_potential": 18, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 23, "net_potential": 23, "dmg_dealt": 392, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 40, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 7, "kills": 7, "leaks": 0, "kidnaps": 0, "buildings_built": 5, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 1, "player_xp": 16, "wave_size": 7, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 4, "phase": "ROUND_END", "frame": 13100, "wall_ms": 221114, "income_actual": 23, "income_potential": 23, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 30, "income_by_type": {"base": 5, "economic": 18}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 392}, "dmg_taken_by_type": {"economic": 40}}
+{"t": "place", "round": 5, "phase": "BUILDING", "frame": 13586, "wall_ms": 232288, "building_type": "defence", "col": 515, "row": 513, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 5, "phase": "BUILDING", "frame": 14300, "wall_ms": 248528, "wave_size": 10, "enemy_tier": 0, "composition": {"standard": 9, "raider": 1}, "love": 0, "lives": 3}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 14826, "wall_ms": 260921, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.08639999999997}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 14887, "wall_ms": 262412, "etype": "standard", "xp": 1, "wx": 515.8847999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15008, "wall_ms": 265356, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.11639999999994}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15013, "wall_ms": 265476, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 511.7856999999999}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15021, "wall_ms": 265670, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15093, "wall_ms": 267400, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.94319999999976}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15175, "wall_ms": 269364, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15223, "wall_ms": 270509, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15305, "wall_ms": 272444, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.78360000000004}
+{"t": "enemy_death", "round": 5, "phase": "ENEMY", "frame": 15409, "wall_ms": 274852, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0828}
+{"t": "round_summary", "round": 5, "phase": "ROUND_END", "frame": 15434, "wall_ms": 275455, "love_start": 0, "love_end": 31, "income_actual": 31, "income_potential": 31, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 26, "building_income_potential": 26, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 31, "net_potential": 31, "dmg_dealt": 560, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 31, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 10, "kills": 10, "leaks": 0, "kidnaps": 0, "buildings_built": 6, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 1, "player_xp": 26, "wave_size": 10, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 5, "phase": "ROUND_END", "frame": 15434, "wall_ms": 275455, "income_actual": 31, "income_potential": 31, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 31, "income_by_type": {"base": 5, "economic": 26}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 560}, "dmg_taken_by_type": {"economic": 20, "defence": 11}}
+{"t": "place", "round": 6, "phase": "BUILDING", "frame": 17531, "wall_ms": 322930, "building_type": "economic", "col": 513, "row": 509, "cost": 10, "tier": 0}
+{"t": "place", "round": 6, "phase": "BUILDING", "frame": 18008, "wall_ms": 333380, "building_type": "defence", "col": 513, "row": 508, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 6, "phase": "BUILDING", "frame": 18182, "wall_ms": 337183, "wave_size": 13, "enemy_tier": 0, "composition": {"standard": 11, "raider": 2}, "love": 0, "lives": 3}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 18618, "wall_ms": 346843, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 18647, "wall_ms": 347499, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.10800000000006}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 18767, "wall_ms": 350185, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.10920000000004}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 18801, "wall_ms": 350957, "etype": "standard", "xp": 1, "wx": 513.8883999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 18963, "wall_ms": 354637, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19003, "wall_ms": 355551, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19025, "wall_ms": 356054, "etype": "standard", "xp": 1, "wx": 515.8896, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19101, "wall_ms": 357774, "etype": "standard", "xp": 1, "wx": 513.8644, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19113, "wall_ms": 358048, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19224, "wall_ms": 360530, "etype": "standard", "xp": 1, "wx": 513.8896, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19269, "wall_ms": 361532, "etype": "standard", "xp": 1, "wx": 512.946, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19305, "wall_ms": 362334, "etype": "standard", "xp": 1, "wx": 512.5464000000003, "wy": 511.0}
+{"t": "enemy_death", "round": 6, "phase": "ENEMY", "frame": 19501, "wall_ms": 366722, "etype": "standard", "xp": 1, "wx": 513.8644, "wy": 511.0}
+{"t": "round_summary", "round": 6, "phase": "ROUND_END", "frame": 19527, "wall_ms": 367326, "love_start": 0, "love_end": 36, "income_actual": 36, "income_potential": 36, "income_lost_to_damage": 0, "base_income": 5, "building_income_actual": 31, "building_income_potential": 31, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 36, "net_potential": 36, "dmg_dealt": 728, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 93, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 13, "kills": 13, "leaks": 0, "kidnaps": 0, "buildings_built": 8, "buildings_dead_at_payday": 0, "buildings_placed": 2, "love_spent_buildings": 20, "village_level": 1, "player_xp": 39, "wave_size": 13, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 6, "phase": "ROUND_END", "frame": 19527, "wall_ms": 367326, "income_actual": 36, "income_potential": 36, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 36, "income_by_type": {"base": 5, "economic": 31}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 728}, "dmg_taken_by_type": {"defence": 33, "economic": 60}}
+{"t": "place", "round": 7, "phase": "BUILDING", "frame": 22195, "wall_ms": 425503, "building_type": "defence", "col": 512, "row": 508, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 7, "phase": "BUILDING", "frame": 22385, "wall_ms": 429641, "wave_size": 16, "enemy_tier": 0, "composition": {"standard": 13, "raider": 3}, "love": 0, "lives": 3}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 22882, "wall_ms": 440057, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 22979, "wall_ms": 442078, "etype": "raider", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23088, "wall_ms": 444144, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23147, "wall_ms": 445334, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23230, "wall_ms": 446954, "etype": "standard", "xp": 1, "wx": 513.8775999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23278, "wall_ms": 447964, "etype": "standard", "xp": 1, "wx": 512.7228000000001, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23283, "wall_ms": 448117, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23421, "wall_ms": 451590, "etype": "standard", "xp": 1, "wx": 515.8847999999998, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23436, "wall_ms": 451953, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23470, "wall_ms": 452766, "etype": "standard", "xp": 1, "wx": 513.8871999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23474, "wall_ms": 452860, "etype": "standard", "xp": 1, "wx": 514.7743999999998, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23611, "wall_ms": 456100, "etype": "standard", "xp": 1, "wx": 513.8872, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23654, "wall_ms": 457112, "etype": "standard", "xp": 1, "wx": 512.9147999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23689, "wall_ms": 457916, "etype": "standard", "xp": 1, "wx": 512.2860000000001, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23705, "wall_ms": 458286, "etype": "standard", "xp": 1, "wx": 512.8344, "wy": 511.0}
+{"t": "enemy_death", "round": 7, "phase": "ENEMY", "frame": 23742, "wall_ms": 459135, "etype": "standard", "xp": 1, "wx": 512.4264000000001, "wy": 511.0}
+{"t": "unlock", "round": 7, "phase": "LEVELUP", "frame": 24037, "wall_ms": 466217, "building_type": "aoe_defence", "cost": 0}
+{"t": "levelup", "round": 7, "phase": "LEVELUP", "frame": 24037, "wall_ms": 466217, "village_level": 2, "option": "unlock_building", "player_xp": 5}
+{"t": "round_summary", "round": 7, "phase": "LEVELUP", "frame": 24037, "wall_ms": 466217, "love_start": 0, "love_end": 47, "income_actual": 47, "income_potential": 47, "income_lost_to_damage": 0, "base_income": 7, "building_income_actual": 40, "building_income_potential": 40, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "net_actual": 47, "net_potential": 47, "dmg_dealt": 896, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 92, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 16, "kills": 16, "leaks": 0, "kidnaps": 0, "buildings_built": 9, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 2, "player_xp": 5, "wave_size": 16, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 7, "phase": "LEVELUP", "frame": 24037, "wall_ms": 466217, "income_actual": 47, "income_potential": 47, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 0, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 47, "income_by_type": {"base": 7, "economic": 40}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 896}, "dmg_taken_by_type": {"defence": 52, "economic": 40}}
+{"t": "place", "round": 8, "phase": "BUILDING", "frame": 24323, "wall_ms": 472695, "building_type": "aoe_defence", "col": 516, "row": 513, "cost": 35, "tier": 0}
+{"t": "wave_start", "round": 8, "phase": "BUILDING", "frame": 25303, "wall_ms": 494656, "wave_size": 19, "enemy_tier": 0, "composition": {"raider": 4, "standard": 15}, "love": 1, "lives": 3}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 25614, "wall_ms": 501561, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 25836, "wall_ms": 506688, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 25914, "wall_ms": 508546, "etype": "standard", "xp": 1, "wx": 515.8847999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 25940, "wall_ms": 509168, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 25978, "wall_ms": 510088, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26020, "wall_ms": 511092, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26062, "wall_ms": 512101, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26065, "wall_ms": 512174, "etype": "standard", "xp": 1, "wx": 513.8836, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26104, "wall_ms": 513108, "etype": "standard", "xp": 1, "wx": 513.6231999999998, "wy": 511.0}
+{"t": "kidnap", "round": 8, "phase": "ENEMY", "frame": 26121, "wall_ms": 513519, "etype": "raider", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26195, "wall_ms": 515278, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26239, "wall_ms": 516330, "etype": "standard", "xp": 1, "wx": 515.1071999999994, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26289, "wall_ms": 517505, "etype": "standard", "xp": 1, "wx": 514.2091999999994, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26329, "wall_ms": 518436, "etype": "standard", "xp": 1, "wx": 513.8259999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26378, "wall_ms": 519572, "etype": "standard", "xp": 1, "wx": 513.3915999999998, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26427, "wall_ms": 520675, "etype": "standard", "xp": 1, "wx": 515.7312000000002, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26454, "wall_ms": 521290, "etype": "standard", "xp": 1, "wx": 513.8908, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26504, "wall_ms": 522411, "etype": "standard", "xp": 1, "wx": 512.8956, "wy": 511.0}
+{"t": "enemy_death", "round": 8, "phase": "ENEMY", "frame": 26538, "wall_ms": 523163, "etype": "standard", "xp": 1, "wx": 513.4432000000004, "wy": 511.0}
+{"t": "round_summary", "round": 8, "phase": "ROUND_END", "frame": 26565, "wall_ms": 523776, "love_start": 1, "love_end": 31, "income_actual": 33, "income_potential": 47, "income_lost_to_damage": 14, "base_income": 7, "building_income_actual": 26, "building_income_potential": 40, "painter_income": 0, "story_income": 0, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "net_actual": 30, "net_potential": 44, "dmg_dealt": 1176, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 210, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 19, "kills": 18, "leaks": 0, "kidnaps": 1, "buildings_built": 10, "buildings_dead_at_payday": 1, "buildings_placed": 1, "love_spent_buildings": 35, "village_level": 2, "player_xp": 25, "wave_size": 19, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 8, "phase": "ROUND_END", "frame": 26565, "wall_ms": 523776, "income_actual": 33, "income_potential": 47, "income_lost_to_damage": 14, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 31, "income_by_type": {"base": 7, "economic": 26}, "upkeep_by_type": {"aoe_defence": 3}, "dmg_dealt_by_type": {"defence": 1036, "aoe_defence": 140}, "dmg_taken_by_type": {"defence": 20, "aoe_defence": 30, "economic": 160}}
+{"t": "place", "round": 9, "phase": "BUILDING", "frame": 27273, "wall_ms": 539398, "building_type": "defence", "col": 514, "row": 510, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 9, "phase": "BUILDING", "frame": 28669, "wall_ms": 571440, "wave_size": 22, "enemy_tier": 0, "composition": {"raider": 5, "standard": 17}, "love": 1, "lives": 3}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 28990, "wall_ms": 578622, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29216, "wall_ms": 583709, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29324, "wall_ms": 586184, "etype": "standard", "xp": 1, "wx": 515.8896, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29328, "wall_ms": 586279, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29358, "wall_ms": 586989, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29451, "wall_ms": 589210, "etype": "standard", "xp": 1, "wx": 514.9724, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29498, "wall_ms": 590340, "etype": "standard", "xp": 1, "wx": 514.7395999999997, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29499, "wall_ms": 590364, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29572, "wall_ms": 592116, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29598, "wall_ms": 592738, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29615, "wall_ms": 593146, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29636, "wall_ms": 593658, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29681, "wall_ms": 594723, "etype": "standard", "xp": 1, "wx": 515.8859999999999, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29716, "wall_ms": 595551, "etype": "standard", "xp": 1, "wx": 514.2619999999994, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29737, "wall_ms": 596043, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29767, "wall_ms": 596744, "etype": "standard", "xp": 1, "wx": 513.4107999999997, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29802, "wall_ms": 597558, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29804, "wall_ms": 597605, "etype": "standard", "xp": 1, "wx": 513.1623999999995, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29806, "wall_ms": 597652, "etype": "standard", "xp": 1, "wx": 512.8031999999998, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29871, "wall_ms": 599137, "etype": "standard", "xp": 1, "wx": 515.3484000000002, "wy": 511.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 29984, "wall_ms": 601683, "etype": "standard", "xp": 1, "wx": 515.0, "wy": 510.0}
+{"t": "enemy_death", "round": 9, "phase": "ENEMY", "frame": 30107, "wall_ms": 604459, "etype": "standard", "xp": 1, "wx": 515.0, "wy": 510.0276}
+{"t": "round_summary", "round": 9, "phase": "ROUND_END", "frame": 30133, "wall_ms": 605068, "love_start": 1, "love_end": 45, "income_actual": 47, "income_potential": 47, "income_lost_to_damage": 0, "base_income": 7, "building_income_actual": 40, "building_income_potential": 40, "painter_income": 0, "story_income": 0, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "net_actual": 44, "net_potential": 44, "dmg_dealt": 1336, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 180, "lives_lost": 0, "lives_end": 3, "enemies_spawned": 22, "kills": 22, "leaks": 0, "kidnaps": 0, "buildings_built": 11, "buildings_dead_at_payday": 0, "buildings_placed": 1, "love_spent_buildings": 10, "village_level": 2, "player_xp": 47, "wave_size": 22, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 9, "phase": "ROUND_END", "frame": 30133, "wall_ms": 605068, "income_actual": 47, "income_potential": 47, "income_lost_to_damage": 0, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 45, "income_by_type": {"base": 7, "economic": 40}, "upkeep_by_type": {"aoe_defence": 3}, "dmg_dealt_by_type": {"defence": 1176, "aoe_defence": 160}, "dmg_taken_by_type": {"defence": 10, "aoe_defence": 70, "economic": 100}}
+{"t": "place", "round": 10, "phase": "BUILDING", "frame": 31221, "wall_ms": 629650, "building_type": "defence", "col": 516, "row": 510, "cost": 10, "tier": 0}
+{"t": "place", "round": 10, "phase": "BUILDING", "frame": 31899, "wall_ms": 645034, "building_type": "economic", "col": 512, "row": 511, "cost": 10, "tier": 0}
+{"t": "place", "round": 10, "phase": "BUILDING", "frame": 32403, "wall_ms": 656527, "building_type": "economic", "col": 514, "row": 513, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 10, "phase": "BUILDING", "frame": 32812, "wall_ms": 665958, "wave_size": 21, "enemy_tier": 0, "composition": {"boss": 1, "standard": 8, "raider": 12}, "love": 0, "lives": 3}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33116, "wall_ms": 673188, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 512.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33117, "wall_ms": 673213, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33156, "wall_ms": 674154, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33188, "wall_ms": 674923, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33265, "wall_ms": 676785, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33313, "wall_ms": 677957, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33338, "wall_ms": 678575, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33366, "wall_ms": 679265, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33413, "wall_ms": 680405, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33419, "wall_ms": 680548, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33422, "wall_ms": 680619, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 512.0}
+{"t": "kidnap", "round": 10, "phase": "ENEMY", "frame": 33431, "wall_ms": 680841, "etype": "raider", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33483, "wall_ms": 682084, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "kidnap", "round": 10, "phase": "ENEMY", "frame": 33519, "wall_ms": 682932, "etype": "raider", "building_type": "economic", "col": 512, "row": 511}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33564, "wall_ms": 683976, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33617, "wall_ms": 685202, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 10, "phase": "ENEMY", "frame": 33681, "wall_ms": 686668, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.5238000000001}
+{"t": "base_hit", "round": 10, "phase": "ENEMY", "frame": 33719, "wall_ms": 687520, "etype": "standard", "waived": false, "lives_after": 2}
+{"t": "boss_choice", "round": 10, "phase": "BOSS_CUTSCENE", "frame": 34119, "wall_ms": 696149, "boss_num": 1, "option": "B", "outcome": "loss"}
+{"t": "unlock", "round": 10, "phase": "LEVELUP", "frame": 34700, "wall_ms": 708856, "building_type": "blocker", "cost": 0}
+{"t": "levelup", "round": 10, "phase": "LEVELUP", "frame": 34700, "wall_ms": 708856, "village_level": 3, "option": "unlock_building", "player_xp": 7}
+{"t": "round_summary", "round": 10, "phase": "LEVELUP", "frame": 34700, "wall_ms": 708856, "love_start": 0, "love_end": 24, "income_actual": 27, "income_potential": 59, "income_lost_to_damage": 32, "base_income": 9, "building_income_actual": 18, "building_income_potential": 50, "painter_income": 0, "story_income": 0, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "net_actual": 24, "net_potential": 56, "dmg_dealt": 1586, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 1510, "lives_lost": 1, "lives_end": 2, "enemies_spawned": 21, "kills": 15, "leaks": 1, "kidnaps": 2, "buildings_built": 14, "buildings_dead_at_payday": 8, "buildings_placed": 3, "love_spent_buildings": 30, "village_level": 3, "player_xp": 7, "wave_size": 21, "enemy_tier": 0, "cheated": 0}
+{"t": "payday", "round": 10, "phase": "LEVELUP", "frame": 34700, "wall_ms": 708856, "income_actual": 27, "income_potential": 59, "income_lost_to_damage": 32, "upkeep_actual": 3, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 24, "income_by_type": {"base": 9, "economic": 18}, "upkeep_by_type": {"aoe_defence": 3}, "dmg_dealt_by_type": {"defence": 1386, "aoe_defence": 200}, "dmg_taken_by_type": {"economic": 600, "defence": 860, "aoe_defence": 50}}
+{"t": "wave_start", "round": 11, "phase": "BUILDING", "frame": 35731, "wall_ms": 732675, "wave_size": 22, "enemy_tier": 1, "composition": {"raider": 7, "standard": 15}, "love": 4, "lives": 2}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 35906, "wall_ms": 736730, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36007, "wall_ms": 739118, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.5831999999999}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36027, "wall_ms": 739601, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36031, "wall_ms": 739699, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36060, "wall_ms": 740406, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36089, "wall_ms": 741128, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36090, "wall_ms": 741153, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36116, "wall_ms": 741817, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36169, "wall_ms": 743170, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36195, "wall_ms": 743838, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36221, "wall_ms": 744507, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36245, "wall_ms": 745119, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36274, "wall_ms": 745860, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "kidnap", "round": 11, "phase": "ENEMY", "frame": 36305, "wall_ms": 746647, "etype": "standard", "building_type": "aoe_defence", "col": 516, "row": 513}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36326, "wall_ms": 747169, "etype": "standard", "xp": 1, "wx": 516.0134200000008, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36349, "wall_ms": 747750, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36381, "wall_ms": 748535, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36409, "wall_ms": 749218, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "kidnap", "round": 11, "phase": "ENEMY", "frame": 36430, "wall_ms": 749725, "etype": "standard", "building_type": "defence", "col": 515, "row": 513}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36437, "wall_ms": 749891, "etype": "standard", "xp": 1, "wx": 515.7845699999998, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36520, "wall_ms": 751845, "etype": "standard", "xp": 1, "wx": 515.0, "wy": 513.0}
+{"t": "enemy_death", "round": 11, "phase": "ENEMY", "frame": 36607, "wall_ms": 753858, "etype": "standard", "xp": 1, "wx": 515.0, "wy": 513.0}
+{"t": "round_summary", "round": 11, "phase": "ROUND_END", "frame": 36638, "wall_ms": 754588, "love_start": 4, "love_end": 71, "income_actual": 67, "income_potential": 67, "income_lost_to_damage": 0, "base_income": 9, "building_income_actual": 58, "building_income_potential": 58, "painter_income": 0, "story_income": 0, "upkeep_actual": 0, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 3, "net_actual": 67, "net_potential": 64, "dmg_dealt": 1969, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 558, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 22, "kills": 20, "leaks": 0, "kidnaps": 2, "buildings_built": 14, "buildings_dead_at_payday": 2, "buildings_placed": 0, "love_spent_buildings": 0, "village_level": 3, "player_xp": 31, "wave_size": 22, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 11, "phase": "ROUND_END", "frame": 36638, "wall_ms": 754588, "income_actual": 67, "income_potential": 67, "income_lost_to_damage": 0, "upkeep_actual": 0, "upkeep_potential": 3, "upkeep_unpaid_from_deaths": 3, "story_income": 0, "painter_income": 0, "love_end": 71, "income_by_type": {"base": 9, "economic": 58}, "upkeep_by_type": {}, "dmg_dealt_by_type": {"defence": 1561, "aoe_defence": 408}, "dmg_taken_by_type": {"defence": 218, "aoe_defence": 152, "economic": 188}}
+{"t": "place", "round": 12, "phase": "BUILDING", "frame": 37141, "wall_ms": 766487, "building_type": "aoe_defence", "col": 517, "row": 510, "cost": 35, "tier": 0}
+{"t": "wave_start", "round": 12, "phase": "BUILDING", "frame": 38433, "wall_ms": 797368, "wave_size": 27, "enemy_tier": 1, "composition": {"raider": 8, "standard": 19}, "love": 6, "lives": 2}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38675, "wall_ms": 803069, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38713, "wall_ms": 803995, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38728, "wall_ms": 804364, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38738, "wall_ms": 804609, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38753, "wall_ms": 804984, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38798, "wall_ms": 806107, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38823, "wall_ms": 806735, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.92339999999996}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38845, "wall_ms": 807288, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38852, "wall_ms": 807465, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38876, "wall_ms": 808081, "etype": "standard", "xp": 1, "wx": 517.1268200000006, "wy": 512.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38879, "wall_ms": 808159, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38894, "wall_ms": 808548, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38944, "wall_ms": 809846, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38951, "wall_ms": 810028, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38981, "wall_ms": 810812, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 38996, "wall_ms": 811201, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39034, "wall_ms": 812169, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39061, "wall_ms": 812847, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "kidnap", "round": 12, "phase": "ENEMY", "frame": 39069, "wall_ms": 813047, "etype": "standard", "building_type": "aoe_defence", "col": 516, "row": 513}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39113, "wall_ms": 814131, "etype": "standard", "xp": 1, "wx": 516.1684000000007, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39144, "wall_ms": 814895, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39172, "wall_ms": 815573, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39200, "wall_ms": 816239, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39221, "wall_ms": 816736, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "kidnap", "round": 12, "phase": "ENEMY", "frame": 39224, "wall_ms": 816807, "etype": "standard", "building_type": "defence", "col": 515, "row": 513}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39255, "wall_ms": 817531, "etype": "standard", "xp": 1, "wx": 515.0350799999993, "wy": 513.0}
+{"t": "enemy_death", "round": 12, "phase": "ENEMY", "frame": 39302, "wall_ms": 818607, "etype": "standard", "xp": 1, "wx": 515.0, "wy": 513.0}
+{"t": "round_summary", "round": 12, "phase": "ROUND_END", "frame": 39434, "wall_ms": 821630, "love_start": 6, "love_end": 72, "income_actual": 71, "income_potential": 71, "income_lost_to_damage": 0, "base_income": 9, "building_income_actual": 62, "building_income_potential": 62, "painter_income": 0, "story_income": 0, "upkeep_actual": 5, "upkeep_potential": 8, "upkeep_unpaid_from_deaths": 3, "net_actual": 66, "net_potential": 63, "dmg_dealt": 2669, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 551, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 27, "kills": 25, "leaks": 0, "kidnaps": 2, "buildings_built": 15, "buildings_dead_at_payday": 2, "buildings_placed": 1, "love_spent_buildings": 35, "village_level": 3, "player_xp": 58, "wave_size": 27, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 12, "phase": "ROUND_END", "frame": 39434, "wall_ms": 821630, "income_actual": 71, "income_potential": 71, "income_lost_to_damage": 0, "upkeep_actual": 5, "upkeep_potential": 8, "upkeep_unpaid_from_deaths": 3, "story_income": 0, "painter_income": 0, "love_end": 72, "income_by_type": {"base": 9, "economic": 62}, "upkeep_by_type": {"aoe_defence": 5}, "dmg_dealt_by_type": {"defence": 1654, "aoe_defence": 1015}, "dmg_taken_by_type": {"defence": 290, "aoe_defence": 164, "economic": 97}}
+{"t": "wave_start", "round": 13, "phase": "BUILDING", "frame": 40395, "wall_ms": 844490, "wave_size": 32, "enemy_tier": 1, "composition": {"standard": 23, "raider": 9}, "love": 2, "lives": 2}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40652, "wall_ms": 850591, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 511.88074000000034}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40693, "wall_ms": 851600, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40744, "wall_ms": 852879, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40760, "wall_ms": 853292, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40767, "wall_ms": 853476, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40796, "wall_ms": 854231, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40806, "wall_ms": 854492, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 512.4460399999997}
+{"t": "kidnap", "round": 13, "phase": "ENEMY", "frame": 40810, "wall_ms": 854594, "etype": "standard", "building_type": "defence", "col": 513, "row": 508}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40829, "wall_ms": 855097, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 512.6520499999996}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40837, "wall_ms": 855306, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40859, "wall_ms": 855896, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40870, "wall_ms": 856183, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 508.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40881, "wall_ms": 856469, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40915, "wall_ms": 857350, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 512.4422599999997}
+{"t": "kidnap", "round": 13, "phase": "ENEMY", "frame": 40916, "wall_ms": 857377, "etype": "raider", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40937, "wall_ms": 857938, "etype": "standard", "xp": 1, "wx": 512.96388, "wy": 509.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40953, "wall_ms": 858373, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 512.5121899999997}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40963, "wall_ms": 858640, "etype": "standard", "xp": 1, "wx": 512.79747, "wy": 509.0}
+{"t": "kidnap", "round": 13, "phase": "ENEMY", "frame": 40970, "wall_ms": 858824, "etype": "raider", "building_type": "defence", "col": 512, "row": 508}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 40985, "wall_ms": 859205, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41018, "wall_ms": 860040, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41026, "wall_ms": 860243, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41029, "wall_ms": 860323, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41045, "wall_ms": 860742, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 509.14553000000006}
+{"t": "kidnap", "round": 13, "phase": "ENEMY", "frame": 41051, "wall_ms": 860899, "etype": "standard", "building_type": "aoe_defence", "col": 516, "row": 513}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41091, "wall_ms": 861906, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41156, "wall_ms": 863522, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41182, "wall_ms": 864169, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41209, "wall_ms": 864832, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41237, "wall_ms": 865502, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41264, "wall_ms": 866150, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 13, "phase": "ENEMY", "frame": 41293, "wall_ms": 866842, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "unlock", "round": 13, "phase": "LEVELUP", "frame": 41519, "wall_ms": 872287, "building_type": "meditator", "cost": 0}
+{"t": "levelup", "round": 13, "phase": "LEVELUP", "frame": 41519, "wall_ms": 872287, "village_level": 4, "option": "unlock_building", "player_xp": 5}
+{"t": "round_summary", "round": 13, "phase": "LEVELUP", "frame": 41519, "wall_ms": 872287, "love_start": 2, "love_end": 56, "income_actual": 59, "income_potential": 73, "income_lost_to_damage": 14, "base_income": 11, "building_income_actual": 48, "building_income_potential": 62, "painter_income": 0, "story_income": 0, "upkeep_actual": 5, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 5, "net_actual": 54, "net_potential": 63, "dmg_dealt": 3132, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 808, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 32, "kills": 28, "leaks": 0, "kidnaps": 4, "buildings_built": 15, "buildings_dead_at_payday": 4, "buildings_placed": 0, "love_spent_buildings": 0, "village_level": 4, "player_xp": 5, "wave_size": 32, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 13, "phase": "LEVELUP", "frame": 41519, "wall_ms": 872287, "income_actual": 59, "income_potential": 73, "income_lost_to_damage": 14, "upkeep_actual": 5, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 5, "story_income": 0, "painter_income": 0, "love_end": 56, "income_by_type": {"base": 11, "economic": 48}, "upkeep_by_type": {"aoe_defence": 5}, "dmg_dealt_by_type": {"defence": 1980, "aoe_defence": 1152}, "dmg_taken_by_type": {"defence": 416, "economic": 184, "aoe_defence": 208}}
+{"t": "place", "round": 14, "phase": "BUILDING", "frame": 41770, "wall_ms": 878371, "building_type": "meditator", "col": 513, "row": 511, "cost": 12, "tier": 0}
+{"t": "wave_start", "round": 14, "phase": "BUILDING", "frame": 43206, "wall_ms": 914232, "wave_size": 38, "enemy_tier": 1, "composition": {"siege": 1, "standard": 27, "raider": 10}, "love": 9, "lives": 2}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43473, "wall_ms": 920828, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43514, "wall_ms": 921934, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43530, "wall_ms": 922376, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43536, "wall_ms": 922539, "etype": "standard", "xp": 1, "wx": 517.4685199999994, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43546, "wall_ms": 922817, "etype": "siege", "xp": 5, "wx": 512.6470200000001, "wy": 507.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43561, "wall_ms": 923232, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43570, "wall_ms": 923479, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43583, "wall_ms": 923830, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43593, "wall_ms": 924103, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43606, "wall_ms": 924459, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43608, "wall_ms": 924513, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43634, "wall_ms": 925229, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43643, "wall_ms": 925480, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "kidnap", "round": 14, "phase": "ENEMY", "frame": 43656, "wall_ms": 925846, "etype": "raider", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43675, "wall_ms": 926385, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "kidnap", "round": 14, "phase": "ENEMY", "frame": 43681, "wall_ms": 926553, "etype": "standard", "building_type": "defence", "col": 512, "row": 508}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43697, "wall_ms": 927000, "etype": "raider", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43699, "wall_ms": 927056, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "kidnap", "round": 14, "phase": "ENEMY", "frame": 43709, "wall_ms": 927337, "etype": "standard", "building_type": "aoe_defence", "col": 516, "row": 513}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43722, "wall_ms": 927696, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 509.15686999999997}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43723, "wall_ms": 927724, "etype": "standard", "xp": 1, "wx": 516.2666800000004, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43723, "wall_ms": 927724, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43730, "wall_ms": 927915, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43742, "wall_ms": 928242, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43747, "wall_ms": 928379, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43747, "wall_ms": 928379, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43749, "wall_ms": 928433, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43767, "wall_ms": 928915, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43767, "wall_ms": 928915, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43778, "wall_ms": 929208, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43805, "wall_ms": 929916, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43829, "wall_ms": 930530, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43849, "wall_ms": 931033, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43874, "wall_ms": 931647, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 43912, "wall_ms": 932574, "etype": "standard", "xp": 1, "wx": 516.0, "wy": 513.0}
+{"t": "kidnap", "round": 14, "phase": "ENEMY", "frame": 43941, "wall_ms": 933282, "etype": "standard", "building_type": "defence", "col": 515, "row": 513}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 44061, "wall_ms": 936142, "etype": "standard", "xp": 1, "wx": 515.4878699999996, "wy": 513.0}
+{"t": "enemy_death", "round": 14, "phase": "ENEMY", "frame": 44073, "wall_ms": 936423, "etype": "standard", "xp": 1, "wx": 515.3666099999995, "wy": 513.0}
+{"t": "round_summary", "round": 14, "phase": "ROUND_END", "frame": 44146, "wall_ms": 938144, "love_start": 9, "love_end": 67, "income_actual": 63, "income_potential": 77, "income_lost_to_damage": 14, "base_income": 11, "building_income_actual": 52, "building_income_potential": 66, "painter_income": 0, "story_income": 0, "upkeep_actual": 5, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 5, "net_actual": 58, "net_potential": 67, "dmg_dealt": 3851, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 974, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 38, "kills": 34, "leaks": 0, "kidnaps": 4, "buildings_built": 16, "buildings_dead_at_payday": 5, "buildings_placed": 1, "love_spent_buildings": 12, "village_level": 4, "player_xp": 47, "wave_size": 38, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 14, "phase": "ROUND_END", "frame": 44146, "wall_ms": 938144, "income_actual": 63, "income_potential": 77, "income_lost_to_damage": 14, "upkeep_actual": 5, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 5, "story_income": 0, "painter_income": 0, "love_end": 67, "income_by_type": {"base": 11, "economic": 48, "meditator": 4}, "upkeep_by_type": {"aoe_defence": 5}, "dmg_dealt_by_type": {"defence": 2466, "aoe_defence": 1385}, "dmg_taken_by_type": {"defence": 582, "economic": 192, "aoe_defence": 200}}
+{"t": "place", "round": 15, "phase": "BUILDING", "frame": 44498, "wall_ms": 946806, "building_type": "defence", "col": 517, "row": 511, "cost": 10, "tier": 0}
+{"t": "place", "round": 15, "phase": "BUILDING", "frame": 44636, "wall_ms": 950299, "building_type": "defence", "col": 515, "row": 510, "cost": 10, "tier": 0}
+{"t": "place", "round": 15, "phase": "BUILDING", "frame": 44991, "wall_ms": 959286, "building_type": "defence", "col": 517, "row": 512, "cost": 10, "tier": 0}
+{"t": "place", "round": 15, "phase": "BUILDING", "frame": 45112, "wall_ms": 962398, "building_type": "defence", "col": 517, "row": 513, "cost": 10, "tier": 0}
+{"t": "place", "round": 15, "phase": "BUILDING", "frame": 45321, "wall_ms": 967870, "building_type": "defence", "col": 512, "row": 509, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 15, "phase": "BUILDING", "frame": 45707, "wall_ms": 977983, "wave_size": 44, "enemy_tier": 1, "composition": {"siege": 2, "raider": 11, "standard": 31}, "love": 2, "lives": 2}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 45912, "wall_ms": 983217, "etype": "raider", "xp": 1, "wx": 516.0, "wy": 508.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 45978, "wall_ms": 984932, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.62775}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46027, "wall_ms": 986222, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.53055}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46083, "wall_ms": 987717, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 511.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46137, "wall_ms": 989174, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46196, "wall_ms": 990842, "etype": "siege", "xp": 5, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46201, "wall_ms": 990985, "etype": "standard", "xp": 1, "wx": 518.1438300000004, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46201, "wall_ms": 990985, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46203, "wall_ms": 991043, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46225, "wall_ms": 991673, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46242, "wall_ms": 992155, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "kidnap", "round": 15, "phase": "ENEMY", "frame": 46271, "wall_ms": 992990, "etype": "standard", "building_type": "defence", "col": 512, "row": 508}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46295, "wall_ms": 993691, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46295, "wall_ms": 993691, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46309, "wall_ms": 994103, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46320, "wall_ms": 994441, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46320, "wall_ms": 994441, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46335, "wall_ms": 994890, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.24300000000005}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46335, "wall_ms": 994890, "etype": "raider", "xp": 1, "wx": 515.3925000000002, "wy": 508.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46335, "wall_ms": 994890, "etype": "raider", "xp": 1, "wx": 516.0, "wy": 507.49005000000005}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46339, "wall_ms": 995013, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "kidnap", "round": 15, "phase": "ENEMY", "frame": 46346, "wall_ms": 995220, "etype": "standard", "building_type": "defence", "col": 517, "row": 513}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46355, "wall_ms": 995490, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46373, "wall_ms": 996025, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46375, "wall_ms": 996084, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46393, "wall_ms": 996618, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "kidnap", "round": 15, "phase": "ENEMY", "frame": 46396, "wall_ms": 996707, "etype": "standard", "building_type": "defence", "col": 512, "row": 509}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46401, "wall_ms": 996858, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.2872799999999}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46409, "wall_ms": 997092, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46432, "wall_ms": 997756, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46436, "wall_ms": 997870, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46456, "wall_ms": 998435, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46472, "wall_ms": 998880, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46480, "wall_ms": 999105, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46484, "wall_ms": 999216, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46493, "wall_ms": 999467, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46513, "wall_ms": 1000012, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46533, "wall_ms": 1000556, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46534, "wall_ms": 1000582, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46553, "wall_ms": 1001089, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "kidnap", "round": 15, "phase": "ENEMY", "frame": 46579, "wall_ms": 1001768, "etype": "standard", "building_type": "economic", "col": 512, "row": 511}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46579, "wall_ms": 1001768, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46586, "wall_ms": 1001947, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.33831000000015}
+{"t": "enemy_death", "round": 15, "phase": "ENEMY", "frame": 46616, "wall_ms": 1002709, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "round_summary", "round": 15, "phase": "ROUND_END", "frame": 46835, "wall_ms": 1008225, "love_start": 2, "love_end": 60, "income_actual": 68, "income_potential": 81, "income_lost_to_damage": 13, "base_income": 11, "building_income_actual": 57, "building_income_potential": 70, "painter_income": 0, "story_income": 0, "upkeep_actual": 10, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 0, "net_actual": 58, "net_potential": 71, "dmg_dealt": 4407, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 1258, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 44, "kills": 40, "leaks": 0, "kidnaps": 4, "buildings_built": 21, "buildings_dead_at_payday": 5, "buildings_placed": 5, "love_spent_buildings": 50, "village_level": 4, "player_xp": 101, "wave_size": 44, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 15, "phase": "ROUND_END", "frame": 46835, "wall_ms": 1008225, "income_actual": 68, "income_potential": 81, "income_lost_to_damage": 13, "upkeep_actual": 10, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 60, "income_by_type": {"base": 11, "meditator": 8, "economic": 49}, "upkeep_by_type": {"aoe_defence": 10}, "dmg_dealt_by_type": {"aoe_defence": 1507, "defence": 2900}, "dmg_taken_by_type": {"economic": 276, "defence": 822, "aoe_defence": 160}}
+{"t": "wave_start", "round": 16, "phase": "BUILDING", "frame": 47803, "wall_ms": 1033608, "wave_size": 51, "enemy_tier": 1, "composition": {"siege": 3, "raider": 12, "standard": 35, "formation": 1}, "love": 0, "lives": 2}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 47928, "wall_ms": 1036850, "etype": "raider", "xp": 1, "wx": 519.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48015, "wall_ms": 1039161, "etype": "standard", "xp": 1, "wx": 519.0, "wy": 510.05103}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48082, "wall_ms": 1040964, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.5427}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48083, "wall_ms": 1040992, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48095, "wall_ms": 1041324, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48143, "wall_ms": 1042681, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48160, "wall_ms": 1043164, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 512.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48173, "wall_ms": 1043538, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48183, "wall_ms": 1043823, "etype": "raider", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48196, "wall_ms": 1044212, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48211, "wall_ms": 1044649, "etype": "raider", "xp": 1, "wx": 515.0806500000003, "wy": 508.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48232, "wall_ms": 1045252, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 508.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48254, "wall_ms": 1045893, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 508.5008499999998}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48270, "wall_ms": 1046359, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48272, "wall_ms": 1046416, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48273, "wall_ms": 1046445, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48277, "wall_ms": 1046561, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48279, "wall_ms": 1046619, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48293, "wall_ms": 1047030, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48297, "wall_ms": 1047146, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48314, "wall_ms": 1047639, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48325, "wall_ms": 1047959, "etype": "raider", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48326, "wall_ms": 1047988, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "kidnap", "round": 16, "phase": "ENEMY", "frame": 48333, "wall_ms": 1048186, "etype": "standard", "building_type": "defence", "col": 514, "row": 510}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48338, "wall_ms": 1048329, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.26837999999987}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48346, "wall_ms": 1048555, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48346, "wall_ms": 1048555, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 508.6885000000001}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48360, "wall_ms": 1048955, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48362, "wall_ms": 1049015, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 510.5991299999997}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48375, "wall_ms": 1049384, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.6444899999997}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48386, "wall_ms": 1049699, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48388, "wall_ms": 1049756, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48394, "wall_ms": 1049926, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48408, "wall_ms": 1050319, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48410, "wall_ms": 1050374, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 510.7427699999997}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48410, "wall_ms": 1050374, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48435, "wall_ms": 1051071, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48446, "wall_ms": 1051382, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48461, "wall_ms": 1051793, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48463, "wall_ms": 1051847, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 510.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48483, "wall_ms": 1052392, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48484, "wall_ms": 1052418, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.9147600000004}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48509, "wall_ms": 1053080, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 510.30240000000015}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48513, "wall_ms": 1053185, "etype": "formation", "xp": 1, "wx": 517.7118799999998, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48536, "wall_ms": 1053796, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 510.74655000000035}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48541, "wall_ms": 1053928, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48559, "wall_ms": 1054393, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 511.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48564, "wall_ms": 1054522, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48589, "wall_ms": 1055157, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.86184000000037}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48591, "wall_ms": 1055208, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48615, "wall_ms": 1055805, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48631, "wall_ms": 1056200, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.09261000000004}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48655, "wall_ms": 1056784, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.7352100000003}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48661, "wall_ms": 1056930, "etype": "siege", "xp": 5, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 16, "phase": "ENEMY", "frame": 48682, "wall_ms": 1057433, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 510.40824000000015}
+{"t": "unlock", "round": 16, "phase": "LEVELUP", "frame": 49088, "wall_ms": 1067463, "building_type": "storm_priest", "cost": 0}
+{"t": "levelup", "round": 16, "phase": "LEVELUP", "frame": 49088, "wall_ms": 1067463, "village_level": 5, "option": "unlock_building", "player_xp": 59}
+{"t": "round_summary", "round": 16, "phase": "LEVELUP", "frame": 49088, "wall_ms": 1067464, "love_start": 0, "love_end": 71, "income_actual": 81, "income_potential": 84, "income_lost_to_damage": 3, "base_income": 13, "building_income_actual": 68, "building_income_potential": 71, "painter_income": 0, "story_income": 0, "upkeep_actual": 10, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 0, "net_actual": 71, "net_potential": 74, "dmg_dealt": 6104, "dmg_dealt_lightning": 0, "lightning_hits": 0, "dmg_taken_buildings": 1582, "lives_lost": 0, "lives_end": 2, "enemies_spawned": 51, "kills": 54, "leaks": 0, "kidnaps": 1, "buildings_built": 21, "buildings_dead_at_payday": 5, "buildings_placed": 0, "love_spent_buildings": 0, "village_level": 5, "player_xp": 59, "wave_size": 51, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 16, "phase": "LEVELUP", "frame": 49088, "wall_ms": 1067464, "income_actual": 81, "income_potential": 84, "income_lost_to_damage": 3, "upkeep_actual": 10, "upkeep_potential": 10, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 71, "income_by_type": {"base": 13, "economic": 62, "meditator": 6}, "upkeep_by_type": {"aoe_defence": 10}, "dmg_dealt_by_type": {"aoe_defence": 1734, "defence": 4370}, "dmg_taken_by_type": {"aoe_defence": 176, "defence": 1242, "meditator": 64, "economic": 100}}
+{"t": "place", "round": 17, "phase": "BUILDING", "frame": 49402, "wall_ms": 1075283, "building_type": "storm_priest", "col": 516, "row": 511, "cost": 25, "tier": 0}
+{"t": "wave_start", "round": 17, "phase": "BUILDING", "frame": 50918, "wall_ms": 1113727, "wave_size": 57, "enemy_tier": 1, "composition": {"siege": 4, "standard": 39, "raider": 13, "formation": 1}, "love": 1, "lives": 2}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51206, "wall_ms": 1121256, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51228, "wall_ms": 1121866, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51228, "wall_ms": 1121866, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51247, "wall_ms": 1122394, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51272, "wall_ms": 1123083, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51281, "wall_ms": 1123331, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 511.21783}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51282, "wall_ms": 1123358, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51320, "wall_ms": 1124410, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51341, "wall_ms": 1125007, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51350, "wall_ms": 1125268, "etype": "standard", "xp": 1, "wx": 518.0720100000004, "wy": 511.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51384, "wall_ms": 1126253, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51386, "wall_ms": 1126310, "etype": "raider", "xp": 1, "wx": 520.0685000000003, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51386, "wall_ms": 1126310, "etype": "raider", "xp": 1, "wx": 519.0685000000003, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51406, "wall_ms": 1126893, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51429, "wall_ms": 1127572, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51440, "wall_ms": 1127903, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51452, "wall_ms": 1128259, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 512.0}
+{"t": "lightning", "round": 17, "phase": "ENEMY", "frame": 51462, "wall_ms": 1128584, "level": 1, "hits": 1, "total_damage": 12, "wx": 520.4140625, "wy": 510.5234375}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51491, "wall_ms": 1129432, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51500, "wall_ms": 1129709, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51503, "wall_ms": 1129802, "etype": "standard", "building_type": "defence", "col": 512, "row": 508}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51508, "wall_ms": 1129954, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 511.11717999999996}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51520, "wall_ms": 1130338, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51526, "wall_ms": 1130526, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51530, "wall_ms": 1130652, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51539, "wall_ms": 1130936, "etype": "raider", "xp": 1, "wx": 518.0, "wy": 511.8950499999999}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51552, "wall_ms": 1131344, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51560, "wall_ms": 1131595, "etype": "raider", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51574, "wall_ms": 1132037, "etype": "raider", "building_type": "defence", "col": 513, "row": 508}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51574, "wall_ms": 1132037, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51578, "wall_ms": 1132164, "etype": "raider", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51578, "wall_ms": 1132164, "etype": "standard", "xp": 1, "wx": 517.18472, "wy": 513.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51587, "wall_ms": 1132446, "etype": "standard", "building_type": "defence", "col": 512, "row": 509}
+{"t": "lightning", "round": 17, "phase": "ENEMY", "frame": 51596, "wall_ms": 1132759, "level": 1, "hits": 5, "total_damage": 60, "wx": 512.625, "wy": 508.4375}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51600, "wall_ms": 1132853, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51601, "wall_ms": 1132885, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51622, "wall_ms": 1133540, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 512.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51627, "wall_ms": 1133698, "etype": "standard", "xp": 1, "wx": 517.0, "wy": 513.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51644, "wall_ms": 1134212, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 512.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51645, "wall_ms": 1134242, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51672, "wall_ms": 1135040, "etype": "standard", "building_type": "economic", "col": 512, "row": 511}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51693, "wall_ms": 1135651, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51714, "wall_ms": 1136258, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "lightning", "round": 17, "phase": "ENEMY", "frame": 51731, "wall_ms": 1136782, "level": 1, "hits": 6, "total_damage": 72, "wx": 512.59375, "wy": 511.25}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51741, "wall_ms": 1137042, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "kidnap", "round": 17, "phase": "ENEMY", "frame": 51758, "wall_ms": 1137521, "etype": "standard", "building_type": "economic", "col": 512, "row": 512}
+{"t": "enemy_death", "round": 17, "phase": "ENEMY", "frame": 51762, "wall_ms": 1137634, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.21356999999995}
+{"t": "base_hit", "round": 17, "phase": "ENEMY", "frame": 51796, "wall_ms": 1138578, "etype": "standard", "waived": false, "lives_after": 1}
+{"t": "round_summary", "round": 17, "phase": "ROUND_END", "frame": 51820, "wall_ms": 1139187, "love_start": 1, "love_end": 35, "income_actual": 47, "income_potential": 87, "income_lost_to_damage": 40, "base_income": 13, "building_income_actual": 34, "building_income_potential": 74, "painter_income": 0, "story_income": 0, "upkeep_actual": 13, "upkeep_potential": 13, "upkeep_unpaid_from_deaths": 0, "net_actual": 34, "net_potential": 74, "dmg_dealt": 4607, "dmg_dealt_lightning": 144, "lightning_hits": 12, "dmg_taken_buildings": 1557, "lives_lost": 1, "lives_end": 1, "enemies_spawned": 57, "kills": 38, "leaks": 1, "kidnaps": 6, "buildings_built": 22, "buildings_dead_at_payday": 8, "buildings_placed": 1, "love_spent_buildings": 25, "village_level": 5, "player_xp": 116, "wave_size": 57, "enemy_tier": 1, "cheated": 0}
+{"t": "payday", "round": 17, "phase": "ROUND_END", "frame": 51820, "wall_ms": 1139187, "income_actual": 47, "income_potential": 87, "income_lost_to_damage": 40, "upkeep_actual": 13, "upkeep_potential": 13, "upkeep_unpaid_from_deaths": 0, "story_income": 0, "painter_income": 0, "love_end": 35, "income_by_type": {"base": 13, "meditator": 8, "economic": 26}, "upkeep_by_type": {"aoe_defence": 10, "storm_priest": 3}, "dmg_dealt_by_type": {"defence": 3818, "aoe_defence": 789}, "dmg_taken_by_type": {"defence": 1029, "economic": 480, "aoe_defence": 48}}
+{"t": "wave_start", "round": 18, "phase": "BUILDING", "frame": 52827, "wall_ms": 1165744, "wave_size": 63, "enemy_tier": 1, "composition": {"siege": 5, "standard": 43, "raider": 14, "formation": 1}, "love": 5, "lives": 1}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53047, "wall_ms": 1171577, "etype": "standard", "xp": 1, "wx": 519.0, "wy": 510.21168}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53072, "wall_ms": 1172265, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 507.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53085, "wall_ms": 1172625, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53105, "wall_ms": 1173172, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53118, "wall_ms": 1173526, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53147, "wall_ms": 1174319, "etype": "siege", "xp": 5, "wx": 512.5707000000003, "wy": 507.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53169, "wall_ms": 1174912, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53203, "wall_ms": 1175835, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 508.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53214, "wall_ms": 1176137, "etype": "siege", "xp": 5, "wx": 516.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53226, "wall_ms": 1176469, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 508.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53262, "wall_ms": 1177467, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 508.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53269, "wall_ms": 1177661, "etype": "standard", "xp": 1, "wx": 519.0, "wy": 510.20979}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53269, "wall_ms": 1177661, "etype": "raider", "xp": 1, "wx": 519.88255, "wy": 510.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53277, "wall_ms": 1177884, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 508.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53297, "wall_ms": 1178439, "etype": "standard", "building_type": "economic", "col": 513, "row": 509}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53302, "wall_ms": 1178580, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 508.68850000000003}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53331, "wall_ms": 1179383, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53340, "wall_ms": 1179632, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53361, "wall_ms": 1180224, "etype": "raider", "xp": 1, "wx": 513.4289500000002, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53374, "wall_ms": 1180587, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53390, "wall_ms": 1181034, "etype": "siege", "xp": 5, "wx": 518.0, "wy": 511.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53394, "wall_ms": 1181148, "etype": "raider", "xp": 1, "wx": 513.3074500000002, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53415, "wall_ms": 1181756, "etype": "standard", "xp": 1, "wx": 513.1192600000004, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53423, "wall_ms": 1181994, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53437, "wall_ms": 1182410, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53446, "wall_ms": 1182680, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53456, "wall_ms": 1182976, "etype": "raider", "xp": 1, "wx": 514.8785, "wy": 508.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53467, "wall_ms": 1183306, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53482, "wall_ms": 1183761, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53484, "wall_ms": 1183821, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53497, "wall_ms": 1184215, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 508.17198999999994}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53501, "wall_ms": 1184336, "etype": "raider", "xp": 1, "wx": 513.2629000000002, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53503, "wall_ms": 1184395, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53521, "wall_ms": 1184934, "etype": "raider", "xp": 1, "wx": 516.0, "wy": 507.72090000000014}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53529, "wall_ms": 1185174, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53531, "wall_ms": 1185232, "etype": "raider", "xp": 1, "wx": 512.0, "wy": 507.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53552, "wall_ms": 1185856, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 513.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53557, "wall_ms": 1186007, "etype": "standard", "xp": 1, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53573, "wall_ms": 1186488, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 511.96767999999963}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53577, "wall_ms": 1186608, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 508.11150999999995}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53578, "wall_ms": 1186638, "etype": "standard", "xp": 1, "wx": 513.3744100000002, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53596, "wall_ms": 1187165, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53599, "wall_ms": 1187252, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 512.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53603, "wall_ms": 1187370, "etype": "standard", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53619, "wall_ms": 1187830, "etype": "raider", "xp": 1, "wx": 513.0, "wy": 509.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53624, "wall_ms": 1187975, "etype": "standard", "building_type": "defence", "col": 517, "row": 513}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53631, "wall_ms": 1188180, "etype": "standard", "building_type": "defence", "col": 512, "row": 508}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53647, "wall_ms": 1188635, "etype": "standard", "xp": 1, "wx": 518.0, "wy": 511.6425999999997}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53651, "wall_ms": 1188748, "etype": "siege", "xp": 5, "wx": 515.0, "wy": 509.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53668, "wall_ms": 1189232, "etype": "standard", "building_type": "defence", "col": 513, "row": 510}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53671, "wall_ms": 1189315, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 508.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53682, "wall_ms": 1189628, "etype": "standard", "building_type": "defence", "col": 512, "row": 509}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53727, "wall_ms": 1190880, "etype": "formation", "xp": 1, "wx": 513.0, "wy": 509.84000000000003}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53727, "wall_ms": 1190880, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 510.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53763, "wall_ms": 1191899, "etype": "standard", "building_type": "economic", "col": 512, "row": 511}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53793, "wall_ms": 1192734, "etype": "siege", "xp": 5, "wx": 514.0, "wy": 509.0}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53806, "wall_ms": 1193098, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 511.0}
+{"t": "kidnap", "round": 18, "phase": "ENEMY", "frame": 53821, "wall_ms": 1193524, "etype": "standard", "building_type": "economic", "col": 512, "row": 512}
+{"t": "enemy_death", "round": 18, "phase": "ENEMY", "frame": 53852, "wall_ms": 1194389, "etype": "standard", "xp": 1, "wx": 512.0, "wy": 512.6199199999996}
+{"t": "base_hit", "round": 18, "phase": "ENEMY", "frame": 53860, "wall_ms": 1194601, "etype": "standard", "waived": false, "lives_after": 0}
+{"t": "game_over", "round": 18, "phase": "ENEMY", "frame": 53860, "wall_ms": 1194601, "kills": 437, "buildings_placed": 22}
+{"t": "run_end", "round": 18, "phase": "ENEMY", "frame": 53860, "wall_ms": 1194601, "outcome": "game_over", "rounds": 17}

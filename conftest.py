@@ -48,20 +48,27 @@ TIERS = {
     "test_tiers": "meta",
 
     # --- editor: PySide6; the slow tier ------------------------------------
+    "test_anchor_origin_parity": "editor",  # fix-anchor-origin-parity: §4.1
     "test_details_panel": "editor",
+    "test_editor_anchors": "editor",
+    "test_editor_preview_footprint": "editor",  # fix-editor-preview-footprint: §4.1
     "test_editor_asset_import": "editor",
     "test_editor_map_mode": "editor",
     "test_editor_panels": "editor",
+    "test_timeline_panel": "editor",  # TimelinePLAN T5: editor/panels/timeline.py
     "test_editor_run_controls": "editor",
     "test_editor_selection": "editor",
+    "test_editor_tutorial_paint": "editor",
     "test_editor_viewport": "editor",
     "test_registry_ops": "editor",
     "test_run_controls": "editor",
     "test_screen_honest_controls": "editor",
+    "test_vfx_preview": "editor",
 
     # --- core: engine + game + data. The 800-odd fast ones ------------------
     "test_10j_qol": "core",
     "test_alpha_render": "core",
+    "test_asset_anchors": "core",  # ESV-1: manifest anchors + game.anchors resolver
     "test_asset_store": "core",
     "test_assets_manifest": "core",
     "test_assets_registry": "core",
@@ -71,24 +78,33 @@ TIERS = {
     "test_base_building": "core",
     "test_boost": "core",
     "test_boss": "core",
+    "test_building_movement": "core",  # Building Movement: move_cost/start_move
     "test_buildings_placement": "core",
     "test_buildings_state_in_components": "core",
     "test_buildings_tier_math": "core",
     "test_button_skin": "core",
+    "test_combat_anchors": "core",  # ESV-1: D4 guardrail (muzzle vs. flight timer)
     "test_combat_speed": "core",
     "test_components": "core",
     "test_condition_art": "core",
     "test_coords": "core",
     "test_core": "core",
     "test_corpse": "core",
+    "test_cutscene_player": "core",  # TU-5: CutscenePlayer + registry loader
+    "test_cutscene_session": "core",  # TU-5: end_turn() pending_cutscene request
     "test_death_spawn": "core",
+    "test_debug_log": "core",  # debug mode: recorder + metrics + reports
     "test_defence_aoe_beam": "core",
     "test_enemies": "core",
     "test_enemy_hp_bars": "core",
+    "test_enemy_intro": "core",  # feature-enemy-intro-dialogue: ENEMY_INTRO phase machine
+    "test_era_math": "core",  # ES-1: pure era clock / per-era stat + count math
+    "test_esv6_converge": "core",  # ESV-6: anchored impact/muzzle VFX (D4 guardrail)
     "test_flow_field": "core",
     "test_footprint_path": "core",
     "test_game_boot": "core",
     "test_ground_cache": "core",
+    "test_hp_bar_anchors": "core",  # ESV-1: hp_bar anchor composes with the D3 baseline
     "test_hud_items": "core",
     "test_hud_panel": "core",
     "test_hud_render": "core",
@@ -106,13 +122,21 @@ TIERS = {
     "test_physics_occupancy": "core",
     "test_picking": "core",
     "test_placeholder": "core",
+    "test_player_identity": "core",  # player-identity: scores + menu matrix
+    "test_prey_hunting": "core",  # Chunk 3/4 prey-hunting + weight profiles
+    "test_projectile_anchored_flight": "core",  # feat-projectile-anchored-flight
+    "test_qa_triage": "core",  # /datatriage: playtest-session coalescer
+    "test_projectile_sprites": "core",  # fix-anchor-offset-and-bullet-sprites Fix 2
     "test_range_sensor": "core",
     "test_render": "core",
     "test_right_click_dismiss": "core",
     "test_scenarios": "core",
     "test_scene_query": "core",
+    "test_schema_slot_sync": "core",  # feature-enemy-intro-dialogue: sprite_slot/animation enum drift
     "test_shell": "core",
+    "test_simrun": "core",  # debug mode: the headless balance-sweep runner
     "test_spawn_deco": "core",
+    "test_strings_data": "core",  # Phase C: string-table data + T() parity pins
     "test_structure": "core",
     "test_theme_data": "core",  # UH-6: fonts/palette data + tint parity pins
     "test_tile_conditions": "core",
@@ -120,10 +144,28 @@ TIERS = {
     "test_tile_unlock": "core",
     "test_tilemap_model": "core",
     "test_tilemap_ops": "core",
+    "test_tutorial_data": "core",  # TU-1: tutorial script + cutscene registry data
+    "test_tutorial_director": "core",  # TU-6: TutorialDirector fake-event chain
+    "test_tutorial_engine": "core",  # TU-6: engine.tutorial step-sequencer
     "test_ui_layout_export": "core",  # 10L-B phase B3: layout exporter staleness gate
+    "test_ui_min_targets": "core",  # UR-5: click-target floor + static label fit
     "test_ui_skinning": "core",  # 10L-B phase B2: skinning + parity pin
+    # UT-1/UT-6: the text_id binding. `editor` because half of it drives a Qt
+    # ScreenDetailsPanel against a TempDataCase copy — the pure game-side half
+    # (submit_label) rides along rather than living in a second module.
+    "test_ui_text_binding": "editor",
+    "test_vfx": "core",  # ESV-3a: engine.vfx emitters + the vfx balancing domain
+    "test_vfx_play_once": "core",  # ESV-5: PlayOnceVfx + the trigger table
     "test_video_playback": "core",
     "test_video_source": "core",
+    "test_migration_timeline": "core",  # TimelinePLAN T6: unlock_min_round -> Timeline migration
+    "test_timeline_ops": "core",  # TimelinePLAN T5: editor/timeline_ops.py
+    "test_wall_render": "core",  # game/map/wall_render.py: the ONE wall emitter
+    # UiEditorParentingPLAN P-1: editor/widget_tree.py, the pure parent
+    # resolver. Qt-free (like editor/selection.py), but it is an editor module
+    # and tracks the editor suites.
+    "test_widget_tree": "editor",
+    "test_xp_curve": "core",  # TimelinePLAN T3: best-case XP-curve calculator
 }
 
 

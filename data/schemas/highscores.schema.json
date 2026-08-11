@@ -1,0 +1,115 @@
+{
+  "$id": "highscores.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "scores/highscores.json (gitignored runtime player record; no data/ content file pairs with this schema - validate_data skips data/schemas/). Written ONLY by game/core/highscores.py through engine.data_io.write_validated, read back through the same module, which returns a fresh empty doc rather than raising when the file is missing or unreadable.",
+  "properties": {
+    "entries": {
+      "description": "Every finished run, in the order they were played (oldest first). The high-score screen sorts a copy; this array is never re-ordered on disk.",
+      "items": {
+        "additionalProperties": false,
+        "description": "One finished run.",
+        "properties": {
+          "buildings_placed": {
+            "description": "Buildings the player placed over the whole run.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "debug": {
+            "description": "True if this run was instrumented (a PLAY DEBUG run that wrote telemetry artifacts).",
+            "type": "boolean"
+          },
+          "enemies_killed": {
+            "description": "Enemies the player killed over the whole run.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "name": {
+            "description": "The player's name as typed. Blank/whitespace input is normalised to 'Anonymous' before it reaches here.",
+            "type": "string"
+          },
+          "round_reached": {
+            "description": "The round the run ended on - the primary ranking key, sorted descending.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "run_id": {
+            "description": "The DebugRecorder run id whose log artifacts belong to this run, or null for an uninstrumented run.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "skill": {
+            "description": "The player's self-declared experience level with this game, picked on the identity prompt. 'unknown' is the value stamped when identity was never asked or the answer was not one of the four offered levels.",
+            "enum": [
+              "never",
+              "a_bit",
+              "a_lot",
+              "developer",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "timestamp": {
+            "description": "Local wall-clock time the run was recorded, ISO-8601 to the second (datetime.now().isoformat(timespec='seconds')).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "buildings_placed",
+          "debug",
+          "enemies_killed",
+          "name",
+          "round_reached",
+          "run_id",
+          "skill",
+          "timestamp"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "last_player": {
+      "additionalProperties": false,
+      "description": "The identity the last recorded run was played under, used to pre-fill the identity prompt. Empty name + 'unknown' skill is the fresh-file state.",
+      "properties": {
+        "name": {
+          "description": "Name the last run was recorded under; '' when none yet.",
+          "type": "string"
+        },
+        "skill": {
+          "description": "The player's self-declared experience level with this game, picked on the identity prompt. 'unknown' is the value stamped when identity was never asked or the answer was not one of the four offered levels.",
+          "enum": [
+            "never",
+            "a_bit",
+            "a_lot",
+            "developer",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "skill"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "description": "Document format version. Only 1 exists; a future bump is a schema change.",
+      "enum": [
+        1
+      ],
+      "minimum": 1,
+      "type": "integer"
+    }
+  },
+  "required": [
+    "entries",
+    "last_player",
+    "version"
+  ],
+  "title": "highscores",
+  "type": "object"
+}

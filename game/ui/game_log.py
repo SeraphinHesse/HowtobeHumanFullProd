@@ -26,9 +26,14 @@ LIFETIME = 4.0     # seconds a message lives
 FADE_START = 3.0   # age at which the fade begins (linear to LIFETIME)
 MAX_MESSAGES = 5
 _COLOR = (220, 200, 155)
+# UR-5 fix (triage Step 1, bucket "already 640-scale"): UR-2 halved this 12 ->
+# 6 with the surface, but a text LINE STEP is a font-scale quantity and
+# data/ui/fonts.json did not halve. Measured: the log draws at "sm", whose
+# layout_h is 11, so all five stacked lines overlapped each other by 5px.
+# Back to 12 — one pixel of leading over an 11px line, as before UR-2.
 _LINE_STEP = 12
-_X = 8
-_LIFT = 32         # first line sits view_h - _LIFT (just above the phase label)
+_X = 4
+_LIFT = 16         # first line sits view_h - _LIFT (just above the phase label)
 
 SCREEN_ID = "game_log"
 

@@ -22,7 +22,7 @@ from engine import tilemap
 from engine.coords import CoordinateSystem, Geometry
 from engine.core import Health, Scene, SpriteAnimator
 from engine.physics import TileOccupancy
-from game.buildings import BaseBuilding, attach_base, place_building
+from game.buildings import BaseBuilding, attach_base, create, place_building
 from game.buildings.research import LEAF_CLASSES, RESEARCH, buildable
 from game.core import RunState, Session, load_balance
 from game.core import lightning as lt
@@ -35,6 +35,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 LS = CORE["LightningStrike"]
 HOLE = CORE["TheHole"]
@@ -77,10 +78,25 @@ def spawn_enemy(scene, tm, col, row):
     return e
 
 
+def spawn_storm_priest(scene, tier_idx=0, col=0, row=0):
+    """A Storm Priest GameObject spawned directly into ``scene`` — bypassing
+    ``place_building`` (real tile occupancy). ``lt.strike``/``tick``/
+    ``can_strike`` only ever consult ``scene.by_tag("lightning_source")``,
+    never tile state, so this is enough for tests that need a real
+    ``LightningCaster`` at a given tier but don't care where it stands
+    (radius/damage/cooldown geometry). Placement-mechanics tests
+    (TestStormPriestUnlock et al.) go through the real ``place_building``
+    seam instead."""
+    b = create("storm_priest", col, row, BUILD, tier_idx)
+    scene.spawn(b)
+    return b
+
+
 def frame(session, scene, tilemap_, dt):
     session.pre_sim(dt, scene)
     scene.update(dt)
-    resolve_combat(scene, tilemap_, dt, BUILD, on_base_hit=session.on_base_hit,
+    resolve_combat(scene, tilemap_, dt, BUILD, VFX,
+                   on_base_hit=session.on_base_hit,
                    on_enemy_death=session.on_enemy_death)
     session.post_sim(scene)
 
@@ -99,11 +115,12 @@ class TestSeedAndCosts(unittest.TestCase):
     def test_fresh_run_starts_at_level_0_locked(self):
         # Storm Priest wiring: lightning now boots LOCKED. A Storm Priest
         # placement (game.core.lightning.unlock_from_placement) is the ONLY
-        # way to reach L1 — see TestStormPriestUnlock below.
+        # way to reach L1 — see TestStormPriestUnlock below. No RunState
+        # cooldown field any more (feature-storm-acolyte-multi-build moved
+        # it onto each caster) — an empty scene has no caster either way.
         st = RunState.from_balance(CORE, BUILD)
         self.assertEqual(st.lightning_level, 0)
-        self.assertEqual(st.lightning_cooldown, 0.0)
-        self.assertFalse(lt.can_strike(st))
+        self.assertFalse(lt.can_strike(st, Scene()))
 
 
 # ---------------------------------------------------------------------------
@@ -215,7 +232,7 @@ class TestStormPriestNotCombat(unittest.TestCase):
         hp0 = e.get_component(Health).hp
         for _ in range(20):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
         self.assertEqual(e.get_component(Health).hp, hp0)   # never attacked
         self.assertEqual(scene.by_tag("projectile"), [])    # never fired
 
@@ -236,7 +253,7 @@ class TestStormPriestCasterFlash(unittest.TestCase):
         self.assertEqual(anim.animation, "idle")
 
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 1.0, 1.0))  # whiff ok
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 1.0, 1.0))  # whiff ok
         scene.update(0.0)
         self.assertEqual(anim.animation, "attack")
 
@@ -248,74 +265,95 @@ class TestStormPriestCasterFlash(unittest.TestCase):
 # 2. Cooldown gating
 # ---------------------------------------------------------------------------
 class TestCooldown(unittest.TestCase):
-    def test_strike_spends_cooldown_and_leveling_never_resets_it(self):
+    """feature-storm-acolyte-multi-build: the cooldown lives on each fired
+    caster's own ``LightningCaster.cooldown`` now, not a single ``RunState``
+    field — every test here places (or bypass-spawns) a real Storm Priest."""
+
+    def test_strike_spends_cooldown_on_the_firing_caster(self):
         tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene)          # tier0 -> level 1
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked via a Storm Priest
+        lt.unlock_from_placement(st, priest)
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 3.0, 3.0))  # whiff ok
-        self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
-        st.lightning_level = 2                     # tier-driven level mid-cooldown
-        self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])  # untouched
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 3.0, 3.0))  # whiff ok
+        caster = priest.get_component(lt.LightningCaster)
+        self.assertEqual(caster.cooldown, LS["cooldown"][0])
 
     def test_strike_while_cooling_is_a_silent_noop(self):
         tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene)
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked; exercise the
+        lt.unlock_from_placement(st, priest)
         cs = make_cs()                              # cooldown gate specifically
         e = spawn_enemy(scene, tm, 3, 3)
         scene.update(0.0)
         hp0 = e.get_component(Health).hp
-        st.lightning_cooldown = 2.0
-        self.assertFalse(lt.can_strike(st))
-        self.assertFalse(lt.strike(st, CORE, scene, cs,
+        caster = priest.get_component(lt.LightningCaster)
+        caster.cooldown = 2.0
+        self.assertFalse(lt.can_strike(st, scene))
+        self.assertFalse(lt.strike(st, CORE, VFX, scene, cs,
                                    *e.transform.world_pos))
         scene.update(0.0)
         self.assertEqual(e.get_component(Health).hp, hp0)   # no damage
         self.assertEqual(scene.by_tag("lightning_fx"), [])  # no FX
-        self.assertEqual(st.lightning_cooldown, 2.0)        # unchanged
+        self.assertEqual(caster.cooldown, 2.0)               # unchanged
 
     def test_whiff_still_spends_full_cooldown_and_plays_fx(self):
         tm, scene, occ = build_board(FIELD)   # no enemies at all
+        priest = spawn_storm_priest(scene)
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked via a Storm Priest
+        lt.unlock_from_placement(st, priest)
         cs = make_cs()
-        self.assertTrue(lt.strike(st, CORE, scene, cs, 4.0, 4.0))
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, 4.0, 4.0))
         scene.update(0.0)
-        self.assertEqual(st.lightning_cooldown, LS["cooldown"][0])
+        caster = priest.get_component(lt.LightningCaster)
+        self.assertEqual(caster.cooldown, LS["cooldown"][0])
         self.assertEqual(len(scene.by_tag("lightning_fx")), 1)
 
     def test_tick_drains_linearly_and_clamps_at_zero(self):
+        tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene)
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_cooldown = 3.0
-        lt.tick(st, 1.0)
-        self.assertAlmostEqual(st.lightning_cooldown, 2.0)
-        lt.tick(st, 10.0)
-        self.assertEqual(st.lightning_cooldown, 0.0)
-        lt.tick(st, 1.0)                                    # already 0: stable
-        self.assertEqual(st.lightning_cooldown, 0.0)
+        caster = priest.get_component(lt.LightningCaster)
+        caster.cooldown = 3.0
+        lt.tick(st, 1.0, scene)
+        self.assertAlmostEqual(caster.cooldown, 2.0)
+        lt.tick(st, 10.0, scene)
+        self.assertEqual(caster.cooldown, 0.0)
+        lt.tick(st, 1.0, scene)                             # already 0: stable
+        self.assertEqual(caster.cooldown, 0.0)
 
     def test_pre_sim_drains_only_in_enemy_phase(self):
         tm, scene, occ = build_board(["bb"])
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         st = session.state
-        st.lightning_cooldown = 3.0
+        building, _c = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                      BUILD, scene, occ)
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
+        caster = building.get_component(lt.LightningCaster)
+        caster.cooldown = 3.0
         st.phase = GamePhase.ENEMY
         session.pre_sim(1.0, scene)
-        self.assertAlmostEqual(st.lightning_cooldown, 2.0)  # ENEMY: drains
+        self.assertAlmostEqual(caster.cooldown, 2.0)  # ENEMY: drains
         st.phase = GamePhase.BUILDING
         session.pre_sim(1.0, scene)
-        self.assertAlmostEqual(st.lightning_cooldown, 2.0)  # BUILDING: frozen
+        self.assertAlmostEqual(caster.cooldown, 2.0)  # BUILDING: frozen
         st.phase = GamePhase.INCOME
         st.phase_timer = 99.0
         session.pre_sim(1.0, scene)
-        self.assertAlmostEqual(st.lightning_cooldown, 2.0)  # INCOME: frozen
+        self.assertAlmostEqual(caster.cooldown, 2.0)  # INCOME: frozen
 
     def test_fx_ages_and_self_despawns(self):
         tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene)
+        scene.update(0.0)     # flush the spawn queue: by_tag needs it live
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                     # unlocked via a Storm Priest
-        lt.strike(st, CORE, scene, make_cs(), 4.0, 4.0)
+        lt.unlock_from_placement(st, priest)
+        lt.strike(st, CORE, VFX, scene, make_cs(), 4.0, 4.0)
         scene.update(0.0)
         fx = scene.by_tag("lightning_fx")[0]
         scene.update(0.3)
@@ -337,10 +375,13 @@ class TestRadiusGeometry(unittest.TestCase):
     deltas: Δ(+1,+1) world -> (0, 32) px = 32.0; Δ(+1,0) -> (32, 16) px
     ≈ 35.78; Δ(+2,0) -> (64, 32) px ≈ 71.55 (prototype game.py:505-508)."""
 
-    def _board_with(self, deltas, zoom=1.0):
-        """Enemies at world offsets ``deltas`` from the strike point (4, 4).
-        Returns (scene, cs, strike point, [enemies])."""
+    def _board_with(self, deltas, zoom=1.0, tier_idx=0):
+        """Enemies at world offsets ``deltas`` from the strike point (4, 4),
+        plus a real Storm Priest caster at ``tier_idx`` (bypass-spawned —
+        this class only cares about damage/radius geometry, not placement
+        mechanics). Returns (scene, cs, strike point, [enemies], priest)."""
         tm, scene, occ = build_board(FIELD)
+        priest = spawn_storm_priest(scene, tier_idx)
         enemies = []
         for dwx, dwy in deltas:
             e = spawn_enemy(scene, tm, 4, 4)
@@ -350,20 +391,20 @@ class TestRadiusGeometry(unittest.TestCase):
         for e, dwx, dwy in enemies:
             e.transform.wx = origin[0] + dwx
             e.transform.wy = origin[1] + dwy
-        return scene, make_cs(zoom), origin, [e for e, _, _ in enemies]
+        return scene, make_cs(zoom), origin, [e for e, _, _ in enemies], priest
 
     def _strike(self, st, scene, cs, wx, wy):
         hp0 = {id(e): e.get_component(Health).hp
                for e in scene.by_tag("enemy")}
-        self.assertTrue(lt.strike(st, CORE, scene, cs, wx, wy))
+        self.assertTrue(lt.strike(st, CORE, VFX, scene, cs, wx, wy))
         return {id(e): hp0[id(e)] - e.get_component(Health).hp
                 for e in scene.by_tag("enemy")}
 
     def test_radius_1_boundary_hit_and_near_miss(self, zoom=1.0):
-        scene, cs, (wx, wy), (center, diag, adj) = self._board_with(
+        scene, cs, (wx, wy), (center, diag, adj), priest = self._board_with(
             [(0, 0), (1, 1), (1, 0)], zoom=zoom)
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                       # unlocked, radius 1
+        lt.unlock_from_placement(st, priest)          # tier0 -> radius 1
         dealt = self._strike(st, scene, cs, wx, wy)
         dmg = LS["damage"][0]
         self.assertEqual(dealt[id(center)], dmg)  # on the strike point
@@ -375,24 +416,24 @@ class TestRadiusGeometry(unittest.TestCase):
         self.test_radius_1_boundary_hit_and_near_miss(zoom=2.0)
 
     def test_radius_2_and_3_widen_the_circle(self):
-        scene, cs, (wx, wy), (center, adj, two) = self._board_with(
-            [(0, 0), (1, 0), (2, 0)])
+        scene, cs, (wx, wy), (center, adj, two), priest = self._board_with(
+            [(0, 0), (1, 0), (2, 0)], tier_idx=1)     # tier1 -> radius 2, 64 px
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 2                     # radius 2 -> 64 px
+        lt.unlock_from_placement(st, priest)
         dealt = self._strike(st, scene, cs, wx, wy)
         dmg2 = LS["damage"][1]
         self.assertEqual(dealt[id(adj)], dmg2)     # 35.78 <= 64: HIT
         self.assertEqual(dealt[id(two)], 0)        # 71.55 > 64: MISS
 
-        st.lightning_level = 3                     # radius 3 -> 96 px
-        st.lightning_cooldown = 0.0
+        priest.advance_tier()                      # tier2 -> radius 3, 96 px
+        priest.get_component(lt.LightningCaster).cooldown = 0.0
         dealt = self._strike(st, scene, cs, wx, wy)
         self.assertEqual(dealt[id(two)], LS["damage"][2])  # 71.55 <= 96: HIT
 
     def test_all_in_radius_take_full_flat_damage(self):
-        scene, cs, (wx, wy), (a, b) = self._board_with([(0, 0), (1, 1)])
+        scene, cs, (wx, wy), (a, b), priest = self._board_with([(0, 0), (1, 1)])
         st = RunState.from_balance(CORE, BUILD)
-        st.lightning_level = 1                       # unlocked via a Storm Priest
+        lt.unlock_from_placement(st, priest)          # unlocked via a Storm Priest
         dealt = self._strike(st, scene, cs, wx, wy)
         self.assertEqual(dealt[id(a)], LS["damage"][0])   # no falloff
         self.assertEqual(dealt[id(b)], LS["damage"][0])   # no target cap
@@ -401,18 +442,85 @@ class TestRadiusGeometry(unittest.TestCase):
         tm, scene, occ = build_board(FIELD)
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         st = session.state
-        st.lightning_level = 1                     # unlocked via a Storm Priest
+        priest = spawn_storm_priest(scene)         # unlocked via a Storm Priest
+        lt.unlock_from_placement(st, priest)
         st.phase = GamePhase.ENEMY
         e = spawn_enemy(scene, tm, 4, 4)
         scene.update(0.0)
         e.get_component(Health).hp = LS["damage"][0]  # exactly lethal
-        lt.strike(st, CORE, scene, make_cs(), *e.transform.world_pos)
+        lt.strike(st, CORE, VFX, scene, make_cs(), *e.transform.world_pos)
         self.assertFalse(e.alive)
         frame(session, scene, tm, 0.0)                # the next combat sweep
         scene.update(0.0)                             # flush despawns
         self.assertEqual(scene.by_tag("enemy"), [])
         self.assertEqual(st.enemies_killed, 1)        # on_enemy_death fired
         self.assertGreater(st.player_xp, 0)           # XP paid
+
+
+# ---------------------------------------------------------------------------
+# 3b. feature-storm-acolyte-multi-build: escalating cost curve + multi-fire
+# ---------------------------------------------------------------------------
+class TestStormAcolyteEscalatingCost(unittest.TestCase):
+    """The run-singleton ban is lifted: each fresh lightning_source-tagged
+    placement costs the group's own ``repeat_cost_multiplier`` steeper than
+    the last, tag-gated off ``count_tag`` (never a `storm_priest ==` type
+    branch)."""
+
+    def test_repeat_placement_escalates_by_the_group_multiplier(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        sp = BUILD["DefenceBuildings"]["StormPriest"]
+        base_cost = sp["tiers"][0]["build_cost"]
+        mult = sp["repeat_cost_multiplier"]
+        tiles = [tm.get(0, 1), tm.get(1, 1), tm.get(2, 1)]
+        costs = []
+        for tile in tiles:
+            _b, cost = place_building(tm, tile, "storm_priest", 999999,
+                                      BUILD, scene, occ)
+            costs.append(cost)
+        self.assertEqual(costs, [
+            base_cost,
+            round(base_cost * mult),
+            round(base_cost * mult ** 2),
+        ])
+
+
+class TestMultiAcolyteStrike(unittest.TestCase):
+    """``strike()`` fires EVERY ready caster at the clicked point, each
+    contributing its own tier's damage/radius/cooldown; a caster still
+    cooling sits the strike out entirely."""
+
+    def test_ready_casters_stack_damage_by_own_tier_cooling_one_sits_out(self):
+        tm, scene, occ = build_board(BUILDABLE_FIELD)
+        st = RunState.from_balance(CORE, BUILD)
+        tier1, _c = place_building(tm, tm.get(0, 1), "storm_priest", 999999,
+                                   BUILD, scene, occ)
+        tier3, _c = place_building(tm, tm.get(1, 1), "storm_priest", 999999,
+                                   BUILD, scene, occ)
+        cooling, _c = place_building(tm, tm.get(2, 1), "storm_priest", 999999,
+                                     BUILD, scene, occ)
+        lt.unlock_from_placement(st, tier1)
+        tier3.advance_tier()
+        tier3.advance_tier()                        # tier index 2 -> level 3
+        cooling.get_component(lt.LightningCaster).cooldown = 5.0
+
+        cs = make_cs()
+        e = spawn_enemy(scene, tm, 2, 2)
+        scene.update(0.0)
+        hp0 = e.get_component(Health).hp
+
+        struck = lt.strike(st, CORE, VFX, scene, cs, *e.transform.world_pos)
+
+        self.assertTrue(struck)
+        dealt = hp0 - e.get_component(Health).hp
+        self.assertEqual(dealt, LS["damage"][0] + LS["damage"][2])  # stacked
+        self.assertEqual(tier1.get_component(lt.LightningCaster).cooldown,
+                         LS["cooldown"][0])
+        self.assertEqual(tier3.get_component(lt.LightningCaster).cooldown,
+                         LS["cooldown"][2])
+        self.assertEqual(cooling.get_component(lt.LightningCaster).cooldown,
+                         5.0)      # untouched: never fired, never re-set
+        scene.update(0.0)
+        self.assertEqual(len(scene.by_tag("lightning_fx")), 2)  # one per firer
 
 
 # ---------------------------------------------------------------------------
@@ -450,6 +558,11 @@ class TestCheats(unittest.TestCase):
                                            rng=random.Random(11))
         st = session.state
         session.end_turn()                          # queue a real wave
+        # Round 1 carries a designer-authored enemy-intro entry in the
+        # fixture data (feature-enemy-intro-dialogue) — drain it exactly like
+        # the host does before the round's real ENEMY phase begins.
+        while st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(st.phase, GamePhase.ENEMY)
         self.assertTrue(session.spawner.pending())  # something queued
         love0, round0 = st.love, st.round_num
@@ -507,6 +620,8 @@ class TestCheats(unittest.TestCase):
         session, scene, tm = self._session(["bb"])      # spawnless: empty wave
         st = session.state
         session.end_turn()
+        while st.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(st.phase, GamePhase.ENEMY)
         round0 = st.round_num
 
@@ -547,7 +662,7 @@ class TestCheatMenuActions(unittest.TestCase):
         return x + w // 2, y + h // 2
 
     def test_buttons_return_their_actions(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         expected = ("add_love", "skip_round", "trigger_levelup", "inf_money",
                     "unlock_all")
@@ -558,7 +673,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertIsNone(menu.hit(0, 0))          # off-panel click swallowed
 
     def test_goto_round_field_digits_only_max_4_commit(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))   # click-to-focus
         self.assertTrue(menu.field_focused)
@@ -570,7 +685,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertEqual(menu.handle_key("", "return"), ("goto_round", 207))
 
     def test_empty_or_invalid_commit_is_a_noop(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))
         self.assertIsNone(menu.handle_key("", "return"))   # empty field
@@ -581,7 +696,7 @@ class TestCheatMenuActions(unittest.TestCase):
     def test_reopen_resets_the_round_field(self):
         # Review finding: open() must clear the input state every time
         # (prototype clears _buf/_active on open).
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         menu.hit(*self._center(menu.field_rect))
         menu.handle_key("4", None)
@@ -593,7 +708,7 @@ class TestCheatMenuActions(unittest.TestCase):
         self.assertFalse(menu.field_focused)
 
     def test_escape_closes_and_all_other_keys_swallowed(self):
-        menu = CheatMenu(1280, 720)
+        menu = CheatMenu(640, 360)
         menu.open()
         self.assertEqual(menu.handle_key("", "escape"), "close")
         self.assertIsNone(menu.handle_key("p", None))  # not the quick-skip!

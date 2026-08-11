@@ -1,12 +1,14 @@
 """Phase 10G: Boss — queue composition, era stats, death swarm, pathing guard,
-A/B bonuses (payday slot 3 + in-sweep deltas + story damage), cutscene flow, XP.
+A/B bonuses (story damage + payday slot 3), cutscene flow, XP.
 
 Pure-Python, headless — the ``test_phase_loop.py`` fixture style: a synth
 ``TileMapDoc`` -> ``TileMap`` board, real balancing via ``load_balance``, and a
 deterministic ``random.Random(seed)`` injected into ``Spawner.begin_round`` /
-``Session``. All hand-computed expectations use the REPO's live JSON (NOT the
-prototype's numbers — ``EnemyScaling.scale_every_n_levels`` is 9 here vs the
-prototype's 10, a pre-existing deliberate drift)."""
+``Session``. All hand-computed expectations come from the fixture's own JSON —
+since ES-2 that means the per-era rows (``EnemyTypes.<type>.eras``) and the ONE
+era clock (``EnemyScaling.rounds_per_era`` / ``boss_round_in_era``), never a
+tier formula."""
+import math
 import copy
 import random
 import unittest
@@ -20,13 +22,13 @@ from engine import tilemap
 from engine.core import Health, Movement, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
-from game.buildings.components import RoundStats
 from game.core import RunState, Session, load_balance, run_payday
 from game.core import boss_bonuses as bb
 from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
-from game.enemies.components import EnemyCombat, PathAgent
-from game.enemies.enemy import tier_scaled_stats
+from game.enemies.combat import _chebyshev, _fp_offset
+from game.enemies.components import DeathSpawn, EnemyCombat, PathAgent
+from game.enemies.enemy import era_stats
 from game.map.tile_map import TileMap
 from game.map.tiles import TileCondition
 
@@ -35,6 +37,7 @@ BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
 UI = load_balance(FIXTURE_DATA, "ui")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 BOSS = ENEM["EnemyTypes"]["Boss"]
 SCALE = ENEM["EnemyScaling"]
@@ -42,7 +45,21 @@ RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
 HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
-INTERVAL = BOSS["round_interval"]
+INTERVAL = SCALE["rounds_per_era"]   # boss_round_in_era == the era's last
+
+
+def expected_count(type_key, round_num):
+    """Hand-computed per-era count (D3/D3'): floor(count_start + k *
+    count_per_round) from the era's first ACTIVE round, 0 before start_round."""
+    block = ENEM["EnemyTypes"][type_key]
+    rows = block["eras"]
+    era = max(0, (round_num - 1) // INTERVAL)
+    row = rows[min(era, len(rows) - 1)]
+    r0 = max(era * INTERVAL + 1, block["start_round"])
+    if round_num < r0:
+        return 0
+    return math.floor(round(
+        row["count_start"] + (round_num - r0) * row["count_per_round"], 9))
 
 
 def synth(rows, base=(0, 0)):
@@ -66,16 +83,28 @@ def frame(session, scene, tilemap_, dt, dmg_bonus=0):
     session.pre_sim(dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(dt)
-        resolve_combat(scene, tilemap_, dt, BUILD,
+        resolve_combat(scene, tilemap_, dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death,
                        dmg_bonus=dmg_bonus)
         session.post_sim(scene)
 
 
-def queue_etypes(round_num, tm, seed=1):
+def boss_footprint(enem, footprint):
+    """Set the boss's footprint on a COPY of the balancing doc.
+
+    BR-1: the boss's ``footprint``/``sprite_scale``/``shake`` are PER-ERA —
+    they live in its ``stats[]`` rows, not flat at the type root — so a test
+    that wants a footprint-N boss writes every row."""
+    for row in enem["EnemyTypes"]["Boss"]["stats"]:
+        row["footprint"] = footprint
+    return enem
+
+
+def queue_etypes(round_num, tm, seed=1, balance=None):
     sp = Spawner()
-    sp.begin_round(round_num, tm, ENEM, rng=random.Random(seed))
+    sp.begin_round(round_num, tm, balance if balance is not None else ENEM,
+                   rng=random.Random(seed))
     return sp, [et for _t, et, _d in sp._queue]
 
 
@@ -110,36 +139,47 @@ class TestBossQueueComposition(unittest.TestCase):
                          Counter({"standard": row["regular"],
                                   "raider": row["raiders"]}))
 
-    def test_round_60_beyond_table_falls_back_to_formulas(self):
-        r = INTERVAL * 6  # boss_idx 5 — past the 5-row table
+    def test_round_60_beyond_table_falls_back_to_the_per_type_counts(self):
+        r = INTERVAL * 6  # era 5 — one past the 5-row round_counts table.
+        # The 10G behaviour, restored in BR-5 (USER DECISION): past the table
+        # the COMPANIONS come from the ordinary per-type era-row counts, not
+        # from the era-4 table row. BR-4 had swapped that branch — round 60
+        # went 295/46/37 -> 700/215/61 — and only that branch was reverted:
+        # the BOSS itself still grows through endgame_boss_scaling (see
+        # TestBossEndgameScaling).
         _sp, etypes = queue_etypes(r, self.tm)
-        tier = (r - 1) // SCALE["scale_every_n_levels"]
-        n_regular = SCALE["base_enemy_count"] + (r - 1) * (
-            SCALE["enemies_per_round"] + tier)
-        n_raiders = (RAIDER["base_count"]
-                     + (r - RAIDER["start_round"]) * RAIDER["per_round"])
-        n_siege = (SIEGE["base_count"]
-                   + (r - SIEGE["start_round"]) // SIEGE["rounds_per_cannon"])
+        n_regular = expected_count("Standard", r)
+        n_raiders = expected_count("Raider", r)
+        n_siege = expected_count("SiegeCannon", r)
         self.assertEqual(etypes[0], "boss")
         self.assertEqual(etypes.count("boss"), 1)
         self.assertEqual(etypes.count("standard"), n_regular)
         self.assertEqual(etypes.count("raider"), n_raiders)
         self.assertEqual(etypes.count("siege"), n_siege)
         self.assertEqual(etypes[1:1 + n_siege], ["siege"] * n_siege)
+        # ... and it is genuinely LIGHTER than the era-4 table row it replaced
+        # — the shape of the revert, pinned so a re-swap turns this red.
+        self.assertLess(n_regular, BOSS["round_counts"][-1]["regular"])
+
+    def test_commander_count_in_the_round_table_is_composed(self):
+        """BR-5 wires `round_counts[era]["commander"]`, authored since BR-1 and
+        consumed by nothing until now. Shipped 0 everywhere, so this pins the
+        MECHANIC against a written row, never the balance of the day."""
+        bal = copy.deepcopy(ENEM)
+        bal["EnemyTypes"]["Boss"]["round_counts"][0]["commander"] = 4
+        _sp, etypes = queue_etypes(INTERVAL, self.tm, balance=bal)
+        self.assertEqual(etypes.count("commander"), 4)
+        # LAST in the composition (after standard+raider) so the shipped
+        # all-zero table draws no rng and every wave fixture holds.
+        _sp2, shipped = queue_etypes(INTERVAL, self.tm)
+        self.assertEqual(shipped.count("commander"), 0)
 
     def test_non_boss_round_composes_as_before_10g(self):
         r = INTERVAL + 1
         _sp, etypes = queue_etypes(r, self.tm)
         self.assertNotIn("boss", etypes)
-        tier = (r - 1) // SCALE["scale_every_n_levels"]
-        self.assertEqual(
-            etypes.count("standard"),
-            SCALE["base_enemy_count"] + (r - 1) * (
-                SCALE["enemies_per_round"] + tier))
-        self.assertEqual(
-            etypes.count("raider"),
-            RAIDER["base_count"]
-            + (r - RAIDER["start_round"]) * RAIDER["per_round"])
+        self.assertEqual(etypes.count("standard"), expected_count("Standard", r))
+        self.assertEqual(etypes.count("raider"), expected_count("Raider", r))
         self.assertEqual(etypes.count("siege"), 0)  # r11 < siege start_round
 
 
@@ -168,9 +208,12 @@ class TestBossEraStats(unittest.TestCase):
                 self.assertEqual(b.era, era)
 
     def test_huge_era_clamps_to_last_row(self):
+        # At the shipped all-1.0 endgame_boss_scaling the stats still clamp;
+        # `era` itself is the GLOBAL era since BR-4 (unclamped — resolve_era_row
+        # needs the distance past the table to compound the factors).
         b = self._boss(99)
         self.assertEqual(b.get_component(Health).max_hp, BOSS["stats"][-1]["hp"])
-        self.assertEqual(b.era, len(BOSS["stats"]) - 1)
+        self.assertEqual(b.era, 99)
 
     def test_spawner_era_selection(self):
         # round 10 -> era 0, round 50 -> era 4, round 60 -> era 4 (clamped).
@@ -187,6 +230,112 @@ class TestBossEraStats(unittest.TestCase):
                     boss.get_component(Health).max_hp,
                     BOSS["stats"][era]["hp"])
 
+    def test_second_phase_staging_is_per_era(self):
+        """BR-5/D5: `at_hp_fraction`/`spawn_hp_fraction`/`delayed_spawns`/
+        `spawn_delay` are per-era rows on `second_phase.staging`, resolved by
+        the `Enemy.resolve_phase_row` seam. Written fixture, not the balance of
+        the day; era 5 proves the array CLAMPS (no endgame factor compounds a
+        fraction past 1.0 and fires the phase on spawn)."""
+        bal = copy.deepcopy(ENEM)
+        staging = bal["EnemyTypes"]["Boss"]["second_phase"]["staging"]
+        for era, row in enumerate(staging):
+            row["at_hp_fraction"] = 0.1 * era
+            row["spawn_hp_fraction"] = 1.0 - 0.1 * era
+            row["spawn_delay"] = 0.25 * (era + 1)
+        for era in list(range(len(staging))) + [5, 40]:
+            with self.subTest(era=era):
+                row = staging[min(era, len(staging) - 1)]
+                ds = create_enemy("boss", 1, 0, bal, self.tm,
+                                  era).get_component(DeathSpawn)
+                self.assertAlmostEqual(ds.at_hp_fraction,
+                                       row["at_hp_fraction"])
+                self.assertAlmostEqual(ds.spawn_hp_fraction,
+                                       row["spawn_hp_fraction"])
+                self.assertAlmostEqual(ds.spawn_delay, row["spawn_delay"])
+                self.assertLessEqual(ds.at_hp_fraction, 1.0)
+
+
+class TestBossEndgameScaling(unittest.TestCase):
+    """BR-4/D1 — past the last authored era every boss array is the last row
+    grown by ``endgame_boss_scaling``: ``last * factor ** N`` with
+    ``N = era - (len(stats) - 1)``. ``test_era_math`` proves ``f ** N`` on the
+    pure resolver; this is the ONE integration pin that the boss's THREE
+    era-row lookups (stats and second_phase.spawns) actually thread the factors
+    through — the commander count included, since that key is invisible in the
+    shipped file (it is 0 everywhere).
+
+    BR-5 removed the THIRD lookup from this list: ``round_counts`` no longer
+    feeds a past-the-table boss round at all (the per-type counts do again, a
+    user decision), so there is nothing there for the factors to reach. The
+    factors themselves stay in the block — the table is still consulted at
+    eras 0-4, where a factor is by definition inert."""
+
+    FACTORS = {"hp": 2.0, "dmg": 1.5, "move_speed": 1.1, "regular": 1.2,
+               "commander": 3.0}
+
+    def _scaled_balance(self):
+        bal = copy.deepcopy(ENEM)
+        boss = bal["EnemyTypes"]["Boss"]
+        boss["endgame_boss_scaling"] = {
+            **{k: 1.0 for k in boss["endgame_boss_scaling"]}, **self.FACTORS}
+        # The shipped commander counts are all 0, and 0 * anything is 0.
+        boss["second_phase"]["spawns"][-1]["commander"] = 2
+        boss["round_counts"][-1]["commander"] = 2
+        return bal
+
+    def test_eras_5_6_7_compound_the_factors(self):
+        bal = self._scaled_balance()
+        boss_cfg = bal["EnemyTypes"]["Boss"]
+        last = boss_cfg["stats"][-1]
+        last_spawns = boss_cfg["second_phase"]["spawns"][-1]
+        last_counts = boss_cfg["round_counts"][-1]
+        tm = synth(["bs"])
+        sp = Spawner()
+        for era in (5, 6, 7):
+            n = era - (len(boss_cfg["stats"]) - 1)     # 1, 2, 3
+            with self.subTest(era=era, n=n):
+                b = create_enemy("boss", 1, 0, bal, tm, era)
+                self.assertEqual(b.era, era)           # unclamped since BR-4
+                self.assertEqual(b.get_component(Health).max_hp,
+                                 math.floor(last["hp"] * 2.0 ** n))
+                self.assertEqual(b.get_component(EnemyCombat).dmg,
+                                 math.floor(last["dmg"] * 1.5 ** n))
+                self.assertAlmostEqual(b.get_component(Movement).speed,
+                                       last["move_speed"] * 1.1 ** n)
+                # second_phase.spawns — counts floor to whole enemies.
+                counts = b.get_component(DeathSpawn).counts
+                self.assertEqual(counts["regular"], math.floor(round(
+                    last_spawns["regular"] * 1.2 ** n, 9)))
+                self.assertEqual(counts["commander"], math.floor(round(
+                    last_spawns["commander"] * 3.0 ** n, 9)))
+                self.assertEqual(counts["raiders"], last_spawns["raiders"])
+                # round_counts is NOT reached past the table since BR-5 — the
+                # companions come from the per-type counts again, untouched by
+                # this block however hard it is tuned.
+                r = (era + 1) * INTERVAL
+                sp.begin_round(r, synth(["bbs"]), bal, rng=random.Random(3))
+                etypes = [et for _t, et, _d in sp._queue]
+                self.assertEqual(etypes.count("standard"),
+                                 expected_count("Standard", r))
+                self.assertNotEqual(etypes.count("standard"), math.floor(round(
+                    last_counts["regular"] * 1.2 ** n, 9)))
+
+    def test_shipped_all_1_factors_are_a_plain_clamp(self):
+        # The invariant BR-4 shipped: an all-1.0 block IS the old clamp, on
+        # every one of the boss's arrays (int leaves floor back to themselves).
+        tm = synth(["bs"])
+        last = BOSS["stats"][-1]
+        for era in (5, 8, 40):
+            with self.subTest(era=era):
+                b = create_enemy("boss", 1, 0, ENEM, tm, era)
+                self.assertEqual(b.get_component(Health).max_hp, last["hp"])
+                self.assertEqual(b.get_component(EnemyCombat).dmg, last["dmg"])
+                self.assertEqual(b.get_component(PathAgent).footprint,
+                                 last["footprint"])
+                self.assertEqual(b.shake, last["shake"])
+                self.assertEqual(b.get_component(DeathSpawn).counts,
+                                 BOSS["second_phase"]["spawns"][-1])
+
 
 # ---------------------------------------------------------------------------
 # 3. Death swarm — one-shot, at the boss tile, CURRENT tier, never on skip
@@ -198,16 +347,30 @@ class TestBossEraStats(unittest.TestCase):
 #: balance moves. Pin the counts so these tests exercise the ER-3 MECHANIC — the
 #: plan, the one-shot guard, the tile, the tier — never the balance of the day.
 #: That balance has its own guard: the schema + tools/smoke.py.
-SWARM = {"regular": 3, "raiders": 2, "siege": 1}
+SWARM = {"regular": 3, "raiders": 2, "siege": 1, "commander": 0}
 
 
-def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0):
-    """A copy of the enemies balance whose boss leaves a NON-EMPTY era-0 burst."""
+def swarm_balance(counts=SWARM, spawn_hp_fraction=1.0, delayed=False,
+                  spawn_delay=0.0, at_hp_fraction=0.0):
+    """A copy of the enemies balance whose boss leaves a NON-EMPTY era-0 burst.
+
+    BR-3 renamed the boss's block `death_spawn` -> `second_phase` and gave it
+    `delayed_spawns`/`spawn_delay`. This class pins the ONE-FRAME burst, so it
+    forces `delayed_spawns` OFF (the shipped data has it ON); the staged phase
+    has its own class below.
+
+    BR-5 moved those four keys into per-era `staging` rows, so this writes
+    EVERY row: the callers below spawn era-0 bosses, but pinning one row would
+    leave a silently different era 1+ for anything that ever moves."""
     enem = copy.deepcopy(ENEM)
-    death_spawn = enem["EnemyTypes"]["Boss"]["death_spawn"]
-    death_spawn["enabled"] = True
-    death_spawn["spawn_hp_fraction"] = spawn_hp_fraction
-    death_spawn["spawns"][0] = dict(counts)
+    second_phase = enem["EnemyTypes"]["Boss"]["second_phase"]
+    second_phase["enabled"] = True
+    second_phase["spawns"][0] = dict(counts)
+    for row in second_phase["staging"]:
+        row["at_hp_fraction"] = at_hp_fraction
+        row["spawn_hp_fraction"] = spawn_hp_fraction
+        row["delayed_spawns"] = delayed
+        row["spawn_delay"] = spawn_delay
     return enem
 
 
@@ -242,16 +405,15 @@ class TestDeathSwarm(unittest.TestCase):
                                           "siege": SWARM["siege"]}))
         for e in enemies:
             self.assertEqual((e._col, e._row), (1, 0))  # the boss's tile
-        # CURRENT tier: standard swarm members carry the cumulative bonus
-        # (round 10 -> tier (10-1)//9 = 1 with repo data); raiders never do.
-        tier = (INTERVAL - 1) // SCALE["scale_every_n_levels"]
-        std_hp = tier_scaled_stats(
-            self.enem["EnemyTypes"]["Standard"], self.enem, tier)[0]
+        # CURRENT era: swarm members carry the round's era row (round 10 is
+        # still era 0); the raider's rows are flat, so it never moves.
+        era = (INTERVAL - 1) // INTERVAL
+        std_hp = era_stats(self.enem["EnemyTypes"]["Standard"], era)[0]
         std = next(e for e in enemies if e.ETYPE == "standard")
         self.assertEqual(std.get_component(Health).max_hp, std_hp)
         raider = next(e for e in enemies if e.ETYPE == "raider")
         self.assertEqual(raider.get_component(Health).max_hp,
-                         self.enem["EnemyTypes"]["Raider"]["hp"])
+                         era_stats(self.enem["EnemyTypes"]["Raider"], era)[0])
         # One-shot guard: reporting the same boss again spawns nothing.
         n = len(enemies)
         session.on_enemy_death(boss)
@@ -278,11 +440,114 @@ class TestDeathSwarm(unittest.TestCase):
         leaves no children. Balance says "this boss doesn't burst" and the code
         honours it — the case that used to masquerade as a passing assertion."""
         tm, scene, session, boss = self._setup(
-            enem=swarm_balance({"regular": 0, "raiders": 0, "siege": 0}))
+            enem=swarm_balance({"regular": 0, "raiders": 0, "siege": 0,
+                                "commander": 0}))
         boss.get_component(Health).damage(10 ** 9)
         frame(session, scene, tm, 0.0)
         scene.update(0.0)
         self.assertEqual([e for e in scene.by_tag("enemy") if e.alive], [])
+
+    def test_delayed_boss_stages_instead_of_bursting(self):
+        """BR-3: the ONE test of the delay -> second-phase machine.
+
+        `delayed_spawns: true` + `at_hp_fraction 0.5`: crossing the threshold
+        must NOT kill the boss. It freezes, goes untargetable, trickles exactly
+        `sum(counts)` children one per `spawn_delay` at its own tile, holds the
+        round open the whole time, then dies exactly once through the normal
+        path (kill count + the round ending)."""
+        delay = 0.25
+        enem = swarm_balance(delayed=True, spawn_delay=delay,
+                             at_hp_fraction=0.5)
+        # A LONG board, unlike the burst tests' two-tile one: the phase runs
+        # over real dt, so children that spawned early would otherwise reach
+        # the hole mid-phase and wipe the round out from under the machine.
+        tm, scene, occ = build_board(["b" + "." * 40 + "s"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(2), occupancy=occ)
+        session.state.round_num = INTERVAL
+        session.state.phase = GamePhase.ENEMY
+        session.spawner.begin_round(INTERVAL, tm, enem, rng=random.Random(2))
+        session.spawner.clear()
+        boss_col = 41
+        boss = create_enemy("boss", boss_col, 0, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        health = boss.get_component(Health)
+        health.hp = health.max_hp // 2          # <= 0.5 * max: the crossing
+
+        self.assertTrue(boss.alive)             # NOT dead — the whole point
+        self.assertFalse(boss.targetable)       # D2: immune + no HP bar
+
+        frame(session, scene, tm, 0.0)          # the transition frame
+        scene.update(0.0)
+        self.assertIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(boss.get_component(Movement).speed, 0.0)
+        self.assertTrue(boss.get_component(PathAgent).frozen)
+        self.assertEqual(session.state.enemies_killed, 0)
+        # Immune while frozen: a full-power hit changes nothing.
+        before = health.hp
+        resolve_combat(scene, tm, 0.0, BUILD, VFX)
+        self.assertEqual(health.hp, before)
+
+        total = sum(SWARM.values())
+        children = 0
+        for _ in range(400):                    # 400 * delay/2 >> the phase
+            frame(session, scene, tm, delay / 2)
+            scene.update(0.0)
+            children = len([e for e in scene.by_tag("enemy")
+                            if e.alive and e is not boss])
+            if boss not in scene.by_tag("enemy"):
+                break
+            # The round can never end while the boss is mid-phase.
+            self.assertEqual(session.state.phase, GamePhase.ENEMY)
+            self.assertLessEqual(children, total)
+        self.assertEqual(children, total)       # exactly sum(counts), no more
+        self.assertNotIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(session.state.enemies_killed, 1)   # died ONCE
+        for e in scene.by_tag("enemy"):
+            self.assertEqual((e._col, e._row), (boss_col, 0))  # the boss's tile
+
+    def test_era_zero_phase_spawns_the_commander(self):
+        """The era-0 shipping shape: `commander: 1` on the staged second phase
+        must produce exactly ONE real Commander (BR-3's `SWARM_TYPES` entry is
+        what makes the count non-inert), at the boss's own tile, at
+        `spawn_hp_fraction` of its OWN max HP — and the boss dies once the
+        queue drains. Counts are pinned here, not read from live balance."""
+        delay = 0.25
+        enem = swarm_balance({"regular": 0, "raiders": 0, "siege": 0,
+                              "commander": 1},
+                             spawn_hp_fraction=0.5, delayed=True,
+                             spawn_delay=delay, at_hp_fraction=0.5)
+        tm, scene, occ = build_board(["b" + "." * 40 + "s"])
+        session = Session.create(Spawner(), tm, enem, CORE, BUILD,
+                                 rng=random.Random(2), occupancy=occ)
+        session.state.round_num = INTERVAL
+        session.state.phase = GamePhase.ENEMY
+        session.spawner.begin_round(INTERVAL, tm, enem, rng=random.Random(2))
+        session.spawner.clear()
+        boss_col = 41
+        boss = create_enemy("boss", boss_col, 0, enem, tm, 0)
+        scene.spawn(boss)
+        scene.update(0.0)
+        health = boss.get_component(Health)
+        health.hp = int(health.max_hp * 0.49)   # past the 0.5 crossing
+
+        self.assertTrue(boss.alive)             # staging, not dead
+        self.assertFalse(boss.targetable)
+        for _ in range(400):
+            frame(session, scene, tm, delay / 2)
+            scene.update(0.0)
+            if boss not in scene.by_tag("enemy"):
+                break
+        self.assertNotIn(boss, scene.by_tag("enemy"))
+        self.assertEqual(session.state.enemies_killed, 1)
+        children = [e for e in scene.by_tag("enemy") if e is not boss]
+        self.assertEqual(Counter(e.ETYPE for e in children),
+                         Counter({"commander": 1}))
+        child = children[0]
+        self.assertEqual((child._col, child._row), (boss_col, 0))
+        ch = child.get_component(Health)
+        self.assertEqual(ch.hp, max(1, int(ch.max_hp * 0.5)))
 
     def test_quick_skip_despawns_boss_without_swarm(self):
         tm, scene, session, _boss = self._setup()
@@ -337,19 +602,118 @@ class TestBossPathing(unittest.TestCase):
 # ---------------------------------------------------------------------------
 # 5. Bonus payout math — pure helpers, dmg_bonus threading, payday slot 3
 # ---------------------------------------------------------------------------
+BB = CORE["BossBonuses"]
+
+
 class TestBossBonuses(unittest.TestCase):
-    def test_story_damage_bonus(self):
-        tm, _scene, _occ = build_board(["bbbb"])
+    """The reworked six. Magnitudes come from ``core.json``'s ``BossBonuses``,
+    so every expectation is ``count * magnitude * stacks`` — never a literal."""
+
+    def _state(self, **stacks):
         st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss1a"] = 2
-        st.boss_stacks["boss3a"] = 1
-        st.boss_love_snapshot = 57
+        for key, value in stacks.items():
+            st.boss_stacks[key] = value
+        return st
+
+    # -- 1A/1B/3A/3B: the four story-damage contributors -------------------
+
+    def test_boss1a_pays_per_unbuilt_tile(self):
+        tm, _scene, _occ = build_board(["bbbb"])
+        st = self._state(boss1a=2)
         n = len(tm.buildable_tiles())
         self.assertGreater(n, 0)
-        self.assertEqual(bb.story_damage_bonus(st, tm), n * 2 + 5)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         n * BB["dmg_per_unbuilt_tile"] * 2)
         st.boss_stacks["boss1a"] = 0
-        st.boss_stacks["boss3a"] = 0
-        self.assertEqual(bb.story_damage_bonus(st, tm), 0)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
+
+    def test_boss1b_pays_per_alive_building(self):
+        tm, scene, occ = build_board(["bbbb"])
+        place_building(tm, tm.get(1, 0), "defence", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(2, 0), "economic", 9999, BUILD, scene, occ)
+        st = self._state(boss1b=3)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         2 * BB["dmg_per_building"] * 3)
+
+    def test_boss3a_pays_per_love_chunk_of_the_end_turn_snapshot(self):
+        tm, _scene, _occ = build_board(["bbbb"])
+        chunk = BB["love_chunk_size"]
+        st = self._state(boss3a=2)
+        st.boss_love_snapshot = chunk * 3 + 1     # the remainder never pays
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         3 * BB["dmg_per_love_chunk"] * 2)
+
+    def test_boss3b_pays_per_lightning_building(self):
+        tm, scene, occ = build_board(["bbbb"])
+        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                   BUILD, scene, occ)
+        self.assertIn("lightning_source", priest.tags)
+        place_building(tm, tm.get(2, 0), "defence", 9999, BUILD, scene, occ)
+        st = self._state(boss3b=2)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE),
+                         1 * BB["dmg_per_lightning_building"] * 2)
+
+    # -- 2A/2B: paid through payday slot 3, silently ------------------------
+
+    def test_boss2a_pays_per_level_past_the_threshold_through_payday(self):
+        tm, scene, occ = build_board(["bbb"])
+        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
+                                     BUILD, scene, occ)
+        defender.upgrade()
+        defender.upgrade()          # in-tier level 3
+        levels_past = max(0, 3 - BB["level_past_threshold"])
+        st = self._state(boss2a=2)
+        story = levels_past * BB["love_per_level_past"] * 2
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
+        love0 = st.love
+        run_payday(st, tm, CORE)
+        self.assertEqual(
+            st.love,
+            love0 + story + HOLE["base_income"] - defender.upkeep())
+        # Slot 3 pays SILENTLY — only base income leaves an income floater.
+        self.assertEqual(
+            len([e for e in st.income_events if e[3] == "income"]), 1)
+
+    def test_boss2b_pays_per_low_level_building_through_payday(self):
+        tm, scene, occ = build_board(["bbbb"])
+        low, _ = place_building(tm, tm.get(1, 0), "defence", 9999, BUILD,
+                                scene, occ)
+        high, _ = place_building(tm, tm.get(2, 0), "defence", 9999, BUILD,
+                                 scene, occ)
+        for _ in range(BB["low_level_target"]):
+            high.upgrade()          # past the target level
+        st = self._state(boss2b=2)
+        story = BB["love_per_low_level_building"] * 2      # exactly one match
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), story)
+        love0 = st.love
+        run_payday(st, tm, CORE)
+        self.assertEqual(
+            st.love,
+            love0 + story + HOLE["base_income"]
+            - low.upkeep() - high.upkeep())
+        self.assertEqual(
+            len([e for e in st.income_events if e[3] == "income"]), 1)
+
+    def test_a_dead_building_drops_out_of_every_count(self):
+        """The rework's deliberate change from 10G's un-filtered counts: a
+        destroyed building stops counting (1B / 2A / 2B / 3B) until revive."""
+        tm, scene, occ = build_board(["bbbb"])
+        priest, _ = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                   BUILD, scene, occ)
+        defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
+                                     BUILD, scene, occ)
+        defender.upgrade()
+        defender.upgrade()          # in-tier level 3, so 2A has something
+        st = self._state(boss1b=1, boss2a=1, boss2b=1, boss3b=1)
+        alive_dmg = bb.story_damage_bonus(st, tm, CORE)
+        alive_love = bb.love_bonus_income(st, tm, CORE)
+        self.assertGreater(alive_dmg, 0)
+        self.assertGreater(alive_love, 0)
+        priest.get_component(Health).damage(10 ** 9)
+        defender.get_component(Health).damage(10 ** 9)
+        self.assertFalse(priest.alive or defender.alive)
+        self.assertEqual(bb.story_damage_bonus(st, tm, CORE), 0)
+        self.assertEqual(bb.love_bonus_income(st, tm, CORE), 0)
 
     def _projectile_delta(self, dmg_bonus):
         tm, scene, occ = build_board(["bbs"])
@@ -361,7 +725,7 @@ class TestBossBonuses(unittest.TestCase):
         health = enemy.get_component(Health)
         health.max_hp = 10 ** 6
         health.hp = 10 ** 6
-        resolve_combat(scene, tm, 0.0, BUILD, dmg_bonus=dmg_bonus)  # fires
+        resolve_combat(scene, tm, 0.0, BUILD, VFX, dmg_bonus=dmg_bonus)  # fires
         for _ in range(60):                    # let the shot travel + impact
             scene.update(0.05)
             if health.hp < 10 ** 6:
@@ -374,80 +738,20 @@ class TestBossBonuses(unittest.TestCase):
         defender, boosted = self._projectile_delta(7)
         self.assertEqual(boosted, defender.damage() + 7)
 
-    def test_payday_slot3_boss1b_pays_per_level_past_2(self):
-        tm, scene, occ = build_board(["bbb"])
-        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.upgrade()
-        defender.upgrade()                       # in-tier level 3 -> +1/stack
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss1b"] = 1
-        love0 = st.love
-        expected = (bb.boss1b_income(st, tm)
-                    + CORE["TheHole"]["base_income"] - defender.upkeep())
-        self.assertEqual(bb.boss1b_income(st, tm), 1)
-        run_payday(st, tm, CORE)
-        self.assertEqual(st.love, love0 + expected)
-        # Slot 3 pays silently: no floater event beyond base income + upkeep.
-        self.assertEqual(len([e for e in st.income_events
-                              if e[3] == "income"]), 1)
-
-    def test_payday_slot3_boss3b_reads_the_snapshot_just_rolled(self):
-        tm, scene, occ = build_board(["bbb"])
-        defender, _ = place_building(tm, tm.get(1, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.get_component(RoundStats).dmg_dealt_this_round = 37
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss3b"] = 2
-        love0 = st.love
-        net = HOLE["base_income"] - defender.upkeep() + (37 // 10) * 2
-        run_payday(st, tm, CORE)
-        # Proves slot 3 ran AFTER the snapshot roll (this->last) — it read 37.
-        self.assertEqual(
-            defender.get_component(RoundStats).dmg_dealt_last_round, 37)
-        self.assertEqual(st.love, love0 + net)
-
-    def test_boss2a_musician_delta_counts_dead_defence_too(self):
-        tm, scene, occ = build_board(["bbbb"])
-        musician, _ = place_building(tm, tm.get(1, 0), "economic", 9999,
-                                     BUILD, scene, occ)
-        defender, _ = place_building(tm, tm.get(2, 0), "defence", 9999,
-                                     BUILD, scene, occ)
-        defender.get_component(Health).hp = 0     # dead — STILL counts
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss2a"] = 1
-        base_yield = musician.yield_amount()
-        run_payday(st, tm, CORE)
-        amounts = {(c, r): a for c, r, a, k in st.income_events
-                   if k == "income"}
-        self.assertEqual(amounts[(1, 0)], base_yield + 1)  # folded into amount
-
-    def test_boss2b_meditator_delta_via_aoe_count(self):
-        tm, scene, occ = build_board(["bbbb"])
-        meditator, _ = place_building(tm, tm.get(1, 0), "meditator", 9999,
-                                      BUILD, scene, occ)
-        place_building(tm, tm.get(2, 0), "aoe_defence", 9999, BUILD, scene,
-                       occ)
-        self.assertEqual(bb.aoe_count(tm), 1)
-        self.assertEqual(bb.defence_count(tm), 0)  # aoe is NOT "defence"
-        st = RunState.from_balance(CORE, BUILD)
-        st.boss_stacks["boss2b"] = 1
-        base_payout = meditator.yield_amount()     # pure (streak 0)
-        run_payday(st, tm, CORE)
-        amounts = {(c, r): a for c, r, a, k in st.income_events
-                   if k == "income"}
-        self.assertEqual(amounts[(1, 0)], base_payout + 1)
-
     def test_stacking_and_set_cycling(self):
         st = RunState.from_balance(CORE, BUILD)
         bb.apply_choice(st, 0, "A")
         bb.apply_choice(st, 0, "A")               # same pick twice = doubled
         self.assertEqual(st.boss_stacks["boss1a"], 2)
-        self.assertEqual((4 - 1) % 3, 0)          # boss 4 -> set 0
+        self.assertEqual((4 - 1) % 3, 0)          # boss 4 -> set 0 again
         bb.apply_choice(st, (4 - 1) % 3, "B")
         self.assertEqual(st.boss_stacks["boss1b"], 1)
-        self.assertEqual(bb.choice_desc(2, "A"),
-                         "Per 10 love held, defence\nbuildings deal +1 damage")
+        # The copy quotes the LIVE magnitude, so it can never advertise a
+        # number the math no longer uses.
+        desc = bb.choice_desc(2, "A", CORE)
+        self.assertEqual(len(desc.split("\n")), 2)
+        self.assertIn(str(BB["love_chunk_size"]), desc)
+        self.assertIn(str(BB["dmg_per_love_chunk"]), desc)
 
 
 # ---------------------------------------------------------------------------
@@ -468,11 +772,21 @@ class TestBossCutsceneFlow(unittest.TestCase):
                 break
         return session.state.phase
 
+    def _end_turn_past_any_intro(self, session):
+        """end_turn(), then drain any enemy-intro entry queued on this round
+        (feature-enemy-intro-dialogue) — round 10 (INTERVAL, a boss round)
+        carries both a Boss and a Commander entry in the fixture data — so
+        the round's real ENEMY phase begins exactly like it did before this
+        feature existed."""
+        session.end_turn()
+        while session.state.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
+
     def test_cutscene_beats_levelup_and_chains_through_it(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
         st.levelup_pending = True
-        session.end_turn()                        # boss wave queued
+        self._end_turn_past_any_intro(session)     # boss wave queued
         self.assertEqual(st.phase, GamePhase.ENEMY)
         self.assertEqual(st.boss_events, [INTERVAL])   # announce marker
         self.assertEqual(st.boss_love_snapshot, st.love)
@@ -498,7 +812,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
     def test_cutscene_straight_to_payday_without_levelup(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
-        session.end_turn()
+        self._end_turn_past_any_intro(session)
         session.quick_skip_combat(scene)
         self._ride_to_cutscene(session, scene, tm)
         self.assertEqual(st.phase, GamePhase.BOSS_CUTSCENE)
@@ -511,7 +825,7 @@ class TestBossCutsceneFlow(unittest.TestCase):
     def test_outcome_is_loss_when_a_life_was_lost(self):
         session, scene, tm = self._session(INTERVAL)
         st = session.state
-        session.end_turn()
+        self._end_turn_past_any_intro(session)
 
         class _Dummy:
             ETYPE = "standard"
@@ -600,7 +914,7 @@ class TestConditionSpeedFloor(unittest.TestCase):
                                    ("siege", "SiegeCannon", 0.6),
                                    ("formation", "Formation", 0.5)):
             with self.subTest(etype=etype):
-                real = ENEM["EnemyTypes"][key]["move_speed"]
+                real = ENEM["EnemyTypes"][key]["eras"][0]["stats"]["move_speed"]
                 speed = self._speed_on(create_enemy(etype, 1, 0, ENEM, tm),
                                        TileCondition.FOREST)
                 self.assertAlmostEqual(speed, real - self.PEN)
@@ -706,8 +1020,7 @@ class TestBossFootprintTwoDoesNotFreezeBesideANeighbour(unittest.TestCase):
     neighbour, body overlapping its tile, never attacking it."""
 
     def test_boss_kills_a_neighbour_instead_of_freezing_beside_it(self):
-        enem = copy.deepcopy(ENEM)
-        enem["EnemyTypes"]["Boss"]["footprint"] = 2
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
         tm, scene, occ = build_board(["b" * 12] * 12)
         b1 = place_defence(tm, scene, occ, 5, 5, hp=50)
         b2 = place_defence(tm, scene, occ, 7, 5, hp=50)
@@ -835,6 +1148,47 @@ class TestBossDoesNotRewind(unittest.TestCase):
             if pa.blocked:
                 break
         self.assertTrue(pa.blocked)              # arrived, punching the far one
+
+
+# ---------------------------------------------------------------------------
+# 10. The range GATE reaches a footprint-2 block from any adjacent tile
+# ---------------------------------------------------------------------------
+class TestChebyshevRangeGateNearestBlockTile(unittest.TestCase):
+    """``_chebyshev`` (game/enemies/combat.py) gates a defender's range on the
+    NEAREST TILE of the enemy's block, not its centre. A footprint-2 boss
+    anchored at (10,10) spans (10,10)..(11,11); a centre-only gate measured
+    every tile OUTSIDE that block at Chebyshev >= 1.5, so a range-1 defender
+    standing right next to it could never target it — while the boss's own
+    block-and-attack scan (``_blocker_ahead``, a block-wide occupancy check)
+    hit that same defender fine."""
+
+    def _footprint_2_boss(self, tm):
+        enem = boss_footprint(copy.deepcopy(ENEM), 2)
+        return create_enemy("boss", 10, 10, enem, tm, 0)
+
+    def test_range_1_defenders_touching_the_block_are_all_in_range(self):
+        tm = synth(["b" * 15] * 15)
+        boss = self._footprint_2_boss(tm)
+        off = _fp_offset(boss)
+        for center in ((9, 10), (10, 9), (12, 10), (10, 12)):
+            with self.subTest(center=center):
+                self.assertLessEqual(_chebyshev(center, boss, off), 1)
+
+    def test_a_defender_one_tile_further_out_stays_out_of_range(self):
+        tm = synth(["b" * 15] * 15)
+        boss = self._footprint_2_boss(tm)
+        off = _fp_offset(boss)
+        self.assertGreater(_chebyshev((8, 10), boss, off), 1)
+
+    def test_footprint_1_range_gate_is_byte_identical(self):
+        """The ``off == 0`` branch must be untouched: today's behaviour for
+        every non-footprint-2 enemy in the game stays exactly as it was."""
+        tm = synth(["bs"])
+        walker = create_enemy("standard", 10, 10, ENEM, tm)
+        off = _fp_offset(walker)
+        self.assertEqual(off, 0.0)
+        self.assertLessEqual(_chebyshev((9, 10), walker, off), 1)
+        self.assertGreater(_chebyshev((12, 10), walker, off), 1)
 
 
 if __name__ == "__main__":

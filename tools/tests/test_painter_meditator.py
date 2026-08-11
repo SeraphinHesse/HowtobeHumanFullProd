@@ -29,6 +29,7 @@ ENEM = load_balance(FIXTURE_DATA, "enemies")
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 HOLE = CORE["TheHole"]
 
 
@@ -187,7 +188,7 @@ class TestPainterThroughSession(unittest.TestCase):
     def _frame(self, session, scene, tm, dt):
         session.pre_sim(dt, scene)
         scene.update(dt)
-        resolve_combat(scene, tm, dt, BUILD, on_base_hit=session.on_base_hit)
+        resolve_combat(scene, tm, dt, BUILD, VFX, on_base_hit=session.on_base_hit)
         session.post_sim(scene)
 
     def test_painter_pays_and_frees_tile_over_real_rounds(self):
@@ -204,6 +205,8 @@ class TestPainterThroughSession(unittest.TestCase):
             session.end_turn()
             for _ in range(80):
                 self._frame(session, scene, tm, 0.1)
+                if session.state.phase == GamePhase.ENEMY_INTRO:
+                    session.resolve_enemy_intro()
                 if (session.state.phase == GamePhase.BUILDING
                         and session.state.round_num == target):
                     break

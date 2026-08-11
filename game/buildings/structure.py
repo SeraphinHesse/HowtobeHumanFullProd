@@ -7,8 +7,9 @@ defence) and are PASSIVE: no attack, no yield.
 
   ``blocker``       — a stubborn HP-soak. It is NOT impassable: enemies path over
                       its tile and stop to attack it via the normal building
-                      block-and-attack (``CONTENT_KEY="economic_building"`` = the
-                      prototype's traversable weight fallback). Pure tier HP.
+                      block-and-attack (``CONTENT_KEY="blocker_building"``, seeded
+                      to the same traversable weight the shared economy key used
+                      to fall back to). Pure tier HP.
   ``wall_builder``  — raises a perimeter of destructible EDGE walls around the
                       player's territory when placed. The wall edges live in the
                       map-owned ``TileMap.wall_edges`` registry; this class carries
@@ -18,17 +19,42 @@ defence) and are PASSIVE: no attack, no yield.
 Slot keys are FLAT (one slot per type, no ``_t{n}_lvl{n}`` suffix) to match the
 single ``blocker`` / ``wall_builder`` slots in ``data/slots.json`` — the prototype
 had no per-tier/level art for either. Grey-X until real art is imported.
+
+The WALLS a ``WallBuilder`` raises are a SEPARATE art family, though: the
+``walls`` slot category's 9 ``Base`` ``wall_t{n}_lvl{n}`` keys, resolved by
+``WallBuilder.wall_slot()`` and consumed duck-typed by ``game/map/wall_render.py``.
+
+**Wall-era-art feature**: each tier group also carries optional ``Era N``
+sibling children (``wall_t{n}_lvl{n}_era{k}``, open-ended — however many a
+designer has imported), resolved by ``WallBuilder.wall_era_slot()`` off a
+FROZEN ``WallBuilderState.art_era`` stamp. The stamp is set only by the
+host/UI layer (``game/core/wall_era.py``, at placement and every
+upgrade/tier-advance), never live off the round clock — a wall's look
+changes only when the builder itself is upgraded. ``wall_render.py`` tries
+the era slot first and falls back to ``wall_slot()`` (E-37: no imported era
+art draws nothing, never breaks).
+
+**Wall-hp-boost feature**: an adjacent ``boost_hp`` booster (``boost.py``)
+can raise ``wall_hp()`` via a DEDICATED ``WallBuilderState.wall_hp_pct``
+accumulator — separate from ``BoostReceiver.hp_pct`` (this builder never
+carries a ``BoostReceiver``), so only the walls are lifted, never the
+builder's own body HP.
 """
 from .building import Building
 from .components import WallBuilderState
 
 
 class StructureBuilding(Building):
-    """Family base: passive structures (Blocker / WallBuilder). Falls back to the
-    economy pathfinding weight (traversable, 1) so enemies attack rather than
-    reroute, and uses a single flat art slot per type."""
+    """Family base: passive structures (Blocker / WallBuilder). Each leaf sets
+    its own CONTENT_KEY (traversable weight, seeded to 1) so enemies attack
+    rather than reroute, and uses a single flat art slot per type."""
 
-    CONTENT_KEY = "economic_building"
+    # No CONTENT_KEY here: each leaf below sets its own (map.json
+    # content_weights carries a key per structure type since the
+    # buildings-overwrite-tileweights rework). Both seed to the same
+    # traversable weight (1) the shared economy key used to fall back to —
+    # the intent (enemies attack rather than reroute) is preserved by the
+    # seeded VALUE now, not by sharing a key.
     EXTRA_TAGS = ("structure",)
     SLOT = ""   # flat slot key (set by leaves) — no tier/level suffix
 
@@ -38,24 +64,86 @@ class StructureBuilding(Building):
 
 class Blocker(StructureBuilding):
     BUILDING_TYPE = "blocker"
+    CONTENT_KEY = "blocker_building"
     SUBTREE = ("StructureBuildings", "Blocker")
     SLOT = "blocker"
 
 
 class WallBuilder(StructureBuilding):
     BUILDING_TYPE = "wall_builder"
+    CONTENT_KEY = "wall_builder_building"
     SUBTREE = ("StructureBuildings", "WallBuilder")
     SLOT = "wall_builder"
 
     def _extra_components(self, tier0):
         return [WallBuilderState()]
 
+    # -- art slot for the WALLS this builder raises -----------------------
+    # (the BUILDER's own slot is the flat ``SLOT`` on ``StructureBuilding``
+    #  above — this is the second, per-tier/level slot family.)
+
+    def wall_slot(self):
+        """The ``walls`` slot key for the segments this builder currently owns
+        (``wall_t{tier}_lvl{level}``, both 1-based — the ``Base`` child under
+        each tier group in ``data/slots.json``'s ``walls`` category).
+
+        WHY this lives in the BUILDING layer: the slot-key convention is a
+        building concern (exactly like ``Building.slot_key``, whose
+        ``_t{n}_lvl{n}`` shape this mirrors, reading the same ``TierState``
+        cursor — ``current_tier`` 0-indexed, ``current_level_in_tier``
+        1-indexed). ``game/map/wall_render.py`` reaches it DUCK-TYPED, as
+        ``edge.owner.wall_slot()``, so the map layer keeps importing NOTHING
+        from ``game.buildings`` — the same rule ``wall_hp()`` /
+        ``wall_snapshot()`` / ``building_type`` already follow. This is the
+        FALLBACK key ``wall_render.py`` draws whenever ``wall_era_slot()``
+        has no imported art yet — never changed by the era-art feature.
+        """
+        ts = self._tier
+        return f"wall_t{ts.current_tier + 1}_lvl{ts.current_level_in_tier}"
+
+    def wall_era_slot(self):
+        """The era-specific ``walls`` slot key (``wall_t{tier}_lvl{level}_era
+        {n}``, the ``Era N`` children beside ``Base`` in ``data/slots.json``),
+        or ``None`` if this builder's art era was never stamped (fresh/unplaced
+        instance). ``n`` is the FROZEN ``WallBuilderState.art_era`` — see
+        ``stamp_era()`` — never the live global era clock, so a wall's look
+        changes only when the builder itself is upgraded. Duck-typed by
+        ``wall_render.py`` exactly like ``wall_slot()``, tried FIRST and
+        falling back to it when the era slot has no imported art (E-37)."""
+        era = self.get_component(WallBuilderState).art_era
+        if era <= 0:
+            return None
+        ts = self._tier
+        return (f"wall_t{ts.current_tier + 1}_lvl{ts.current_level_in_tier}"
+                f"_era{era}")
+
+    def stamp_era(self, era):
+        """Freeze the CURRENT global era (0-indexed, ``engine.era_math
+        .era_of_round``) onto this builder's art, stored 1-indexed to match
+        the ``Era N`` slot-group labels. Called ONLY from the host/UI layer
+        (``game/core/wall_era.py``, at placement and at every upgrade/tier
+        advance) — never from inside ``game/buildings`` itself, and never on
+        a bare round tick, per the "only changes on upgrade" design."""
+        self.get_component(WallBuilderState).art_era = max(1, era + 1)
+
     # -- computed stats (prototype ``WallBuilderBuilding``) ----------------
 
     def wall_hp(self):
-        """HP of each perimeter wall at the current tier. NOT on the ×10 combat
-        scale — read straight from balancing (prototype ``wall_hp`` property)."""
-        return int(self.tier_data()["wall_hp"])
+        """HP of each perimeter wall at the current tier AND level. NOT on the
+        ×10 combat scale — read straight from balancing (prototype ``wall_hp``
+        property), plus the per-LEVEL term ``wall_hp_per_level`` (also not ×10),
+        composed exactly like ``upkeep()`` below: base + level_idx × per_level.
+        Seeded to 0 in every tier, so by default this is the prototype's flat
+        per-tier value. Lifted by an adjacent HP booster's DEDICATED
+        ``wall_hp_pct`` accumulator and cut by its explosion penalty when
+        that booster dies (wall-hp-boost feature) — deliberately NOT
+        ``BoostReceiver``/``hp_pct`` (this builder never carries a
+        ``BoostReceiver``), so the builder's own body HP is never affected."""
+        d = self.tier_data()
+        base = int(d["wall_hp"]) + self._lvl_idx * int(d["wall_hp_per_level"])
+        state = self.get_component(WallBuilderState)
+        boosted = int(base * (1.0 + state.wall_hp_pct))
+        return max(1, boosted - state.wall_hp_penalty())
 
     def upkeep(self):
         d = self.tier_data()
@@ -79,14 +167,42 @@ class WallBuilder(StructureBuilding):
         tilemap.place_walls_for_builder(self)
 
     def _on_apply_stats(self):
-        """On a tier upgrade, lift every wall this builder owns to the new tier's
-        ``wall_hp`` (prototype ``_sync_wall_hp``). No-op before placement (no
-        tilemap cached yet) and in headless stat tests."""
+        """Resync every wall this builder owns to the current ``wall_hp()``, and
+        FULL-HEAL it (prototype ``_sync_wall_hp``, now matching
+        ``Building.apply_tier_stats``, which sets ``hp = max_hp`` on every
+        re-apply).
+
+        Fires on LEVEL upgrades as well as tier advances — ``apply_tier_stats``
+        always ran on both, but before ``wall_hp_per_level`` existed a level
+        upgrade could not change ``wall_hp()``, so only a tier advance was
+        observable. It can now, so the walls follow the builder's own
+        upgrade-heals-you rule at every step."""
+        self.resync_wall_hp(full_heal=True)
+
+    def resync_wall_hp(self, full_heal=False):
+        """Push the current ``wall_hp()`` onto every wall edge this builder
+        owns. ``full_heal=True`` (upgrades/tier advances, via
+        ``_on_apply_stats``) sets ``hp = max_hp`` outright, matching
+        ``Building.apply_tier_stats``'s every-re-apply full heal.
+        ``full_heal=False`` (an HP-booster's ramp/flat delta, wall-hp-boost
+        feature — ``game/buildings/boost.py``'s ``_apply_wall_delta``) instead
+        heals by the increase / clamps on a decrease, mirroring
+        ``boost.py``'s own ``_refresh_max_hp`` for combat buildings, so a boost
+        change never spuriously full-heals a damaged wall.
+
+        No-op before placement (no tilemap cached yet) and in headless stat
+        tests."""
         tilemap = getattr(self, "_tilemap", None)
         if tilemap is None:
             return
         new_hp = self.wall_hp()
         for edge in getattr(tilemap, "wall_edges", {}).values():
             if edge.owner is self:
+                old_max = edge.max_hp
                 edge.max_hp = new_hp
-                edge.hp = min(edge.hp, new_hp)
+                if full_heal:
+                    edge.hp = new_hp
+                elif new_hp >= old_max:
+                    edge.hp = min(edge.hp + (new_hp - old_max), new_hp)
+                else:
+                    edge.hp = min(edge.hp, new_hp)

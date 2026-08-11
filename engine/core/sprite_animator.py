@@ -18,6 +18,7 @@ class SpriteAnimator(Component):
     anim_time_ms: float = 0.0
     fit_tiles: float = 0.0
     scale: float = 1.0
+    visible: bool = True
 
     def update(self, dt):
         self.anim_time_ms += dt * 1000.0
@@ -28,6 +29,8 @@ class SpriteAnimator(Component):
         self.anim_time_ms = 0.0
 
     def render_items(self, transform):
+        if not self.visible:
+            return
         yield RenderItem(
             self.slot_key,
             transform.world_pos,

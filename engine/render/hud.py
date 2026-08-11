@@ -7,7 +7,7 @@ is resolved to a DrawCall by the renderer; the other three are passed through
 as-is and isinstance-dispatched by the pygame backend, exactly like
 OverlayLines. All coordinates are screen-space pixels.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 
 @dataclass(frozen=True)
@@ -44,7 +44,17 @@ class HudSprite:
 
     animation/anim_time_ms are appended LAST on purpose: the shipping call
     sites pass (slot_key, dest, size) positionally, so tint/flip must keep
-    their positions."""
+    their positions. crop/hidden_frames are appended after them for the same
+    reason (feature-enemy-intro-dialogue): a shipping call passing animation/
+    anim_time_ms positionally must not shift.
+
+    crop = (x, y, w, h) in source FRAME pixels — a sub-rect of the resolved
+    frame to draw instead of the whole thing, stretched to `size` exactly like
+    the whole-frame case. `None` (default) means no crop. hidden_frames is an
+    optional tuple of frame-column indices to additionally skip during
+    playback, on top of whatever the manifest row's own `hidden` already
+    drops (see `engine.assets.manifest.Manifest.current_frame`'s
+    `extra_hidden`)."""
 
     slot_key: str
     dest: tuple
@@ -53,6 +63,8 @@ class HudSprite:
     flip: bool = False
     animation: str = "idle"
     anim_time_ms: int = 0
+    crop: tuple = None
+    hidden_frames: tuple = ()
 
 
 @dataclass(frozen=True)
@@ -64,3 +76,66 @@ class HudLines:
     color: tuple
     width: int = 1
     closed: bool = False
+
+
+# -- JSON round-trip (UT-2) --------------------------------------------------
+#
+# A recorded draw list crosses a process boundary as JSON: `tools/` records
+# what a game screen submits, the EDITOR replays it in its screen-mode preview
+# (`data/ui/screen_previews.json`). Both sides consume `engine/`, and neither
+# may import the other, so the one serialization rule lives here beside the
+# dataclasses it describes rather than being written twice.
+
+#: `type` tag -> dataclass. The tag is the on-disk contract
+#: (`screen_previews.schema.json`'s enum); the class name is an implementation
+#: detail, so renaming either stays local.
+HUD_ITEM_TYPES = {
+    "rect": HudRect,
+    "text": HudText,
+    "sprite": HudSprite,
+    "lines": HudLines,
+}
+_HUD_TAG_BY_CLASS = {cls: tag for tag, cls in HUD_ITEM_TYPES.items()}
+
+
+def _jsonable(value):
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def hud_item_to_json(item):
+    """One HUD primitive -> a plain JSON dict `{type, ...fields}`.
+
+    EVERY field is emitted, defaults included, so a reader never has to know
+    this module's default values — and a default changed here shows up as a
+    real diff in the generated file rather than silently re-meaning every
+    existing entry.
+    """
+    tag = _HUD_TAG_BY_CLASS.get(type(item))
+    if tag is None:
+        raise TypeError(f"not a HUD primitive: {item!r}")
+    out = {"type": tag}
+    for f in fields(item):
+        out[f.name] = _jsonable(getattr(item, f.name))
+    return out
+
+
+def _detuple(value):
+    """Every JSON array back to a tuple, at every depth — `HudLines.points` is
+    a tuple OF point tuples, and a half-restored `([0, 0], ...)` compares
+    unequal to the item it was written from."""
+    if isinstance(value, (list, tuple)):
+        return tuple(_detuple(v) for v in value)
+    return value
+
+
+def hud_item_from_json(spec):
+    """The inverse of `hud_item_to_json`. JSON arrays come back as tuples —
+    what every downstream consumer unpacks. Unknown keys are ignored so a file
+    written by a newer field set still loads."""
+    data = dict(spec)
+    cls = HUD_ITEM_TYPES[data.pop("type")]
+    kwargs = {f.name: _detuple(data[f.name])
+              for f in fields(cls) if f.name in data}
+    return cls(**kwargs)

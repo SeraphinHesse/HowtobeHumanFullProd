@@ -110,8 +110,9 @@ class TestMapsBranch(MapModeCase):
         self.window.selector.select_node("buildings", ("Defender",))
         self.assertFalse(self.viewport.in_map_mode())
         self.assertFalse(self.window.palette.isVisibleTo(self.window))
+        # ESV-2: index 0 is now a small container holding details + anchors
         self.assertIs(self.window.right_stack.currentWidget(),
-                      self.window.details)
+                      self.window.details_pane)
         self.assertIsNotNone(self.viewport.preview_slot)
 
     def test_map_selection_drives_map_balancing_domain(self):
@@ -314,6 +315,92 @@ class TestStartArea(MapModeCase):
             tilemap.map_schema_path(self.data_dir))
         self.assertEqual(loaded.start_area,
                          {"col": 2, "row": 2, "slot": "start_area"})
+
+
+class TestSpawnReserve(MapModeCase):
+    """The spawnable-background brush: ONE undo command per stroke, and undo
+    restores exactly the marks that were there before."""
+
+    def test_reserve_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.spawnable_background[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.spawnable_background)
+        self.window.palette.set_mode("spawn_reserve")
+        self.window.palette.set_reserve_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.spawnable_background[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.spawnable_background, before)
+
+
+class TestDespawnableSpawn(MapModeCase):
+    """The despawnable-spawn brush: ONE undo command per stroke, and undo
+    restores exactly the marks that were there before."""
+
+    def test_despawn_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.despawnable_spawn[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.despawnable_spawn)
+        self.window.palette.set_mode("despawnable_spawn")
+        self.window.palette.set_despawn_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.despawnable_spawn[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.despawnable_spawn, before)
+
+
+class TestStageZones(MapModeCase):
+    """The stage-zone brush: ONE undo command per stroke, and undo restores
+    exactly the marks that were there before."""
+
+    def test_stage_stroke_undo_restores_previous_marks(self):
+        doc = self.open_map()
+        doc.stage_zones[(14, 15)] = 7   # a pre-existing mark
+        before = dict(doc.stage_zones)
+        self.window.palette.set_mode("stage_zones")
+        self.window.palette.set_stage_number(3)
+        self.window.palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.stage_zones[cell], 3)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.stage_zones, before)
+
+
+class TestTileConditions(MapModeCase):
+    """The tile-condition brush: ONE undo command per stroke, undo restores
+    exactly the marks that were there before, redo puts the stroke back. The
+    brush value is a condition NAME (from the schema enum), not a number."""
+
+    def test_condition_stroke_undo_redo(self):
+        doc = self.open_map()
+        doc.tile_conditions[(14, 15)] = "pond"   # a pre-existing mark
+        before = dict(doc.tile_conditions)
+        palette = self.window.palette
+        palette.set_mode("tile_conditions")
+        name = palette._condition_names()[1]     # schema order, not a literal
+        palette.arm_tile_condition(name)
+        palette.set_tool("paint")
+        cells = [(14, 15), (15, 15), (16, 15)]
+        self.drag_cells(cells)
+        for cell in cells:
+            self.assertEqual(doc.tile_conditions[cell], name)
+        self.assertEqual(self.session.undo_stack.count(), 1)   # ED-24
+        self.session.undo_stack.undo()
+        self.assertEqual(doc.tile_conditions, before)
+        self.session.undo_stack.redo()
+        for cell in cells:
+            self.assertEqual(doc.tile_conditions[cell], name)
 
 
 class TestRenderPath(MapModeCase):

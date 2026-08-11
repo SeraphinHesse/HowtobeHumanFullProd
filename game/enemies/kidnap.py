@@ -40,10 +40,14 @@ def set_kidnap_pose(enemy, has_kidnap_row):
 
 
 def begin_kidnap(scene, tilemap, enemy, building):
-    """The ONE transition site. Order is load-bearing: the building's sprite
-    fields are copied onto ``Kidnap`` BEFORE the caller (``combat.py``'s
-    kidnap pass) hands off to the host, which frees the building's tile and
-    despawns it — read the sprite first, then let the host tear it down."""
+    """The ONE transition site. The building's own ``SpriteAnimator`` fields
+    are copied onto ``Kidnap`` so the carrier can draw them; the building
+    itself is NOT touched — it stays on its tile as a plain dead building and
+    revives at payday like any other kill (``Session.on_kidnap``). Its sprite
+    vanishes on its own: it is dead by definition here (``Kidnap.pending`` is
+    armed by the killing blow) and ``BuildingSprite`` yields no RenderItem
+    while its owner is dead. Blanking ``slot_key`` here would survive the
+    revive and leave the rebuilt building invisible forever."""
     kidnap = enemy.get_component(Kidnap)
     pa = enemy.get_component(PathAgent)
     mv = enemy.get_component(Movement)
@@ -53,12 +57,17 @@ def begin_kidnap(scene, tilemap, enemy, building):
         kidnap.slot_key = b_anim.slot_key
         kidnap.fit_tiles = b_anim.fit_tiles
         kidnap.scale = b_anim.scale
-        b_anim.slot_key = ""  # vanish the same frame it is picked up
     kidnap.active = True
     kidnap.pending = False
     kidnap._scene = scene
 
     pa.blocked = False
+    # NE-1: `in_range` is the ranged twin of `blocked` and EnemyCombat reads
+    # `blocked or in_range`, so it has to be cleared here too — otherwise a
+    # kidnap-capable stand-off type would keep firing all the way home. No
+    # shipped type is both today (Sniper is `kidnapping: false`); this is the
+    # flag pair staying honest, not a live bug fix.
+    pa.in_range = False
     pa.carrying = True
     pa._target = None
     pa._wall_target = None
@@ -71,7 +80,8 @@ def begin_kidnap(scene, tilemap, enemy, building):
     mv.speed = pa._real_speed  # the enemy was blocked/attacking -> 0.0
     col = round(enemy.transform.wx)
     row = round(enemy.transform.wy)
-    path = find_path_to_nearest_spawn(tilemap, col, row, footprint=pa.footprint)
+    path = find_path_to_nearest_spawn(tilemap, col, row, footprint=pa.footprint,
+                                      cond_weights=pa._cond_weights)
     if not path:
         scene.despawn(enemy)  # no spawn tile / unreachable -> despawn on the spot
         return

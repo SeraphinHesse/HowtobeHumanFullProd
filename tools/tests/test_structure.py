@@ -78,9 +78,12 @@ class TestStructureStats(unittest.TestCase):
         b.advance_tier()                                           # Bulwark
         self.assertEqual(b.max_hp(), BLOCKER[1]["base_hp"])        # 1200
 
-    def test_blocker_uses_traversable_economy_weight(self):
-        # NOT impassable: enemies path over it and attack (prototype fallback).
-        self.assertEqual(Blocker(0, 0, BUILD).CONTENT_KEY, "economic_building")
+    def test_blocker_uses_its_own_traversable_weight(self):
+        # NOT impassable: enemies path over it and attack. Own content key
+        # since the buildings-overwrite-tileweights rework (seeded to the
+        # same traversable weight (1) the shared economy key used to fall
+        # back to).
+        self.assertEqual(Blocker(0, 0, BUILD).CONTENT_KEY, "blocker_building")
 
     def test_wall_builder_wall_hp_upkeep_and_hp(self):
         w = WallBuilder(0, 0, BUILD)
@@ -94,6 +97,32 @@ class TestStructureStats(unittest.TestCase):
         self.assertEqual(w.wall_hp(), WALLB[0]["wall_hp"])         # const in tier
         w.advance_tier()                                           # Wooden
         self.assertEqual(w.wall_hp(), WALLB[1]["wall_hp"])         # 120
+
+    def test_upgrade_full_heals_owned_walls_to_the_new_wall_hp(self):
+        # ``_on_apply_stats`` is a FULL-HEAL now (matching
+        # ``Building.apply_tier_stats``), and it fires on LEVEL upgrades too --
+        # ``wall_hp()`` carries a per-level term since ``wall_hp_per_level``.
+        tm, scene, occ = board(WALL_MAP)
+        w, _ = place_building(tm, tm.get(2, 1), "wall_builder", 9999, BUILD,
+                              scene, occ)
+        self.assertTrue(tm.wall_edges)
+        for edge in tm.wall_edges.values():
+            edge.hp = 1                                # chewed down mid-round
+
+        w.upgrade()                                    # lvl 2 -- same tier
+        lvl2_hp = w.wall_hp()
+        self.assertEqual(
+            lvl2_hp, WALLB[0]["wall_hp"] + WALLB[0]["wall_hp_per_level"])
+        for edge in tm.wall_edges.values():
+            self.assertEqual((edge.hp, edge.max_hp), (lvl2_hp, lvl2_hp))
+
+        for edge in tm.wall_edges.values():
+            edge.hp = 1
+        w.advance_tier()                               # Wooden -- new tier
+        tier2_hp = w.wall_hp()
+        self.assertEqual(tier2_hp, WALLB[1]["wall_hp"])   # back to level 1
+        for edge in tm.wall_edges.values():
+            self.assertEqual((edge.hp, edge.max_hp), (tier2_hp, tier2_hp))
 
     def test_wall_builder_flat_slot_key(self):
         self.assertEqual(WallBuilder(0, 0, BUILD).slot_key(), "wall_builder")

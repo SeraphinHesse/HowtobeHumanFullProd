@@ -61,9 +61,34 @@ class AssetStore:
                 pass
         return self._frame_sizes.get(slot_key, self._default_frame_size)
 
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
-        """Never raises on missing/corrupt art: falls back to the grey X."""
-        ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms))
+    def anchor(self, slot_key, name):
+        """(x, y) frame-px anchor point named `name` (ESV-1) for a slot's
+        manifest entry, or None when the slot, its entry, or that anchor name
+        is absent. Anchors are metadata, not frame geometry — unlike
+        `frame()` this never touches pygame or a sheet surface."""
+        entry = self._manifest.entry(slot_key)
+        if entry is None:
+            return None
+        return entry.anchor(name)
+
+    def offset(self, slot_key):
+        """(x, y) int frame-px draw nudge (`offset_x`/`offset_y`) for a
+        slot's manifest entry, or `(0, 0)` when the slot or its entry is
+        absent. Metadata, not frame geometry — never touches pygame or a
+        sheet surface, same shape as `anchor()`."""
+        entry = self._manifest.entry(slot_key)
+        if entry is None:
+            return (0, 0)
+        return (entry.offset_x, entry.offset_y)
+
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
+        """Never raises on missing/corrupt art: falls back to the grey X.
+
+        `extra_hidden` (optional): passed straight through to
+        `Manifest.current_frame` — a caller-side frame-column narrowing on
+        top of whatever the manifest row already hides."""
+        ref = self._manifest.current_frame(slot_key, animation, int(anim_time_ms),
+                                            extra_hidden=extra_hidden)
         if ref is PLACEHOLDER:
             return self._placeholder(slot_key)
         entry = self._manifest.entry(slot_key)

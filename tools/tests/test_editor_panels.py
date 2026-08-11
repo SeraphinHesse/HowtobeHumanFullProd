@@ -30,15 +30,16 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialogButtonBox,
     QDoubleSpinBox,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
 )
 
 from editor import balancing_history, domains, keybinds, theme
-from editor.panels.balancing import BalancingPanel
+from editor.panels.balancing import BalancingPanel, CollapsibleSection
 from editor.panels.selector import _PAYLOAD_ROLE, SelectorPanel
-from engine import data_io
+from engine import data_io, era_math
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
@@ -71,14 +72,21 @@ class TempDataCase(QtCase):
             shutil.rmtree(history_dir)
 
     def unassign_slot(self, *slot_keys):
-        """Guarantee each `slot_key` has NO manifest entry in the temp copy.
+        """Guarantee each `slot_key` has NO ART AT ALL in the temp copy.
 
         Never assume a slot is unassigned just because it is TODAY. Art lands
         on slots over time, and a test that picks today's empty slot as its
         "no art here" fixture is a time bomb: commit 2512a84 gave
         painter_t1_lvl1 an `idle` row and silently broke five tests that had
         done exactly that. Pin the fixture instead of inheriting it from
-        whatever the artists last imported."""
+        whatever the artists last imported.
+
+        Dropping the manifest ENTRY is not enough on its own: a slot with no
+        entry still resolves art from `imported/<slot>.png`
+        (`details.py:_sheet_ref`), so an artist merely dropping a PNG next to
+        the key re-arms the slot. 8e0e7d3 added cond_mountain_buildable.png and
+        reddened the tint test that way, with no code change anywhere.
+        `_rewrite_manifest` deletes the fallback sheet too."""
         self._rewrite_manifest(lambda k: k in slot_keys)
 
     def unassign_family(self, *prefixes):
@@ -138,6 +146,27 @@ class TempDataCase(QtCase):
         data_io.write_validated(
             doc, path,
             self.data_dir / "schemas" / "asset_manifest.schema.json")
+        self._drop_fallback_sheets(doc, should_drop)
+
+    def _drop_fallback_sheets(self, doc, should_drop):
+        """Delete `imported/<key>.png` for every selected slot — an entryless
+        key is only genuinely empty once its fallback sheet is gone too.
+
+        Selection is over the REGISTRY's slot keys, not the manifest's: the
+        whole point is that a slot can carry art with no entry at all. Never
+        touches a sheet a SURVIVING entry links to — one PNG can back many
+        slots (`editor/panels/CLAUDE.md`, "Use Spritesheet…"), and deleting a
+        shared file would silently empty an unrelated slot."""
+        kept_refs = {e.get("sheet") for e in doc["entries"].values()}
+        for key in load_registry(self.data_dir).slot_keys():
+            if not should_drop(key):
+                continue
+            ref = f"imported/{key}.png"
+            if ref in kept_refs:
+                continue
+            png = self.data_dir / "sprites" / ref
+            if png.exists():
+                png.unlink()
 
     def drop_slot_variants(self, *stems):
         """Strip generated `<stem>_v<N>` variants from the temp slots.json.
@@ -189,7 +218,13 @@ class TestDomainsDerivation(TempDataCase):
     categories with a data/balancing/<key>.json), never hardcoded — a new
     balancing domain reaches the editor with zero editor edits."""
 
-    CANONICAL = ("buildings", "enemies", "map", "ui", "core")
+    # ESV-3a promoted "vfx" from an asset-only slots.json category to a real
+    # balancing domain (data/balancing/vfx.json + data/schemas/vfx.schema.json)
+    # — it now belongs in the CANONICAL tuple, positioned exactly where
+    # slots.json's category order puts it: right after "core" (confirmed
+    # directly against data/slots.json's categories[] order, never inferred
+    # from this file's own prior expectation).
+    CANONICAL = ("buildings", "enemies", "map", "ui", "core", "vfx")
 
     def add_domain_files(self, key):
         """A new balancing domain in the temp tree: schema + content, content
@@ -226,20 +261,28 @@ class TestDomainsDerivation(TempDataCase):
     def test_removing_a_balancing_file_drops_the_domain(self):
         (self.data_dir / "balancing" / "map.json").unlink()
         self.assertEqual(
-            domains.domains(self.data_dir), ("buildings", "enemies", "ui", "core"))
+            domains.domains(self.data_dir),
+            ("buildings", "enemies", "ui", "core", "vfx"))
 
     def test_new_balancing_file_adds_a_domain_in_slots_order(self):
-        """vfx is an asset-only category TODAY; give it balancing files and it
-        becomes a domain — positioned where slots.json puts it (after core),
-        with no editor edit anywhere."""
-        self.add_domain_files("vfx")
+        """deco is an asset-only category TODAY (vfx was this class's
+        example until ESV-3a promoted it to a real domain — see CANONICAL);
+        give deco balancing files and it becomes a domain — positioned where
+        slots.json puts it (after vfx), with no editor edit anywhere."""
+        self.add_domain_files("deco")
         self.assertEqual(
-            domains.domains(self.data_dir), self.CANONICAL + ("vfx",))
+            domains.domains(self.data_dir), self.CANONICAL + ("deco",))
 
     def test_selector_picks_up_a_new_domain_with_no_editor_edit(self):
-        self.assertNotIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
-        self.add_domain_files("vfx")
-        self.assertIn("vfx", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        # "backgrounds", not "deco": SelectorPanel.domains() only walks TOP-
+        # LEVEL tree items, and deco's root is nested under "map" (a
+        # tree-construction-only choice, see selector.py) — invisible to
+        # this check regardless of domain-ness. backgrounds stays top-level.
+        self.assertNotIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
+        self.add_domain_files("backgrounds")
+        self.assertIn(
+            "backgrounds", self.track(SelectorPanel(data_dir=self.data_dir)).domains())
 
 
 class TestSelectorContextMenu(TempDataCase):
@@ -299,9 +342,11 @@ class TestSelector(TempDataCase):
     def test_lists_domains_in_d10_order(self):
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
         # the LITERAL canonical tuple, not domains.domains(...) — both sides
-        # derive now, so comparing them would be a tautology
+        # derive now, so comparing them would be a tautology. "vfx" joined
+        # (ESV-3a promoted it from asset-only to a real balancing domain).
         self.assertEqual(
-            panel.domains(), ("buildings", "enemies", "map", "ui", "core"))
+            panel.domains(),
+            ("buildings", "enemies", "map", "ui", "core", "vfx"))
 
     def test_domain_without_file_is_omitted(self):
         """A category INTENDED as a domain (it has a schema) whose balancing
@@ -310,7 +355,8 @@ class TestSelector(TempDataCase):
         balancing panel into a missing file."""
         (self.data_dir / "balancing" / "map.json").unlink()
         panel = self.track(SelectorPanel(data_dir=self.data_dir))
-        self.assertEqual(panel.domains(), ("buildings", "enemies", "ui", "core"))
+        self.assertEqual(
+            panel.domains(), ("buildings", "enemies", "ui", "core", "vfx"))
         with self.assertRaises(KeyError):
             panel._find_item("map", ())   # no node at all, not just no domain
 
@@ -383,12 +429,15 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(domains[-1], "enemies")
 
     def test_asset_only_categories_exist_but_are_not_domains(self):
+        """`vfx` was this class's asset-only example until ESV-3a gave it
+        data/balancing/vfx.json + data/schemas/vfx.schema.json, promoting it
+        to a real domain (D8 fallout) — `deco` is still asset-only and keeps
+        the assertion's meaning intact."""
         panel = self.make()
-        self.assertNotIn("vfx", panel.domains())
         self.assertNotIn("deco", panel.domains())
         domains = []
         panel.domain_selected.connect(domains.append)
-        panel.select_node("vfx", ("Effects",))   # node exists and is selectable
+        panel.select_node("deco", ("Props",))    # node exists and is selectable
         self.assertEqual(domains, [])            # but drives no balancing form
 
     def test_unknown_node_raises(self):
@@ -457,6 +506,24 @@ class TestSelectorTree(TempDataCase):
         self.assertEqual(nodes, [])            # never node_selected
         self.assertIn("ui", domains_seen)      # same "ui" domain as Screens
 
+    def test_tutorial_leaf_exists_under_ui_and_emits_tutorial_selected(self):
+        """TU-4: "Tutorial" is a leaf under "ui" (order not hardcoded — a
+        different phase's own leaf placement is not this test's business),
+        never node_selected."""
+        panel = self.make()
+        ui_root = panel._find_item("ui", ())
+        self.assertIsNotNone(panel._tutorial_item)
+        self.assertIs(panel._tutorial_item.parent(), ui_root)
+
+        tutorials, nodes, domains_seen = [], [], []
+        panel.tutorial_selected.connect(lambda: tutorials.append(True))
+        panel.node_selected.connect(lambda c, p: nodes.append((c, p)))
+        panel.domain_selected.connect(domains_seen.append)
+        panel.select_tutorial()
+        self.assertEqual(tutorials, [True])
+        self.assertEqual(nodes, [])            # never node_selected
+        self.assertIn("ui", domains_seen)      # same "ui" domain as Screens/Theme
+
 
 class TestBalancingPanel(TempDataCase):
     def make_panel(self, domain):
@@ -491,7 +558,7 @@ class TestBalancingPanel(TempDataCase):
         selector.select_domain("buildings")
         self.assertIn("DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets)
         selector.select_domain("enemies")
-        self.assertIn("EnemyTypes/Standard/hp", panel._widgets)
+        self.assertIn("EnemyTypes/Standard/eras/0/stats/hp", panel._widgets)
         self.assertNotIn(
             "DefenceBuildings/BasicDefence/tiers/0/base_dmg", panel._widgets
         )
@@ -532,14 +599,27 @@ class TestBalancingPanel(TempDataCase):
 
     def test_enemy_rework_fields_surface_and_are_editable(self):
         """ER-5: footprint / sprite_scale / the whole death_spawn block (including
-        the per-era spawns rows) reach the designer as real widgets."""
+        the per-era spawns rows) reach the designer as real widgets.
+
+        BR-1 re-anchored the two sizing fields: they are still flat at the type
+        root for every ordinary type (Standard here), while the BOSS carries
+        them — plus its shake — inside each per-era ``stats`` row."""
         panel = self.make_panel("enemies")
         for key, kind in (
-            ("EnemyTypes/Boss/footprint", QSpinBox),
-            ("EnemyTypes/Boss/sprite_scale", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/enabled", QCheckBox),
-            ("EnemyTypes/Boss/death_spawn/at_hp_fraction", QDoubleSpinBox),
-            ("EnemyTypes/Boss/death_spawn/spawns/0/regular", QSpinBox),
+            ("EnemyTypes/Standard/footprint", QSpinBox),
+            ("EnemyTypes/Standard/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/0/footprint", QSpinBox),
+            ("EnemyTypes/Boss/stats/0/sprite_scale", QDoubleSpinBox),
+            ("EnemyTypes/Boss/stats/4/shake/strength", QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/enabled", QCheckBox),
+            # BR-5: per-era staging rows, not a flat key on the block.
+            ("EnemyTypes/Boss/second_phase/staging/0/at_hp_fraction",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/4/spawn_delay",
+             QDoubleSpinBox),
+            ("EnemyTypes/Boss/second_phase/staging/0/delayed_spawns",
+             QCheckBox),
+            ("EnemyTypes/Boss/second_phase/spawns/0/regular", QSpinBox),
         ):
             with self.subTest(key=key):
                 self.assertIsInstance(panel._widgets[key], kind)
@@ -572,14 +652,14 @@ class TestBalancingPanel(TempDataCase):
 
     def test_remove_row_pops_the_last_row(self):
         panel = self.make_panel("enemies")
-        key = "EnemyTypes/Boss/death_spawn/spawns"
+        key = "EnemyTypes/Boss/second_phase/spawns"
         self.assertEqual(len(panel._value_at(key)), 5)   # the boss's per-era table
         panel._remove_array_row(key)
         self.assertEqual(len(panel._value_at(key)), 4)
         panel.save_changes("Test session")
         on_disk = read_domain(self.data_dir, "enemies")
         self.assertEqual(
-            len(on_disk["EnemyTypes"]["Boss"]["death_spawn"]["spawns"]), 4)
+            len(on_disk["EnemyTypes"]["Boss"]["second_phase"]["spawns"]), 4)
 
     def test_editing_a_field_of_a_new_row_does_not_raise(self):
         """The new row's path does not exist in the BASELINE (which still has the
@@ -612,7 +692,7 @@ class TestBalancingPanel(TempDataCase):
         """Adding a row rebuilds the form. A staged edit elsewhere must survive
         that with its dot intact — fresh widgets start with the dot hidden."""
         panel = self.make_panel("enemies")
-        edited = "EnemyTypes/Standard/hp"
+        edited = "EnemyTypes/Standard/eras/0/stats/hp"
         panel._widgets[edited].setValue(panel._widgets[edited].value() + 1)
         panel._add_array_row("EnemyTypes/Standard/death_spawn/spawns")
         self.assertIn(edited, panel._dirty)
@@ -628,25 +708,50 @@ class TestBalancingPanel(TempDataCase):
         }
 
     def test_only_schema_resizable_arrays_offer_row_buttons(self):
-        """minItems == maxItems (the 5 scale tiers, the boss's round_counts, every
-        building tier list) => NO buttons. That gate is what keeps every form that
-        shipped before ER-5 byte-identical; `death_spawn.spawns` (minItems 1, no
-        maxItems) is the one array a designer may actually resize."""
+        """minItems == maxItems (the boss's stats/round_counts, every building
+        tier list) => NO buttons. That gate is what keeps every form that
+        shipped before ER-5 byte-identical; `death_spawn.spawns` and — since
+        ES-2 — the variable-length `eras` arrays (minItems 1, no maxItems) are
+        what a designer may actually resize, with no editor code at all."""
         panel = self.make_panel("enemies")
         schema = data_io.load_json(
             self.data_dir / "schemas" / "enemies.schema.json")
-        tiers = schema["properties"]["EnemyScaling"]["properties"]["scale_tiers"]
-        self.assertEqual(tiers["minItems"], tiers["maxItems"])  # premise of the test
+        boss = schema["properties"]["EnemyTypes"]["properties"]["Boss"]
+        counts = boss["properties"]["round_counts"]
+        self.assertEqual(counts["minItems"], counts["maxItems"])  # the premise
 
         resizable = self._resizable_arrays(panel)
-        self.assertNotIn("EnemyScaling/scale_tiers", resizable)
+        self.assertNotIn("EnemyTypes/Boss/round_counts", resizable)
+        self.assertIn("EnemyScaling/eras", resizable)
+        self.assertIn("EnemyTypes/Standard/eras", resizable)
         self.assertIn("EnemyTypes/Standard/death_spawn/spawns", resizable)
-        self.assertIn("EnemyTypes/Boss/death_spawn/spawns", resizable)
+        self.assertIn("EnemyTypes/Boss/second_phase/spawns", resizable)
 
     def test_buildings_form_has_no_row_buttons_at_all(self):
         """The regression guard for every other domain: a fixed-length tier list
         must not sprout an add/remove affordance."""
         self.assertEqual(self._resizable_arrays(self.make_panel("buildings")), set())
+
+    def test_era_rows_carry_a_greyed_previous_era_reference(self):
+        """ES-5/D9: an era >= 1 stat field shows a disabled, read-only label
+        with what that field resolved to on the LAST round of the previous era;
+        era 0 has nothing to reference and carries no label."""
+        panel = self.make_panel("enemies")
+        labels = {
+            lab.objectName().removeprefix(BalancingPanel.PREV_REF): lab
+            for lab in panel.findChildren(QLabel)
+            if lab.objectName().startswith(BalancingPanel.PREV_REF)
+        }
+        self.assertFalse([k for k in labels if "/eras/0/" in k])  # era 0: none
+
+        doc = read_domain(self.data_dir, "enemies")
+        rows = doc["EnemyTypes"]["Standard"]["eras"]
+        expected = era_math.prev_era_reference(
+            rows, 1, doc["EnemyScaling"]["rounds_per_era"]
+        )["stats"]["hp"]
+        label = labels["EnemyTypes/Standard/eras/1/stats/hp"]
+        self.assertFalse(label.isEnabled())
+        self.assertIn(str(expected), label.text())
 
     def test_out_of_range_input_unrepresentable(self):
         """ED-30: the widget clamps to the schema's bounds — invalid values
@@ -761,6 +866,128 @@ class TestBalancingPanel(TempDataCase):
         panel = self.make_panel("buildings")
         for key, widget in panel._widgets.items():
             self.assertTrue(widget.isEnabled(), msg=key)
+
+    def test_x_toggle_weight_row_pairs_a_checkbox_at_the_sibling_path(self):
+        """A `map` weight leaf carrying `x-toggle` gets a QCheckBox registered
+        at the resolved sibling path, not at the weight's own path."""
+        panel = self.make_panel("map")
+        sibling_key = "Pathfinding/content_weight_overwrites/defence_building"
+        self.assertIsInstance(panel._widgets[sibling_key], QCheckBox)
+        # The 4 non-building content keys carry no x-toggle and stay plain.
+        self.assertNotIn(
+            "Pathfinding/content_weight_overwrites/buildable_tile", panel._widgets
+        )
+
+    def test_toggling_the_paired_checkbox_marks_dirty_and_saves(self):
+        """The checkbox commits straight to the sibling's own path through the
+        same _commit every widget uses — dirty tracking and Save need no
+        special case."""
+        panel = self.make_panel("map")
+        key = "TileConditions/path_weight_overwritable/forest"
+        checkbox = panel._widgets[key]
+        before = read_domain(self.data_dir, "map")
+        original = before["TileConditions"]["path_weight_overwritable"]["forest"]
+        checkbox.setChecked(not original)
+        self.assertIn(key, panel._dirty)
+        panel.save_changes("Test session")
+        on_disk = read_domain(self.data_dir, "map")
+        self.assertEqual(
+            on_disk["TileConditions"]["path_weight_overwritable"]["forest"],
+            not original,
+        )
+
+    def test_x_paired_object_produces_no_own_collapsible_section(self):
+        """`content_weight_overwrites`/`path_weight_overwritable` render ONLY
+        inline as paired checkboxes — never as their own section, per the
+        `x-paired` annotation."""
+        panel = self.make_panel("map")
+        titles = {
+            s._button.text() for s in panel.findChildren(CollapsibleSection)
+        }
+        self.assertNotIn("content_weight_overwrites", titles)
+        self.assertNotIn("path_weight_overwritable", titles)
+        # The plain (unpaired) weight sections still render as usual.
+        self.assertIn("content_weights", titles)
+        self.assertIn("path_weights", titles)
+
+
+class TestScalarArrayRowButtons(TempDataCase):
+    """feature-enemy-intro-dialogue: ER-5's + / - Row gate generalized to
+    arrays of SCALARS. ``EnemyIntro.entries[i].hidden_frames`` (minItems 0, no
+    maxItems) is the first such array, and every seeded entry ships it EMPTY —
+    the case the object-array version of this gate never had to handle."""
+
+    def make_panel(self, domain):
+        panel = self.track(BalancingPanel(data_dir=self.data_dir))
+        panel.set_domain(domain)
+        return panel
+
+    def _row_buttons(self, panel, prefix, key):
+        return [
+            b for b in panel.findChildren(QPushButton)
+            if b.objectName() == f"{prefix}{key}"
+        ]
+
+    def test_empty_scalar_array_offers_add_but_not_remove(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        self.assertEqual(panel._value_at(key), [])
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
+
+    def test_add_on_empty_array_synthesizes_a_schema_valid_default(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [0])   # item schema minimum: 0
+        self.assertTrue(panel._save_btn.isEnabled())
+        self.assertIn(key, panel._dirty)
+
+    def test_add_then_save_round_trips_through_schema_validation(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(3)
+        panel.save_changes("Test session")
+        on_disk = read_domain(self.data_dir, "core")
+        self.assertEqual(
+            on_disk["EnemyIntro"]["entries"][0]["hidden_frames"], [3])
+
+    def test_after_one_add_both_buttons_render(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 1)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 1)
+
+    def test_add_then_remove_on_an_empty_array_is_clean_again(self):
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._remove_array_row(key)
+        self.assertEqual(panel._value_at(key), [])
+        self.assertNotIn(key, panel._dirty)
+        self.assertFalse(panel._save_btn.isEnabled())
+
+    def test_add_copies_the_last_row_once_non_empty(self):
+        """Once an array of scalars is non-empty, Add still COPIES the last
+        row (the ER-5 object-array rule) rather than resynthesizing a
+        default — only a genuinely EMPTY scalar array needs the schema-derived
+        default path at all."""
+        panel = self.make_panel("core")
+        key = "EnemyIntro/entries/0/hidden_frames"
+        panel._add_array_row(key)
+        panel._widgets[f"{key}/0"].setValue(5)
+        panel._add_array_row(key)
+        self.assertEqual(panel._value_at(key), [5, 5])
+
+    def test_fixed_length_scalar_array_still_offers_no_buttons(self):
+        """Camera.zoom_levels (minItems == maxItems == 3) is the pre-existing
+        fixed-length scalar array this change must leave untouched."""
+        panel = self.make_panel("core")
+        key = "Camera/zoom_levels"
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_ADD, key)), 0)
+        self.assertEqual(len(self._row_buttons(panel, BalancingPanel.ROW_REMOVE, key)), 0)
 
 
 class TestBalancingHistory(TempDataCase):
@@ -1180,6 +1407,248 @@ class TestGameThemePanel(TempDataCase):
         self.assertEqual(
             theme_ops.load_fonts(self.data_dir)["lg"]["size"], size_spin.value())
         self.assertTrue(panel._font_dots["lg"].isHidden())
+
+    def test_preview_never_holds_the_font_file_open(self):
+        """UH-Font-A: the Font Family preview must register the font from
+        BYTES (``addApplicationFontFromData``), never from its path.
+
+        ``addApplicationFont(<path>)`` looks harmless — it does not lock on
+        its own — but the first time Qt's font engine loads a GLYPH from
+        that family it opens the file and holds it while the family stays
+        registered. On Windows that is a hard lock, so merely building the
+        preview left the editor sitting on the designer's font file and
+        broke every TempDataCase teardown (``shutil.rmtree`` cannot unlink
+        it). The pygame side has the identical trap; see
+        ``test_theme_data.TestCustomFontFileIsNeverHeldOpen``.
+
+        The fixture is PINNED, not inherited: this imports its own font and
+        makes it active in the temp tree rather than trusting whatever
+        ``data/ui/active_font.json`` happens to point at today — the whole
+        bug is invisible while that pointer reads ``"default"``."""
+        import pygame
+        from PySide6.QtGui import QFont, QFontMetrics
+
+        from editor import font_import, theme_ops
+
+        source = Path(pygame.__file__).parent / pygame.font.get_default_font()
+        font_id = font_import.import_font_file(
+            self.data_dir, source, display_name="Pin Fixture")
+        theme_ops.write_active_font({"font_id": font_id}, self.data_dir)
+        imported = theme_ops.resolve_active_font_path(self.data_dir)
+        self.assertIsNotNone(imported)
+
+        panel = self.make()
+        family = panel._family_for_font_id(font_id)
+        self.assertIsNotNone(family)
+        # Force a real glyph load — registering alone never locked anything.
+        QFontMetrics(QFont(family)).horizontalAdvance("Ag")
+
+        os.unlink(imported)   # Windows: raises here if a handle is open.
+        self.assertFalse(Path(imported).exists())
+
+
+class TestCutscenesPanel(TempDataCase):
+    """TU-3: the single "Cutscenes" leaf's panel over
+    ``data/video/cutscenes.json`` (TU-1's registry). Unlike
+    ``GameThemePanel``, every action is an IMMEDIATE write — no staged/
+    dirty-dot model."""
+
+    def make(self):
+        from editor.panels.cutscenes import CutscenesPanel
+        return self.track(CutscenesPanel(data_dir=self.data_dir))
+
+    def _write_src(self, name, content=b"not a real video"):
+        path = self.data_dir / name
+        path.write_bytes(content)
+        return path
+
+    def test_rows_built_in_trigger_order_with_seeded_intro(self):
+        panel = self.make()
+        self.assertEqual(list(panel._rows), ["intro", "first_end_turn"])
+        self.assertEqual(
+            panel._rows["intro"]["video_label"].text(), "cutscene.mp4")
+
+    def test_import_video_copies_writes_registry_and_updates_length(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.mp4")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=12.5):
+            panel._on_import_video("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn.mp4"
+        self.assertTrue(dest.exists())
+        self.assertEqual(dest.read_bytes(), src.read_bytes())
+        self.assertEqual(
+            panel._rows["first_end_turn"]["video_label"].text(),
+            "first_end_turn.mp4")
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(), 12.5)
+
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+        self.assertEqual(doc["first_end_turn"]["length"], 12.5)
+        path = cutscene_import.registry_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(doc))
+
+    def test_import_video_cv2_absent_leaves_manual_length_untouched(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming2.mp4")
+        original_length = panel._rows["first_end_turn"]["length_spin"].value()
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")), \
+             mock.patch(
+                "editor.cutscene_import.probe_length_seconds",
+                return_value=None):
+            panel._on_import_video("first_end_turn")
+
+        self.assertEqual(
+            panel._rows["first_end_turn"]["length_spin"].value(),
+            original_length)
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["length"], original_length)
+        self.assertEqual(doc["first_end_turn"]["video"], "first_end_turn.mp4")
+
+    def test_import_audio_then_clear_round_trips_null(self):
+        from editor import cutscene_import
+        panel = self.make()
+        src = self._write_src("incoming.ogg")
+
+        with mock.patch(
+                "editor.panels.cutscenes.QFileDialog.getOpenFileName",
+                return_value=(str(src), "")):
+            panel._on_import_audio("first_end_turn")
+
+        dest = self.data_dir / "video" / "first_end_turn_audio.ogg"
+        self.assertTrue(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertEqual(doc["first_end_turn"]["audio"], "first_end_turn_audio.ogg")
+        self.assertTrue(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+        panel._on_clear_audio("first_end_turn")
+
+        self.assertFalse(dest.exists())
+        doc = cutscene_import.load_registry_doc(self.data_dir)
+        self.assertIsNone(doc["first_end_turn"]["audio"])
+        self.assertFalse(
+            panel._rows["first_end_turn"]["clear_audio_btn"].isEnabled())
+
+
+class TestTutorialPanel(TempDataCase):
+    """TU-4: the single "Tutorial" leaf's panel over
+    ``data/tutorial/tutorial.json`` (TU-1's file). Staged edits (the
+    game_theme.py pattern): every change updates an in-memory doc + a dirty
+    dot; ONE Save button is the sole write_validated call site. ``steps``
+    (and any other TU-1-owned key) must round-trip byte-identical."""
+
+    def make(self):
+        from editor.panels.tutorial_panel import TutorialPanel
+        return self.track(TutorialPanel(data_dir=self.data_dir))
+
+    def test_loading_populates_both_texts_and_both_flags(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(
+            panel._message_edits["economy_intro"].toPlainText(),
+            doc["messages"]["economy_intro"])
+        self.assertEqual(
+            panel._message_edits["lives_intro"].toPlainText(),
+            doc["messages"]["lives_intro"])
+        self.assertEqual(
+            panel._flag_checks["skippable"].isChecked(), doc["skippable"])
+        self.assertEqual(
+            panel._flag_checks["first_loss_costs_life"].isChecked(),
+            doc["first_loss_costs_life"])
+        self.assertFalse(panel.save_button.isEnabled())
+
+    def test_flag_toggle_stages_dirty_dot_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        before = panel._flag_checks["first_loss_costs_life"].isChecked()
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+
+        panel._flag_checks["first_loss_costs_life"].setChecked(not before)
+
+        self.assertFalse(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+        # staged only — nothing written yet
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["first_loss_costs_life"],
+            before)
+
+        saved = []
+        panel.saved.connect(lambda: saved.append(True))
+        panel._on_save()
+
+        self.assertEqual(saved, [True])
+        self.assertTrue(panel._dots["first_loss_costs_life"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        on_disk = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(on_disk["first_loss_costs_life"], not before)
+        path = tutorial_ops.tutorial_path(self.data_dir)
+        self.assertEqual(path.read_text(encoding="utf-8"),
+                         data_io.dumps_deterministic(on_disk))
+
+    def test_message_edit_commits_on_focus_out_and_saves(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a brand new economy message")
+        # commit path is manual focus-out (no editingFinished on
+        # QPlainTextEdit) — call it directly, the same convention as the
+        # balancing.py tests emitting editingFinished directly rather than
+        # simulating real OS-level focus loss.
+        panel._commit_message("economy_intro")
+
+        self.assertFalse(panel._dots["messages.economy_intro"].isHidden())
+        self.assertTrue(panel.save_button.isEnabled())
+
+        panel._on_save()
+
+        doc = tutorial_ops.load_tutorial(self.data_dir)
+        self.assertEqual(doc["messages"]["economy_intro"],
+                          "a brand new economy message")
+        self.assertTrue(panel._dots["messages.economy_intro"].isHidden())
+
+    def test_whitespace_only_commit_is_rejected(self):
+        from editor import tutorial_ops
+        panel = self.make()
+        original = tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"]
+        edit = panel._message_edits["lives_intro"]
+
+        edit.setPlainText("   \n  ")
+        panel._commit_message("lives_intro")
+
+        # rejected: field reverts, no dirty dot, Save stays disabled
+        self.assertEqual(edit.toPlainText(), original)
+        self.assertTrue(panel._dots["messages.lives_intro"].isHidden())
+        self.assertFalse(panel.save_button.isEnabled())
+        self.assertEqual(
+            tutorial_ops.load_tutorial(self.data_dir)["messages"]["lives_intro"],
+            original)
+
+    def test_steps_round_trip_byte_identical_after_text_only_edit(self):
+        from editor import tutorial_ops
+        before = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        panel = self.make()
+        edit = panel._message_edits["economy_intro"]
+        edit.setPlainText("a different economy message")
+        panel._commit_message("economy_intro")
+        panel._on_save()
+
+        after = tutorial_ops.load_tutorial(self.data_dir)["steps"]
+        self.assertEqual(after, before)
 
 
 class TestThemeSwitch(TempDataCase):

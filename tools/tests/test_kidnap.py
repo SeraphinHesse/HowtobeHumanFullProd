@@ -40,6 +40,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 
 def synth(rows, base=(0, 0)):
@@ -75,16 +76,13 @@ def armed_session(tm, occ, round_num=1, rng_seed=2):
 def frame(session, scene, tm, dt):
     """One host frame with every combat callback wired (game/main.py's
     shape): base hit, enemy death, and the kidnap handoff."""
-    def _on_kidnap(enemy, building, _scene=scene):
-        session.on_kidnap(enemy, building, _scene)
-
     session.pre_sim(dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(dt)
-        resolve_combat(scene, tm, dt, BUILD,
+        resolve_combat(scene, tm, dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death,
-                       on_kidnap=_on_kidnap)
+                       on_kidnap=session.on_kidnap)
         session.post_sim(scene)
 
 
@@ -170,31 +168,69 @@ class TestKidnapTransition(unittest.TestCase):
         self.assertEqual(last_tile.state, TileState.SPAWNING)
 
 
-class TestBuildingGoneForGood(unittest.TestCase):
-    """Verification item #3: the tile is freed, not revived at payday, and
-    stays placeable."""
+class TestBuildingRevivesAtPayday(unittest.TestCase):
+    """Verification item #3: a kidnapped building is a plain dead building —
+    it stays on its tile (invisible), and payday's slot-9 revive brings it
+    back, exactly like one killed by a non-kidnapping enemy."""
 
-    def test_tile_freed_and_survives_payday(self):
+    def test_victim_stays_dead_on_its_tile_then_revives(self):
         tm, scene, occ = build_board()
         session = armed_session(tm, occ)
-        place_victim(tm, scene, occ)
+        victim = place_victim(tm, scene, occ)
         run_until_kidnapper(session, scene, tm)
 
         tile = tm.get(3, 0)
-        self.assertEqual(tile.state, TileState.BUILDABLE)
-        self.assertIsNone(tile.occupant)
-        self.assertIsNone(occ.get((3, 0)))
+        self.assertEqual(tile.state, TileState.BUILT)
+        self.assertIs(tile.occupant, victim)   # dead, but still on the board
+        self.assertIs(occ.get((3, 0)), victim)
+        self.assertFalse(victim.alive)
+        self.assertIn(victim, scene.by_tag("building"))
+        # ...and invisible while dead (BuildingSprite yields no RenderItem).
+        anim = victim.get_component(SpriteAnimator)
+        self.assertEqual(list(anim.render_items(victim.transform)), [])
 
         run_payday(session.state, tm, CORE, occ, scene)
         scene.update(0.0)
         tile = tm.get(3, 0)
-        self.assertEqual(tile.state, TileState.BUILDABLE)
-        self.assertIsNone(tile.occupant)
+        self.assertTrue(victim.alive)
+        self.assertEqual(victim.get_component(Health).hp,
+                         victim.get_component(Health).max_hp)
+        self.assertEqual(tile.state, TileState.BUILT)
+        self.assertIs(tile.occupant, victim)
+        # `begin_kidnap` must COPY the sprite key, never blank it — a blanked
+        # key survives rebuild() and would draw the grey-X placeholder forever.
+        # (This is the assertion that fails if the blanking comes back: the
+        # render_items check above cannot catch it, since an empty key still
+        # yields a placeholder item once the owner is alive again.)
+        self.assertTrue(anim.slot_key)
+        self.assertTrue(list(anim.render_items(victim.transform)))
 
-        # Still placeable.
-        new_building, _cost = place_building(
-            tm, tile, "economic", 9999, BUILD, scene, occ)
-        self.assertIsNotNone(new_building)
+
+class TestKidnappedBuildingXpSurvivesAPrematureRoundEnd(unittest.TestCase):
+    """The building's own ``xp_on_death`` must be paid even when the round is
+    ended by an enemy reaching the hole on the very frame it was carried off.
+    ``_award_building_deaths`` runs from ``pre_sim``'s ENEMY arm, which never
+    comes round again once the phase flips — and payday's revive then makes the
+    building ``alive`` once more, so the XP would be lost forever."""
+
+    def test_breach_on_the_kidnap_frame_still_pays_the_building(self):
+        tm, scene, occ = build_board()
+        session = armed_session(tm, occ)
+        victim = place_victim(tm, scene, occ)
+        run_until_kidnapper(session, scene, tm)
+        self.assertFalse(victim.alive)
+        # The kidnap frame's `pre_sim` ran BEFORE the killing blow, so the
+        # building's death XP is still unpaid at this point.
+        self.assertIn(victim, scene.by_tag("building"))
+
+        # A second enemy reaches the hole this frame -> `_wipe_pending`.
+        session.on_base_hit(create_enemy("standard", 4, 0, ENEM, tm))
+        xp_before = session.state.player_xp
+        session.post_sim(scene)
+
+        self.assertEqual(session.state.player_xp - xp_before,
+                         BUILD["BuildingsGlobal"]["xp_on_death"]["economic"])
+        self.assertEqual(session.state.phase, GamePhase.ROUND_END)
 
 
 class TestScoringNoVfxNoBurst(unittest.TestCase):
@@ -239,15 +275,20 @@ class TestKidnapperIsInvisibleToCombatAndLightning(unittest.TestCase):
             [e for e in scene.by_tag("enemy") if e.alive], [])
 
         # Lightning sweeps by_tag("enemy") too — a retagged carrier is never
-        # in that set, regardless of radius.
+        # in that set, regardless of radius. feature-storm-acolyte-multi-
+        # build: strike() now needs a REAL placed caster (the old bare
+        # state.lightning_level flag no longer drives it) — place one on the
+        # empty buildable lane between the base and the victim's old tile.
         cs = CoordinateSystem(Geometry(
             tile_w=64, tile_h=32, map_cols=16, map_rows=16,
             zoom_levels=(1.0,)))
         state = session.state
-        state.lightning_level = 1
-        state.lightning_cooldown = 0.0
+        priest, _c = place_building(tm, tm.get(1, 0), "storm_priest", 9999,
+                                    BUILD, scene, occ)
+        scene.update(0.0)   # flush the spawn queue: by_tag needs it live
+        lt.unlock_from_placement(state, priest)
         wx, wy = kidnapper.transform.world_pos
-        struck = lt.strike(state, CORE, scene, cs, wx, wy)
+        struck = lt.strike(state, CORE, VFX, scene, cs, wx, wy)
         self.assertTrue(struck)  # it fired (unlocked, off cooldown)...
         self.assertEqual(kidnapper.get_component(Health).hp, hp_before)  # ...but hit nothing
 
@@ -315,7 +356,15 @@ class TestCarriedSpriteGeometry(unittest.TestCase):
             zoom_levels=(1.0,)))
         sx0, _sy0 = cs.world_to_screen(wx, wy)
         sx1, sy1 = cs.world_to_screen(ix, iy)
-        self.assertAlmostEqual(sx0 - sx1, 2 * CARRY_OFFSET_TILES * (64 / 2))
+        # `world_to_screen` is `iso * zoom - pan`, so the screen delta scales
+        # with the camera's zoom. Derive the expectation from the camera this
+        # test actually uses instead of assuming 1.0: the `Camera.zoom` default
+        # moved 1.0 -> 2.0 (engine/coords/camera.py) and silently doubled this
+        # number, which is exactly what a hardcoded 16 could not survive. The
+        # invariant under test is the OFFSET, not the zoom it is viewed at.
+        half_w = 64 / 2
+        self.assertAlmostEqual(
+            sx0 - sx1, 2 * CARRY_OFFSET_TILES * half_w * cs.camera.zoom)
         self.assertAlmostEqual(_sy0, sy1)  # zero vertical screen change
 
 

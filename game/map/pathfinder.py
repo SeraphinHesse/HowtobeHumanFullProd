@@ -39,8 +39,20 @@ N = 1 collapses every one of those rules to its pre-ER-2 expression — the bloc
 is the tile, there are no internal edges, the face is the single crossed edge,
 the block weight is the tile weight and the goal set is the goal — so the
 single-tile path is unchanged. The flow-field cache key is
-``(ignore_walls, footprint)``: still ONE Dijkstra per topology change per
-footprint, NEVER one per enemy (``game/PERF.md``).
+``(ignore_walls, footprint, profile_key)``: still ONE Dijkstra per topology
+change per (footprint, weight profile) — NEVER one per enemy (``game/PERF.md``).
+
+WEIGHT PROFILES (Chunk 3). Every query below also takes a trailing
+``cond_weights`` (``None`` by default — "use the map's own
+``TileConditions.path_weights``", today's behaviour). A caller with a
+per-enemy-type profile (``EnemyTypes.<type>.condition_path_weights``) passes
+its own ``{forest, mountain, pond}`` mapping instead, so a raider can be tuned
+to route through terrain a walker would avoid. The flow field caches one field
+PER DISTINCT profile: ``_ensure_flow_field`` derives a hashable
+``profile_key`` (``None``, or the ``(forest, mountain, pond)`` tuple) from
+``cond_weights`` for the cache key, so identical profiles — the shipped seed
+has every type identical to the map default — collapse onto ONE cached field,
+never one per enemy.
 """
 import heapq
 
@@ -48,17 +60,45 @@ import heapq
 # Occupant building_type values counted as "economy" (prototype pathfinder.py:36).
 _ECONOMY_BUILDING_TYPES = {"economic", "meditator", "painter"}
 
+# NE-0/D1: every ATTACK-CAPABLE building — the "defence" hunt category. It used
+# to be the single literal ``building_type == "defence"``, i.e. the Defender
+# only, which left the three later attack buildings (mortar, Storm Priest, Sun
+# Scorcher) invisible to a hunter sent to kill defences. Widening it is a
+# DELIBERATE, user-approved balance change and it is SHARED: SiegeCannon already
+# ships ``hunts: "defence"``, so from NE-0 it hunts these four from its existing
+# ``start_round: 14`` onward.
+_ATTACK_BUILDING_TYPES = {"defence", "aoe_defence", "storm_priest",
+                          "sun_scorcher"}
+
+# NE-0/D2: every NON-economy, NON-boost, NON-base building — the "structure"
+# hunt category (the attack set above plus the two structure buildings). Named
+# for the thing a hunter wants to knock down to open a route: blockers and wall
+# builders are the common case, but the category is deliberately not limited to
+# them. Keep it in sync with game/buildings' BUILDING_TYPE constants: the whole
+# roster is this set + _ECONOMY_BUILDING_TYPES + the three boost_* types + base.
+# Spelled out literally rather than derived from the set above: the two
+# categories answer different questions and one is not defined as the other
+# plus two, so a future attack-capable type must be added to BOTH on purpose.
+_STRUCTURE_BUILDING_TYPES = {"blocker", "wall_builder", "defence",
+                             "aoe_defence", "storm_priest", "sun_scorcher"}
+
 
 def _pre_query_refresh(tilemap):
-    """Refresh damage-weight reductions (and defence-range coverage, when core
-    has wired a coverage function) before a query — the prototype's
-    ``_apply_damage_weights``. Both producers are dormant in 9C."""
+    """Refresh damage-weight reductions, defence-range coverage (when core has
+    wired a coverage function), and the buildings-overwrite-tileweights flag
+    set before a query — the prototype's ``_apply_damage_weights`` plus its
+    rework-era sibling. All three producers are dormant/short-circuited on a
+    tilemap that doesn't carry them (headless stubs, 9C-era fixtures) via the
+    same guarded ``getattr`` style."""
     refresh = getattr(tilemap, "refresh_damage_weight_reductions", None)
     if refresh is not None:
         refresh()
     fn = getattr(tilemap, "_defence_coverage_fn", None)
     if fn is not None and hasattr(tilemap, "refresh_defence_range_coverage"):
         tilemap.refresh_defence_range_coverage(fn())
+    refresh_overwrite = getattr(tilemap, "refresh_building_overwrite_flags", None)
+    if refresh_overwrite is not None:
+        refresh_overwrite()
 
 
 def _neighbors(col, row, tilemap):
@@ -134,25 +174,27 @@ def face_edges(col, row, ncol, nrow, footprint=1):
     return out
 
 
-def block_passable(tilemap, col, row, footprint=1, ignore_walls=False):
+def block_passable(tilemap, col, row, footprint=1, ignore_walls=False,
+                   cond_weights=None):
     """Every tile of the block is in bounds and under the impassable threshold,
     and (unless ignore_walls) no live wall sits on an internal edge. N=1
     collapses to ``tile is not None and weight(tile) < impassable``."""
     return _block_entry_weight(
-        tilemap, col, row, footprint, ignore_walls) is not None
+        tilemap, col, row, footprint, ignore_walls, cond_weights) is not None
 
 
-def block_weight(tilemap, col, row, footprint=1):
+def block_weight(tilemap, col, row, footprint=1, cond_weights=None):
     """Cost of ENTERING the block: the worst tile under the body, so a 2×2
     avoids a pond even if only one of its four tiles is the pond. N=1 -> exactly
-    ``tilemap.weight(tilemap.get(col, row))``."""
+    ``tilemap.weight(tilemap.get(col, row), cond_weights)``."""
     if footprint == 1:
-        return tilemap.weight(tilemap.get(col, row))
-    return max(tilemap.weight(tilemap.get(c, r))
+        return tilemap.weight(tilemap.get(col, row), cond_weights)
+    return max(tilemap.weight(tilemap.get(c, r), cond_weights)
                for c, r in block_tiles(col, row, footprint))
 
 
-def _block_entry_weight(tilemap, col, row, footprint=1, ignore_walls=False):
+def _block_entry_weight(tilemap, col, row, footprint=1, ignore_walls=False,
+                        cond_weights=None):
     """``block_weight`` if the body may stand here, else None — ``block_passable``
     and ``block_weight`` FUSED into one pass. The Dijkstra relax needs both for
     every candidate anchor, and each is a get+weight sweep over the block; run
@@ -165,14 +207,14 @@ def _block_entry_weight(tilemap, col, row, footprint=1, ignore_walls=False):
         tile = tilemap.get(col, row)
         if tile is None:
             return None
-        w = tilemap.weight(tile)
+        w = tilemap.weight(tile, cond_weights)
         return None if w >= impassable else w
     worst = 0
     for c, r in block_tiles(col, row, footprint):
         tile = tilemap.get(c, r)
         if tile is None:
             return None
-        w = tilemap.weight(tile)
+        w = tilemap.weight(tile, cond_weights)
         if w >= impassable:
             return None
         if w > worst:
@@ -211,7 +253,8 @@ def _reconstruct(prev, start_col, start_row, goal):
     return path
 
 
-def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
+def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1,
+              cond_weights=None):
     """Cheapest ANCHOR path from start to the nearest anchor whose block covers
     a tile in `goals`, or [] if none is reachable. Assumes the caller already
     ran ``_pre_query_refresh``. Only anchors a size-N body can legally occupy
@@ -262,11 +305,12 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
                 tile = tm_get(nc, nr)
                 if tile is None:
                     continue
-                w = tm_weight(tile)
+                w = tm_weight(tile, cond_weights)
                 if w >= impassable:
                     continue
             else:
-                w = _block_entry_weight(tilemap, nc, nr, footprint, ignore_walls)
+                w = _block_entry_weight(tilemap, nc, nr, footprint,
+                                        ignore_walls, cond_weights)
                 if w is None:
                     continue
             nd = cost + w
@@ -279,7 +323,7 @@ def _dijkstra(tilemap, start_col, start_row, goals, ignore_walls, footprint=1):
     return _reconstruct(prev, start_col, start_row, reached)
 
 
-def _build_flow_field(tilemap, ignore_walls, footprint=1):
+def _build_flow_field(tilemap, ignore_walls, footprint=1, cond_weights=None):
     """One reverse Dijkstra seeded at EVERY base-covering anchor, expanding
     outward over the TRANSPOSED edge graph. Edge rules are byte-identical to
     ``_dijkstra`` (``_neighbors`` 4-connectivity, ``_face_blocked`` on the
@@ -333,11 +377,12 @@ def _build_flow_field(tilemap, ignore_walls, footprint=1):
             tile = tm_get(col, row)
             if tile is None:
                 continue   # a start-only leaf: no forward edge may enter it
-            w = tm_weight(tile)
+            w = tm_weight(tile, cond_weights)
             if w >= impassable:
                 continue
         else:
-            w = _block_entry_weight(tilemap, col, row, footprint, ignore_walls)
+            w = _block_entry_weight(tilemap, col, row, footprint, ignore_walls,
+                                    cond_weights)
             if w is None:
                 continue
         for nc, nr in _neighbors(col, row, tilemap):
@@ -357,33 +402,45 @@ def _build_flow_field(tilemap, ignore_walls, footprint=1):
     return dist, next_step
 
 
-def _ensure_flow_field(tilemap, ignore_walls, footprint=1):
+def _ensure_flow_field(tilemap, ignore_walls, footprint=1, cond_weights=None):
     """The cached ``(dist, next_step)`` field for ``tilemap``, rebuilt only
     when its ``_path_version`` moved (bumped by every weight/blocking
     mutation — see ``TileMap._bump_path_version``). Fields cache side by side
-    keyed on ``(ignore_walls, footprint)``, each built lazily, so the two
-    ``find_path*`` base variants tie-break identically — with no walls the
-    builds are the same search, keeping them byte-equal as before. THE PERF
-    INVARIANT (``game/PERF.md``): one Dijkstra per topology change per key,
-    never one per enemy. The cache lives ON the tilemap as an underscore
-    transient so per-map fields can never cross; ``getattr`` guards keep
-    duck-typed test stubs (no counter → version 0) working."""
+    keyed on ``(ignore_walls, footprint, profile_key)`` — ``profile_key`` is
+    ``None`` or the hashable ``(forest, mountain, pond)`` tuple derived from
+    ``cond_weights`` (a dict is not hashable, so the cache key derives its own
+    tuple rather than storing the dict itself). IDENTICAL profiles collapse
+    onto ONE key regardless of which caller supplied them — with every
+    shipped ``EnemyTypes.<type>.condition_path_weights`` seeded equal to the
+    map's own ``TileConditions.path_weights``, every type shares one field,
+    exactly as before this profile seam existed. THE PERF INVARIANT
+    (``game/PERF.md``): one Dijkstra per topology change per (footprint,
+    profile), never one per enemy — at most a handful of distinct profiles
+    ever exist. The cache lives ON the tilemap as an underscore transient so
+    per-map fields can never cross; ``getattr`` guards keep duck-typed test
+    stubs (no counter → version 0) working."""
     version = getattr(tilemap, "_path_version", 0)
     cache = getattr(tilemap, "_flow_cache", None)
     if cache is None or cache[0] != version:
         cache = (version, {})
         tilemap._flow_cache = cache
     fields = cache[1]
-    key = (ignore_walls, footprint)
+    profile_key = (None if cond_weights is None else
+                  (cond_weights["forest"], cond_weights["mountain"],
+                   cond_weights["pond"]))
+    key = (ignore_walls, footprint, profile_key)
     if key not in fields:
-        fields[key] = _build_flow_field(tilemap, ignore_walls, footprint)
+        fields[key] = _build_flow_field(tilemap, ignore_walls, footprint,
+                                        cond_weights)
     return fields[key]
 
 
-def _field_path(tilemap, start_col, start_row, ignore_walls, footprint=1):
+def _field_path(tilemap, start_col, start_row, ignore_walls, footprint=1,
+                cond_weights=None):
     """O(path-length) walk down the cached next-step tree, or ``[]`` when the
     start is outside the field (base unreachable)."""
-    dist, next_step = _ensure_flow_field(tilemap, ignore_walls, footprint)
+    dist, next_step = _ensure_flow_field(tilemap, ignore_walls, footprint,
+                                         cond_weights)
     cur = (start_col, start_row)
     if cur not in dist:
         return []
@@ -394,7 +451,7 @@ def _field_path(tilemap, start_col, start_row, ignore_walls, footprint=1):
     return path
 
 
-def find_path(tilemap, start_col, start_row, footprint=1):
+def find_path(tilemap, start_col, start_row, footprint=1, cond_weights=None):
     """Cheapest path from the anchor (start_col, start_row) to the base tile —
     for a size-N unit, until its BLOCK covers the base (see the module
     docstring); N=1 is today's path to the base tile itself.
@@ -404,13 +461,15 @@ def find_path(tilemap, start_col, start_row, footprint=1):
     per-query forward Dijkstra, computed once per topology change (per
     footprint) instead of once per enemy. A start outside the field (base
     unreachable) returns ``[]`` so the ``find_path_ignoring_walls`` fallback in
-    ``Enemy.on_spawn`` still fires."""
+    ``Enemy.on_spawn`` still fires. ``cond_weights`` (Chunk 3): the caller's
+    per-enemy-type weight profile, ``None`` for the map default."""
     _pre_query_refresh(tilemap)
     return _field_path(tilemap, start_col, start_row, ignore_walls=False,
-                       footprint=footprint)
+                       footprint=footprint, cond_weights=cond_weights)
 
 
-def find_path_ignoring_walls(tilemap, start_col, start_row, footprint=1):
+def find_path_ignoring_walls(tilemap, start_col, start_row, footprint=1,
+                             cond_weights=None):
     """Cheapest path to the base treating wall edges as passable — the fallback
     when walls fully enclose the base (the enemy attacks blocking walls en
     route). Identical to ``find_path`` until walls exist (10E). Also
@@ -418,56 +477,193 @@ def find_path_ignoring_walls(tilemap, start_col, start_row, footprint=1):
     this fallback, so it must not regress to a per-enemy Dijkstra."""
     _pre_query_refresh(tilemap)
     return _field_path(tilemap, start_col, start_row, ignore_walls=True,
-                       footprint=footprint)
+                       footprint=footprint, cond_weights=cond_weights)
 
 
-def _goal_tiles(tilemap, predicate):
+def _goal_tiles(tilemap, predicate, exclude=None):
+    """The goal set for a hunt: every built tile whose occupant is alive and
+    satisfies ``predicate``.
+
+    NE-2 adds ``exclude`` — an optional container of ``(col, row)`` tiles to
+    drop from the set BEFORE the predicate runs. It is the seam the Digger's
+    exclusive claim rides on (a tile another live Digger has already committed
+    to is simply not a candidate), and it is deliberately a plain tile filter
+    rather than a second predicate: the caller knows tiles, not occupants, and
+    ``None`` keeps every existing query byte-identical."""
     return {
         (t.col, t.row)
         for t in tilemap.built_tiles()
         if t.occupant is not None
         and getattr(t.occupant, "alive", False)
+        and (exclude is None or (t.col, t.row) not in exclude)
         and predicate(t.occupant)
     }
 
 
-def _find_path_to_goals(tilemap, start_col, start_row, goals, footprint=1):
+def _find_path_to_goals(tilemap, start_col, start_row, goals, footprint=1,
+                        cond_weights=None):
     """Run a goal-set query; fall back to the base path when no goal exists or
     none is reachable (prototype behaviour)."""
     if not goals:
-        return find_path(tilemap, start_col, start_row, footprint)
+        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
     path = _dijkstra(tilemap, start_col, start_row, goals, ignore_walls=False,
-                     footprint=footprint)
+                     footprint=footprint, cond_weights=cond_weights)
     if not path:
-        return find_path(tilemap, start_col, start_row, footprint)
+        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
     return path
 
 
-def find_path_to_nearest_economic(tilemap, start_col, start_row, footprint=1):
+def _nearest_goal_tile(goals, start_col, start_row, min_distance=0):
+    """The tile in ``goals`` GEOMETRICALLY nearest to the start, or ``None``
+    when ``goals`` is empty (BP-3 / decision D3, generalised — Chunk 4 — from
+    the boss-only ``nearest_non_base_building_tile`` into a predicate-free
+    helper every hunt query shares).
+
+    Target CHOICE is plain squared distance — what the player sees and expects
+    — deliberately NOT the weighted Dijkstra cost that picks the *route*. One
+    weighted search used to do both jobs and the two requirements fight: terrain
+    weight, defence-range coverage (+1/tile) and the round-11 damage discount
+    (×0.5) all bend the cost field, so the "nearest" building could be clear
+    across the map. Ties break lexicographically, so the pick is deterministic
+    for a given board.
+
+    ``min_distance`` (Digger fix, default 0 — every existing caller
+    byte-identical): when positive, restrict the pool to goals at CHEBYSHEV
+    distance ``>= min_distance`` from the start before picking the nearest;
+    if nothing clears that bar, fall back to the nearest of the FULL set. A
+    Chebyshev distance is never negative, so ``min_distance=0`` keeps every
+    goal and changes nothing."""
+    if not goals:
+        return None
+    pool = goals
+    if min_distance > 0:
+        far = {g for g in goals
+               if max(abs(g[0] - start_col), abs(g[1] - start_row)) >= min_distance}
+        if far:
+            pool = far
+    return min(pool, key=lambda g: ((g[0] - start_col) ** 2
+                                    + (g[1] - start_row) ** 2, g[0], g[1]))
+
+
+def _hunt(tilemap, start_col, start_row, goals, footprint=1,
+         cond_weights=None, min_distance=0):
+    """The one hunt-query body (Chunk 4), shared by every prey-hunting
+    variant below: choose the nearest goal by squared geometric distance,
+    route to it by the ordinary weighted ``_dijkstra`` (D3 — choose by
+    distance, route by cost: terrain weight, defence-range coverage and the
+    damage discount all bend the cost field, so the "nearest" target by cost
+    can be clear across the map from the "nearest" target by distance). If
+    that route turns out to be unreachable, one multi-goal search over the
+    WHOLE goal set finds any other reachable one before giving up — so a
+    walled-off target can never force an early fallback. With NO goals at
+    all, falls back to the base path — for
+    ``find_path_to_nearest_non_base_building`` this is the ONE way the
+    boss's ``goal_is_base`` ever becomes True; extracted verbatim from that
+    function (formerly the whole of its body) so ``find_path_to_nearest_
+    economic``/``_defence`` get the identical distance-choice fix instead of
+    the cost-choice bug they shipped dormant with.
+
+    ``min_distance`` (Digger fix) is threaded ONLY into the target CHOICE
+    (``_nearest_goal_tile``) — the unreachable-target fallback still searches
+    the whole goal set, because reachability always wins over a distance
+    preference, exactly like every other fallback in this module."""
+    if not goals:
+        return find_path(tilemap, start_col, start_row, footprint, cond_weights)
+    target = _nearest_goal_tile(goals, start_col, start_row, min_distance)
+    path = _dijkstra(tilemap, start_col, start_row, {target},
+                     ignore_walls=False, footprint=footprint,
+                     cond_weights=cond_weights)
+    if path:
+        return path
+    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint,
+                               cond_weights)
+
+
+def find_path_to_nearest_economic(tilemap, start_col, start_row, footprint=1,
+                                  cond_weights=None):
     """Cheapest path to the nearest alive economy building (Flute Player,
-    Meditator, Painter). Falls back to the base path if none exist."""
+    Meditator, Painter), by geometric distance (Chunk 4 — was cost-choice via
+    ``_find_path_to_goals`` alone, a bug that let a cost-cheaper building beat
+    a geometrically-closer pond building; dormant until Raider.hunts ==
+    "economic" armed it). Falls back to the base path if none exist."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(
         tilemap,
         lambda b: getattr(b, "building_type", None) in _ECONOMY_BUILDING_TYPES,
     )
-    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
 
 
-def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1):
-    """Cheapest path to the nearest alive defence building; base path if none."""
+def find_path_to_nearest_defence(tilemap, start_col, start_row, footprint=1,
+                                 cond_weights=None):
+    """Cheapest path to the nearest alive ATTACK-CAPABLE building, by geometric
+    distance (Chunk 4, same distance-choice fix as the economic variant
+    above; dormant until SiegeCannon.hunts == "defence" armed it). Falls back
+    to the base path if none exist.
+
+    NE-0/D1: the goal predicate is ``_ATTACK_BUILDING_TYPES`` — Defender,
+    mortar (``aoe_defence``), Storm Priest and Sun Scorcher — not the single
+    literal ``"defence"`` it shipped with. A deliberate, user-approved balance
+    change to an EXISTING type: SiegeCannon (``hunts: "defence"``) hunts all
+    four from its existing ``start_round: 14`` onward."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(
-        tilemap, lambda b: getattr(b, "building_type", None) == "defence")
-    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)
+        tilemap,
+        lambda b: getattr(b, "building_type", None) in _ATTACK_BUILDING_TYPES,
+    )
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)
 
 
-def find_path_to_nearest_building(tilemap, start_col, start_row, footprint=1):
+def find_path_to_nearest_structure(tilemap, start_col, start_row, footprint=1,
+                                   cond_weights=None, exclude=None,
+                                   min_distance=0):
+    """Cheapest path to the nearest alive STRUCTURE — every non-economy,
+    non-boost, non-base building (``_STRUCTURE_BUILDING_TYPES``: blocker,
+    wall builder, and the four attack-capable types) — by geometric distance,
+    routed by weighted cost through the shared ``_hunt`` body like every other
+    prey query. Falls back to the base path if none exist.
+
+    NE-0/D2. The ``"structure"`` hunt category, added for the Digger (NE-2) but
+    landed a phase early so it rides the same reviewed helper the other hunts
+    do. Blockers and wall builders are the common case in practice; the
+    category is deliberately not restricted to those two.
+
+    NE-2 adds ``exclude``: ``(col, row)`` tiles to drop from the goal set. This
+    is the ONE hunt query that takes it, because the Digger is the one type
+    with an exclusive claim — another live Digger's committed target is not a
+    candidate for this one. ``None`` (every other caller, including
+    ``_HUNT_QUERIES``' generic dispatch) is byte-identical to NE-0.
+
+    ``min_distance`` (Digger fix, default 0): forwarded straight to ``_hunt``'s
+    target-CHOICE preference — see ``_nearest_goal_tile``. This is also the
+    ONE hunt query that takes it, since ``find_path_to_nearest_structure`` is
+    itself the Digger's only caller today; every other hunt category stays at
+    the default and is unaffected.
+
+    **Caution — an empty goal set still falls back to the BASE path** (``_hunt``
+    does, for every hunt). A caller that must never march at the hole when
+    exclusion empties the board — the Digger, which "only builds towards
+    buildings" — has to detect that itself: ``PathAgent.adopt_goal`` flips
+    ``goal_is_base`` True on exactly that path, which is what
+    ``BurrowAgent.retarget`` reads to stand down instead."""
+    _pre_query_refresh(tilemap)
+    goals = _goal_tiles(
+        tilemap,
+        lambda b: getattr(b, "building_type", None) in _STRUCTURE_BUILDING_TYPES,
+        exclude,
+    )
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights,
+                min_distance)
+
+
+def find_path_to_nearest_building(tilemap, start_col, start_row, footprint=1,
+                                  cond_weights=None):
     """Cheapest path to the nearest alive building of any type; base path if
     none exist."""
     _pre_query_refresh(tilemap)
     goals = _goal_tiles(tilemap, lambda b: True)
-    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)
+    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint,
+                               cond_weights)
 
 
 def _non_base_goals(tilemap):
@@ -482,23 +678,15 @@ def _non_base_goals(tilemap):
 
 def nearest_non_base_building_tile(tilemap, start_col, start_row):
     """The alive non-base building tile GEOMETRICALLY nearest to the start, or
-    ``None`` when the board is clear (BP-3 / decision D3).
-
-    Target CHOICE is plain squared distance — what the player sees and expects
-    — deliberately NOT the weighted Dijkstra cost that picks the *route*. One
-    weighted search used to do both jobs and the two requirements fight: terrain
-    weight, defence-range coverage (+1/tile) and the round-11 damage discount
-    (×0.5) all bend the cost field, so the "nearest" building could be clear
-    across the map. Ties break lexicographically, so the pick is deterministic
-    for a given board."""
-    goals = _non_base_goals(tilemap)
-    if not goals:
-        return None
-    return min(goals, key=lambda g: ((g[0] - start_col) ** 2
-                                     + (g[1] - start_row) ** 2, g[0], g[1]))
+    ``None`` when the board is clear (BP-3 / decision D3). Thin wrapper over
+    the generalised ``_nearest_goal_tile`` (Chunk 4) — kept under its
+    original name because ``test_boss.py``/``test_pathfinder.py`` reference
+    it directly."""
+    return _nearest_goal_tile(_non_base_goals(tilemap), start_col, start_row)
 
 
-def find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1):
+def find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1,
+                               cond_weights=None):
     """Cheapest path from (start_col, start_row) to the nearest SPAWNING tile —
     the kidnapper's route home. ``[]`` when there is no spawn tile at all, or
     none reachable.
@@ -518,11 +706,12 @@ def find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1):
     if not goals:
         return []
     return _dijkstra(tilemap, start_col, start_row, goals,
-                     ignore_walls=True, footprint=footprint)
+                     ignore_walls=True, footprint=footprint,
+                     cond_weights=cond_weights)
 
 
 def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
-                                           footprint=1):
+                                           footprint=1, cond_weights=None):
     """Route to the nearest alive NON-BASE building; the base path when the
     board is clear (BP-2 / decision D2 — the boss turns on the hole ONLY once
     nothing else is left standing).
@@ -544,14 +733,10 @@ def find_path_to_nearest_non_base_building(tilemap, start_col, start_row,
     walled-off building can never send the boss to the base early.
 
     Fresh Dijkstras (~one per boss per re-path), like the other goal-set
-    variants — the ``game/PERF.md`` flow-field invariant is untouched."""
+    variants — the ``game/PERF.md`` flow-field invariant is untouched.
+
+    Chunk 4: the body is now the shared ``_hunt`` helper — byte-identical to
+    the pre-Chunk-4 version (pinned by ``test_boss.py``'s existing fixtures)."""
     _pre_query_refresh(tilemap)
     goals = _non_base_goals(tilemap)
-    if not goals:
-        return find_path(tilemap, start_col, start_row, footprint)
-    target = nearest_non_base_building_tile(tilemap, start_col, start_row)
-    path = _dijkstra(tilemap, start_col, start_row, {target},
-                     ignore_walls=False, footprint=footprint)
-    if path:
-        return path
-    return _find_path_to_goals(tilemap, start_col, start_row, goals, footprint)
+    return _hunt(tilemap, start_col, start_row, goals, footprint, cond_weights)

@@ -32,7 +32,7 @@ BUILDINGS_BAL = load_balance(FIXTURE_DATA, "buildings")
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
-VIEW_W, VIEW_H = 1280, 720
+VIEW_W, VIEW_H = 640, 360
 
 
 def make_world():

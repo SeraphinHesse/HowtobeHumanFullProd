@@ -109,6 +109,12 @@
       "sheet": "imported/base_level_5.png"
     },
     "blocker": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -31
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -137,6 +143,12 @@
       "sheet": "imported/blocker.png"
     },
     "boost_damage_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -155,6 +167,12 @@
       "sheet": "imported/boost_damage_t1_lvl1.png"
     },
     "boost_damage_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -173,6 +191,12 @@
       "sheet": "imported/boost_damage_t1_lvl2.png"
     },
     "boost_damage_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -191,6 +215,12 @@
       "sheet": "imported/boost_damage_t1_lvl3.png"
     },
     "boost_damage_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -209,6 +239,12 @@
       "sheet": "imported/boost_damage_t2_lvl1.png"
     },
     "boost_damage_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -227,6 +263,12 @@
       "sheet": "imported/boost_damage_t2_lvl2.png"
     },
     "boost_damage_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -14
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -245,6 +287,12 @@
       "sheet": "imported/boost_damage_t2_lvl3.png"
     },
     "boost_damage_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -263,6 +311,12 @@
       "sheet": "imported/boost_damage_t3_lvl1.png"
     },
     "boost_damage_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -11
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -281,6 +335,12 @@
       "sheet": "imported/boost_damage_t3_lvl2.png"
     },
     "boost_damage_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -13
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -299,6 +359,12 @@
       "sheet": "imported/boost_damage_t3_lvl3.png"
     },
     "boost_hp_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -11
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -317,6 +383,12 @@
       "sheet": "imported/boost_hp_t1_lvl1.png"
     },
     "boost_hp_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -335,6 +407,12 @@
       "sheet": "imported/boost_hp_t1_lvl2.png"
     },
     "boost_hp_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -11
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -353,6 +431,12 @@
       "sheet": "imported/boost_hp_t1_lvl3.png"
     },
     "boost_hp_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -371,6 +455,12 @@
       "sheet": "imported/boost_hp_t2_lvl1.png"
     },
     "boost_hp_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -16
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -389,6 +479,12 @@
       "sheet": "imported/boost_hp_t2_lvl2.png"
     },
     "boost_hp_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -407,6 +503,12 @@
       "sheet": "imported/boost_hp_t2_lvl3.png"
     },
     "boost_hp_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -425,6 +527,12 @@
       "sheet": "imported/boost_hp_t3_lvl1.png"
     },
     "boost_hp_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -14
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -443,6 +551,12 @@
       "sheet": "imported/boost_hp_t3_lvl2.png"
     },
     "boost_hp_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -461,6 +575,12 @@
       "sheet": "imported/boost_hp_t3_lvl3.png"
     },
     "boost_speed_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -479,6 +599,12 @@
       "sheet": "imported/boost_speed_t1_lvl1.png"
     },
     "boost_speed_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -9
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -497,6 +623,12 @@
       "sheet": "imported/boost_speed_t1_lvl2.png"
     },
     "boost_speed_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -515,6 +647,12 @@
       "sheet": "imported/boost_speed_t1_lvl3.png"
     },
     "boost_speed_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -533,6 +671,12 @@
       "sheet": "imported/boost_speed_t2_lvl1.png"
     },
     "boost_speed_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -551,6 +695,12 @@
       "sheet": "imported/boost_speed_t2_lvl2.png"
     },
     "boost_speed_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -569,6 +719,12 @@
       "sheet": "imported/boost_speed_t2_lvl3.png"
     },
     "boost_speed_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -587,6 +743,12 @@
       "sheet": "imported/boost_speed_t3_lvl1.png"
     },
     "boost_speed_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -605,6 +767,12 @@
       "sheet": "imported/boost_speed_t3_lvl2.png"
     },
     "boost_speed_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -623,6 +791,20 @@
       "sheet": "imported/boost_speed_t3_lvl3.png"
     },
     "boss_era_0": {
+      "anchors": {
+        "beam_endpoint": [
+          15,
+          9
+        ],
+        "floater_origin": [
+          16,
+          4
+        ],
+        "impact": [
+          15,
+          9
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -665,6 +847,20 @@
       "sheet": "imported/boss_era_0.png"
     },
     "boss_era_1": {
+      "anchors": {
+        "beam_endpoint": [
+          -2,
+          7
+        ],
+        "floater_origin": [
+          -2,
+          6
+        ],
+        "impact": [
+          -2,
+          6
+        ]
+      },
       "frame_h": 84,
       "frame_w": 108,
       "offset_x": 0,
@@ -683,6 +879,20 @@
       "sheet": "imported/boss_era_1.png"
     },
     "boss_era_2": {
+      "anchors": {
+        "beam_endpoint": [
+          -2,
+          5
+        ],
+        "floater_origin": [
+          0,
+          -7
+        ],
+        "impact": [
+          -2,
+          8
+        ]
+      },
       "frame_h": 84,
       "frame_w": 108,
       "offset_x": 0,
@@ -701,6 +911,20 @@
       "sheet": "imported/boss_era_2.png"
     },
     "boss_era_3": {
+      "anchors": {
+        "beam_endpoint": [
+          1,
+          2
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "impact": [
+          1,
+          4
+        ]
+      },
       "frame_h": 88,
       "frame_w": 116,
       "offset_x": 0,
@@ -719,8 +943,22 @@
       "sheet": "imported/boss_era_3.png"
     },
     "boss_era_4": {
-      "frame_h": 96,
-      "frame_w": 124,
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          7
+        ],
+        "floater_origin": [
+          0,
+          0
+        ],
+        "impact": [
+          5,
+          0
+        ]
+      },
+      "frame_h": 128,
+      "frame_w": 128,
       "offset_x": 0,
       "offset_y": 0,
       "rows": [
@@ -736,6 +974,192 @@
       ],
       "sheet": "imported/boss_era_4.png"
     },
+    "commander_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_2.png"
+    },
+    "commander_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_3.png"
+    },
+    "commander_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "death",
+          "fps": 6,
+          "frames": 8,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v1.png"
+    },
     "cond_forest_buildable": {
       "frame_h": 96,
       "frame_w": 64,
@@ -745,7 +1169,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -754,16 +1178,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -781,7 +1199,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -790,16 +1208,10 @@
             4,
             5,
             6,
-            8,
+            7,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -817,7 +1229,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -827,15 +1239,9 @@
             5,
             6,
             7,
-            9,
+            8,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -853,7 +1259,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -864,14 +1270,8 @@
             6,
             7,
             8,
-            10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            9,
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -889,7 +1289,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -901,13 +1301,7 @@
             7,
             8,
             9,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            10
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -925,25 +1319,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -961,7 +1349,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -970,16 +1358,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -997,25 +1379,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1033,25 +1409,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1069,25 +1439,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1105,25 +1469,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1141,7 +1499,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1149,17 +1507,11 @@
             3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1177,7 +1529,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
@@ -1186,16 +1538,10 @@
             4,
             5,
             6,
-            7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1249,10 +1595,10 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
+            2,
             3,
             4,
             5,
@@ -1261,13 +1607,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1285,11 +1625,11 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
-            0,
             1,
             2,
+            3,
             4,
             5,
             6,
@@ -1297,13 +1637,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1321,7 +1655,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             1,
             2,
@@ -1333,13 +1667,7 @@
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1357,25 +1685,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
-            1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1393,25 +1715,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
-            2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1429,25 +1745,19 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 18,
+          "frames": 12,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
+            6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15,
-            16,
-            17
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -1735,10 +2045,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 1,
+          "frames": 15,
           "hidden": [],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
         }
       ],
@@ -2032,6 +2342,96 @@
       ],
       "sheet": "imported/deco_prop_2_v14.png"
     },
+    "deco_prop_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 4,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4.png"
+    },
+    "deco_prop_4_v2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v2.png"
+    },
+    "deco_prop_4_v3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v3.png"
+    },
+    "deco_prop_4_v4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v4.png"
+    },
+    "deco_prop_4_v5": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_4_v5.png"
+    },
     "deco_rock": {
       "frame_h": 96,
       "frame_w": 64,
@@ -2266,7 +2666,7 @@
       ],
       "sheet": "imported/deco_tree_v9.png"
     },
-    "enemy_stage_1_v1": {
+    "digger_stage_1": {
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2275,63 +2675,88 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
-          "hidden": [
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "attack",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "digger_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1
-          ],
+          "animation": "idle",
+          "fps": 6,
+          "frames": 15,
+          "hidden": [],
+          "loop_count": 4,
+          "loop_end": 5,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_prop_1_v4.png"
+    },
+    "drummer_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/enemy_stage_1_v1.png"
+      "sheet": "imported/enemy_stage_4_v2.png"
     },
-    "enemy_stage_1_v2": {
+    "drummer_stage_2": {
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2340,12 +2765,85 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "drummer_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "drummer_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_4_v2.png"
+    },
+    "enemy_stage_1_v1": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -9
+        ],
+        "floater_origin": [
+          3,
+          -7
+        ],
+        "hp_bar": [
+          2,
+          -25
+        ],
+        "impact": [
+          4,
+          -11
+        ],
+        "muzzle": [
+          -14,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2353,38 +2851,8 @@
         },
         {
           "animation": "attack",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
-          "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
-          ],
-          "loop_count": 1,
-          "loop_end": 0,
-          "loop_start": 0
-        },
-        {
-          "animation": "death",
-          "fps": 8,
-          "frames": 8,
+          "fps": 6,
+          "frames": 9,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -2393,7 +2861,29 @@
       ],
       "sheet": "imported/enemy_stage_1_v1.png"
     },
-    "enemy_stage_2": {
+    "enemy_stage_1_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -7
+        ],
+        "floater_origin": [
+          4,
+          -8
+        ],
+        "hp_bar": [
+          3,
+          -27
+        ],
+        "impact": [
+          3,
+          -11
+        ],
+        "muzzle": [
+          -14,
+          -15
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2402,12 +2892,60 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            4,
-            5,
-            6,
-            7
+            8
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "attack",
+          "fps": 8,
+          "frames": 9,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v2.png"
+    },
+    "enemy_stage_1_v3": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -11
+        ],
+        "floater_origin": [
+          4,
+          -7
+        ],
+        "hp_bar": [
+          1,
+          -26
+        ],
+        "impact": [
+          3,
+          -9
+        ],
+        "muzzle": [
+          -13,
+          -15
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -2416,35 +2954,96 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 8,
-          "hidden": [
-            6,
-            7
-          ],
+          "frames": 9,
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
-        },
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v3.png"
+    },
+    "enemy_stage_1_v4": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -9
+        ],
+        "floater_origin": [
+          3,
+          -6
+        ],
+        "hp_bar": [
+          2,
+          -26
+        ],
+        "impact": [
+          3,
+          -12
+        ],
+        "muzzle": [
+          -14,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
         {
-          "animation": "death",
+          "animation": "idle",
           "fps": 6,
-          "frames": 8,
+          "frames": 9,
           "hidden": [
-            0,
-            1,
-            2,
-            3,
-            4,
-            5,
-            6,
-            7
+            8
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         },
         {
-          "animation": "death",
+          "animation": "attack",
+          "fps": 6,
+          "frames": 9,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/enemy_stage_1_v4.png"
+    },
+    "enemy_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          2,
+          -10
+        ],
+        "floater_origin": [
+          2,
+          -8
+        ],
+        "hp_bar": [
+          3,
+          -26
+        ],
+        "impact": [
+          3,
+          -9
+        ],
+        "muzzle": [
+          -17,
+          -14
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
           "fps": 6,
           "frames": 8,
           "hidden": [],
@@ -2456,6 +3055,28 @@
       "sheet": "imported/enemy_stage_2.png"
     },
     "enemy_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          0
+        ],
+        "floater_origin": [
+          2,
+          -15
+        ],
+        "hp_bar": [
+          1,
+          -21
+        ],
+        "impact": [
+          3,
+          -2
+        ],
+        "muzzle": [
+          -19,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2518,6 +3139,28 @@
       "sheet": "imported/enemy_stage_3.png"
     },
     "enemy_stage_4_v1": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -2
+        ],
+        "floater_origin": [
+          2,
+          -16
+        ],
+        "hp_bar": [
+          1,
+          -20
+        ],
+        "impact": [
+          3,
+          0
+        ],
+        "muzzle": [
+          -19,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2580,6 +3223,28 @@
       "sheet": "imported/enemy_stage_4_v1.png"
     },
     "enemy_stage_4_v2": {
+      "anchors": {
+        "beam_endpoint": [
+          3,
+          -1
+        ],
+        "floater_origin": [
+          3,
+          -14
+        ],
+        "hp_bar": [
+          2,
+          -20
+        ],
+        "impact": [
+          3,
+          -4
+        ],
+        "muzzle": [
+          -19,
+          -8
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2600,7 +3265,7 @@
           "loop_start": 0
         },
         {
-          "animation": "walk",
+          "animation": "attack",
           "fps": 6,
           "frames": 8,
           "hidden": [
@@ -2732,6 +3397,16 @@
       "sheet": "imported/enemy_t4.png"
     },
     "flute_player_t1_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -12
+        ],
+        "hp_bar": [
+          -3,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2741,14 +3416,7 @@
           "animation": "idle",
           "fps": 6,
           "frames": 17,
-          "hidden": [
-            1,
-            2,
-            3,
-            4,
-            5,
-            6
-          ],
+          "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
@@ -2829,6 +3497,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "flute_player_t1_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -14
+        ],
+        "hp_bar": [
+          -4,
+          -28
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -2926,6 +3604,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "flute_player_t1_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -14
+        ],
+        "hp_bar": [
+          -2,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3023,6 +3711,24 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "formation_stage_1": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          -3
+        ],
+        "floater_origin": [
+          -1,
+          -13
+        ],
+        "hp_bar": [
+          -2,
+          -26
+        ],
+        "impact": [
+          -1,
+          0
+        ]
+      },
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -3063,6 +3769,24 @@
       "sheet": "imported/formation_stage_1.png"
     },
     "formation_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          -1
+        ],
+        "floater_origin": [
+          -1,
+          -10
+        ],
+        "hp_bar": [
+          -1,
+          -24
+        ],
+        "impact": [
+          0,
+          -1
+        ]
+      },
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -3103,6 +3827,24 @@
       "sheet": "imported/formation_stage_1.png"
     },
     "formation_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          0,
+          -14
+        ],
+        "hp_bar": [
+          0,
+          -26
+        ],
+        "impact": [
+          0,
+          -2
+        ]
+      },
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -3143,6 +3885,24 @@
       "sheet": "imported/formation_stage_1.png"
     },
     "formation_stage_4": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          -1
+        ],
+        "floater_origin": [
+          -1,
+          -14
+        ],
+        "hp_bar": [
+          -1,
+          -27
+        ],
+        "impact": [
+          -1,
+          -2
+        ]
+      },
       "frame_h": 32,
       "frame_w": 64,
       "offset_x": 0,
@@ -3183,6 +3943,16 @@
       "sheet": "imported/formation_stage_1.png"
     },
     "harp_player_t2_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -15
+        ],
+        "hp_bar": [
+          -1,
+          -21
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3310,6 +4080,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "harp_player_t2_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -21
+        ],
+        "hp_bar": [
+          -1,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3417,6 +4197,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "harp_player_t2_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -22
+        ],
+        "hp_bar": [
+          -1,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3524,6 +4314,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "laser_beam_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -3,
+          -38
+        ],
+        "muzzle": [
+          -3,
+          -20
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3542,6 +4342,16 @@
       "sheet": "imported/laser_beam_t3_lvl1.png"
     },
     "laser_beam_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -7,
+          -36
+        ],
+        "muzzle": [
+          -6,
+          -20
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3560,6 +4370,16 @@
       "sheet": "imported/laser_beam_t3_lvl2.png"
     },
     "laser_beam_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -7,
+          -37
+        ],
+        "muzzle": [
+          -3,
+          -20
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3596,6 +4416,16 @@
       "sheet": "imported/main_menu_bg.png"
     },
     "maw_mortar_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -35
+        ],
+        "muzzle": [
+          0,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3624,6 +4454,16 @@
       "sheet": "imported/maw_mortar_t1_lvl1.png"
     },
     "maw_mortar_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -35
+        ],
+        "muzzle": [
+          0,
+          -9
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3652,6 +4492,16 @@
       "sheet": "imported/maw_mortar_t1_lvl2.png"
     },
     "maw_mortar_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -33
+        ],
+        "muzzle": [
+          -1,
+          -6
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3680,6 +4530,16 @@
       "sheet": "imported/maw_mortar_t1_lvl3.png"
     },
     "maw_mortar_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -5,
+          -24
+        ],
+        "muzzle": [
+          13,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3734,6 +4594,16 @@
       "sheet": "imported/maw_mortar_t2_lvl3.png"
     },
     "maw_mortar_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -31
+        ],
+        "muzzle": [
+          9,
+          -25
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3752,6 +4622,16 @@
       "sheet": "imported/maw_mortar_t3_lvl1.png"
     },
     "maw_mortar_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -34
+        ],
+        "muzzle": [
+          10,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3770,6 +4650,16 @@
       "sheet": "imported/maw_mortar_t3_lvl2.png"
     },
     "maw_mortar_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          3,
+          -34
+        ],
+        "muzzle": [
+          11,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3788,6 +4678,16 @@
       "sheet": "imported/maw_mortar_t3_lvl3.png"
     },
     "meditator_t1_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -9
+        ],
+        "hp_bar": [
+          -1,
+          -16
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3813,6 +4713,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "meditator_t1_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -10
+        ],
+        "hp_bar": [
+          -1,
+          -16
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3838,6 +4748,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "meditator_t1_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -14
+        ],
+        "hp_bar": [
+          -1,
+          -17
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3862,7 +4782,35 @@
       ],
       "sheet": "imported/meditator_t1_lvl1.png"
     },
+    "moving_sign": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/moving_sign.png"
+    },
     "painter_t1_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          4,
+          -14
+        ],
+        "hp_bar": [
+          -7,
+          -20
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3881,6 +4829,16 @@
       "sheet": "imported/painter_t1_lvl1.png"
     },
     "painter_t1_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          5,
+          -14
+        ],
+        "hp_bar": [
+          -3,
+          -22
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3899,6 +4857,16 @@
       "sheet": "imported/painter_t1_lvl2.png"
     },
     "painter_t1_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          5,
+          -15
+        ],
+        "hp_bar": [
+          -3,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3917,6 +4885,16 @@
       "sheet": "imported/painter_t1_lvl3.png"
     },
     "painter_t2_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -18
+        ],
+        "hp_bar": [
+          -3,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3935,6 +4913,16 @@
       "sheet": "imported/painter_t2_lvl1.png"
     },
     "painter_t2_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -20
+        ],
+        "hp_bar": [
+          -6,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3953,6 +4941,16 @@
       "sheet": "imported/painter_t2_lvl2.png"
     },
     "painter_t2_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          1,
+          -21
+        ],
+        "hp_bar": [
+          -3,
+          -32
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3971,6 +4969,16 @@
       "sheet": "imported/painter_t2_lvl3.png"
     },
     "painter_t3_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -20
+        ],
+        "hp_bar": [
+          0,
+          -33
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -3989,6 +4997,16 @@
       "sheet": "imported/painter_t3_lvl1.png"
     },
     "painter_t3_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          3,
+          -26
+        ],
+        "hp_bar": [
+          2,
+          -35
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4007,6 +5025,16 @@
       "sheet": "imported/painter_t3_lvl2.png"
     },
     "painter_t3_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          3,
+          -28
+        ],
+        "hp_bar": [
+          3,
+          -38
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4025,6 +5053,16 @@
       "sheet": "imported/painter_t3_lvl3.png"
     },
     "pistoleer_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -22
+        ],
+        "muzzle": [
+          12,
+          -10
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4033,7 +5071,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -4042,7 +5080,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4052,7 +5090,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4061,7 +5100,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -4070,7 +5109,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4080,7 +5119,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4089,7 +5129,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -4098,7 +5138,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4108,7 +5148,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4118,6 +5159,16 @@
       "sheet": "imported/pistoleer_t3_lvl1.png"
     },
     "pistoleer_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -23
+        ],
+        "muzzle": [
+          12,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4126,7 +5177,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -4135,7 +5186,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4145,7 +5196,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4154,7 +5206,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -4163,7 +5215,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4173,7 +5225,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4182,7 +5235,7 @@
         {
           "animation": "place",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -4191,7 +5244,7 @@
         {
           "animation": "upgrade",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4201,7 +5254,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4211,6 +5265,16 @@
       "sheet": "imported/pistoleer_t3_lvl2.png"
     },
     "pistoleer_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -23
+        ],
+        "muzzle": [
+          12,
+          -12
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4219,7 +5283,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -4228,7 +5292,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4238,7 +5302,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4247,7 +5312,7 @@
         {
           "animation": "death",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 1,
           "loop_end": 0,
@@ -4256,7 +5321,7 @@
         {
           "animation": "hurt",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4266,7 +5331,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4275,7 +5341,7 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [],
           "loop_count": 7,
           "loop_end": 3,
@@ -4284,7 +5350,7 @@
         {
           "animation": "attack",
           "fps": 6,
-          "frames": 15,
+          "frames": 16,
           "hidden": [
             6,
             7,
@@ -4294,7 +5360,8 @@
             11,
             12,
             13,
-            14
+            14,
+            15
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -4304,6 +5371,16 @@
       "sheet": "imported/pistoleer_t3_lvl3.png"
     },
     "radiant_beam_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -3,
+          -40
+        ],
+        "muzzle": [
+          -1,
+          -28
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4322,6 +5399,16 @@
       "sheet": "imported/radiant_beam_t2_lvl1.png"
     },
     "radiant_beam_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -3,
+          -43
+        ],
+        "muzzle": [
+          -1,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4340,6 +5427,16 @@
       "sheet": "imported/radiant_beam_t2_lvl2.png"
     },
     "radiant_beam_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -4,
+          -44
+        ],
+        "muzzle": [
+          -2,
+          -31
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4376,6 +5473,24 @@
       "sheet": "imported/raider.png"
     },
     "raider_stage_1": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          -2,
+          -5
+        ],
+        "hp_bar": [
+          -2,
+          -13
+        ],
+        "impact": [
+          -1,
+          0
+        ]
+      },
       "frame_h": 18,
       "frame_w": 12,
       "offset_x": 0,
@@ -4394,6 +5509,24 @@
       "sheet": "imported/raider_stage_1.png"
     },
     "raider_stage_2": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          0
+        ],
+        "floater_origin": [
+          -2,
+          -8
+        ],
+        "hp_bar": [
+          -2,
+          -12
+        ],
+        "impact": [
+          -1,
+          -2
+        ]
+      },
       "frame_h": 18,
       "frame_w": 12,
       "offset_x": 0,
@@ -4412,6 +5545,24 @@
       "sheet": "imported/raider_stage_2.png"
     },
     "raider_stage_3": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          -1
+        ],
+        "floater_origin": [
+          -2,
+          -10
+        ],
+        "hp_bar": [
+          -2,
+          -14
+        ],
+        "impact": [
+          -1,
+          0
+        ]
+      },
       "frame_h": 18,
       "frame_w": 12,
       "offset_x": 0,
@@ -4430,6 +5581,24 @@
       "sheet": "imported/raider_stage_3.png"
     },
     "raider_stage_4": {
+      "anchors": {
+        "beam_endpoint": [
+          0,
+          0
+        ],
+        "floater_origin": [
+          -1,
+          -5
+        ],
+        "hp_bar": [
+          -1,
+          -12
+        ],
+        "impact": [
+          -1,
+          -1
+        ]
+      },
       "frame_h": 18,
       "frame_w": 12,
       "offset_x": 0,
@@ -4466,6 +5635,16 @@
       "sheet": "imported/raider_stage_5.png"
     },
     "shaman_t2_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -18
+        ],
+        "hp_bar": [
+          0,
+          -22
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4491,6 +5670,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "shaman_t2_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -21
+        ],
+        "hp_bar": [
+          0,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4516,6 +5705,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "shaman_t2_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -18
+        ],
+        "hp_bar": [
+          0,
+          -22
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4541,6 +5740,24 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "siege_cannon": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          3
+        ],
+        "floater_origin": [
+          -2,
+          -4
+        ],
+        "hp_bar": [
+          -3,
+          -13
+        ],
+        "impact": [
+          -1,
+          3
+        ]
+      },
       "frame_h": 28,
       "frame_w": 36,
       "offset_x": 0,
@@ -4559,6 +5776,24 @@
       "sheet": "imported/siege_cannon.png"
     },
     "siege_cannon_t2": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          3
+        ],
+        "floater_origin": [
+          0,
+          -6
+        ],
+        "hp_bar": [
+          -2,
+          -13
+        ],
+        "impact": [
+          -1,
+          3
+        ]
+      },
       "frame_h": 28,
       "frame_w": 36,
       "offset_x": 0,
@@ -4577,6 +5812,24 @@
       "sheet": "imported/siege_cannon_t2.png"
     },
     "siege_cannon_t3": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          4
+        ],
+        "floater_origin": [
+          -1,
+          -4
+        ],
+        "hp_bar": [
+          -2,
+          -12
+        ],
+        "impact": [
+          -1,
+          3
+        ]
+      },
       "frame_h": 28,
       "frame_w": 36,
       "offset_x": 0,
@@ -4595,6 +5848,24 @@
       "sheet": "imported/siege_cannon_t3.png"
     },
     "siege_cannon_t4": {
+      "anchors": {
+        "beam_endpoint": [
+          -1,
+          2
+        ],
+        "floater_origin": [
+          -1,
+          -5
+        ],
+        "hp_bar": [
+          -1,
+          -12
+        ],
+        "impact": [
+          -1,
+          3
+        ]
+      },
       "frame_h": 28,
       "frame_w": 36,
       "offset_x": 0,
@@ -4613,6 +5884,16 @@
       "sheet": "imported/siege_cannon_t4.png"
     },
     "slinger_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -22
+        ],
+        "muzzle": [
+          0,
+          -5
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4694,6 +5975,16 @@
       "sheet": "imported/slinger_t2_lvl1.png"
     },
     "slinger_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -22
+        ],
+        "muzzle": [
+          0,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4793,6 +6084,16 @@
       "sheet": "imported/slinger_t2_lvl1.png"
     },
     "slinger_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -24
+        ],
+        "muzzle": [
+          0,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4891,7 +6192,107 @@
       ],
       "sheet": "imported/slinger_t2_lvl3.png"
     },
+    "sniper_stage_1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_4": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
+    "sniper_stage_5": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/deco_tree_v9.png"
+    },
     "stone_thrower_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          1,
+          -25
+        ],
+        "muzzle": [
+          0,
+          -18
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4959,6 +6360,16 @@
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "stone_thrower_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -22
+        ],
+        "muzzle": [
+          10,
+          -7
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -4997,8 +6408,8 @@
             13,
             14
           ],
-          "loop_count": 1,
-          "loop_end": 0,
+          "loop_count": 6,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -5045,6 +6456,16 @@
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "stone_thrower_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -24
+        ],
+        "muzzle": [
+          1,
+          -5
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5101,8 +6522,8 @@
             13,
             14
           ],
-          "loop_count": 7,
-          "loop_end": 3,
+          "loop_count": 5,
+          "loop_end": 4,
           "loop_start": 0
         },
         {
@@ -5126,6 +6547,12 @@
       "sheet": "imported/stone_thrower_t1_lvl1.png"
     },
     "storm_priest_i_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -25
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5146,6 +6573,12 @@
       "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_i_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5166,6 +6599,12 @@
       "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_i_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -27
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5174,16 +6613,24 @@
         {
           "animation": "idle",
           "fps": 6,
-          "frames": 7,
-          "hidden": [],
+          "frames": 2,
+          "hidden": [
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v4.png"
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_ii_t2_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5204,6 +6651,12 @@
       "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_ii_t2_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -25
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5211,17 +6664,51 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_prop_1_v5.png"
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
+    },
+    "storm_priest_ii_t2_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -26
+        ]
+      },
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_iii_t3_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -25
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5229,17 +6716,25 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_bush.png"
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_iii_t3_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5247,17 +6742,25 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v9.png"
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "storm_priest_iii_t3_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          0,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5265,17 +6768,29 @@
       "rows": [
         {
           "animation": "idle",
-          "fps": 8,
-          "frames": 1,
-          "hidden": [],
+          "fps": 6,
+          "frames": 2,
+          "hidden": [
+            1
+          ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/deco_tree_v3.png"
+      "sheet": "imported/storm_priest_i_t1_lvl1.png"
     },
     "sun_priest_t3_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -20
+        ],
+        "hp_bar": [
+          0,
+          -25
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5301,6 +6816,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "sun_priest_t3_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -20
+        ],
+        "hp_bar": [
+          -1,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5326,6 +6851,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "sun_priest_t3_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          0,
+          -20
+        ],
+        "hp_bar": [
+          0,
+          -26
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5351,6 +6886,16 @@
       "sheet": "imported/meditator_t1_lvl1.png"
     },
     "sun_scorcher_t1_lvl1": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -37
+        ],
+        "muzzle": [
+          0,
+          -28
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5379,6 +6924,16 @@
       "sheet": "imported/sun_scorcher_t1_lvl1.png"
     },
     "sun_scorcher_t1_lvl2": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -40
+        ],
+        "muzzle": [
+          -1,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5407,6 +6962,16 @@
       "sheet": "imported/sun_scorcher_t1_lvl2.png"
     },
     "sun_scorcher_t1_lvl3": {
+      "anchors": {
+        "hp_bar": [
+          -2,
+          -44
+        ],
+        "muzzle": [
+          1,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -5443,23 +7008,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
+            3,
             4,
             5,
-            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5477,7 +7039,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5486,14 +7048,11 @@
             4,
             5,
             6,
-            7,
             8,
             9,
+            10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5511,7 +7070,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5521,13 +7080,10 @@
             5,
             6,
             7,
-            8,
             9,
             10,
-            12,
-            13,
-            14,
-            15
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5545,7 +7101,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5556,12 +7112,9 @@
             6,
             7,
             8,
-            9,
             10,
             11,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5579,7 +7132,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5591,11 +7144,8 @@
             7,
             8,
             9,
-            10,
             11,
-            12,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5613,23 +7163,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
+            4,
             5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5647,23 +7194,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
+            5,
             6,
             7,
             8,
             9,
             10,
-            11,
-            12,
-            13,
-            14,
-            15
+            11
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5681,9 +7225,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -5694,17 +7238,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_forest.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_buildable_b": {
       "frame_h": 32,
@@ -5715,9 +7256,9 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
-            0,
+            1,
             2,
             3,
             4,
@@ -5728,10 +7269,7 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5749,23 +7287,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
             4,
-            5,
             6,
             7,
+            8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5783,10 +7318,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -5796,17 +7331,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_combat_b": {
       "frame_h": 32,
@@ -5817,10 +7349,10 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
-            1,
+            2,
             3,
             4,
             5,
@@ -5830,17 +7362,14 @@
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_combat.png"
+      "sheet": "imported/tile_buildable.png"
     },
     "tile_forest": {
       "frame_h": 32,
@@ -5851,23 +7380,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
-            3,
             4,
             5,
             6,
+            7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5885,23 +7411,20 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 16,
+          "frames": 13,
           "hidden": [
             0,
             1,
             2,
             3,
-            4,
             5,
+            6,
             7,
             8,
             9,
             10,
             11,
-            12,
-            13,
-            14,
-            15
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
@@ -5919,7 +7442,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5928,14 +7451,18 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning.png"
+      "sheet": "imported/tile_forest.png"
     },
     "tile_spawning_b": {
       "frame_h": 32,
@@ -5946,7 +7473,7 @@
         {
           "animation": "idle",
           "fps": 8,
-          "frames": 9,
+          "frames": 13,
           "hidden": [
             0,
             1,
@@ -5955,16 +7482,30 @@
             5,
             6,
             7,
-            8
+            8,
+            9,
+            10,
+            11,
+            12
           ],
           "loop_count": 1,
           "loop_end": 0,
           "loop_start": 0
         }
       ],
-      "sheet": "imported/tile_spawning_b.png"
+      "sheet": "imported/tile_forest.png"
     },
     "trio_t3_lvl1": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -19
+        ],
+        "hp_bar": [
+          -1,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -6062,6 +7603,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "trio_t3_lvl2": {
+      "anchors": {
+        "floater_origin": [
+          -2,
+          -24
+        ],
+        "hp_bar": [
+          -1,
+          -30
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -6159,6 +7710,16 @@
       "sheet": "imported/flute_player_t1_lvl1.png"
     },
     "trio_t3_lvl3": {
+      "anchors": {
+        "floater_origin": [
+          -1,
+          -24
+        ],
+        "hp_bar": [
+          -1,
+          -29
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -6775,7 +8336,31 @@
         4
       ]
     },
+    "vfx_dirt_pile": {
+      "frame_h": 64,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/vfx_dirt_pile.png"
+    },
     "wall_builder": {
+      "anchors": {
+        "hp_bar": [
+          -1,
+          -24
+        ]
+      },
       "frame_h": 96,
       "frame_w": 64,
       "offset_x": 0,
@@ -6794,6 +8379,492 @@
         }
       ],
       "sheet": "imported/wall_builder.png"
+    },
+    "wall_t1_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t1_lvl1.png"
+    },
+    "wall_t1_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t1_lvl2.png"
+    },
+    "wall_t1_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t1_lvl3.png"
+    },
+    "wall_t2_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t2_lvl1.png"
+    },
+    "wall_t2_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t2_lvl2.png"
+    },
+    "wall_t2_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t2_lvl3.png"
+    },
+    "wall_t3_lvl1": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t3_lvl1.png"
+    },
+    "wall_t3_lvl2": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t3_lvl2.png"
+    },
+    "wall_t3_lvl3": {
+      "frame_h": 96,
+      "frame_w": 64,
+      "offset_x": 0,
+      "offset_y": 0,
+      "rows": [
+        {
+          "animation": "idle",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_se",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_sw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_nw",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        },
+        {
+          "animation": "edge_ne",
+          "fps": 8,
+          "frames": 1,
+          "hidden": [],
+          "loop_count": 1,
+          "loop_end": 0,
+          "loop_start": 0
+        }
+      ],
+      "sheet": "imported/wall_t3_lvl3.png"
     }
   },
   "version": 2

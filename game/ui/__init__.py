@@ -16,6 +16,7 @@ from .building_ui import BuildingUI, ConstructPreview
 from .cheat_menu import CheatMenu  # 10H
 from .credits import CreditsScreen
 from .effects import FloaterManager
+from .enemy_intro import EnemyIntroWindow  # feature-enemy-intro-dialogue
 from .game_log import GameLog  # 10J
 from .game_over import GameOverScreen
 from .hud import Hud
@@ -25,6 +26,7 @@ from .overlays import MapOverlays
 from .pause import PauseScreen
 from .settings import SessionSettings, SettingsScreen
 from .shell import Shell
+from .tutorial_message import TutorialMessageScreen  # TU-6
 
 __all__ = [
     "Hud",
@@ -32,6 +34,7 @@ __all__ = [
     "BuildingUI",
     "CheatMenu",
     "ConstructPreview",
+    "EnemyIntroWindow",
     "FloaterManager",
     "GameLog",
     "GameOverScreen",
@@ -44,4 +47,5 @@ __all__ = [
     "CreditsScreen",
     "AddNameScreen",
     "PauseScreen",
+    "TutorialMessageScreen",
 ]

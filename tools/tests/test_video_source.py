@@ -5,8 +5,11 @@ immediately, no crash. When cv2 and the real cutscene are present the
 enabled path yields pygame surfaces and releases cleanly.
 """
 import os
+import sys
+import types
 import unittest
 from pathlib import Path
+from unittest import mock
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 os.environ.setdefault("SDL_AUDIODRIVER", "dummy")
@@ -57,7 +60,10 @@ class TestEnabledPlayback(unittest.TestCase):
         vs = VideoSource(CUTSCENE, length=44.2, target_size=(64, 48))
         self.assertTrue(vs.enabled)
         self.assertFalse(vs.done)
-        vs.update(0.033)
+        # dt comfortably exceeds one source-fps frame interval (paced
+        # playback -- see engine/video.py's module docstring) so a frame is
+        # guaranteed to be due regardless of the clip's actual fps.
+        vs.update(0.1)
         surf = vs.frame_surface()
         self.assertIsInstance(surf, pygame.Surface)
         self.assertEqual(surf.get_size(), (64, 48))
@@ -71,11 +77,70 @@ class TestEnabledPlayback(unittest.TestCase):
         vs.update(0.033)  # further updates are inert
         vs.release()
 
-    def test_length_cap_ends_playback(self):
-        vs = VideoSource(CUTSCENE, length=0.05)
-        vs.update(1.0)  # exceeds the 0.05 s cap
-        self.assertTrue(vs.done)
+
+class _FakeCapture:
+    """Minimal cv2.VideoCapture stand-in: fixed fps, optionally a finite
+    frame count (None = never runs out). No real cv2/video file needed, so
+    these tests stay fast and don't depend on OpenCV being installed."""
+
+    def __init__(self, fps, frame_count=None):
+        self.fps = fps
+        self._frame_count = frame_count
+        self._n = 0
+
+    def isOpened(self):
+        return True
+
+    def get(self, _prop):
+        return self.fps
+
+    def read(self):
+        if self._frame_count is not None and self._n >= self._frame_count:
+            return False, None
+        self._n += 1
+        return True, self._n
+
+    def release(self):
+        pass
+
+
+def _fake_cv2(fps, frame_count=None):
+    cap = _FakeCapture(fps, frame_count)
+    module = types.SimpleNamespace(CAP_PROP_FPS=5,
+                                    VideoCapture=lambda path: cap)
+    return module, cap
+
+
+class TestFakeCapturePacing(unittest.TestCase):
+    """Pacing (E-12 speed fix) + the length-cap-is-no-longer-authoritative
+    contract, exercised through a fake capture (see engine/CLAUDE.md)."""
+
+    def test_paces_frames_by_source_fps_not_one_per_update(self):
+        module, cap = _fake_cv2(fps=25.0)  # never runs out of frames
+        with mock.patch.dict(sys.modules, {"cv2": module}):
+            vs = VideoSource(__file__, length=None)
+        self.assertEqual(vs._frame_interval, 1.0 / 25.0)
+        for _ in range(60):  # 1 simulated second at a 60fps host
+            vs.update(1.0 / 60.0)
+        self.assertAlmostEqual(cap._n, 25, delta=1)  # ~25, not 60
+        self.assertFalse(vs.done)
         vs.release()
+
+    def test_length_shorter_than_true_duration_does_not_end_playback(self):
+        module, cap = _fake_cv2(fps=25.0)  # never runs out of frames
+        with mock.patch.dict(sys.modules, {"cv2": module}):
+            vs = VideoSource(__file__, length=0.05)  # far short of reality
+        vs.update(1.0)  # would have exceeded the old 0.05s length cap
+        self.assertFalse(vs.done)
+        vs.release()
+
+    def test_eof_still_ends_playback(self):
+        module, cap = _fake_cv2(fps=25.0, frame_count=3)
+        with mock.patch.dict(sys.modules, {"cv2": module}):
+            vs = VideoSource(__file__, length=None)
+        for _ in range(10):
+            vs.update(1.0 / 25.0)
+        self.assertTrue(vs.done)
 
 
 if __name__ == "__main__":

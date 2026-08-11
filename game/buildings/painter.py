@@ -18,6 +18,7 @@ from .economy import EconomyBuilding
 
 class Painter(EconomyBuilding):
     BUILDING_TYPE = "painter"
+    CONTENT_KEY = "painter_building"
     SUBTREE = ("EconomyBuildings", "Painters")
     TIER_SPRITES = ("painter", "painter", "painter")
 

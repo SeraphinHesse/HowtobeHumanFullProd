@@ -8,8 +8,9 @@ map node is selected): the open MapSession's doc rendered with layer eyes +
 zone tints, ghost previews on the overlay layer, grid lines through the
 engine's E-24 overlay primitive, and mouse tools whose cell picking goes
 through engine.coords.screen_to_world ONLY (E-3 — no iso math here); and
-SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed 1280x720
-logical canvas scaled-to-fit the widget, submitted entirely through
+SCREEN MODE (B4, R3, when a UI-screen leaf is selected): a fixed logical
+canvas at data/display.json's resolution (UR-1: that file is the ONE place
+the resolution is stated) scaled-to-fit the widget, submitted entirely through
 Renderer.submit_hud (HudSprite for skinned widgets, editor.panels.
 _screen_primitives' flat-rect fallback for unskinned ones — E-37 degrade,
 never a game/ui import). In map mode the LEFT button drives the armed tool
@@ -22,8 +23,13 @@ SDL dummy drivers are set BEFORE importing pygame: the editor's pygame
 surface is always an offscreen render target sized to the widget, never a
 real SDL window. The surface is converted to a QImage and painted in
 paintEvent — the sanctioned QImage-copy fallback (PLAN §7), >=60fps at
-1280x720 (numbers in editor/CLAUDE.md).
+1280x720 (numbers in editor/CLAUDE.md). That literal is a RECORD of the
+editor-window size the measurement was taken at, not the logical screen
+canvas — the canvas is data/display.json's resolution (see
+logical_resolution below). Do not de-literalise it; it would falsify the
+measurement.
 """
+import copy
 import math
 import os
 import time
@@ -37,14 +43,25 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont, QImage, QPainter, QPixmap
 from PySide6.QtWidgets import QWidget
 
-from editor import tilemap_ops
+from editor import anchor_ops, tilemap_ops, vfx_params, widget_tree
 from editor.panels import _screen_primitives
 from editor.panels.balancing import _NoWheelComboBox
+from editor.sprite_fit import slot_draw_fit
 from engine import data_io, tilemap
 from engine.assets import entry_from_dict, load_manifest, load_registry
 from engine.assets.store import AssetStore
 from engine.coords import load_coordinate_system
-from engine.render import HudLines, HudRect, HudSprite, HudText, Renderer, RenderItem
+from engine.render import (
+    HudLines,
+    HudRect,
+    HudSprite,
+    HudText,
+    Renderer,
+    RenderItem,
+    fit_factor,
+    hud_item_from_json,
+    sprite_anchor_screen,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 BACKGROUND = (24, 20, 32)
@@ -61,16 +78,75 @@ GHOST_TINT = (255, 255, 140, 255)   # armed brush preview under the cursor
 GRID_COLOR = (110, 110, 140)
 START_AREA_COLOR = (255, 190, 60)        # the placed 2×2 starting-area outline
 START_AREA_GHOST_COLOR = (255, 255, 140)  # its armed/drag ghost outline
+TUTORIAL_COLOR = (255, 255, 255)          # the placed tutorial marker outline
+TUTORIAL_GHOST_COLOR = (200, 200, 200)    # its armed/drag ghost outline
+RESERVE_COLOR = (120, 235, 220)           # spawnable-background mark outline
+# despawnable-spawn mark outline — deliberately MAGENTA against the reserve's
+# cyan so the two invisible overlays are tellable apart at a glance
+DESPAWN_COLOR = (245, 110, 210)
+# stage-zone mark outline — a third clearly distinct hue (lime green) against
+# the reserve's cyan and the despawn's magenta; one cell can legitimately carry
+# all three marks, so each number is also drawn at its own y offset
+STAGE_COLOR = (150, 255, 90)
+# tile-condition mark outlines — ONE hue per condition NAME (the fourth
+# overlay's brush value is a name, not a number), each chosen to stay legible
+# against the reserve's cyan, the despawn's magenta and the stage's lime, and
+# against each other. A name with no entry here falls back to
+# CONDITION_DEFAULT_COLOR, so a fifth condition added to the schema still
+# draws (E-37) — it just shares the fallback hue until a colour is chosen.
+CONDITION_COLORS = {
+    "grass": (255, 235, 120),    # pale yellow
+    "mountain": (170, 170, 185),  # slate grey
+    "pond": (80, 140, 255),      # deep blue (vs the reserve's turquoise)
+    "forest": (0, 170, 95),      # deep green (vs the stage's lime)
+}
+CONDITION_DEFAULT_COLOR = (255, 255, 255)
+
+# ESV-2: anchor handles (entity-preview fallback only) — fixed SCREEN size
+# regardless of zoom (the two-sample screen_to_world trick, §2.3c), one
+# colour constant per state.
+ANCHOR_COLOR = (120, 200, 255)          # authored, unselected
+ANCHOR_SELECTED_COLOR = (255, 220, 80)  # the anchor whose row is focused in the panel
+ANCHOR_DRAG_COLOR = (255, 90, 90)       # actively being dragged
+HANDLE_RADIUS_PX = 6   # half-extent, fixed SCREEN pixels — never scales with zoom
+HANDLE_HIT_PX = 10     # hit-test radius, SCREEN pixels, Euclidean
 
 LOGO_PATH = REPO / "editor" / "assets" / "drunken_donuts_logo.png"
 
-# -- screen mode (B4, R3): fixed 1280x720 logical canvas, scaled-to-fit -----
-SCREEN_W, SCREEN_H = 1280, 720   # data/display.json's canonical resolution
+# -- screen mode (B4, R3): fixed logical canvas, scaled-to-fit --------------
+
+
+def logical_resolution(data_dir=None):
+    """The logical screen-canvas size, read from ``data/display.json``.
+
+    UR-1: that file is the ONE place in the repo that states the logical
+    resolution — nothing here carries a literal fallback, because a fallback
+    would be exactly the second source of truth this helper deletes. A missing
+    or invalid display.json therefore raises rather than silently drawing at
+    the wrong size.
+
+    ``data_dir`` defaults to the repo's ``data/`` (the same root the rest of
+    the editor's module-level loads use). The parameter exists so a caller
+    with its own data root can ask; making the panel itself per-instance
+    data-root aware is UR-3's job, not this helper's.
+    """
+    root = Path(data_dir) if data_dir is not None else REPO / "data"
+    display = data_io.load_validated(
+        root / "display.json", root / "schemas" / "display.schema.json")
+    return display["window_w"], display["window_h"]
+
+
+SCREEN_W, SCREEN_H = logical_resolution()
 NO_DEFAULTS_COLOR = (235, 90, 90)          # E-37 graceful-degrade placeholder
 SELECTION_COLOR = (255, 220, 80)
+# P-3: the dimmer outline drawn around every widget that will come along when
+# the selected one is dragged. Deliberately the same hue as SELECTION_COLOR,
+# darkened — "these belong to the selection", not "these are also selected".
+SUBTREE_COLOR = (150, 130, 50)
+LETTERBOX_EDGE_COLOR = (90, 95, 105)   # UR-3: muted frame on the canvas edge
 HANDLE_COLOR = (255, 255, 255)
 HANDLE_PX = 8          # resize-handle hit box, half-width in SCREEN pixels
-NUDGE_STEP = 1         # arrow-key nudge, in LOGICAL (1280x720) pixels
+NUDGE_STEP = 1         # arrow-key nudge, in ONE LOGICAL pixel of the canvas
 _CORNERS = ("tl", "tr", "bl", "br")
 
 
@@ -89,7 +165,14 @@ def surface_to_qimage(surface):
 class ViewportPanel(QWidget):
     cursor_world = Signal(float, float)   # ED-23 readout (both modes)
     code_picked = Signal(str)             # picker tool → palette re-arm
+    reserve_number_picked = Signal(int)   # picker on a mark → palette spinbox
+    despawn_number_picked = Signal(int)   # picker on a despawn mark → spinbox
+    stage_number_picked = Signal(int)     # picker on a stage-zone mark → spinbox
+    condition_picked = Signal(str)        # picker on a condition mark → brush
     widget_selected = Signal(object)      # B4: screen-mode selection (str|None)
+    anchor_selected = Signal(object)          # ESV-2: name|None -> AnchorsPanel
+    anchor_dragged = Signal(str, int, int)    # ESV-2: live drag -> spinboxes
+    anchor_drag_finished = Signal(str, int, int)  # ESV-2: ONE write per gesture
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -106,9 +189,20 @@ class ViewportPanel(QWidget):
         self._build_store()
 
         self.preview_slot = None
+        # Memoized (fit_tiles, scale) for preview_slot — resolved eagerly by
+        # _resolve_draw_fit() on slot change / registry reload, never per
+        # frame (slot_draw_fit re-reads two JSON files). See _preview_draw_fit.
+        self._draw_fit = (0.0, 1.0)
         self.preview_animation = "idle"
         self._anim_ms = 0.0
         self._anim_last_t = None
+
+        # ESV-2: anchor handles — a VIEW of the panel's authoritative
+        # mapping plus a live drag delta; the viewport never reads/writes
+        # the manifest for anchors itself (§2.2).
+        self._anchors = {}            # {name: (x, y)}
+        self._anchor_selected = None  # name | None
+        self._anchor_drag = None      # (name, orig_x, orig_y) while dragging
 
         # -- tilemap-editor state (ED-20); all mutations go through the
         # session's undo stack, all cell picking through engine.coords
@@ -120,17 +214,51 @@ class ViewportPanel(QWidget):
         self._armed_base = None     # the Hole slot when the Hole brush is armed
         self._armed_camera = None   # the Camera Start slot when that brush is armed
         self._armed_start_area = None  # the Start Area slot when armed
+        self._armed_tutorial_flute = None  # the First Flute slot when armed
+        self._armed_tutorial_stone = None  # the First Stone slot when armed
+        # the Spawnable Background brush: True when armed (it has no slot —
+        # a mark is an invisible overlay, not a sprite)
+        self._armed_spawn_reserve = None
+        self._reserve_number = 1      # stage number newly painted marks carry
+        # the Despawnable Spawn brush: True when armed (same shape — a mark is
+        # an invisible overlay, not a sprite)
+        self._armed_despawn = None
+        self._despawn_number = 1   # stage number newly painted marks carry
+        # the Stage Zones brush: True when armed (same shape again)
+        self._armed_stage = None
+        self._stage_number = 1     # stage number newly painted marks carry
+        # the Tile Conditions brush: the armed condition NAME when armed (the
+        # same shape again, except the brush carries a value — one button per
+        # condition, so the value is the name, never a number)
+        self._armed_condition = None
         self._eyes = {"terrain": True, "tint": True, "base": True, "deco": True,
-                      "camera": True, "start_area": True}
+                      "camera": True, "start_area": True, "tutorial": True,
+                      "spawn_reserve": True, "despawnable_spawn": True,
+                      "stage_zones": True, "tile_conditions": True}
         self._grid_lines = False
         self._hover_cell = None
         self._stroke = None           # change list accumulating this stroke
         self._stroke_code = None
         self._stroke_last = None
+        # spawn-reserve stroke accumulator + the value it writes (None = erase)
+        self._reserve_stroke = None
+        self._reserve_stroke_value = None
+        # despawn stroke accumulator + the value it writes (None = erase)
+        self._despawn_stroke = None
+        self._despawn_stroke_value = None
+        # stage-zone stroke accumulator + the value it writes (None = erase)
+        self._stage_stroke = None
+        self._stage_stroke_value = None
+        # tile-condition stroke accumulator + the condition NAME it writes
+        # (None = erase)
+        self._condition_stroke = None
+        self._condition_stroke_value = None
         self._anchor = None           # line/rect anchor cell
         self._base_drag = False
         self._camera_drag = False
         self._start_area_drag = False
+        self._tutorial_flute_drag = False
+        self._tutorial_stone_drag = False
 
         # ED-21 animation dropdown: floating child pinned to the corner so
         # the paint surface keeps filling the whole widget.
@@ -140,19 +268,33 @@ class ViewportPanel(QWidget):
         self._anim_combo.currentTextChanged.connect(self.set_preview_animation)
 
         # -- screen mode state (B4, R3): all mutation goes through the open
-        # UIScreenSession's undo stack; all rect math in LOGICAL (1280x720)
-        # pixels, converted to SCREEN pixels only at submission/hit-test time
+        # UIScreenSession's undo stack; all rect math in LOGICAL canvas
+        # (SCREEN_W x SCREEN_H) pixels, converted to SCREEN pixels only at
+        # submission/hit-test time
         self._screen_session = None
         self._screen_defaults = {}    # {screen_id: {widgets, mock_note}} or {}
+        # UT-2: the recorded draw list (data/ui/screen_previews.json) and its
+        # per-(screen, view) deserialized cache — see _current_screen_preview.
+        self._screen_previews = {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = {}
         self._selected_widget = None
         self._selected_field_mode = None   # None | "move" | "resize"
         self._resize_corner = None         # "tl"|"tr"|"bl"|"br" while resizing
         self._drag_start = None            # SCREEN-pixel QPointF at press
         self._drag_orig_rect = None        # effective LOGICAL rect at press
         self._drag_orig_override_rect = None  # doc override at press, or None
+        # P-3: the descendants a move drag carries along —
+        # [(widget_id, effective rect at press, doc override at press | None)].
+        # Empty for a resize (resizing does NOT cascade) and for a childless
+        # widget.
+        self._drag_subtree = []
         self._screen_state = "idle"        # state-dropdown value (button rows)
         self._screen_anim_ms = 0.0
         self._screen_anim_last_t = None
+        # UR-3: the logical SCREEN_W x SCREEN_H canvas the screen preview is
+        # rendered into before it is scaled up once (see `_screen_canvas`).
+        self._screen_canvas_surface = None
         # Button-state dropdown (idle/hover/pressed/disabled), same floating-
         # child pattern as the entity-preview animation combo above.
         self._state_combo = _NoWheelComboBox(self)
@@ -165,6 +307,17 @@ class ViewportPanel(QWidget):
         self._drag_pos = None
         self.last_frame_ms = 0.0
         self._logo_pixmap = QPixmap(str(LOGO_PATH))
+        # feat-projectile-anchored-flight §3.2 PERF: data/balancing/vfx.json
+        # is a THIRD JSON file the entity-preview muzzle-projectile draw
+        # needs (on top of the two slot_draw_fit already reads) — resolved
+        # ONCE here, never inside render_frame/_anchor_draw_params/
+        # _hit_anchor_handle/_anchor_move (the slot_draw_fit PERF lesson:
+        # re-reading JSON per frame/per drag-move measured 125-145ms/frame).
+        # Unlike _draw_fit this does not depend on preview_slot at all, so
+        # there is nothing to re-resolve on a slot switch — only
+        # reload_registry() re-reads it, mirroring _resolve_draw_fit's call
+        # site for "a designer edited data/ and reloaded".
+        self._projectile_params = self._load_projectile_params()
         self._resize_surface()
 
     # -- coords lifecycle: zoom is a balancing tunable (core:Camera) --------
@@ -210,6 +363,18 @@ class ViewportPanel(QWidget):
         resolves for preview + import; the store is rebuilt, camera untouched."""
         self._registry = load_registry(self._data_dir)
         self._build_store()
+        self._resolve_draw_fit()   # slots.json changed -> the fit may have too
+        self._projectile_params = self._load_projectile_params()
+
+    def _load_projectile_params(self):
+        """The memoized `procedural.projectile` read (feat-projectile-
+        anchored-flight §3.2 PERF) — `data_io.load_validated` against the
+        vfx schema, then the SAME `editor/vfx_params.py projectile_params`
+        the VFX preview panel already builds."""
+        doc = data_io.load_validated(
+            self._data_dir / "balancing" / "vfx.json",
+            self._data_dir / "schemas" / "vfx.schema.json")
+        return vfx_params.projectile_params(doc["procedural"]["projectile"])
 
     # -- entity preview (ED-21) ----------------------------------------------
 
@@ -219,8 +384,14 @@ class ViewportPanel(QWidget):
             self.preview_slot = slot_key
             self._draft = None
             self._build_store()
+            self._resolve_draw_fit()   # memoized; see _preview_draw_fit
             self.preview_animation = "idle"
             self._reset_anim_clock()
+            # ESV-2: a stale slot's handles/drag must not survive a switch
+            # (the same rule that clears self._draft just above).
+            self._anchors = {}
+            self._anchor_selected = None
+            self._anchor_drag = None
         self._refresh_anim_combo()
 
     def set_preview_animation(self, name):
@@ -228,6 +399,17 @@ class ViewportPanel(QWidget):
             return
         self.preview_animation = name
         self._reset_anim_clock()
+
+    def set_anchors(self, mapping):
+        """The panel's authoritative {name: (x, y)} mapping for the
+        currently previewed slot — the viewport never reads the manifest
+        for anchors itself (§2.2)."""
+        self._anchors = dict(mapping or {})
+
+    def set_selected_anchor(self, name):
+        """External sync (the panel's own row focus) — mirrors
+        set_selected_widget (§2.2)."""
+        self._anchor_selected = name
 
     def assigned_slots(self):
         """Slot keys with an entry in the effective (draft-aware) manifest —
@@ -270,9 +452,15 @@ class ViewportPanel(QWidget):
             session is not None and session.doc is not None) else None
         self._hover_cell = None
         self._stroke = None
+        self._reserve_stroke = None
+        self._despawn_stroke = None
+        self._stage_stroke = None
+        self._condition_stroke = None
         self._anchor = None
         self._base_drag = False
         self._start_area_drag = False
+        self._tutorial_flute_drag = False
+        self._tutorial_stone_drag = False
         if self.in_map_mode():
             doc = self._map_session.doc
             self._coords = self._load_coords(map_cols=doc.cols, map_rows=doc.rows)
@@ -292,9 +480,10 @@ class ViewportPanel(QWidget):
 
     # -- screen mode (B4, R3) -------------------------------------------------
 
-    def set_screen_mode(self, session, defaults=None):
+    def set_screen_mode(self, session, defaults=None, previews=None):
         """A UIScreenSession with an open doc → screen mode: a FIXED
-        1280x720 logical canvas, scaled-to-fit the viewport widget (no
+        SCREEN_W x SCREEN_H logical canvas (data/display.json's resolution),
+        scaled-to-fit the viewport widget (no
         viewport-driven zoom like map mode — the whole canvas is always
         visible at one computed scale, like the entity preview's parked
         camera). None → leaves screen mode.
@@ -310,12 +499,14 @@ class ViewportPanel(QWidget):
         self._screen_session = session if (
             session is not None and session.doc is not None) else None
         self._screen_defaults = defaults if defaults is not None else {}
+        self.refresh_screen_previews(previews)
         self._selected_widget = None
         self._selected_field_mode = None
         self._resize_corner = None
         self._drag_start = None
         self._drag_orig_rect = None
         self._drag_orig_override_rect = None
+        self._drag_subtree = []
         self._screen_state = "idle"
         self._reset_screen_anim_clock()
         if self.in_screen_mode():
@@ -333,6 +524,68 @@ class ViewportPanel(QWidget):
         """"Refresh Layouts" finished (B3's exporter ran): re-render with the
         freshly re-read data/ui/screen_defaults.json — no mode change."""
         self._screen_defaults = defaults or {}
+
+    def refresh_screen_previews(self, previews, recorded_doc=None):
+        """Swap in a freshly generated `screen_previews.json` (UT-2) — the
+        real draw list this screen produces in game, recorded by
+        `tools/export_ui_layouts.py`. `None`/`{}` degrades to the pre-UT-2
+        flat-box rendering (E-37), which is also what a screen the generator
+        does not cover gets.
+
+        `recorded_doc` is the override doc the list was recorded AGAINST —
+        `None` means the committed file, which is always recorded
+        override-free (i.e. `{}`). It is what `_preview_in_sync` compares the
+        live doc to; see there for why that matters.
+
+        Items are deserialized ONCE here, not per frame: a screen's list runs
+        to dozens of primitives and `_submit_screen_items` runs every 16 ms.
+        """
+        self._screen_previews = previews or {}
+        self._screen_preview_items = {}
+        self._preview_recorded_doc = copy.deepcopy(
+            {} if recorded_doc is None else recorded_doc)
+
+    def _preview_in_sync(self):
+        """True when the recorded draw list already reflects the OPEN doc.
+
+        This is the whole correctness argument for the replay. A recording is
+        a picture of one exact doc; the moment a designer changes anything it
+        describes the past. In sync, the recording IS the screen and the
+        editor draws nothing but selection chrome over it. Out of sync (an
+        edit landed, or a saved doc carries overrides and no re-record has
+        finished yet) the editor ALSO draws every id'd widget from
+        defaults+overrides on top — the pre-UT-2 behaviour, so an override can
+        never be invisible. Those widgets briefly ghost against their recorded
+        selves; a stale picture that hides your edit is the worse failure.
+        """
+        if self._screen_session is None:
+            return False
+        return self._screen_session.doc == self._preview_recorded_doc
+
+    def _current_screen_preview(self):
+        """The open screen/view's recorded draw list as live HUD primitives,
+        or None when this screen has no preview. Resolves the active view the
+        same way `_current_screen_defaults` does — one screen, one rule."""
+        if self._screen_session is None:
+            return None
+        screen_id = self._screen_session.screen_id
+        view = self._screen_session.view
+        cache_key = (screen_id, view)
+        if cache_key in self._screen_preview_items:
+            return self._screen_preview_items[cache_key]
+        entry = (self._screen_previews or {}).get(screen_id)
+        if entry is None:
+            items = None
+        else:
+            if view is not None and view in (entry.get("views") or {}):
+                entry = entry["views"][view]
+            try:
+                items = [hud_item_from_json(spec)
+                         for spec in entry.get("items", ())]
+            except Exception:
+                items = None    # E-37: a stale/corrupt file is not a crash
+        self._screen_preview_items[cache_key] = items
+        return items
 
     def set_selected_widget(self, widget_id):
         """External (screen_details widget-list click) → sync the viewport's
@@ -395,12 +648,28 @@ class ViewportPanel(QWidget):
         return entry
 
     def _screen_scale_offset(self):
-        """Uniform scale + letterbox offset fitting the 1280x720 logical
-        canvas inside the current widget size (screen mode never zooms)."""
+        """Uniform scale + letterbox offset fitting the SCREEN_W x SCREEN_H
+        logical canvas inside the current widget size (screen mode never
+        zooms).
+
+        UR-3: a fitted scale of 1.0 or more is snapped DOWN to a whole number
+        (1x, 2x, 3x). The preview is pixel art blitted through one
+        `transform.scale` (`_render_screen_frame`), and a fractional upscale
+        duplicates some source pixels and not others — the game's own SCALED
+        upscale is an exact integer multiple, so this is what a player sees.
+        Below 1.0 the fractional downscale stays exactly as before (there is
+        no honest integer answer there, and 1x would overflow the widget).
+        The offsets are floored to whole pixels for the same reason the snap
+        lives HERE and not at the blit: hit-testing, dragging and the blit all
+        read this one triple, so they cannot disagree."""
         w, h = max(1, self.width()), max(1, self.height())
         scale = min(w / SCREEN_W, h / SCREEN_H)
+        if scale >= 1.0:
+            scale = float(math.floor(scale))
         scaled_w, scaled_h = SCREEN_W * scale, SCREEN_H * scale
-        return scale, (w - scaled_w) / 2, (h - scaled_h) / 2
+        return (scale,
+                float(math.floor((w - scaled_w) / 2)),
+                float(math.floor((h - scaled_h) / 2)))
 
     def _to_screen_rect(self, rect, scale, ox, oy):
         x, y, w, h = rect
@@ -414,28 +683,151 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         return list(override.get("rect", base))
 
+    def _widget_text(self, widget_id, spec):
+        """The text this widget currently DRAWS, best-effort — used only to
+        measure a position-only anchor's hit box. Preference order mirrors
+        what the game resolves at draw time: the doc's own `label` override,
+        else the live `strings.json` template the widget is bound to (so a
+        designer's own edit to that template immediately resizes the box),
+        else the exporter's resolved `sample`, else the default `label`."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        if override.get("label"):
+            return override["label"]
+        text_id = override.get("text_id") or spec.get("text_id")
+        if text_id:
+            table = getattr(self._screen_session, "strings_doc", None) or {}
+            if table.get(text_id):
+                return table[text_id]
+        return spec.get("sample") or spec.get("label") or ""
+
+    def _interaction_rect(self, widget_id, defaults):
+        """The widget's editor-side hit/outline box in LOGICAL pixels: its
+        effective rect, with any zero-extent axis grown to the measured size
+        of its text (`_screen_primitives.interaction_rect`). Distinct from
+        `_effective_rect`, which is what gets WRITTEN — a drag/nudge on an
+        anchor still stores w/h 0."""
+        spec = defaults.get("widgets", {}).get(widget_id) or {}
+        return _screen_primitives.interaction_rect(
+            self._effective_rect(widget_id, defaults),
+            text=self._widget_text(widget_id, spec),
+            font_key=self._widget_font_key(widget_id, spec),
+            align=spec.get("align", "left"))
+
+    def _widget_font_key(self, widget_id, spec):
+        """The font the widget's text is drawn at: the doc's own `font`
+        override, else the exporter-recorded `font_key`, else the screen's
+        `defaults.font`, else "md" (the same fallback chain
+        `_submit_screen_widget` uses to draw it)."""
+        override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
+        style = self._screen_session.doc.get("defaults", {})
+        return (override.get("font") or spec.get("font_key")
+                or style.get("font") or "md")
+
+    def _is_anchor_widget(self, widget_id, defaults):
+        """True when the widget stores no size — it can be MOVED but not
+        resized (there is nothing for a resize to write, and forcing a size
+        onto a text anchor would change what the game draws)."""
+        return _screen_primitives.is_anchor_rect(
+            self._effective_rect(widget_id, defaults))
+
+    # -- widget parenting (P-3/P-5) -----------------------------------------
+    # The hierarchy is DATA (`screen_defaults.json`'s `parent`, plus the open
+    # doc's own re-parenting override) resolved by the pure
+    # `editor/widget_tree.py`. It is an AUTHORING relationship only: the
+    # cascade below rewrites ABSOLUTE rects at EDIT time, and the game's own
+    # `layout()` still recomputes every default each frame with no cascade
+    # (plan D2).
+
+    def _screen_tree(self, defaults):
+        """`{parent_id: [child_id, ...]}` for the open screen+view."""
+        return widget_tree.build_tree(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_parents(self, defaults):
+        """`{widget_id: parent_id | None}` for the open screen+view."""
+        return widget_tree.parent_map(
+            defaults.get("widgets", {}),
+            self._screen_session.doc.get("widgets", {}))
+
+    def _screen_descendants(self, widget_id, defaults):
+        """Every widget that moves when `widget_id` moves."""
+        return widget_tree.descendants(self._screen_tree(defaults), widget_id)
+
+    def _hidden_subtrees(self, defaults):
+        """Every widget the preview must skip because an ANCESTOR is hidden
+        (P-5/D4) — not drawn, not hit-testable.
+
+        Visibility inherits in the editor PREVIEW only: the saved `visible`
+        override stays per-widget and the game keeps resolving each widget's
+        own flag, exactly as now. Same argument as D2 — the editor models the
+        hierarchy, the data does not smuggle it into the game.
+
+        Computed as a SET once per frame / once per hit-test rather than
+        walked per widget: both callers loop over every id, and a per-widget
+        ancestor walk would rebuild the parent map ~85 times on
+        `building_panel`. The common case (nothing hidden) exits before
+        building a tree at all.
+        """
+        overrides = self._screen_session.doc.get("widgets", {})
+        hidden_roots = [widget_id for widget_id in defaults.get("widgets", {})
+                        if overrides.get(widget_id, {}).get("visible") is False]
+        if not hidden_roots:
+            return frozenset()
+        tree = self._screen_tree(defaults)
+        out = set()
+        for widget_id in hidden_roots:
+            out.update(widget_tree.descendants(tree, widget_id))
+        return frozenset(out)
+
     # -- screen-mode hit testing (E-3 spirit: only through the one scale) ----
 
     def _hit_widget(self, pos, defaults):
-        """Topmost widget rect under `pos` (SCREEN pixels) — reverse
-        submission order, since a later HUD submission draws over an
-        earlier one. Invisible widgets (visible=False override) can't be
-        hit."""
+        """The widget under `pos` (SCREEN pixels), or None. Invisible widgets
+        (visible=False override) can't be hit.
+
+        Hit-tests the INTERACTION rect, not the stored one: a position-only
+        text anchor stores a zero-area rect and would otherwise be
+        unreachable with a mouse.
+
+        **The SMALLEST candidate wins**, not the last-submitted one. Two
+        reasons, and the second is the one that bites:
+          * It is what a designer expects — clicking a readout that sits on a
+            panel selects the readout, the way every UI editor behaves.
+          * The editor submits widgets in `screen_defaults.json` key order
+            (alphabetical), which is NOT the game's panel->button->text
+            submission order, so "last drawn" here is meaningless. Live
+            example: `hud.income_text` sits inside `hud.love_panel`, and
+            reverse-key-order made the panel swallow every click on the Love
+            per round readout — one of the widgets the designer specifically
+            asked to be able to edit.
+        Ties (identical area) fall back to the later key, preserving the old
+        behaviour where nothing distinguishes two candidates."""
         scale, ox, oy = self._screen_scale_offset()
         doc = self._screen_session.doc
-        for widget_id in reversed(list(defaults.get("widgets", {}))):
+        hidden = self._hidden_subtrees(defaults)   # P-5: inherited visibility
+        best, best_area = None, None
+        for widget_id in defaults.get("widgets", {}):
             if doc.get("widgets", {}).get(widget_id, {}).get("visible") is False:
                 continue
+            if widget_id in hidden:
+                continue
             sx, sy, sw, sh = self._to_screen_rect(
-                self._effective_rect(widget_id, defaults), scale, ox, oy)
-            if sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh:
-                return widget_id
-        return None
+                self._interaction_rect(widget_id, defaults), scale, ox, oy)
+            if not (sx <= pos.x() <= sx + sw and sy <= pos.y() <= sy + sh):
+                continue
+            area = sw * sh
+            if best_area is None or area <= best_area:
+                best, best_area = widget_id, area
+        return best
 
     def _hit_resize_handle(self, pos, defaults):
         """One of the 4 corner handles of the CURRENTLY selected widget, or
-        None — handles only exist once something is already selected."""
+        None — handles only exist once something is already selected, and
+        never on a position-only anchor (nothing to resize)."""
         if self._selected_widget is None:
+            return None
+        if self._is_anchor_widget(self._selected_widget, defaults):
             return None
         scale, ox, oy = self._screen_scale_offset()
         sx, sy, sw, sh = self._to_screen_rect(
@@ -497,6 +889,28 @@ class ViewportPanel(QWidget):
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         self._drag_orig_override_rect = (
             list(override["rect"]) if "rect" in override else None)
+        # P-3: a MOVE carries the whole subtree; a RESIZE carries nothing
+        # (proportional resize of a text anchor is meaningless, and
+        # half-scaled children are a common way to destroy a layout by
+        # accident — plan Q2).
+        self._drag_subtree = (
+            self._captured_subtree(widget_id, defaults) if mode == "move"
+            else [])
+
+    def _captured_subtree(self, widget_id, defaults):
+        """`[(child_id, effective rect at press, doc override at press)]` for
+        every descendant — the full old/new the one undo command needs, never
+        a delta (`map_session`'s stroke-command contract)."""
+        overrides = self._screen_session.doc.get("widgets", {})
+        captured = []
+        for child_id in self._screen_descendants(widget_id, defaults):
+            child_override = overrides.get(child_id, {})
+            captured.append((
+                child_id,
+                self._effective_rect(child_id, defaults),
+                list(child_override["rect"]) if "rect" in child_override
+                else None))
+        return captured
 
     def _screen_move(self, event):
         if self._drag_start is None or self._selected_widget is None:
@@ -508,13 +922,20 @@ class ViewportPanel(QWidget):
         pos = event.position()
         dx = (pos.x() - self._drag_start.x()) / scale
         dy = (pos.y() - self._drag_start.y()) / scale
+        doc = self._screen_session.doc
         if self._selected_field_mode == "resize":
             new_rect = self._resized_rect(
                 self._drag_orig_rect, self._resize_corner, dx, dy)
         else:
             x, y, w, h = self._drag_orig_rect
             new_rect = [round(x + dx), round(y + dy), w, h]
-        doc = self._screen_session.doc
+            # P-3: the same delta on every descendant, applied to ITS OWN
+            # rect at press — never to the rect the last move event wrote, so
+            # rounding cannot accumulate across a long drag.
+            for child_id, (cx, cy, cw, ch), _old in self._drag_subtree:
+                doc.setdefault("widgets", {}).setdefault(
+                    child_id, {})["rect"] = [round(cx + dx), round(cy + dy),
+                                             cw, ch]
         doc.setdefault("widgets", {}).setdefault(
             self._selected_widget, {})["rect"] = new_rect
 
@@ -531,22 +952,45 @@ class ViewportPanel(QWidget):
         old_rect = self._drag_orig_override_rect
         if mode == "resize":
             self._screen_session.push_resize(widget_id, old_rect, new_rect)
+        elif self._drag_subtree:
+            # ONE undoable command over the whole subtree (P-3): the live
+            # mutation above already wrote every new rect, and pushing
+            # re-applies the same values, which is idempotent — the exact
+            # argument the single-widget drag already relies on.
+            self._screen_session.push_move_subtree(
+                [(widget_id, old_rect, new_rect)]
+                + [(child_id, child_old,
+                    self._effective_rect(child_id, defaults))
+                   for child_id, _orig, child_old in self._drag_subtree])
         else:
             self._screen_session.push_move(widget_id, old_rect, new_rect)
+        self._drag_subtree = []
 
     def _nudge_selected(self, ddx, ddy):
         """Arrow-key nudge (1 logical px/press): a discrete edit, pushed
         directly (no live-drag preview needed) — QUndoStack.push() calls
-        redo() itself, which is what actually mutates the doc."""
+        redo() itself, which is what actually mutates the doc.
+
+        Cascades exactly like a drag (P-3): it shares `push_move`'s contract,
+        so a keyboard nudge and a mouse drag on the same parent must move the
+        same widgets."""
         defaults = self._current_screen_defaults()
         widget_id = self._selected_widget
         if not defaults or widget_id is None:
             return
+        dx, dy = ddx * NUDGE_STEP, ddy * NUDGE_STEP
         override = self._screen_session.doc.get("widgets", {}).get(widget_id, {})
         old_rect = list(override["rect"]) if "rect" in override else None
         x, y, w, h = self._effective_rect(widget_id, defaults)
-        new_rect = [x + ddx * NUDGE_STEP, y + ddy * NUDGE_STEP, w, h]
-        self._screen_session.push_move(widget_id, old_rect, new_rect)
+        new_rect = [x + dx, y + dy, w, h]
+        subtree = self._captured_subtree(widget_id, defaults)
+        if not subtree:
+            self._screen_session.push_move(widget_id, old_rect, new_rect)
+            return
+        self._screen_session.push_move_subtree(
+            [(widget_id, old_rect, new_rect)]
+            + [(child_id, child_old, [cx + dx, cy + dy, cw, ch])
+               for child_id, (cx, cy, cw, ch), child_old in subtree])
 
     # -- palette state (MainWindow wires the PalettePanel signals to these)
     def set_tool(self, name):
@@ -559,6 +1003,12 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
 
     def arm_deco(self, slot):
         self._armed_deco = slot
@@ -566,6 +1016,12 @@ class ViewportPanel(QWidget):
         self._armed_base = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
 
     def arm_base(self, slot):
         """Arm the Hole brush — a real paintable brush now (paint = place/move
@@ -575,6 +1031,12 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_camera = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
 
     def arm_camera(self, slot):
         """Arm the Camera Start brush (paint = place/move the single startpoint,
@@ -584,6 +1046,12 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
 
     def arm_start_area(self, slot):
         """Arm the Starting Area brush (paint = place/move the single 2×2 area,
@@ -593,6 +1061,125 @@ class ViewportPanel(QWidget):
         self._armed_deco = None
         self._armed_base = None
         self._armed_camera = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_flute(self, slot):
+        """Arm the First Flute brush (paint = place/move the single "first
+        flute" marker, erase = remove it). Mirrors arm_base; clears any other
+        armed brush, including the sibling First Stone brush."""
+        self._armed_tutorial_flute = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_tutorial_stone(self, slot):
+        """Arm the First Stone brush (paint = place/move the single "first
+        stone" marker, erase = remove it). Mirrors arm_base; clears any other
+        armed brush, including the sibling First Flute brush."""
+        self._armed_tutorial_stone = slot
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def arm_spawn_reserve(self):
+        """Arm the Spawnable Background brush (paint = mark the cell with the
+        current stage number, erase = clear the mark). Mirrors arm_base,
+        but the brush has NO slot — a mark is an invisible overlay, never a
+        sprite; clears every other armed brush."""
+        self._armed_spawn_reserve = True
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_despawn = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def set_reserve_number(self, n):
+        """The stage number newly painted marks carry (palette spinbox)."""
+        self._reserve_number = int(n)
+
+    def arm_despawn(self):
+        """Arm the Despawnable Spawn brush (paint = mark the cell with the
+        current stage number, erase = clear the mark). The exact twin of
+        arm_spawn_reserve — no slot, clears every other armed brush."""
+        self._armed_despawn = True
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_stage = None
+        self._armed_condition = None
+
+    def set_despawn_number(self, n):
+        """The stage number newly painted despawn marks carry (palette
+        spinbox)."""
+        self._despawn_number = int(n)
+
+    def arm_stage(self):
+        """Arm the Stage Zones brush (paint = mark the cell with the current
+        stage number, erase = clear the mark). The exact twin of arm_despawn —
+        no slot, clears every other armed brush."""
+        self._armed_stage = True
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_condition = None
+
+    def set_stage_number(self, n):
+        """The stage number newly painted stage-zone marks carry (palette
+        spinbox)."""
+        self._stage_number = int(n)
+
+    def arm_tile_condition(self, name):
+        """Arm ONE tile-condition brush (paint = force that condition on the
+        cell, erase = clear the mark). The fourth overlay brush, and the only
+        one that carries a VALUE rather than a bool: the palette has one button
+        per condition NAME, so arming names the condition. Clears every other
+        armed brush."""
+        self._armed_condition = name
+        self._armed_code = None
+        self._armed_deco = None
+        self._armed_base = None
+        self._armed_camera = None
+        self._armed_start_area = None
+        self._armed_tutorial_flute = None
+        self._armed_tutorial_stone = None
+        self._armed_spawn_reserve = None
+        self._armed_despawn = None
+        self._armed_stage = None
 
     def set_deco_flip(self, on):
         """Mirror-flip toggle for the armed deco brush — an orthogonal
@@ -650,6 +1237,22 @@ class ViewportPanel(QWidget):
             elif self._tool == "erase":
                 self._map_session.push_start_area_remove()
             return
+        if self._armed_tutorial_flute is not None:
+            # the "first flute" marker is placed like the Hole (single
+            # object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_flute_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_flute_remove()
+            return
+        if self._armed_tutorial_stone is not None:
+            # the "first stone" marker is placed like the Hole (single
+            # object, single tile, no clamp)
+            if self._tool == "paint":
+                self._map_session.push_tutorial_stone_place(cell[0], cell[1])
+            elif self._tool == "erase":
+                self._map_session.push_tutorial_stone_remove()
+            return
         if self._eyes["base"] and doc.base is not None \
                 and cell == (doc.base["col"], doc.base["row"]):
             self._base_drag = True   # the single draggable map object;
@@ -663,6 +1266,14 @@ class ViewportPanel(QWidget):
                 and doc.start_area["row"] <= cell[1] <= doc.start_area["row"] + 1:
             self._start_area_drag = True   # any of its 4 cells grabs it;
             return                         # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_flute is not None \
+                and cell == (doc.tutorial_flute["col"], doc.tutorial_flute["row"]):
+            self._tutorial_flute_drag = True   # single tile, no brush armed;
+            return                             # hide the eye to paint under it
+        if self._eyes["tutorial"] and doc.tutorial_stone is not None \
+                and cell == (doc.tutorial_stone["col"], doc.tutorial_stone["row"]):
+            self._tutorial_stone_drag = True   # single tile, no brush armed;
+            return                             # hide the eye to paint under it
         if self._armed_deco is not None:
             if self._tool == "paint":
                 self._map_session.push_deco_place(
@@ -670,6 +1281,87 @@ class ViewportPanel(QWidget):
                     flip=self._deco_flip_armed)
             elif self._tool == "erase":
                 self._map_session.push_deco_remove(cell[0], cell[1])
+            return
+        if self._armed_spawn_reserve is not None:
+            # the spawn reserve is an INVISIBLE OVERLAY, not a legend code —
+            # it gets its own ops over doc.spawnable_background, and must be
+            # handled BEFORE the terrain-code branches below.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_reserve(doc, *cell)
+                if picked is not None:
+                    self.reserve_number_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._reserve_number if self._tool == "paint" else None
+                self._reserve_stroke_value = value
+                self._reserve_stroke = tilemap_ops.set_reserve(doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_reserve_stroke(
+                    tilemap_ops.reserve_bucket(doc, *cell, self._reserve_number),
+                    "spawn reserve bucket fill")
+            return
+        if self._armed_despawn is not None:
+            # the despawn mark is an INVISIBLE OVERLAY too — its own ops over
+            # doc.despawnable_spawn, likewise BEFORE the terrain-code branches.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_despawn(doc, *cell)
+                if picked is not None:
+                    self.despawn_number_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._despawn_number if self._tool == "paint" else None
+                self._despawn_stroke_value = value
+                self._despawn_stroke = tilemap_ops.set_despawn(doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_despawn_stroke(
+                    tilemap_ops.despawn_bucket(doc, *cell, self._despawn_number),
+                    "spawn despawn bucket fill")
+            return
+        if self._armed_stage is not None:
+            # the stage-zone mark is an INVISIBLE OVERLAY too — its own ops
+            # over doc.stage_zones, likewise BEFORE the terrain-code branches.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_stage(doc, *cell)
+                if picked is not None:
+                    self.stage_number_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._stage_number if self._tool == "paint" else None
+                self._stage_stroke_value = value
+                self._stage_stroke = tilemap_ops.set_stage(doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_stage_stroke(
+                    tilemap_ops.stage_bucket(doc, *cell, self._stage_number),
+                    "stage zone bucket fill")
+            return
+        if self._armed_condition is not None:
+            # the tile-condition mark is an INVISIBLE OVERLAY too — its own ops
+            # over doc.tile_conditions, likewise BEFORE the terrain-code
+            # branches. The only difference from the three above: the painted
+            # value is the armed condition NAME, not a spinbox number.
+            if self._tool == "picker":
+                picked = tilemap_ops.pick_condition(doc, *cell)
+                if picked is not None:
+                    self.condition_picked.emit(picked)
+            elif self._tool in ("paint", "erase"):
+                value = self._armed_condition if self._tool == "paint" else None
+                self._condition_stroke_value = value
+                self._condition_stroke = tilemap_ops.set_condition(
+                    doc, *cell, value)
+                self._stroke_last = cell
+            elif self._tool in ("line", "rect"):
+                self._anchor = cell
+            elif self._tool == "bucket":
+                self._map_session.push_condition_stroke(
+                    tilemap_ops.condition_bucket(
+                        doc, *cell, self._armed_condition),
+                    "tile condition bucket fill")
             return
         if self._tool == "picker":
             code = tilemap_ops.pick(doc, *cell)
@@ -697,6 +1389,38 @@ class ViewportPanel(QWidget):
     def _tool_move(self, pos):
         cell = self._cell_at(pos)
         self._hover_cell = cell
+        if self._reserve_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the terrain stroke below
+            self._reserve_stroke.extend(tilemap_ops.reserve_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._reserve_stroke_value))
+            self._stroke_last = cell
+            return
+        if self._despawn_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the reserve stroke above
+            self._despawn_stroke.extend(tilemap_ops.despawn_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._despawn_stroke_value))
+            self._stroke_last = cell
+            return
+        if self._stage_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the despawn stroke above
+            self._stage_stroke.extend(tilemap_ops.stage_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._stage_stroke_value))
+            self._stroke_last = cell
+            return
+        if self._condition_stroke is not None and cell is not None \
+                and cell != self._stroke_last:
+            # same Bresenham interpolation as the stage stroke above
+            self._condition_stroke.extend(tilemap_ops.condition_line(
+                self._map_session.doc, *self._stroke_last, *cell,
+                self._condition_stroke_value))
+            self._stroke_last = cell
+            return
         if self._stroke is not None and cell is not None \
                 and cell != self._stroke_last:
             # Bresenham-interpolate between events so fast drags don't gap
@@ -721,16 +1445,70 @@ class ViewportPanel(QWidget):
                 # release cell becomes the new MIN corner (session clamps)
                 self._map_session.push_start_area_place(cell[0], cell[1])
             self._start_area_drag = False
+        elif self._tutorial_flute_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_flute_place(cell[0], cell[1])
+            self._tutorial_flute_drag = False
+        elif self._tutorial_stone_drag:
+            if cell is not None:
+                self._map_session.push_tutorial_stone_place(cell[0], cell[1])
+            self._tutorial_stone_drag = False
+        elif self._reserve_stroke is not None:
+            self._map_session.push_reserve_stroke(
+                self._reserve_stroke, "spawn reserve stroke")
+            self._reserve_stroke = None
+            self._stroke_last = None
+        elif self._despawn_stroke is not None:
+            self._map_session.push_despawn_stroke(
+                self._despawn_stroke, "spawn despawn stroke")
+            self._despawn_stroke = None
+            self._stroke_last = None
+        elif self._stage_stroke is not None:
+            self._map_session.push_stage_stroke(
+                self._stage_stroke, "stage zone stroke")
+            self._stage_stroke = None
+            self._stroke_last = None
+        elif self._condition_stroke is not None:
+            self._map_session.push_condition_stroke(
+                self._condition_stroke, "tile condition stroke")
+            self._condition_stroke = None
+            self._stroke_last = None
         elif self._stroke is not None:
             self._map_session.push_stroke(self._stroke, "paint stroke")
             self._stroke = None
             self._stroke_last = None
         elif self._anchor is not None:
             if cell is not None:
-                op = (tilemap_ops.line if self._tool == "line"
-                      else tilemap_ops.rect_fill)
-                self._map_session.push_stroke(
-                    op(doc, *self._anchor, *cell, self._armed_code), self._tool)
+                if self._armed_spawn_reserve is not None:
+                    op = (tilemap_ops.reserve_line if self._tool == "line"
+                          else tilemap_ops.reserve_rect)
+                    self._map_session.push_reserve_stroke(
+                        op(doc, *self._anchor, *cell, self._reserve_number),
+                        f"spawn reserve {self._tool}")
+                elif self._armed_despawn is not None:
+                    op = (tilemap_ops.despawn_line if self._tool == "line"
+                          else tilemap_ops.despawn_rect)
+                    self._map_session.push_despawn_stroke(
+                        op(doc, *self._anchor, *cell, self._despawn_number),
+                        f"spawn despawn {self._tool}")
+                elif self._armed_stage is not None:
+                    op = (tilemap_ops.stage_line if self._tool == "line"
+                          else tilemap_ops.stage_rect)
+                    self._map_session.push_stage_stroke(
+                        op(doc, *self._anchor, *cell, self._stage_number),
+                        f"stage zone {self._tool}")
+                elif self._armed_condition is not None:
+                    op = (tilemap_ops.condition_line if self._tool == "line"
+                          else tilemap_ops.condition_rect)
+                    self._map_session.push_condition_stroke(
+                        op(doc, *self._anchor, *cell, self._armed_condition),
+                        f"tile condition {self._tool}")
+                else:
+                    op = (tilemap_ops.line if self._tool == "line"
+                          else tilemap_ops.rect_fill)
+                    self._map_session.push_stroke(
+                        op(doc, *self._anchor, *cell, self._armed_code),
+                        self._tool)
             self._anchor = None
 
     def _ghost_items(self, doc):
@@ -749,6 +1527,18 @@ class ViewportPanel(QWidget):
             return
         if self._start_area_drag or self._armed_start_area is not None:
             return   # its ghost is an OUTLINE, drawn by _submit_map_items
+        if (self._tutorial_flute_drag or self._tutorial_stone_drag
+                or self._armed_tutorial_flute is not None
+                or self._armed_tutorial_stone is not None):
+            return   # its ghost is an OUTLINE, drawn by _submit_map_items
+        if self._armed_spawn_reserve is not None:
+            return   # its ghost is the OUTLINE drawn by the reserve overlay
+        if self._armed_despawn is not None:
+            return   # its ghost is the OUTLINE drawn by the despawn overlay
+        if self._armed_stage is not None:
+            return   # its ghost is the OUTLINE drawn by the stage-zone overlay
+        if self._armed_condition is not None:
+            return   # its ghost is the OUTLINE drawn by the condition overlay
         if self._tool == "none":
             return   # no active brush — nothing would actually be placed
         if self._armed_base is not None:
@@ -796,6 +1586,188 @@ class ViewportPanel(QWidget):
         combo.blockSignals(False)
         combo.setVisible(bool(animations))
 
+    # -- anchor handles (ESV-2): entity-preview fallback only, ED-22 clean --
+    # A VIEW of the panel's mapping (self._anchors) plus a live drag delta;
+    # never reads or writes the manifest here (that's anchor_ops + the panel).
+
+    def _preview_draw_fit(self):
+        """(fit_tiles, scale) the current `preview_slot` draws at — the ONE
+        value both the preview `RenderItem` and `_anchor_draw_params` read
+        (fix-editor-preview-footprint §2.3): they must never compute this
+        independently, or the handle and the sprite can desync again exactly
+        like the bug this fix closes.
+
+        Returns the MEMOIZED pair. `slot_draw_fit` re-reads and re-validates
+        slots.json + enemies.json from disk, which is far too expensive to do
+        per call: this is read once per rendered frame, once per anchor
+        hit-test, and once per mouse-move while a handle is being dragged.
+        Resolving it eagerly instead (`_resolve_draw_fit`, on slot change and
+        on registry reload — the only two things that can change the answer)
+        keeps handle-dragging interactive."""
+        return self._draw_fit
+
+    def _resolve_draw_fit(self):
+        """Recompute the memoized `_draw_fit`. `(0.0, 1.0)` (the RenderItem
+        defaults) when there is no preview slot, or the slot is not (yet)
+        declared in the registry — E-37, never raise."""
+        if self.preview_slot is None:
+            self._draw_fit = (0.0, 1.0)
+            return
+        try:
+            category_key = self._registry.category_of(self.preview_slot).key
+        except KeyError:
+            self._draw_fit = (0.0, 1.0)
+            return
+        self._draw_fit = slot_draw_fit(
+            self._data_dir, category_key, self.preview_slot)
+
+    def _anchor_draw_params(self):
+        """(origin, s, zoom) for the current preview slot's frame anchor,
+        origin COMPOSED with the entry's offset_x/offset_y (§1.2 — the
+        renderer already nudges the art by this, so the handle must move
+        with it or it stops sitting on the sprite) — None when there is
+        nothing to anchor a handle to. `s` is the editor's OWN drawn scale:
+        fit_factor computed from the exact fit_tiles/scale the preview's
+        RenderItem carries — `_preview_draw_fit()`, the SAME call the
+        preview submission below reads, so they cannot drift apart.
+
+        fix-anchor-origin-parity: `origin` resolves through the SAME shared
+        `engine.render.sprite_anchor_screen` the game's `game.anchors.
+        anchor_world_point` calls (`anchor_xy=(0, 0)` -> the sprite's drawn
+        CENTRE) — never hand-rolled here, so the handle and the game's
+        anchor resolution cannot drift apart again."""
+        if self.preview_slot is None:
+            return None
+        g = self._coords.geometry
+        wx, wy = g.map_cols // 2, g.map_rows // 2
+        frame_w, _frame_h = self._assets.frame_size(self.preview_slot)
+        zoom = self._coords.camera.zoom
+        fit_tiles, scale = self._preview_draw_fit()
+        s = fit_factor(frame_w, g.tile_w, fit_tiles) * scale
+        ox, oy = self._assets.offset(self.preview_slot)
+        origin = sprite_anchor_screen(
+            self._coords, wx, wy, frame_w, fit_tiles, scale, (ox, oy), (0.0, 0.0))
+        return origin, s, zoom
+
+    def _hit_anchor_handle(self, pos):
+        """Topmost handle within HANDLE_HIT_PX SCREEN pixels of `pos`
+        (Euclidean), reverse submission order — the same rule _hit_widget
+        uses in screen mode (§1.5)."""
+        params = self._anchor_draw_params()
+        if params is None:
+            return None
+        origin, s, zoom = params
+        for name in reversed(list(self._anchors)):
+            ax, ay = self._anchors[name]
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if math.hypot(pos.x() - sx, pos.y() - sy) <= HANDLE_HIT_PX:
+                return name
+        return None
+
+    def _anchor_press(self, pos):
+        """LEFT-press hit test: on a handle, starts a drag AND selects it
+        (emits to the panel), so the caller can suppress the pan it would
+        otherwise start (§1.5). Returns True when a handle was grabbed."""
+        name = self._hit_anchor_handle(pos)
+        if name is None:
+            return False
+        self._anchor_selected = name
+        self.anchor_selected.emit(name)
+        self._anchor_drag = (name, *self._anchors[name])
+        return True
+
+    def _anchor_move(self, pos):
+        if self._anchor_drag is None:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        name = self._anchor_drag[0]
+        origin, s, zoom = params
+        ax, ay = anchor_ops.frame_px(origin, pos.x(), pos.y(), s, zoom)
+        ax = max(-4096, min(4096, ax))
+        ay = max(-4096, min(4096, ay))
+        self._anchors[name] = (ax, ay)
+        self.anchor_dragged.emit(name, ax, ay)
+
+    def _anchor_release(self):
+        """Commit ONE write per gesture (§1.5) — only when the value
+        actually moved; a click that produced no change only selected."""
+        if self._anchor_drag is None:
+            return
+        name, orig_x, orig_y = self._anchor_drag
+        self._anchor_drag = None
+        x, y = self._anchors.get(name, (orig_x, orig_y))
+        if (x, y) != (orig_x, orig_y):
+            self.anchor_drag_finished.emit(name, x, y)
+
+    def _submit_muzzle_projectile(self):
+        """feat-projectile-anchored-flight §3.2: when the previewed slot's
+        `muzzle` anchor is authored, draw the projectile AT that handle's
+        real screen point/size — dragging the handle then shows exactly
+        where the shot leaves the barrel. Resolves the handle point through
+        `_anchor_draw_params()`/`anchor_ops.screen_point`, the SAME call
+        `_submit_anchor_handles` itself uses — never a second computation.
+        Uses `vfx_projectile` art when imported, else the stone dot — the
+        SAME `assets.animation_total_ms(slot, "idle") is not None` "has
+        art" signal the game reads, so the two can never disagree about
+        "imported". Called BEFORE `_submit_anchor_handles()` (§ caller
+        order) so the crosshair stays on top of the dot."""
+        if "muzzle" not in self._anchors:
+            return
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        ax, ay = self._anchors["muzzle"]
+        sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+        pr = self._projectile_params
+        size = max(2, int(pr.stone_size * zoom))
+        dest = (int(sx - size / 2), int(sy - size / 2))
+        has_art = (self._assets.animation_total_ms("vfx_projectile", "idle")
+                  is not None)
+        if has_art:
+            self._renderer.submit_hud(
+                HudSprite("vfx_projectile", dest, (size, size)))
+        else:
+            self._renderer.submit_hud(HudRect(
+                (dest[0], dest[1], size, size), pr.stone_color,
+                border_radius=size // 2))
+
+    def _submit_anchor_handles(self):
+        params = self._anchor_draw_params()
+        if params is None:
+            return
+        origin, s, zoom = params
+        for name, (ax, ay) in self._anchors.items():
+            sx, sy = anchor_ops.screen_point(origin, ax, ay, s, zoom)
+            if self._anchor_drag is not None and self._anchor_drag[0] == name:
+                color = ANCHOR_DRAG_COLOR
+            elif self._anchor_selected == name:
+                color = ANCHOR_SELECTED_COLOR
+            else:
+                color = ANCHOR_COLOR
+            self._submit_anchor_marker(sx, sy, color)
+            self._renderer.submit_hud(HudText(
+                name, (sx + HANDLE_RADIUS_PX + 4, sy - 6), "sm", color))
+
+    def _submit_anchor_marker(self, sx, sy, color):
+        """A fixed-SCREEN-size closed outline + crosshair, submitted in
+        WORLD points (§2.3c — the two-sample screen_to_world trick, ESV-1's
+        proven pattern; never hand-derive the per-axis deltas)."""
+        cs = self._coords
+        wx0, wy0 = cs.screen_to_world(sx, sy)
+        wx1, wy1 = cs.screen_to_world(sx + HANDLE_RADIUS_PX, sy + HANDLE_RADIUS_PX)
+        dwx, dwy = wx1 - wx0, wy1 - wy0
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0 - dwy), (wx0 + dwx, wy0 - dwy),
+             (wx0 + dwx, wy0 + dwy), (wx0 - dwx, wy0 + dwy)),
+            color, width=2, closed=True)
+        self._renderer.submit_overlay_lines(
+            ((wx0 - dwx, wy0), (wx0 + dwx, wy0)), color, width=2)
+        self._renderer.submit_overlay_lines(
+            ((wx0, wy0 - dwy), (wx0, wy0 + dwy)), color, width=2)
+
     # -- surface lifecycle, sized to the widget -----------------------------
 
     def resizeEvent(self, event):
@@ -838,7 +1810,7 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             self._submit_map_items()
         elif self.in_screen_mode():
-            self._submit_screen_items(t0)
+            self._render_screen_frame(t0)
         else:
             g = self._coords.geometry
             for row in range(g.map_rows):
@@ -848,13 +1820,18 @@ class ViewportPanel(QWidget):
                 if self._anim_last_t is not None:
                     self._anim_ms += (t0 - self._anim_last_t) * 1000.0
                 self._anim_last_t = t0
+                fit_tiles, scale = self._preview_draw_fit()
                 self._renderer.submit(RenderItem(
                     self.preview_slot,
                     (g.map_cols // 2, g.map_rows // 2),
                     layer="entities",
                     animation=self.preview_animation,
                     anim_time_ms=int(self._anim_ms),
+                    fit_tiles=fit_tiles,
+                    scale=scale,
                 ))
+                self._submit_muzzle_projectile()
+                self._submit_anchor_handles()
         self._renderer.flush(self._surface)
         self._qimage = surface_to_qimage(self._surface)
         self.update()
@@ -879,6 +1856,11 @@ class ViewportPanel(QWidget):
         for item in self._ghost_items(doc):
             self._renderer.submit(item)
         self._submit_start_area_outline(doc)
+        self._submit_tutorial_outline(doc)
+        self._submit_spawn_reserve(doc, cmin, cmax, rmin, rmax)
+        self._submit_despawn(doc, cmin, cmax, rmin, rmax)
+        self._submit_stage_zones(doc, cmin, cmax, rmin, rmax)
+        self._submit_tile_conditions(doc, cmin, cmax, rmin, rmax)
         if self._grid_lines:
             # bound the grid to the visible window too (a 1024-line full grid
             # would swamp the overlay pass)
@@ -914,10 +1896,214 @@ class ViewportPanel(QWidget):
             row = max(0, min(self._hover_cell[1], doc.rows - 2))
             outline(col, row, START_AREA_GHOST_COLOR)
 
+    def _submit_tutorial_outline(self, doc):
+        """The tutorial markers ("first flute" / "first stone") each draw as a
+        single-tile closed OUTLINE through the E-24 overlay primitive (never
+        a sprite — mirrors _submit_start_area_outline), with a labeled
+        HudText caption above it (the screen-mode selection caption idiom,
+        _submit_screen_selection): the placed marker when the tutorial eye
+        is on, plus a ghost outline+caption at the (clamped) hover cell while
+        its brush is armed with the paint tool or during a drag."""
+        def outline(col, row, color):
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+
+        def caption(col, row, label, color):
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(
+                HudText(label, (sx, sy - 14), "sm", color, align="center"))
+
+        for marker, label, dragging, armed in (
+                (doc.tutorial_flute, "First Flute",
+                 self._tutorial_flute_drag, self._armed_tutorial_flute),
+                (doc.tutorial_stone, "First Stone",
+                 self._tutorial_stone_drag, self._armed_tutorial_stone)):
+            if self._eyes["tutorial"] and marker is not None and not dragging:
+                outline(marker["col"], marker["row"], TUTORIAL_COLOR)
+                caption(marker["col"], marker["row"], label, TUTORIAL_COLOR)
+            ghosting = dragging or (armed is not None and self._tool == "paint")
+            if ghosting and self._hover_cell is not None:
+                col = max(0, min(self._hover_cell[0], doc.cols - 1))
+                row = max(0, min(self._hover_cell[1], doc.rows - 1))
+                outline(col, row, TUTORIAL_GHOST_COLOR)
+                caption(col, row, label, TUTORIAL_GHOST_COLOR)
+
+    def _submit_spawn_reserve(self, doc, cmin, cmax, rmin, rmax):
+        """The spawnable-background marks: per mark a single-tile closed
+        diamond OUTLINE through the E-24 overlay primitive plus a `HudText`
+        of its STAGE NUMBER at the tile centre — never a sprite, never
+        QPainter (the _submit_tutorial_outline idiom). The marks are
+        editor-only chrome: the game draws nothing for them.
+
+        WINDOW-CULLED against the caller's visible tile window: a map may
+        carry hundreds of marks, and drawing them all would put a full-map
+        overlay pass back into a renderer that windows everything else.
+        Iterates the MARKS (a dict of painted cells) and filters, rather
+        than the window — the marks are almost always the smaller set."""
+        if not self._eyes["spawn_reserve"]:
+            return
+        for (col, row), number in doc.spawnable_background.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                RESERVE_COLOR, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                str(number), (sx, sy - 6), "sm", RESERVE_COLOR, align="center"))
+
+    def _submit_despawn(self, doc, cmin, cmax, rmin, rmax):
+        """The despawnable-spawn marks: the exact twin of
+        _submit_spawn_reserve — a single-tile closed diamond OUTLINE through
+        the E-24 overlay primitive plus a `HudText` of its STAGE NUMBER,
+        in DESPAWN_COLOR (magenta) so it can never be mistaken for a
+        spawn-reserve mark (cyan). Editor-only chrome; the game draws nothing.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the reserve overlay is."""
+        if not self._eyes["despawnable_spawn"]:
+            return
+        for (col, row), number in doc.despawnable_spawn.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                DESPAWN_COLOR, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                str(number), (sx, sy + 4), "sm", DESPAWN_COLOR, align="center"))
+
+    def _submit_stage_zones(self, doc, cmin, cmax, rmin, rmax):
+        """The stage-zone marks: the third twin of _submit_spawn_reserve — a
+        single-tile closed diamond OUTLINE through the E-24 overlay primitive
+        plus a `HudText` of its STAGE NUMBER, in STAGE_COLOR (lime) so it can
+        never be mistaken for a reserve (cyan) or despawn (magenta) mark. Its
+        number sits BELOW both of theirs (reserve above the centre, despawn
+        just below it, stage lower still) so a cell carrying all three marks
+        stays readable. Editor-only chrome; the game draws nothing.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the other two overlays are."""
+        if not self._eyes["stage_zones"]:
+            return
+        for (col, row), number in doc.stage_zones.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                STAGE_COLOR, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                str(number), (sx, sy + 14), "sm", STAGE_COLOR, align="center"))
+
+    def _submit_tile_conditions(self, doc, cmin, cmax, rmin, rmax):
+        """The tile-condition marks: the FOURTH twin of _submit_spawn_reserve —
+        a single-tile closed diamond OUTLINE through the E-24 overlay primitive
+        plus a `HudText` label, one hue per condition NAME (CONDITION_COLORS)
+        so the four are tellable apart from each other and from the reserve
+        (cyan) / despawn (magenta) / stage (lime) marks. Its label sits BELOW
+        all three of their numbers (reserve sy-6, despawn sy+4, stage sy+14,
+        condition sy+24) so a cell carrying all four marks stays readable.
+        Editor-only chrome; the game draws nothing for the mark itself.
+
+        WINDOW-CULLED against the caller's visible tile window for the same
+        reason the other three overlays are."""
+        if not self._eyes["tile_conditions"]:
+            return
+        for (col, row), name in doc.tile_conditions.items():
+            if not (cmin <= col <= cmax and rmin <= row <= rmax):
+                continue
+            color = CONDITION_COLORS.get(name, CONDITION_DEFAULT_COLOR)
+            self._renderer.submit_overlay_lines(
+                ((col, row), (col + 1, row), (col + 1, row + 1), (col, row + 1)),
+                color, width=2, closed=True)
+            sx, sy = self._coords.world_to_screen(col + 0.5, row + 0.5)
+            self._renderer.submit_hud(HudText(
+                name.upper(), (sx, sy + 24), "sm", color, align="center"))
+
     # -- screen mode rendering (B4, R3) — ALL through submit_hud (ED-22) -----
 
-    def _submit_screen_items(self, t0):
+    def _screen_canvas(self):
+        """The reusable logical canvas, always exactly the CURRENT
+        SCREEN_W x SCREEN_H (re-allocated if `data/display.json` changed the
+        resolution under us — never a literal size)."""
+        size = (SCREEN_W, SCREEN_H)
+        if self._screen_canvas_surface is None \
+                or self._screen_canvas_surface.get_size() != size:
+            self._screen_canvas_surface = pygame.Surface(size)
+        return self._screen_canvas_surface
+
+    def _render_screen_frame(self, t0):
+        """UR-3: render the screen at its LOGICAL size, then scale the
+        finished surface once — the same pipeline shape `game/main.py` gets
+        from `pygame.SCALED`.
+
+        Scaling the geometry instead (what this did before) left `HudText` at
+        its absolute font-preset pixel size while every box around it grew or
+        shrank, so the editor's label/box ratio was wrong by exactly 1/scale
+        and a designer comparing the two would re-tune fonts that are already
+        right. `HudText` carries no scale field, so the only parity-true fix
+        is to scale the whole rendered surface.
+
+        Editor chrome (selection outline, handles, caption, the E-37
+        placeholder, the letterbox edge) is deliberately NOT scaled: it is
+        submitted afterwards in SCREEN pixels and flushed by `render_frame`'s
+        own flush — two flushes, one Renderer (ED-22), because `flush` clears
+        the queue."""
         scale, ox, oy = self._screen_scale_offset()
+        canvas = self._screen_canvas()
+        canvas.fill(BACKGROUND)
+        self._submit_screen_items(t0, 1.0, 0.0, 0.0)
+        self._renderer.flush(canvas)
+        scaled = pygame.transform.scale(
+            canvas, (round(SCREEN_W * scale), round(SCREEN_H * scale)))
+        self._surface.blit(scaled, (int(ox), int(oy)))
+        self._submit_screen_chrome(scale, ox, oy)
+
+    def _submit_screen_items(self, t0, scale, ox, oy):
+        """The screen's CONTENT (background + widgets). Called with the
+        identity triple (1.0, 0, 0) because it draws into the logical canvas;
+        the `(scale, ox, oy)` parameters stay so `_to_screen_rect` remains the
+        one placement rule shared with hit-testing."""
+        defaults = self._current_screen_defaults()
+        if not defaults:
+            return          # E-37 placeholder is chrome — see below
+        if self._screen_anim_last_t is not None:
+            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
+        self._screen_anim_last_t = t0
+        doc = self._screen_session.doc
+        # P-5: resolved ONCE per frame and threaded into every submit below.
+        hidden = self._hidden_subtrees(defaults)
+        preview = self._current_screen_preview()
+        if preview is not None:
+            # UT-2: the recorded game draw list — real background, real fonts,
+            # real stat rows, and every bit of chrome no widget id covers.
+            for item in preview:
+                self._renderer.submit_hud(item)
+            if self._preview_in_sync():
+                # The recording already shows the open doc, so drawing the
+                # widgets again would only double them. The one exception is
+                # the widget under an in-flight drag, whose live rect no
+                # recording can know yet.
+                dragging = self._selected_widget if self._drag_start else None
+                if dragging in defaults.get("widgets", {}):
+                    self._submit_screen_widget(
+                        dragging, defaults["widgets"][dragging], doc, scale,
+                        ox, oy, hidden)
+                return
+            for widget_id, spec in defaults.get("widgets", {}).items():
+                self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                           hidden)
+            return
+        self._submit_screen_background(doc, scale, ox, oy)
+        for widget_id, spec in defaults.get("widgets", {}).items():
+            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy,
+                                       hidden)
+
+    def _submit_screen_chrome(self, scale, ox, oy):
+        """Editor-only overlay, in SCREEN pixels at a fixed size: the canvas
+        edge, the selection outline/handles/caption, and the E-37 message."""
         defaults = self._current_screen_defaults()
         if not defaults:
             # E-37: no data/ui/screen_defaults.json yet (pre-B3, or a broken
@@ -928,18 +2114,21 @@ class ViewportPanel(QWidget):
             self._renderer.submit_hud(HudText(
                 "no layout defaults yet — click Refresh Layouts",
                 (cx, cy), "lg", NO_DEFAULTS_COLOR, align="center"))
-            return
-        if self._screen_anim_last_t is not None:
-            self._screen_anim_ms += (t0 - self._screen_anim_last_t) * 1000.0
-        self._screen_anim_last_t = t0
-        doc = self._screen_session.doc
-        self._submit_screen_background(doc, scale, ox, oy)
-        for widget_id, spec in defaults.get("widgets", {}).items():
-            self._submit_screen_widget(widget_id, spec, doc, scale, ox, oy)
-        if self._selected_widget is not None \
+        self._submit_screen_letterbox(scale, ox, oy)
+        if defaults and self._selected_widget is not None \
                 and self._selected_widget in defaults.get("widgets", {}):
             self._submit_screen_selection(self._selected_widget, defaults,
                                           scale, ox, oy)
+
+    def _submit_screen_letterbox(self, scale, ox, oy):
+        """A muted 1px frame on the drawn canvas edge, so the letterbox bars
+        are visibly outside it — at 640x360 in a wide dock those bars are
+        large, and a dark screen background otherwise reads as 'the canvas is
+        the whole panel'."""
+        w, h = SCREEN_W * scale, SCREEN_H * scale
+        self._renderer.submit_hud(HudLines(
+            ((ox, oy), (ox + w, oy), (ox + w, oy + h), (ox, oy + h)),
+            LETTERBOX_EDGE_COLOR, width=1, closed=True))
 
     def _submit_screen_background(self, doc, scale, ox, oy):
         """Background comes ONLY from the open doc's own override — the
@@ -955,14 +2144,16 @@ class ViewportPanel(QWidget):
         elif "color" in background:
             self._renderer.submit_hud(HudRect(dest, tuple(background["color"])))
 
-    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy):
+    def _submit_screen_widget(self, widget_id, spec, doc, scale, ox, oy,
+                              hidden=()):
         override = doc.get("widgets", {}).get(widget_id, {})
         if override.get("visible") is False:
             return
+        if widget_id in hidden:
+            return   # P-5/D4: an ancestor is hidden, so this is too
         rect = override.get("rect", spec["rect"])
         kind = spec["kind"]
         label = override.get("label", spec["label"])
-        dest = self._to_screen_rect(rect, scale, ox, oy)
         style = doc.get("defaults", {})
         skin = override.get("skin")
         if skin is None:
@@ -970,7 +2161,19 @@ class ViewportPanel(QWidget):
                 skin = style.get("button_skin")
             elif kind == "panel":
                 skin = style.get("panel_skin")
-        font_key = override.get("font", style.get("font", "md"))
+        # The recorded `font_key` joins the chain (it did not exist before):
+        # measuring/drawing a readout at "md" when the game draws it at "xl"
+        # made the flat-box fallback disagree with the real screen.
+        font_key = (override.get("font") or spec.get("font_key")
+                    or style.get("font") or "md")
+        if _screen_primitives.is_anchor_rect(rect):
+            # A position-only anchor has no box to centre in; measure the
+            # same box the designer clicks and outlines (`_interaction_rect`),
+            # so the fallback text lands on the glyphs' real spot.
+            rect = _screen_primitives.interaction_rect(
+                rect, text=self._widget_text(widget_id, spec),
+                font_key=font_key, align=spec.get("align", "left"))
+        dest = self._to_screen_rect(rect, scale, ox, oy)
         text_color = override.get("text_color", style.get("text_color"))
         if skin:
             # D6/UH-6: tint from the widget's own `tint` key — `color` on a
@@ -995,15 +2198,40 @@ class ViewportPanel(QWidget):
                 self._renderer.submit_hud(item)
 
     def _submit_screen_selection(self, widget_id, defaults, scale, ox, oy):
+        # P-3: a dimmer outline around every widget that will come along when
+        # this one is dragged, so the designer sees the subtree BEFORE moving
+        # it rather than discovering it afterwards. Drawn first, so the
+        # selection's own bright outline stays on top where they overlap.
+        for child_id in self._screen_descendants(widget_id, defaults):
+            cx, cy, cw, ch = self._to_screen_rect(
+                self._interaction_rect(child_id, defaults), scale, ox, oy)
+            self._renderer.submit_hud(HudLines(
+                ((cx, cy), (cx + cw, cy), (cx + cw, cy + ch), (cx, cy + ch)),
+                SUBTREE_COLOR, width=1, closed=True))
+        # The INTERACTION rect, so a position-only text anchor gets a visible
+        # outline over its glyphs instead of a zero-area (invisible) one — the
+        # outline must be exactly what `_hit_widget` tests, or the designer
+        # would be aiming at a box that isn't where they can click.
         x, y, w, h = self._to_screen_rect(
-            self._effective_rect(widget_id, defaults), scale, ox, oy)
+            self._interaction_rect(widget_id, defaults), scale, ox, oy)
         self._renderer.submit_hud(HudLines(
             ((x, y), (x + w, y), (x + w, y + h), (x, y + h)),
             SELECTION_COLOR, width=2, closed=True))
-        half = HANDLE_PX / 2
-        for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+        if self._is_anchor_widget(widget_id, defaults):
+            # Move-only: no corner handles (`_hit_resize_handle` refuses them
+            # too), and a small marker ON the stored anchor point so the
+            # designer can see WHICH point the X/Y fields address — for a
+            # centre/right-aligned label that is not the outline's corner.
+            ax, ay, _w, _h = self._to_screen_rect(
+                self._effective_rect(widget_id, defaults), scale, ox, oy)
+            half = HANDLE_PX / 2
             self._renderer.submit_hud(HudRect(
-                (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+                (ax - half, ay - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
+        else:
+            half = HANDLE_PX / 2
+            for cx, cy in ((x, y), (x + w, y), (x, y + h), (x + w, y + h)):
+                self._renderer.submit_hud(HudRect(
+                    (cx - half, cy - half, HANDLE_PX, HANDLE_PX), HANDLE_COLOR))
         # UH-4: a small caption above the outline naming the selected widget
         # (display name, falls back to the code id — D4, `widget_display_name`
         # is the ONE resolution rule shared with the widget list). Clamped to
@@ -1062,16 +2290,23 @@ class ViewportPanel(QWidget):
         if self.in_map_mode():
             if event.button() == Qt.MouseButton.LeftButton:
                 self._tool_press(event.position())
-                # "none" tool that didn't start a base/start-area drag →
-                # left-drag pans.
+                # "none" tool that didn't start a base/start-area/tutorial
+                # drag → left-drag pans.
                 if self._tool == "none" and not self._base_drag \
-                        and not self._start_area_drag:
+                        and not self._start_area_drag \
+                        and not self._tutorial_flute_drag \
+                        and not self._tutorial_stone_drag:
                     self._drag_pos = event.position()
             elif event.button() == Qt.MouseButton.RightButton:
                 self._drag_pos = event.position()
             return
         if self.in_screen_mode():
             self._screen_press(event)
+            return
+        # ESV-2: a LEFT-press on a handle grabs it (drag + select) and
+        # suppresses the pan below; RIGHT never grabs a handle (§1.5).
+        if event.button() == Qt.MouseButton.LeftButton \
+                and self._anchor_press(event.position()):
             return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = event.position()
@@ -1096,6 +2331,9 @@ class ViewportPanel(QWidget):
         if self.in_screen_mode():
             self._screen_move(event)
             return
+        if self._anchor_drag is not None:
+            self._anchor_move(pos)
+            return
         if self._drag_pos is not None and (event.buttons() & self._PAN_BUTTONS):
             dx, dy = pos.x() - self._drag_pos.x(), pos.y() - self._drag_pos.y()
             self._drag_pos = pos
@@ -1112,6 +2350,9 @@ class ViewportPanel(QWidget):
             return
         if self.in_screen_mode():
             self._screen_release(event)
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self._anchor_drag is not None:
+            self._anchor_release()
             return
         if event.button() in (Qt.MouseButton.RightButton, Qt.MouseButton.LeftButton):
             self._drag_pos = None

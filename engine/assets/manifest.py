@@ -22,6 +22,14 @@ log = logging.getLogger(__name__)
 
 IDLE = "idle"
 
+# ESV-1: the six declared anchor names (asset_manifest.schema.json), all
+# optional. Fixed order so a parsed entry's `anchors` tuple is deterministic
+# regardless of the raw dict's key order.
+ANCHOR_NAMES = (
+    "muzzle", "impact", "hp_bar", "floater_origin", "status_icon",
+    "beam_endpoint",
+)
+
 
 def playback_order(num_frames, hidden=(), loop=None):
     """Ordered frame columns to play for one row (prototype-exact).
@@ -82,11 +90,22 @@ class ManifestEntry:
     offset_y: int
     animations: dict  # {name: Track}, insertion order = row order
     slice: tuple = None   # (left, top, right, bottom) frame-px, or None
+    anchors: tuple = None  # ((name, (x, y)), ...) declared-name order, or None
     # Optional per-slot render hint (like `slice`, uninterpreted here): the
     # consumer may draw its own legacy/diagnostic overlay UNDER this art
     # instead of letting the sprite stand alone. Only the game's tile-condition
     # art reads it today; omitted ⇒ False ⇒ byte-identical entry.
     tint_overlay: bool = False
+
+    def anchor(self, name):
+        """(x, y) frame-px anchor point named `name` (ESV-1), or None when
+        there is no `anchors` block or that name was not authored."""
+        if self.anchors is None:
+            return None
+        for n, xy in self.anchors:
+            if n == name:
+                return xy
+        return None
 
 
 def entry_from_dict(slot_key, raw):
@@ -149,6 +168,34 @@ def entry_from_dict(slot_key, raw):
             raise ValueError(
                 f"{slot_key}: slice must be [left, top, right, bottom], all >= 0")
 
+    raw_anchors = raw.get("anchors")
+    anchors = None
+    if raw_anchors is not None:
+        # a JSON object, never a bare string/array: same defensive shape as
+        # `slice` above — a bare "12" would otherwise iterate into two
+        # perfectly valid-looking ints.
+        if not isinstance(raw_anchors, dict):
+            raise ValueError(f"{slot_key}: anchors must be an object")
+        unknown = set(raw_anchors) - set(ANCHOR_NAMES)
+        if unknown:
+            raise ValueError(
+                f"{slot_key}: unknown anchor name(s) {sorted(unknown)}")
+        parsed = []
+        for name in ANCHOR_NAMES:
+            if name not in raw_anchors:
+                continue
+            xy = raw_anchors[name]
+            if not isinstance(xy, (list, tuple)):
+                raise ValueError(f"{slot_key}: anchors.{name} must be 2 integers")
+            try:
+                xy = tuple(int(v) for v in xy)
+            except (TypeError, ValueError):
+                raise ValueError(f"{slot_key}: anchors.{name} must be 2 integers")
+            if len(xy) != 2:
+                raise ValueError(f"{slot_key}: anchors.{name} must be [x, y]")
+            parsed.append((name, xy))
+        anchors = tuple(parsed) if parsed else None
+
     tint_overlay = raw.get("tint_overlay", False)
     if not isinstance(tint_overlay, bool):
         raise ValueError(f"{slot_key}: tint_overlay must be a boolean")
@@ -162,6 +209,7 @@ def entry_from_dict(slot_key, raw):
         offset_y=int(raw.get("offset_y", 0)),
         animations=animations,
         slice=margins,
+        anchors=anchors,
         tint_overlay=tint_overlay,
     )
 
@@ -199,10 +247,18 @@ class Manifest:
         track = entry.animations.get(name)
         return track.total_ms if track is not None else None
 
-    def current_frame(self, slot_key, animation, time_ms, phase_ms=0):
+    def current_frame(self, slot_key, animation, time_ms, phase_ms=0,
+                       extra_hidden=None):
         """(sheet_row, sheet_col) for a slot/animation at a time — pure
         function of time (E-36). Missing animation falls back to idle;
-        missing slot (or no usable idle) returns PLACEHOLDER."""
+        missing slot (or no usable idle) returns PLACEHOLDER.
+
+        `extra_hidden` (optional, a caller-supplied set/iterable of frame
+        COLUMN indices) filters the track's own already-baked timeline
+        further — a per-CALLER narrowing, never a widening: a column the
+        manifest row already hid stays hidden regardless. If filtering would
+        drop every frame, the unfiltered timeline is used instead (never
+        draws nothing)."""
         entry = self._entries.get(slot_key)
         if entry is None:
             return PLACEHOLDER
@@ -211,15 +267,23 @@ class Manifest:
             track = entry.animations.get(IDLE)
         if track is None:
             return PLACEHOLDER
-        if len(track.timeline) == 1:
-            return (track.row, track.timeline[0][0])
-        elapsed = (int(time_ms) + int(phase_ms)) % track.total_ms
+        timeline, total_ms = track.timeline, track.total_ms
+        if extra_hidden:
+            hidden = set(extra_hidden)
+            filtered = tuple((col, dur) for col, dur in timeline
+                             if col not in hidden)
+            if filtered:
+                timeline = filtered
+                total_ms = sum(dur for _col, dur in filtered)
+        if len(timeline) == 1:
+            return (track.row, timeline[0][0])
+        elapsed = (int(time_ms) + int(phase_ms)) % total_ms
         acc = 0
-        for col, dur in track.timeline:
+        for col, dur in timeline:
             acc += dur
             if elapsed < acc:
                 return (track.row, col)
-        return (track.row, track.timeline[-1][0])
+        return (track.row, timeline[-1][0])
 
 
 def load_manifest(path):

@@ -1,0 +1,18 @@
+{
+  "$id": "active_font.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "data/ui/active_font.json (UH-Font-A): the single pointer to the game-wide custom font family, orthogonal to the existing 7-preset size/bold system (data/ui/fonts.json). 'default' means today's pygame.font.SysFont('monospace', ...) behavior; any other value must match an entry id in data/fonts/font_manifest.json - a cross-file check a schema can't express, so game/main.py's boot loader cross-checks it and fails loud (D-2, the engine.tilemap.load_map precedent). Written ONLY by the editor's Theme panel, through the validating writer.",
+  "properties": {
+    "font_id": {
+      "description": "'default' for the system monospace fallback, else a data/fonts/font_manifest.json entry id.",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "font_id"
+  ],
+  "title": "active_font",
+  "type": "object"
+}

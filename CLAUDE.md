@@ -8,14 +8,41 @@ slim: it routes you to ONE package doc. Plan & phase status → `PLAN.md` (the
 E-*/D-*/G-*/ED-*/T-*).
 
 **Planning:** every plan doc lives in `planning/` (the sources of truth:
-`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`, …; finished plans move to
-`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`).
+`TutorialPLAN.md`, `SoundEditorPLAN.md`, …; finished plans move to
+`planning/completed plans/`, e.g. `EngineBuildPLAN.md`, `MIGRATION_PLAN.md`,
+`UI_EDITOR_PLAN.md`, `EnemyReworkPLAN.md`).
 Root `PLAN.md` is a **generated mirror** of whichever one is currently active
 (its line-1 `<!-- active-plan: … -->` marker names the source). Read `PLAN.md`
 for the current plan; never hand-edit it — edit the source in `planning/` and
 re-run `/setcurrentplan <name>` to re-mirror. Author a new phased plan with
 `/createplan`. The editor's **Summon a Drunken Robot** screen shows the active
 plan and can switch it too. **Not every task needs a plan** — see Status.
+
+## Test Suite Policy
+
+Read this BEFORE issuing any test command.
+
+- **The full suite (~1088 tests) is slow. Never run it as a baseline, "just to
+  be safe", or to re-check a fix you already verified.**
+- **Default while iterating:** run only the test files your change touches —
+  `py -m pytest tools/tests/test_<area>.py -x -q`. Add `-m core` when you are
+  unsure what you hit.
+- **`py tools/testgate.py check --affected` does NOT reliably narrow.** It falls
+  back to the FULL suite whenever the diff contains no `.py` files, or
+  `conftest.py` / `pytest.ini` / `tools/tests/qt_harness*` is touched, or
+  `graphify affected` fails for any changed file, or no test module matches
+  (`tools/testgate.py:222-256`). It also compares against `--base-ref
+  Development` by default, so **on `Development` itself the diff is empty and it
+  always runs everything.** Read the `GATE INFO` line it prints before assuming
+  you got a narrow run; if it says it could not narrow, kill it and run targeted
+  files instead.
+- **The full `py tools/testgate.py check` runs exactly ONCE:** as the last step
+  before handing work back or opening a PR, or when the user explicitly asks.
+  Never mid-task, never twice.
+- **Never launch a second test run while another is in flight** — duplicate runs
+  exhaust memory.
+- **Subagents never run the full suite.** The orchestrator owns the single full
+  run.
 
 ## Project identity & status
 - **Stack:** Python 3.11+, pygame-ce (game), PySide6 (editor). Deps:
@@ -45,37 +72,44 @@ plan and can switch it too. **Not every task needs a plan** — see Status.
 3. **Editor is the designer interface** — humans never hand-edit `data/`
    JSON; agents may, but only schema-valid writes.
 
-## Command and Control Structure (C2) — mandatory agent workflow
+## Working structure (formerly "Command and Control" / C2)
 
-**This is the "Command and Control Structure" (C2).** It governs how every task
-is approached and is NON-NEGOTIABLE — it overrides the harness's default
-plan-mode workflow. It has two halves that carry the same name so a request to
-"edit the command and control structure" finds both: this section (the rule) and
-`.claude/hooks/command_and_control.py` (the `PreToolUse` hook that hard-enforces
-it).
+Delegation is a **tool, not a ritual**. It was mandatory from 2026-07-15 until
+2026-08-08, enforced by a `PreToolUse` hook; both the mandate and the hook are
+**removed**. Two rules below are still hard; the rest is judgement.
 
-- **Plan mode:**
-  1. Explore with **`scout` agents only** — never `Explore`, `Plan`, or
-     `general-purpose`.
-  2. **The main session (the model the user invoked) writes the plan itself** —
-     never a delegated `Plan` agent.
-  3. On approval, **spawn the correct execution agent** — `coder`,
-     `engine-coder`, or `phase-executor` — opening with the matching **skill**
-     from the table below (`/add-building`, `/add-enemy`, …) when the task
-     matches a row.
-- **Direct mode (no plan mode):**
-  1. **`scout`** for exploration.
-  2. The main session **writes the plan itself** with the invoked model.
-  3. **Spawn the correct execution agent(s)** with the matching skill.
-  4. **`reviewer`** reviews the resulting diff.
+### Hard rules (these are not advisory)
 
-Agent roles and the skill table are defined once below (**Agent roster** and the
-skills table) — this section does not duplicate them. `planner` is exempt: it is
-reached only via the explicit `/createplan` flow, not general exploration.
+- **Two or more implementation agents running AT THE SAME TIME must each get
+  `isolation: "worktree"`.** A file-scope fence written in a dispatch prompt is
+  honour-based prose; a worktree is enforced. Concurrent agents sharing one
+  checkout have already produced one incident (a `git restore` that reverted a
+  parallel agent's uncommitted work — see Branching). Sequential dispatches into
+  one tree are fine.
+- **The main session writes the plan itself** — never delegate planning to a
+  `Plan` agent. Planning against another agent's summary is how plans end up
+  subtly wrong, and the rework costs more than the plan saved.
 
-The `PreToolUse` hook **hard-denies** `Explore` / `Plan` / `general-purpose`
-Agent dispatches and redirects to the above. Set `WORKFLOW_HOOK_OFF=1` to bypass
-it temporarily.
+### Judgement (the default, not a rule)
+
+- **Small work: just do it.** If the change is a few files and you can see them,
+  explore with graphify and edit inline. A scout → plan → coder → reviewer round
+  trip on a one-line tweak costs more than the tweak. `/smalltweak` exists for
+  exactly this.
+- **Delegate when delegation pays**: work that is genuinely parallel, long
+  enough to blow the main context, or an unattended phase from a brief. Then use
+  `coder` / `engine-coder` / `phase-executor`, opening with the matching skill
+  from the table below, and `reviewer` on the resulting diff.
+- **Delegation costs context twice.** The dispatched agent re-reads the package
+  doc you just read (`data/CLAUDE.md` alone is ~745 lines) and re-locates the
+  same code. Weigh that against the task before spawning.
+- **`scout`** is for discovery you don't want in your own context — broad
+  sweeps, unfamiliar subsystems. For a lookup you can do in one `graphify
+  explain`, do it yourself: see Step 0. The main session using the graph
+  directly is the intended path, not a fallback.
+- `Explore`, `Plan`, and `general-purpose` are available again. Prefer the
+  repo's own agents (below), which carry the layering and working-tree
+  invariants in their prompts — but nothing blocks the generic ones.
 
 ## Step 0 — Orient with the code graph (Graphify)
 
@@ -204,16 +238,14 @@ py tools/testgate.py check # the suite. Read the ONE line it prints.
 measure and no "pre-existing failure" to tolerate — if a test is red, you broke
 it. (It was not always so: the suite used to carry 18 permanent failures and the
 gate was a *diff* against a number that lived in prose and had drifted three
-ways. `planning/TestGatePLAN.md` records how that was fixed.)
+ways. `planning/completed plans/TestGatePLAN.md` records how that was fixed.)
 
 - **Never re-run the suite to find out what was already broken.** That waste is
   exactly what `/testgate` deletes.
-- While iterating, `py tools/testgate.py check --affected` runs only the blast
-  radius of your diff (Graphify) ∪ the `core` tier. Run the **full** check once
-  before handing work back.
-- **Do NOT run the full suite for verification unless explicitly asked or you
-  are handing work back.** `--affected` is the default; the full `check` runs
-  exactly once, at the end — never as a mid-task sanity run, never twice.
+- **Iteration policy lives in `## Test Suite Policy` above — obey that.** In
+  short: targeted `pytest` files while iterating, one full `check` at handoff,
+  and do not trust `--affected` to have narrowed anything unless its `GATE INFO`
+  line says it did.
 - **A red test clearly outside your diff's blast radius: note it in your report
   and stop** — do not burn the session investigating it. The gate is still ZERO
   (it must be resolved before handoff), but the first move is to surface it to
@@ -252,6 +284,12 @@ The old branch+lock protocol is **REMOVED** (its successor is a future,
 separate design — nothing enforces domain locks today).
 - One branch per phase/feature off `Development`; land via PR.
 - **Never run destructive git on uncommitted work:** no `git reset --hard`,
-  `git clean`, `git checkout -- <file>`, force-push.
+  `git clean`, `git checkout -- <file>`, **`git restore`**, `git stash`,
+  force-push. `git restore` is the modern spelling of `git checkout -- <file>`
+  and was missing from this list until an agent used it to "clean up" its own
+  mistake and silently reverted a *parallel* agent's uncommitted work, then
+  reported the resulting 177 failures as someone else's pre-existing bug.
+  **HEAD is not a safe restore point** — the tree routinely holds uncommitted
+  work from other agents or the user. Undo by editing FORWARD.
 - Never commit `build/`, `dist/`, or any `*.exe` (gitignored — keep it that
   way).

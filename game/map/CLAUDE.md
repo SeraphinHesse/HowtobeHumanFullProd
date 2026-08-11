@@ -35,7 +35,51 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   mutating the shared map doc (a new game builds a fresh TileMap → empty
   overrides → pristine terrain). BUILT/BACKGROUND have no code and never
   write an override.
-- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND**: a successful
+- **A designer-controlled STAGE counter drives everything, and it outranks the
+  implicit recede.** `self._stage` starts at 0 and never decreases. **The only
+  thing that advances it is the third painted overlay, `stage_zones`**
+  (`{(col, row): stage}` marks on COMBAT tiles, `data/CLAUDE.md`) — NOT the
+  number of 2×2s bought. `_unlock_purchases` survives as a raw tally and gates
+  nothing. `do_unlock`'s tail, in precedence order:
+  1. `_advance_stage(chunk)` takes the MAX stage painted under the bought
+     chunk's four tiles; if it exceeds `_stage`, it loops
+     `for k in range(_stage + 1, new + 1)` calling `_release_spawn_reserve(k)`
+     then `_despawn_spawn_reserve(k)`, sets `_stage = new` and returns True.
+     `_release_spawn_reserve(n)` flips every `spawnable_background` mark
+     numbered n BACKGROUND → SPAWNING; `_despawn_spawn_reserve(n)` flips every
+     `despawnable_spawn` mark numbered n SPAWNING → COMBAT (the released tiles'
+     scheduled death, and the reason a designer can hand-author the whole
+     band's life cycle). **The ascending catch-up is load-bearing**: a jump from
+     stage 2 to 5 fires batches 3, 4 and 5 in order, so nothing painted is ever
+     stranded and both mark sets still exhaust on schedule.
+  2. `if not advanced and _stage >= _scripted_max` (`max(_reserve_max,
+     _despawn_max)` — the stage at or past which no painted mark of EITHER kind
+     can fire): `_retire_spawn_reserve()` retires ONE `spawnable_background`
+     batch, ascending `n`, per further purchase (`_retire_batches` =
+     `sorted(_reserve)`, `_retire_cursor` = how many are spent), flipping that
+     batch's cells SPAWNING → COMBAT. The tiles the reserve released die in
+     the order they were born. **Only reserve-released cells are eligible** —
+     legend-painted `s` tiles are never touched here; the implicit recede
+     still owns those.
+  3. `elif` the retire batches are spent too **and** `map.json`
+     `TileUnlocking.spawn_recede_enabled`: the old dual-axis recede below.
+  Consequences worth knowing: `not advanced` keeps the implicit stages off on
+  any purchase that moved the designer's stage counter — the designer's
+  placement is the whole move; the `elif` means a purchase that retires a batch
+  is itself the whole move too; **a map with no marks of ANY of the three kinds
+  has `_scripted_max == 0`, an empty `_retire_batches` and `advanced` always
+  False, so the guard is true from the first purchase and the `elif` falls
+  straight through — behaviour is bit-for-bit what it always was**; and
+  `spawn_recede_enabled: false` disables the old rule permanently without
+  touching any overlay. `_reserve`/`_despawn` (inverted `stage -> [cells]`) and
+  `_stage_zones` (kept FLAT, since its lookup is per-tile) are all built in
+  `__init__` by ONE pass over the MARKS (never over the map — the
+  O(strip)-never-O(map) rule below). A mark whose tile is not in the expected
+  state (the designer repainted over it, an earlier stage claimed it) is skipped
+  silently but still counts as fired, so both mark sets and the retire stage
+  always exhaust and can never wedge the old rule off forever.
+- **Spawn recede is DUAL-AXIS and backfills strictly BEHIND** (the old,
+  implicit rule — gated as above): a successful
   unlock converts the nearest SPAWNING 2×2 row-aligned with the bought chunk
   AND the nearest col-aligned one to COMBAT (an axis with no aligned band is
   skipped — no nearest-overall fallback), then each converted block backfills
@@ -51,9 +95,24 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   no-match axis search O(strip), never O(map).
 - **Pathfinding weight is content-key driven, not `isinstance(Building)`**: each
   tile resolves to a key in `map.json` `Pathfinding.content_weights` (empty tiles
-  from their zone; occupied tiles carry the key set at placement). Composition
-  order is PROTOTYPE-EXACT: base → +condition (`path_weights`) → +defence-range
-  coverage → ×damage discount, all gated `0 < w < impassable`.
+  from their zone; occupied tiles carry the key set at placement — 17 keys total
+  since the buildings-overwrite-tileweights rework below: the 4 non-building keys
+  plus one per building type, including `painter_building` and the previously
+  economy-key-sharing boost/structure leaves). Composition order is
+  PROTOTYPE-EXACT: base → +condition (`path_weights`) → +defence-range coverage →
+  ×damage discount, all gated `0 < w < impassable` — **except the condition step
+  is now itself conditional (buildings-overwrite-tileweights rework)**: a live
+  building (`occupant.alive`) whose tile's condition-weight resolution
+  OVERWRITES rather than adds (`Tile._overwrites_condition`, an OR of three
+  designer-controlled switches — the master `Pathfinding.
+  buildings_overwrite_tileweights`, a per-building-type `Pathfinding.
+  content_weight_overwrites[content_key]`, or a per-condition `TileConditions.
+  path_weight_overwritable[condition]`) skips the `+condition` add entirely, so
+  the building's own content weight stands alone (stops the water-parking
+  exploit: an economy building on a pond used to cost 1+9 instead of just 1). A
+  dead occupant (content_key survives death) reverts to additive. Every dict in
+  `_overwrites_condition` is indexed DIRECTLY (no `.get()` default) — a missing
+  key fails loud (D-2).
 - **Picking goes through `engine.coords` only** (`screen_to_world` + floor) — no
   iso math in `game/`.
 - **Balancing** loads through `game/core/balance.py` (`load_balance(data_dir,
@@ -62,13 +121,52 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `TileMap(doc, balance)` still takes the dict so tests can inject fixtures.
 - **The 10C-era dormant weight hooks are LIVE since 10I**:
   - **Tile conditions roll ONCE at `TileMap.__init__(doc, balance, rng=…)`** per
-    `TileConditions.spawn_chances` — every tile EXCEPT BACKGROUND-at-init and the
-    starting unlocked pocket incl. the base (both stay GRASS; a receded-into-play
-    tile stays GRASS forever, prototype-exact). `rng` is BOTH the on-switch and
+    `TileConditions.spawn_chances` — but ONLY for tiles that are IN PLAY at
+    construction, i.e. COMBAT. `rng` is BOTH the on-switch and
     the determinism seam: the host passes module `random` (live) or
     `random.Random(seed)` (tests); **`rng=None` skips the roll entirely** — the
     all-GRASS fixture mode every pre-10I headless test (exact path costs) relies
-    on. Conditions never change during a run.
+    on. A tile's condition never changes once decided.
+    - **A tile that enters play LATER decides its condition then, not at init**
+      (the deferred roll). SPAWNING and BACKGROUND tiles start condition-free —
+      the spawn band is a staging area and reads as plain ground plus trees —
+      and `TileMap._roll_condition`, called from `set_tile_state` on the
+      `→ COMBAT` transition, fires the same weighted draw (plus the variant
+      index) at that moment. So `s → c` AND `f → s → c` both land a real rolled
+      condition. **This REPLACES the old prototype-exact quirk** where a
+      receded-into-play tile stayed GRASS forever. One seam covers every
+      conversion path (designer despawn schedule, retire stage, implicit
+      dual-axis recede) because all of them already route through
+      `set_tile_state`; none of them has its own hook.
+      `Tile.condition_rolled` is the idempotency flag — True once the init roll,
+      a painted mark, or the deferred roll decided the tile, and also for the
+      starting unlocked pocket incl. the base, which is EXEMPT (stays GRASS
+      forever, "so the base is always reachable") rather than pending. It is
+      False for exactly one set: unpainted BACKGROUND/SPAWNING tiles. `rng=None`
+      skips the deferred roll exactly as it skips the init one.
+    - **The map doc's painted `tile_conditions` marks outrank the roll
+      entirely** (`data/CLAUDE.md`; the schema's enum is the single source of
+      the four names, `tiles.py`'s `CONDITION_BY_MAP_KEY` the one name→enum
+      table). They are applied FIRST, **unconditionally and independently of
+      `rng`** — a mark is deterministic authoring, not a draw, so `rng=None`
+      does NOT suppress it (an unpainted doc carries an empty dict, so every
+      existing fixture stays byte-identical). A painted cell is then SKIPPED by
+      the roll loop — that skip is what "locks the tile out of the tile
+      generation process". **A mark wins EVERYWHERE, no exceptions**:
+      BACKGROUND and SPAWNING tiles and the starting unlocked pocket incl. the
+      base take the painted condition too, even though the roll skips all of
+      them — a user-chosen rule, not an oversight. The eligibility rules govern
+      the ROLL; they never governed a designer's explicit mark. A marked cell is
+      `condition_rolled` from the start, so the **deferred** roll cannot
+      overwrite it either: a painted spawn tile carries its condition (weight,
+      modifiers) while it is spawning and keeps exactly that condition after it
+      converts. It is a one-time O(marks) pass (never an O(map) walk) and runs
+      BEFORE the condition-art/variant pass, so painted tiles resolve
+      `condition_slot` with no extra code (a painted BACKGROUND or SPAWNING tile
+      still gets no condition ART — unchanged rule — but carries the condition,
+      so it is correct the instant it converts. It does still draw the
+      `MapOverlays` tint diamond, which keys on `condition`, not on the slot —
+      the designer's mark is visible in the band, the ROLLED band is not).
   - **Conditions have ART since the terrain layer landed, and it is STATE-DRIVEN
     since the per-state restructuring.** `data/slots.json`'s asset-only
     `conditions` category holds it, restructured so each condition type
@@ -77,30 +175,41 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     `Spawning`, 64×96) — `cond_mountain_buildable`, `cond_mountain_built`, …,
     16 slots total. `tiles.py` holds the TWO enum→registry tables this depends
     on: `CONDITION_LABEL` (condition → its top-level group label) and
-    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT/SPAWNING` →
-    their group labels; `BACKGROUND` stays absent — background tiles never get
-    condition art, unchanged rule). `Tile.condition_variant_idx` is the stable
-    index into whichever state-family is currently active.
+    `CONDITION_STATE_LABEL` (`TileState.BUILDABLE/BUILT/COMBAT` → their group
+    labels). **`BACKGROUND` and `SPAWNING` are both ABSENT from that table, and
+    that absence IS the "no condition art" rule** — `_resolve_condition_slot`
+    returns `None` on a missing state label, so one table edit covers the init
+    pass and the live re-resolve alike. For BACKGROUND that is the original
+    rule; for SPAWNING it came with the deferred roll (the band draws plain
+    ground + trees). The four `cond_*_spawning` slots stay first-class editor
+    slots in `data/slots.json`; nothing resolves them at runtime any more.
+    `Tile.condition_variant_idx` is the stable index into whichever
+    state-family is currently active.
     `TileMap.__init__` takes a `registry=` beside `rng=` and stores it
     (`self._registry`) for later: a SECOND pass after the condition roll picks
-    each non-BACKGROUND tile's `condition_variant_idx` (sized against its OWN
+    each in-play tile's `condition_variant_idx` (sized against its OWN
     INITIAL state's family) and resolves `Tile.condition_slot` from
     `(condition, state, variant_idx)` via the pure `_resolve_condition_slot`
-    (`tile_map.py`) — `variant_idx % len(variants)` keeps the index
-    well-defined even when a state's pool is smaller (e.g. Spawning starts with
-    fewer/no imported variants). **`set_tile_state` re-resolves `condition_slot`
+    (`tile_map.py`) — both it and the roll go through the shared
+    `_condition_family(registry, condition, state)`, so the pool an index is
+    SIZED against can never disagree with the pool it is READ from.
+    `variant_idx % len(variants)` keeps the index
+    well-defined even when a state's pool is smaller (e.g. Built carries fewer
+    imported variants than Combat). **`set_tile_state` re-resolves
+    `condition_slot`
     on EVERY transition** (after its existing zone/terrain-override bookkeeping,
     gated on `self._registry is not None and new_state != BACKGROUND`) at that
     SAME variant index against the new state's family — so a tile's art
-    switches LIVE between buildable/built/combat/spawning looks as its zone
+    switches LIVE between buildable/built/combat looks as its zone
     actually changes (a building placed → BUILT, a wave arriving → COMBAT, …),
-    never re-rolling which variant, only which state's slot. One accepted side
-    effect: a tile that starts `BACKGROUND` (skipped by the initial art roll)
-    and later recedes into play via the spawn-band backfill now picks up
-    condition art for the first time when `set_tile_state` fires — previously
-    such tiles stayed slotless forever. **That second init pass is deliberately
-    separate from the roll**: the roll's eligibility rules are prototype-exact
-    gameplay every path-cost fixture depends on, whereas ART covers the
+    never re-rolling which variant, only which state's slot. A tile that starts
+    BACKGROUND or SPAWNING (skipped by the initial art roll) picks up its
+    variant index and its art together with its CONDITION, from
+    `_roll_condition`, on the `→ COMBAT` transition — which runs immediately
+    BEFORE that re-resolve, so the re-resolve sees both.
+    **That second init pass is deliberately
+    separate from the roll**: the roll's eligibility rules are gameplay every
+    path-cost fixture depends on, whereas ART covers the
     starting pocket too (so imported grass art has no hole where the base
     sits). `registry=None` or `rng=None` ⇒ every slot stays `None` ⇒ nothing
     draws, which is the state every headless
@@ -128,8 +237,10 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     on purpose — a third O(map) walk is the explicit perf invariant this
     avoids). `SpawnDeco.tree_chance` (balancing `map` domain) is rolled once
     per tile — including BACKGROUND tiles, since those are exactly what later
-    backfills into SPAWNING via spawn recede and nothing re-rolls them at that
-    point — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
+    joins the band (a designer-painted `spawnable_background` reserve release,
+    or an implicit backfill behind a recede) and nothing re-rolls them at that
+    point; the roll deliberately sits ABOVE the pass's state `continue`, so do
+    not "tidy" it below — into `Tile.spawn_deco_roll`, ONE packed int (`-1` = no tree, else
     `variant_idx * 2 + flip_bit`; no resolved-slot string field, same
     8-bytes-per-tile rationale as `condition_variant_idx`).
     **`spawn_deco.spawn_tree_slots(registry)` is the ONE family definition**,
@@ -182,6 +293,14 @@ Conventions that differ from the prototype (deliberate, clean-arch):
     unreachable, one multi-goal search finds any other reachable one before we
     fall back to the base — a walled-off building can never send the boss home
     early.
+  - **Chunk 4 extracted this choose-then-route-then-fallback body into a
+    shared `_hunt(tilemap, start_col, start_row, goals, footprint,
+    cond_weights)`**, with `nearest_non_base_building_tile` itself thinned
+    into a wrapper over the predicate-free `_nearest_goal_tile(goals,
+    start_col, start_row)` (kept under its original name — tests reference it
+    directly). `find_path_to_nearest_non_base_building` is byte-identical
+    through this refactor; `find_path_to_nearest_economic`/`_defence` (below)
+    are its two new callers.
 - **`_dijkstra` keeps a SEPARATE tentative-`best` map, and that is load-bearing**
   (same reason `_build_flow_field` does — its docstring has the long version).
   It used to guard the relax on `dist`, the **settled** map: `dist.get(node)` is
@@ -195,8 +314,47 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   `test_pathfinder.TestDijkstraReturnsTheRouteItCosted`, which compares the
   returned path's cost against an independent settle-only Dijkstra over 40 random
   pond boards.
-- Still dormant: `find_path_to_nearest_economic` / `_defence` are queried by
-  nothing (raider/siege re-path deferred — see `game/enemies/CLAUDE.md`).
+- **A HUNT IS A PREDICATE OVER `building_type`, nothing more** — the goal set
+  is `_goal_tiles(tilemap, predicate)` and the search is the shared `_hunt`
+  body below. Every category is ONE module-level frozen-vocabulary set at the
+  top of `pathfinder.py`, and a new category is a set + a
+  `find_path_to_nearest_*` wrapper + a `_HUNT_QUERIES` row + the `hunts` schema
+  enum — **never new pathfinding machinery** (NE-0 is the worked example).
+  - `_ECONOMY_BUILDING_TYPES` = `{economic, meditator, painter}`.
+  - **`_ATTACK_BUILDING_TYPES` = `{defence, aoe_defence, storm_priest,
+    sun_scorcher}`. NE-0/D1 WIDENED `find_path_to_nearest_defence` to this**
+    from the single literal `building_type == "defence"`, which had left the
+    three later attack buildings invisible to a defence hunter. It is a
+    **deliberate, user-approved gameplay change to a LIVE type**, not a
+    refactor: `SiegeCannon` ships `hunts: "defence"`, so it hunts all four from
+    its unchanged `start_round: 14` onward.
+  - **`_STRUCTURE_BUILDING_TYPES` = `{blocker, wall_builder, defence,
+    aoe_defence, storm_priest, sun_scorcher}` — the NE-0/D2 `"structure"`
+    category** behind the new `find_path_to_nearest_structure` (same shape as
+    the defence variant, same `_hunt` body): every non-economy, non-boost,
+    non-base building. Written out literally rather than derived from the
+    attack set, so a future attack-capable type must be added to BOTH
+    deliberately. It ships with **no consumer** (the Digger, NE-2, is the
+    first) — landed early on purpose so a predicate mistake surfaces against
+    `SiegeCannon`'s existing coverage rather than a brand-new type's.
+  - The sets partition the roster exactly: structure ∪ economy ∪ the three
+    `boost_*` ∪ `base` is every `BUILDING_TYPE` in `game/buildings`, and
+    attack ⊂ structure. `test_pathfinder.TestHuntCategories` asserts both, and
+    runs each predicate against the WHOLE roster — so a building type no
+    category claims shows up as a failing subtest, not as silent drift.
+- **`find_path_to_nearest_economic` / `_defence` are LIVE (Chunk 4 — was
+  "dormant, queried by nothing")** — armed via `EnemyTypes.<type>.hunts`
+  (`Raider` → `"economic"`, `SiegeCannon` → `"defence"`), dispatched by
+  `game/enemies/components.py`'s `_HUNT_QUERIES` (which gained a `"structure"`
+  row in NE-0). All three now share the same
+  `_hunt` helper `find_path_to_nearest_non_base_building` uses — choose the
+  nearest goal by geometric distance, route by weighted cost, multi-goal
+  fallback if the chosen one is unreachable, base path if no goal exists at
+  all — which is the FIX, not just the activation: before Chunk 4 both went
+  straight through `_find_path_to_goals` alone, i.e. picked by cost, so a
+  cost-cheaper building (e.g. one not ringed by pond) could beat a
+  geometrically-nearer one. See `game/enemies/CLAUDE.md`'s prey-hunting
+  section for the per-type wiring.
 - **`find_path_to_nearest_spawn(tilemap, start_col, start_row, footprint=1)`
   is the kidnapper's route home (Art/enemies)** — goal set is every
   `tilemap.spawning_tiles()`, `[]` when there is none / none reachable (the
@@ -221,8 +379,60 @@ Conventions that differ from the prototype (deliberate, clean-arch):
   each alive builder's snapshot to full HP) are driven by the payday slots;
   `damage_wall` (enemy attack) deletes an edge at hp≤0. The map layer stays
   IMPORT-FREE of `game.buildings` — it DUCK-TYPES the builder (`wall_hp()` /
-  `wall_snapshot()` / `set_wall_snapshot()` / `building_type` / `alive`), same as it
-  already duck-types occupants.
+  `wall_snapshot()` / `set_wall_snapshot()` / `building_type` / `alive` /
+  `wall_slot()`), same as it already duck-types occupants.
+  - **`wall_render.py` is the ONE wall-art emitter** (pure, the `conditions.py`
+    sibling): `wall_render_items(tile_map, col_min, col_max, row_min, row_max,
+    art_slots, anim_time_ms)` → `RenderItem`s on the **`terrain`** layer, one per
+    EDGE, positioned on the PLAYER tile (`(edge.col_a, edge.row_a)` — both
+    `place_walls_for_builder` and the `rebuild_walls` snapshot store the player
+    tile first; `_wall_key` normalises only the dict KEY, never the dataclass
+    fields). Slot = `edge.owner.wall_slot()` (duck-typed); animation row =
+    `SIDE_OF_DELTA[(dcol, drow)]`, the `walls` category's four
+    `edge_se`/`edge_sw`/`edge_nw`/`edge_ne` rows. Same E-37 `art_slots` gating
+    as condition art — an un-imported wall tier emits NOTHING, never a grey X.
+    Several edges on one tile emit several items (different animation rows of
+    the SAME slot) — a corner tile really is walled on two sides.
+    **Wall-era-art feature**: it tries the owner's optional
+    `edge.owner.wall_era_slot()` FIRST (the frozen era-stamped key —
+    `game/buildings/structure.py`/`game/core/wall_era.py`) and falls back to
+    `wall_slot()` whenever the era slot has no imported art (absent from
+    `art_slots`, or the owner carries no such method at all — headless test
+    stubs included) — same E-37 gating, never a special case for "no era
+    stamped" (`wall_era_slot()` itself returns `None` then).
+    - **It deliberately DIFFERS from `conditions.py` in two ways, both
+      load-bearing.** (1) It iterates `tile_map.wall_edges.values()` and filters
+      to the window instead of walking the window's tiles: `wall_edges` is
+      PERIMETER-sized (tens to low hundreds even on 1024²), so this is strictly
+      cheaper than the per-tile scan and still honours the no-full-map-scans
+      invariant — do not "fix" it into a grid scan. (2) NO per-cell animation
+      phase jitter: a wall is one continuous structure and must animate in
+      lockstep, so `anim_time_ms` passes straight through.
+    - **`SIDE_OF_DELTA` and `edge_world_points` are DERIVED from
+      `engine/coords/system.py`, and the derivation is in the module
+      docstring.** With `ix=(wx−wy)·tile_w/2`, `iy=(wx+wy)·tile_h/2`:
+      `(+1,0)`=down-right=`edge_se`, `(0,+1)`=down-left=`edge_sw`,
+      `(−1,0)`=up-left=`edge_nw`, `(0,−1)`=up-right=`edge_ne`. **The
+      prototype's comments call `(0,+1)` "NE" — WRONG for this repo's coord
+      authority; never "fix" the table back to it.** `edge_world_points`
+      returns the two shared diamond corners in WORLD TILE UNITS (what
+      `submit_overlay_lines` consumes), COMPUTED from the delta rather than
+      from a second lookup table, so it and `SIDE_OF_DELTA` cannot disagree;
+      `None` for a non-adjacent pair.
+- **`TileMap.moving_orders` + `is_moving(col, row)` (Building Movement)**: a
+  plain list of buildings currently IN TRANSIT between two tiles. Entries are
+  duck-typed `types.SimpleNamespace`s (`building` / `from_col` / `from_row` /
+  `to_col` / `to_row` / `rounds_left`) built by `game/buildings/movement.py`
+  and ticked down by payday — **this module imports NOTHING from
+  `game.buildings`**, exactly as `wall_edges` duck-types its `owner`.
+  **Both endpoints of a live order stay ordinary `BUILDABLE` tiles with no
+  occupant**, so they resolve to the `buildable_tile` weight and enemies walk
+  straight through them; `is_moving` is the ONLY thing that distinguishes
+  them, and its one consumer-facing job is barring a new building from either
+  (enforced in `game/buildings/registry.py place_building`, not here). A new
+  `TileState` member was deliberately rejected for this — see
+  `game/buildings/CLAUDE.md`'s Building Movement section for why. O(orders),
+  and orders are a handful at most, so this adds nothing to any hot path.
 - **Occupancy is occupant-driven and updated incrementally**: a tile with a
   GameObject occupant is mirrored into `engine.physics.TileOccupancy` (BACKGROUND
   impassability is a weight concern, not occupancy). Placement seams
@@ -282,15 +492,44 @@ Tile-state writes MUST route through `TileMap.set_tile_state` (keeps the
 forward walker would enter, so field distances equal forward costs exactly),
 keyed by `TileMap._path_version`. Since ER-2 the field is **footprint-aware**
 and the per-version cache is keyed on **`(ignore_walls, footprint)`** — so the
-invariant is now **ONE Dijkstra per topology change PER FOOTPRINT, never one per
-enemy**. EVERY weight/blocking mutation must bump the
+invariant was **ONE Dijkstra per topology change PER FOOTPRINT, never one per
+enemy**.
+
+**Chunk 3 (weight profiles) extends the key to `(ignore_walls, footprint,
+profile_key)`** — the invariant is now **one Dijkstra per topology change PER
+(footprint, weight profile), still never one per enemy**. Every `find_path*`
+query takes an optional trailing `cond_weights` (a caller's own `{forest,
+mountain, pond}` mapping, e.g. `EnemyTypes.<type>.condition_path_weights`);
+`profile_key` is `None`, or the hashable `(forest, mountain, pond)` tuple
+`_ensure_flow_field` derives from it for the cache key (a dict is not
+hashable, so the tuple — not the dict — is what collapses identical profiles
+onto one key). At most a handful of distinct profiles ever exist (one per
+enemy type, not one per enemy instance), and every shipped
+`condition_path_weights` is seeded equal to the map's own
+`TileConditions.path_weights`, so today every type still shares ONE field —
+measured: `test_pathfinder.py`'s `TestWeightProfileSharing` spawns two
+enemies with identical (default) profiles and asserts the tilemap's
+`_flow_cache` holds exactly one entry for their shared `(ignore_walls,
+footprint)` pair. EVERY weight/blocking mutation must bump the
 counter: `set_tile_state`, `set_tile_content` (the ONE occupant/content-key
 seam — never write `tile.occupant`/`tile.content_key` directly from outside
 the map layer), wall add/remove/death (mid-HP wall hits don't bump —
-`_wall_blocks` is hp>0), and the two pre-query weight producers, which
-change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev`)
-and bump only on a real difference. Goal-set `find_path_to_nearest_*` variants
-stay fresh Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
+`_wall_blocks` is hp>0), and the THREE pre-query weight producers, which
+change-detect their flag sets (`_dmg_reduced_prev` / `_defence_covered_prev` /
+`_overwrite_prev`) and bump only on a real difference. **`_overwrite_prev`
+(buildings-overwrite-tileweights rework) is a NEW hazard, not a cosmetic
+addition**: before this rework a building's `content_key` survived its death
+untouched, so nothing about a death ever changed its tile's weight and no bump
+was needed; now the occupant's `alive` flag is itself part of the weight
+calculation (see the weight-composition bullet above), so a building dying
+changes its tile's weight and `TileMap.refresh_building_overwrite_flags` —
+wired into `pathfinder._pre_query_refresh` via the same guarded `getattr` style
+as the other two producers — is what catches it. It short-circuits to a no-op
+scan when no overwrite can ever be active under the current balancing (master
+switch off, every per-building override off, every per-condition override
+off), so a headless fixture with the feature off pays nothing beyond one bool
++ two dict reads. Goal-set `find_path_to_nearest_*` variants stay fresh
+Dijkstras. Full rationale + measured numbers → `game/PERF.md`.
 
 ## Verify
 Unlock-chunk fixture asserts receded tiles + costs match prototype; spawn→base

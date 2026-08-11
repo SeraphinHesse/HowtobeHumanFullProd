@@ -38,9 +38,24 @@ else.
   the list is a function of slots.json ∩ `data/balancing/*.json`, never a
   hardcoded constant.
 - Pure helpers used by panels: `selection.py`, `map_session.py`, `tilemap_ops.py`,
-  `registry_ops.py`, `asset_import.py`, `agent_forms.py`, `theme_ops.py` (UH-6:
-  fonts/palette load-validate-write, `panels/game_theme.py`'s home) — all
+  `registry_ops.py`, `asset_import.py`, `agent_forms.py`, `theme_ops.py` (UH-6/
+  UH-Font-A: fonts/palette/font_manifest/active_font load-validate-write,
+  `panels/game_theme.py`'s home), `timeline_curve.py` (TimelinePLAN T3/D7 —
+  the Timeline panel's best-case XP-curve calculator; a deliberately
+  duplicated twin of `game/core/xp_curve.py`, since this package may never
+  import `game/`; pinned equal by a cross-package drift test), `timeline_ops.py`
+  (TimelinePLAN T5 — `progression.json` load/assign/clear/add/remove/save,
+  enforcing the two uniqueness invariants JSON Schema can't express) — all
   Qt-free/pygame-free, in `TestPurity`.
+  `font_import.py` (UH-Font-A: custom .ttf/.otf import, mirrors
+  `asset_import.py`'s shape) is Qt-free and in `TestPurity` too, but — like
+  `asset_import.py` uses Pillow — it uses pygame for a format-validation
+  probe (`pygame.font.Font(path, 12)`), not rendering; ED-22 is unaffected.
+  `widget_tree.py` (UiEditorParentingPLAN P-1 — the screen-mode widget
+  HIERARCHY resolver: `resolve_parent`/`parent_map`/`build_tree`/
+  `descendants`/`ancestors`/`would_cycle`/`legal_parents` over
+  `screen_defaults.json`'s optional `parent` key plus the open doc's own
+  re-parenting override) is stdlib-only and in `TestPurity` too.
 - `ui_screen_session.py` — `UIScreenSession`, screen mode's session (B4, §
   below); Qt-only (a `QUndoStack`), no game imports, in `TestPurity`.
 
@@ -119,6 +134,26 @@ undo routing). Panel-level rendering/interaction detail lives in
   is ABSENT, never JSON `null` — and clearing prunes now-empty parent
   containers so a fully-reset widget disappears from the doc rather than
   lingering as `{}`).
+- **Widget PARENTING (UiEditorParentingPLAN) is an AUTHORING relationship,
+  not a runtime one.** The hierarchy is DATA — an optional `parent` per
+  widget in `data/ui/screen_defaults.json` (authored by the exporter) plus an
+  optional `parent` override per widget in `data/ui/screens/<id>.json` (the
+  designer's own re-parenting, D3). **Nothing in `game/` reads either.**
+  Moving a parent cascades at EDIT time and writes updated ABSOLUTE rects for
+  the whole subtree in ONE undo command, so the game's documented "no
+  cascade" convention (`game/ui/CLAUDE.md`) and its flat `setattr` apply loop
+  are untouched. Resizing does NOT cascade. Visibility inherits in the
+  editor PREVIEW only. Panel-level detail (the outliner tree, the drag,
+  the cascade, the hidden-by-parent note) lives in `editor/panels/CLAUDE.md`;
+  the pure resolver is `editor/widget_tree.py`.
+  - **`push_field` has ONE sentinel, and only this key needs it.** Every
+    push_* method spends `None` on "no override — the key is ABSENT", but
+    `parent` has a THIRD state: an explicit JSON `null` meaning "the designer
+    rejected the default parent; this widget is a root". `ui_screen_session`
+    exports `NO_PARENT` (a deepcopy-stable singleton `_apply_field` writes as
+    a real null) and `parent_override(widget_override)`, the ONE accessor
+    that reads the three states apart. A caller that reads
+    `override["parent"]` directly will silently turn a re-root into a no-op.
 - **Window-level undo/redo now ROUTES**: `MainWindow._on_undo`/`_on_redo`
   target `screen_session.undo_stack` while in screen mode, else
   `map_session.undo_stack` (`_active_undo_stack`) — Ctrl+Z/Y work across mode
@@ -235,6 +270,43 @@ Phase-8's narrative is in `PLAN.md`; the plan is `planning/completed plans/Agent
 - Panel-local `setStyleSheet` colors (the balancing dirty dot, the map-details
   warning banner) are deliberately theme-independent — keep any new hardcoded
   color legible on BOTH backgrounds, or read it from the palette.
+
+## VFX preview (`panels/vfx_preview.py`, ESV-4) — a second `Renderer`, still ED-22
+
+`VfxPreviewPanel` builds its OWN `load_coordinate_system` + `AssetStore` +
+`Renderer` + offscreen `pygame.Surface`, structurally copying
+`ViewportPanel.__init__`/`_build_store`/`render_frame` (see `editor/panels/
+CLAUDE.md` for the panel's own architecture). **A second `Renderer` instance
+is not a second render path.** ED-22 bans a second QPainter-drawn surface of
+game content, not a second orchestrator object — everything the preview
+draws goes out as the same `HudRect`/`HudLines`/overlay primitives
+`engine.vfx.VfxSystem` submits for the real game, through the SAME
+`engine/render` backend. `panels/sheet_preview.py` already sanctioned this
+reading (see the panels doc); the vfx preview is the second precedent.
+
+Layering: `engine.vfx`'s emitters take injected params + an injected RNG
+specifically so `editor/` can drive the SAME emitter the game does without
+either package importing the other (D5). Since `editor/` may never import
+`game/`, the JSON-key -> dataclass adapter game/ui/effects.py owns
+(`_params_from_balance`) is DUPLICATED as `editor/vfx_params.py` — a
+deliberate, reported drift, precedented by `editor/panels/
+_screen_primitives.py` re-implementing `game/ui`'s unskinned widget look for
+the same reason. Do not resolve the duplication by importing `game.ui.effects`
+or by moving the mapping into `engine/vfx` (that would give the engine
+package JSON vocabulary, which D5 exists to prevent).
+
+**ESV-6 forced a real (not cosmetic) edit here**, despite that phase's brief
+expecting none: `engine.vfx.VfxParams` gained a new REQUIRED field
+(`floaters`, no defaults anywhere in that module, G-7), so every direct
+`VfxParams(...)` construction needed a `floaters=` argument — including this
+file's `params_from_balance`, which `vfx_preview.py:442` calls on every
+family switch. Without the matching `floater_params(fl)` helper here, the
+panel would raise `TypeError` the instant a designer opened the vfx preview
+(confirmed live, not inferred: `TypeError: VfxParams.__init__() missing 1
+required positional argument: 'floaters'`). `floaters` still carries no
+preview LEVER of its own — `vfx_preview.py`'s `_EMIT_FAMILIES`/graceful-
+degrade placeholder for it is unchanged — this is purely what keeps the
+dataclass constructible for every OTHER family's preview.
 
 ## Testing the editor — two rules, both learned the hard way
 

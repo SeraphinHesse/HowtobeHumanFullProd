@@ -87,6 +87,42 @@ O(path-length) walk down the resulting next-step tree.
   one-build cache reuse, invalidation through every mutation seam) plus the
   existing exact-cost path tests running unchanged on the field.
 
+### Weight profiles (Chunk 3) — the cache key grows a third component
+Every `EnemyTypes.<type>` block now carries its own `condition_path_weights`
+(`{forest, mountain, pond}`), threaded through every `find_path*` query as an
+optional trailing `cond_weights` (`None` = the map's own
+`TileConditions.path_weights`, today's byte-identical default). This is a
+PER-TYPE profile, not per-instance — so it could in principle balloon the
+flow-field cache from one field to "one per enemy type", which would violate
+the invariant above if types diverged freely. Two things keep it from doing
+so:
+- **The cache key is `(ignore_walls, footprint, profile_key)`**, where
+  `profile_key` is `None` or the hashable `(forest, mountain, pond)` tuple
+  `_ensure_flow_field` derives from `cond_weights` (a dict is not hashable, so
+  the tuple — not the dict — is what two callers with numerically identical
+  profiles collapse onto: they hash and compare equal even though they are
+  different dict objects).
+- **Every shipped profile is seeded IDENTICAL to the map default**
+  (forest 1 / mountain 2 / pond 9, matching `map.json`'s
+  `TileConditions.path_weights`) — so today, despite five enemy types each
+  carrying their own copy of the knob, every one of them still shares exactly
+  ONE cached field. **Measured, not assumed**:
+  `test_pathfinder.py::TestWeightProfileSharing` spawns two enemies (a
+  Standard and a Raider — different `hunts`, identical `condition_path_
+  weights`) on the same tilemap and asserts `tilemap._flow_cache[1]` holds
+  exactly one entry for the `(False, 1)` `(ignore_walls, footprint)` pair
+  they both query, after both have triggered `find_path`/the hunt query at
+  least once.
+- **The bound on distinct fields is "number of distinct
+  `condition_path_weights` profiles a designer actually authors" (at most
+  one per enemy TYPE — five today), never "number of enemies on the board"**
+  — a wave of 300 raiders sharing one `Raider.condition_path_weights` still
+  pays for exactly one Raider-profile field, built once and reused by every
+  raider in the wave (and, since the seed matches the map default, that one
+  field is itself the SAME field the walkers/siege/boss already share). A
+  future retune that diverges one type's weights from another's adds at most
+  one more field, still O(distinct profiles), not O(enemies).
+
 ## Large-map GC
 A big map builds one `Tile` per cell (a 1024² map = ~1M long-lived objects). Left
 alone, Python's cyclic GC periodically walks that whole static grid (an 80–140 ms

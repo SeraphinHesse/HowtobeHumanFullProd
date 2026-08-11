@@ -12,8 +12,23 @@ PAINT MODES (user-directed):
   "Var 2", …), so a specific variant is armed and stored in the map file.
   "+ Variant" adds another variant to the current type; "+ Add Prop" adds a
   brand-new type.
+- **Spawnable Background** — ONE brush (plain text, NO sprite: a mark is an
+  invisible overlay, not a tile kind) plus a spinbox for the STAGE NUMBER
+  the marks it paints carry. Every mark numbered n releases together when the
+  run's stage counter reaches n; the underlying forest/cliff/ocean art keeps
+  drawing and the game never sees the mark as a legend code.
+- **Stage Zones** — the same one-brush-plus-a-number shape again, painted on
+  COMBAT tiles: buying a 2×2 that intersects the painted set advances the
+  run's stage counter to the highest number among those four tiles, which is
+  the ONLY thing that fires the two batches above.
+- **Tile Conditions** — the fourth invisible overlay, and the first whose brush
+  value is a NAME rather than a number: one brush button per condition name,
+  built from `map_file.schema.json`'s own enum via
+  `engine.tilemap.condition_codes_from_schema` (adding a fifth condition is a
+  schema edit and nothing else — the names are never hardcoded here). A marked
+  cell always has that condition and is excluded from the random roll.
 
-A single exclusive brush group spans all three mode pages, so exactly one brush
+A single exclusive brush group spans all mode pages, so exactly one brush
 is armed at a time. The tool row (none/paint/erase/line/rect/bucket/picker), the
 layer eyes, the grid toggle, and "Import Spritesheet…" are shared across modes.
 
@@ -41,18 +56,26 @@ from PySide6.QtWidgets import (
 )
 
 from editor.asset_import import import_idle_sheet
-from editor.panels.balancing import _NoWheelComboBox
+from editor.panels.balancing import _NoWheelComboBox, _NoWheelSpinBox
+from engine import data_io, tilemap
 from engine.assets import load_registry
 
 REPO = Path(__file__).resolve().parents[2]
 
 TOOLS = ("none", "paint", "erase", "line", "rect", "bucket", "picker")
-EYES = ("terrain", "tint", "base", "deco", "camera", "start_area")
-MODES = ("gametiles", "background", "decoration")
+EYES = ("terrain", "tint", "base", "deco", "camera", "start_area", "tutorial",
+        "spawn_reserve", "despawnable_spawn", "stage_zones", "tile_conditions")
+MODES = ("gametiles", "background", "decoration", "tutorial", "spawn_reserve",
+         "despawnable_spawn", "stage_zones", "tile_conditions")
 MODE_LABELS = {
     "gametiles": "Game tiles",
     "background": "Background",
     "decoration": "Decoration",
+    "tutorial": "Tutorial",
+    "spawn_reserve": "Spawnable Background",
+    "despawnable_spawn": "Despawnable Spawn",
+    "stage_zones": "Stage Zones",
+    "tile_conditions": "Tile Conditions",
 }
 
 
@@ -69,6 +92,15 @@ class PalettePanel(QWidget):
     base_armed = Signal(str)     # the base/hole slot (now a paintable brush)
     camera_armed = Signal(str)   # the camera-startpoint slot (paintable brush)
     start_area_armed = Signal(str)  # the 2×2 starting-area slot (paintable brush)
+    tutorial_flute_armed = Signal(str)  # the "first flute" marker slot
+    tutorial_stone_armed = Signal(str)  # the "first stone" marker slot
+    spawn_reserve_armed = Signal()      # the spawnable-background brush (no slot)
+    reserve_number_changed = Signal(int)  # the stage number marks carry
+    despawn_armed = Signal()            # the despawnable-spawn brush (no slot)
+    despawn_number_changed = Signal(int)  # the stage number marks carry
+    stage_armed = Signal()              # the stage-zone brush (no slot)
+    stage_number_changed = Signal(int)  # the stage number marks carry
+    tile_condition_armed = Signal(str)  # the condition NAME the brush paints
     eye_toggled = Signal(str, bool)
     grid_toggled = Signal(bool)
     manifest_changed = Signal(str)   # a slot got a fresh import (ED-40 parity)
@@ -88,6 +120,11 @@ class PalettePanel(QWidget):
         self._mode = "gametiles"
         # ("code"|"deco"|"base", key) -> QToolButton, spanning all mode pages
         self._brush_buttons = {}
+        # condition NAME -> QToolButton (Tile Conditions page). Kept OUT of
+        # _brush_buttons for the same reason the three overlay-mark brushes are
+        # not in it: that dict drives refresh_icons()/_armed_slot(), both of
+        # which need a registry SLOT, and a condition name is not one.
+        self._condition_buttons = {}
         # keybind labels (ED settings panel) — set via set_tool_keybinds /
         # set_brush_keybinds; empty until MainWindow supplies the real values
         self._tool_keybinds = {}
@@ -184,15 +221,108 @@ class PalettePanel(QWidget):
         self._deco_flip_box.toggled.connect(self.deco_flip_toggled.emit)
         self._pages["decoration"][2].addWidget(self._deco_flip_box)
 
+        # spawnable-background page: ONE plain-text brush (no sprite — the mark
+        # is an invisible overlay, like the tutorial markers which also draw as
+        # outlines) in the SAME exclusive group as every other brush, with the
+        # stage-number spinbox directly under it.
+        reserve_layout = self._pages["spawn_reserve"][2]
+        self._spawn_reserve_btn = QToolButton(self)
+        self._spawn_reserve_btn.setText("Spawn Reserve Mark")
+        self._spawn_reserve_btn.setToolTip(
+            "Paint invisible spawnable-background marks: every mark numbered n "
+            "turns SPAWNING when the run reaches stage n")
+        self._spawn_reserve_btn.setCheckable(True)
+        self._spawn_reserve_btn.clicked.connect(
+            lambda _=False: self.arm_spawn_reserve())
+        self._brush_group.addButton(self._spawn_reserve_btn)
+        reserve_layout.addWidget(self._spawn_reserve_btn)
+
+        reserve_layout.addWidget(QLabel("Released at stage #"))
+        lo, hi = self._reserve_number_bounds()
+        self._reserve_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._reserve_spin.setRange(lo, hi)
+        self._reserve_spin.setValue(lo)
+        self._reserve_spin.valueChanged.connect(self.reserve_number_changed.emit)
+        reserve_layout.addWidget(self._reserve_spin)
+
+        # despawnable-spawn page: the exact twin of the page above, over the
+        # despawnable_spawn overlay (SPAWNING -> COMBAT at stage n).
+        despawn_layout = self._pages["despawnable_spawn"][2]
+        self._despawn_btn = QToolButton(self)
+        self._despawn_btn.setText("Spawn Despawn Mark")
+        self._despawn_btn.setToolTip(
+            "Paint invisible despawnable-spawn marks: every mark numbered n "
+            "turns from SPAWNING to COMBAT when the run reaches stage n")
+        self._despawn_btn.setCheckable(True)
+        self._despawn_btn.clicked.connect(
+            lambda _=False: self.arm_despawn())
+        self._brush_group.addButton(self._despawn_btn)
+        despawn_layout.addWidget(self._despawn_btn)
+
+        despawn_layout.addWidget(QLabel("Retired at stage #"))
+        lo, hi = self._despawn_number_bounds()
+        self._despawn_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._despawn_spin.setRange(lo, hi)
+        self._despawn_spin.setValue(lo)
+        self._despawn_spin.valueChanged.connect(self.despawn_number_changed.emit)
+        despawn_layout.addWidget(self._despawn_spin)
+
+        # stage-zones page: the third page of exactly this shape, over the
+        # stage_zones overlay. Painted on COMBAT tiles; buying a 2×2 that
+        # intersects the painted set advances the run's stage counter to the
+        # HIGHEST number among those four tiles.
+        stage_layout = self._pages["stage_zones"][2]
+        self._stage_btn = QToolButton(self)
+        self._stage_btn.setText("Stage Zone Mark")
+        self._stage_btn.setToolTip(
+            "Paint invisible stage-zone marks on combat tiles: buying a 2×2 "
+            "that intersects them advances the run to the highest stage among "
+            "the four bought tiles")
+        self._stage_btn.setCheckable(True)
+        self._stage_btn.clicked.connect(
+            lambda _=False: self.arm_stage())
+        self._brush_group.addButton(self._stage_btn)
+        stage_layout.addWidget(self._stage_btn)
+
+        stage_layout.addWidget(QLabel("Advances to stage #"))
+        lo, hi = self._stage_number_bounds()
+        self._stage_spin = _NoWheelSpinBox(self)   # ED-30, never a bare QSpinBox
+        self._stage_spin.setRange(lo, hi)
+        self._stage_spin.setValue(lo)
+        self._stage_spin.valueChanged.connect(self.stage_number_changed.emit)
+        stage_layout.addWidget(self._stage_spin)
+
+        # tile-conditions page: the fourth overlay page, but its brush value is
+        # a NAME, not a number — so instead of a spinbox it carries ONE
+        # plain-text brush per condition, all in the SAME exclusive brush group
+        # (the gametiles/background idiom), which is also what makes the
+        # eyedropper's return path a plain re-check of the matching button.
+        condition_layout = self._pages["tile_conditions"][2]
+        for name in self._condition_names():
+            btn = QToolButton(self)
+            btn.setText(name.title())
+            btn.setToolTip(
+                f"Paint invisible {name} marks: a marked cell ALWAYS has the "
+                f"{name} condition and is excluded from the random condition "
+                "roll")
+            btn.setCheckable(True)
+            btn.clicked.connect(
+                lambda _=False, n=name: self.arm_tile_condition(n))
+            self._brush_group.addButton(btn)
+            self._condition_buttons[name] = btn
+            condition_layout.addWidget(btn)
+
         self._rebuild_deco_types()   # also builds the deco variant brushes
         self._rebuild_gametiles()
         self._rebuild_background()
+        self._rebuild_tutorial()
 
         # -- layer eyes + grid (shared) ---------------------------------------
         layout.addWidget(QLabel("Layers"))
         self._eye_boxes = {}
         for name in EYES:
-            box = QCheckBox(name.replace("_", " ").title(), self)
+            box = QCheckBox(
+                MODE_LABELS.get(name, name.replace("_", " ").title()), self)
             box.setChecked(True)
             box.toggled.connect(
                 lambda on, n=name: self.eye_toggled.emit(n, on))
@@ -248,6 +378,50 @@ class PalettePanel(QWidget):
             return list(self._registry.group_slots("core", ("Start Area",)))
         except (KeyError, ValueError):
             return []
+
+    def _tutorial_flute_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Flute",)))
+        except (KeyError, ValueError):
+            return []
+
+    def _tutorial_stone_slots(self):
+        try:
+            return list(self._registry.group_slots("core", ("Tutorial Stone",)))
+        except (KeyError, ValueError):
+            return []
+
+    def _stage_bounds(self, property_key):
+        """(minimum, maximum) for one overlay's stage-number spinbox, read
+        straight from map_file.schema.json's own item property — invalid input
+        is unrepresentable (ED-30) and the bounds have exactly one home. The
+        on-disk key is ``stage``, not ``purchase``: the number is a designer
+        STAGE, advanced only by buying into a stage zone."""
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        stage = (schema["properties"][property_key]
+                 ["items"]["properties"]["stage"])
+        return stage["minimum"], stage["maximum"]
+
+    def _reserve_number_bounds(self):
+        """Bounds for the spawnable-background stage spinbox."""
+        return self._stage_bounds("spawnable_background")
+
+    def _despawn_number_bounds(self):
+        """Bounds for the despawnable-spawn stage spinbox."""
+        return self._stage_bounds("despawnable_spawn")
+
+    def _stage_number_bounds(self):
+        """Bounds for the stage-zone spinbox."""
+        return self._stage_bounds("stage_zones")
+
+    def _condition_names(self):
+        """The tile-condition names, in schema order — straight out of
+        map_file.schema.json's own enum (the SINGLE source of that vocabulary,
+        same "schemas over convention" reason the stage bounds come from the
+        schema). Never a hardcoded list: a fifth condition is a schema edit and
+        nothing else."""
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return list(tilemap.condition_codes_from_schema(schema))
 
     def _zone_codes(self):
         """Legend codes for the zone (checker) tiles, sorted."""
@@ -332,6 +506,12 @@ class PalettePanel(QWidget):
             btn.clicked.connect(lambda _=False, v=value: self.arm_camera(v))
         elif kind == "start_area":
             btn.clicked.connect(lambda _=False, v=value: self.arm_start_area(v))
+        elif kind == "tutorial_flute":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_flute(v))
+        elif kind == "tutorial_stone":
+            btn.clicked.connect(
+                lambda _=False, v=value: self.arm_tutorial_stone(v))
         elif kind == "bgslot":
             btn.clicked.connect(
                 lambda _=False, v=value: self.arm_background_slot(v))
@@ -393,6 +573,27 @@ class PalettePanel(QWidget):
             self._add_brush_button(page_layout, key, label, i)
         self.refresh_icons()
 
+    def _rebuild_tutorial(self):
+        """Two STATIC single-tile marker brushes (not legend-derived, unlike
+        _rebuild_gametiles) — "First Flute" and "First Stone"."""
+        _title_w, _page, page_layout = self._pages["tutorial"]
+        for key in [k for k in self._brush_buttons
+                    if k[0] in ("tutorial_flute", "tutorial_stone")]:
+            btn = self._brush_buttons.pop(key)
+            self._brush_group.removeButton(btn)
+            page_layout.removeWidget(btn)
+            btn.deleteLater()
+        idx = 0
+        for slot in self._tutorial_flute_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_flute", slot), "First Flute", idx)
+            idx += 1
+        for slot in self._tutorial_stone_slots():
+            self._add_brush_button(
+                page_layout, ("tutorial_stone", slot), "First Stone", idx)
+            idx += 1
+        self.refresh_icons()
+
     def _rebuild_deco_types(self):
         """Repopulate the Type: combo from the registry, keeping the current
         type selected when it survived a reload."""
@@ -452,6 +653,7 @@ class PalettePanel(QWidget):
         self._legend = legend
         self._rebuild_gametiles()
         self._rebuild_background()
+        self._rebuild_tutorial()
 
     def reload_registry(self):
         """Re-read data/slots.json after a '+ Add Prop' / '+ Variant' / '+ Level'
@@ -459,6 +661,7 @@ class PalettePanel(QWidget):
         self._registry = load_registry(self._data_dir)
         self._rebuild_gametiles()
         self._rebuild_deco_types()
+        self._rebuild_tutorial()
 
     def set_icon_provider(self, provider):
         """provider(slot_key) -> QImage of the engine-resolved idle frame."""
@@ -511,6 +714,20 @@ class PalettePanel(QWidget):
                     self.arm_code(key[1])
                 else:
                     self.arm_background_slot(key[1])
+        elif self._mode == "tutorial":
+            flutes = self._tutorial_flute_slots()
+            if flutes:
+                self.arm_tutorial_flute(flutes[0])
+        elif self._mode == "spawn_reserve":
+            self.arm_spawn_reserve()
+        elif self._mode == "despawnable_spawn":
+            self.arm_despawn()
+        elif self._mode == "stage_zones":
+            self.arm_stage()
+        elif self._mode == "tile_conditions":
+            names = list(self._condition_buttons)
+            if names:
+                self.arm_tile_condition(names[0])
         else:
             decos = self._deco_slots()
             if decos:
@@ -598,6 +815,73 @@ class PalettePanel(QWidget):
                 return value
         return None
 
+    def armed_tutorial_flute(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_flute" and btn.isChecked():
+                return value
+        return None
+
+    def armed_tutorial_stone(self):
+        for (kind, value), btn in self._brush_buttons.items():
+            if kind == "tutorial_stone" and btn.isChecked():
+                return value
+        return None
+
+    def armed_spawn_reserve(self):
+        """True while the Spawnable Background brush is armed. Follows the
+        armed_tutorial_stone pattern, but the brush has no SLOT to return (a
+        mark is an overlay, not a sprite), so the answer is a bool."""
+        return self._spawn_reserve_btn.isChecked()
+
+    def reserve_number(self):
+        """The stage number newly painted marks carry."""
+        return self._reserve_spin.value()
+
+    def set_reserve_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        code_picked -> arm_code). Out-of-range values clamp in QSpinBox."""
+        self._reserve_spin.setValue(int(n))
+
+    def armed_despawn(self):
+        """True while the Despawnable Spawn brush is armed — the exact twin of
+        armed_spawn_reserve (a bool, not a slot: a mark is an overlay, not a
+        sprite)."""
+        return self._despawn_btn.isChecked()
+
+    def despawn_number(self):
+        """The stage number newly painted despawn marks carry."""
+        return self._despawn_spin.value()
+
+    def set_despawn_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        set_reserve_number). Out-of-range values clamp in QSpinBox."""
+        self._despawn_spin.setValue(int(n))
+
+    def armed_stage(self):
+        """True while the Stage Zones brush is armed — the exact twin of
+        armed_despawn (a bool, not a slot: a mark is an overlay, not a
+        sprite)."""
+        return self._stage_btn.isChecked()
+
+    def stage_number(self):
+        """The stage number newly painted stage-zone marks carry."""
+        return self._stage_spin.value()
+
+    def set_stage_number(self, n):
+        """Write the spinbox (the viewport's eyedropper return path — mirrors
+        set_despawn_number). Out-of-range values clamp in QSpinBox."""
+        self._stage_spin.setValue(int(n))
+
+    def armed_tile_condition(self):
+        """The condition NAME the armed brush paints, or None. Unlike the three
+        overlay-mark brushes (which answer a bool — one brush each), this page
+        has one button PER name, so the armed brush carries a value again, like
+        armed_code."""
+        for name, btn in self._condition_buttons.items():
+            if btn.isChecked():
+                return name
+        return None
+
     def arm_code(self, code):
         btn = self._brush_buttons.get(("code", code))
         if btn is None:
@@ -647,6 +931,59 @@ class PalettePanel(QWidget):
         btn.setChecked(True)
         self.start_area_armed.emit(slot)
 
+    def arm_tutorial_flute(self, slot):
+        """Arm the First Flute brush (paint = place/move the single "first
+        flute" marker, erase = remove it — viewport._tool_press). Clears any
+        other armed brush, INCLUDING the sibling First Stone brush."""
+        btn = self._brush_buttons.get(("tutorial_flute", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_flute_armed.emit(slot)
+
+    def arm_tutorial_stone(self, slot):
+        """Arm the First Stone brush (paint = place/move the single "first
+        stone" marker, erase = remove it — viewport._tool_press). Clears any
+        other armed brush, INCLUDING the sibling First Flute brush."""
+        btn = self._brush_buttons.get(("tutorial_stone", slot))
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tutorial_stone_armed.emit(slot)
+
+    def arm_spawn_reserve(self):
+        """Arm the Spawnable Background brush (paint = mark with the spinbox's
+        number, erase = clear the mark). Shares the one exclusive brush group,
+        so this disarms EVERY other brush, tutorial markers included."""
+        self._spawn_reserve_btn.setChecked(True)
+        self.spawn_reserve_armed.emit()
+
+    def arm_despawn(self):
+        """Arm the Despawnable Spawn brush (paint = mark with the spinbox's
+        number, erase = clear the mark). Shares the one exclusive brush group,
+        so this disarms EVERY other brush, the spawn-reserve mark included."""
+        self._despawn_btn.setChecked(True)
+        self.despawn_armed.emit()
+
+    def arm_stage(self):
+        """Arm the Stage Zones brush (paint = mark with the spinbox's number,
+        erase = clear the mark). Shares the one exclusive brush group, so this
+        disarms EVERY other brush, the other two overlay marks included."""
+        self._stage_btn.setChecked(True)
+        self.stage_armed.emit()
+
+    def arm_tile_condition(self, name):
+        """Arm ONE tile-condition brush (paint = force that condition on the
+        cell, erase = clear the mark). Shares the one exclusive brush group, so
+        this disarms every other brush including the sibling conditions. Also
+        the viewport's eyedropper return path (condition_picked -> here),
+        mirroring code_picked -> arm_code; an unknown name is a no-op."""
+        btn = self._condition_buttons.get(name)
+        if btn is None:
+            return
+        btn.setChecked(True)
+        self.tile_condition_armed.emit(name)
+
     def arm_background_slot(self, slot):
         """Claim a legend code for a not-yet-bound registry background slot
         (MainWindow._on_background_slot_armed does the actual bind + rearms
@@ -680,6 +1017,12 @@ class PalettePanel(QWidget):
         start_area = self.armed_start_area()
         if start_area is not None:
             return start_area
+        tutorial_flute = self.armed_tutorial_flute()
+        if tutorial_flute is not None:
+            return tutorial_flute
+        tutorial_stone = self.armed_tutorial_stone()
+        if tutorial_stone is not None:
+            return tutorial_stone
         code = self.armed_code()
         if code is not None and self._legend is not None:
             return self._legend[code]["slot"]

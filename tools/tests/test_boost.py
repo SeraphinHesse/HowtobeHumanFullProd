@@ -2,8 +2,12 @@
 
 Pure-Python, headless — same synth ``TileMap`` + real balancing fixtures as
 ``test_painter_meditator``. Covers the tier math, the ramp accumulation onto a
-cardinal-adjacent defender, the explosion-on-death debuff + its restore, the
-cardinal-4 placement block, flat mode, and the single-card trio unlock.
+range-adjacent defender, the explosion-on-death debuff + its restore, the
+cardinal-4 placement block, flat mode, the single-card trio unlock, and
+(booster-range-config feature) the configurable
+``BoostBuildings.globals.range_tiles``/``.range_shape`` pair — the shipped
+default (``"plus"``, magnitude 1) reproduces the original cardinal-4-only
+behaviour byte-for-byte; ``"square"``/a larger magnitude are opt-in.
 """
 import copy
 import random
@@ -17,23 +21,42 @@ from engine import tilemap
 from engine.core import Health, Scene
 from engine.physics import TileOccupancy
 from game.buildings import BaseBuilding, attach_base, place_building
+from game.buildings import range_shape
 from game.buildings.boost import BoostDamage, BoostHP, BoostSpeed
 from game.buildings.components import BoostReceiver
 from game.buildings.registry import PlacementError
 from game.buildings.research import RESEARCH
 from game.core import RunState, load_balance, run_payday
 from game.core.levelup import (
-    apply_levelup_option, roll_levelup_options, tiers_for,
+    apply_levelup_option, roll_levelup_options, tiers_for, timeline_level_for,
 )
 from game.map.tile_map import TileMap
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
+PROGRESSION = load_balance(FIXTURE_DATA, "progression")
 HOLE = CORE["TheHole"]
 
 FLAT = copy.deepcopy(BUILD)
 FLAT["BoostBuildings"]["globals"]["flat_mode"] = True
+
+# The three boost lines' tier-1 rows. Every expected number below is derived
+# from these rather than mirrored as a literal, so a balance retune (or a
+# fixture refresh that picks one up) can never strand the assertion — the
+# ``DEF_T2`` precedent in ``test_levelup.py`` (D5).
+DMG_T1 = BUILD["BoostBuildings"]["Damage"]["tiers"][0]
+HP_T1 = BUILD["BoostBuildings"]["HP"]["tiers"][0]
+SPD_T1 = BUILD["BoostBuildings"]["Speed"]["tiers"][0]
+# ``BoostBuilding.apply_flat``/``remove_flat``'s multiplier — a code constant
+# (like AOE_TRAVEL_TIME), not balancing, so it is mirrored here deliberately.
+FLAT_MULTIPLE = 10
+
+SQUARE = copy.deepcopy(BUILD)
+SQUARE["BoostBuildings"]["globals"]["range_shape"] = "square"
+
+PLUS2 = copy.deepcopy(BUILD)
+PLUS2["BoostBuildings"]["globals"]["range_tiles"] = 2
 
 
 def synth(rows, base=(0, 0)):
@@ -65,17 +88,24 @@ class TestBoostStats(unittest.TestCase):
 
     def test_boost_value_and_upkeep_per_line(self):
         # tier1 lvl1: boost_per_turn straight from the data; upkeep = base_upkeep.
-        self.assertAlmostEqual(BoostDamage(0, 0, BUILD).boost_value(), 0.01)
-        self.assertAlmostEqual(BoostHP(0, 0, BUILD).boost_value(), 0.01)
-        self.assertAlmostEqual(BoostSpeed(0, 0, BUILD).boost_value(), 0.001)
-        self.assertEqual(BoostDamage(0, 0, BUILD).upkeep(), 2)
-        self.assertEqual(BoostSpeed(0, 0, BUILD).upkeep(), 1)
-        self.assertEqual(BoostDamage(0, 0, BUILD).max_hp(), 80)
+        self.assertAlmostEqual(BoostDamage(0, 0, BUILD).boost_value(),
+                               DMG_T1["boost_per_turn"])
+        self.assertAlmostEqual(BoostHP(0, 0, BUILD).boost_value(),
+                               HP_T1["boost_per_turn"])
+        self.assertAlmostEqual(BoostSpeed(0, 0, BUILD).boost_value(),
+                               SPD_T1["boost_per_turn"])
+        self.assertEqual(BoostDamage(0, 0, BUILD).upkeep(),
+                         DMG_T1["base_upkeep"])
+        self.assertEqual(BoostSpeed(0, 0, BUILD).upkeep(),
+                         SPD_T1["base_upkeep"])
+        self.assertEqual(BoostDamage(0, 0, BUILD).max_hp(), DMG_T1["base_hp"])
 
     def test_boost_value_scales_with_level(self):
         b = BoostDamage(0, 0, BUILD)
-        b.upgrade()  # lvl 2: 0.01 + 1 * 0.02
-        self.assertAlmostEqual(b.boost_value(), 0.03)
+        b.upgrade()  # lvl 2: boost_per_turn + 1 * boost_increase_per_level
+        self.assertAlmostEqual(
+            b.boost_value(),
+            DMG_T1["boost_per_turn"] + DMG_T1["boost_increase_per_level"])
 
 
 # ---------------------------------------------------------------------------
@@ -94,27 +124,30 @@ class TestRampBoost(unittest.TestCase):
 
     def test_damage_ramps_each_payday(self):
         tm, scene, occ, st, dfn, _ = self._pair("boost_damage")
+        step = DMG_T1["boost_per_turn"]
         base = dfn.damage()
-        run_payday(st, tm, CORE, occ, scene)               # +1% damage
-        self.assertEqual(dfn.damage(), int(base * 1.01))
+        run_payday(st, tm, CORE, occ, scene)               # +one step of damage
+        self.assertEqual(dfn.damage(), int(base * (1 + step)))
         self.assertIn((1, 0), [(c, r) for c, r, _t in st.boost_events])
-        run_payday(st, tm, CORE, occ, scene)               # +2% total
-        self.assertEqual(dfn.damage(), int(base * 1.02))
+        run_payday(st, tm, CORE, occ, scene)               # +two steps total
+        self.assertEqual(dfn.damage(), int(base * (1 + 2 * step)))
 
     def test_speed_ramps_faster(self):
         tm, scene, occ, st, dfn, _ = self._pair("boost_speed")
         base = dfn.attack_speed()
         run_payday(st, tm, CORE, occ, scene)
-        self.assertAlmostEqual(dfn.attack_speed(), base * (1 - 0.001))
+        self.assertAlmostEqual(dfn.attack_speed(),
+                               base * (1 - SPD_T1["boost_per_turn"]))
 
     def test_hp_ramps_and_heals(self):
         tm, scene, occ, st, dfn, _ = self._pair("boost_hp")
         base = dfn.max_hp()
         health = dfn.get_component(Health)
         health.hp = 10                                     # wounded
-        run_payday(st, tm, CORE, occ, scene)               # +1% max hp
-        self.assertEqual(dfn.max_hp(), int(base * 1.01))
-        self.assertEqual(health.max_hp, int(base * 1.01))  # cached value refreshed
+        run_payday(st, tm, CORE, occ, scene)               # +one step of max hp
+        boosted = int(base * (1 + HP_T1["boost_per_turn"]))
+        self.assertEqual(dfn.max_hp(), boosted)
+        self.assertEqual(health.max_hp, boosted)           # cached value refreshed
         self.assertGreater(health.hp, 10)                  # healed by the increase
 
     def test_boost_only_touches_cardinal_combat_neighbours(self):
@@ -129,6 +162,37 @@ class TestRampBoost(unittest.TestCase):
         base = dfn.damage()
         run_payday(st, tm, CORE, occ, scene)
         self.assertEqual(dfn.damage(), base)               # unchanged
+
+    def test_square_shape_touches_diagonal_neighbour(self):
+        # Same layout as above, but range_shape="square": now the diagonal
+        # booster DOES touch the defender (booster-range-config feature).
+        # Asserts on the BoostReceiver fraction directly, not the rounded
+        # `.damage()` int, since a single 2% bump can round away on a small base.
+        tm, scene, occ = board(["bbb", "bbb"])
+        st = run_state("boost_damage")
+        dfn, _ = place_building(tm, tm.get(1, 0), "defence", 9999, SQUARE,
+                                scene, occ, state=st)
+        place_building(tm, tm.get(2, 1), "boost_damage", 9999, SQUARE,
+                       scene, occ, state=st)
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertGreater(dfn.get_component(BoostReceiver).damage_pct, 0)
+
+    def test_plus_shape_magnitude_two_reaches_further_cardinal_not_diagonal(self):
+        # range_tiles=2, shape stays "plus": 2 tiles out cardinally touches,
+        # an off-axis offset still does not, regardless of magnitude. Base
+        # occupies (0,0) (the `board()` helper default), so placements start
+        # at col 1.
+        tm, scene, occ = board(["bbbbbbb", "bbbbbbb"])
+        st = run_state("boost_damage")
+        far, _ = place_building(tm, tm.get(1, 0), "defence", 9999, PLUS2,
+                                scene, occ, state=st)
+        diag, _ = place_building(tm, tm.get(6, 1), "defence", 9999, PLUS2,
+                                 scene, occ, state=st)
+        place_building(tm, tm.get(3, 0), "boost_damage", 9999, PLUS2,
+                       scene, occ, state=st)
+        run_payday(st, tm, CORE, occ, scene)
+        self.assertGreater(far.get_component(BoostReceiver).damage_pct, 0)   # 2 W
+        self.assertEqual(diag.get_component(BoostReceiver).damage_pct, 0)    # off-axis
 
 
 # ---------------------------------------------------------------------------
@@ -204,8 +268,10 @@ class TestFlatMode(unittest.TestCase):
         base = dfn.damage()
         booster, _ = place_building(tm, tm.get(2, 0), "boost_damage", 9999,
                                     FLAT, scene, occ, state=st)
-        # 10x of 0.01 = +10% immediately on placement.
-        self.assertEqual(dfn.damage(), int(base * 1.10))
+        # 10x of one boost step, immediately on placement.
+        self.assertEqual(
+            dfn.damage(),
+            int(base * (1 + FLAT_MULTIPLE * DMG_T1["boost_per_turn"])))
         booster.get_component(Health).hp = 0
         run_payday(st, tm, CORE, occ, scene)               # slot 7 removes the flat
         # damage boost gone (explosion debuff still halves it), so not > base.
@@ -214,9 +280,14 @@ class TestFlatMode(unittest.TestCase):
 
 # ---------------------------------------------------------------------------
 class TestTrioUnlock(unittest.TestCase):
-    """The three boosters surface as ONE level-up card that unlocks all of them,
-    gated to round 10 -- each boost line's own tiers[0].unlock_min_round (no
-    more shared BoostBuildings.globals.unlock_min_round / gate_kind="min_round")."""
+    """The three boosters surface as ONE level-up card that unlocks all of
+    them, gated by each boost line's own tier-0 Timeline placement
+    (``data/balancing/progression.json``, village level 2 as shipped — no
+    shared BoostBuildings.globals key, and no ``unlock_min_round`` any more)."""
+
+    # Every boost line's tier 0 is placed at the same village level (the trio
+    # unlocks together); the lead's placement is what the roll actually reads.
+    GATE_LEVEL = timeline_level_for("boost_speed", 0, PROGRESSION)
 
     def _silence_non_boost(self, st):
         # Max out every non-boost type so only the boost trio is offerable.
@@ -226,11 +297,12 @@ class TestTrioUnlock(unittest.TestCase):
             st.unlocked_buildings[bt] = True
             st.tiers_unlocked[bt] = len(tiers_for(bt, BUILD))
 
-    def test_single_card_unlocks_all_three_at_round_10(self):
+    def test_single_card_unlocks_all_three_at_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.round_num = 10
+        st.village_level = self.GATE_LEVEL
         self._silence_non_boost(st)
-        opts = roll_levelup_options(st, BUILD, CORE, random.Random(0))
+        opts = roll_levelup_options(st, BUILD, CORE, random.Random(0),
+                                    PROGRESSION)
         cards = [o for o in opts if o.get("kind") == "unlock_building"]
         self.assertEqual(len(cards), 1)
         self.assertEqual(tuple(cards[0]["building_types"]),
@@ -239,12 +311,43 @@ class TestTrioUnlock(unittest.TestCase):
         for bt in ("boost_speed", "boost_damage", "boost_hp"):
             self.assertTrue(st.unlocked_buildings[bt])
 
-    def test_not_offered_before_round_10(self):
+    def test_not_offered_before_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.round_num = 9
+        st.village_level = self.GATE_LEVEL - 1
         self._silence_non_boost(st)
-        opts = roll_levelup_options(st, BUILD, CORE, random.Random(0))
+        opts = roll_levelup_options(st, BUILD, CORE, random.Random(0),
+                                    PROGRESSION)
         self.assertFalse([o for o in opts if o.get("kind") == "unlock_building"])
+
+
+# ---------------------------------------------------------------------------
+class TestRangeShapeOffsets(unittest.TestCase):
+    """Pure tile-offset geometry (``game/buildings/range_shape.py``), shared
+    by the booster buff sweep, the RANGE overlay, the selection highlight,
+    and defence-range pathfinding coverage."""
+
+    def test_plus_magnitude_one_is_the_original_cardinal_four(self):
+        self.assertEqual(
+            set(range_shape.offsets(1, "plus")),
+            {(0, -1), (0, 1), (-1, 0), (1, 0)})
+
+    def test_plus_magnitude_two_extends_each_arm(self):
+        self.assertEqual(
+            set(range_shape.offsets(2, "plus")),
+            {(0, -1), (0, -2), (0, 1), (0, 2), (-1, 0), (-2, 0), (1, 0), (2, 0)})
+
+    def test_square_magnitude_one_is_all_eight_surrounding_tiles(self):
+        offsets = set(range_shape.offsets(1, "square"))
+        self.assertEqual(len(offsets), 8)
+        self.assertNotIn((0, 0), offsets)
+        self.assertIn((1, 1), offsets)          # a diagonal neighbour
+
+    def test_square_magnitude_two_is_a_five_by_five_minus_origin(self):
+        self.assertEqual(len(range_shape.offsets(2, "square")), 24)
+
+    def test_zero_magnitude_is_empty_for_both_shapes(self):
+        self.assertEqual(range_shape.offsets(0, "plus"), [])
+        self.assertEqual(range_shape.offsets(0, "square"), [])
 
 
 if __name__ == "__main__":

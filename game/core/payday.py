@@ -9,9 +9,11 @@ not reorder without the user.
 
 9F drives steps 1, 2, 4, 5, 9, 11, 12 (snapshot -> base income + yield -> upkeep
 clamp-0 -> revive -> round++ -> INCOME). 10C fills step 6 (the Painter payout
-sweep, before revive); 10D step 7 (boosts); 10E steps 8 + 10 (walls); 10G fills
-step 3 (Boss1B/3B story payouts, silent) and folds the Boss2A/2B deltas into
-the step-4 income sweep. The income + upkeep sweeps are duck-typed
+sweep, before revive); 10D step 7 (boosts); 10E steps 8 + 10 (walls); step 3 is
+the boss story love payout (``boss_bonuses.love_bonus_income``, silent) — a
+whole-board sum since the boss-upgrade rework, which DELETED the old Boss2A/2B
+per-recipient fold-in from the step-4 income sweep. The income + upkeep sweeps
+are duck-typed
 (``yield_amount`` / ``upkeep``) exactly like the prototype, so future building
 types are picked up here with no edit to this loop; the ONE exception is the
 Meditator, whose streak compounding needs an ordered reset->pay->advance the
@@ -20,12 +22,20 @@ income sweep drives via ``collect_income`` (its ``yield_amount()`` stays pure).
 ``occupancy`` + ``scene`` are optional (logic tests omit them): the Painter slot
 frees a completed painter's tile — clearing occupancy + despawning the building
 GameObject — so both are threaded from the ``Session``.
+
+``debug`` (debug-mode-telemetry Phase 2) is an optional ``DebugRecorder``,
+threaded from ``Session`` exactly like ``occupancy``/``scene``: ``None`` (every
+pre-existing caller/test) is a no-op — the three hooks below are the ONLY new
+code, and they sit BETWEEN existing steps, never reordering them. This module
+never imports ``game.debug`` — the caller hands over an object with the three
+known methods (duck-typed, the ``occupancy``/``scene`` precedent) and this file
+just calls them at the right ordinal position. See ``game/debug/recorder.py``'s
+docstring for what each hook captures and why it must sit exactly there.
 """
 from game.buildings.components import BoostEmitter, PainterProgress, RoundStats
+from game.buildings.movement import process_moves
 from game.map.tiles import TileState
-from .boss_bonuses import (
-    aoe_count, boss1b_income, boss3b_income, defence_count,
-)
+from .boss_bonuses import love_bonus_income
 from .phases import GamePhase
 from .xp import scaled_base_income
 
@@ -128,7 +138,8 @@ def _process_wall_teardown(tilemap):
             tilemap.remove_walls_for_builder(b)
 
 
-def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
+def run_payday(state, tilemap, core_balance, occupancy=None, scene=None,
+               debug=None):
     hole = core_balance["TheHole"]
     built = _built_tiles_with_occupant(tilemap)
     buildings = [b for _, b in built]
@@ -137,6 +148,12 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     #    income/upkeep floaters (gated by ui.FX.income_floaters_enabled). Filled
     #    in steps 4 (income) + 5 (upkeep) below; the floater VFX itself is 9G.
     state.income_events.clear()
+
+    # debug-mode-telemetry: captured BEFORE step 2 zeroes RoundStats, so the
+    # damage totals + the potential ledger both still see this round's true
+    # numbers. Observation only — reads yield_amount(), never collect_income().
+    if debug is not None:
+        debug.on_payday_start(state, tilemap, core_balance, built)
 
     # 2. Snapshot RoundStats: roll this-round -> last-round, then zero. Covers
     #    the base + every building (all sit on BUILT tiles). MUST be first — the
@@ -150,13 +167,18 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
         rs.dmg_taken_this_round = 0
         rs.dmg_dealt_this_round = 0
 
-    # 3. Boss-bonus payouts, Boss1B / Boss3B (10G). AFTER the snapshot — Boss3B
-    #    reads the ``dmg_dealt_last_round`` the snapshot JUST rolled — and
-    #    BEFORE base income. Paid silently: NO income_events floater
-    #    (prototype game.py:989-1009).
-    story = boss1b_income(state, tilemap) + boss3b_income(state, tilemap)
+    # 3. Boss-bonus love payout, Boss2A / Boss2B. A whole-board sum, AFTER the
+    #    snapshot and BEFORE base income (slot position unchanged from 10G).
+    #    Paid silently: NO income_events floater.
+    story = love_bonus_income(state, tilemap, core_balance)
     if story > 0:
         state.add_love(story)
+
+    # debug-mode-telemetry: immediately after step 3 — story_income is
+    # measured as the exact love delta across this ONE step, since the
+    # Boss1B/3B payouts leave no income_events trace to split later.
+    if debug is not None:
+        debug.on_payday_story(state)
 
     # 4. Base income + yield sweep. Base income is always paid, scaled by the
     #    village level (10A). Then a duck-typed sweep adds each alive economy
@@ -166,15 +188,6 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     state.add_love(base_income)
     state.income_events.append(
         (tilemap.base_col, tilemap.base_row, base_income, "income"))
-    # -- 10G boss: Boss2A/2B per-building deltas, folded into each ``amount``
-    #    inside the EXISTING sweep (so floaters + totals match the prototype,
-    #    economic_building.py:32-39 / meditator_building.py:68-76). The two
-    #    occupant counts are computed ONCE, with NO alive filter.
-    boss2a = state.boss_stacks["boss2a"]
-    boss2b = state.boss_stacks["boss2b"]
-    n_defence = defence_count(tilemap) if boss2a else 0
-    n_aoe = aoe_count(tilemap) if boss2b else 0
-    # -- /10G --
     for tile, b in built:
         if not getattr(b, "alive", False):
             continue
@@ -188,12 +201,8 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
             rs = b.get_component(RoundStats)
             disturbed = rs is not None and rs.dmg_taken_last_round > 0
             amount = collect(disturbed)
-            if boss2b and getattr(b, "building_type", None) == "meditator":
-                amount += n_aoe * boss2b  # -- 10G Boss2B --
         else:
             amount = _amount(b, "yield_amount")
-            if boss2a and getattr(b, "building_type", None) == "economic":
-                amount += n_defence * boss2a  # -- 10G Boss2A --
         if amount > 0:
             state.add_love(amount)
             state.income_events.append((tile.col, tile.row, amount, "income"))
@@ -214,6 +223,14 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
 
     # 6. Painter payout sweep — BEFORE revive (10C).
     _process_painters(state, tilemap, occupancy, scene)
+
+    # debug-mode-telemetry: immediately after step 6 — income_events now holds
+    # base + yields + upkeep + painter payouts, and round_num has not yet been
+    # incremented (step 11). This is also where the recorder appends the
+    # finished round row and emits round_summary/payday internally.
+    if debug is not None:
+        debug.on_payday_end(state, tilemap)
+
     # 7. Boost sweep — BEFORE revive (10D): alive boosters accumulate their
     #    per-turn buff, dead boosters explode their debuff onto neighbours.
     _process_boosts(state, tilemap)
@@ -246,6 +263,15 @@ def run_payday(state, tilemap, core_balance, occupancy=None, scene=None):
     #     perimeter to full HP — walls damaged during the round regenerate, and a
     #     builder revived at step 9 gets the walls torn down at step 8 back.
     tilemap.rebuild_walls()
+
+    # 10b. Building Movement: tick every in-transit building down one round and
+    #      land the ones that arrive. A pure APPEND at the tail of the existing
+    #      order — nothing above it moved. It sits AFTER revive on purpose: an
+    #      arriving building is spawned back into the scene here, so it was
+    #      never a candidate for steps 7-9's sweeps this payday (it holds no
+    #      tile while in transit), and it starts its first round on the new tile
+    #      fully healed like any other building at this point.
+    process_moves(tilemap, occupancy, scene)
 
     # 11. round++
     state.round_num += 1

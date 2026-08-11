@@ -24,7 +24,7 @@ skill never edits the plan or the code; it reports. It is user-invoked only
    "X is hardcoded / has no consumers / already exists", every "NEW" artifact
    that must NOT exist yet, the decisions' premises, and the `<!-- status -->`
    line's phase count.
-3. **Dispatch scouts** (C2: `scout` agents only, in parallel, one per package
+3. **Dispatch scouts** (`scout`, in parallel, one per package
    the plan touches — data / engine / game / editor). Each gets its package's
    claim list and must return, per claim, CONFIRMED or STALE with `file:line`
    evidence. One scout also sweeps the whole repo for the plan's NEW artifact

@@ -3,7 +3,7 @@
 (no per-widget override, no kind-matched screen default) still needs SOME
 on-screen representation, so this module re-implements a MINIMAL per-kind
 look WITHOUT importing game/ui — root CLAUDE.md forbids editor/ and game/
-importing each other. This is an accepted drift (planning/UI_EDITOR_PLAN.md):
+importing each other. This is an accepted drift (planning/completed plans/UI_EDITOR_PLAN.md):
 the two must stay visually aligned by eye + the B2 parity pin, not by
 sharing code.
 
@@ -67,6 +67,57 @@ def fallback_hud_items(rect, kind, label, *, font_key="md", text_color=None,
     if label_item is not None:
         items.append(label_item)
     return items
+
+
+# -- position-only text anchors -------------------------------------------
+# A widget whose stored rect is `(x, y, 0, 0)` is an ANCHOR, not a box: the
+# game draws text from that point and the extent is whatever the glyphs come
+# out as. `screen_defaults.json` is full of them (every hud.py readout, the
+# phase banner, boss_cutscene's headline/subtitle, ~40 building_panel stat
+# cells). Left as literal zero-area rects they are unclickable, undraggable
+# and invisible when selected — the whole "these should be editable widgets"
+# complaint. `interaction_rect` gives the EDITOR (and only the editor) a real
+# box over such an anchor. The stored rect is never touched: a move still
+# writes x/y and leaves w/h at 0, so the game's own layout is unchanged.
+_MIN_HIT_W = 18   # logical px — a floor, so an empty/untranslatable anchor
+_MIN_HIT_H = 10   # is still a grabbable target rather than a dot
+
+
+def is_anchor_rect(rect):
+    """True when `rect` stores no extent (w or h is 0) — i.e. it is a draw
+    ANCHOR, not a box. Such a widget can be moved but not resized: there is
+    no stored size for a resize to write."""
+    return rect[2] <= 0 or rect[3] <= 0
+
+
+def interaction_rect(rect, *, text=None, font_key="md", align="left"):
+    """The box the editor hit-tests and outlines for a widget at `rect`.
+
+    A widget with a real stored size is returned verbatim — this only ever
+    grows a zero-extent axis. The grown size is the measured size of `text`
+    (the widget's live template/sample/label, whatever the caller could
+    resolve) at `font_key`, floored at a minimum so an anchor with no
+    resolvable text is still grabbable. `align` shifts x the way the game's
+    own `HudText` align does, so the box lands ON the glyphs rather than
+    beside them.
+
+    Pure: `TextMetrics` measures through the engine's font stack with no
+    pygame surface, the same call `centered_label_item` already makes."""
+    x, y, w, h = rect
+    if w > 0 and h > 0:
+        return (x, y, w, h)
+    text_w = text_h = 0
+    if text:
+        text_w, text_h = _METRICS.size(str(text), font_key)
+    if w <= 0:
+        w = max(text_w, _MIN_HIT_W)
+    if h <= 0:
+        h = max(text_h, _MIN_HIT_H)
+    if align == "center":
+        x -= w / 2
+    elif align == "right":
+        x -= w
+    return (x, y, w, h)
 
 
 def widget_display_name(widget_id, spec):

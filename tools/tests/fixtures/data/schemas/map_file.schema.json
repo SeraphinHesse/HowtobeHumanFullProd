@@ -86,6 +86,10 @@
             "minimum": 0,
             "type": "number"
           },
+          "flip": {
+            "description": "Mirror the prop horizontally when rendered. Optional; omitted means false (byte-identical to a map with no flipped decos).",
+            "type": "boolean"
+          },
           "row": {
             "description": "World-space row position; must be < rows.",
             "minimum": 0,
@@ -101,6 +105,37 @@
           "col",
           "row",
           "slot"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "despawnable_spawn": {
+      "description": "Designer-painted SPAWN DESPAWN marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n retires together when the run's designer-controlled STAGE counter reaches n - the whole group of cells carrying that number flips from the SPAWNING zone to the COMBAT zone at once. The stage is advanced only by buying into a stage_zones-painted area (see that property); a jump past several numbers fires every skipped batch in ascending order, so no mark is ever stranded. An empty array means no despawn schedule is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) at which this cell stops being SPAWNING and becomes COMBAT. 1 = the first stage the player can reach. NOT a purchase count: the stage advances only when the player buys a 2x2 intersecting a stage_zones mark.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "stage"
         ],
         "type": "object"
       },
@@ -199,6 +234,68 @@
       "minimum": 4,
       "type": "integer"
     },
+    "spawnable_background": {
+      "description": "Designer-painted SPAWN RESERVE marks, one entry per cell. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. Every mark numbered n releases together when the run's designer-controlled STAGE counter reaches n - the whole group of cells carrying that number flips to the SPAWNING zone at once. The stage is advanced only by buying into a stage_zones-painted area (see that property); a jump past several numbers fires every skipped batch in ascending order, so no mark is ever stranded. An empty array means no reserve is painted on this map. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) at which this cell becomes SPAWNING. 1 = the first stage the player can reach. NOT a purchase count: the stage advances only when the player buys a 2x2 intersecting a stage_zones mark.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "stage"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "stage_zones": {
+      "description": "Designer-painted STAGE ZONE marks, one entry per cell, painted on COMBAT tiles. Invisible in game: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom. These marks are the ONLY thing that advances the run's stage counter (whole stages, starts at 0, never decreases): when the player buys a 2x2 whose four tiles intersect the painted set, the zone's number is the MAXIMUM stage among those four tiles, and if that exceeds the current stage the stage advances to it. Buying anywhere unpainted never advances the stage. Each advance fires every skipped spawnable_background release batch and despawnable_spawn despawn batch in ascending order (release before despawn within each), so nothing painted is ever stranded. An empty array means no stage zones are painted on this map (the stage stays 0 forever). Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Designer stage number (whole stages, 1-based) this zone advances the run's stage counter TO when the player buys a 2x2 intersecting it. A lower number than the current stage never moves it backwards.",
+            "maximum": 1000,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "row",
+          "stage"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
     "start_area": {
       "description": "The 2x2 starting area - a single movable map object, click-placed or dragged in the editor (Game tiles mode). {col,row} is the 2x2's MIN corner (top-left anchor); it spans col..col+1 x row..row+1 and must fit inside the grid (col+1 < cols, row+1 < rows - cross-checked by engine.tilemap.load_map). The game anchors the 2x2 tile-unlock section grid (and the playfield window) on it; the marker never forces tile states - the designer still paints buildable tiles under it (the editor warns otherwise). Not rendered in-game; the editor draws it as a 2x2 outline. MAY BE null (the editor shows a yellow warning; the game falls back to base-anchored sections); the key is always present.",
       "oneOf": [
@@ -240,6 +337,107 @@
       },
       "minItems": 4,
       "type": "array"
+    },
+    "tile_conditions": {
+      "description": "Designer-painted per-cell TILE CONDITIONS, one entry per cell. Invisible as a doc field: never emitted by the render emitters (engine.tilemap render_items/visible_render_items/band_render_items), so nothing is drawn for a mark at any zoom - the game draws the condition's own art through its normal condition-art pipeline instead. A painted cell takes that condition at map construction and is EXCLUDED from the random condition roll, overriding every eligibility rule the roll applies - including BACKGROUND tiles and the starting unlocked pocket (both of which the roll deliberately skips). An empty array means nothing is painted and the whole map rolls exactly as before. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map.",
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "col": {
+            "description": "Marked tile column, 0-based; must be < cols.",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "condition": {
+            "description": "The tile condition this cell is painted with. THIS ENUM IS THE SINGLE SOURCE OF TRUTH for the four condition names - no package may hardcode the list; engine.tilemap.condition_codes_from_schema digs it out for the editor's brushes, and game/map/tiles.py's CONDITION_BY_MAP_KEY is the one name -> TileCondition table.",
+            "enum": [
+              "grass",
+              "mountain",
+              "pond",
+              "forest"
+            ],
+            "type": "string"
+          },
+          "row": {
+            "description": "Marked tile row, 0-based; must be < rows.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "col",
+          "condition",
+          "row"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "tutorial_flute": {
+      "description": "The tutorial's designer-painted 'first flute' placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like camera_start. The tutorial forces the player's first economy-building placement (the flute player) onto this tile. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Tutorial flute tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Tutorial flute tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_flute",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Flute slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "tutorial_stone": {
+      "description": "The tutorial's designer-painted 'first stone' placement tile - a single movable map object, click-placed or dragged in the editor (Game tiles mode), just like camera_start. The tutorial forces the player's first defence-building placement (the stone thrower) onto this tile. MAY BE null; the key is always present. Bounds (col < cols, row < rows) are cross-checked by engine.tilemap.load_map. Never rendered by the game or the editor's normal render pipeline (the editor draws its own overlay).",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "col": {
+              "description": "Tutorial stone tile column, 0-based; must be < cols.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "row": {
+              "description": "Tutorial stone tile row, 0-based; must be < rows.",
+              "minimum": 0,
+              "type": "integer"
+            },
+            "slot": {
+              "const": "tutorial_stone",
+              "description": "Marker id (const-pinned; the slot registry's core/Tutorial Stone slot). Not a real sprite - the editor draws the marker as an outline."
+            }
+          },
+          "required": [
+            "col",
+            "row",
+            "slot"
+          ],
+          "type": "object"
+        }
+      ]
     }
   },
   "required": [
@@ -247,12 +445,18 @@
     "camera_start",
     "cols",
     "deco",
+    "despawnable_spawn",
     "display_name",
     "id",
     "legend",
     "rows",
+    "spawnable_background",
+    "stage_zones",
     "start_area",
-    "terrain"
+    "terrain",
+    "tile_conditions",
+    "tutorial_flute",
+    "tutorial_stone"
   ],
   "title": "map_file",
   "type": "object"

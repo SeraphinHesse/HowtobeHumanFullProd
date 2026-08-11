@@ -19,7 +19,8 @@ stats and marker components.
 from functools import reduce
 
 from engine.core import GameObject, Health, SpriteAnimator, Transform
-from .components import BoostReceiver, Nameplate, RoundStats, TierState
+from .components import (BoostReceiver, BuildingSprite, Nameplate, RoundStats,
+                         TierState)
 
 
 def _ordinal(n):
@@ -46,7 +47,7 @@ class Building(GameObject):
             Nameplate(),
             RoundStats(),
             Health(max_hp=1, hp=1),
-            SpriteAnimator(slot_key="", phase_ms=(col * 137 + row * 251) % 2000),
+            BuildingSprite(slot_key="", phase_ms=(col * 137 + row * 251) % 2000),
         ]
         components.extend(self._extra_components(tiers[tier_idx]))
         super().__init__(
@@ -76,10 +77,17 @@ class Building(GameObject):
     # -- balancing resolution ---------------------------------------------
 
     @classmethod
+    def _resolve_group(cls, buildings_balance):
+        """The whole GROUP node this leaf's ``SUBTREE`` points at — sibling
+        keys beside ``tiers`` (``starts_unlocked``, an optional
+        ``repeat_cost_multiplier`` — feature-storm-acolyte-multi-build) live
+        here, not on the per-tier table."""
+        return reduce(lambda d, k: d[k], cls.SUBTREE, buildings_balance)
+
+    @classmethod
     def _resolve_tiers(cls, buildings_balance):
         """The per-tier table for this leaf, dug out of the buildings tree."""
-        node = reduce(lambda d, k: d[k], cls.SUBTREE, buildings_balance)
-        return node["tiers"]
+        return cls._resolve_group(buildings_balance)["tiers"]
 
     def _extra_components(self, tier0):
         """Family hook: components beyond the shared set (defence adds Attacker +

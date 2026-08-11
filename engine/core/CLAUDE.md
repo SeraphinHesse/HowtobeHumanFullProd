@@ -39,6 +39,11 @@ state as a plain subclass attribute.
   pygame.
 - **E-12 phasing**: `SpriteAnimator` + `Health` shipped in Phase 2. `Movement`
   and `RangeSensor` land with the `engine/physics` primitives they wrap (below).
+- **`SpriteAnimator.visible: bool = True`** (`game/enemies`'s Digger,
+  NE-2 follow-up) — `render_items` yields nothing while `False`. Default
+  `True` keeps every existing sprite byte-identical; it exists so a component
+  can go fully unrendered without the "blank `slot_key`" trap (an unknown key
+  resolves to the grey-X placeholder, which is worse than nothing).
 
 ## Phase 9B conventions (Movement / RangeSensor / owner seam / spatial queries)
 Everything below is pure Python — no pygame — and headless-testable.

@@ -6,6 +6,7 @@ coverage -> × damage-reduction discount, each modifier gated to
 0 < base < impassable so the base tile (0) and background walls (999) are
 exempt. Values are the shipped balancing in data/balancing/map.json.
 """
+import copy
 import unittest
 from pathlib import Path
 
@@ -20,6 +21,14 @@ BALANCE = load_map_balance(FIXTURE_DATA)
 
 def tile(state, content_key=None, condition=TileCondition.GRASS):
     return Tile(0, 0, state, content_key=content_key, condition=condition)
+
+
+class _StubOccupant:
+    """Minimal duck-typed occupant — just the ``alive`` flag `_overwrites_
+    condition` reads."""
+
+    def __init__(self, alive=True):
+        self.alive = alive
 
 
 class TestBaseWeights(unittest.TestCase):
@@ -103,6 +112,41 @@ class TestDamageReduction(unittest.TestCase):
                  condition=TileCondition.MOUNTAIN)
         t.damage_weight_reduced = True
         self.assertEqual(t.pathfinding_weight(BALANCE), 2)
+
+
+class TestBuildingsOverwriteTileweights(unittest.TestCase):
+    """buildings-overwrite-tileweights rework (game/map/CLAUDE.md): a LIVE
+    building on a conditioned tile OVERWRITES the terrain condition weight
+    instead of adding to it; a dead one reverts to additive; the feature
+    fully off reproduces the pre-rework additive numbers exactly."""
+
+    def test_live_building_overwrites_the_condition_weight(self):
+        t = tile(TileState.BUILT, content_key="defence_building",
+                 condition=TileCondition.MOUNTAIN)
+        t.occupant = _StubOccupant(alive=True)
+        # defence_building (2) alone — the mountain +2 is NOT added.
+        self.assertEqual(t.pathfinding_weight(BALANCE), 2)
+
+    def test_dead_building_reverts_to_additive(self):
+        t = tile(TileState.BUILT, content_key="defence_building",
+                 condition=TileCondition.MOUNTAIN)
+        t.occupant = _StubOccupant(alive=False)
+        # dead: back to defence_building (2) + mountain (2) == 4.
+        self.assertEqual(t.pathfinding_weight(BALANCE), 4)
+
+    def test_feature_fully_off_matches_pre_rework_additive_numbers(self):
+        balance = copy.deepcopy(BALANCE)
+        pf = balance["Pathfinding"]
+        pf["buildings_overwrite_tileweights"] = False
+        for k in pf["content_weight_overwrites"]:
+            pf["content_weight_overwrites"][k] = False
+        for k in balance["TileConditions"]["path_weight_overwritable"]:
+            balance["TileConditions"]["path_weight_overwritable"][k] = False
+        t = tile(TileState.BUILT, content_key="defence_building",
+                 condition=TileCondition.MOUNTAIN)
+        t.occupant = _StubOccupant(alive=True)
+        # master off + every per-key override off: additive, same as today.
+        self.assertEqual(t.pathfinding_weight(balance), 4)
 
 
 class TestPredicates(unittest.TestCase):

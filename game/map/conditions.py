@@ -16,6 +16,8 @@ invariant). Pure Python — no pygame.
 """
 from engine.render.item import RenderItem
 
+from .tiles import TileState
+
 LAYER = "terrain"
 
 
@@ -28,6 +30,13 @@ def condition_render_items(tile_map, col_min, col_max, row_min, row_max,
     absent from it emits nothing — an un-imported condition draws no sprite at
     all rather than the engine's grey-X placeholder, and `game/ui/overlays.py`
     keeps drawing its colour diamond for that tile instead.
+
+    A ``SPAWNING`` tile never emits condition art — enemies spawn there and
+    the condition tint/sprite would otherwise show through the spawn band.
+    The tile keeps its rolled ``condition`` (pathfinding weight is
+    unaffected); this is a render-only skip, so the art resumes the instant
+    the tile converts to ``COMBAT`` (spawn recede), the same live-state
+    pattern ``game/map/spawn_deco.py`` uses for its tree emitter.
 
     ``anim_time_ms`` feeds idle animation; a deterministic per-cell phase is
     added so identical neighbouring tiles don't animate in lockstep (the same
@@ -44,7 +53,7 @@ def condition_render_items(tile_map, col_min, col_max, row_min, row_max,
     for row in range(r0, r1):
         for col in range(c0, c1):
             tile = tile_map.get(col, row)
-            if tile is None:
+            if tile is None or tile.state == TileState.SPAWNING:
                 continue
             slot = tile.condition_slot
             if slot is None or slot not in art_slots:

@@ -45,12 +45,60 @@ class TileMapDoc:
     terrain: list      # rows × cols nested lists of legend codes (mutable)
     base: dict         # {"col": int, "row": int, "slot": str} OR None (no hole)
     deco: list         # [{"col": num, "row": num, "slot": str}, ...]
+    # {(col, row): stage} — the designer-painted spawn reserve. A DICT in
+    # memory (O(1) paint/lookup; the on-disk list form is not), a list sorted by
+    # (row, col) on disk for deterministic diffs (D-3). Deliberately NOT emitted
+    # by the render emitters — that silence is what makes it invisible in game;
+    # the runtime flips every cell numbered n to SPAWNING when the run's stage
+    # counter reaches n, and the editor draws its own overlay.
+    spawnable_background: dict = None
+    # {(col, row): stage} — the designer-painted spawn DESPAWN schedule, the
+    # exact mirror of `spawnable_background` above: a DICT in memory (O(1)
+    # paint/lookup), a list sorted by (row, col) on disk for deterministic diffs
+    # (D-3). Deliberately NOT emitted by the render emitters either — that same
+    # silence is what makes it invisible in game; the runtime flips every cell
+    # numbered n from SPAWNING to COMBAT when the run's stage counter reaches n,
+    # and the editor draws its own overlay.
+    despawnable_spawn: dict = None
+    # {(col, row): stage} — the designer-painted STAGE ZONES, the third overlay
+    # of the same never-rendered shape (dict in memory, (row, col)-sorted list
+    # on disk). `tilemap.py` neither knows nor cares that the game reads it as
+    # "buying a 2×2 that intersects these cells advances the run's stage counter
+    # to the maximum number under the chunk" — the numbers are opaque here.
+    stage_zones: dict = None
+    # {(col, row): "mountain"} — the designer-painted TILE CONDITIONS, the
+    # FOURTH never-rendered per-cell overlay: same dict-in-memory (O(1) paint)
+    # / (row, col)-sorted-list-on-disk (D-3) split as the three above, same
+    # `validate_doc` bounds check, and the render emitters stay equally silent
+    # on it. ONE difference: the value is an opaque NAME string, not a stage
+    # number — `tilemap.py` neither knows nor cares what a "pond" is; the name
+    # vocabulary lives in the map schema's enum and the game maps it to its own
+    # runtime condition.
+    tile_conditions: dict = None
     camera_start: dict = None  # {"col": int, "row": int, "slot": str} OR None
     # {"col": int, "row": int, "slot": str} OR None — the 2×2 starting area's
     # MIN corner (spans col..col+1 × row..row+1). Deliberately NOT emitted by
     # the render emitters: the game never draws it and the editor draws a pure
     # 2×2 outline via overlay lines instead of a sprite.
     start_area: dict = None
+    # {"col": int, "row": int, "slot": str} OR None — designer-painted
+    # tutorial markers (D1, planning/TutorialPLAN.md): "first flute" /
+    # "first stone" placement tiles. Deliberately NOT emitted by the render
+    # emitters — never rendered in-game; the editor draws its own overlay.
+    tutorial_flute: dict = None
+    tutorial_stone: dict = None
+
+    def __post_init__(self):
+        # Collection fields are never None in memory: a doc built without a
+        # spawn reserve carries an empty dict, so callers can paint into it.
+        if self.spawnable_background is None:
+            self.spawnable_background = {}
+        if self.despawnable_spawn is None:
+            self.despawnable_spawn = {}
+        if self.stage_zones is None:
+            self.stage_zones = {}
+        if self.tile_conditions is None:
+            self.tile_conditions = {}
 
 
 # -- dict <-> doc (terrain rows are strings on disk, char lists in memory) --
@@ -65,10 +113,30 @@ def from_dict(data):
         terrain=[list(row) for row in data["terrain"]],
         base=dict(data["base"]) if data["base"] is not None else None,
         deco=[dict(d) for d in data["deco"]],
+        spawnable_background={
+            (m["col"], m["row"]): m["stage"]
+            for m in data["spawnable_background"]
+        },
+        despawnable_spawn={
+            (m["col"], m["row"]): m["stage"]
+            for m in data["despawnable_spawn"]
+        },
+        stage_zones={
+            (m["col"], m["row"]): m["stage"]
+            for m in data["stage_zones"]
+        },
+        tile_conditions={
+            (m["col"], m["row"]): m["condition"]
+            for m in data["tile_conditions"]
+        },
         camera_start=(dict(data["camera_start"])
                       if data["camera_start"] is not None else None),
         start_area=(dict(data["start_area"])
                     if data["start_area"] is not None else None),
+        tutorial_flute=(dict(data["tutorial_flute"])
+                        if data["tutorial_flute"] is not None else None),
+        tutorial_stone=(dict(data["tutorial_stone"])
+                        if data["tutorial_stone"] is not None else None),
     )
 
 
@@ -79,13 +147,37 @@ def to_dict(doc):
                          if doc.camera_start is not None else None),
         "cols": doc.cols,
         "deco": [dict(d) for d in doc.deco],
+        "despawnable_spawn": [
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.despawnable_spawn.items(),
+                                    key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
         "display_name": doc.display_name,
         "id": doc.map_id,
         "legend": copy.deepcopy(doc.legend),
         "rows": doc.rows,
+        "spawnable_background": [
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.spawnable_background.items(),
+                                    key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
+        "stage_zones": [
+            {"col": c, "row": r, "stage": n}
+            for (c, r), n in sorted(doc.stage_zones.items(),
+                                    key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
         "start_area": (dict(doc.start_area)
                        if doc.start_area is not None else None),
         "terrain": ["".join(row) for row in doc.terrain],
+        "tile_conditions": [
+            {"col": c, "condition": name, "row": r}
+            for (c, r), name in sorted(doc.tile_conditions.items(),
+                                       key=lambda kv: (kv[0][1], kv[0][0]))
+        ],
+        "tutorial_flute": (dict(doc.tutorial_flute)
+                           if doc.tutorial_flute is not None else None),
+        "tutorial_stone": (dict(doc.tutorial_stone)
+                           if doc.tutorial_stone is not None else None),
     }
 
 
@@ -119,10 +211,42 @@ def validate_doc(doc):
         raise ValueError(
             f"map {doc.map_id!r}: start_area {doc.start_area} (2x2 from its min "
             f"corner) outside {doc.cols}x{doc.rows}")
+    if doc.tutorial_flute is not None and not (
+            0 <= doc.tutorial_flute["col"] < doc.cols
+            and 0 <= doc.tutorial_flute["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_flute {doc.tutorial_flute} outside "
+            f"{doc.cols}x{doc.rows}")
+    if doc.tutorial_stone is not None and not (
+            0 <= doc.tutorial_stone["col"] < doc.cols
+            and 0 <= doc.tutorial_stone["row"] < doc.rows):
+        raise ValueError(
+            f"map {doc.map_id!r}: tutorial_stone {doc.tutorial_stone} outside "
+            f"{doc.cols}x{doc.rows}")
     for d in doc.deco:
         if not (0 <= d["col"] < doc.cols and 0 <= d["row"] < doc.rows):
             raise ValueError(
                 f"map {doc.map_id!r}: deco {d} outside {doc.cols}x{doc.rows}")
+    for (col, row) in doc.spawnable_background:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: spawnable_background {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
+    for (col, row) in doc.despawnable_spawn:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: despawnable_spawn {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
+    for (col, row) in doc.stage_zones:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: stage_zones {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
+    for (col, row) in doc.tile_conditions:
+        if not (0 <= col < doc.cols and 0 <= row < doc.rows):
+            raise ValueError(
+                f"map {doc.map_id!r}: tile_conditions {(col, row)} outside "
+                f"{doc.cols}x{doc.rows}")
 
 
 # -- cell -> slot (wrinkle 7: prototype-exact parity) ------------------------
@@ -308,6 +432,18 @@ def start_area_slot_from_schema(schema):
     return _object_slot_from_schema(schema, "start_area")
 
 
+def tutorial_flute_slot_from_schema(schema):
+    """The const-pinned tutorial "first flute" marker slot (the editor's
+    placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_flute")
+
+
+def tutorial_stone_slot_from_schema(schema):
+    """The const-pinned tutorial "first stone" marker slot (the editor's
+    placement brush)."""
+    return _object_slot_from_schema(schema, "tutorial_stone")
+
+
 def defaults_from_schema(schema):
     """(legend, base_slot) for a NEW map: the const-pinned ZONE codes (b/c/s)
     dug out of the schema, plus the module's DEFAULT_BACKGROUNDS (the schema no
@@ -323,6 +459,22 @@ def defaults_from_schema(schema):
     for code, slot in DEFAULT_BACKGROUNDS:
         legend[code] = {"checker": False, "slot": slot}
     return legend, _base_slot_from_schema(schema)
+
+
+def condition_codes_from_schema(schema):
+    """The tile-condition NAMES a `tile_conditions` mark may carry, as a tuple,
+    in schema order — dug out of the map schema's own enum
+    (`properties.tile_conditions.items.properties.condition.enum`), which is the
+    SINGLE source of truth for that vocabulary.
+
+    Exists for the same "schemas over convention" reason as
+    `defaults_from_schema` above: the editor builds its condition brushes from
+    `data/` instead of hardcoding game vocabulary, so adding a condition is a
+    schema change and nothing else. `tilemap.py` still attaches no meaning to
+    the names — they are opaque strings here."""
+    return tuple(
+        schema["properties"]["tile_conditions"]["items"]
+        ["properties"]["condition"]["enum"])
 
 
 def default_fill_code(legend):
@@ -343,8 +495,14 @@ def new_doc(map_id, display_name, cols, rows, schema_path):
         terrain=[[fill] * cols for _ in range(rows)],
         base={"col": cols // 2, "row": rows // 2, "slot": base_slot},
         deco=[],
+        spawnable_background={},
+        despawnable_spawn={},
+        stage_zones={},
+        tile_conditions={},
         camera_start=None,
         start_area=None,
+        tutorial_flute=None,
+        tutorial_stone=None,
     )
 
 

@@ -21,7 +21,10 @@ main(max_frames=None) lets the window be driven headlessly under
 QT_QPA_PLATFORM=offscreen (mirrors game/main.py's max_frames convention
 for tools/smoke.py). Frames are driven by a QTimer — no busy-spin.
 """
+import copy
+import json
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -56,7 +59,9 @@ from editor.run_controls import RunControls
 from editor.settings_dialog import SettingsDialog
 from editor.spawnclaude import SpawnClaudeDialog
 from editor.ui_screen_session import UIScreenSession, ordered_views
+from editor.panels.anchors_panel import AnchorsPanel
 from editor.panels.balancing import BalancingPanel
+from editor.panels.cutscenes import CutscenesPanel
 from editor.panels.details import DetailsPanel
 from editor.panels.game_theme import GameThemePanel
 from editor.panels.level_bar import LevelBar
@@ -64,19 +69,27 @@ from editor.panels.map_details import MapDetailsPanel
 from editor.panels.palette import PalettePanel
 from editor.panels.screen_details import ScreenDetailsPanel
 from editor.panels.selector import SelectorPanel
+from editor.panels.timeline import TimelinePanel
+from editor.panels.tutorial_panel import TutorialPanel
+from editor.panels.strings_panel import StringsPanel
 from editor.panels.viewport import ViewportPanel
+from editor.panels.vfx_preview import VfxPreviewPanel
 from engine import data_io
 from engine.render.fonts import configure_fonts
 from tools.smoke import validate_data
 
 FRAME_INTERVAL_MS = 16  # ~60fps tick, timer-driven (no busy-spin)
+#: UT-2: how long a burst of screen-doc edits settles before the preview is
+#: re-recorded. Long enough that a held arrow key or a drag does not spawn a
+#: subprocess per event, short enough to read as "it just updates".
+_PREVIEW_DEBOUNCE_MS = 300
 LOGO_PATH = Path(__file__).resolve().parent / "assets" / "drunken_donuts_logo.png"
 PREFS_PATH = REPO / ".editor_prefs.json"
 
 
 class MainWindow(QMainWindow):
     def __init__(self, max_frames=None, data_dir=None, prefs_path=None,
-                 auto_refresh_layouts=True):
+                 auto_refresh_layouts=True, preview_renders=None):
         super().__init__()
         self._prefs_path = Path(prefs_path) if prefs_path is not None else PREFS_PATH
         self.setWindowTitle("How To Be Human — editor")
@@ -100,20 +113,32 @@ class MainWindow(QMainWindow):
         self.selector = SelectorPanel(data_dir=data_dir)
         self.balancing = BalancingPanel(data_dir=data_dir)
         self.details = DetailsPanel(data_dir=data_dir)
+        self.anchors = AnchorsPanel(data_dir=data_dir)   # ESV-2
         self.levelbar = LevelBar()
         self.palette = PalettePanel(data_dir=data_dir)
         self.map_details = MapDetailsPanel(data_dir=data_dir)
         self.map_session = MapSession(data_dir=data_dir, parent=self)
         self.screen_details = ScreenDetailsPanel(data_dir=data_dir)
         self.screen_session = UIScreenSession(data_dir=data_dir, parent=self)
+        self.vfx_preview = VfxPreviewPanel(data_dir=data_dir)
         self.game_theme = GameThemePanel(data_dir=data_dir)  # UH-6: Theme leaf
+        self.cutscenes = CutscenesPanel(data_dir=data_dir)  # TU-3: Cutscenes leaf
+        self.tutorial_panel = TutorialPanel(data_dir=data_dir)  # TU-4: Tutorial leaf
+        self.strings_panel = StringsPanel(data_dir=data_dir)  # Phase C: Strings leaf
+        self.timeline = TimelinePanel(data_dir=data_dir)  # TimelinePLAN T5: Timeline leaf
         self._screen_defaults = {}   # cached data/ui/screen_defaults.json (B3)
-        # UH-6/D5: configure the engine font cache from data/ui/fonts.json at
-        # boot, same as game/main.py, so screen-mode preview text metrics
-        # match the game. Graceful {} degrade (E-37) — the editor must open
-        # on a broken tree; the game's own boot load fails loud instead.
+        self._screen_previews = {}   # cached data/ui/screen_previews.json (UT-2)
+        self._preview_dir = None     # UT-2 scratch dir, created on first render
+        self._preview_rendered_doc = {}  # the doc the in-flight render draws
+        # UH-6/D5 (+ UH-Font-A): configure the engine font cache from
+        # data/ui/fonts.json + the active custom font family at boot, same
+        # as game/main.py, so screen-mode preview text metrics match the
+        # game. Graceful degrade (E-37) — the editor must open on a broken
+        # tree; the game's own boot load fails loud instead.
         try:
-            configure_fonts(theme_ops.load_fonts(self._data_dir))
+            configure_fonts(
+                theme_ops.load_fonts(self._data_dir),
+                font_path=theme_ops.resolve_active_font_path(self._data_dir))
         except Exception:
             pass
         self._node = None   # (category_key, group_path) of the tree selection
@@ -124,6 +149,13 @@ class MainWindow(QMainWindow):
         # a view/screen switch while already in screen mode). Injectable so
         # tests never spawn a real subprocess.
         self._auto_refresh_layouts = auto_refresh_layouts
+        # UT-2: injectable for the same reason auto_refresh_layouts is — the
+        # test suite must never spawn a real render subprocess. Defaults to
+        # FOLLOWING that flag rather than to True: the two answer the same
+        # question ("may this window spawn export subprocesses?"), and every
+        # existing test already passes auto_refresh_layouts=False.
+        self._preview_renders = (auto_refresh_layouts if preview_renders is None
+                                 else preview_renders)
         self._screen_mode_entered = False
 
         self.selector.domain_selected.connect(self.balancing.set_domain)
@@ -143,6 +175,16 @@ class MainWindow(QMainWindow):
         # registry has to re-read it, exactly like the + Variant writes do.
         self.details.registry_changed.connect(lambda _slot: self._reload_registries())
 
+        # ESV-2: anchor handles hang off the entity-preview selection, not a
+        # new mode — bidirectional sync between the panel's authoritative
+        # mapping and the viewport's live drag, mirroring the B4
+        # widget_selected pattern below (:154-156).
+        self.anchors.mapping_changed.connect(self.viewport.set_anchors)
+        self.anchors.anchor_selected.connect(self.viewport.set_selected_anchor)
+        self.viewport.anchor_selected.connect(self.anchors.select_anchor)
+        self.viewport.anchor_dragged.connect(self.anchors.on_anchor_dragged)
+        self.viewport.anchor_drag_finished.connect(self.anchors.on_anchor_drag_finished)
+
         # tilemap-mode wiring (ED-20): palette state → viewport; picker →
         # palette re-arm; session lifecycle → selector Maps branch
         self.palette.tool_changed.connect(self.viewport.set_tool)
@@ -152,6 +194,19 @@ class MainWindow(QMainWindow):
         self.palette.base_armed.connect(self.viewport.arm_base)
         self.palette.camera_armed.connect(self.viewport.arm_camera)
         self.palette.start_area_armed.connect(self.viewport.arm_start_area)
+        self.palette.tutorial_flute_armed.connect(self.viewport.arm_tutorial_flute)
+        self.palette.tutorial_stone_armed.connect(self.viewport.arm_tutorial_stone)
+        self.palette.spawn_reserve_armed.connect(self.viewport.arm_spawn_reserve)
+        self.palette.reserve_number_changed.connect(
+            self.viewport.set_reserve_number)
+        self.palette.despawn_armed.connect(self.viewport.arm_despawn)
+        self.palette.despawn_number_changed.connect(
+            self.viewport.set_despawn_number)
+        self.palette.stage_armed.connect(self.viewport.arm_stage)
+        self.palette.stage_number_changed.connect(
+            self.viewport.set_stage_number)
+        self.palette.tile_condition_armed.connect(
+            self.viewport.arm_tile_condition)
         self.palette.eye_toggled.connect(self.viewport.set_eye)
         self.palette.grid_toggled.connect(self.viewport.set_grid_lines)
         self.palette.manifest_changed.connect(self._on_manifest_changed)
@@ -162,7 +217,16 @@ class MainWindow(QMainWindow):
         self.palette.background_slot_armed.connect(
             self._on_background_slot_armed)
         self.palette.set_icon_provider(self.viewport.slot_qimage)
+        self.timeline.set_icon_provider(self.viewport.slot_qimage)
         self.viewport.code_picked.connect(self.palette.arm_code)
+        self.viewport.reserve_number_picked.connect(
+            self.palette.set_reserve_number)
+        self.viewport.despawn_number_picked.connect(
+            self.palette.set_despawn_number)
+        self.viewport.stage_number_picked.connect(
+            self.palette.set_stage_number)
+        self.viewport.condition_picked.connect(
+            self.palette.arm_tile_condition)
         self.viewport.cursor_world.connect(self._on_cursor_world)
         self.map_session.map_opened.connect(self._on_session_map_opened)
         self.map_session.active_changed.connect(
@@ -178,12 +242,35 @@ class MainWindow(QMainWindow):
         self.screen_details.widget_selected.connect(self.viewport.set_selected_widget)
         self.viewport.widget_selected.connect(self.screen_details.select_widget)
 
+        # ESV-4: vfx preview <-> balancing staging wiring
+        self.vfx_preview.set_balancing_panel(self.balancing)
+        self.balancing.value_staged.connect(self.vfx_preview.on_balancing_value_staged)
+
         # Theme wiring (UH-6, D5): the "Theme" leaf -> right_stack; Save ->
         # reconfigure engine.render.fonts in-process + repaint the viewport
         # so previews track the new theme without a restart (chrome theme,
         # editor/theme.py, is untouched by any of this).
         self.selector.theme_selected.connect(self._on_theme_selected)
         self.game_theme.saved.connect(self._on_theme_saved)
+
+        # Cutscenes wiring (TU-3): the "Cutscenes" leaf -> right_stack; reload on
+        # entry mirrors Theme's reload-on-entry convention (registry writes are
+        # immediate per-action inside the panel, so there is no saved signal here).
+        self.selector.cutscenes_selected.connect(self._on_cutscenes_selected)
+
+        # Tutorial wiring (TU-4): the "Tutorial" leaf -> right_stack; reload on
+        # entry, the same convention as every other selection-driven panel.
+        self.selector.tutorial_selected.connect(self._on_tutorial_selected)
+        # Strings wiring (Phase C): the "Strings" leaf -> right_stack. No
+        # saved-signal consumer — strings.json is game/ui-owned data with no
+        # editor-side reconfigure (the palette.json precedent, see
+        # panels/strings_panel.py's module docstring); the game re-reads it
+        # at its own next boot.
+        self.selector.strings_selected.connect(self._on_strings_selected)
+        # Timeline wiring (TimelinePLAN T5): the "Timeline" leaf -> right_stack;
+        # reload on entry, the same convention as every other selection-driven
+        # panel.
+        self.selector.timeline_selected.connect(self._on_timeline_selected)
 
         # ED-24: THE global undo stack, Ctrl+Z / Ctrl+Y everywhere (order
         # swappable from Settings — _apply_undo_redo_shortcuts sets the
@@ -225,6 +312,16 @@ class MainWindow(QMainWindow):
         self.run_controls.launched.connect(self._on_launched)
         self.run_controls.started.connect(self._on_build_started)
         self.run_controls.finished.connect(self._on_build_finished)
+        # UT-2: every screen-doc edit re-records the preview against the
+        # UNSAVED doc, debounced — `indexChanged` fires on push AND on
+        # undo/redo, i.e. exactly the moments the picture goes stale.
+        self._preview_timer = QTimer(self)
+        self._preview_timer.setSingleShot(True)
+        self._preview_timer.setInterval(_PREVIEW_DEBOUNCE_MS)
+        self._preview_timer.timeout.connect(self._render_screen_preview)
+        self.screen_session.undo_stack.indexChanged.connect(
+            self._schedule_preview_render)
+        self.run_controls.preview_rendered.connect(self._on_preview_rendered)
         self.run_controls.build_state_changed.connect(
             self._update_playbuild_enabled)
         self._update_playbuild_enabled(self.run_controls.can_playbuild())
@@ -315,10 +412,37 @@ class MainWindow(QMainWindow):
         center.setSizes([520, 200])       # sane initial split (not stretch-only)
 
         self.right_stack = QStackedWidget()
-        self.right_stack.addWidget(self.details)         # index 0: asset import
+        # ESV-2: the asset importer and the anchors panel share index 0 in a
+        # small container — indices 1/2 keep their meaning unchanged.
+        # ESV-5: the vfx preview joins them as a THIRD child of that same
+        # container instead of its own stack page (fixing a pre-existing bug:
+        # `_leave_vfx_mode` used to target `self.details`, which was never a
+        # stack page at all — a no-op that permanently stranded the importer
+        # once a vfx node had ever been selected). A plain QVBoxLayout
+        # squeezed the preview's fixed-minimum surface unusably once all
+        # three panels could be visible together, so a QSplitter lets the
+        # user trade space between them; `right_stack` keeps exactly ONE page
+        # for this whole container either way.
+        self.details_pane = QWidget()
+        details_pane_layout = QVBoxLayout(self.details_pane)
+        details_pane_layout.setContentsMargins(0, 0, 0, 0)
+        details_pane_splitter = QSplitter(Qt.Orientation.Vertical)
+        details_pane_splitter.addWidget(self.details)
+        details_pane_splitter.addWidget(self.anchors)
+        details_pane_splitter.addWidget(self.vfx_preview)
+        details_pane_splitter.setStretchFactor(0, 1)
+        details_pane_splitter.setStretchFactor(1, 0)
+        details_pane_splitter.setStretchFactor(2, 1)
+        details_pane_layout.addWidget(details_pane_splitter)
+        self.vfx_preview.setVisible(False)   # ESV-5: hidden outside vfx mode
+        self.right_stack.addWidget(self.details_pane)     # index 0: asset import (+ anchors, ESV-2; + vfx preview, ESV-5)
         self.right_stack.addWidget(self.map_details)     # index 1: map lifecycle
         self.right_stack.addWidget(self.screen_details)  # index 2: screen mode (B4)
         self.right_stack.addWidget(self.game_theme)      # index 3: Theme (UH-6)
+        self.right_stack.addWidget(self.cutscenes)       # index 4: Cutscenes (TU-3)
+        self.right_stack.addWidget(self.tutorial_panel)  # index 5: Tutorial (TU-4)
+        self.right_stack.addWidget(self.strings_panel)   # index 6: Strings (Phase C)
+        self.right_stack.addWidget(self.timeline)        # index 7: Timeline (TimelinePLAN T5)
 
         split = QSplitter(Qt.Orientation.Horizontal)
         split.addWidget(self.selector)
@@ -353,6 +477,10 @@ class MainWindow(QMainWindow):
         self._node = (category_key, tuple(group_path))
         self.details.set_context(category_key, group_path)
         self._refresh_levels()
+        if category_key == "vfx":
+            self._enter_vfx_mode()
+        else:
+            self._leave_vfx_mode()
 
     # -- tilemap mode (ED-20): map node selected -----------------------------
 
@@ -375,6 +503,7 @@ class MainWindow(QMainWindow):
         # Default to Game-tiles mode; set_mode arms the first zone brush.
         self.palette.set_mode("gametiles")
         self.palette.setVisible(True)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.map_details)
         self.map_details.refresh()
 
@@ -388,7 +517,7 @@ class MainWindow(QMainWindow):
         if self.viewport.in_map_mode():
             self.viewport.set_map_mode(None)
         self.palette.setVisible(False)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
 
     # -- screen mode (B4, R3): a UI-screen leaf selected ---------------------
 
@@ -455,30 +584,121 @@ class MainWindow(QMainWindow):
             self.run_controls.export_layouts()
         self._screen_mode_entered = True
         self._screen_defaults = self._load_screen_defaults()
-        self.viewport.set_screen_mode(self.screen_session, self._screen_defaults)
+        self._screen_previews = self._load_screen_previews()
+        self.viewport.set_screen_mode(self.screen_session, self._screen_defaults,
+                                      self._screen_previews)
         self.screen_details.set_defaults(self._screen_defaults)
+        self.anchors.set_slot(None)   # ESV-2: a stale slot's rows don't live on
         self.right_stack.setCurrentWidget(self.screen_details)
+        # UT-2: the COMMITTED preview is recorded override-free, so a screen
+        # whose saved doc carries overrides opens out of sync (widgets drawn
+        # over their recorded selves). One re-record on entry settles it; a
+        # screen with an empty doc is already in sync and needs none.
+        if self.screen_session.doc:
+            self._schedule_preview_render()
 
     def _leave_screen_mode(self):
         # the session keeps its (possibly dirty) doc — reselecting the same
         # screen returns to it; the prompt only guards opening a DIFFERENT one
         if self.viewport.in_screen_mode():
             self.viewport.set_screen_mode(None)
-        self.right_stack.setCurrentWidget(self.details)
+        self.right_stack.setCurrentWidget(self.details_pane)
         self._screen_mode_entered = False
 
     def _load_screen_defaults(self):
         """data/ui/screen_defaults.json (B3's exporter output). Missing or
         invalid → {} — screen mode's own E-37 graceful-degrade path handles
         that (a placeholder message, never a raise)."""
-        path = self._data_dir / "ui" / "screen_defaults.json"
-        schema = self._data_dir / "schemas" / "screen_defaults.schema.json"
+        return self._load_generated_ui_doc("screen_defaults")
+
+    def _load_screen_previews(self):
+        """data/ui/screen_previews.json (UT-2's recorded draw list). Same
+        degrade-to-{} contract as the defaults: a screen with no preview falls
+        back to the flat-box rendering, which is exactly the pre-UT-2 look."""
+        return self._load_generated_ui_doc("screen_previews")
+
+    # -- UT-2: live screen-preview re-record -------------------------------
+
+    def _schedule_preview_render(self, *_args):
+        """Debounce a re-record. Dragging a widget pushes one command per
+        release and the spinboxes one per commit, but a designer holding an
+        arrow key can fire many — one subprocess per keypress would thrash,
+        and only the last doc is worth drawing."""
+        if not self._preview_renders or not self.viewport.in_screen_mode():
+            return
+        self._preview_timer.start()
+
+    def _render_screen_preview(self):
+        """Write the open (unsaved) doc to a temp file and have the exporter
+        re-record this screen's draw list against it.
+
+        The doc goes out as `{screen_id: doc}` — the same shape
+        `ScreenSkinning.from_overrides` takes — so the recorded picture is
+        what the GAME would draw with these overrides, not an editor
+        approximation of them.
+        """
+        session = self.screen_session
+        if session.doc is None:
+            return
+        tmp = self._preview_tmpdir()
+        overrides = tmp / "overrides.json"
+        out = tmp / "screen_previews.json"
+        try:
+            overrides.write_text(
+                json.dumps({session.screen_id: session.doc}), encoding="utf-8")
+        except OSError:
+            return      # a temp dir we cannot write is not worth a crash
+        # Snapshot WHAT we are rendering, not what the doc says when the
+        # render finishes — a second edit mid-render must not be mistaken for
+        # "already drawn" (viewport._preview_in_sync).
+        self._preview_rendered_doc = copy.deepcopy(session.doc)
+        self.run_controls.render_preview(overrides, out)
+
+    def _preview_tmpdir(self):
+        if self._preview_dir is None:
+            self._preview_dir = Path(tempfile.mkdtemp(prefix="htbh-preview-"))
+        return self._preview_dir
+
+    def _on_preview_rendered(self, code):
+        """The re-record finished. A non-zero exit leaves the previous picture
+        up rather than blanking the viewport — a screen mid-edit can be
+        momentarily unrenderable, and flashing to empty boxes is worse than a
+        frame of stale geometry."""
+        if code != 0 or self._preview_dir is None:
+            return
+        out = self._preview_dir / "screen_previews.json"
+        if not out.exists():
+            return
+        try:
+            doc = data_io.load_validated(
+                out, self._data_dir / "schemas" / "screen_previews.schema.json")
+        except Exception:   # noqa: BLE001 - a bad render degrades, never raises
+            return
+        self._screen_previews = doc
+        self.viewport.refresh_screen_previews(
+            doc, recorded_doc=self._preview_rendered_doc)
+
+    def _load_generated_ui_doc(self, stem):
+        path = self._data_dir / "ui" / f"{stem}.json"
+        schema = self._data_dir / "schemas" / f"{stem}.schema.json"
         if not path.exists():
             return {}
         try:
             return data_io.load_validated(path, schema)
         except Exception:   # noqa: BLE001 - a bad file degrades, never raises
             return {}
+
+    # -- vfx preview mode (ESV-4): a "vfx" tree node selected ----------------
+
+    def _enter_vfx_mode(self):
+        self.right_stack.setCurrentWidget(self.details_pane)
+        self.vfx_preview.setVisible(True)
+
+    def _leave_vfx_mode(self):
+        # the other `_leave_*` handlers already own the stack page (and
+        # `_on_node_selected` calls them before this branch runs), so no
+        # `right_stack` call is needed here at all — just hide the preview.
+        self.vfx_preview.setVisible(False)
 
     def _on_refresh_layouts(self):
         self.run_controls.export_layouts()
@@ -491,7 +711,9 @@ class MainWindow(QMainWindow):
             # (ED-42) so "Refresh Layouts" also picks up new skins.
             self.viewport.reload_assets()
             self._screen_defaults = self._load_screen_defaults()
+            self._screen_previews = self._load_screen_previews()
             self.viewport.refresh_screen_defaults(self._screen_defaults)
+            self.viewport.refresh_screen_previews(self._screen_previews)
             self.screen_details.set_defaults(self._screen_defaults)
             self.selector.refresh_screens()
             self.statusBar().showMessage("Layouts refreshed", 5000)
@@ -793,6 +1015,7 @@ class MainWindow(QMainWindow):
             self.details.subcategory_index(), self.levelbar.level())
         self.viewport.set_preview_slot(slot)
         self.details.set_slot(slot)
+        self.anchors.set_slot(slot)
 
     def _on_manifest_changed(self, _slot_key):
         """Import-panel save/clear: assets reload without a restart (ED-42)
@@ -803,6 +1026,8 @@ class MainWindow(QMainWindow):
         self.viewport.reload_assets()
         self.selector.refresh_markers()
         self.palette.refresh_icons()
+        self.anchors.reload()   # ESV-2: a DetailsPanel save/clear must not
+        # leave the anchors panel (or its handle) stale relative to disk.
 
     # -- run controls (ED-50/51/52) ------------------------------------------
 
@@ -955,17 +1180,60 @@ class MainWindow(QMainWindow):
 
     def _on_theme_saved(self):
         """Theme panel Save: reconfigure engine.render.fonts in-process so
-        screen-mode preview TEXT tracks the new sizes immediately, then
-        repaint — chrome theme (editor/theme.py) is untouched by any of
-        this. Palette edits have no separate editor-side consumer to
-        reconfigure (game/ui.widgets is game-only — off limits to the
-        editor, ED layering rule); the game re-reads palette.json at its
-        own next boot. Graceful degrade mirrors the boot-time load above."""
+        screen-mode preview TEXT tracks the new sizes/font family
+        immediately, then repaint — chrome theme (editor/theme.py) is
+        untouched by any of this. Palette edits have no separate editor-side
+        consumer to reconfigure (game/ui.widgets is game-only — off limits
+        to the editor, ED layering rule); the game re-reads palette.json at
+        its own next boot. Graceful degrade mirrors the boot-time load
+        above (UH-Font-A: `resolve_active_font_path` degrades to None)."""
         try:
-            configure_fonts(theme_ops.load_fonts(self._data_dir))
+            configure_fonts(
+                theme_ops.load_fonts(self._data_dir),
+                font_path=theme_ops.resolve_active_font_path(self._data_dir))
         except Exception:
             pass
         self.viewport.render_frame()
+
+    # -- Cutscenes panel (TU-3) ------------------------------------------------
+
+    def _on_cutscenes_selected(self):
+        """The selector's Cutscenes leaf: reload the registry fresh (same
+        reload-on-entry convention as Theme) and show the panel."""
+        self.cutscenes.set_registry()
+        self.right_stack.setCurrentWidget(self.cutscenes)
+
+    # -- Tutorial panel (TU-4) -------------------------------------------------
+
+    def _on_tutorial_selected(self):
+        """The selector's Tutorial leaf: reload fresh from disk (a designer
+        may have hand-edited nothing, but this mirrors every other
+        selection-driven panel's reload-on-entry convention) and show the
+        panel."""
+        self.tutorial_panel.set_tutorial()
+        self.right_stack.setCurrentWidget(self.tutorial_panel)
+    # -- Strings panel (Phase C) -----------------------------------------------
+
+    def _on_strings_selected(self):
+        """The selector's Strings leaf: reload the doc fresh (mirrors every
+        other selection-driven panel's "reload on entry" convention) and
+        show the panel. No saved-signal handler: strings.json has no
+        editor-side render consumer to reconfigure (game/ui/strings is
+        game-only, off limits to the editor) — see
+        panels/strings_panel.py's module docstring."""
+        self.strings_panel.set_strings()
+        self.right_stack.setCurrentWidget(self.strings_panel)
+
+    # -- Timeline panel (TimelinePLAN T5) --------------------------------------
+
+    def _on_timeline_selected(self):
+        """The selector's Timeline leaf: reload fresh from disk (mirrors
+        every other selection-driven panel's "reload on entry" convention)
+        and show the panel. No saved-signal consumer — progression.json has
+        no editor-side render to reconfigure (the strings.json precedent);
+        the game re-reads it at its own next boot."""
+        self.timeline.set_timeline()
+        self.right_stack.setCurrentWidget(self.timeline)
 
     # -- frame drive ---------------------------------------------------------
 
@@ -975,6 +1243,8 @@ class MainWindow(QMainWindow):
         self._last_tick = now
 
         self.viewport.render_frame()
+        if self.vfx_preview.isVisible():
+            self.vfx_preview.render_frame()
         self.frames += 1
         self._fps_window += 1
         self._fps_elapsed += dt

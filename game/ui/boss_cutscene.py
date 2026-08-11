@@ -11,8 +11,13 @@ Since 10J the backdrop is the prototype's real alpha-210 dim (RGBA
 ``HudRect``) — the frozen board stays faintly visible behind the choice.
 
 10L-B: five ids (plan R3) — ``backdrop`` (color only), ``headline`` (font
-only — its win/loss COLOR stays logic-owned), ``subtitle`` (font,
-text_color), ``box_a``/``box_b`` (rect — moves draw AND hit together; font;
+only — its win/loss COLOR AND WHICH VARIANT stay logic-owned, a 2-variant
+runtime pick, same "dynamic content" exclusion as HUD readouts; the variant
+TEXT itself is Phase-C string-table content —
+``boss_cutscene.headline_win``/``headline_loss``, ``game/ui/strings.py``),
+``subtitle``
+(font, text_color, **label** — a phase-B addition since its copy is fixed,
+not game-state), ``box_a``/``box_b`` (rect — moves draw AND hit together; font;
 text_color; **skin** via the already-live skinned ``submit_panel`` — a
 CONDITIONAL path: with no skin the box keeps drawing its two raw hover-tinted
 rects, byte-identical to pre-B2 (the golden parity pin); a skin present
@@ -28,22 +33,27 @@ from game.core.boss_bonuses import choice_desc
 
 from .skinning import ScreenSkinning, is_visible
 from .widgets import (
-    anim_ms, contains, submit_centered, submit_panel
+    anim_ms, contains, submit_centered, submit_label, submit_panel
 )
 from . import widgets
+from .strings import T
 
 _BG = (0, 0, 0, 210)           # prototype alpha dim (10J)
 _WIN_GREEN = (100, 220, 100)
 _LOSS_RED = (220, 100, 100)
-_BOX_W, _BOX_H, _GAP = 180, 130, 20
-_DOWN_SHIFT = 20               # boxes sit 20 px below true centre (prototype)
+_BOX_W, _BOX_H, _GAP = 90, 65, 10
+_DOWN_SHIFT = 10               # boxes sit 10 px below true centre (prototype)
 
 SCREEN_ID = "boss_cutscene"
 
 
 class BossCutscene:
-    def __init__(self, view_w, view_h, skinning=None):
+    def __init__(self, view_w, view_h, core_balance, skinning=None):
         self.screen_id = SCREEN_ID
+        # The option descs quote LIVE balancing magnitudes (BossBonuses), so
+        # this screen needs the core balance — the host has it in scope in
+        # build_gameplay() and passes it straight through.
+        self.core_balance = core_balance
         self.skinning = skinning or ScreenSkinning.empty()
         self.view_w = view_w
         self.view_h = view_h
@@ -58,9 +68,23 @@ class BossCutscene:
         # same convention every other label id in game/ui uses (review fix:
         # every ids target needs a stored, readable, override-respecting
         # rect, not just font/colour).
-        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl")
+        # headline is a win/loss 2-variant string built from runtime outcome
+        # (like its color) — stays logic-owned, no `label` default (out of
+        # scope per the "dynamic/enum-varying text" rule). subtitle is a
+        # fixed, non-varying string, so — like every other screen's static
+        # title — `label` is a legitimate override field for it.
+        # UT-5: both go out through ``submit_label`` now, so a ``visible``
+        # override is honoured. ``headline`` keeps ``text_id=None`` on purpose
+        # — it picks ONE OF TWO string ids from the runtime outcome, the same
+        # ``text=`` escape hatch ``hud.py``'s phase banner uses.
+        self._headline = SimpleNamespace(rect=(0, 0, 0, 0), font_key="xxl",
+                                         text_id=None, align="center",
+                                         visible=True)
         self._subtitle = SimpleNamespace(rect=(0, 0, 0, 0), font_key="md",
-                                         text_color=widgets.C_UI_TEXT_DIM)
+                                         text_color=widgets.C_UI_TEXT_DIM,
+                                         align="center", visible=True,
+                                         text_id=None,
+                                         label="How will we react?")
         self.box_a = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
                                      font_key="lg", text_color=None)
         self.box_b = SimpleNamespace(rect=(0, 0, _BOX_W, _BOX_H), skin=None,
@@ -97,8 +121,8 @@ class BossCutscene:
         # json + the golden parity stream).
         self._headline.rect = (
             cx, top - layout_h(self._headline.font_key)
-            - layout_h(self._subtitle.font_key) - 28, 0, 0)
-        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 12,
+            - layout_h(self._subtitle.font_key) - 14, 0, 0)
+        self._subtitle.rect = (cx, top - layout_h(self._subtitle.font_key) - 6,
                               0, 0)
         self.ids = {
             "backdrop": ("backdrop", self._backdrop),
@@ -133,22 +157,27 @@ class BossCutscene:
         self.skinning.submit_background(renderer, self.screen_id, view_w, view_h)
         renderer.submit_hud(HudRect(self._backdrop.rect, self._backdrop.color))
         won = self.outcome == "win"
-        headline = ("Cutscene: Round Won :)" if won
-                    else "Cutscene: Round Lost :(")
+        # Phase C: the TEXT is now string-table content (boss_cutscene.
+        # headline_win/headline_loss) — the win/loss PICK stays logic-owned
+        # (a 2-variant runtime string, same as the colour below), just like
+        # the module docstring's "dynamic content" exclusion always meant.
+        headline = T("boss_cutscene.headline_win" if won
+                     else "boss_cutscene.headline_loss")
         color = _WIN_GREEN if won else _LOSS_RED
-        submit_centered(renderer, headline, self._headline.rect[0],
-                        self._headline.rect[1], self._headline.font_key, color)
-        submit_centered(renderer, "How will we react?", self._subtitle.rect[0],
-                        self._subtitle.rect[1], self._subtitle.font_key,
-                        self._subtitle.text_color)
-        prefix = "Win" if won else "Loss"
+        submit_label(renderer, self._headline, text=headline, color=color)
+        submit_label(renderer, self._subtitle)
+        prefix = T("boss_cutscene.prefix_win" if won
+                   else "boss_cutscene.prefix_loss")
         set_idx = (self.boss_num - 1) % 3 if self.boss_num else 0
         for i, (option, box) in enumerate(
                 (("A", self.box_a), ("B", self.box_b))):
             if not is_visible(box):
                 continue
-            self._submit_box(renderer, box, prefix + option,
-                             choice_desc(set_idx, option), i == self.hovered, t)
+            self._submit_box(renderer, box,
+                             T("boss_cutscene.box_label", prefix=prefix,
+                               option=option),
+                             choice_desc(set_idx, option, self.core_balance),
+                             i == self.hovered, t)
 
     @staticmethod
     def _submit_box(renderer, box, label, desc, hovered, anim_ms_):
@@ -167,13 +196,13 @@ class BossCutscene:
             renderer.submit_hud(HudRect(
                 rect, widgets.C_GOLD if hovered else widgets.C_UI_BORDER, width=1))
         cx = x + w // 2
-        cursor = y + 12
+        cursor = y + 6
         label_color = (box.text_color if box.text_color is not None
                        else (widgets.C_GOLD if hovered else widgets.C_UI_TEXT))
         submit_centered(renderer, label, cx, cursor, box.font_key, label_color)
         # layout_h: this cursor position lands directly in HudText.pos
         # entries the golden parity stream captures.
-        cursor += layout_h(box.font_key) + 10
+        cursor += layout_h(box.font_key) + 5
         for line in desc.split("\n"):
             submit_centered(renderer, line, cx, cursor, "sm", widgets.C_UI_TEXT_DIM)
             cursor += layout_h("sm") + 2

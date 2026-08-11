@@ -11,6 +11,7 @@
   },
   "cols": 20,
   "deco": [],
+  "despawnable_spawn": [],
   "display_name": "First Light",
   "id": "first_light",
   "legend": {
@@ -40,6 +41,8 @@
     }
   },
   "rows": 20,
+  "spawnable_background": [],
+  "stage_zones": [],
   "start_area": null,
   "terrain": [
     "olllffffffffffffffff",
@@ -62,5 +65,8 @@
     "ffffffffffffffffffff",
     "ffffffffffffffffffff",
     "ffffffffffffffffffff"
-  ]
+  ],
+  "tile_conditions": [],
+  "tutorial_flute": null,
+  "tutorial_stone": null
 }

@@ -14,11 +14,13 @@ from .pathfinder import (
     find_path_to_nearest_defence,
     find_path_to_nearest_economic,
     find_path_to_nearest_non_base_building,
+    find_path_to_nearest_structure,
     nearest_non_base_building_tile,
 )
 from .picking import tile_at_screen, world_to_tile
 from .tile_map import BASE_CONTENT_KEY, TileMap, load_map_balance
 from .tiles import Tile, TileCondition, TileState
+from .wall_render import edge_world_points, wall_render_items
 
 __all__ = [
     "Tile",
@@ -31,12 +33,15 @@ __all__ = [
     "draws_tint",
     "spawn_deco_render_items",
     "spawn_tree_slots",
+    "edge_world_points",
+    "wall_render_items",
     "find_path",
     "find_path_ignoring_walls",
     "find_path_to_nearest_building",
     "find_path_to_nearest_defence",
     "find_path_to_nearest_economic",
     "find_path_to_nearest_non_base_building",
+    "find_path_to_nearest_structure",
     "nearest_non_base_building_tile",
     "tile_at_screen",
     "world_to_tile",

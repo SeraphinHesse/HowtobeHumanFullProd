@@ -56,6 +56,32 @@ def block_center_offset(fit_tiles):
     return (fit_tiles - 1) / 2 if fit_tiles > 0.0 else 0.0
 
 
+def sprite_anchor_screen(cs, wx, wy, frame_w, fit_tiles, scale, offset_xy,
+                         anchor_xy):
+    """The SCREEN point an `anchor_xy` frame-px anchor resolves to on the
+    sprite `flush` draws for world position `(wx, wy)` — the exact placement
+    math above (`block_center_offset` + `fit_factor` + the tile-diamond-
+    centre convention), evaluated for one anchor point instead of blitting a
+    whole frame. `anchor_xy` of `(0, 0)` is the sprite's drawn CENTRE.
+
+    Composes `block_center_offset`/`fit_factor` — never restates them, so
+    this and `flush` cannot drift apart (fix-anchor-origin-parity: the ONE
+    shared origin every anchor consumer, game and editor alike, must resolve
+    through). `frame_h` never enters this — the centre sits on the tile
+    diamond's centre regardless of frame height (see this module's Anchor
+    convention docstring). Pure: no pygame, no game vocabulary."""
+    zoom = cs.camera.zoom
+    tile_w = cs.geometry.tile_w
+    half_h = cs.geometry.tile_h / 2
+    c = block_center_offset(fit_tiles)
+    px, py = cs.world_to_screen(wx + c, wy + c)
+    s = fit_factor(frame_w, tile_w, fit_tiles) * scale
+    ox, oy = offset_xy
+    ax, ay = anchor_xy
+    return (px + (ox + ax) * zoom * s,
+            py + half_h * zoom + (oy + ay) * zoom * s)
+
+
 class Renderer:
     def __init__(self, coords, assets, backend=None):
         self._coords = coords
@@ -160,7 +186,8 @@ class Renderer:
         for hud in self._hud:
             if isinstance(hud, HudSprite):
                 frame = self._assets.frame(
-                    hud.slot_key, hud.animation, hud.anim_time_ms)
+                    hud.slot_key, hud.animation, hud.anim_time_ms,
+                    extra_hidden=hud.hidden_frames or None)
                 draw_calls.append(DrawCall(
                     surface=frame.surface,
                     dest=hud.dest,
@@ -168,6 +195,7 @@ class Renderer:
                     tint=hud.tint,
                     flip=hud.flip,
                     slice=frame.slice,
+                    crop_rect=hud.crop,
                 ))
             else:
                 draw_calls.append(hud)

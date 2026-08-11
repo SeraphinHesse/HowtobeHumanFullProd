@@ -15,8 +15,13 @@ they equal the stock file). Every consumer reads ``widgets.C_GOLD`` etc. via
 attribute access, never ``from .widgets import C_GOLD`` (an early binding a
 later ``configure_palette`` rebind cannot reach) — see ``game/ui/CLAUDE.md``.
 """
+from types import SimpleNamespace
+
 from engine.render import HudRect, HudSprite, HudText
 from engine.render.fonts import TextMetrics, layout_h
+
+from . import strings
+from .skinning import is_visible
 
 _METRICS = TextMetrics()
 
@@ -57,9 +62,16 @@ C_UI_TEXT = (235, 225, 195)
 C_UI_TEXT_DIM = (150, 140, 120)
 C_HIGHLIGHT = (255, 230, 60)         # selected tile
 C_HIGHLIGHT2 = (255, 180, 60)        # unlock-area tiles
+C_TUTORIAL_HIGHLIGHT = (255, 255, 255)  # TU-6: guided-chain highlight (white)
+# Building Movement: the "you can move the selected building here" tiles. A
+# plain code constant, NOT palette-data-backed — the same deliberate exception
+# `C_TUTORIAL_HIGHLIGHT` above is (see `_PALETTE_KEYS`, which both are absent
+# from, and game/ui/CLAUDE.md's palette section).
+C_MOVE_HIGHLIGHT = (80, 200, 255)    # move-destination tiles (cyan)
 C_RANGE_HIGHLIGHT = (180, 40, 40)    # defence attack range
 C_PANEL_STONE = (40, 32, 58)         # HUD "stone pill" body
 C_PANEL_INSET = (150, 135, 185)
+C_PURPLE = (168, 105, 222)           # the house purple (matches the XP bar fill)
 
 # data/ui/palette.json's keys, in the same order as the C_* block above (UH-6,
 # D5) — snake_case with the C_ prefix dropped. configure_palette's key ->
@@ -68,7 +80,7 @@ _PALETTE_KEYS = (
     "gold", "red", "hp_green", "hp_red", "green_stat", "ui_panel",
     "ui_border", "ui_btn", "ui_btn_hover", "ui_btn_active", "ui_btn_disabled",
     "ui_text", "ui_text_dim", "highlight", "highlight2", "range_highlight",
-    "panel_stone", "panel_inset",
+    "panel_stone", "panel_inset", "purple",
 )
 
 
@@ -95,18 +107,34 @@ def configure_palette(doc):
         globals()["C_" + key.upper()] = tuple(value)
 
 
-HEART = "♥"  # ♥ — the love glyph (SysFont monospace renders it)
-
 # -- 10I: tile-condition labels + colours (prototype building_ui.py:23-27) --
 # Shared by the panel badges/tooltips (building_ui) and the map overlays so
 # the two surfaces cannot drift. Keyed by the TileCondition NAME (a plain
-# string) so this module needs no game.map import.
-COND_LABELS = {
-    "GRASS": ("Grass", (100, 180, 80)),
-    "MOUNTAIN": ("Mountain", (160, 130, 90)),
-    "POND": ("Pond", (80, 160, 220)),
-    "FOREST": ("Forest", (70, 160, 70)),
+# string) so this module needs no game.map import. Colors stay code-owned
+# (data/ui/palette.json's scope is the C_* block only, D5); the LABEL TEXT
+# is Phase C's string-table content instead (data/ui/strings.json's
+# widgets.condition.* ids).
+_COND_COLORS = {
+    "GRASS": (100, 180, 80),
+    "MOUNTAIN": (160, 130, 90),
+    "POND": (80, 160, 220),
+    "FOREST": (70, 160, 70),
 }
+_COND_LABEL_IDS = {
+    "GRASS": "widgets.condition.grass",
+    "MOUNTAIN": "widgets.condition.mountain",
+    "POND": "widgets.condition.pond",
+    "FOREST": "widgets.condition.forest",
+}
+
+
+def cond_label(name):
+    """(label, color) for a TileCondition NAME (10I). A FUNCTION, not a
+    dict literal (Phase C: same reasoning as hud.py's ``_phase_color`` —
+    a dict built at IMPORT time would freeze the pre-``configure_strings``
+    fallback text and never see a later rebind; this resolves fresh via
+    ``strings.T()`` on every call)."""
+    return strings.T(_COND_LABEL_IDS[name]), _COND_COLORS[name]
 # -- /10I --
 
 
@@ -184,6 +212,71 @@ def submit_centered(renderer, text, cx, cy, font_key, color):
     renderer.submit_hud(HudText(text, (cx, cy), font_key, color, align="center"))
 
 
+def label_holder(rect=(0, 0, 0, 0), *, text_id=None, label="", font_key="md",
+                 text_color=None, align="left", visible=True):
+    """A ``label``-kind widget holder for an id'd piece of text (UT-1).
+
+    The ``SimpleNamespace`` shadow object every screen already builds by hand
+    for its static titles, with the two UT-1 fields folded in — written once
+    here so the ~90 converted call sites do not each restate the field list.
+
+    ``rect`` follows the text-label convention (``game/ui/CLAUDE.md``): an
+    ``(x, y, 0, 0)`` ANCHOR POINT, W/H nominal ``0``, computed and STORED in
+    ``layout()`` so a rect override moves the text and the exporter reads a
+    real position.
+
+    ``text_id`` names a ``data/ui/strings.json`` key: the text is resolved
+    through ``T()`` at draw time, so the template is designer-editable and the
+    live values stay code-owned. A holder with no ``text_id`` falls back to its
+    static ``label`` — the pre-UT-1 behaviour, unchanged.
+    """
+    return SimpleNamespace(rect=rect, text_id=text_id, label=label,
+                           font_key=font_key, text_color=text_color,
+                           align=align, visible=visible)
+
+
+def submit_label(renderer, holder, *, text=None, color=None, align=None, **fmt):
+    """Draw an id'd label holder (UT-1) — THE idiom for text a screen names in
+    its ``ids`` dict.
+
+    Text comes from ``T(holder.text_id, **fmt)`` when the holder carries a
+    ``text_id``, else from its static ``holder.label``. Geometry, font, colour,
+    alignment and visibility all come off the holder, i.e. from whatever
+    ``ScreenSkinning.apply()`` last wrote onto it — which is why this must be
+    called AFTER ``apply()``, like every other override-reading draw.
+
+    ``text`` bypasses both for the handful of runs whose content is authored
+    at RUNTIME rather than templated — a building's player-typed name, a live
+    text-entry buffer. Those still get an id'd holder (so their position,
+    font and colour are designer-owned); only the characters are not the
+    designer's to write.
+
+    ``color`` is the code-computed fallback used when no ``text_color``
+    override is set (the "``None`` means compute" convention every other
+    override key already follows); ``align`` likewise overrides the holder's
+    own for a call site that varies it. An empty resolved string draws
+    nothing — a hidden or unset label is a no-op, never a blank ``HudText``.
+    """
+    if not is_visible(holder):
+        return
+    text_id = getattr(holder, "text_id", None)
+    if text is None:
+        if text_id:
+            text = strings.T(text_id, **fmt)
+        else:
+            text = getattr(holder, "label", "") or ""
+    if not text:
+        return
+    tcol = getattr(holder, "text_color", None)
+    if tcol is None:
+        tcol = color if color is not None else C_UI_TEXT
+    if align is None:
+        align = getattr(holder, "align", "left") or "left"
+    rect = holder.rect
+    renderer.submit_hud(HudText(text, (rect[0], rect[1]),
+                                holder.font_key, tcol, align=align))
+
+
 def submit_tile_diamond(renderer, col, row, color, width=2):
     """A world-space diamond outline around tile ``(col, row)`` — a selection /
     range / unlock highlight. Uses the overlay pass (world points, converted via
@@ -202,6 +295,34 @@ def submit_tile_diamond_fill(renderer, col, row, rgba, border=None,
     if border is not None:
         renderer.submit_overlay_lines(pts, border, width=border_width,
                                       closed=True)
+
+
+def submit_ui_box_highlight(renderer, rect, color=None, width=3):
+    """A highlight ring around a UI element (card / Confirm / End Turn) —
+    the tutorial guided-chain highlight (D8, TU-6). Plain HUD-space rect;
+    ``color`` defaults to the CURRENT ``C_TUTORIAL_HIGHLIGHT`` inside the
+    body (never as a def-time default — the same UH-6 rebind trap
+    ``submit_panel``'s ``fill``/``border`` guards against)."""
+    if color is None:
+        color = C_TUTORIAL_HIGHLIGHT
+    renderer.submit_hud(HudRect(rect, color, width=width))
+
+
+def submit_tutorial_banner(renderer, text, view_w, view_h, *, pad=12,
+                            font_key="lg"):
+    """A large, non-interactive, screen-centred banner (TU-8 Fix 2) — the
+    ``submit_ui_box_highlight`` sibling for a full text hint (e.g. "right
+    click anywhere to close"). A filled ``C_TUTORIAL_HIGHLIGHT`` box with a
+    dark border and dark centred text, sized to the text. Deliberately
+    carries NO hit-test and consumes no input, UNLIKE ``TutorialMessageScreen``
+    — a banner instructing a right-click must never itself swallow it."""
+    tw, th = text_size(text, font_key)
+    w, h = tw + pad * 2, th + pad * 2
+    x, y = (view_w - w) // 2, (view_h - h) // 2
+    renderer.submit_hud(HudRect((x, y, w, h), C_TUTORIAL_HIGHLIGHT))
+    renderer.submit_hud(HudRect((x, y, w, h), C_UI_BORDER, width=3))
+    submit_centered(renderer, text, view_w // 2, y + pad, font_key,
+                    C_UI_PANEL)
 
 
 def submit_bar(renderer, x, y, w, h, ratio, *, bg, fill, border=None):

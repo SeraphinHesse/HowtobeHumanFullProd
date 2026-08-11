@@ -7,13 +7,15 @@ timing: a map with NO spawn tile makes every wave empty (rounds still complete
 BUILDING -> ENEMY -> ROUND_END -> INCOME -> BUILDING), and base-breach logic is
 exercised through the same ``on_base_hit`` callback the combat sweep calls.
 """
+import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-from tools.tests.fixture_data import FIXTURE_DATA
+from tools.tests.fixture_data import FIXTURE_DATA, fixture_copy
 
 from engine import tilemap
 from engine.core import Health, Scene
@@ -25,11 +27,13 @@ from game.core.phases import GamePhase, GameState
 from game.enemies import Spawner, create_enemy, resolve_combat
 from game.enemies.components import PathAgent
 from game.map.tile_map import TileMap
+from game.tutorial.director import TutorialDirector
 
 MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 HOLE = CORE["TheHole"]
 PHASE = CORE["PhaseLoop"]
@@ -63,7 +67,7 @@ def host_frame(session, scene, tilemap_, dt):
     session.pre_sim(sim_dt, scene)
     if session.state.state == GameState.GAMEPLAY:
         scene.update(sim_dt)
-        resolve_combat(scene, tilemap_, sim_dt, BUILD,
+        resolve_combat(scene, tilemap_, sim_dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit)
         session.post_sim(scene)
 
@@ -73,7 +77,7 @@ def frame(session, scene, tilemap_, dt):
     gate is a no-op (state is always GAMEPLAY there)."""
     session.pre_sim(dt, scene)
     scene.update(dt)
-    resolve_combat(scene, tilemap_, dt, BUILD, on_base_hit=session.on_base_hit)
+    resolve_combat(scene, tilemap_, dt, BUILD, VFX, on_base_hit=session.on_base_hit)
     session.post_sim(scene)
 
 
@@ -166,6 +170,14 @@ class TestPhaseMachine(unittest.TestCase):
         session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
         return session, scene, tm, occ
 
+    def test_a_bare_session_with_no_director_starts_at_round_one(self):
+        # TU-9: round 0 is seeded ONLY by an active TutorialDirector, host-side
+        # (game/main.py's build_gameplay) — a Session a logic test builds
+        # bare, with no tutorial_director ever set, must be untouched.
+        session, _scene, _tm, _occ = self._session(["bb"])
+        self.assertEqual(session.state.round_num, 1)
+        self.assertIsNone(session.tutorial_director)
+
     def test_end_turn_only_from_building(self):
         session, scene, tm, _ = self._session(["bb"])
         session.state.phase = GamePhase.ENEMY
@@ -176,6 +188,12 @@ class TestPhaseMachine(unittest.TestCase):
         session, scene, tm, _ = self._session(["bb"])
         self.assertEqual(session.state.phase, GamePhase.BUILDING)
         session.end_turn()
+        # A designer-authored enemy-intro entry may queue on round 1
+        # (feature-enemy-intro-dialogue) — drain it exactly like the host
+        # does once a window's close animation finishes, before the round's
+        # own ENEMY phase begins.
+        while session.state.phase == GamePhase.ENEMY_INTRO:
+            session.resolve_enemy_intro()
         self.assertEqual(session.state.phase, GamePhase.ENEMY)
         # Empty wave -> clears on the first post_sim.
         frame(session, scene, tm, 0.1)
@@ -201,6 +219,8 @@ class TestPhaseMachine(unittest.TestCase):
             session.end_turn()
             for _ in range(80):  # >> round_end_delay + income_phase_duration
                 frame(session, scene, tm, 0.1)
+                if session.state.phase == GamePhase.ENEMY_INTRO:
+                    session.resolve_enemy_intro()
                 if (session.state.phase == GamePhase.BUILDING
                         and session.state.round_num == expected_round):
                     break
@@ -314,6 +334,157 @@ class TestGameOverLives(unittest.TestCase):
             session.on_base_hit(_Dummy())
         self.assertEqual(session.state.state, GameState.GAME_OVER)
         self.assertEqual(session.state.base_lives, 0)   # clamped, never -9
+
+
+class TestScriptedTutorialLoss(unittest.TestCase):
+    """TU-7: ``Session.on_base_hit``'s free-loss waiver +
+    ``_begin_round_end``'s ``on_round_end`` notification, driven against a
+    real ``TutorialDirector`` walked to round 1's scripted-loss step via fake
+    events (the test_tutorial_director.py convention). Reuses this module's
+    ``build_board``/``frame`` harness rather than a new one."""
+
+    _FLUTE = {"col": 2, "row": 3}
+    _STONE = {"col": 4, "row": 1}
+
+    def _map_doc(self):
+        return tilemap.TileMapDoc(
+            map_id="tut", display_name="Tut", cols=6, rows=6,
+            legend={}, terrain=[list("bbbbbb") for _ in range(6)],
+            base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
+            tutorial_flute=self._FLUTE, tutorial_stone=self._STONE)
+
+    def _director(self, data_dir=FIXTURE_DATA):
+        return TutorialDirector(data_dir, self._map_doc(),
+                                {"economy_buildings_required": 1})
+
+    def _free_first_loss_data_dir(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        data_dir = fixture_copy(Path(tmp.name))
+        script_path = data_dir / "tutorial" / "tutorial.json"
+        doc = json.loads(script_path.read_text(encoding="utf-8"))
+        doc["first_loss_costs_life"] = False
+        script_path.write_text(json.dumps(doc), encoding="utf-8")
+        return data_dir
+
+    def _walk_round_one(self, d):
+        """Fake events for the round-1 flute chain, ending on round-2's
+        "wait for the scripted loss" step. TU-8: includes the close-panel-
+        hint step's ``on_panel_closed()`` between placement and End Turn
+        (see tools/tests/test_tutorial_director.py's identical convention)."""
+        d.on_message_dismissed()
+        d.on_tile_clicked(self._FLUTE["col"], self._FLUTE["row"])
+        d.on_card_selected("economic")
+        d.on_building_placed("economic")
+        d.on_panel_closed()
+        d.on_end_turn()
+
+    def _enemy(self, tm, scene, col, row):
+        e = create_enemy("standard", col, row, ENEM, tm)
+        scene.spawn(e)
+        return e
+
+    def _run_round_one_breach(self, director):
+        # base(0,0), spawn(1,0) adjacent -> the enemy reaches the base fast.
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        # TU-9: the tutorial's scripted round is round 0, not round 1 — an
+        # active tutorial run starts here (game/main.py's build_gameplay
+        # seed), so charges_life_on_base_hit's round-0 gate can see it.
+        session.state.round_num = 0
+        session.tutorial_director = director
+        self._walk_round_one(director)
+        session.state.phase = GamePhase.ENEMY   # pretend a wave is live
+        self._enemy(tm, scene, 1, 0)
+
+        for _ in range(200):
+            frame(session, scene, tm, 0.1)
+            if session.state.phase != GamePhase.ENEMY:
+                break
+        else:
+            self.fail("enemy never breached the base")
+        scene.update(0.0)  # flush the wipe's queued despawns
+        return session
+
+    def test_first_loss_costs_life_true_ends_round_with_two_lives(self):
+        director = self._director()
+        session = self._run_round_one_breach(director)
+        self.assertEqual(session.state.base_lives, 2)  # down from seeded 3
+        self.assertEqual(session.state.phase, GamePhase.ROUND_END)
+
+    def test_first_loss_costs_life_false_keeps_three_lives(self):
+        director = self._director(data_dir=self._free_first_loss_data_dir())
+        session = self._run_round_one_breach(director)
+        self.assertEqual(session.state.base_lives, 3)  # waived, unchanged
+        self.assertEqual(session.state.phase, GamePhase.ROUND_END)
+
+    def test_message_box_two_appears_at_round_end_via_real_wiring(self):
+        director = self._director()
+        self._run_round_one_breach(director)
+        self.assertTrue(director.message_visible)
+        self.assertIn("You have only 3 lives", director.message_text())
+
+    def test_a_repeated_round_end_notification_is_a_no_op(self):
+        # Defense in depth: nothing in the real host loop calls
+        # _begin_round_end twice for the same round, but the director must
+        # never charge/advance twice if it somehow did.
+        director = self._director()
+        session = self._run_round_one_breach(director)
+        lives_after = session.state.base_lives
+        message_after = director.message_text()
+        director.on_round_end(session.state.round_num)
+        self.assertEqual(session.state.base_lives, lives_after)
+        self.assertEqual(director.message_text(), message_after)
+
+    def test_skipped_tutorial_never_shows_boxes_but_still_gets_cutscene(self):
+        tm, scene, occ = build_board(["bs"])
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        director = self._director()
+        # TU-9: an ACTIVE tutorial run starts at round 0 (game/main.py's
+        # build_gameplay seed) — mirrored here before the Skip.
+        session.state.round_num = 0
+        director.skip()  # the player pressed Skip on message box #1
+        # TU-9: Skip promotes the run to round 1 — the SAME two-line contract
+        # game/main.py's handle_world_click applies right after tutorial
+        # .skip() (a host closure — see test_right_click_dismiss.py's
+        # precedent for pinning the composed CONTRACT, not the closure).
+        if session.state.round_num == 0:
+            session.state.round_num = 1
+        session.tutorial_director = director
+        self.assertFalse(director.message_visible)
+        self.assertEqual(session.state.round_num, 1)
+
+        session.end_turn()  # the run's first End Turn: the TU-5 cutscene request
+        self.assertEqual(session.state.pending_cutscene,
+                         {"id": "first_end_turn"})
+
+        session.state.phase = GamePhase.ENEMY
+        self._enemy(tm, scene, 1, 0)
+        for _ in range(200):
+            frame(session, scene, tm, 0.1)
+            if session.state.phase != GamePhase.ENEMY:
+                break
+        else:
+            self.fail("enemy never breached the base")
+        scene.update(0.0)
+        # a skipped/finished director never shows message box #2 either, and
+        # normal life rules apply (no waiver once finished, and round_num is
+        # 1 now — never 0 — so charges_life_on_base_hit's round-0 gate never
+        # even applies here).
+        self.assertFalse(director.message_visible)
+        self.assertEqual(session.state.base_lives, 2)
+
+    def test_skip_at_round_zero_does_not_advance_an_already_advanced_run(self):
+        # Defense in depth: a stray Skip after the run already reached round
+        # 1 (naturally, or via an earlier Skip) must never knock it backward.
+        director = self._director()
+        tm, scene, occ = build_board(["bbbb"])
+        session = Session.create(Spawner(), tm, ENEM, CORE, BUILD)
+        session.state.round_num = 1
+        director.skip()
+        if session.state.round_num == 0:
+            session.state.round_num = 1
+        self.assertEqual(session.state.round_num, 1)
 
 
 # ---------------------------------------------------------------------------

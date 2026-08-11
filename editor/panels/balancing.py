@@ -5,9 +5,16 @@ the form from data/schemas/<d>.schema.json. Since Phase 9A the domains are
 nested REPLAN trees, so the build recurses: object -> CollapsibleSection
 (depth-1 groups start expanded, deeper ones collapsed), array of objects ->
 one collapsed sub-section per index (titled with the tier's name field when
-present), array of scalars -> one row per index (fixed length — add/remove
-is not a 9A editor feature; random_names grows via the game's add-name
-menu). Scalar leaves: integer -> QSpinBox, number -> QDoubleSpinBox (ranges
+present), array of scalars -> one row per index. Arrays of objects get
+`+ Row`/`- Row` (ER-5) gated entirely by the schema's own minItems/maxItems —
+an array whose schema pins minItems == maxItems (`tiers`, `scale_tiers`,
+`round_counts`) shows neither button and is unchanged. Arrays of SCALARS get
+the same buttons only when their own property additionally sets
+`"x-array-editable": true` (feature-enemy-intro-dialogue) — `minItems !=
+maxItems` alone is not enough, since `random_names` (`minItems: 1`, no
+maxItems) already has that shape and must keep growing only via the game's
+add-name menu, never this panel; `EnemyIntro.entries[i].hidden_frames` is the
+one property that opts in today. Scalar leaves: integer -> QSpinBox, number -> QDoubleSpinBox (ranges
 from the schema's minimum/maximum, so out-of-range input is unrepresentable,
 not merely rejected), enum -> QComboBox, boolean -> QCheckBox, string ->
 QLineEdit (empty input is restored, not written, when the schema demands
@@ -36,12 +43,39 @@ past snapshot into the live widgets (staged, not written — the dirty dots
 reappear for whatever differs from the current baseline) and the user must
 Save again to persist it.
 
+A leaf whose path sits inside an `.../eras/<int>/...` subtree with an index
+above 0 also carries a greyed, disabled, read-only reference label showing what
+that field resolves to on the LAST round of the PREVIOUS era (D9,
+engine.era_math.prev_era_reference). Era 0 shows nothing. Detection is purely
+path-shape based, so any future type that grows era rows inherits it; the values
+come from the STAGED doc and refresh on every edit, so retuning era 0 updates
+era 1's reference before anything is saved.
+
 Undo via the global QUndoStack (ED-24) remains deferred.
+
+A numeric weight leaf whose schema property carries `"x-toggle": "<sibling
+key>"` (a house-style JSON Schema annotation, ignored by validation — schemas
+still validate structurally, unknown keywords are just data) gets a paired
+QCheckBox rendered immediately LEFT of its spinbox, inside the same row
+widget. The sibling is resolved as a SIBLING OF THE LEAF'S PARENT OBJECT: for
+`Pathfinding/content_weights/defence_building`, the toggle bool lives at
+`Pathfinding/content_weight_overwrites/defence_building` (same leaf key, one
+level up then across to the sibling object named by `x-toggle`, `_schema_node_at`
+walks the schema's OWN properties tree the same way, from the root, so the
+sibling's tooltip description resolves independently of the current recursion
+branch). The checkbox commits straight to the sibling's OWN path via the same
+`_commit` every widget uses, so dirty tracking and the single Save write path
+need no changes; it registers in `self._widgets` under the sibling path like
+any other widget. A toggle object itself (e.g. `content_weight_overwrites`)
+carries `"x-paired": true` so `_build_object` skips it as its own section —
+its only rendering is inline, paired with its partner weights. Missing
+sibling object/key degrades to a plain row (no exception) so a domain whose
+doc doesn't carry the toggle object still builds.
 """
 import copy
 from pathlib import Path
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -63,7 +97,7 @@ from PySide6.QtWidgets import (
 )
 
 from editor import balancing_history, domains
-from engine import data_io
+from engine import data_io, era_math
 
 REPO = Path(__file__).resolve().parents[2]
 
@@ -216,6 +250,17 @@ class BalancingPanel(QWidget):
     # reaching into the layout tree.
     ROW_ADD = "rowadd:"
     ROW_REMOVE = "rowremove:"
+    # objectName prefix on the greyed previous-era reference labels (D9), same
+    # convention: the leaf's '/'-joined path follows.
+    PREV_REF = "prevref:"
+    # The ONE structural marker D9's reference labels key off (see _era_context).
+    ERA_ARRAY_KEY = "eras"
+    # ESV-4: fires (path, value) whenever ANY value is staged into self._doc —
+    # from a generic-form widget edit OR from the vfx preview panel's
+    # stage_value() call (§2.3). The preview panel is the one subscriber
+    # today; a listener must filter by its own domain/path interest itself
+    # (this panel has none — "one staging store" stays domain-agnostic).
+    value_staged = Signal(str, object)
 
     def __init__(self, data_dir=None, parent=None):
         super().__init__(parent)
@@ -226,6 +271,8 @@ class BalancingPanel(QWidget):
         self._schema = None
         self._widgets = {}
         self._dots = {}
+        self._refs = {}
+        self._scalar_item_schema = {}
         self._dirty = set()
 
         self._save_btn = QPushButton("Save Balancing Changes")
@@ -262,6 +309,8 @@ class BalancingPanel(QWidget):
     def _rebuild_form(self, schema):
         self._widgets = {}
         self._dots = {}
+        self._refs = {}
+        self._scalar_item_schema = {}
         old = self._scroll.takeWidget()
         if old is not None:
             old.deleteLater()
@@ -292,6 +341,23 @@ class BalancingPanel(QWidget):
             node = self._schema["$defs"][ref.removeprefix("#/$defs/")]
         return node
 
+    def _schema_node_at(self, path):
+        """Walk the FULL schema tree (from the root, not just the branch a
+        recursive _build_object call happens to be holding) to the property
+        node at a '/'-joined-style path tuple. Used to resolve an `x-toggle`
+        sibling's own schema node (for its `description`) without needing
+        every caller up the recursion to thread its schema branch through.
+        Returns None on any missing segment — a domain whose doc/schema
+        omits the toggle path must degrade, not raise."""
+        node = self._schema
+        for seg in path:
+            node = self._deref(node)
+            props = node.get("properties")
+            if not props or seg not in props:
+                return None
+            node = props[seg]
+        return self._deref(node)
+
     def _build_object(self, node, value, path, parent_layout, depth):
         """One object level: scalar leaves collect into QFormLayouts, nested
         objects/arrays become CollapsibleSections, in sorted key order."""
@@ -302,6 +368,8 @@ class BalancingPanel(QWidget):
             if key not in value:
                 continue  # schema-optional leaf absent here (e.g. era_unlock_round on later tiers)
             prop = self._deref(prop)
+            if prop.get("x-paired"):
+                continue  # a toggle-bool sibling object (x-toggle) renders inline, not as its own section
             kind = prop.get("type")
             if kind in ("object", "array"):
                 form = None
@@ -348,35 +416,59 @@ class BalancingPanel(QWidget):
                 self._add_leaf_row(
                     form, f"[{i}]", item_schema, item, path + (str(i),)
                 )
+            if node.get("x-array-editable"):
+                self._add_row_buttons(node, items, path, parent_layout,
+                                      item_schema=item_schema)
 
-    # -- variable-length arrays of objects: + / − Row (ER-5) -----------------
+    # -- variable-length arrays: + / − Row (ER-5, generalized to scalars) ----
 
-    def _add_row_buttons(self, node, items, path, parent_layout):
-        """A `+ Row` / `− Row` pair under an array of objects, gated ENTIRELY by
-        the schema's own minItems/maxItems.
+    def _add_row_buttons(self, node, items, path, parent_layout, item_schema=None):
+        """A `+ Row` / `− Row` pair under a variable-length array, gated
+        ENTIRELY by the schema's own minItems/maxItems.
 
         That gate is the compatibility argument: every array that shipped before
         ER-5 (`tiers`, `scale_tiers`, `round_counts`) has minItems == maxItems, so
         both buttons stay hidden and those forms are unchanged. `death_spawn.spawns`
-        (minItems 1, no maxItems) is the first array a designer may actually resize
-        — a per-era table for a type that ships with one row.
+        (minItems 1, no maxItems) is the first array of OBJECTS a designer may
+        actually resize — a per-era table for a type that ships with one row.
 
         Add COPIES THE LAST ROW rather than building a default instance from the
-        schema: the document validated on load, so a copy is schema-valid by
-        construction — no guessing at pattern/minLength/required. Remove pops the
-        LAST row, never a middle one: these arrays are era-indexed, so removing
-        [1] would silently renumber every era after it.
+        schema, same as ER-5 shipped: the document validated on load, so a copy
+        is schema-valid by construction — no guessing at pattern/minLength/
+        required. Remove pops the LAST row, never a middle one: these arrays are
+        era-indexed, so removing [1] would silently renumber every era after it.
+
+        `item_schema`, when given, marks this as an array of SCALARS (the
+        `enemy_intro_entry.hidden_frames` case, ships `minItems: 0`) rather than
+        objects: unlike the object-array case, an empty scalar array has no last
+        row to copy, so `_add_array_row` synthesizes one from the schema instead
+        (`_default_scalar_value`). Deliberately NOT extended to arrays of
+        objects — an object has no single sensible schema-derived default
+        (`required`/`pattern`/cross-field constraints), which is exactly why
+        object-array Add always copies a row instead.
+
+        Callers only reach this for a scalar array when its own schema node
+        carries `"x-array-editable": true` (see `_build_array`'s scalar
+        branch) — an EXPLICIT opt-in, not "every array whose minItems !=
+        maxItems". `BuildingsGlobal.random_names` (`buildings.schema.json`,
+        `minItems: 1`, no `maxItems`) shares that exact shape but grows only
+        through the game's own 9H add-name menu, never this panel — it carries
+        no such marker and is unaffected. `hidden_frames` is the only property
+        that sets it today.
         """
         can_add = "maxItems" not in node or len(items) < node["maxItems"]
         can_remove = len(items) > node.get("minItems", 0)
-        if not (can_add or can_remove) or not items:
+        if not (can_add or can_remove):
             return
         key = "/".join(path)
+        if item_schema is not None:
+            self._scalar_item_schema[key] = item_schema
         row = QHBoxLayout()
         if can_add:
             add = QPushButton("+ Row")
             add.setObjectName(f"{self.ROW_ADD}{key}")   # so tests can see WHICH
-            add.setToolTip("Append a copy of the last row")
+            add.setToolTip("Append a copy of the last row"
+                          if items else "Append a new row")
             add.clicked.connect(lambda _c=False, k=key: self._add_array_row(k))
             row.addWidget(add)
         if can_remove:
@@ -390,8 +482,29 @@ class BalancingPanel(QWidget):
 
     def _add_array_row(self, key):
         items = self._value_at(key)
-        items.append(copy.deepcopy(items[-1]))
+        if items:
+            items.append(copy.deepcopy(items[-1]))
+        else:
+            items.append(self._default_scalar_value(
+                self._scalar_item_schema.get(key)))
         self._commit_structure(key)
+
+    def _default_scalar_value(self, item_schema):
+        """A schema-valid starting value for a brand-new row in an EMPTY
+        scalar array (there is no last row to copy — see `_add_row_buttons`).
+        Only reached for a scalar `items` schema; an unresolvable/absent one
+        degrades to `0` rather than raising, since a Qt slot must never let an
+        exception escape."""
+        item_schema = self._deref(item_schema) if item_schema else {}
+        if "enum" in item_schema:
+            values = item_schema["enum"]
+            return values[0] if values else 0
+        kind = item_schema.get("type")
+        if kind == "boolean":
+            return False
+        if kind == "string":
+            return ""
+        return item_schema.get("minimum", 0)
 
     def _remove_array_row(self, key):
         self._value_at(key).pop()
@@ -416,12 +529,141 @@ class BalancingPanel(QWidget):
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
+        toggle = self._build_toggle_checkbox(prop, path)
+        if toggle is not None:
+            row_layout.insertWidget(0, toggle)
         row_layout.addWidget(widget)
         row_layout.addWidget(dot)
-        form.addRow(label, row)
         key = "/".join(path)
+        ref = self._build_reference_label(path)
+        if ref is not None:
+            row_layout.addWidget(ref)
+            self._refs[key] = (ref, path)
+        form.addRow(label, row)
         self._widgets[key] = widget
         self._dots[key] = dot
+
+    # -- D9: the greyed previous-era reference -------------------------------
+
+    def _era_context(self, path):
+        """Split a leaf path that sits inside an `.../eras/<int>/...` subtree.
+
+        Returns `(rows_path, era, leaf_subpath)` or None. Detection is purely
+        PATH-SHAPE based — the literal segment `eras` followed by an integer
+        index — so any future type that grows era rows (the Commander) inherits
+        the reference label with zero edits here. No domain, type or field name
+        is hardcoded.
+        """
+        for j in range(len(path) - 3, -1, -1):
+            if path[j] == self.ERA_ARRAY_KEY and path[j + 1].isdigit():
+                return path[: j + 1], int(path[j + 1]), path[j + 2:]
+        return None
+
+    def _rounds_per_era(self):
+        """The staged doc's era length. Found by KEY SHAPE (the one top-level
+        block carrying `rounds_per_era`), never by naming a domain's general
+        block; falls back to 10 so a doc without one still renders."""
+        if isinstance(self._doc, dict):
+            for value in self._doc.values():
+                if isinstance(value, dict) and "rounds_per_era" in value:
+                    return value["rounds_per_era"]
+        return 10
+
+    def _reference_value(self, path):
+        """What this leaf resolved to on the LAST round of the previous era
+        (D9), read off the STAGED doc — so editing era 0 updates era 1's
+        reference before anything is saved. None when there is nothing to
+        show (era 0, no era subtree, a non-numeric or absent leaf)."""
+        context = self._era_context(path)
+        if context is None:
+            return None
+        rows_path, era, leaf_subpath = context
+        if era <= 0 or not leaf_subpath:
+            return None
+        try:
+            rows = self._value_at("/".join(rows_path))
+            root = self._value_at("/".join(rows_path[:-1])) if len(rows_path) > 1 \
+                else self._doc
+            ref = era_math.prev_era_reference(
+                rows,
+                era,
+                self._rounds_per_era(),
+                start_round=root.get("start_round", 1),
+                endgame_factors=root.get("endgame_scaling"),
+            )
+            for seg in leaf_subpath:
+                ref = ref[int(seg)] if seg.isdigit() else ref[seg]
+        except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+            # This runs while building a Qt form and inside a Qt slot; a doc
+            # shape the era math cannot read must degrade to no label.
+            return None
+        if isinstance(ref, bool) or not isinstance(ref, (int, float)):
+            return None
+        return ref
+
+    @staticmethod
+    def _format_reference(value):
+        if isinstance(value, int):
+            return f"prev ⌐ {value}"
+        rounded = round(float(value), 4)
+        if rounded == int(rounded):
+            return f"prev ⌐ {int(rounded)}"
+        return f"prev ⌐ {rounded:g}"
+
+    def _build_reference_label(self, path):
+        value = self._reference_value(path)
+        if value is None:
+            return None
+        ref = QLabel(self._format_reference(value))
+        ref.setObjectName(f"{self.PREV_REF}{'/'.join(path)}")
+        ref.setToolTip(
+            "What this field resolves to on the last round of the previous era "
+            "(read-only)"
+        )
+        ref.setEnabled(False)
+        # Deliberately theme-independent, like the pending dot: a mid grey that
+        # stays legible on both the light and the dark chrome.
+        ref.setStyleSheet("color: #8a8a8a;")
+        return ref
+
+    def _refresh_references(self):
+        """Recompute every visible reference off the staged doc. Cheap enough
+        to run on every edit (a domain's era leaves number in the hundreds) and
+        it is the only thing that keeps era N+1's reference honest while era N
+        is being typed into."""
+        for label, path in self._refs.values():
+            value = self._reference_value(path)
+            label.setText("" if value is None else self._format_reference(value))
+
+    def _build_toggle_checkbox(self, prop, path):
+        """A weight leaf's `x-toggle` schema annotation names a SIBLING
+        object (a resolved sibling of the leaf's own parent object, same
+        leaf key — `Pathfinding/content_weights/defence_building`'s toggle
+        lives at `Pathfinding/content_weight_overwrites/defence_building`)
+        holding the paired override bool. Returns a QCheckBox built exactly
+        like a generic boolean leaf's widget (`_make_widget`'s boolean
+        branch), or None if there is no `x-toggle`, the path is too shallow
+        to have a sibling, or the sibling object/key is missing from the doc
+        or schema — a domain whose doc omits the toggle object must still
+        render the row exactly as today, not raise."""
+        toggle_key = prop.get("x-toggle")
+        if not toggle_key or len(path) < 2:
+            return None
+        sibling_path = path[:-2] + (toggle_key, path[-1])
+        try:
+            sibling_value = self._value_at("/".join(sibling_path))
+        except (KeyError, IndexError, TypeError):
+            return None
+        sibling_prop = self._schema_node_at(sibling_path)
+        if sibling_prop is None:
+            return None
+        checkbox = QCheckBox()
+        checkbox.setChecked(bool(sibling_value))
+        checkbox.setToolTip(sibling_prop.get("description", ""))
+        key = "/".join(sibling_path)
+        checkbox.toggled.connect(lambda v, k=key: self._commit(k, bool(v)))
+        self._widgets[key] = checkbox
+        return checkbox
 
     # -- widget per schema type: invalid input unrepresentable (ED-30) ------
 
@@ -488,6 +730,43 @@ class BalancingPanel(QWidget):
         last = segments[-1]
         node[int(last) if last.isdigit() else last] = value
         self._refresh_dirty(key)
+        self.value_staged.emit(key, value)
+
+    # -- ESV-4: the vfx preview panel's read/write seam into staging --------
+    # No second doc, no second dirty set, no second writer: the preview panel
+    # holds a reference to THIS panel and goes through these two methods plus
+    # value_staged above, so a lever in the preview and its twin row in the
+    # generic form can never disagree (phase-esv-4-vfx-preview.md §2.3).
+
+    def staged_value(self, path):
+        """Public read of the current staged value at a `/`-joined path —
+        the same lookup `_value_at` already does internally, exposed for a
+        caller outside this class."""
+        return self._value_at(path)
+
+    def stage_value(self, path, value):
+        """Stage `value` at `path` exactly like a generic-form widget edit
+        (dirty dot + `value_staged`), and additionally push it into that
+        path's OWN generic-form widget (if the form currently has one) so
+        the two views of the same staged doc can never show different
+        numbers.
+
+        A `path` may address a whole ARRAY (e.g. a named-stop colour —
+        `procedural/<family>/ramp/stop_0`, a 3-int RGB list) that the
+        generic form has no single widget for: `_build_array`'s
+        array-of-scalars branch registers one widget PER INDEX instead
+        (`.../stop_0/0`, `.../stop_0/1`, `.../stop_0/2`). Fall back to those
+        per-index widgets when the whole-path widget does not exist, so a
+        colour picked here still lights up the three spinboxes below."""
+        self._commit(path, value)
+        widget = self._widgets.get(path)
+        if widget is not None:
+            self._set_widget_value(path, widget, value)
+        elif isinstance(value, (list, tuple)):
+            for i, item in enumerate(value):
+                child = self._widgets.get(f"{path}/{i}")
+                if child is not None:
+                    self._set_widget_value(f"{path}/{i}", child, item)
 
     def _refresh_dirty(self, key):
         try:
@@ -507,6 +786,10 @@ class BalancingPanel(QWidget):
         dot = self._dots.get(key)
         if dot is not None:
             dot.setVisible(dirty)
+        # D9: any staged edit can move a LATER era's reference (era 0's
+        # per_round.hp changes what era 1 shows), so refresh them all here —
+        # the one place every staged change funnels through.
+        self._refresh_references()
         self._save_btn.setEnabled(bool(self._dirty))
 
     def _set_widget_value(self, key, widget, value):

@@ -95,6 +95,34 @@ class TestSpawnDecoRoll(unittest.TestCase):
                  if t.spawn_deco_roll >= 0}
         self.assertEqual(flips, {0, 1})
 
+    def test_reserve_marked_background_gets_the_same_tree_treatment(self):
+        """A BACKGROUND cell the designer marked as a FUTURE spawn tile
+        (`spawnable_background`) is rolled exactly like every other tile, and
+        its tree draws the moment the reserve releases it into the band — the
+        roll is above the state skip in the init pass precisely so nothing has
+        to re-roll it here."""
+        marks = {(c, 5): 1 for c in range(6)}
+        doc = tilemap.TileMapDoc(
+            map_id="synthreserve", display_name="Synth Reserve",
+            cols=6, rows=6, legend={}, terrain=[list(r) for r in ROWS],
+            base={"col": 0, "row": 0, "slot": "base_hole"}, deco=[],
+            spawnable_background=dict(marks))
+        tm = TileMap(doc, MAPBAL, rng=random.Random(9), registry=REGISTRY)
+
+        marked = [tm.get(c, r) for (c, r) in marks]
+        self.assertTrue(all(t.state == TileState.BACKGROUND for t in marked))
+        rolled = [t for t in marked if t.spawn_deco_roll >= 0]
+        self.assertTrue(rolled, "no reserve-marked cell carries a tree roll")
+        # nothing draws while they are still background...
+        self.assertFalse(spawn_deco_render_items(
+            tm, 0, tm.cols - 1, 5, 5, TREE_SLOTS))
+        # ...and every rolled one draws the instant it joins the band
+        for tile in marked:
+            tm.set_tile_state(tile, TileState.SPAWNING)
+        items = spawn_deco_render_items(tm, 0, tm.cols - 1, 5, 5, TREE_SLOTS)
+        self.assertEqual({i.world_pos for i in items},
+                         {(t.col, t.row) for t in rolled})
+
     def test_no_tree_family_leaves_every_roll_at_minus_one(self):
         """A registry with no Props/Tree group must not crash a boot."""
         doc = {"categories": [{

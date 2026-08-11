@@ -10,24 +10,29 @@ kept fixed), Esc opens the pause menu (was: quit). Frame order is fixed per
 E-14: input -> Scene.update(dt) -> render submit.
 
 All tunables come from data/ (G-7): geometry.json (tile pitch, zoom
-levels), display.json (window size, fps, caption), the ACTIVE MAP (D-21),
-and ui.json (Menu.cutscene_length). No iso math here — clicks and zoom
-anchoring go through engine.coords only.
+levels), display.json (window size, fps, caption), and the ACTIVE MAP
+(D-21). No iso math here — clicks and zoom anchoring go through
+engine.coords only.
 
 Phase 9G wired the in-round UI (game/ui): HUD (love/income/lives/phase +
 End Turn + Pause), the building panel, floaters + HP bars, the game over
 screen. Phase 9H wraps a run in the top-level shell (game.ui.Shell): the
-intro CUTSCENE (full video via engine.video), MAIN_MENU, SETTINGS,
-CREDITS, ADD_NAME, PAUSED. The host owns the pygame-only concerns the pure
-shell cannot: window (re)creation for display mode, the cutscene frame
-blit, background music, the _World lifecycle, and executing the shell's
-intent strings (new_game / quit_to_menu / quit_app / set_display_mode /
-add_name_commit). GAMEPLAY/GAME_OVER carry the live world; every other
-state is a full-screen shell screen with no world.
+intro CUTSCENE, MAIN_MENU, SETTINGS, CREDITS, ADD_NAME, PAUSED. The host
+owns the pygame-only concerns the pure shell cannot: window (re)creation
+for display mode, the cutscene frame blit, background music, the _World
+lifecycle, and executing the shell's intent strings (new_game /
+quit_to_menu / quit_app / set_display_mode / add_name_commit).
+GAMEPLAY/GAME_OVER carry the live world; every other state is a
+full-screen shell screen with no world. Phase TU-5 generalized the intro
+cutscene into a registry-driven ``game.ui.cutscene_player.CutscenePlayer``
+(``data/video/cutscenes.json``) and added a second, in-gameplay trigger:
+``Session.end_turn()``'s ``pending_cutscene`` request freezes the sim and
+overlays the matching cutscene the first time a round ends.
 
 main(max_frames=N) lets tools/smoke.py drive the same code headlessly (G-8).
 """
 import gc
+import logging
 import math
 import random
 import sys
@@ -52,39 +57,59 @@ from engine.audio import play_music
 from engine.coords import load_coordinate_system
 from engine.core import Scene, SpriteAnimator
 from engine.physics import TileOccupancy
-from engine.render import HudText, Renderer
+from engine.render import HudSprite, HudText, Renderer
 from engine.render.fonts import configure_fonts
 from engine.render.ground_cache import GroundCache
-from engine.video import VideoSource
 from game.buildings import BaseBuilding, attach_base
 # -- 10I: defence-range coverage producer (injected into the tilemap) --
 from game.buildings.coverage import wire_defence_coverage
 # -- /10I --
+# -- Building Movement: the in-transit sign slot + the cost/time formulas the
+# destination-pick preview quotes --
+from game.buildings.movement import (
+    MOVING_SIGN_SLOT, move_cost, move_distance, move_time,
+)
 from game.core import Session, append_random_name, load_balance
+from game.core import highscores  # player-identity: the run-history document
 from game.core.boss_bonuses import story_damage_bonus
 from game.core.phases import GamePhase, GameState
+from game.debug import (  # debug-mode-telemetry
+    DebugRecorder, LEVELS, LEVEL_BASIC, LEVEL_OFF, LEVEL_VERBOSE,
+)
+from game.debug import events as dbg
 from game.enemies import (
     DEATH_ANIM, KIDNAP_ANIM, Spawner, resolve_combat, set_kidnap_pose,
     spawn_corpse,
 )
+from game.enemies.components import (  # debug-mode-telemetry Phase 3 + 5
+    set_damage_hook, set_wall_damage_hook,
+)
 from game.map import (
     TileMap, condition_render_items, spawn_deco_render_items,
-    spawn_tree_slots, tile_at_screen,
+    spawn_tree_slots, tile_at_screen, wall_render_items,
 )
 from game.map.tiles import CONDITION_CATEGORY
 from game.map.tiles import TileState  # 10J: multi-select category
+from game.map.wall_render import WALL_CATEGORY
+from game.tutorial import TutorialDirector  # TU-6
 from game.ui import (
-    BossCutscene, BuildingUI, CheatMenu, FloaterManager, GameLog,
-    GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
+    BossCutscene, BuildingUI, CheatMenu, EnemyIntroWindow, FloaterManager,
+    GameLog, GameOverScreen, Hud, LevelupWindow, MapOverlays, Shell,
+    TutorialMessageScreen,
 )
 from game.ui import widgets  # 10L-A: R2 hit-seam wiring
+from game.ui.building_ui import MovePreview  # Building Movement confirm modal
+from game.ui.cutscene_player import CutscenePlayer, load_cutscene_registry
 from game.ui.skinning import ScreenSkinning  # 10L-B: per-screen overrides
+from game.ui.strings import configure_strings  # Phase C: global string table
 
 BACKGROUND = (24, 20, 32)
 _LEFT, _RIGHT = 1, 3
 _DRAG_THRESHOLD_SQ = 4 * 4  # a left-press that moves less than this is a click
 _WORLD_STATES = (GameState.GAMEPLAY, GameState.GAME_OVER)
 _KEY_NAMES = None  # lazily built (needs pygame constants)
+
+_log = logging.getLogger(__name__)
 
 
 def _key_name(key):
@@ -97,6 +122,10 @@ def _key_name(key):
             pygame.K_RETURN: "return",
             pygame.K_KP_ENTER: "return",
             pygame.K_ESCAPE: "escape",
+            # player-identity: the high-score table scrolls on Up/Down. No
+            # gameplay handler binds an arrow key, so nothing is shadowed.
+            pygame.K_UP: "up",
+            pygame.K_DOWN: "down",
         }
     return _KEY_NAMES.get(key)
 
@@ -122,7 +151,7 @@ class _World:
     ``_World`` is a fresh game (the base is re-attached to its pre-seeded tile)."""
 
     def __init__(self, map_doc, map_bal, enemies_bal, core_bal, buildings_bal,
-                 registry):
+                 registry, progression_bal=None):
         # -- 10I: the live run rolls tile conditions (rng=None would keep the
         # all-GRASS fixture mode the headless tests rely on). `registry` also
         # rolls each tile's condition ART slot (the `terrain` draw layer). --
@@ -139,7 +168,8 @@ class _World:
         self.spawner = Spawner()
         self.session = Session.create(self.spawner, self.tile_map, enemies_bal,
                                       core_bal, buildings_bal, registry=registry,
-                                      occupancy=self.occupancy)
+                                      occupancy=self.occupancy,
+                                      progression_balance=progression_bal)
         # -- 10I: defence coverage feeds enemy path weights (pre-query refresh
         # in the pathfinder reads the injected callable) --
         wire_defence_coverage(self.tile_map, buildings_bal)
@@ -161,12 +191,35 @@ def step_zoom(cs, direction, view_w, view_h):
     cs.clamp(view_w, view_h)
 
 
-def main(max_frames=None, data_dir=None, autostart=False):
+def main(max_frames=None, data_dir=None, autostart=False, debug_log=None):
     """``autostart=True`` skips the shell (cutscene/menu) and boots straight into
     a fresh GAMEPLAY run — the headless test seam so tools/smoke.py and the boot
     tests still exercise the full _World/Session construction + sim frames the
-    shell would otherwise defer until START NEW GAME."""
+    shell would otherwise defer until START NEW GAME.
+
+    ``debug_log`` (debug-mode-telemetry — the CLI/menu activation seam):
+    ``None`` (default) — debug off, every code path byte-identical (the
+    guardrail this whole feature is built on). An ``int`` (``game.debug.
+    LEVEL_BASIC``/``LEVEL_VERBOSE``) builds a fresh ``DebugRecorder`` writing
+    to ``REPO / "logs"``. An already-constructed ``DebugRecorder`` is used
+    as-is — the seam headless callers/tests (and Phase 5's CLI flag) drive
+    directly, e.g. to pick a custom ``out_dir``/``outputs``/``run_id``. The
+    recorder (if any) is bound to the run's ``RunState`` and assigned to
+    ``session.debug`` inside ``build_gameplay()`` below, and closed at the
+    game-over transition and again (idempotent) just before ``pygame.quit()``.
+    Phase 5 (CLI flag + menu buttons) builds on top of this — see the
+    docstring note beside ``recorder`` below for exactly how."""
     data_dir = Path(data_dir) if data_dir is not None else REPO / "data"
+    # debug-mode-telemetry: `recorder` is a plain local, deliberately NOT
+    # nested inside an `if` — so a later dispatch (Phase 5's "PLAY DEBUG"
+    # menu button / cheat-menu arm-disarm toggle) can reassign it with
+    # `nonlocal recorder` from `execute()`/`_execute_cheat()` without
+    # restructuring this function. `None` (the default) is debug off.
+    recorder = None
+    if isinstance(debug_log, DebugRecorder):
+        recorder = debug_log
+    elif isinstance(debug_log, int) and debug_log > LEVEL_OFF:
+        recorder = DebugRecorder(REPO / "logs", level=debug_log)
     display = data_io.load_validated(
         data_dir / "display.json", data_dir / "schemas" / "display.schema.json"
     )
@@ -222,6 +275,19 @@ def main(max_frames=None, data_dir=None, autostart=False):
     tree_slots = tuple(
         s for s in spawn_tree_slots(registry)
         if manifest.entry(s) is not None)
+    # Edge-wall art, manifest-filtered exactly like the two above: art cannot
+    # change mid-run, so it is derived once here rather than per frame. An
+    # empty set (no wall tier imported yet) makes `wall_render_items` a no-op —
+    # the same E-37 escape hatch `condition_art`/`tree_slots` use, i.e. an
+    # un-imported wall draws nothing rather than the grey-X placeholder.
+    wall_art = frozenset(
+        s for s in registry.group_slots(WALL_CATEGORY)
+        if manifest.entry(s) is not None)
+    # Building Movement: the in-transit signpost. Manifest-filtered exactly
+    # like the three above (art cannot change mid-run, so it is derived once
+    # here) — False means the slot has no imported sheet and the overlay draws
+    # only its round countdown, never the grey-X placeholder (E-37).
+    moving_sign_art = manifest.entry(MOVING_SIGN_SLOT) is not None
     widgets.set_skin_hit_test(assets.hit_opaque)  # R2: pixel-perfect click targets
     # D5/UH-6: theme data, loaded + schema-validated once at boot, before the
     # Shell/screens are built (so every screen's FIRST submit already sees
@@ -233,8 +299,39 @@ def main(max_frames=None, data_dir=None, autostart=False):
     palette_doc = data_io.load_validated(
         data_dir / "ui" / "palette.json",
         data_dir / "schemas" / "palette.schema.json")
-    configure_fonts(fonts_doc)
+    # Phase C: the global UI string table — same fail-loud D-2 load as
+    # fonts/palette above (boot config data, not art; E-37 does not apply).
+    strings_doc = data_io.load_validated(
+        data_dir / "ui" / "strings.json",
+        data_dir / "schemas" / "strings.schema.json")
+    # UH-Font-A: the game-wide custom font family, ORTHOGONAL to the 7-preset
+    # size/bold system above. "default" means today's SysFont behavior; any
+    # other id must resolve to a data/fonts/font_manifest.json entry whose
+    # file exists on disk — a cross-file check a schema can't express, so it
+    # is cross-checked here and fails LOUD (D-2, the engine.tilemap.load_map
+    # precedent) rather than degrading like the editor's Theme panel does.
+    font_manifest_doc = data_io.load_validated(
+        data_dir / "fonts" / "font_manifest.json",
+        data_dir / "schemas" / "font_manifest.schema.json")
+    active_font_doc = data_io.load_validated(
+        data_dir / "ui" / "active_font.json",
+        data_dir / "schemas" / "active_font.schema.json")
+    active_font_id = active_font_doc["font_id"]
+    font_path = None
+    if active_font_id != "default":
+        entry = font_manifest_doc["entries"].get(active_font_id)
+        if entry is None:
+            raise ValueError(
+                f"active_font.json references unknown font id {active_font_id!r} "
+                f"(no such entry in data/fonts/font_manifest.json)")
+        font_path = (data_dir / "fonts" / entry["file"]).resolve()
+        if not font_path.is_file():
+            raise ValueError(
+                f"active_font.json's font {active_font_id!r} points at "
+                f"{font_path} which does not exist on disk")
+    configure_fonts(fonts_doc, font_path=font_path)
     widgets.configure_palette(palette_doc)
+    configure_strings(strings_doc)
     renderer = Renderer(cs, assets)
     # The static ground layer is composited once into an oversized surface and
     # blitted at a pan offset (perf: a 1024² map is one blit/frame while panning
@@ -244,21 +341,42 @@ def main(max_frames=None, data_dir=None, autostart=False):
     buildings_balance = load_balance(data_dir, "buildings")
     enemies_balance = load_balance(data_dir, "enemies")
     ui_balance = load_balance(data_dir, "ui")
+    vfx_balance = load_balance(data_dir, "vfx")  # ESV-3a: procedural VFX params
+    # TimelinePLAN T4: the sole source of unlock timing (game/core/levelup.py).
+    progression_balance = load_balance(data_dir, "progression")
     # debug: draw the camera-startpoint marker in-game (default off)
     show_camera_start = ui_balance["Debug"]["show_camera_startpoint"]
 
-    # intro cutscene (full video; graceful skip if cv2/file absent -> MAIN_MENU)
-    video = VideoSource(data_dir / "video" / "cutscene.mp4",
-                        ui_balance["Menu"]["cutscene_length"],
-                        target_size=(view_w, view_h))
-    start = GameState.CUTSCENE if video.enabled else GameState.MAIN_MENU
+    # Cutscenes (TU-5): one CutscenePlayer per data/video/cutscenes.json entry
+    # (TU-1). "intro" is the pre-gameplay shell state (graceful skip if
+    # cv2/file absent -> MAIN_MENU); "first_end_turn" is an in-gameplay
+    # overlay Session.end_turn() requests via state.pending_cutscene.
+    cutscene_registry = load_cutscene_registry(data_dir)
+    cutscenes = {
+        cid: CutscenePlayer(data_dir, entry, target_size=(view_w, view_h))
+        for cid, entry in cutscene_registry.items()
+    }
+    intro_player = cutscenes.get("intro")
+    start = (GameState.CUTSCENE if intro_player and intro_player.enabled
+             else GameState.MAIN_MENU)
     # 10L-B: one ScreenSkinning for the whole run, loaded once here (the
     # shell shares it with its five menu screens; build_gameplay threads the
     # SAME instance into the seven gameplay screens it constructs itself).
     skinning = ScreenSkinning(data_dir)
+    # player-identity: `core.json`'s `Debug` group gates the menu's two
+    # launcher rows and the identity prompt. Indexed directly, never `.get` —
+    # the schema requires the key, so missing data must fail LOUD (D-2).
     shell = Shell(view_w, view_h, ui_balance, start_state=start,
-                 skinning=skinning)
+                 skinning=skinning, debug_balance=core_balance["Debug"])
     shell.set_pool_count(len(buildings_balance["BuildingsGlobal"]["random_names"]))
+    # player-identity: the run history lives in the gitignored `scores/` dir at
+    # the repo root, NOT in `data/` — it is per-machine play history. Read once
+    # here to seed the high-score table and pre-fill the identity prompt with
+    # whoever played last; re-read on every `open_highscores` intent below.
+    scores_path = highscores.default_path(REPO)
+    hs_doc = highscores.load_highscores(scores_path, data_dir)
+    shell.set_highscores(hs_doc)
+    shell.prefill_identity(*highscores.last_player(hs_doc))
 
     window = _apply_display_mode(shell.settings.display_mode, view_w, view_h,
                                  caption)
@@ -289,11 +407,24 @@ def main(max_frames=None, data_dir=None, autostart=False):
           "game_over": None, "levelup": None, "boss_cutscene": None,
           "cheat": None, "overlays": None, "prev_phase": None,
           # -- 10J: game log + shift multi-select state --
-          "game_log": None, "sel": [], "sel_cat": None}
+          "game_log": None, "sel": [], "sel_cat": None,
+          # -- drag-select: the HUD toggle's state (box-select vs. camera pan) --
+          "drag_select_enabled": False,
+          # -- TU-5: active in-gameplay cutscene overlay, None when none playing --
+          "cutscene": None,
+          # -- TU-6: the guided-chain director + its Continue/Skip message box --
+          "tutorial": None, "tutorial_message": None}
+
+    # player-identity: the per-run latch that keeps the GAME_OVER transition
+    # from appending a second high-score row every frame the state holds.
+    # Reset for each fresh run in `build_gameplay()`.
+    score_recorded = False
 
     def build_gameplay():
+        nonlocal score_recorded
+        score_recorded = False
         gp["world"] = _World(map_doc, map_bal, enemies_balance, core_balance,
-                             buildings_balance, registry)
+                             buildings_balance, registry, progression_balance)
         # Ground follows runtime zone changes: unlock/recede invalidates the
         # cached ground surface (repainted next ensure). Fresh game -> fresh
         # TileMap with empty overrides; invalidate drops the previous run's
@@ -305,11 +436,52 @@ def main(max_frames=None, data_dir=None, autostart=False):
         gp["hud"] = Hud(view_w, view_h, skinning=shell.skinning)
         gp["panel"] = BuildingUI(view_w, view_h, ui_balance,
                                  skinning=shell.skinning)
-        gp["floaters"] = FloaterManager(ui_balance, core_balance)
+        # -- TU-6: the round-1 guided-chain director + its message box. Reads
+        # data/tutorial/tutorial.json + the map's tutorial_flute marker;
+        # auto-skips (never crashes) on an old/unpainted map. --
+        gp["tutorial"] = TutorialDirector(data_dir, map_doc,
+                                          core_balance["Tutorial"])
+        gp["tutorial_message"] = TutorialMessageScreen(
+            view_w, view_h, gp["tutorial"].skippable(), skinning=shell.skinning)
+        gp["world"].session.tutorial_gate = gp["tutorial"].allows_end_turn
+        gp["world"].session.tutorial_director = gp["tutorial"]  # TU-7
+        # -- TU-9: an ACTIVE tutorial run starts at round 0 (its own scripted
+        # round, always a single forced walker) so real enemy scaling begins
+        # at round 1 exactly where it always did. A `RunState` defaults to
+        # round 1 (`from_balance`), which is what an old/unpainted map (an
+        # auto-skipped, inactive director) and every bare-Session logic test
+        # keep — this is the ONE seed site, deliberately host-side rather
+        # than a `Session`/`RunState` default, so those stay untouched.
+        if gp["tutorial"].active:
+            gp["world"].session.state.round_num = 0
+        # -- /TU-6 --
+        # debug-mode-telemetry: bind the (optional) recorder to THIS run's
+        # RunState. `recorder` is the outer main()-scoped variable (closure
+        # read, never reassigned here) — None is the default and leaves
+        # session.debug at its own None default, byte-identical.
+        if recorder is not None:
+            gp["world"].session.debug = recorder
+            recorder.bind(gp["world"].session.state)
+            recorder.emit(
+                dbg.RUN_START, level=recorder.level, run_id=recorder.run_id,
+                map_id=map_doc.map_id, seed=None,
+                love=gp["world"].session.state.love,
+                lives=gp["world"].session.state.base_lives,
+                # player-identity: read off the RECORDER, never the shell, so
+                # the event can never disagree with the run id the four
+                # artifact filenames are stamped with.
+                player_name=recorder.player_name,
+                player_skill=recorder.player_skill)
+        gp["floaters"] = FloaterManager(ui_balance, core_balance, vfx_balance)
         gp["game_over"] = GameOverScreen(view_w, view_h, skinning=shell.skinning)
         gp["levelup"] = LevelupWindow(view_w, view_h, skinning=shell.skinning)
         gp["boss_cutscene"] = BossCutscene(view_w, view_h,  # -- 10G boss --
+                                          core_balance,
                                           skinning=shell.skinning)
+        # feature-enemy-intro-dialogue
+        gp["enemy_intro"] = EnemyIntroWindow(
+            view_w, view_h, core_balance["EnemyIntro"]["window"],
+            skinning=shell.skinning)
         gp["cheat"] = CheatMenu(view_w, view_h, skinning=shell.skinning)  # 10H
         # -- 10I: condition tint + RANGE/HEATMAP overlay toggles --
         gp["overlays"] = MapOverlays(view_w, view_h, skinning=shell.skinning)
@@ -320,28 +492,72 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # -- 10J: game log + VFX wiring + a fresh multi-selection --
         gp["game_log"] = GameLog(skinning=shell.skinning)
         gp["sel"], gp["sel_cat"] = [], None
+        # drag-select: the HUD toggle's state lives HERE, not on the Hud, so
+        # the event loop can read it when it decides drag-select vs. camera pan.
+        gp["drag_select_enabled"] = False
         gp["panel"].log = gp["game_log"]
         gp["panel"].on_build_vfx = gp["floaters"].spawn_building_vfx
         gp["floaters"].log = gp["game_log"]
         # -- /10J --
+        # -- ESV-5/6: the handles _play/_anchored need to spawn a sprite
+        # one-shot and resolve a manifest anchor. A fresh FloaterManager and
+        # a fresh scene are built together right here every run, so these
+        # attributes cannot desync; `cs` is a single run-long instance built
+        # at module scope above, so it never desyncs either.
+        gp["floaters"].assets = assets
+        gp["floaters"].scene = gp["world"].scene
+        gp["floaters"].cs = cs
+        # -- /ESV-5/6 --
         gp["prev_phase"] = gp["world"].session.state.phase
         frame_camera()  # re-centre on the startpoint / map for the fresh run
         freeze_static()  # exclude the fresh tile grid from GC scans
         shell.enter_gameplay()
 
     def teardown_gameplay():
+        nonlocal recorder
+        # debug-mode-telemetry: a run torn down mid-way (quit to menu, or the
+        # game-over screen's MAIN MENU button) must still write its artifacts —
+        # `close()` is idempotent, so a run that already closed at GAME_OVER
+        # keeps that outcome. Dropping the reference is what lets the NEXT run
+        # decide for itself whether it is instrumented.
+        if recorder is not None:
+            recorder.close(outcome="quit_to_menu")
+            recorder = None
         if tune_gc:
             gc.unfreeze()  # let the old world's tile grid become collectable
         for k in ("world", "hud", "panel", "floaters", "game_over", "levelup",
-                  "boss_cutscene", "cheat", "overlays", "game_log"):
+                  "boss_cutscene", "enemy_intro", "cheat", "overlays",
+                  "game_log", "cutscene", "tutorial", "tutorial_message"):
             gp[k] = None
         gp["sel"], gp["sel_cat"] = [], None  # 10J
+        gp["drag_select_enabled"] = False    # drag-select
         if tune_gc:
             gc.collect()
 
+    def _new_recorder():
+        """A fresh recorder from the shell's debug-log settings (level +
+        which artifacts) — the ONE construction site the PLAY DEBUG button and
+        the cheat-menu arm toggle share.
+
+        player-identity: the identity comes off the shell too, and stamps the
+        run id (hence all four artifact filenames) + the MD/HTML report
+        headers. The level/outputs reads are unchanged — the Shell already
+        seeds `DebugSettings` from the `Debug` balancing defaults, so those
+        arrive through `shell.debug_settings` and must NOT be re-read here."""
+        name, skill = shell.player_identity
+        return DebugRecorder(REPO / "logs", level=shell.debug_settings.level,
+                             outputs=shell.debug_settings.outputs,
+                             player_name=name, player_skill=skill)
+
     def execute(intent):
-        nonlocal running, window
+        nonlocal running, window, recorder
         if intent == "new_game":
+            build_gameplay()
+        elif intent == "new_game_debug":
+            # debug-mode-telemetry: PLAY DEBUG. `recorder` is a plain main()
+            # local precisely so this can reassign it BEFORE build_gameplay()
+            # binds it to the fresh run's RunState and Session.
+            recorder = _new_recorder()
             build_gameplay()
         elif intent == "quit_to_menu":
             teardown_gameplay()  # shell already set state -> MAIN_MENU
@@ -359,6 +575,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 shell.set_pool_count(
                     len(buildings_balance["BuildingsGlobal"]["random_names"]))
             shell.report_add_name(added, name)
+        elif intent == "open_highscores":
+            # player-identity: RE-READ from disk — the run that just finished
+            # appended its row after this document was last loaded, and the
+            # identity prompt should offer the name it was recorded under.
+            doc = highscores.load_highscores(scores_path, data_dir)
+            shell.set_highscores(doc)
+            shell.prefill_identity(*highscores.last_player(doc))
 
     # -- 10H: lightning + cheat menu --------------------------------------
     def _execute_cheat(action):
@@ -368,7 +591,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
         phase-changing action that leaves LEVELUP, close the level-up window
         so no orphaned modal lingers — ``levelup_pending`` survives, so the
         window re-opens at the next ROUND_END (the prototype's pending-flag
-        behavior)."""
+        behavior).
+
+        debug-mode-telemetry: ``toggle_debug`` arms/disarms the run's
+        ``DebugRecorder`` in place (``Session.debug`` is a plain public
+        attribute — arming mid-run is one assignment). Both directions record
+        a ``cheat`` event, which also latches the round row's ``cheated`` flag
+        for the rest of the run: a run captured from round N onward is NOT
+        clean balance data, and saying so is the whole point."""
+        nonlocal recorder
         world = gp["world"]
         session = world.session
         if action == "close":
@@ -381,6 +612,29 @@ def main(max_frames=None, data_dir=None, autostart=False):
             session.cheat_add_love(999999)
         elif action == "unlock_all":
             session.cheat_unlock_all()
+        elif action == "toggle_debug":
+            if recorder is not None:
+                # Mark the point capture STOPS, then write the artifacts.
+                recorder.emit(dbg.CHEAT, action="debug_log_off",
+                              round=session.state.round_num)
+                recorder.close(outcome="debug_log_disarmed")
+                recorder = None
+                session.debug = None
+            else:
+                recorder = _new_recorder()
+                recorder.bind(session.state)
+                session.debug = recorder
+                recorder.emit(
+                    dbg.RUN_START, level=recorder.level,
+                    run_id=recorder.run_id, map_id=map_doc.map_id, seed=None,
+                    love=session.state.love, lives=session.state.base_lives,
+                    # player-identity: off the RECORDER, not the shell (see
+                    # build_gameplay's matching emit).
+                    player_name=recorder.player_name,
+                    player_skill=recorder.player_skill)
+                # THE arm marker: everything before this round is missing.
+                recorder.emit(dbg.CHEAT, action="debug_log_on",
+                              round=session.state.round_num)
         elif action == "trigger_levelup":
             gp["cheat"].close()
             session.cheat_trigger_levelup()
@@ -391,6 +645,27 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 and gp["levelup"].visible):
             gp["levelup"].close()  # orphan guard (pending flag survives)
     # -- /10H ---------------------------------------------------------------
+
+    def _tutorial_allows_panel_click(mx, my):
+        """True when the tutorial is inactive/finished, OR the click lands on
+        a target the current step allows (musician card / Confirm). Every
+        other click inside the panel (close, cancel, the name box, the dice
+        reroll) passes through UNGATED — only the actual whitelisted target
+        is checked (TU-6 §3.3)."""
+        tutorial = gp["tutorial"]
+        if tutorial.finished:  # fast path, D6
+            return True
+        panel = gp["panel"]
+        if panel.preview is not None:
+            if panel.preview.confirm_btn.hit(mx, my):
+                return tutorial.allows(("confirm",))
+            return True  # cancel/close/name box/dice: not gated
+        if panel.mode == "construct":
+            for btype, btn in panel.cards:
+                if btn.hit(mx, my):
+                    return tutorial.allows(("card", btype))
+            return True  # clicking the panel body/close, not a card
+        return True  # unlock/upgrade/base_info modes: untouched by TU-6
 
     def handle_world_click(mx, my):
         """The in-round click-consume priority ladder (prototype-exact order),
@@ -403,6 +678,21 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 teardown_gameplay()
                 shell.to_main_menu()
             return
+        # -- TU-6: the tutorial message box consumes EVERY click while
+        # visible (highest priority bar GAME_OVER) --
+        tutorial = gp["tutorial"]
+        if tutorial.message_visible:
+            result = gp["tutorial_message"].hit(mx, my)
+            if result == "skip":
+                tutorial.skip()
+                # TU-9: Skip jumps straight to round 1 — no round 0, no
+                # forced single walker, normal wave scaling from here.
+                if session.state.round_num == 0:
+                    session.state.round_num = 1
+            elif result == "continue":
+                tutorial.on_message_dismissed()
+            return
+        # -- /TU-6 --
         # -- 10H: the open cheat menu consumes EVERY click (renders topmost,
         # directly under GAME_OVER in the ladder — above every other modal) --
         if gp["cheat"].visible:
@@ -418,6 +708,15 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 session.resolve_boss_cutscene(choice, world.scene)
             return
         # -- /10G --
+        # -- feature-enemy-intro-dialogue: a close-X hit closes early (its own
+        # slide+fade-out, the SAME path the hold timer uses); any other click
+        # is swallowed — the Levelup/Boss "modal swallows clicks" convention,
+        # just with one working close affordance. --
+        if session.state.phase == GamePhase.ENEMY_INTRO:
+            if gp["enemy_intro"].hit(mx, my):
+                gp["enemy_intro"].request_close()
+            return
+        # -- /feature-enemy-intro-dialogue --
         if session.frozen:                                 # LEVELUP: fully modal
             option = gp["levelup"].hit(mx, my)
             if option is not None:
@@ -425,8 +724,18 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 session.resolve_levelup(option, world.scene)  # -> payday -> INCOME
             return
         if panel.preview is not None:                      # modal
-            panel.handle_click(mx, my, session, buildings_balance,
-                               world.scene, world.occupancy)
+            # -- TU-6/TU-8: only the whitelisted CONFIRM click is gated;
+            # closing the preview WITHOUT placing (X/CANCEL) fires
+            # panel_closed so the tutorial can revert (Fix 1) --
+            if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
+                    mx, my, session, buildings_balance, world.scene,
+                    world.occupancy):
+                if panel.last_placed_type is not None:
+                    gp["tutorial"].on_building_placed(panel.last_placed_type)
+                    panel.last_placed_type = None
+                elif panel.preview is None:  # cancel/close, not a placement
+                    gp["tutorial"].on_panel_closed()
+            # -- /TU-6/TU-8 --
             return
         hud_action = gp["hud"].hit(mx, my)
         if hud_action == "pause":
@@ -434,23 +743,56 @@ def main(max_frames=None, data_dir=None, autostart=False):
             return
         if hud_action == "end_turn":
             session.end_turn()
+            gp["tutorial"].on_end_turn()  # TU-6: no-op unless this was the gated step
             return
         # -- 10L: fast-forward combat-speed buttons --
         if isinstance(hud_action, tuple) and hud_action[0] == "speed":
             session.set_combat_speed(hud_action[1])
             return
         # -- /10L speed --
+        # -- drag-select: the ONE place the toggle flips. Hud.hit() stays a
+        # pure read precisely because it is also called by the pan-arming
+        # over_ui probe on MOUSEBUTTONDOWN. --
+        if hud_action == "drag_select":
+            gp["drag_select_enabled"] = not gp["drag_select_enabled"]
+            return
+        # -- /drag-select --
         # -- 10I: RANGE/HEATMAP overlay toggles consume the click --
         if gp["overlays"].hit(mx, my):
             return
         # -- /10I --
-        if panel.handle_click(mx, my, session, buildings_balance,
-                              world.scene, world.occupancy):
+        # -- TU-6/TU-8: only the whitelisted card click is gated; the panel's
+        # own X button (bare panel, no preview) passes through ungated —
+        # closing it here fires panel_closed for the same revert as above --
+        was_visible = panel.visible
+        if _tutorial_allows_panel_click(mx, my) and panel.handle_click(
+                mx, my, session, buildings_balance, world.scene,
+                world.occupancy):
+            if panel.mode == "construct" and panel.preview is not None:
+                gp["tutorial"].on_card_selected(panel.preview.building_type)
+            elif was_visible and not panel.visible:
+                gp["tutorial"].on_panel_closed()
             return
+        # -- /TU-6/TU-8 --
         if panel.visible and mx >= panel.panel_x:          # spatial block
             return
         if session.state.phase == GamePhase.BUILDING:
             tile = tile_at_screen(world.tile_map, cs, mx, my)
+            # -- Building Movement: while the panel is picking a destination,
+            # a world click is that pick, never a selection change. A click on
+            # anything but a highlighted tile is a silent no-op so the player
+            # keeps picking (the panel is the cancel affordance). --
+            if gp["panel"].mode == "move_select":
+                _pick_move_destination(tile, session)
+                return
+            # -- /Building Movement --
+            # -- TU-6: reject every tile but the one the guided chain allows --
+            if tile is not None and not gp["tutorial"].allows(
+                    ("tile", tile.col, tile.row)):
+                return
+            if tile is not None:
+                gp["tutorial"].on_tile_clicked(tile.col, tile.row)
+            # -- /TU-6 --
             # -- 10J: shift multi-select (prototype game.py:440-490) --
             shift = bool(pygame.key.get_mods() & pygame.KMOD_SHIFT)
             update_selection(tile, shift, session)
@@ -459,25 +801,87 @@ def main(max_frames=None, data_dir=None, autostart=False):
         # game.py:426-431 — a non-drag left-up no UI element consumed) --
         elif session.state.phase == GamePhase.ENEMY:
             wx, wy = cs.screen_to_world(mx, my)
-            session.lightning_strike(world.scene, cs, wx, wy)
+            session.lightning_strike(world.scene, cs, wx, wy, vfx_balance)
         # -- /10H --
+
+    def _pick_move_destination(tile, session):
+        """Building Movement: the world half of destination-picking.
+
+        A legal destination is an unbuilt BUILDABLE tile that is not already an
+        endpoint of a move in progress — exactly the set
+        ``BuildingUI._build_move_select`` highlighted. Anything else is a silent
+        no-op (the player keeps picking). On a legal pick this only OPENS the
+        confirmation modal; ``start_move`` (via ``BuildingUI._do_move``) stays
+        the single legal seam that actually moves anything."""
+        panel = gp["panel"]
+        building = panel._selected
+        if (tile is None or building is None
+                or tile.state != TileState.BUILDABLE
+                or session.tilemap.is_moving(tile.col, tile.row)):
+            return
+        movement = buildings_balance["BuildingsGlobal"]["Movement"]
+        distance = move_distance(building.col, building.row,
+                                 tile.col, tile.row)
+        panel.preview = MovePreview(
+            building, tile, move_cost(distance, movement),
+            move_time(distance, movement), ui_balance, view_w, view_h,
+            skinning=shell.skinning)
 
     def handle_world_right_click(mx, my):
         """Right-click is a universal DISMISS, never a world action — it peels
         one stage off whatever is open, wherever the cursor is. A right-DRAG
         still pans; the _DRAG_THRESHOLD_SQ gate in the event loop is what keeps
         the two apart. Mirrors handle_world_click's precedence so the two
-        ladders cannot drift."""
+        ladders cannot drift.
+
+        ONE exception, and only while the DRAG SEL toggle is on: right-clicking
+        a tile that is CURRENTLY in the multi-selection peels that single tile
+        out of it instead of dismissing. Anything else — the toggle off, a tile
+        that isn't selected, an open construct preview — falls through to the
+        universal dismiss unchanged."""
         session = gp["world"].session
+        panel = gp["panel"]
         if session.state.state == GameState.GAME_OVER:
             return
         if gp["cheat"].visible:
             gp["cheat"].close()
             return
+        # -- feature-enemy-intro-dialogue: right-click-anywhere is a manual
+        # close (unlike LEVELUP/BOSS_CUTSCENE below, which are choice-only
+        # and treat it as a no-op) --
+        if session.state.phase == GamePhase.ENEMY_INTRO:
+            gp["enemy_intro"].request_close()
+            return
+        # -- /feature-enemy-intro-dialogue --
         if session.frozen or session.state.phase == GamePhase.BOSS_CUTSCENE:
             return  # LEVELUP / boss cutscene: a choice, not a dismiss
-        gp["panel"].dismiss()
-        if not gp["panel"].visible:
+        # -- drag-select: single-tile deselect. Gated on `panel.preview is
+        # None` so a right-click over an open construct preview still peels
+        # the preview (Shift+Click never reaches the world there either —
+        # handle_world_click's preview branch swallows it first). --
+        if gp["drag_select_enabled"] and panel.preview is None:
+            tile = tile_at_screen(gp["world"].tile_map, cs, mx, my)
+            if tile is not None and tile in gp["sel"]:
+                gp["sel"].remove(tile)
+                if not gp["sel"]:
+                    gp["sel_cat"] = None
+                    panel.close()
+                else:
+                    panel.open_for_tile(gp["sel"][0], session,
+                                        buildings_balance,
+                                        selected_tiles=gp["sel"])
+                return
+        # -- /drag-select --
+        # -- TU-8: dismiss() never places, so a preview it peels or a bare
+        # panel it closes both fire panel_closed (Fix 1); peeling only the
+        # boss popup (panel stays visible, preview stays None) does not --
+        had_preview = panel.preview is not None
+        was_visible = panel.visible
+        panel.dismiss()
+        if (had_preview and panel.preview is None) or (
+                was_visible and not panel.visible):
+            gp["tutorial"].on_panel_closed()
+        if not panel.visible:
             gp["sel"], gp["sel_cat"] = [], None
 
     # -- 10J: shift multi-select (prototype _handle_tile_click,
@@ -513,6 +917,43 @@ def main(max_frames=None, data_dir=None, autostart=False):
                             selected_tiles=gp["sel"])
     # -- /10J --
 
+    # -- drag-select: one press-drag-release == the batch Shift+Click builds
+    # one click at a time. Same _SEL_CATEGORY table, same same-category-only
+    # filter, same "primary tile first" convention open_for_tile documents;
+    # locked/unowned tiles inside the rectangle carry no category and are
+    # silently skipped, mirroring today's "a click can't hit them" rule. --
+    def finish_drag_select(start_tile, end_tile):
+        world = gp["world"]
+        session = world.session
+        panel = gp["panel"]
+        tutorial = gp["tutorial"]
+        cat = _SEL_CATEGORY.get(start_tile.state) if start_tile is not None else None
+        # The same D6 zero-overhead tutorial gate every other tile click goes
+        # through: outside the guided chain it fast-paths to "always allowed",
+        # and during it a drag collapses to at most the one highlighted tile
+        # rather than bypassing the whitelist.
+        if cat is None or not tutorial.allows(
+                ("tile", start_tile.col, start_tile.row)):
+            gp["sel"], gp["sel_cat"] = [], None
+            panel.close()
+            return
+        end_tile = end_tile if end_tile is not None else start_tile
+        c0, c1 = sorted((start_tile.col, end_tile.col))
+        r0, r1 = sorted((start_tile.row, end_tile.row))
+        picked = [start_tile]
+        for row in range(r0, r1 + 1):
+            for col in range(c0, c1 + 1):
+                t = world.tile_map.get(col, row)
+                if (t is not None and t is not start_tile
+                        and _SEL_CATEGORY.get(t.state) == cat
+                        and tutorial.allows(("tile", t.col, t.row))):
+                    picked.append(t)
+        gp["sel"], gp["sel_cat"] = picked, cat
+        tutorial.on_tile_clicked(start_tile.col, start_tile.row)
+        panel.open_for_tile(picked[0], session, buildings_balance,
+                            selected_tiles=picked)
+    # -- /drag-select --
+
     if autostart:
         build_gameplay()  # headless seam: bypass cutscene/menu -> GAMEPLAY
 
@@ -527,6 +968,11 @@ def main(max_frames=None, data_dir=None, autostart=False):
     mouse_down = None
     rmouse_down = None  # right-press origin: a short press dismisses, a drag pans
     pan_from = None  # set on a left-press that began over the world (not UI)
+    # drag-select: the armed box selection's two corners, held as Tiles (not
+    # screen coords) so the live preview survives a camera nudge. Mutually
+    # exclusive with `pan_from` — arming one clears the other.
+    drag_select_from = None
+    drag_select_current = None
     deco_clock_ms = 0.0  # wall-clock accumulator for deco idle animation
     running = True
     while running:
@@ -543,14 +989,32 @@ def main(max_frames=None, data_dir=None, autostart=False):
             st = shell.state
             if st == GameState.CUTSCENE:
                 if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
-                    video.skip()
+                    intro_player.skip()
                 continue
             if shell.in_menu or st == GameState.PAUSED:
                 if event.type == pygame.KEYDOWN:
                     execute(shell.handle_key(event.unicode, _key_name(event.key)))
                 elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _LEFT:
                     execute(shell.handle_click(*event.pos))
+                elif event.type == pygame.MOUSEWHEEL and event.y:
+                    # player-identity: the high-score table is the only menu
+                    # screen that scrolls (Shell.handle_scroll duck-types on a
+                    # callable `scroll`; every other screen is a no-op). NEGATED
+                    # — pygame's MOUSEWHEEL.y is positive scrolling UP, while
+                    # HighscoresScreen.scroll(+dy) moves DOWN the list.
+                    shell.handle_scroll(-event.y)
                 continue
+            # -- TU-5: an in-gameplay cutscene overlay consumes ALL input
+            # while active (mirrors the CUTSCENE branch above) --
+            if gp["cutscene"] is not None:
+                if event.type in (pygame.KEYDOWN, pygame.MOUSEBUTTONDOWN):
+                    gp["cutscene"].skip()
+                continue
+            # TU-6: the guided-chain whitelist lives at the existing choke
+            # points instead (message-box click-swallow in
+            # handle_world_click, the tile-click/panel.handle_click() gates
+            # below, and Session.tutorial_gate for End Turn) — no separate
+            # keyboard-wide gate needed here.
             # GAMEPLAY / GAME_OVER: the live world is present
             world = gp["world"]
             session = world.session
@@ -571,11 +1035,22 @@ def main(max_frames=None, data_dir=None, autostart=False):
                             event.unicode, _key_name(event.key)))
                         continue
                 # -- /10H --
+                # -- feature-enemy-intro-dialogue: Esc closes early — BEFORE
+                # the frozen guard (the cheat-menu carve-out above), since
+                # unlike LEVELUP/BOSS_CUTSCENE this modal DOES have a
+                # dismiss. --
+                if (session.state.state == GameState.GAMEPLAY
+                        and session.state.phase == GamePhase.ENEMY_INTRO
+                        and event.key == pygame.K_ESCAPE):
+                    gp["enemy_intro"].request_close()
+                    continue
+                # -- /feature-enemy-intro-dialogue --
                 if session.state.state != GameState.GAMEPLAY or session.frozen:
                     continue  # the LEVELUP window owns all input
                 if panel.preview is not None:
                     if event.key == pygame.K_ESCAPE and not panel.preview.editing:
                         panel.preview = None
+                        gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         panel.handle_key(event.unicode, _key_name(event.key))
                 elif panel.name_editing:  # 10J: upgrade-panel rename capture
@@ -583,10 +1058,12 @@ def main(max_frames=None, data_dir=None, autostart=False):
                 elif event.key == pygame.K_ESCAPE:
                     if panel.visible:
                         panel.close()
+                        gp["tutorial"].on_panel_closed()  # TU-8 Fix 1
                     else:
                         shell.state = GameState.PAUSED  # Esc opens pause
                 elif event.key == pygame.K_SPACE:
                     session.end_turn()  # dev convenience beside the button
+                    gp["tutorial"].on_end_turn()  # TU-6: no-op unless gated step
                 elif session.state.phase == GamePhase.ENEMY:
                     # Combat-speed shortcuts + quick-skip (10F). 1.5x/2x are
                     # round-gated inside Session, so a locked key is a no-op.
@@ -612,14 +1089,38 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     or gp["overlays"].over(px, py)   # 10I: toggle pills
                 )
                 pan_from = None if over_ui else event.pos
+                # -- drag-select: `pan_from is not None` IS the "this press
+                # began over the world, not a UI element" signal (the new
+                # toggle button is part of Hud.hit(), so over_ui already
+                # covers it). When the toggle is on in the BUILDING phase the
+                # gesture belongs to box-select and never to camera pan. --
+                if (gp["drag_select_enabled"] and pan_from is not None
+                        and session.state.phase == GamePhase.BUILDING):
+                    drag_select_from = tile_at_screen(world.tile_map, cs,
+                                                      *event.pos)
+                    drag_select_current = drag_select_from
+                    pan_from = None
+                else:
+                    drag_select_from = None
+                    drag_select_current = None
+                # -- /drag-select --
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _LEFT:
                 if mouse_down is not None:
                     dx = event.pos[0] - mouse_down[0]
                     dy = event.pos[1] - mouse_down[1]
                     if dx * dx + dy * dy <= _DRAG_THRESHOLD_SQ:
                         handle_world_click(*event.pos)
+                    elif drag_select_from is not None:
+                        # drag-select: a real drag past the threshold — the
+                        # short-press path above is untouched, so a plain
+                        # click still selects one tile the ordinary way.
+                        finish_drag_select(
+                            drag_select_from,
+                            tile_at_screen(world.tile_map, cs, *event.pos))
                 mouse_down = None
                 pan_from = None
+                drag_select_from = None
+                drag_select_current = None
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == _RIGHT:
                 rmouse_down = event.pos
             elif event.type == pygame.MOUSEBUTTONUP and event.button == _RIGHT:
@@ -637,6 +1138,14 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     continue
                 cs.pan(-event.rel[0], -event.rel[1])  # left/right-drag: map follows
                 cs.clamp(view_w, view_h)
+            # -- drag-select: the live preview's far corner. A sibling of the
+            # camera-pan arm above and mutually exclusive with it — `pan_from`
+            # is None whenever `drag_select_from` is armed. --
+            elif (event.type == pygame.MOUSEMOTION and event.buttons[0]
+                  and drag_select_from is not None):
+                drag_select_current = tile_at_screen(world.tile_map, cs,
+                                                     *event.pos)
+            # -- /drag-select --
             elif event.type == pygame.MOUSEWHEEL and event.y:
                 if gp["cheat"].visible:  # 10H: open menu swallows wheel zoom
                     continue
@@ -649,121 +1158,268 @@ def main(max_frames=None, data_dir=None, autostart=False):
         _t_sim0 = time.perf_counter()
         st = shell.state
         if st == GameState.CUTSCENE:
-            video.update(dt)
-            if video.done:
-                video.release()
+            intro_player.update(dt)
+            if intro_player.done:
+                intro_player.release()
                 shell.to_main_menu()
         elif st in _WORLD_STATES:
             world = gp["world"]
             session = world.session
-            # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
-            # movement and the combat sweep together (prototype game.py:1211-13).
-            # ROUND_END/INCOME timers always run on real time, and the pause is
-            # just a 0.0 multiplier, so the round machine is never touched.
-            sim_dt = (dt * session.combat_speed
-                      if session.state.phase == GamePhase.ENEMY else dt)
-            session.pre_sim(sim_dt, world.scene)
-            # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
-            if session.state.state == GameState.GAMEPLAY and not session.frozen:
-                world.scene.update(sim_dt)
-                # 10G: the flat boss-bonus story damage (Boss1A/3A), computed
-                # once per frame and threaded as a plain int.
-                dmg_bonus = story_damage_bonus(session.state, world.tile_map)
+            # -- TU-5: consume a pending in-gameplay cutscene request, then
+            # freeze the whole sim body below for as long as one is playing
+            # (the wave IS queued by Session.end_turn() before this fires —
+            # the freeze just withholds it visually until skip/done). --
+            if gp["cutscene"] is None and session.state.pending_cutscene:
+                requested = cutscenes.get(
+                    session.state.pending_cutscene.get("id"))
+                session.state.pending_cutscene = None
+                if requested is not None and requested.enabled:
+                    requested.start()
+                    gp["cutscene"] = requested
+            if gp["cutscene"] is not None:
+                gp["cutscene"].update(dt)
+                if gp["cutscene"].done:
+                    gp["cutscene"].release()
+                    gp["cutscene"] = None
+            if gp["cutscene"] is None:
+                # Combat speed (10F) scales the ENEMY-phase sim ONLY — spawner,
+                # movement and the combat sweep together (prototype game.py:1211-13).
+                # ROUND_END/INCOME timers always run on real time, and the pause is
+                # just a 0.0 multiplier, so the round machine is never touched.
+                sim_dt = (dt * session.combat_speed
+                          if session.state.phase == GamePhase.ENEMY else dt)
+                session.pre_sim(sim_dt, world.scene)
+                # debug-mode-telemetry: stamp the host's frame counter (a
+                # cheap int set) once per frame, whenever a recorder is bound.
+                if session.debug is not None:
+                    session.debug.set_frame(frames)
+                # LEVELUP/BOSS_CUTSCENE freeze the world entirely (no sim/anim).
+                if session.state.state == GameState.GAMEPLAY and not session.frozen:
+                    # debug-mode-telemetry (Phase 3): level-2-only per-tick
+                    # damage detail. `_debug_on_damage` is threaded to
+                    # resolve_combat's own on_damage= parameter for the three
+                    # sites it owns; the enemy-attacks-a-building site
+                    # (game/enemies/components.py) runs inside scene.update,
+                    # BEFORE resolve_combat, so it needs the SAME callback
+                    # installed through the module-level seam instead — hence
+                    # set_damage_hook() bracketing scene.update() below.
+                    # Everything below is inside `if debug_l2` so debug-off
+                    # really does cost ONE attribute check here, as this
+                    # package's docs claim — no closure built and no module
+                    # global written on a frame that will never emit. The
+                    # matching teardown is guarded the same way, which is safe
+                    # because arming and clearing always happen on the SAME
+                    # frame: a frame that never arms cannot leave a live hook.
+                    debug_l2 = (session.debug is not None
+                               and session.debug.level >= LEVEL_VERBOSE)
+                    _debug_on_damage = None
+                    if debug_l2:
+                        def _debug_on_damage(attacker_kind, target_kind, dmg,
+                                             target_hp_after,
+                                             _rec=session.debug):
+                            _rec.emit(dbg.DAMAGE, attacker=attacker_kind,
+                                     target=target_kind, dmg=dmg,
+                                     target_hp_after=target_hp_after)
 
-                # Play the death animation if the dead enemy's sheet has a
-                # `death` row (Art/enemies): the session bookkeeping runs first
-                # and the enemy still despawns this frame, but a cosmetic Corpse
-                # lingers at its spot to play the row once. Dormant when the
-                # sheet has no `death` track (no duration -> no corpse).
-                def _on_enemy_death(enemy, _scene=world.scene):
-                    session.on_enemy_death(enemy)
-                    anim = enemy.get_component(SpriteAnimator)
-                    if anim is not None:
-                        ms = assets.animation_total_ms(anim.slot_key, DEATH_ANIM)
-                        if ms:
-                            spawn_corpse(_scene, enemy, ms)
+                        def _debug_on_wall_damage(attacker_kind, edge, dmg,
+                                                  hp_after, broke,
+                                                  _rec=session.debug):
+                            c1, r1, c2, r2 = edge
+                            _rec.emit(dbg.WALL_DAMAGE, attacker=attacker_kind,
+                                     col=c1, row=r1, col2=c2, row2=r2, dmg=dmg,
+                                     hp_after=hp_after, broke=broke)
 
-                # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
-                # count + freeing the building's tile for good) runs first,
-                # then upgrade the default frozen-idle carry pose to the
-                # sheet's own `kidnap` row if it has one — `animation_total_ms`
-                # returns None (never an idle fallback) for a sheet without
-                # one, so this cleanly stays on the frozen-idle branch.
-                def _on_kidnap(enemy, building, _scene=world.scene):
-                    session.on_kidnap(enemy, building, _scene)
-                    anim = enemy.get_component(SpriteAnimator)
-                    if anim is not None:
-                        set_kidnap_pose(
-                            enemy,
-                            bool(assets.animation_total_ms(
-                                anim.slot_key, KIDNAP_ANIM)))
+                        set_damage_hook(_debug_on_damage)
+                        # A wall carries no Health and no RoundStats, so its
+                        # damage is invisible to `on_damage` — its own seam.
+                        set_wall_damage_hook(_debug_on_wall_damage)
+                    world.scene.update(sim_dt)
+                    # The flat boss-bonus story damage (Boss1A/1B/3A/3B),
+                    # computed once per frame and threaded as a plain int.
+                    dmg_bonus = story_damage_bonus(session.state, world.tile_map,
+                                                   core_balance)
 
-                resolve_combat(world.scene, world.tile_map, sim_dt,
-                               buildings_balance,
-                               on_base_hit=session.on_base_hit,
-                               on_enemy_death=_on_enemy_death,
-                               on_kidnap=_on_kidnap,
-                               dmg_bonus=dmg_bonus)
-                session.post_sim(world.scene)
-            # payday fills state.income_events + flips to INCOME; spawn once
-            if (session.state.phase == GamePhase.INCOME
-                    and gp["prev_phase"] != GamePhase.INCOME):
-                gp["floaters"].spawn_income_events(session.state)
-                gp["floaters"].spawn_painter_events(session.state)
-                gp["floaters"].spawn_boost_events(session.state)
-            # -- 10J: the previous round's blood clears when the next wave
-            # starts (prototype clear_splatters on End Turn, game.py:815) --
-            if (session.state.phase == GamePhase.ENEMY
-                    and gp["prev_phase"] != GamePhase.ENEMY):
-                gp["floaters"].clear_splatters()
-            # -- /10J --
-            # pre_sim rolled the cards when it entered LEVELUP; open on the edge
-            if (session.state.phase == GamePhase.LEVELUP
-                    and gp["prev_phase"] != GamePhase.LEVELUP):
-                gp["panel"].close()  # the modal owns the screen
-                gp["levelup"].open(session.state.levelup_options)
-            # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
-            if (session.state.phase == GamePhase.BOSS_CUTSCENE
-                    and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
-                pending = session.state.pending_boss_cutscene or {}
-                gp["panel"].close()  # the modal owns the screen
-                gp["boss_cutscene"].open(pending.get("boss_num", 1),
-                                         pending.get("outcome", "win"))
-            # -- /10G --
-            # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
-            # snapshots the round's counts on the ENEMY->anything edge) --
-            gp["overlays"].track(session.state.phase, gp["prev_phase"],
-                                 world.scene)
-            # -- /10I --
-            gp["prev_phase"] = session.state.phase
-            gp["floaters"].spawn_xp_events(session.state)
-            gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
-            # mirror a fresh game over up to the shell (never while PAUSED)
-            if (st == GameState.GAMEPLAY
-                    and session.state.state == GameState.GAME_OVER):
-                gp["cheat"].close()  # 10H: never hide the game-over screen
-                shell.enter_game_over()
-            gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
-            gp["panel"].hover(mx, my, mouse_down=held)
-            gp["panel"].update(dt)
-            gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
-            gp["floaters"].update(dt)
-            # -- 10J: game log + FX watchers (building deaths -> purple burst
-            # + kill message; enemy attack cadence -> muzzle/slash; enemy
-            # deaths -> blood splatters, double-gated on gore) --
-            gp["floaters"].watch_buildings(world.scene, gp["game_log"])
-            gp["floaters"].watch_enemies(world.scene)
-            gp["floaters"].spawn_death_events(session.state,
-                                              shell.settings.gore)
-            gp["game_log"].drain(session.state)
-            gp["game_log"].update(dt)
-            # -- /10J --
-            gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
-            if session.frozen:
-                gp["levelup"].update(dt, mx, my, mouse_down=held)
-                gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
-            if session.state.state == GameState.GAME_OVER:
-                gp["game_over"].update(dt, mx, my, mouse_down=held)
+                    # Play the death animation if the dead enemy's sheet has a
+                    # `death` row (Art/enemies): the session bookkeeping runs first
+                    # and the enemy still despawns this frame, but a cosmetic Corpse
+                    # lingers at its spot to play the row once. Dormant when the
+                    # sheet has no `death` track (no duration -> no corpse).
+                    def _on_enemy_death(enemy, _scene=world.scene):
+                        session.on_enemy_death(enemy)
+                        anim = enemy.get_component(SpriteAnimator)
+                        if anim is not None:
+                            ms = assets.animation_total_ms(anim.slot_key, DEATH_ANIM)
+                            if ms:
+                                spawn_corpse(_scene, enemy, ms)
+
+                    # ESV-5: drains into RunState.splash_impact_events; the UI
+                    # side (spawn_splash_impact_events) reads it beside
+                    # spawn_death_events below.
+                    def _on_splash_impact(gx, gy, _state=session.state):
+                        _state.splash_impact_events.append((gx, gy))
+
+                    # ESV-6: the same drained-ledger pattern for the two
+                    # convergence-demo triggers — both ship INERT rows, so these
+                    # ledgers filling every frame is a no-op emit until a
+                    # designer binds art.
+                    def _on_defender_fire(wx, wy, _state=session.state,
+                                          _rec=session.debug, _l2=debug_l2):
+                        _state.defender_fire_events.append((wx, wy))
+                        # debug-mode-telemetry (level 2): a shot left a muzzle.
+                        # `resolve_combat`'s callback carries only the ALREADY
+                        # muzzle-anchored spawn point — the shooter and its
+                        # target are not in the signature and are NOT worth a
+                        # gameplay-file signature change to reach, so the event
+                        # reports exactly what it has (see events.py).
+                        if _l2:
+                            _rec.emit(dbg.DEFENDER_FIRE, wx=wx, wy=wy)
+
+                    def _on_projectile_hit(wx, wy, _state=session.state):
+                        _state.projectile_hit_events.append((wx, wy))
+
+                    # Kidnapping (Art/enemies): the session bookkeeping (XP + kill
+                    # count) runs first, then upgrade the default frozen-idle carry
+                    # pose to the sheet's own `kidnap` row if it has one —
+                    # `animation_total_ms` returns None (never an idle fallback)
+                    # for a sheet without one, so this cleanly stays on the
+                    # frozen-idle branch.
+                    def _on_kidnap(enemy, building):
+                        session.on_kidnap(enemy, building)
+                        anim = enemy.get_component(SpriteAnimator)
+                        if anim is not None:
+                            set_kidnap_pose(
+                                enemy,
+                                bool(assets.animation_total_ms(
+                                    anim.slot_key, KIDNAP_ANIM)))
+
+                    resolve_combat(world.scene, world.tile_map, sim_dt,
+                                   buildings_balance, vfx_balance,
+                                   on_base_hit=session.on_base_hit,
+                                   on_enemy_death=_on_enemy_death,
+                                   dmg_bonus=dmg_bonus,
+                                   assets=assets, cs=cs,
+                                   on_splash_impact=_on_splash_impact,
+                                   on_defender_fire=_on_defender_fire,
+                                   on_projectile_hit=_on_projectile_hit,
+                                   on_kidnap=_on_kidnap,
+                                   on_damage=_debug_on_damage)
+                    if debug_l2:  # armed this frame -> cleared this frame
+                        set_damage_hook(None)
+                        set_wall_damage_hook(None)
+                    session.post_sim(world.scene)
+                # payday fills state.income_events + flips to INCOME; spawn once
+                if (session.state.phase == GamePhase.INCOME
+                        and gp["prev_phase"] != GamePhase.INCOME):
+                    gp["floaters"].spawn_income_events(session.state)
+                    gp["floaters"].spawn_painter_events(session.state)
+                    gp["floaters"].spawn_boost_events(session.state)
+                # -- 10J: the previous round's blood clears when the next wave
+                # starts (prototype clear_splatters on End Turn, game.py:815) --
+                if (session.state.phase == GamePhase.ENEMY
+                        and gp["prev_phase"] != GamePhase.ENEMY):
+                    gp["floaters"].clear_splatters()
+                # -- /10J --
+                # pre_sim rolled the cards when it entered LEVELUP; open on the edge
+                if (session.state.phase == GamePhase.LEVELUP
+                        and gp["prev_phase"] != GamePhase.LEVELUP):
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["levelup"].open(session.state.levelup_options)
+                # -- 10G boss: open the cutscene on ITS phase edge (same pattern) --
+                if (session.state.phase == GamePhase.BOSS_CUTSCENE
+                        and gp["prev_phase"] != GamePhase.BOSS_CUTSCENE):
+                    pending = session.state.pending_boss_cutscene or {}
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["boss_cutscene"].open(pending.get("boss_num", 1),
+                                             pending.get("outcome", "win"))
+                # -- /10G --
+                # -- feature-enemy-intro-dialogue: open the first queued entry
+                # on ITS phase edge (same pattern). Subsequent queued entries
+                # are opened later, in the update block below, once the
+                # previous one finishes closing. --
+                if (session.state.phase == GamePhase.ENEMY_INTRO
+                        and gp["prev_phase"] != GamePhase.ENEMY_INTRO):
+                    gp["panel"].close()  # the modal owns the screen
+                    gp["enemy_intro"].open(session.state.pending_enemy_intros[0])
+                # -- /feature-enemy-intro-dialogue --
+                # -- 10I: heatmap traffic tracking (accumulates during ENEMY;
+                # snapshots the round's counts on the ENEMY->anything edge) --
+                gp["overlays"].track(session.state.phase, gp["prev_phase"],
+                                     world.scene)
+                # -- /10I --
+                gp["prev_phase"] = session.state.phase
+                gp["floaters"].spawn_xp_events(session.state)
+                gp["floaters"].spawn_boss_events(session.state)  # 10G announcement
+                # mirror a fresh game over up to the shell (never while PAUSED)
+                if (st == GameState.GAMEPLAY
+                        and session.state.state == GameState.GAME_OVER):
+                    gp["cheat"].close()  # 10H: never hide the game-over screen
+                    shell.enter_game_over()
+                    # debug-mode-telemetry: write the reports as soon as THIS
+                    # run ends, not just at process exit. close() is
+                    # idempotent, so the unconditional call right before
+                    # pygame.quit() below stays a harmless no-op afterward.
+                    if session.debug is not None:
+                        session.debug.close(outcome="game_over")
+                    # player-identity: record ONE high-score row per run. This
+                    # is INDEPENDENT of the recorder — a regular (uninstrumented)
+                    # run still records a row, with `make_entry` normalising the
+                    # (None, None) identity to Anonymous / unknown. The latch is
+                    # set BEFORE the write so a raising append cannot retry every
+                    # frame; a read-only disk or a full volume must never crash a
+                    # finished run on the game-over screen, so losing the row is
+                    # the correct trade (ONE logged warning).
+                    if not score_recorded:
+                        score_recorded = True
+                        try:
+                            name, skill = shell.player_identity
+                            highscores.append_score(scores_path, highscores.make_entry(
+                                name, skill, session.state.round_num,
+                                session.state.buildings_placed,
+                                session.state.enemies_killed,
+                                run_id=recorder.run_id if recorder is not None else None,
+                                debug=recorder is not None), data_dir)
+                        except Exception as exc:              # noqa: BLE001
+                            _log.warning(
+                                "could not record the high score for this run "
+                                "(%s) — the run itself is unaffected", exc)
+                gp["hud"].update(dt, mx, my, session, gp["panel"], mouse_down=held)
+                gp["panel"].hover(mx, my, mouse_down=held)
+                gp["panel"].update(dt)
+                gp["overlays"].update(dt, mx, my, mouse_down=held)   # 10I: toggle-pill hover
+                gp["floaters"].update(dt)
+                # -- 10J: game log + FX watchers (building deaths -> purple burst
+                # + kill message; enemy attack cadence -> muzzle/slash; enemy
+                # deaths -> blood splatters, double-gated on gore) --
+                gp["floaters"].watch_buildings(world.scene, gp["game_log"])
+                gp["floaters"].watch_enemies(world.scene)
+                gp["floaters"].spawn_death_events(session.state,
+                                                  shell.settings.gore)
+                gp["floaters"].spawn_splash_impact_events(session.state)  # ESV-5
+                gp["floaters"].spawn_defender_fire_events(session.state)  # ESV-6
+                gp["floaters"].spawn_projectile_hit_events(session.state)  # ESV-6
+                gp["game_log"].drain(session.state)
+                gp["game_log"].update(dt)
+                # -- /10J --
+                gp["cheat"].update(dt, mx, my, mouse_down=held)  # 10H (animates its own buttons)
+                gp["tutorial_message"].update(dt, mx, my, mouse_down=held)  # TU-6
+                if session.frozen:
+                    gp["levelup"].update(dt, mx, my, mouse_down=held)
+                    gp["boss_cutscene"].update(dt, mx, my, mouse_down=held)  # 10G (its phase only)
+                    # feature-enemy-intro-dialogue: the window drives its own
+                    # open/hold/close clock; once its close animation ends
+                    # (timer or a manual close) pop the shown entry and open
+                    # the next queued one, or let resolve_enemy_intro() start
+                    # the round (it flips the phase to ENEMY once the queue
+                    # drains).
+                    gp["enemy_intro"].update(dt, mx, my, mouse_down=held)
+                    if (session.state.phase == GamePhase.ENEMY_INTRO
+                            and not gp["enemy_intro"].visible):
+                        session.resolve_enemy_intro()
+                        if session.state.phase == GamePhase.ENEMY_INTRO:
+                            gp["enemy_intro"].open(
+                                session.state.pending_enemy_intros[0])
+                if session.state.state == GameState.GAME_OVER:
+                    gp["game_over"].update(dt, mx, my, mouse_down=held)
         else:  # menu states + PAUSED
             shell.update(dt, mx, my, mouse_down=held)
 
@@ -772,7 +1428,7 @@ def main(max_frames=None, data_dir=None, autostart=False):
         window.fill(BACKGROUND)
         st = shell.state
         if st == GameState.CUTSCENE:
-            surf = video.frame_surface()
+            surf = intro_player.frame_surface()
             if surf is not None:
                 window.blit(surf, (0, 0))
             renderer.submit_hud(HudText(
@@ -788,10 +1444,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # game.py:1879-1890). Undone right after flush, with NO clamp in
             # between, so the offset restores exactly; sim state untouched.
             shake_ox = shake_oy = 0
-            if (session.state.phase == GamePhase.ENEMY
-                    and any(getattr(b, "alive", False)
-                            for b in world.scene.by_tag("boss"))):
-                shake = enemies_balance["EnemyTypes"]["Boss"]["shake"]
+            shake = None
+            if session.state.phase == GamePhase.ENEMY:
+                # BR-1: shake is a PER-ERA boss variable, so it comes off the
+                # live boss object (which knows its own era) — never
+                # re-derived from the round number.
+                for b in world.scene.by_tag("boss"):
+                    if getattr(b, "alive", False):
+                        shake = getattr(b, "shake", None)
+                        break
+            if shake:
                 t_ms = time.perf_counter() * 1000.0
                 period_ms = shake["interval"] * 1000.0
                 shake_ox = int(math.sin(t_ms / period_ms * 6.28)
@@ -837,6 +1499,13 @@ def main(max_frames=None, data_dir=None, autostart=False):
                     world.tile_map, cmin, cmax, rmin, rmax, condition_art,
                     anim_time_ms=int(deco_clock_ms)):
                 renderer.submit(item)
+            # Edge-wall art on the SAME `terrain` layer as condition art —
+            # above the ground tiles, below everything on `entities`/`deco`.
+            # Reuses the window above; one item per perimeter edge, and
+            # nothing at all for a wall tier with no imported sheet.
+            for item in wall_render_items(world.tile_map, cmin, cmax, rmin, rmax,
+                                          wall_art, anim_time_ms=int(deco_clock_ms)):
+                renderer.submit(item)
             for item in world.scene.render_items():
                 renderer.submit(item)
             # -- 10I: condition tint + RANGE/HEATMAP overlays — before the
@@ -852,6 +1521,70 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # -- /10J --
             gp["floaters"].submit_craters(renderer, cs, world.scene)  # 10B: world
             gp["floaters"].submit_lightning(renderer, cs, world.scene)  # 10H
+            # feature-storm-acolyte-multi-build: per-acolyte charge bars
+            gp["floaters"].submit_lightning_charge_bars(
+                renderer, cs, world.scene)
+            # -- Building Movement: the in-transit signpost + round countdown
+            # on BOTH endpoints of every live move. `moving_orders` holds at
+            # most a handful of entries, so this is a per-frame no-op in the
+            # overwhelmingly common empty case. E-37: with no imported sheet
+            # the sign is skipped and only the countdown draws — never a
+            # grey X. --
+            for order in world.tile_map.moving_orders:
+                for ocol, orow in ((order.from_col, order.from_row),
+                                   (order.to_col, order.to_row)):
+                    scx, scy = cs.world_to_screen(ocol + 0.5, orow + 0.5)
+                    sw = max(8, int(cs.geometry.tile_w * cs.camera.zoom * 0.7))
+                    sh = sw * 3 // 2          # the 64x96 core frame ratio
+                    # `tools/gen_moving_sign_sheet.py` draws the frame CENTRED
+                    # on the tile diamond's centre (local (32, 48) of the
+                    # 64x96 frame — the frame's own vertical MIDPOINT, not its
+                    # bottom), so the frame's top-left is half a frame above
+                    # the anchor point, not a whole frame above it.
+                    if moving_sign_art:
+                        renderer.submit_hud(HudSprite(
+                            MOVING_SIGN_SLOT,
+                            (int(scx - sw / 2), int(scy - sh / 2)), (sw, sh)))
+                    # The board sits at local y 14-40 of the 96-tall frame,
+                    # 21px above the local tile-centre row (48) — i.e. 21/96
+                    # of `sh` above `scy` — so the countdown reads on the
+                    # board face regardless of the sign's own art/zoom scale.
+                    widgets.submit_text(
+                        renderer, str(order.rounds_left),
+                        (int(scx), int(scy - sh * 21 // 96)), "md",
+                        widgets.C_MOVE_HIGHLIGHT, align="center")
+            # -- /Building Movement --
+            # -- TU-6: the guided-chain tile highlight (0 or 1 tiles) — world
+            # overlay, before the panel's own selection highlights --
+            for col, row in gp["tutorial"].tile_highlight_targets():
+                widgets.submit_tile_diamond(renderer, col, row,
+                                            widgets.C_TUTORIAL_HIGHLIGHT)
+            # -- /TU-6 --
+            # -- drag-select: the live rectangle, same world-overlay slot as
+            # the tutorial highlight. It runs the SAME _SEL_CATEGORY filter
+            # AND the same tutorial.allows(("tile", ...)) gate finish_drag_select
+            # does (review fix: a preview that skipped the gate could show a
+            # tile during the round-0 tutorial that release would then refuse
+            # to select), so a tile shown here is exactly a tile that will be
+            # selected on release. --
+            if gp["drag_select_enabled"] and drag_select_from is not None:
+                cur = drag_select_current or drag_select_from
+                sel_cat = _SEL_CATEGORY.get(drag_select_from.state)
+                tutorial = gp["tutorial"]
+                if sel_cat is not None and tutorial.allows(
+                        ("tile", drag_select_from.col, drag_select_from.row)):
+                    c0, c1 = sorted((drag_select_from.col, cur.col))
+                    r0, r1 = sorted((drag_select_from.row, cur.row))
+                    for row in range(r0, r1 + 1):
+                        for col in range(c0, c1 + 1):
+                            t = world.tile_map.get(col, row)
+                            if (t is not None
+                                    and _SEL_CATEGORY.get(t.state) == sel_cat
+                                    and tutorial.allows(("tile", col, row))):
+                                widgets.submit_tile_diamond_fill(
+                                    renderer, col, row,
+                                    widgets.C_HIGHLIGHT + (70,))
+            # -- /drag-select --
             gp["panel"].submit(renderer, session)
             gp["floaters"].submit_beams(renderer, cs, world.scene)    # 10B: HUD
             gp["floaters"].submit_hp_bars(renderer, cs, world.scene)
@@ -863,7 +1596,23 @@ def main(max_frames=None, data_dir=None, autostart=False):
                                             session.state.phase, view_w, view_h)
             gp["floaters"].submit_announce(renderer, view_w, view_h)    # 10G
             gp["hud"].submit(renderer, session, view_w, view_h,
-                             hover_cost=gp["panel"].hover_cost)
+                             hover_cost=gp["panel"].hover_cost,
+                             scene=world.scene,
+                             drag_select_enabled=gp["drag_select_enabled"])
+            # -- TU-6: UI-box highlights (card/Confirm/End Turn/Close) + the
+            # message box, over the HUD --
+            for rect in gp["tutorial"].ui_highlight_rects(gp["panel"], gp["hud"]):
+                widgets.submit_ui_box_highlight(renderer, rect)
+            # -- TU-8: the non-modal close-panel-hint banner — NOT the
+            # message box, so it never consumes the right-click it names --
+            banner_text = gp["tutorial"].banner_text()
+            if banner_text is not None:
+                widgets.submit_tutorial_banner(renderer, banner_text,
+                                               view_w, view_h)
+            if gp["tutorial"].message_visible:
+                gp["tutorial_message"].submit(
+                    renderer, gp["tutorial"].message_text(), view_w, view_h)
+            # -- /TU-6 --
             gp["game_log"].submit(renderer, view_h)   # 10J: fading log lines
             gp["overlays"].submit_buttons(renderer)   # 10I: RANGE/HEATMAP pills
             if gp["levelup"].visible:
@@ -872,6 +1621,8 @@ def main(max_frames=None, data_dir=None, autostart=False):
             if session.state.phase == GamePhase.BOSS_CUTSCENE:
                 gp["boss_cutscene"].submit(renderer, view_w, view_h)
             # -- /10G --
+            if gp["enemy_intro"].visible:  # feature-enemy-intro-dialogue
+                gp["enemy_intro"].submit(renderer, view_w, view_h)
             if session.state.state == GameState.GAME_OVER:
                 gp["game_over"].submit(renderer, session.state, view_w, view_h)
             if st == GameState.PAUSED:
@@ -882,6 +1633,16 @@ def main(max_frames=None, data_dir=None, autostart=False):
             # -- /10H --
             _t_flush_start = time.perf_counter()
             renderer.flush(window)
+            # -- TU-5: an in-gameplay cutscene overlay paints AFTER the
+            # (frozen, but still-submitted) world frame, full-screen --
+            if gp["cutscene"] is not None:
+                surf = gp["cutscene"].frame_surface()
+                if surf is not None:
+                    window.blit(surf, (0, 0))
+                renderer.submit_hud(HudText(
+                    "press any key to skip", (view_w // 2, view_h - 40),
+                    "md", (210, 210, 210), align="center"))
+                renderer.flush(window)
             # -- 10G boss: undo the shake pan exactly (no clamp in between) --
             if shake_ox or shake_oy:
                 cs.pan(-shake_ox, -shake_oy)
@@ -919,9 +1680,44 @@ def main(max_frames=None, data_dir=None, autostart=False):
         if max_frames is not None and frames >= max_frames:
             running = False
 
+    # debug-mode-telemetry: idempotent — a no-op if the game-over path (or a
+    # test) already closed it. Guarantees the reports are written even for a
+    # run that ends by window-close rather than reaching GAME_OVER.
+    if recorder is not None:
+        recorder.close(outcome="quit")
     pygame.quit()
     return frames
 
 
+def debug_level_from_argv(argv):
+    """Parse the ``--debug[=N]`` CLI flag (debug-mode-telemetry Phase 5).
+
+    Returns what ``main(debug_log=...)`` wants: ``None`` for "off" (no flag,
+    or an explicit ``--debug=0``), else the integer level. Deliberately hand
+    rolled rather than argparse: this is the entry point's ONLY flag, and
+    ``main``'s other parameters (``max_frames``/``autostart``) are a headless
+    test seam that must stay off the command line — a player cannot be given a
+    way to boot a 5-frame run by accident.
+
+    An unparseable or out-of-range level exits with a message rather than
+    booting silently un-instrumented (the D-2 fail-loud convention: a debug
+    run that quietly records nothing is worse than no run)."""
+    for arg in argv:
+        if arg == "--debug":
+            return LEVEL_BASIC
+        if arg.startswith("--debug="):
+            raw = arg.split("=", 1)[1]
+            try:
+                level = int(raw)
+            except ValueError:
+                raise SystemExit(
+                    f"--debug expects an integer level {list(LEVELS)}: {raw!r}")
+            if level not in LEVELS:
+                raise SystemExit(
+                    f"--debug level must be one of {list(LEVELS)}: {level}")
+            return level if level > LEVEL_OFF else None
+    return None
+
+
 if __name__ == "__main__":
-    main()
+    main(debug_log=debug_level_from_argv(sys.argv[1:]))

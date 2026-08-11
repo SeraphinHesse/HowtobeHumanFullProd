@@ -36,6 +36,72 @@ class _StrokeCommand(QUndoCommand):
         tilemap_ops.apply_changes(self._doc, self._changes, reverse=True)
 
 
+class _ReserveStrokeCommand(QUndoCommand):
+    """The exact twin of _StrokeCommand over the spawnable-background marks:
+    set-to-value change lists, so pushing after the viewport already painted
+    the marks live is idempotent (QUndoStack calls redo() on push)."""
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc, self._changes = doc, changes
+
+    def redo(self):
+        tilemap_ops.apply_reserve_changes(self._doc, self._changes)
+
+    def undo(self):
+        tilemap_ops.apply_reserve_changes(self._doc, self._changes, reverse=True)
+
+
+class _DespawnStrokeCommand(QUndoCommand):
+    """The exact twin of _ReserveStrokeCommand over the despawnable-spawn
+    marks: set-to-value change lists, so pushing after the viewport already
+    painted the marks live is idempotent (QUndoStack calls redo() on push)."""
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc, self._changes = doc, changes
+
+    def redo(self):
+        tilemap_ops.apply_despawn_changes(self._doc, self._changes)
+
+    def undo(self):
+        tilemap_ops.apply_despawn_changes(self._doc, self._changes, reverse=True)
+
+
+class _StageStrokeCommand(QUndoCommand):
+    """The exact twin of _DespawnStrokeCommand over the stage-zone marks:
+    set-to-value change lists, so pushing after the viewport already painted
+    the marks live is idempotent (QUndoStack calls redo() on push)."""
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc, self._changes = doc, changes
+
+    def redo(self):
+        tilemap_ops.apply_stage_changes(self._doc, self._changes)
+
+    def undo(self):
+        tilemap_ops.apply_stage_changes(self._doc, self._changes, reverse=True)
+
+
+class _TileConditionStrokeCommand(QUndoCommand):
+    """The exact twin of _StageStrokeCommand over the tile-condition marks:
+    set-to-value change lists, so pushing after the viewport already painted
+    the marks live is idempotent (QUndoStack calls redo() on push). The values
+    are condition NAMES, not stage numbers — the only difference."""
+
+    def __init__(self, doc, changes, text):
+        super().__init__(text)
+        self._doc, self._changes = doc, changes
+
+    def redo(self):
+        tilemap_ops.apply_condition_changes(self._doc, self._changes)
+
+    def undo(self):
+        tilemap_ops.apply_condition_changes(
+            self._doc, self._changes, reverse=True)
+
+
 class _BaseSetCommand(QUndoCommand):
     """Place / move / remove the single base (hole). ``old`` and ``new`` are
     full base dicts (``{'col','row','slot'}``) or ``None`` (no hole)."""
@@ -87,6 +153,42 @@ class _StartAreaSetCommand(QUndoCommand):
 
     def undo(self):
         self._doc.start_area = dict(self._old) if self._old is not None else None
+
+
+class _TutorialFluteSetCommand(QUndoCommand):
+    """Place / move / remove the single "first flute" tutorial marker. ``old``
+    and ``new`` are full dicts (``{'col','row','slot'}``) or None — mirrors
+    _CameraSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_flute = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_flute = dict(self._old) if self._old is not None else None
+
+
+class _TutorialStoneSetCommand(QUndoCommand):
+    """Place / move / remove the single "first stone" tutorial marker. ``old``
+    and ``new`` are full dicts (``{'col','row','slot'}``) or None — mirrors
+    _CameraSetCommand."""
+
+    def __init__(self, doc, old, new, text):
+        super().__init__(text)
+        self._doc = doc
+        self._old = dict(old) if old is not None else None
+        self._new = dict(new) if new is not None else None
+
+    def redo(self):
+        self._doc.tutorial_stone = dict(self._new) if self._new is not None else None
+
+    def undo(self):
+        self._doc.tutorial_stone = dict(self._old) if self._old is not None else None
 
 
 class _AddBackgroundCommand(QUndoCommand):
@@ -233,6 +335,34 @@ class MapSession(QObject):
         if changes:
             self.undo_stack.push(_StrokeCommand(self.doc, changes, text))
 
+    def push_reserve_stroke(self, changes, text="spawn reserve"):
+        """ONE undo command per spawnable-background stroke — mirrors
+        push_stroke."""
+        if changes:
+            self.undo_stack.push(
+                _ReserveStrokeCommand(self.doc, changes, text))
+
+    def push_despawn_stroke(self, changes, text="spawn despawn"):
+        """ONE undo command per despawnable-spawn stroke — mirrors
+        push_reserve_stroke."""
+        if changes:
+            self.undo_stack.push(
+                _DespawnStrokeCommand(self.doc, changes, text))
+
+    def push_stage_stroke(self, changes, text="stage zone"):
+        """ONE undo command per stage-zone stroke — mirrors
+        push_despawn_stroke."""
+        if changes:
+            self.undo_stack.push(
+                _StageStrokeCommand(self.doc, changes, text))
+
+    def push_condition_stroke(self, changes, text="tile condition"):
+        """ONE undo command per tile-condition stroke — mirrors
+        push_stage_stroke."""
+        if changes:
+            self.undo_stack.push(
+                _TileConditionStrokeCommand(self.doc, changes, text))
+
     def _base_slot(self):
         schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
         return tilemap.defaults_from_schema(schema)[1]
@@ -320,6 +450,66 @@ class MapSession(QObject):
         command as click-placement."""
         if old is not None and new is not None:
             self.push_start_area_place(new[0], new[1])
+
+    def _tutorial_flute_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_flute_slot_from_schema(schema)
+
+    def push_tutorial_flute_place(self, col, row):
+        """Place the "first flute" tutorial marker (if the map has none) or
+        move the single marker to a new cell — ONE undoable command either
+        way. Single-tile, no clamp (unlike push_start_area_place). Mirrors
+        push_camera_place."""
+        old = self.doc.tutorial_flute
+        slot = old["slot"] if old is not None else self._tutorial_flute_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move first flute marker" if old is not None
+                else "place first flute marker")
+        self.undo_stack.push(_TutorialFluteSetCommand(self.doc, old, new, text))
+
+    def push_tutorial_flute_remove(self):
+        if self.doc.tutorial_flute is not None:
+            self.undo_stack.push(_TutorialFluteSetCommand(
+                self.doc, self.doc.tutorial_flute, None,
+                "remove first flute marker"))
+
+    def push_tutorial_flute_move(self, old, new):
+        """Drag path (mirrors push_camera_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_flute_place(new[0], new[1])
+
+    def _tutorial_stone_slot(self):
+        schema = data_io.load_json(tilemap.map_schema_path(self._data_dir))
+        return tilemap.tutorial_stone_slot_from_schema(schema)
+
+    def push_tutorial_stone_place(self, col, row):
+        """Place the "first stone" tutorial marker (if the map has none) or
+        move the single marker to a new cell — ONE undoable command either
+        way. Single-tile, no clamp (unlike push_start_area_place). Mirrors
+        push_camera_place."""
+        old = self.doc.tutorial_stone
+        slot = old["slot"] if old is not None else self._tutorial_stone_slot()
+        new = {"col": col, "row": row, "slot": slot}
+        if old == new:
+            return
+        text = ("move first stone marker" if old is not None
+                else "place first stone marker")
+        self.undo_stack.push(_TutorialStoneSetCommand(self.doc, old, new, text))
+
+    def push_tutorial_stone_remove(self):
+        if self.doc.tutorial_stone is not None:
+            self.undo_stack.push(_TutorialStoneSetCommand(
+                self.doc, self.doc.tutorial_stone, None,
+                "remove first stone marker"))
+
+    def push_tutorial_stone_move(self, old, new):
+        """Drag path (mirrors push_camera_move): routes through the same set
+        command as click-placement."""
+        if old is not None and new is not None:
+            self.push_tutorial_stone_place(new[0], new[1])
 
     def push_add_background(self, slot):
         """'+ Level': claim the next free legend code for a new background type

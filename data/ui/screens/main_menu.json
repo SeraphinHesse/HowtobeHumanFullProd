@@ -4,8 +4,8 @@
       "rect": [
         0,
         0,
-        1280,
-        720
+        640,
+        360
       ]
     },
     "btn_add_name": {
@@ -14,12 +14,15 @@
     "btn_credits": {
       "skin": "ui_button_panel"
     },
+    "btn_highscores": {
+      "skin": "ui_button_panel"
+    },
     "btn_new_game": {
       "rect": [
-        480,
-        300,
-        320,
-        52
+        240,
+        150,
+        160,
+        26
       ],
       "skin": "ui_button_panel"
     },
@@ -31,8 +34,8 @@
     },
     "subtitle": {
       "rect": [
-        640,
-        250,
+        320,
+        125,
         0,
         0
       ],

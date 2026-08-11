@@ -1,0 +1,5 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 2320, "level": 1, "run_id": "run-20260806-174736-a_bit", "map_id": "summertest3", "seed": null, "love": 25, "lives": 3, "player_name": "", "player_skill": "a_bit"}
+{"t": "place", "round": 0, "phase": "BUILDING", "frame": 54229, "wall_ms": 14855, "building_type": "economic", "col": 512, "row": 512, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 0, "phase": "BUILDING", "frame": 54308, "wall_ms": 19236, "wave_size": 1, "enemy_tier": 0, "composition": {"standard": 1}, "love": 15, "lives": 3}
+{"t": "kidnap", "round": 0, "phase": "ENEMY", "frame": 54811, "wall_ms": 47193, "etype": "standard", "building_type": "economic", "col": 512, "row": 512}
+{"t": "run_end", "round": 0, "phase": "ENEMY", "frame": 54849, "wall_ms": 340752, "outcome": "quit_to_menu", "rounds": 0}

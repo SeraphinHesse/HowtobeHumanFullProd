@@ -30,6 +30,7 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 PHASE = CORE["PhaseLoop"]
 
@@ -59,10 +60,19 @@ def host_frame(session, scene, tm, dt):
     session.pre_sim(sim_dt, scene)
     if session.state.state == GameState.GAMEPLAY and not session.frozen:
         scene.update(sim_dt)
-        resolve_combat(scene, tm, sim_dt, BUILD,
+        resolve_combat(scene, tm, sim_dt, BUILD, VFX,
                        on_base_hit=session.on_base_hit,
                        on_enemy_death=session.on_enemy_death)
         session.post_sim(scene)
+
+
+def end_turn_past_any_intro(session):
+    """end_turn(), then drain any enemy-intro entry queued on this round
+    (feature-enemy-intro-dialogue) — round 1 carries one in the fixture data,
+    and this module's tests build sessions starting on round 1."""
+    session.end_turn()
+    while session.state.phase == GamePhase.ENEMY_INTRO:
+        session.resolve_enemy_intro()
 
 
 class TestSpeedSelection(unittest.TestCase):
@@ -144,7 +154,7 @@ class TestSpeedAppliesToCombatOnly(unittest.TestCase):
     def test_pause_freezes_the_wave(self):
         session, scene, tm = build_session()
         session.state.round_num = 1
-        session.end_turn()
+        end_turn_past_any_intro(session)
         queued = len(session.spawner.pending())
         self.assertGreater(queued, 0)
         session.set_combat_speed(PAUSE_SPEED_IDX)
@@ -173,7 +183,7 @@ class TestSpeedAppliesToCombatOnly(unittest.TestCase):
 class TestQuickSkip(unittest.TestCase):
     def test_p_skip_clears_the_wave_and_ends_the_round(self):
         session, scene, tm = build_session()
-        session.end_turn()
+        end_turn_past_any_intro(session)
         for _ in range(20):                       # let a few enemies spawn
             host_frame(session, scene, tm, 0.1)
         self.assertTrue(scene.by_tag("enemy"))
@@ -205,7 +215,7 @@ class TestQuickSkip(unittest.TestCase):
 
     def test_quick_skip_frozen_on_game_over(self):
         session, scene, tm = build_session()
-        session.end_turn()
+        end_turn_past_any_intro(session)
         session.state.state = GameState.GAME_OVER
         session.quick_skip_combat(scene)
         self.assertEqual(session.state.phase, GamePhase.ENEMY)  # untouched

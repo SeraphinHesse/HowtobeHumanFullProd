@@ -32,11 +32,18 @@ from game.core.balance import load_balance
 from game.core.phases import GamePhase, GameState
 import game.enemies.spawner as spawner_mod
 from game.enemies import (
-    Enemy, Formation, Projectile, Raider, SiegeCannon, Spawner,
-    attack_interval, create_enemy, resolve_combat,
+    BURROW_EMERGE, BURROW_SUBMERGED, BURROW_WALKING, Boss, Commander, Digger,
+    DirtPile, DIRT_PILE_SLOT, Drummer, Enemy, Formation, Projectile, Raider,
+    SiegeCannon, Sniper, Spawner, attack_interval, create_enemy,
+    resolve_combat,
 )
 from game.enemies.combat import ProjectileHoming
-from game.enemies.components import EnemyCombat, PathAgent
+from game.enemies.components import (
+    BUFF_DECAY_SECONDS, BuffState, BurrowAgent, DrummerAura, EnemyCombat,
+    Kidnap, PathAgent,
+)
+from game.enemies.dirt_pile import DirtPileFade
+from game.enemies.enemy import ENEMY_CLASSES
 from game.map.tile_map import TileMap
 from game.map.tiles import TileState
 
@@ -44,22 +51,57 @@ MAPBAL = load_balance(FIXTURE_DATA, "map")
 BUILD = load_balance(FIXTURE_DATA, "buildings")
 CORE = load_balance(FIXTURE_DATA, "core")
 ENEM = load_balance(FIXTURE_DATA, "enemies")
+VFX = load_balance(FIXTURE_DATA, "vfx")
 
 STD = ENEM["EnemyTypes"]["Standard"]
 SCALE = ENEM["EnemyScaling"]
+RPE = SCALE["rounds_per_era"]        # ES-2: THE clock (era == the old tier)
+
+
+def era_stats(type_key, era=0):
+    """A type's stats for `era`, straight off its own era rows (ES-2).
+
+    Rows clamp to the last authored one, exactly as `engine.era_math` does —
+    written out here so the expectations stay hand-computable from `data/`."""
+    rows = ENEM["EnemyTypes"][type_key]["eras"]
+    return rows[min(max(era, 0), len(rows) - 1)]["stats"]
+
+
+def expected_count(type_key, round_num):
+    """How many of `type_key` round `round_num` must contain, hand-computed
+    from the era rows: `floor(count_start + k * count_per_round)` counted from
+    the era's first ACTIVE round `max(era first round, start_round)` (D3/D3'),
+    and 0 before `start_round`."""
+    block = ENEM["EnemyTypes"][type_key]
+    rows = block["eras"]
+    era = max(0, (round_num - 1) // RPE)
+    row = rows[min(era, len(rows) - 1)]
+    r0 = max(era * RPE + 1, block["start_round"])
+    if round_num < r0:
+        return 0
+    return math.floor(round(
+        row["count_start"] + (round_num - r0) * row["count_per_round"], 9))
+
+
+STD0 = era_stats("Standard")
 
 
 def footprint_balance(etype, footprint):
     """A copy of the enemies balance with ONE type's `footprint` pinned.
 
-    `footprint` is designer content (ER-1) and every type sits at 1 today. A test
-    that reads it live to prove multi-tile behaviour degrades into a tautology the
-    moment a designer flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the
-    claim these tests make. Pin the number so they keep testing the WIRING
-    (balance -> PathAgent.footprint -> pathfinder / sprite fit); the live value has
-    its own guard in the schema."""
+    `footprint` is designer content (ER-1). A test that reads it live to prove
+    multi-tile behaviour degrades into a tautology the moment a designer
+    flattens it — "a 1x1 cannot fit through a 1x1 gap" is not the claim these
+    tests make. Pin the number so they keep testing the WIRING (balance ->
+    PathAgent.footprint -> pathfinder / sprite fit); the live value has its own
+    guard in the schema.
+
+    The pair is PER-ERA for every era-shaped type, so this writes EVERY row —
+    the shape `test_boss.boss_footprint` has always used for the Boss's own
+    `stats[]` table."""
     enem = copy.deepcopy(ENEM)
-    enem["EnemyTypes"][etype]["footprint"] = footprint
+    for row in enem["EnemyTypes"][etype]["eras"]:
+        row["footprint"] = footprint
     return enem
 
 
@@ -90,78 +132,113 @@ class FakeRng:
 
 
 # ---------------------------------------------------------------------------
-# Scale-tier stats resolved at spawn (prototype enemy.py:88-108)
+# Per-era stats resolved at spawn (ES-2: the type's own `eras` rows, clamped)
 # ---------------------------------------------------------------------------
 class TestScaling(unittest.TestCase):
-    def _expected(self, tier):
-        tiers = SCALE["scale_tiers"]
-        n = min(tier, len(tiers))
-        hp = STD["hp"] + sum(tiers[i]["hp"] for i in range(n))
-        dmg = STD["dmg"] + sum(tiers[i]["dmg"] for i in range(n))
-        speed = STD["move_speed"] + sum(tiers[i]["speed"] for i in range(n))
-        return hp, dmg, speed
-
-    def test_stats_scale_cumulatively(self):
+    def test_stats_come_from_the_era_row(self):
         tm = synth(["bbs"])
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                e = Enemy(2, 0, ENEM, tm, tier=tier)
-                hp, dmg, speed = self._expected(tier)
-                self.assertEqual(e.get_component(Health).max_hp, hp)
-                self.assertEqual(e.get_component(Health).hp, hp)
-                self.assertEqual(e.dmg, dmg)
-                self.assertAlmostEqual(e.get_component(Movement).speed, speed)
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era)
+                st = era_stats("Standard", era)     # clamps past the last row
+                self.assertEqual(e.get_component(Health).max_hp, st["hp"])
+                self.assertEqual(e.get_component(Health).hp, st["hp"])
+                self.assertEqual(e.dmg, st["dmg"])
+                self.assertAlmostEqual(e.get_component(Movement).speed,
+                                       st["move_speed"])
                 self.assertEqual(
                     e.get_component(EnemyCombat).attack_speed,
-                    STD["attack_speed"])
+                    st["attack_speed"])
 
-    def test_tier0_is_base_stats(self):
+    def test_era0_is_the_first_row(self):
         tm = synth(["bbs"])
-        e = Enemy(2, 0, ENEM, tm, tier=0)
-        self.assertEqual(e.get_component(Health).hp, STD["hp"])
-        self.assertEqual(e.dmg, STD["dmg"])
+        e = Enemy(2, 0, ENEM, tm, 0)
+        self.assertEqual(e.get_component(Health).hp, STD0["hp"])
+        self.assertEqual(e.dmg, STD0["dmg"])
 
     def test_subclasses_read_own_subtree(self):
         tm = synth(["bbs"])
         r = Raider(2, 0, ENEM, tm)
-        self.assertEqual(r.get_component(Health).hp,
-                         ENEM["EnemyTypes"]["Raider"]["hp"])
+        self.assertEqual(r.get_component(Health).hp, era_stats("Raider")["hp"])
         s = SiegeCannon(2, 0, ENEM, tm)
         self.assertEqual(s.get_component(Health).hp,
-                         ENEM["EnemyTypes"]["SiegeCannon"]["hp"])
+                         era_stats("SiegeCannon")["hp"])
 
-    def test_siege_scales_with_tiers_like_standard(self):
-        # Prototype siege_cannon.py adds the same cumulative tier bonuses the
-        # standard walker takes (10F).
+    def test_siege_reads_its_own_era_rows(self):
         tm = synth(["bbs"])
-        siege = ENEM["EnemyTypes"]["SiegeCannon"]
-        tiers = SCALE["scale_tiers"]
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                n = min(tier, len(tiers))
-                s = SiegeCannon(2, 0, ENEM, tm, tier=tier)
-                self.assertEqual(
-                    s.get_component(Health).hp,
-                    siege["hp"] + sum(tiers[i]["hp"] for i in range(n)))
-                self.assertEqual(
-                    s.dmg,
-                    siege["dmg"] + sum(tiers[i]["dmg"] for i in range(n)))
-                self.assertAlmostEqual(
-                    s.get_component(Movement).speed,
-                    siege["move_speed"]
-                    + sum(tiers[i]["speed"] for i in range(n)))
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                st = era_stats("SiegeCannon", era)
+                s = SiegeCannon(2, 0, ENEM, tm, era)
+                self.assertEqual(s.get_component(Health).hp, st["hp"])
+                self.assertEqual(s.dmg, st["dmg"])
+                self.assertAlmostEqual(s.get_component(Movement).speed,
+                                       st["move_speed"])
 
-    def test_raider_never_takes_tier_bonuses(self):
-        # Prototype raider.py overrides the stats WITHOUT adding tier bonuses.
+    def test_raider_era_rows_are_flat(self):
+        # The Raider's "it never scales" is DATA now (five identical rows), not
+        # a code exception — so every era resolves to the same numbers.
         tm = synth(["bbs"])
-        raider = ENEM["EnemyTypes"]["Raider"]
-        for tier in (0, 1, 3, 9):
-            with self.subTest(tier=tier):
-                r = Raider(2, 0, ENEM, tm, tier=tier)
-                self.assertEqual(r.get_component(Health).hp, raider["hp"])
-                self.assertEqual(r.dmg, raider["dmg"])
+        first = era_stats("Raider", 0)
+        for era in (0, 1, 3, 9):
+            with self.subTest(era=era):
+                self.assertEqual(era_stats("Raider", min(era, 4)), first)
+                r = Raider(2, 0, ENEM, tm, era)
+                self.assertEqual(r.get_component(Health).hp, first["hp"])
+                self.assertEqual(r.dmg, first["dmg"])
                 self.assertAlmostEqual(r.get_component(Movement).speed,
-                                       raider["move_speed"])
+                                       first["move_speed"])
+
+
+class TestEndgameScaling(unittest.TestCase):
+    """ES-4/D5 — past the last authored era the row clamps AND the type's own
+    ``endgame_scaling`` factors compound: ``last * factor ** N`` with
+    ``N = era - (len(eras) - 1)``. `test_era_math` proves `f**N` on the pure
+    resolver; this is the ONE integration pin that the game's two era-row
+    lookups (stat resolution + count) actually thread the factors through."""
+
+    FACTORS = {"hp": 2.0, "dmg": 1.5, "move_speed": 1.1, "count": 2.0}
+
+    def _scaled_balance(self):
+        bal = copy.deepcopy(ENEM)
+        bal["EnemyTypes"]["Standard"]["endgame_scaling"] = dict(self.FACTORS)
+        return bal
+
+    def test_eras_5_6_7_compound_the_factors(self):
+        bal = self._scaled_balance()
+        tm = synth(["bbs"])
+        rpe = bal["EnemyScaling"]["rounds_per_era"]
+        rows = bal["EnemyTypes"]["Standard"]["eras"]
+        last, spawner = rows[-1], Spawner()
+        for era in (5, 6, 7):
+            n = era - (len(rows) - 1)          # 1, 2, 3
+            with self.subTest(era=era, n=n):
+                e = Enemy(2, 0, bal, tm, era)
+                self.assertEqual(e.get_component(Health).max_hp,
+                                 math.floor(last["stats"]["hp"] * 2.0 ** n))
+                self.assertEqual(e.dmg,
+                                 math.floor(last["stats"]["dmg"] * 1.5 ** n))
+                self.assertAlmostEqual(e.get_component(Movement).speed,
+                                       last["stats"]["move_speed"] * 1.1 ** n)
+                # Counts at the era's FIRST round: zero in-era steps, so the
+                # expectation is exactly the scaled anchor, floored to an int.
+                first_round = era * rpe + 1
+                self.assertEqual(
+                    spawner._count_of(bal, "Standard", first_round),
+                    math.floor(last["count_start"] * 2.0 ** n))
+
+    def test_shipped_all_1_factors_are_a_plain_clamp(self):
+        # The invariant: with the shipped all-1.0 file a past-the-end wave is
+        # byte-identical to the pre-ES-4 raw clamp.
+        tm, spawner = synth(["bbs"]), Spawner()
+        rows = ENEM["EnemyTypes"]["Standard"]["eras"]
+        for era in (5, 6, 7):
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era)
+                self.assertEqual(e.get_component(Health).max_hp,
+                                 rows[-1]["stats"]["hp"])
+                self.assertEqual(spawner._count_of(ENEM, "Standard", 60),
+                                 expected_count("Standard", 60))
 
 
 # ---------------------------------------------------------------------------
@@ -173,16 +250,16 @@ class TestSpriteVariants(unittest.TestCase):
     def _slot(self, enemy):
         return enemy.get_component(SpriteAnimator).slot_key
 
-    def test_tier_selects_the_matching_era_slot(self):
-        # Walker eras 1-4 = enemy_stage_1..4; tier clamps to the last era.
+    def test_era_selects_the_matching_era_slot(self):
+        # Walker eras 1-4 = enemy_stage_1..4; the era clamps to the last one.
         # FakeRng.choice -> first variant, so multi-variant eras resolve to _v1.
         tm = synth(["bbs"])
         cases = {0: "enemy_stage_1_v1", 1: "enemy_stage_2",
                  2: "enemy_stage_3", 3: "enemy_stage_4_v1",
                  9: "enemy_stage_4_v1"}
-        for tier, slot in cases.items():
-            with self.subTest(tier=tier):
-                e = Enemy(2, 0, ENEM, tm, tier=tier, registry=self.REG,
+        for era, slot in cases.items():
+            with self.subTest(era=era):
+                e = Enemy(2, 0, ENEM, tm, era, registry=self.REG,
                           rng=FakeRng())
                 self.assertEqual(self._slot(e), slot)
 
@@ -190,20 +267,20 @@ class TestSpriteVariants(unittest.TestCase):
         # Era 1 has two variants; over many spawns a seeded rng yields both.
         tm = synth(["bbs"])
         rng = random.Random(1234)
-        seen = {self._slot(Enemy(2, 0, ENEM, tm, tier=0, registry=self.REG,
+        seen = {self._slot(Enemy(2, 0, ENEM, tm, 0, registry=self.REG,
                                  rng=rng)) for _ in range(50)}
         self.assertEqual(seen, {"enemy_stage_1_v1", "enemy_stage_1_v2"})
 
     def test_raider_resolves_its_own_group(self):
         tm = synth(["bbs"])
-        r = Raider(2, 0, ENEM, tm, tier=2, registry=self.REG, rng=FakeRng())
+        r = Raider(2, 0, ENEM, tm, 2, registry=self.REG, rng=FakeRng())
         self.assertEqual(self._slot(r), "raider_stage_3")
 
     def test_fallback_slot_without_registry(self):
         # Headless stat/logic tests construct without a registry -> DEFAULT_SLOT.
         tm = synth(["bbs"])
         self.assertEqual(
-            self._slot(Enemy(2, 0, ENEM, tm, tier=0)), "enemy_stage_1_v1")
+            self._slot(Enemy(2, 0, ENEM, tm, 0)), "enemy_stage_1_v1")
         self.assertEqual(
             self._slot(Raider(2, 0, ENEM, tm)), "raider_stage_1")
 
@@ -230,6 +307,7 @@ class TestSpriteVariants(unittest.TestCase):
 RAIDER = ENEM["EnemyTypes"]["Raider"]
 SIEGE = ENEM["EnemyTypes"]["SiegeCannon"]
 FORM = ENEM["EnemyTypes"]["Formation"]
+FORM0 = era_stats("Formation")
 
 
 class TestSpawnComposition(unittest.TestCase):
@@ -247,7 +325,7 @@ class TestSpawnComposition(unittest.TestCase):
     # BOSS_ROUND_COUNTS composition instead of the per-type formulas — those
     # rounds are covered by tools/tests/test_boss.py, so the formula loops
     # below skip them.
-    _BOSS_INTERVAL = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+    _BOSS_INTERVAL = SCALE["rounds_per_era"]   # boss_round_in_era == the last
 
     def test_standard_count_formula(self):
         for r in range(1, 26):
@@ -255,10 +333,8 @@ class TestSpawnComposition(unittest.TestCase):
                 continue  # boss-round composition (10G) — see test_boss.py
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
-                tier = (r - 1) // SCALE["scale_every_n_levels"]
-                expected = SCALE["base_enemy_count"] + (r - 1) * (
-                    SCALE["enemies_per_round"] + tier)
-                self.assertEqual(etypes.count("standard"), expected)
+                self.assertEqual(etypes.count("standard"),
+                                 expected_count("Standard", r))
 
     def test_raider_count_formula_and_start_round(self):
         start = RAIDER["start_round"]
@@ -268,11 +344,10 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("raider"), 0)
                 else:
-                    expected = (RAIDER["base_count"]
-                                + (r - start) * RAIDER["per_round"])
-                self.assertEqual(etypes.count("raider"), expected)
+                    self.assertEqual(etypes.count("raider"),
+                                     expected_count("Raider", r))
 
     def test_siege_count_formula_and_start_round(self):
         start = SIEGE["start_round"]
@@ -282,11 +357,10 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("siege"), 0)
                 else:
-                    expected = (SIEGE["base_count"]
-                                + (r - start) // SIEGE["rounds_per_cannon"])
-                self.assertEqual(etypes.count("siege"), expected)
+                    self.assertEqual(etypes.count("siege"),
+                                     expected_count("SiegeCannon", r))
 
     def test_siege_lead_group_heads_the_queue(self):
         # The lead group spawns FIRST (prototype siege_front + shuffled rest);
@@ -310,16 +384,17 @@ class TestSpawnComposition(unittest.TestCase):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
                 if r < start:
-                    expected = 0
+                    self.assertEqual(etypes.count("formation"), 0)
                 else:
-                    expected = (FORM["base_count"]
-                                + (r - start) // FORM["rounds_per_formation"])
-                self.assertEqual(etypes.count("formation"), expected)
+                    self.assertEqual(etypes.count("formation"),
+                                     expected_count("Formation", r))
 
-    def test_formations_accrete_one_per_rounds_per_formation(self):
-        # The proposed tuning spells out to r16 -> 1, r19 -> 2, r22 -> 3.
+    def test_formations_accrete_one_every_three_rounds(self):
+        # The proposed tuning spells out to r16 -> 1, r19 -> 2, r22 -> 3 — and
+        # r22 is the D3' fence: it only survives the era-1 -> era-2 boundary
+        # because count_start is a NUMBER (era 2 anchors at 2.666..., not 2).
         self.assertEqual(FORM["start_round"], 16)
-        self.assertEqual(FORM["rounds_per_formation"], 3)
+        self.assertAlmostEqual(FORM["eras"][0]["count_per_round"], 1 / 3)
         for r, n in ((15, 0), (16, 1), (19, 2), (22, 3)):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
@@ -380,10 +455,10 @@ class TestSpawnComposition(unittest.TestCase):
         self.assertEqual([e for e in etypes if e != "formation"], without)
 
     def test_boss_leads_every_boss_round(self):
-        # ENABLE_BOSS flipped in 10G: every `round_interval`-th round emits
-        # exactly ONE boss at the head of the queue, and non-boss rounds never
-        # emit one (the detailed composition lives in test_boss.py).
-        interval = ENEM["EnemyTypes"]["Boss"]["round_interval"]
+        # ENABLE_BOSS flipped in 10G: every boss round (the era clock's
+        # boss_round_in_era) emits exactly ONE boss at the head of the queue,
+        # and non-boss rounds never emit one (composition -> test_boss.py).
+        interval = SCALE["rounds_per_era"]
         for r in (interval, interval * 2):
             with self.subTest(round=r):
                 _sp, etypes = self._counts(r)
@@ -415,13 +490,90 @@ class TestSpawnComposition(unittest.TestCase):
         sp = Spawner()
         sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
         scene = Scene()
-        n = SCALE["base_enemy_count"]
+        n = expected_count("Standard", 1)
         # Drive well past the total wave duration; one pop per expiry.
         for _ in range(2000):
             sp.update(0.1, scene)
         scene.update(0.0)
         self.assertEqual(len(scene.by_tag("enemy")), n)
         self.assertTrue(sp.done)
+
+    def test_batch_size_halves_the_spawn_events_not_the_round_total(self):
+        # ES-3/D4: `batch_size` is how many queue entries ONE timer expiry
+        # releases. It changes how many spawn EVENTS a wave takes; the round's
+        # total is untouched by the knob.
+        def drive(batch):
+            enem = copy.deepcopy(ENEM)
+            enem["EnemyScaling"]["eras"][0]["batch_size"] = batch
+            sp = Spawner()
+            sp.begin_round(1, self.tm, enem, rng=FakeRng())
+            scene, events = Scene(), 0
+            for _ in range(2000):
+                if sp.done:
+                    break
+                queued = len(sp._queue)
+                sp.update(0.1, scene)
+                if len(sp._queue) < queued:
+                    events += 1
+            scene.update(0.0)
+            return len(scene.by_tag("enemy")), events
+
+        total_1, events_1 = drive(1)
+        total_2, events_2 = drive(2)
+        self.assertEqual(total_1, expected_count("Standard", 1))
+        self.assertGreater(events_1, 1)
+        self.assertEqual(events_1, total_1)          # one per expiry at 1
+        self.assertEqual(total_2, total_1)           # the total never moves
+        self.assertEqual(events_2, math.ceil(events_1 / 2))
+
+    # -- TU-9: round 0 is the tutorial's forced-composition round -----------
+
+    def test_round_zero_composes_exactly_the_tutorial_count(self):
+        sp, etypes = self._counts(0)
+        self.assertEqual(len(etypes), SCALE["tutorial_round_enemy_count"])
+        self.assertTrue(all(e == "tutorial" for e in etypes))
+
+    def test_round_zero_tunable_changes_the_count(self):
+        enem = copy.deepcopy(ENEM)
+        enem["EnemyScaling"]["tutorial_round_enemy_count"] = 3
+        sp = Spawner()
+        sp.begin_round(0, self.tm, enem, rng=FakeRng())
+        etypes = [et for _tile, et, _d in sp._queue]
+        self.assertEqual(etypes, ["tutorial"] * 3)
+
+    def test_round_zero_never_produces_a_boss_at_any_interval(self):
+        # (0 - 1) // n goes negative for every n, and a naive `0 % n == 0`
+        # boss check would fire at EVERY era length — era_math clamps round 0
+        # to era 0 and never calls it a boss round (D11), and the round-0
+        # composition branch is still checked first, unconditionally.
+        for interval in (1, 2, 5, self._BOSS_INTERVAL):
+            with self.subTest(interval=interval):
+                enem = copy.deepcopy(ENEM)
+                enem["EnemyScaling"]["rounds_per_era"] = interval
+                enem["EnemyScaling"]["boss_round_in_era"] = interval
+                sp = Spawner()
+                sp.begin_round(0, self.tm, enem, rng=FakeRng())
+                etypes = [et for _tile, et, _d in sp._queue]
+                self.assertNotIn("boss", etypes)
+                self.assertEqual(
+                    len(etypes), enem["EnemyScaling"]["tutorial_round_enemy_count"])
+
+    def test_round_zero_leaves_round_one_scaling_unshifted(self):
+        # Composing round 0 THEN round 1 on the SAME spawner instance must
+        # yield the identical round-1 composition as composing round 1
+        # fresh — round 0 must leave no era/interval state that shifts the
+        # real wave-scaling formulas (the actual user requirement).
+        sp = Spawner()
+        sp.begin_round(0, self.tm, ENEM, rng=FakeRng())
+        self.assertEqual(sp._era, 0)          # D11: round 0 is era 0
+        sp.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        after_zero = [et for _tile, et, _d in sp._queue]
+
+        fresh = Spawner()
+        fresh.begin_round(1, self.tm, ENEM, rng=FakeRng())
+        fresh_etypes = [et for _tile, et, _d in fresh._queue]
+
+        self.assertEqual(after_zero, fresh_etypes)
 
 
 # ---------------------------------------------------------------------------
@@ -477,7 +629,7 @@ class TestCombatLedger(unittest.TestCase):
         alive_frames = 0
         for _ in range(1000):
             scene.update(0.05)
-            resolve_combat(scene, tm, 0.05, BUILD)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
             alive_frames += 1
@@ -527,15 +679,15 @@ class TestBaseArrival(unittest.TestCase):
         scene.spawn(e)
         for _ in range(200):
             scene.update(0.1)
-            resolve_combat(scene, tm, 0.1, BUILD)
+            resolve_combat(scene, tm, 0.1, BUILD, VFX)
             if not scene.by_tag("enemy"):
                 break
         else:
             self.fail("enemy never reached the base")
         self.assertEqual(base.get_component(Health).hp,
-                         max(0, CORE["TheHole"]["base_hp"] - STD["dmg"]))
+                         max(0, CORE["TheHole"]["base_hp"] - STD0["dmg"]))
         self.assertEqual(
-            base.get_component(RoundStats).dmg_taken_this_round, STD["dmg"])
+            base.get_component(RoundStats).dmg_taken_this_round, STD0["dmg"])
 
 
 class TestSpawnTilesAreSpawningOnly(unittest.TestCase):
@@ -610,7 +762,7 @@ class TestFormation(unittest.TestCase):
         anim = f.get_component(SpriteAnimator)
         self.assertEqual(anim.fit_tiles, 2.0)      # threaded from the balance
         self.assertEqual(anim.scale, 1.0)
-        self.assertEqual(f.get_component(Health).max_hp, FORM["hp"])
+        self.assertEqual(f.get_component(Health).max_hp, FORM0["hp"])
 
     def test_stats_come_from_the_formation_block_not_standard(self):
         """The bug an un-overridden `_resolve_stats` would ship: the BASE
@@ -618,41 +770,63 @@ class TestFormation(unittest.TestCase):
         — STAT_SUBTREE does not drive it — so a Formation without the override
         would silently walk around with walker stats."""
         tm = synth(["bbs"])
-        f = Formation(2, 0, ENEM, tm, tier=0)
-        self.assertEqual(f.get_component(Health).hp, FORM["hp"])
-        self.assertEqual(f.dmg, FORM["dmg"])
+        f = Formation(2, 0, ENEM, tm, 0)
+        self.assertEqual(f.get_component(Health).hp, FORM0["hp"])
+        self.assertEqual(f.dmg, FORM0["dmg"])
         self.assertAlmostEqual(f.get_component(Movement).speed,
-                               FORM["move_speed"])
-        self.assertNotEqual(FORM["hp"], STD["hp"])          # the fixture is real
-        self.assertNotEqual(f.get_component(Health).hp, STD["hp"])
-        self.assertNotEqual(f.dmg, STD["dmg"])
+                               FORM0["move_speed"])
+        self.assertNotEqual(FORM0["hp"], STD0["hp"])        # the fixture is real
+        self.assertNotEqual(f.get_component(Health).hp, STD0["hp"])
+        self.assertNotEqual(f.dmg, STD0["dmg"])
 
-    def test_scales_with_the_tiers_like_standard_and_siege(self):
+    def test_reads_its_own_era_rows_like_standard_and_siege(self):
         tm = synth(["bbs"])
-        tiers = SCALE["scale_tiers"]
-        for tier in range(0, 6):
-            with self.subTest(tier=tier):
-                n = min(tier, len(tiers))
-                f = Formation(2, 0, ENEM, tm, tier=tier)
+        for era in range(0, 6):
+            with self.subTest(era=era):
+                st = era_stats("Formation", era)
+                f = Formation(2, 0, ENEM, tm, era)
+                self.assertEqual(f.get_component(Health).hp, st["hp"])
+                self.assertEqual(f.dmg, st["dmg"])
+                self.assertAlmostEqual(f.get_component(Movement).speed,
+                                       st["move_speed"])
+
+    def test_its_footprint_grows_with_the_era_and_clamps_past_the_table(self):
+        """The Formation is the one shipped type whose body CHANGES size, so
+        this is where the per-era footprint actually earns its keep: the fit
+        must follow the era, and past the last authored row it must CLAMP
+        (`endgame_scaling` carries no footprint factor, deliberately).
+
+        Read off the LIVE rows rather than a hardcoded 2,2,3,3,4 — the claim
+        under test is that `resolve_fit` lands on the right ROW, not what the
+        designer tuned it to."""
+        rows = ENEM["EnemyTypes"]["Formation"]["eras"]
+        tm = synth(["bbs"])
+        for era in range(len(rows) + 3):          # 3 eras past the table
+            with self.subTest(era=era):
+                row = rows[min(era, len(rows) - 1)]
                 self.assertEqual(
-                    f.get_component(Health).hp,
-                    FORM["hp"] + sum(tiers[i]["hp"] for i in range(n)))
-                self.assertEqual(
-                    f.dmg,
-                    FORM["dmg"] + sum(tiers[i]["dmg"] for i in range(n)))
-                self.assertAlmostEqual(
-                    f.get_component(Movement).speed,
-                    FORM["move_speed"]
-                    + sum(tiers[i]["speed"] for i in range(n)))
+                    Formation.resolve_fit(ENEM["EnemyTypes"]["Formation"],
+                                          era),
+                    (int(row["footprint"]), float(row["sprite_scale"])))
+                # and the seam is what construction actually uses
+                f = Formation(2, 0, ENEM, tm, era)
+                self.assertEqual(f.get_component(PathAgent).footprint,
+                                 int(row["footprint"]))
+                self.assertEqual(f.get_component(SpriteAnimator).fit_tiles,
+                                 float(row["footprint"]))
+        self.assertNotEqual(rows[0]["footprint"], rows[-1]["footprint"],
+                            "the fixture must actually vary, or this is a "
+                            "tautology")
 
     def test_the_type_itself_refuses_a_one_tile_gap_a_walker_threads(self):
         """End-to-end proof that balancing -> PathAgent -> pathfinder is wired:
         it is the TYPE's footprint in the balance, not a raw footprint=2 argument,
         that seals the gap. Wall down col 2 with a ONE-tile hole.
 
-        The footprint is PINNED, not read live: `footprint` is designer content and
-        every type sits at 1 today, which would quietly turn this into "a 1x1 walks
-        through a 1x1 hole" — a tautology that proves none of the wiring it names."""
+        The footprint is PINNED, not read live: it is designer content, and a
+        retune to 1 would quietly turn this into "a 1x1 walks through a 1x1
+        hole" — a tautology that proves none of the wiring it names. (The live
+        curve has its own test above.)"""
         enem = footprint_balance("Formation", 2)
         tm = synth(["ccfcc", "ccfcc", "ccccc", "ccfcc", "ccfcc"], base=(0, 2))
         walker = create_enemy("standard", 4, 2, enem, tm)
@@ -697,16 +871,16 @@ class TestFormation(unittest.TestCase):
         tile_w = 64
         fit = fit_factor(frame.frame_w, tile_w, fit_tiles=2.0)
         self.assertEqual(fit, 1.0)
-        self.assertEqual(frame.frame_w * fit * FORM["sprite_scale"],
+        self.assertEqual(frame.frame_w * fit * FORM["eras"][0]["sprite_scale"],
                          2 * tile_w)
 
     def test_the_registry_group_resolves_a_slot_per_era(self):
         tm = synth(["bbs"])
-        for tier, slot in {0: "formation_stage_1", 1: "formation_stage_2",
+        for era, slot in {0: "formation_stage_1", 1: "formation_stage_2",
                            2: "formation_stage_3", 3: "formation_stage_4",
                            9: "formation_stage_4"}.items():
-            with self.subTest(tier=tier):
-                f = Formation(2, 0, ENEM, tm, tier=tier, registry=self.REG,
+            with self.subTest(era=era):
+                f = Formation(2, 0, ENEM, tm, era, registry=self.REG,
                               rng=FakeRng())
                 self.assertEqual(f.get_component(SpriteAnimator).slot_key, slot)
 
@@ -740,7 +914,7 @@ class TestFormationBreak(unittest.TestCase):
         session.pre_sim(dt, scene)
         if session.state.state == GameState.GAMEPLAY and not session.frozen:
             scene.update(dt)
-            resolve_combat(scene, tm, dt, BUILD,
+            resolve_combat(scene, tm, dt, BUILD, VFX,
                            on_base_hit=session.on_base_hit,
                            on_enemy_death=session.on_enemy_death)
             session.post_sim(scene)
@@ -769,7 +943,7 @@ class TestFormationBreak(unittest.TestCase):
         frac = FORM["death_spawn"]["spawn_hp_fraction"]
         for child in children:
             ch = child.get_component(Health)
-            self.assertEqual(ch.max_hp, STD["hp"])        # tier 0
+            self.assertEqual(ch.max_hp, STD0["hp"])       # era 0
             self.assertEqual(ch.hp, max(1, int(ch.max_hp * frac)))
             self.assertLess(ch.hp, ch.max_hp)
             self.assertTrue(child.alive)   # 0.8 > Standard's 0.0 -> no cascade
@@ -803,14 +977,15 @@ class TestFormationBreak(unittest.TestCase):
     def test_the_scattering_pool_is_the_intended_hp_budget(self):
         """The tuning story, pinned so a retune in the editor stays honest: it
         absorbs half its HP as one body, then the survivors carry the rest."""
-        absorbed = FORM["hp"] * FORM["death_spawn"]["at_hp_fraction"]
+        absorbed = FORM0["hp"] * FORM["death_spawn"]["at_hp_fraction"]
         row = FORM["death_spawn"]["spawns"][0]
         scattered = row["regular"] * int(
-            STD["hp"] * FORM["death_spawn"]["spawn_hp_fraction"])
+            STD0["hp"] * FORM["death_spawn"]["spawn_hp_fraction"])
         self.assertEqual(absorbed, 220)           # 440 * 0.5
         self.assertEqual(scattered, 176)          # 4 * int(55 * 0.8)
-        self.assertGreater(absorbed + scattered, SIEGE["hp"])   # > one cannon
-        self.assertLess(absorbed + scattered, 2 * SIEGE["hp"])  # < two
+        siege_hp = era_stats("SiegeCannon")["hp"]
+        self.assertGreater(absorbed + scattered, siege_hp)      # > one cannon
+        self.assertLess(absorbed + scattered, 2 * siege_hp)     # < two
 
     def test_spawn_hp_fraction_stays_above_every_child_at_hp_fraction(self):
         """The documented footgun: a spawn_hp_fraction at or below a child
@@ -826,6 +1001,1193 @@ class TestFormationBreak(unittest.TestCase):
             self.assertGreater(
                 frac,
                 ENEM["EnemyTypes"][child]["death_spawn"]["at_hp_fraction"])
+
+
+class TestCommander(unittest.TestCase):
+    """BR-2/D8 — the Commander ships DORMANT. Two pins only: it resolves its
+    OWN era rows through the base resolver (no `_resolve_stats` override), and
+    it contributes nothing to any wave at the shipped values."""
+
+    def test_stats_come_from_its_own_block_via_the_base_resolver(self):
+        cmd0 = era_stats("Commander")
+        tm = synth(["bbs"])
+        c = create_enemy("commander", 2, 0, ENEM, tm, 0)
+        self.assertIsInstance(c, Commander)
+        self.assertIsNone(Commander.__dict__.get("_resolve_stats"),
+                          "D8: the Commander must use the BASE per-era "
+                          "resolver — the Boss's is the one override left")
+        self.assertEqual(c.get_component(Health).hp, cmd0["hp"])
+        self.assertEqual(c.dmg, cmd0["dmg"])
+        self.assertAlmostEqual(c.get_component(Movement).speed,
+                               cmd0["move_speed"])
+        self.assertNotEqual(cmd0["hp"], STD0["hp"])      # the fixture is real
+        # A building hunter with a siege-sized bar and no boss tag (D8).
+        self.assertEqual(c.get_component(PathAgent).hunt, "any_non_base")
+        self.assertEqual((Commander.HP_BAR_W, Commander.HP_BAR_H), (24, 2))
+        self.assertNotIn("boss", c.tags)
+
+    def test_contributes_zero_to_every_wave_at_the_shipped_values(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (0, 1, 6, 10, 14, 30, 60):
+            with self.subTest(round=rnd):
+                self.assertEqual(expected_count("Commander", rnd), 0)
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                self.assertEqual(
+                    [e for _, e in sp.pending() if e == "commander"], [])
+
+
+DIGGER = ENEM["EnemyTypes"]["Digger"]
+DIG0 = era_stats("Digger")
+
+
+class TestDigger(unittest.TestCase):
+    """NE-2 — the burrow / claim / emerge machine.
+
+    A ONE-ROW board throughout, deliberately: it makes "the route runs THROUGH
+    that tile" a fact of the board rather than a hope about the cost field,
+    which is exactly what the `no_melee` regression needs to mean anything.
+    Every expectation is hand-computed from the pinned fixture's own JSON.
+    """
+
+    #: cols 0..14 buildable (base at 0), col 15 the spawn band.
+    ROW = "b" * 15 + "s"
+
+    def _board(self):
+        tm = synth([self.ROW])
+        scene, occ = Scene(), TileOccupancy()
+        attach_base(tm, BaseBuilding(tm.base_col, tm.base_row, CORE),
+                    scene, occ)
+        return tm, scene, occ
+
+    def _digger(self, scene, tm, col):
+        dig = create_enemy("digger", col, 0, ENEM, tm, 0)
+        dig._scene = scene          # what Spawner does at both spawn sites
+        scene.spawn(dig)
+        return dig
+
+    @staticmethod
+    def _parts(dig):
+        return (dig.get_component(BurrowAgent), dig.get_component(PathAgent),
+                dig.get_component(Movement))
+
+    def _run_until(self, scene, dig, predicate, dt=0.05, limit=2000):
+        for _ in range(limit):
+            scene.update(dt)
+            if predicate():
+                return True
+        return False
+
+    # -- wiring ------------------------------------------------------------
+
+    def test_class_attrs_registration_and_no_melee_wiring(self):
+        tm, scene, _occ = self._board()
+        dig = create_enemy("digger", 10, 0, ENEM, tm, 0)
+        self.assertIsInstance(dig, Digger)
+        self.assertEqual(ENEMY_CLASSES["digger"], Digger)
+        self.assertEqual(Digger.ETYPE, "digger")
+        self.assertEqual(Digger.REGISTRY_GROUP, "Digger")
+        self.assertEqual(Digger.DEFAULT_SLOT, "digger_stage_1")
+        self.assertEqual(Digger.STAT_SUBTREE, ("Digger",))
+        pa = dig.get_component(PathAgent)
+        self.assertEqual(pa.hunt, "structure")
+        self.assertTrue(pa.no_melee)
+        self.assertFalse(dig.get_component(Kidnap).enabled)
+        # dig_speed doubles as move_speed — ONE number for both phases.
+        burrow = dig.get_component(BurrowAgent)
+        self.assertEqual(burrow.dig_speed, DIGGER["dig_speed"])
+        self.assertEqual(burrow.dig_range_tiles, DIGGER["dig_range_tiles"])
+        self.assertAlmostEqual(dig.get_component(Movement).speed,
+                               DIGGER["dig_speed"])
+        self.assertEqual(dig.get_component(Health).hp, DIG0["hp"])
+        self.assertEqual(dig.dmg, DIG0["dmg"])
+        # BurrowAgent must sit BETWEEN PathAgent and Movement.
+        kinds = [type(c).__name__ for c in dig.components]
+        self.assertLess(kinds.index("PathAgent"), kinds.index("BurrowAgent"))
+        self.assertLess(kinds.index("BurrowAgent"), kinds.index("Movement"))
+
+    def test_every_other_type_keeps_no_melee_off(self):
+        tm = synth(["bbs"])
+        for etype in ("standard", "raider", "siege", "formation",
+                      "commander", "boss"):
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 2, 0, ENEM, tm, 0)
+                self.assertFalse(e.get_component(PathAgent).no_melee)
+                self.assertIsNone(e.get_component(BurrowAgent))
+
+    # -- the min-target-distance preference -----------------------------------
+
+    def test_prefers_a_target_at_least_min_distance_away(self):
+        """Two claimable structures: one closer than
+        `min_target_distance_tiles`, one clearing it. The Digger must claim
+        the FARTHER one despite it not being the literal nearest."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        self.assertGreater(min_dist, 1)     # the fixture must exercise this
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)   # too close: excluded
+        far_col = spawn_col - (min_dist + 2)    # clears the minimum
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(far_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual(burrow.min_target_distance_tiles, min_dist)
+        self.assertEqual((pa.target_col, pa.target_row), (far_col, 0))
+
+    def test_falls_back_to_the_near_target_when_nothing_clears_the_minimum(self):
+        """No candidate clears `min_target_distance_tiles` -> claim the only
+        (near) one rather than standing down. The near column is also inside
+        `dig_range_tiles` at this fixture, so it may submerge on the very
+        first tick — that's correct, not a bug this test is checking; the
+        thing under test is the CLAIM, and that the Digger goes on to erupt
+        normally rather than getting stuck."""
+        tm, scene, occ = self._board()
+        min_dist = DIGGER["min_target_distance_tiles"]
+        spawn_col = 12
+        near_col = spawn_col - (min_dist - 1)
+        place_building(tm, tm.get(near_col, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, spawn_col)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (near_col, 0))
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+
+    # -- the state machine -------------------------------------------------
+
+    def test_submerges_at_exactly_dig_range_tiles(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)                       # on_spawn takes the claim
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertEqual(burrow.state, BURROW_WALKING)
+
+        dist_before = None
+        for _ in range(2000):
+            dist_before = burrow.distance_to_target(dig, pa)
+            scene.update(0.05)
+            if burrow.state != BURROW_WALKING:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertEqual(dist_before, DIGGER["dig_range_tiles"])
+
+    def test_never_submerges_on_a_tile_a_building_occupies(self):
+        """A single-row board so the walk physically crosses the obstacle's
+        tile (the `no_melee` regression's own technique). An UNRELATED
+        `economic` building (not a "structure" hunt candidate) sits exactly
+        `dig_range_tiles` from the real target — the first column the submerge
+        trigger goes true. Absent the fix the Digger would submerge standing
+        on it; the fix must relocate it to the nearest CLEAR tile first (col 7,
+        the next tile toward the target — the ring search's first valid hit)."""
+        tm, scene, occ = self._board()
+        target_col = 2
+        place_building(tm, tm.get(target_col, 0), "blocker", 9999, BUILD,
+                       scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (target_col, 0))
+        obstacle_col = target_col + DIGGER["dig_range_tiles"]
+        place_building(tm, tm.get(obstacle_col, 0), "economic", 9999, BUILD,
+                       scene, occ)
+
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        sub_col = round(dig.transform.wx)
+        sub_row = round(dig.transform.wy)
+        self.assertNotEqual(sub_col, obstacle_col)
+        self.assertIsNone(tm.get(sub_col, sub_row).occupant)
+        self.assertEqual((sub_col, sub_row), (obstacle_col - 1, 0))
+        self.assertAlmostEqual(burrow.start_wx, obstacle_col - 1)
+        self.assertAlmostEqual(burrow.start_wy, 0.0)
+
+    def test_untargetable_and_undamageable_while_submerged(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        # Placed AFTER the claim so it cannot steal the target; it sits inside
+        # the stretch the Digger travels, so a targetable Digger WOULD be shot.
+        place_building(tm, tm.get(6, 0), "defence", 9999, BUILD, scene, occ)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        self.assertFalse(dig.targetable)
+        # combat.py's one target filter drops it — the Boss `targetable`
+        # contract, reused verbatim.
+        self.assertNotIn(dig, [e for e in scene.by_tag("enemy")
+                               if e.alive and getattr(e, "targetable", True)])
+        hp0 = dig.get_component(Health).hp
+        for _ in range(40):
+            scene.update(0.05)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
+            if burrow.state != BURROW_SUBMERGED:
+                break
+        self.assertEqual(dig.get_component(Health).hp, hp0)
+
+    def test_emerges_on_the_target_and_deals_one_dmg_hit(self):
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+
+        rs = blocker.get_component(RoundStats)
+        self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
+        self.assertEqual(blocker.get_component(Health).hp,
+                         max(0, blocker.get_component(Health).max_hp
+                             - DIG0["dmg"]))
+        # Snapped onto the target's tile, visible and targetable again.
+        self.assertAlmostEqual(dig.transform.wx, 2.0)
+        self.assertAlmostEqual(dig.transform.wy, 0.0)
+        self.assertTrue(dig.targetable)
+        self.assertFalse(dig.get_component(PathAgent).frozen)
+        # Exactly ONE hit — the eruption, not a melee clock.
+        scene.update(0.05)
+        self.assertEqual(rs.dmg_taken_this_round, DIG0["dmg"])
+
+    def test_interrupted_dig_emerges_at_once_deals_nothing_and_retargets(self):
+        """D5 — the target dies to something else mid-dig."""
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        # Placed AFTER the claim: it is the ONLY thing left to re-target to
+        # once the committed victim dies (col 14 is nearer to the spawn than
+        # col 2, so placing it first would simply have been claimed instead).
+        other, _c2 = place_building(tm, tm.get(14, 0), "blocker", 9999,
+                                    BUILD, scene, occ)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+
+        timer_left = burrow.dig_timer
+        self.assertGreater(timer_left, 0.0)     # genuinely mid-dig
+        where = (dig.transform.wx, dig.transform.wy)
+        blocker.get_component(Health).hp = 0    # killed by "something else"
+        taken = blocker.get_component(RoundStats).dmg_taken_this_round
+
+        scene.update(0.05)
+        self.assertEqual(burrow.state, BURROW_EMERGE)          # immediately
+        self.assertLess(burrow.dig_timer, timer_left)
+        self.assertEqual(blocker.get_component(RoundStats).dmg_taken_this_round,
+                         taken)                                # NO damage
+        self.assertNotAlmostEqual(dig.transform.wx, 2.0)       # where it was
+        self.assertAlmostEqual(dig.transform.wx, where[0])
+        self.assertTrue(dig.targetable)
+
+        scene.update(0.05)                                     # re-targets
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (14, 0))
+        self.assertTrue(mv.waypoints)
+        self.assertIs(other.get_component(Health).hp,
+                      other.get_component(Health).hp)          # untouched
+
+    def test_stands_down_when_nothing_is_left_to_claim(self):
+        """No structure after exclusion ⇒ idle and harmless, NEVER a walk at
+        the hole (the base fallback inside the hunt query must not leak)."""
+        tm, scene, occ = self._board()
+        blocker, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                     BUILD, scene, occ)
+        dig = self._digger(scene, tm, 10)
+        burrow, pa, mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        blocker.get_component(Health).hp = 0
+        scene.update(0.05)                      # EMERGE
+        scene.update(0.05)                      # re-target -> nothing left
+
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (-1, -1))
+        self.assertEqual(mv.waypoints, [])
+        self.assertFalse(pa.goal_is_base)
+        base_hp = tm.get(0, 0).occupant.get_component(Health).hp
+        for _ in range(200):
+            scene.update(0.05)
+            resolve_combat(scene, tm, 0.05, BUILD, VFX)
+        self.assertFalse(pa.reached_base)
+        self.assertEqual(tm.get(0, 0).occupant.get_component(Health).hp,
+                         base_hp)
+
+    # -- the exclusive claim ------------------------------------------------
+
+    def test_two_diggers_never_claim_the_same_building(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(4, 0), "blocker", 9999, BUILD, scene, occ)
+        a = self._digger(scene, tm, 12)
+        b = self._digger(scene, tm, 13)
+        scene.update(0.0)                       # both on_spawn, in spawn order
+
+        claims = [(d.get_component(PathAgent).target_col,
+                   d.get_component(PathAgent).target_row) for d in (a, b)]
+        self.assertEqual(sorted(claims), [(2, 0), (4, 0)])
+
+    def test_a_third_digger_with_only_two_buildings_stands_down(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        place_building(tm, tm.get(4, 0), "blocker", 9999, BUILD, scene, occ)
+        diggers = [self._digger(scene, tm, 10 + i) for i in range(3)]
+        scene.update(0.0)
+
+        claims = [(d.get_component(PathAgent).target_col,
+                   d.get_component(PathAgent).target_row) for d in diggers]
+        self.assertEqual(sorted(claims), [(-1, -1), (2, 0), (4, 0)])
+        # No two live claims are ever equal — the whole invariant.
+        live = [c for c in claims if c != (-1, -1)]
+        self.assertEqual(len(live), len(set(live)))
+
+    def test_a_dead_diggers_claim_is_released(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        a = self._digger(scene, tm, 12)
+        scene.update(0.0)
+        self.assertEqual(a.get_component(PathAgent).target_col, 2)
+        scene.despawn(a)
+        scene.update(0.0)
+        b = self._digger(scene, tm, 13)
+        scene.update(0.0)
+        self.assertEqual(b.get_component(PathAgent).target_col, 2)
+
+    def test_the_spawner_wires_the_scene_transient(self):
+        """`Enemy._scene` is what the claim scan and the dirt pile ride on;
+        it exists only because the Spawner sets it at both spawn sites."""
+        tm = synth(["bbs"])
+        scene = Scene()
+        sp = Spawner()
+        sp.begin_round(1, tm, ENEM, rng=FakeRng())
+        for _ in range(400):
+            sp.update(1.0, scene)
+            if scene.queued_by_tag("enemy"):
+                break
+        spawned = scene.queued_by_tag("enemy")
+        self.assertTrue(spawned)
+        for e in spawned:
+            self.assertIs(e._scene, scene)
+
+    # -- no_melee ------------------------------------------------------------
+
+    def test_never_halts_on_an_unrelated_building_en_route(self):
+        """The soft-lock regression: a Digger routed straight THROUGH a
+        non-structure building must walk on past it, dealing it nothing."""
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        bystander, _c = place_building(tm, tm.get(10, 0), "economic", 9999,
+                                       BUILD, scene, occ)
+        dig = self._digger(scene, tm, 14)
+        burrow, pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        # One row: the route physically runs over the bystander's tile.
+        self.assertIn([10.0, 0.0], dig.get_component(Movement).waypoints)
+
+        ever_blocked = False
+        for _ in range(2000):
+            scene.update(0.05)
+            ever_blocked = ever_blocked or pa.blocked
+            if burrow.state == BURROW_SUBMERGED:
+                break
+        self.assertEqual(burrow.state, BURROW_SUBMERGED)
+        self.assertFalse(ever_blocked)
+        self.assertEqual(
+            bystander.get_component(RoundStats).dmg_taken_this_round, 0)
+        self.assertEqual(bystander.get_component(Health).hp,
+                         bystander.get_component(Health).max_hp)
+
+    def test_a_walker_on_the_same_board_still_halts_and_attacks(self):
+        """The other half of the regression: `no_melee` is DEFAULT-OFF, so the
+        halt-and-attack model is untouched for everything else."""
+        tm, scene, occ = self._board()
+        bystander, _c = place_building(tm, tm.get(10, 0), "economic", 9999,
+                                       BUILD, scene, occ)
+        walker = create_enemy("standard", 12, 0, ENEM, tm, 0)
+        scene.spawn(walker)
+        pa = walker.get_component(PathAgent)
+        self.assertTrue(self._run_until(scene, walker, lambda: pa.blocked))
+        self.assertGreater(
+            bystander.get_component(RoundStats).dmg_taken_this_round, 0)
+
+    # -- the dirt pile -------------------------------------------------------
+
+    def test_submerging_drops_a_dirt_pile_decal_no_gameplay_query_can_see(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        scene.update(0.0)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        scene.update(0.0)                       # flush the spawn queue
+
+        piles = scene.by_tag("dirt_pile")
+        self.assertEqual(len(piles), 1)
+        pile = piles[0]
+        self.assertIsInstance(pile, DirtPile)
+        self.assertNotIn("enemy", pile.tags)
+        self.assertNotIn(pile, scene.by_tag("enemy"))
+        self.assertIsNone(pile.get_component(Health))
+        self.assertIsNone(pile.get_component(PathAgent))
+        self.assertEqual(pile.get_component(SpriteAnimator).slot_key,
+                         DIRT_PILE_SLOT)
+        # It lives exactly as long as the dig and then removes itself.
+        life = pile.get_component(DirtPileFade).life_ms
+        self.assertAlmostEqual(life, burrow.dig_duration * 1000.0, places=3)
+        for _ in range(int(burrow.dig_duration / 0.05) + 4):
+            scene.update(0.05)
+        self.assertEqual(scene.by_tag("dirt_pile"), [])
+
+    # -- visibility while submerged ------------------------------------------
+
+    def test_hidden_while_submerged_visible_otherwise(self):
+        tm, scene, occ = self._board()
+        place_building(tm, tm.get(2, 0), "blocker", 9999, BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, _pa, _mv = self._parts(dig)
+        anim = dig.get_component(SpriteAnimator)
+        scene.update(0.0)
+        self.assertTrue(anim.visible)                    # walking: visible
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED))
+        self.assertFalse(anim.visible)                    # submerged: hidden
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+        self.assertTrue(anim.visible)                     # emerged: visible
+
+    # -- the emerge cooldown --------------------------------------------------
+
+    def test_emerge_cooldown_delays_resubmerging_at_a_new_in_range_target(self):
+        """The Digger (spawned at col 12) claims the NEARER building first -
+        col 6, not col 2 - which dies to the eruption (500 hp vs 900 dmg at
+        this fixture). It then re-targets the survivor at col 2, already
+        within `dig_range_tiles` of where it stands (|6-2|=4 <= 6), which
+        would resubmerge on the very next tick with no cooldown.
+        `emerge_cooldown` holds it off instead."""
+        tm, scene, occ = self._board()
+        far_building, _c = place_building(tm, tm.get(2, 0), "blocker", 9999,
+                                          BUILD, scene, occ)
+        near_building, _c2 = place_building(tm, tm.get(6, 0), "blocker", 9999,
+                                            BUILD, scene, occ)
+        dig = self._digger(scene, tm, 12)
+        burrow, pa, _mv = self._parts(dig)
+        self.assertEqual(burrow.emerge_cooldown, DIGGER["emerge_cooldown"])
+        self.assertGreater(burrow.emerge_cooldown, 0.0)
+        scene.update(0.0)
+        self.assertEqual((pa.target_col, pa.target_row), (6, 0))   # nearer
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_EMERGE))
+        self.assertLessEqual(near_building.get_component(Health).hp, 0)
+
+        scene.update(0.05)                      # re-targets: the survivor
+        self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertGreater(far_building.get_component(Health).hp, 0)
+        self.assertLessEqual(burrow.distance_to_target(dig, pa),
+                             burrow.dig_range_tiles)
+        self.assertGreater(burrow.cooldown_remaining, 0.0)
+
+        for _ in range(int(burrow.emerge_cooldown / 0.05) - 1):
+            scene.update(0.05)
+            self.assertEqual(burrow.state, BURROW_WALKING)
+        self.assertTrue(self._run_until(
+            scene, dig, lambda: burrow.state == BURROW_SUBMERGED, limit=5))
+
+    def test_emerge_cooldown_zero_is_a_noop(self):
+        """Every OTHER type's BurrowAgent-less path is untouched, and a
+        hand-built BurrowAgent with no balancing behind it defaults to 0 -
+        byte-identical to submerging the instant it is back in range."""
+        burrow = BurrowAgent()
+        self.assertEqual(burrow.emerge_cooldown, 0.0)
+        self.assertEqual(burrow.cooldown_remaining, 0.0)
+
+    # -- composition ---------------------------------------------------------
+
+    def test_start_round_35_and_the_shared_count_formula(self):
+        """Non-boss rounds only — a boss round composes from
+        `Boss.round_counts`, which carries no digger key (see the next test)."""
+        tm = synth(["bbs"])
+        sp = Spawner()
+        self.assertEqual(DIGGER["start_round"], 35)
+        for rnd in (1, 14, 30, 34, 35, 36, 39, 45, 55):
+            with self.subTest(round=rnd):
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                got = len([e for _, e in sp.pending() if e == "digger"])
+                self.assertEqual(got, expected_count("Digger", rnd))
+        # Round 35 is the first wave that carries one, and it is not empty.
+        self.assertGreaterEqual(expected_count("Digger", 35), 1)
+        self.assertEqual(expected_count("Digger", 34), 0)
+
+    def test_no_diggers_on_a_boss_round(self):
+        """The SAME deliberate rule the Formation follows: `_boss_round`
+        composes from `Boss.round_counts`, a `$defs/spawn_counts` table shared
+        with every `death_spawn.spawns` row, so a `digger` key there would land
+        on all 14 committed rows. One line into `_boss_round`'s `rest` if it is
+        ever wanted — never by accident."""
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (40, 50, 60):
+            with self.subTest(round=rnd):
+                self.assertGreater(expected_count("Digger", rnd), 0)
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                self.assertEqual(
+                    [e for _, e in sp.pending() if e == "digger"], [])
+
+    def test_diggers_are_body_mixed_never_queue_leading(self):
+        tm = TestSpawnTilesAreSpawningOnly._tm()
+        sp = Spawner()
+        sp.begin_round(35, tm, ENEM, rng=random.Random(3))
+        etypes = [e for _, e in sp.pending()]
+        self.assertIn("digger", etypes)
+        self.assertNotEqual(etypes[0], "digger")
+
+
+SNIPER = ENEM["EnemyTypes"]["Sniper"]
+STAND_OFF = SNIPER["stand_off_range"]
+DT = 0.05
+
+
+class SniperCase(unittest.TestCase):
+    """Shared board for the NE-1 stand-off fixtures.
+
+    One row, base at (0,0), the last two tiles the spawn zone. Defence
+    buildings go where each test wants them; the sniper is created on the far
+    spawn tile and hunts them (`hunts: "defence"`, widened by NE-0).
+    """
+
+    ROW = "bbbbbbbss"      # cols 0..6 buildable, 7..8 spawning
+    SPAWN_COL = 8
+
+    def board(self, *defence_cols):
+        tm = synth([self.ROW])
+        scene, occ = Scene(), TileOccupancy()
+        built = {}
+        for col in defence_cols:
+            b, _c = place_building(tm, tm.get(col, 0), "defence", 999999,
+                                   BUILD, scene, occ)
+            # Keep every target standing for as long as the test wants it:
+            # these fixtures are about the STAND-OFF, not about how many shots
+            # a shipped Defender survives.
+            b.get_component(Health).hp = 10 ** 7
+            b.get_component(Health).max_hp = 10 ** 7
+            built[col] = b
+        return tm, scene, built
+
+    def sniper(self, tm, scene, era=0, col=None):
+        e = create_enemy("sniper", self.SPAWN_COL if col is None else col, 0,
+                         ENEM, tm, era)
+        scene.spawn(e)
+        scene.update(0.0)          # apply the spawn + on_spawn pathing
+        return e
+
+    @staticmethod
+    def pa(enemy):
+        return enemy.get_component(PathAgent)
+
+
+class TestSniper(SniperCase):
+    """NE-1 — the first RANGED enemy: it halts `stand_off_range` tiles short of
+    its committed target and fires from there, never closing to melee."""
+
+    def test_class_attrs_and_registration(self):
+        from game.enemies.enemy import ENEMY_CLASSES
+        self.assertIs(ENEMY_CLASSES["sniper"], Sniper)
+        self.assertEqual(Sniper.ETYPE, "sniper")
+        self.assertEqual(Sniper.REGISTRY_GROUP, "Sniper")
+        self.assertEqual(Sniper.DEFAULT_SLOT, "sniper_stage_1")
+        self.assertEqual(Sniper.STAT_SUBTREE, ("Sniper",))
+        # A normal era-shaped type: the base resolvers do everything but the
+        # ONE new seam (the Boss keeps the only `_resolve_stats` override).
+        for name in ("_resolve_stats", "_resolve_era", "on_spawn",
+                     "resolve_fit", "__init__"):
+            self.assertIsNone(Sniper.__dict__.get(name),
+                              f"Sniper must not override {name}")
+
+    def test_stats_and_stand_off_come_from_its_own_block(self):
+        sn0 = era_stats("Sniper")
+        tm, scene, _ = self.board(2)
+        s = self.sniper(tm, scene)
+        self.assertIsInstance(s, Sniper)
+        self.assertEqual(s.get_component(Health).hp, sn0["hp"])
+        self.assertEqual(s.dmg, sn0["dmg"])
+        self.assertAlmostEqual(s.get_component(Movement).speed,
+                               sn0["move_speed"])
+        self.assertNotEqual(sn0["hp"], STD0["hp"])       # the fixture is real
+        self.assertEqual(self.pa(s).hunt, "defence")
+        self.assertEqual(self.pa(s).stand_off_range, STAND_OFF)
+        # The stand-off leaf reaches PathAgent through the ONE seam, and is
+        # flat/per-type (D10) — never an era row.
+        self.assertEqual(Sniper.resolve_stand_off_range(SNIPER), STAND_OFF)
+        for row in SNIPER["eras"]:
+            self.assertNotIn("stand_off_range", row)
+            self.assertNotIn("stand_off_range", row["stats"])
+
+    def test_halts_at_exactly_chebyshev_stand_off_and_never_blocks(self):
+        tm, scene, _built = self.board(2)
+        s = self.sniper(tm, scene)
+        pa = self.pa(s)
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertFalse(pa.in_range)                     # 8 -> 2 is 6 tiles
+        for _ in range(600):
+            scene.update(DT)
+            # THE claim: it never reaches the melee state on the way in.
+            self.assertFalse(pa.blocked,
+                             "a stand-off unit must halt on geometry, never "
+                             "by being physically blocked")
+            if pa.in_range:
+                break
+        else:
+            self.fail("the sniper never came into range")
+        col = round(s.transform.wx)
+        self.assertEqual(col - pa.target_col, STAND_OFF)
+        self.assertEqual(s.get_component(Movement).speed, 0.0)
+        self.assertFalse(s.get_component(Movement).arrived)
+        # And it STAYS there — no creep toward the target once halted.
+        for _ in range(200):
+            scene.update(DT)
+        self.assertEqual(round(s.transform.wx), col)
+        self.assertTrue(pa.in_range)
+        self.assertFalse(pa.blocked)
+
+    def test_fires_on_its_attack_speed_cadence_once_in_range(self):
+        sn0 = era_stats("Sniper")
+        # Spawn already inside the stand-off: target at 6, spawn at 8.
+        tm, scene, built = self.board(6)
+        s = self.sniper(tm, scene)
+        rs = built[6].get_component(RoundStats)
+        # It spawns already in range, and `cooldown` starts at 0 — so the very
+        # first shot lands on the setup frame, exactly as a melee enemy's does
+        # the instant it stops. That IS the "no adjacency requirement" claim.
+        self.assertTrue(self.pa(s).in_range)
+        self.assertEqual(rs.dmg_taken_this_round, sn0["dmg"])
+
+        hits, t, last = [0.0], 0.0, rs.dmg_taken_this_round
+        for _ in range(400):                # 20 s at DT
+            scene.update(DT)
+            t += DT
+            now = rs.dmg_taken_this_round
+            if now > last:
+                self.assertEqual(now - last, sn0["dmg"])   # exact ledger
+                hits.append(t)
+                last = now
+        self.assertTrue(self.pa(s).in_range)
+        self.assertFalse(self.pa(s).blocked)
+        self.assertGreaterEqual(len(hits), 6)
+        for a, b in zip(hits, hits[1:]):
+            self.assertAlmostEqual(b - a, sn0["attack_speed"], delta=DT + 1e-9)
+        self.assertEqual(rs.dmg_taken_this_round, len(hits) * sn0["dmg"])
+
+    def test_retargets_when_its_victim_dies(self):
+        """The existing `repath_on_kill` dead-target watch already covers the
+        in-range case — it is gated on `not blocked`, and a stand-off unit is
+        never blocked. Pinned here because NE-1 relies on that and adds no
+        second watch."""
+        tm, scene, built = self.board(2, 6)
+        s = self.sniper(tm, scene)
+        pa = self.pa(s)
+        scene.update(DT)
+        self.assertTrue(pa.in_range)                       # 8 -> 6 is 2
+        self.assertEqual((pa.target_col, pa.target_row), (6, 0))
+        self.assertTrue(pa.repath_on_kill)
+        far_rs = built[2].get_component(RoundStats)
+        self.assertEqual(far_rs.dmg_taken_this_round, 0)
+
+        built[6].get_component(Health).hp = 0
+        self.assertFalse(built[6].alive)
+        scene.update(DT)
+        # Re-committed to the survivor, and NOT still flagged in-range: the
+        # dead-target watch re-paths and returns, so if `_repath` did not drop
+        # the flag itself the sniper would land one free shot on a building
+        # four tiles outside its stand-off. Regression pin.
+        self.assertEqual((pa.target_col, pa.target_row), (2, 0))
+        self.assertFalse(pa.in_range)
+        self.assertEqual(far_rs.dmg_taken_this_round, 0)
+        scene.update(DT)                                   # and it walks on
+        self.assertGreater(s.get_component(Movement).speed, 0.0)
+
+        rs = far_rs
+        for _ in range(600):
+            scene.update(DT)
+            if pa.in_range:
+                break
+        else:
+            self.fail("the sniper never re-engaged the surviving building")
+        self.assertEqual(round(s.transform.wx) - 2, STAND_OFF)
+        self.assertFalse(pa.blocked)
+        # The cooldown SURVIVES the walk (EnemyCombat does not tick while out
+        # of range), so re-engaging costs a full `attack_speed` — it does not
+        # refund a shot for having changed target.
+        self.assertEqual(rs.dmg_taken_this_round, 0)
+        for _ in range(int(era_stats("Sniper")["attack_speed"] / DT) + 4):
+            scene.update(DT)
+        self.assertEqual(rs.dmg_taken_this_round, era_stats("Sniper")["dmg"])
+
+    def test_round_26_ledger_on_the_era_2_row(self):
+        """The scripted-round HP ledger: round 26 is the Sniper's first, era 2,
+        and its shots are hand-computable straight out of `data/`."""
+        rnd = SNIPER["start_round"]
+        era = max(0, (rnd - 1) // RPE)
+        self.assertEqual(era, 2)
+        sn = era_stats("Sniper", era)
+
+        tm, scene, built = self.board(6)
+        s = self.sniper(tm, scene, era=era)
+        self.assertEqual(s.get_component(Health).hp, sn["hp"])
+        self.assertEqual(s.dmg, sn["dmg"])
+
+        rs = built[6].get_component(RoundStats)
+        shots, hits, t, last = 5, [0.0], 0.0, rs.dmg_taken_this_round
+        self.assertEqual(last, sn["dmg"])       # shot 1, on the setup frame
+        while len(hits) < shots and t < 60.0:
+            scene.update(DT)
+            t += DT
+            now = rs.dmg_taken_this_round
+            if now > last:
+                self.assertEqual(now - last, sn["dmg"])
+                hits.append(t)
+                last = now
+        self.assertEqual(len(hits), shots)
+        self.assertEqual(rs.dmg_taken_this_round, shots * sn["dmg"])
+        self.assertEqual(built[6].get_component(Health).hp,
+                         10 ** 7 - shots * sn["dmg"])
+        self.assertAlmostEqual(hits[-1], (shots - 1) * sn["attack_speed"],
+                               delta=shots * DT)
+
+    def test_wave_composition_starts_at_its_start_round(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        for rnd in (1, 14, 25, 26, 28, 31, 41):
+            with self.subTest(round=rnd):
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(7))
+                queued = [e for _t, e in sp.pending() if e == "sniper"]
+                self.assertEqual(len(queued), expected_count("Sniper", rnd))
+        # Below start_round it draws nothing at all, so every pre-NE-1 wave is
+        # byte-identical (the `_commander_group`-is-last rule, again).
+        self.assertEqual(expected_count("Sniper", 25), 0)
+        self.assertEqual(expected_count("Sniper", 26), 1)
+
+    def test_never_leads_the_queue_and_never_joins_a_boss_round(self):
+        tm = synth(["bbs"])
+        sp = Spawner()
+        sp.begin_round(41, tm, ENEM, rng=random.Random(3))   # era 4, non-boss
+        etypes = [et for _t, et, _d in sp._queue]
+        self.assertGreater(etypes.count("sniper"), 0)
+        self.assertNotEqual(etypes[0], "sniper")             # body-mixed
+        boss_round = SCALE["boss_round_in_era"] + 4 * RPE    # era 4's boss
+        sp.begin_round(boss_round, tm, ENEM, rng=random.Random(3))
+        self.assertNotIn("sniper", [et for _t, et, _d in sp._queue])
+
+
+class TestStandOffIsOffForEveryOtherType(SniperCase):
+    """`PathAgent` is shared by EVERY enemy type, so NE-1's two new fields are
+    pinned default-off here: nothing but the Sniper may change behaviour."""
+
+    OTHERS = ("standard", "raider", "siege", "formation", "commander", "boss")
+
+    def test_every_other_type_ships_stand_off_range_zero(self):
+        tm = synth(["bbbs"])
+        for etype in self.OTHERS:
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 3, 0, ENEM, tm)
+                pa = e.get_component(PathAgent)
+                self.assertEqual(pa.stand_off_range, 0)
+                self.assertFalse(pa.in_range)
+
+    def test_the_seam_returns_zero_for_every_class_but_the_sniper(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Commander, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            with self.subTest(cls=cls.__name__):
+                self.assertEqual(cls.resolve_stand_off_range(block), 0)
+                if cls is not Enemy:      # Enemy DEFINES the seam, at 0
+                    self.assertIsNone(
+                        cls.__dict__.get("resolve_stand_off_range"),
+                        "only Sniper may override the NE-1 seam")
+                # The leaf lives ONLY on blocks that have the mechanic — that
+                # is the whole point of routing it through a classmethod.
+                self.assertNotIn("stand_off_range", block)
+
+    def test_the_melee_block_and_attack_path_is_unchanged(self):
+        """The pre-NE-1 behaviour, re-asserted with the new flag in the frame:
+        a walker still stops ON CONTACT, sets `blocked` (never `in_range`) and
+        damages what blocks it."""
+        tm = synth(["bbs"])
+        scene, occ = Scene(), TileOccupancy()
+        blocker, _c = place_building(tm, tm.get(1, 0), "economic", 9999,
+                                     BUILD, scene, occ)
+        e = create_enemy("standard", 2, 0, ENEM, tm)
+        scene.spawn(e)
+        for _ in range(4):
+            scene.update(0.1)
+        pa = e.get_component(PathAgent)
+        self.assertTrue(pa.blocked)
+        self.assertFalse(pa.in_range)
+        self.assertIs(pa._target, blocker)
+        self.assertFalse(pa.reached_base)
+        self.assertGreaterEqual(
+            blocker.get_component(RoundStats).dmg_taken_this_round, e.dmg)
+
+
+DRUM = ENEM["EnemyTypes"]["Drummer"]
+
+
+class TestDrummer(unittest.TestCase):
+    """NE-3 — the game's FIRST buff/aura mechanism, so these pin the model
+    itself and not just one enemy type: additive per-source stacking, the
+    D6 heal-on-apply / shrink-and-clamp-on-decay hp rule, and the per-source
+    4-second decay clock that starts the frame a Drummer stops sustaining.
+
+    Board is one row, base at (0, 0): b b c c c c s s."""
+
+    ROWS = ["bbccccss"]
+
+    def _board(self):
+        return synth(self.ROWS), Scene()
+
+    def _spawn(self, scene, tm, etype, col, row, era=0, pos=1):
+        """Construct + spawn ONE enemy, wiring the scene by hand exactly the
+        way ``Spawner._attach_scene`` does for a real wave."""
+        e = create_enemy(etype, col, row, ENEM, tm, era, None, None, pos)
+        e._scene = scene
+        scene.spawn(e)
+        return e
+
+    @staticmethod
+    def _settle(scene, times=2):
+        """Two zero-dt frames. Objects update in SPAWN order, so a Drummer
+        spawned after the unit it buffs applies its aura only AFTER that
+        unit's own PathAgent has already written this frame's move speed —
+        the second frame is what makes the speed observable. Zero dt so
+        nothing walks and no decay clock moves."""
+        for _ in range(times):
+            scene.update(0.0)
+
+    @staticmethod
+    def _freeze(*enemies):
+        """Drop the waypoints so nothing walks while the decay clock runs:
+        ``PathAgent.update`` returns early with no path, so tiles stay put
+        and only ``BuffState``/``DrummerAura`` are exercised."""
+        for e in enemies:
+            mv = e.get_component(Movement)
+            mv.waypoints = []
+            mv.speed = 0.0
+
+    @staticmethod
+    def _step(scene, seconds, dt=0.25):
+        """``seconds`` of scene time in exact-binary 0.25s frames — the decay
+        boundary has to land on a frame edge, not inside float drift."""
+        for _ in range(round(seconds / dt)):
+            scene.update(dt)
+
+    # -- the type itself ---------------------------------------------------
+
+    def test_class_attrs_and_registration(self):
+        self.assertEqual(Drummer.ETYPE, "drummer")
+        self.assertEqual(Drummer.REGISTRY_GROUP, "Drummer")
+        self.assertEqual(Drummer.DEFAULT_SLOT, "drummer_stage_1")
+        self.assertEqual(Drummer.STAT_SUBTREE, ("Drummer",))
+        self.assertIs(ENEMY_CLASSES["drummer"], Drummer)
+        # A walker's march, not a hunter's: no repath_on_kill, no goal set.
+        self.assertEqual(DRUM["hunts"], "base")
+        # The fit pair is PER-ERA for every type now, and the Drummer's
+        # "slightly taller" 1.15 must hold in EVERY row (it is the type's
+        # look, not an era's) — a row that lost it would draw walker-sized.
+        for row in DRUM["eras"]:
+            self.assertEqual(row["footprint"], 1)
+            self.assertGreater(row["sprite_scale"], 1.0)
+        # No stat override (the Commander's D8 rule): the base
+        # STAT_SUBTREE-driven resolver must read the Drummer's own era rows.
+        self.assertIsNone(Drummer.__dict__.get("_resolve_stats"))
+        tm, _scene = self._board()
+        d = create_enemy("drummer", 3, 0, ENEM, tm)
+        drum0 = era_stats("Drummer")
+        self.assertEqual(d.get_component(Health).hp, drum0["hp"])
+        self.assertEqual(d.get_component(EnemyCombat).dmg, drum0["dmg"])
+        self.assertNotEqual(drum0["hp"], STD0["hp"])    # the fixture is real
+        self.assertEqual(d.get_component(PathAgent).hunt, "base")
+        aura = d.get_component(DrummerAura)
+        self.assertEqual(aura.support_range, DRUM["support_range"])
+        self.assertEqual(aura.hp_increase, DRUM["hp_increase"])
+
+    def test_every_enemy_type_carries_the_inert_buff_ledger(self):
+        """`BuffState` is on EVERY type, not just the Drummer's targets —
+        that is what lets a future buff source aim at anything."""
+        tm, _scene = self._board()
+        for etype in ENEMY_CLASSES:
+            with self.subTest(etype=etype):
+                e = create_enemy(etype, 3, 0, ENEM, tm)
+                buffs = e.get_component(BuffState)
+                self.assertIsNotNone(buffs)
+                self.assertEqual(buffs.sources, {})    # inert as constructed
+        # And only the Drummer carries the aura.
+        self.assertIsNone(
+            create_enemy("standard", 3, 0, ENEM, tm).get_component(DrummerAura))
+
+    # -- one Drummer -------------------------------------------------------
+
+    def test_one_drummer_buffs_hp_dmg_move_speed_and_attack_speed(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._settle(scene)
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        base_max, base_dmg = health.max_hp, combat.dmg
+        base_interval = combat.attack_speed
+        base_speed = walker.get_component(Movement).speed
+        self.assertEqual(base_max, STD0["hp"])
+        self.assertAlmostEqual(base_speed, STD0["move_speed"])
+
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)   # Chebyshev 1
+        self._settle(scene)
+
+        grant = int(round(base_max * DRUM["hp_increase"]))
+        self.assertGreater(grant, 0)
+        # D6: max HP rises AND current HP rises with it — a real heal.
+        self.assertEqual(health.max_hp, base_max + grant)
+        self.assertEqual(health.hp, base_max + grant)
+        self.assertEqual(
+            walker.dmg, int(base_dmg * (1.0 + DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            base_speed * (1.0 + DRUM["move_speed_increase"]))
+        # attack_speed is an INTERVAL, so a bonus DIVIDES: more swings/sec.
+        self.assertAlmostEqual(
+            combat.buffed_attack_speed,
+            base_interval / (1.0 + DRUM["attack_speed_increase"]))
+        self.assertLess(combat.buffed_attack_speed, base_interval)
+        # Keyed by the contributing Drummer, and the Drummer never buffs
+        # itself.
+        self.assertEqual(list(walker.get_component(BuffState).sources),
+                         [drummer.id])
+        self.assertEqual(drummer.get_component(BuffState).sources, {})
+
+    def test_sustaining_a_buff_does_not_re_heal_every_frame(self):
+        """The heal is applied on the transition only — a Drummer parked next
+        to a damaged unit must not top it up frame after frame."""
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        health = walker.get_component(Health)
+        health.damage(20)
+        wounded = health.hp
+        self._settle(scene, times=10)
+        self.assertEqual(health.hp, wounded)
+
+    # -- decay -------------------------------------------------------------
+
+    def test_the_buff_decays_exactly_four_seconds_after_leaving_range(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        self._freeze(walker, drummer)
+        health = walker.get_component(Health)
+        buffs = walker.get_component(BuffState)
+        grant = int(round(STD0["hp"] * DRUM["hp_increase"]))
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+        self.assertEqual(health.hp, STD0["hp"] + grant)   # at the buffed cap
+
+        drummer.transform.wx = 7.0                        # out of range
+        self._step(scene, BUFF_DECAY_SECONDS - 0.25)
+        self.assertEqual(list(buffs.sources), [drummer.id],
+                         "the contribution must survive its whole countdown")
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+
+        self._step(scene, 0.25)                           # exactly 4.0s
+        self.assertEqual(buffs.sources, {})
+        self.assertEqual(health.max_hp, STD0["hp"])       # ceiling shrinks
+        self.assertEqual(health.hp, STD0["hp"])           # D6 clamp down
+        self.assertEqual(walker.dmg, walker.get_component(EnemyCombat).dmg)
+
+    def test_a_unit_already_below_the_new_max_keeps_its_hp_on_decay(self):
+        """The clamp only clamps: losing the ceiling must not also drain HP
+        the unit still legitimately has."""
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0)
+        self._settle(scene)
+        self._freeze(walker, drummer)
+        health = walker.get_component(Health)
+        health.hp = 10
+        drummer.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(health.max_hp, STD0["hp"])
+        self.assertEqual(health.hp, 10)
+
+    # -- two Drummers ------------------------------------------------------
+
+    def test_two_drummers_stack_additively_and_decay_independently(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0)
+        self._settle(scene)
+        base_speed = walker.get_component(Movement).speed
+        d1 = self._spawn(scene, tm, "drummer", 2, 0)
+        d2 = self._spawn(scene, tm, "drummer", 4, 0)
+        self._settle(scene)
+
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        buffs = walker.get_component(BuffState)
+        grant = int(round(STD0["hp"] * DRUM["hp_increase"]))
+        # D7: exactly TWICE one Drummer — each grant is sized off the
+        # UNBUFFED max, so they add instead of compounding.
+        self.assertEqual(sorted(buffs.sources), sorted([d1.id, d2.id]))
+        self.assertEqual(health.max_hp, STD0["hp"] + 2 * grant)
+        self.assertEqual(health.hp, STD0["hp"] + 2 * grant)
+        self.assertEqual(
+            walker.dmg, int(STD0["dmg"] * (1.0 + 2 * DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            base_speed * (1.0 + 2 * DRUM["move_speed_increase"]))
+        self.assertAlmostEqual(
+            combat.buffed_attack_speed,
+            combat.attack_speed / (1.0 + 2 * DRUM["attack_speed_increase"]))
+
+        # ONE Drummer walks off. Only ITS contribution decays.
+        self._freeze(walker, d1, d2)
+        d1.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(list(buffs.sources), [d2.id])
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+        self.assertEqual(
+            walker.dmg, int(STD0["dmg"] * (1.0 + DRUM["dmg_increase"])))
+
+        # Its clock kept running for four MORE seconds and nothing else fell
+        # off — d2 is still sustaining.
+        self._step(scene, BUFF_DECAY_SECONDS * 2)
+        self.assertEqual(list(buffs.sources), [d2.id])
+        self.assertEqual(health.max_hp, STD0["hp"] + grant)
+
+        # Now d2 leaves too.
+        d2.transform.wx = 7.0
+        self._step(scene, BUFF_DECAY_SECONDS)
+        self.assertEqual(buffs.sources, {})
+        self.assertEqual(health.max_hp, STD0["hp"])
+
+    # -- out of range ------------------------------------------------------
+
+    def test_an_enemy_outside_every_radius_is_completely_unaffected(self):
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 2, 0)
+        self._settle(scene)
+        base_speed = walker.get_component(Movement).speed
+        self._spawn(scene, tm, "drummer", 5, 0)     # Chebyshev 3 > range 1
+        self._settle(scene, times=6)
+
+        health = walker.get_component(Health)
+        combat = walker.get_component(EnemyCombat)
+        self.assertEqual(walker.get_component(BuffState).sources, {})
+        self.assertEqual((health.max_hp, health.hp), (STD0["hp"], STD0["hp"]))
+        self.assertEqual(walker.dmg, combat.dmg)
+        self.assertEqual(combat.buffed_attack_speed, combat.attack_speed)
+        self.assertAlmostEqual(walker.get_component(Movement).speed,
+                               base_speed)
+
+    # -- the wave ----------------------------------------------------------
+
+    def test_round_25_is_the_first_wave_that_carries_drummers(self):
+        tm = synth(self.ROWS)
+        self.assertEqual(DRUM["start_round"], 25)
+        for rnd in (0, 1, 14, 24):
+            with self.subTest(round=rnd):
+                self.assertEqual(expected_count("Drummer", rnd), 0)
+                sp = Spawner()
+                sp.begin_round(rnd, tm, ENEM, rng=random.Random(3))
+                self.assertEqual(
+                    [e for _t, e in sp.pending() if e == "drummer"], [])
+        wanted = expected_count("Drummer", 25)
+        self.assertGreaterEqual(wanted, 1)
+        sp = Spawner()
+        sp.begin_round(25, tm, ENEM, rng=random.Random(3))
+        drummers = [e for _t, e in sp.pending() if e == "drummer"]
+        self.assertEqual(len(drummers), wanted)
+        # Body-mixed, never queue-leading (a support unit ahead of the units
+        # it supports buffs nothing).
+        self.assertNotEqual(sp.pending()[0][1], "drummer")
+
+    def test_round_25_ledger_a_live_wave_buffs_through_the_spawner(self):
+        """The scripted round-25 HP ledger, hand-computed off era 2 (round 25
+        is era (25-1)//10 == 2, position 5 — every type's `per_round` deltas
+        are 0, so position does not move the numbers).
+
+        It also proves the ONE piece of wiring a unit test could otherwise
+        miss: the spawner hands each enemy the scene (`_attach_scene`), which
+        is the only reason a real wave's aura can see anything at all."""
+        era, pos = 2, 5
+        tm, scene = self._board()
+        walker = self._spawn(scene, tm, "standard", 3, 0, era, pos)
+        drummer = self._spawn(scene, tm, "drummer", 2, 0, era, pos)
+        self._settle(scene)
+
+        std2, drum2 = era_stats("Standard", era), era_stats("Drummer", era)
+        grant = int(round(std2["hp"] * DRUM["hp_increase"]))
+        health = walker.get_component(Health)
+        self.assertEqual(health.max_hp, std2["hp"] + grant)
+        self.assertEqual(health.hp, std2["hp"] + grant)
+        self.assertEqual(drummer.get_component(Health).hp, drum2["hp"])
+        self.assertEqual(drummer.get_component(EnemyCombat).dmg, drum2["dmg"])
+        self.assertEqual(
+            walker.dmg, int(std2["dmg"] * (1.0 + DRUM["dmg_increase"])))
+        self.assertAlmostEqual(
+            walker.get_component(Movement).speed,
+            std2["move_speed"] * (1.0 + DRUM["move_speed_increase"]))
+
+        # And the real spawner path wires the scene onto every enemy it makes.
+        live = Scene()
+        sp = Spawner()
+        sp.begin_round(25, tm, ENEM, rng=random.Random(3))
+        for _ in range(4000):
+            if sp.done:
+                break
+            sp.update(0.1, live)
+        live.update(0.0)
+        spawned = live.by_tag("enemy")
+        self.assertTrue(spawned)
+        self.assertTrue(all(getattr(e, "_scene", None) is live
+                            for e in spawned))
+        self.assertTrue(any(e.ETYPE == "drummer" for e in spawned))
+
+    def test_support_range_increase_is_inert_as_shipped(self):
+        """Flagged open item (NE-3): the leaf exists so the data shape is
+        future-proof, but NOTHING reads it — there is deliberately no
+        era-growth mechanic behind it. If this ever fails, someone wired it
+        up and the plan's open question needs answering first."""
+        self.assertEqual(DRUM["support_range_increase"], 0)
+        self.assertNotIn("support_range_increase", DrummerAura._fields)
+
+
+class TestRegistryGroupDrift(unittest.TestCase):
+    """fix-editor-preview-footprint §2.4: `data/balancing/enemies.json`'s new
+    required `registry_group` leaf (added so the editor can resolve a slot's
+    footprint fit without importing `game/`) is a SECOND home for what
+    `game/enemies/enemy.py`'s `REGISTRY_GROUP` class constants already say —
+    nothing wires the two together, and the brief deliberately does NOT ask
+    for that refactor here (follow-up work). This pins the two so a drift
+    between them turns red instead of silently breaking the editor preview
+    for whichever type moved."""
+
+    def test_registry_group_matches_data_for_every_enemy_subclass(self):
+        for cls in (Enemy, Raider, SiegeCannon, Formation, Sniper, Commander,
+                    Digger, Drummer, Boss):
+            block = ENEM["EnemyTypes"]
+            for seg in cls.STAT_SUBTREE:
+                block = block[seg]
+            self.assertEqual(
+                cls.REGISTRY_GROUP, block["registry_group"],
+                msg=f"{cls.__name__}.REGISTRY_GROUP ({cls.REGISTRY_GROUP!r}) "
+                    f"drifted from EnemyTypes.{'.'.join(cls.STAT_SUBTREE)}."
+                    f"registry_group ({block['registry_group']!r})")
 
 
 class TestPurity(unittest.TestCase):

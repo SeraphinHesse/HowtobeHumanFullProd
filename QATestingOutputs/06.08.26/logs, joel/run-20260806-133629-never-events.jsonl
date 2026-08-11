@@ -1,0 +1,4 @@
+{"t": "run_start", "round": 0, "phase": "BUILDING", "frame": 0, "wall_ms": 2833, "level": 1, "run_id": "run-20260806-133629-never", "map_id": "summertest3", "seed": null, "love": 25, "lives": 3, "player_name": "", "player_skill": "never"}
+{"t": "place", "round": 0, "phase": "BUILDING", "frame": 17485, "wall_ms": 7588, "building_type": "economic", "col": 512, "row": 512, "cost": 10, "tier": 0}
+{"t": "wave_start", "round": 0, "phase": "BUILDING", "frame": 17544, "wall_ms": 10671, "wave_size": 1, "enemy_tier": 0, "composition": {"standard": 1}, "love": 15, "lives": 3}
+{"t": "run_end", "round": 0, "phase": "ENEMY", "frame": 17598, "wall_ms": 15052, "outcome": "quit", "rounds": 0}

@@ -4,7 +4,7 @@
 a known-good moment. Tests import it instead of ``REPO / "data"`` so that a
 designer editing live data can never turn the gate red — the exact doctrine
 ``TempDataCase.unassign_slot`` states for writes ("pin the fixture instead of
-inheriting it"), applied to readers. ``planning/TestFixturePinningPLAN.md``
+inheriting it"), applied to readers. ``planning/completed plans/TestFixturePinningPLAN.md``
 records the plan; ``test_fixture_guard.py`` enforces it.
 
 Deliberately NOT in the snapshot:

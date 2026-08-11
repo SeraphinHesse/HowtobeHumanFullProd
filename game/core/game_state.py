@@ -89,6 +89,45 @@ class RunState:
     log_events: list = field(default_factory=list)
     enemy_death_events: list = field(default_factory=list)
     # -- /10J --
+    # -- TU-5: registry-driven cutscene request -----------------------------
+    # {"id": <registry key>} queued by Session.end_turn() on the FIRST End
+    # Turn of the run (round 0's tutorial round, or round 1 on a skipped
+    # run — see first_end_turn_cutscene_requested below), BEFORE
+    # spawner.begin_round(); consumed (set back to None) by the host once it
+    # starts playing the matching CutscenePlayer. Never serialized.
+    pending_cutscene: object = None
+    # -- TU-9: one-shot latch for the above (round 0 = tutorial) ------------
+    # The prototype/TU-5 keyed the cutscene request on `round_num == 1`; once
+    # the tutorial became round 0, that test would silently never fire for a
+    # real tutorial run. This flag fires the request on the first
+    # `end_turn()` of the run, whether that round is 0 (tutorial) or 1
+    # (skipped straight to round 1), and never again. Never serialized.
+    first_end_turn_cutscene_requested: bool = False
+    # -- ESV-5: splash-impact trigger ledger ---------------------------------
+    # A mortar shell's landing point, same drained-by-UI contract as
+    # enemy_death_events: `(wx, wy)` world points. Appended by
+    # game/enemies/combat.py's ProjectileArc._impact via resolve_combat's
+    # optional on_splash_impact callback (game/enemies imports NO game/core —
+    # the callback crosses the boundary opaquely, the on_enemy_death
+    # pattern); drained by game/ui/effects.py's spawn_splash_impact_events
+    # (called beside spawn_death_events) into the splash_impact trigger row.
+    # The Crater GameObject's own continuous fade mark spawns unconditionally
+    # regardless of this ledger — this only decides whether an ADDITIONAL
+    # one-shot cosmetic plays at the same point.
+    splash_impact_events: list = field(default_factory=list)
+    # -- /ESV-5 --
+    # -- ESV-6: defender_fire / projectile_hit trigger ledgers ---------------
+    # Same drained-by-UI contract as splash_impact_events: `(wx, wy)` world
+    # points, already muzzle/impact-anchored by the producer (game/enemies/
+    # combat.py's _fire/_fire_splash for defender_fire, ProjectileHoming.
+    # _impact for projectile_hit) via resolve_combat's two new optional
+    # callbacks. Both trigger rows ship INERT (empty sprite_slot/procedural),
+    # so filling these ledgers is a no-op emit on a fresh checkout — see
+    # game/ui/effects.py's spawn_defender_fire_events/spawn_projectile_hit_
+    # events.
+    defender_fire_events: list = field(default_factory=list)
+    projectile_hit_events: list = field(default_factory=list)
+    # -- /ESV-6 --
     # -- 10H: lightning + cheat menu ---------------------------------------
     # Lightning strike ability (see game/core/lightning.py). SEEDED AT LEVEL 0
     # (Storm Priest wiring): every run now boots with lightning LOCKED —
@@ -104,9 +143,30 @@ class RunState:
     # erases the prototype's quirk of upgrades persisting across "new game"
     # in the same app session (the 10F combat-speed treatment). The seed is
     # structural (like combat_speed_idx), so no from_balance change.
+    #
+    # feature-storm-acolyte-multi-build: its MEANING narrowed — several Storm
+    # Priests may now be placed, each levelled independently, so this field
+    # is no longer "the" ability's level. It stays as a pure UI/gating
+    # signal (is lightning unlocked at all / the best tier ever placed, via
+    # the same latching max() both helpers below already used) — nothing
+    # reads it for damage/radius/cooldown any more (that comes off each
+    # firing building's own tier). `lightning_cooldown` is DELETED: the
+    # cooldown moved onto each acolyte's own `LightningCaster` component
+    # (game/core/lightning.py), since a run can have several now, each on
+    # its own clock.
     lightning_level: int = 0
-    lightning_cooldown: float = 0.0
     # -- /10H --
+    # -- feature-enemy-intro-dialogue -----------------------------------
+    # Queued at ``Session.end_turn()`` when one or more ``core.json``
+    # ``EnemyIntro.entries`` match ``round_num`` (the LEVELUP/
+    # ``pending_boss_cutscene`` "transient request" precedent — never
+    # serialized). The host opens ``entries[0]`` on the BUILDING ->
+    # ENEMY_INTRO phase edge; ``Session.resolve_enemy_intro()`` pops the
+    # shown entry once its close animation finishes, re-arming the host to
+    # open the new head entry, and returns the phase to ENEMY once the
+    # queue drains.
+    pending_enemy_intros: list = field(default_factory=list)
+    # -- /feature-enemy-intro-dialogue --
 
     @classmethod
     def from_balance(cls, core_balance, buildings_balance):

@@ -31,7 +31,8 @@ BUILDINGS_BAL = load_balance(FIXTURE_DATA, "buildings")
 ENEMIES_BAL = load_balance(FIXTURE_DATA, "enemies")
 CORE_BAL = load_balance(FIXTURE_DATA, "core")
 UI_BAL = load_balance(FIXTURE_DATA, "ui")
-VIEW_W, VIEW_H = 1280, 720
+VFX_BAL = load_balance(FIXTURE_DATA, "vfx")  # ESV-3a: FloaterManager's 3rd arg
+VIEW_W, VIEW_H = 640, 360
 
 
 def make_world():
@@ -152,6 +153,104 @@ class TestBatchConstructAndUpgrade(unittest.TestCase):
             lvl = t.occupant.get_component(TierState).current_level_in_tier
             self.assertEqual(lvl, 2)
 
+    def test_batch_advance_catches_up_and_sums_multiple(self):
+        """fix/batch-tier-advance: a multi-selection where every building can
+        reach the next tier -- one already at tier max, one still mid-tier --
+        advances BOTH in one click, one combined cost (catch-up + advance)."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        b_ready, b_catchup = (t.occupant for t in tiles)
+        b_ready.get_component(TierState).current_level_in_tier = 3  # tier max
+        # b_catchup stays at level 1 -- needs 2 more in-tier levels first
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2  # Slinger researched
+
+        tier0 = BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]["tiers"][0]
+        tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
+                      ["tiers"][1]["build_cost"])
+        catchup = sum(
+            tier0["upgrade_cost_base"] + (lvl - 1) * tier0["upgrade_cost_increment"]
+            for lvl in (1, 2))
+        expected_total = tier1_cost + (tier1_cost + catchup)
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        self.assertEqual(panel.mode, "upgrade")
+        targets = panel._batch_advance_targets()
+        self.assertEqual({t[0] for t in targets}, {b_ready, b_catchup})
+        self.assertIn("ADVANCE", panel.action_btn.label)
+        self.assertEqual(panel._action_cost, expected_total)
+
+        session.state.love = expected_total + 5
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - expected_total)
+        for b in (b_ready, b_catchup):
+            ts = b.get_component(TierState)
+            self.assertEqual(ts.current_tier, 1)
+            self.assertEqual(ts.current_level_in_tier, 1)
+
+    def test_batch_advance_excludes_buildings_that_cannot_reach_next_tier(self):
+        """A building already at its FINAL tier can't advance no matter what
+        -- it's silently excluded from the batch and left untouched, while
+        the eligible one in the same selection still advances."""
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        b_eligible, b_stuck = (t.occupant for t in tiles)
+        b_eligible.get_component(TierState).current_level_in_tier = 3
+        b_stuck.get_component(TierState).current_tier = 2  # Pistoleer (final tier)
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        targets = panel._batch_advance_targets()
+        self.assertEqual([t[0] for t in targets], [b_eligible])
+
+        tier1_cost = (BUILDINGS_BAL["DefenceBuildings"]["BasicDefence"]
+                      ["tiers"][1]["build_cost"])
+        love_before = session.state.love
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, love_before - tier1_cost)
+        self.assertEqual(b_eligible.get_component(TierState).current_tier, 1)
+        self.assertEqual(b_stuck.get_component(TierState).current_tier, 2)
+
+    def test_batch_advance_all_or_nothing_when_unaffordable(self):
+        tm, scene, occupancy, session = make_world()
+        panel = make_panel()
+        tiles = [tm.get(2, 1), tm.get(2, 2)]
+        session.state.love = 999
+        self._open_construct(panel, session, tiles)
+        panel.handle_click(*click(panel.preview.confirm_btn), session,
+                           BUILDINGS_BAL, scene, occupancy)
+        for t in tiles:
+            t.occupant.get_component(TierState).current_level_in_tier = 3
+        session.state.round_num = 10
+        session.state.tiers_unlocked["defence"] = 2
+
+        panel.open_for_tile(tiles[0], session, BUILDINGS_BAL,
+                            selected_tiles=tiles)
+        total = panel._action_cost
+        self.assertGreater(total, 0)
+        session.state.love = total - 1
+        panel.handle_click(*click(panel.action_btn), session, BUILDINGS_BAL,
+                           scene, occupancy)
+        self.assertEqual(session.state.love, total - 1)  # nothing spent
+        for t in tiles:
+            self.assertEqual(t.occupant.get_component(TierState).current_tier, 0)
+
     def test_dice_and_rename_preserve_rebirth_chain(self):
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
@@ -232,18 +331,23 @@ class TestPreviews(unittest.TestCase):
         return panel, tile.occupant
 
     def test_next_level_rows_show_upgraded_stats(self):
+        # UT-3: stat rows are keyed by STAT KEY, not by display label — the
+        # hover preview matches on the key now, so renaming a stat in
+        # strings.json can no longer silently break the green highlight.
         panel, b = self._place_defender()
         rows = dict(panel._next_level_rows(b))
         d = b.tier_data()
-        self.assertEqual(rows["HP"], d["base_hp"] + d["hp_per_level"])
-        self.assertEqual(rows["Damage"], d["base_dmg"] + d["dmg_per_level"])
+        self.assertEqual(rows["hp"], d["base_hp"] + d["hp_per_level"])
+        self.assertEqual(rows["damage"], d["base_dmg"] + d["dmg_per_level"])
 
     def test_next_tier_card_reads_tier_two(self):
+        # UT-3: the card returns the bare tier NAME; the "Next: {name}"
+        # wrapper is the id'd header widget's own string template.
         panel, b = self._place_defender()
-        slot, header, rows = panel._next_tier_card(b)
+        slot, next_name, rows = panel._next_tier_card(b)
         tier2 = b._tiers[1]
-        self.assertEqual(header, f"Next: {tier2['name']}")
-        self.assertEqual(dict(rows)["HP"], tier2["base_hp"])
+        self.assertEqual(next_name, tier2["name"])
+        self.assertEqual(dict(rows)["hp"], tier2["base_hp"])
 
 
 class TestIncomeSources(unittest.TestCase):
@@ -269,23 +373,28 @@ class TestIncomeSources(unittest.TestCase):
 
 
 class TestFxHooks(unittest.TestCase):
+    """ESV-3a moved the particle/gold/splatter LISTS onto the FloaterManager's
+    VfxSystem (``fm._vfx``) — these tests peek one level deeper
+    (``fm._vfx._particles`` etc.) than before ESV-3a, but assert the exact
+    same counts (the port is a byte-identical no-op)."""
+
     def test_building_vfx_presets_and_gold(self):
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         fm.spawn_building_vfx(3, 3, "place")
-        self.assertEqual(len(fm._particles), 10)
-        self.assertEqual(len(fm._gold), 1)
+        self.assertEqual(len(fm._vfx._particles), 10)
+        self.assertEqual(len(fm._vfx._gold), 1)
         fm.spawn_building_vfx(3, 3, "level1")
-        self.assertEqual(len(fm._particles), 17)  # +7, no new highlight
-        self.assertEqual(len(fm._gold), 1)
+        self.assertEqual(len(fm._vfx._particles), 17)  # +7, no new highlight
+        self.assertEqual(len(fm._vfx._gold), 1)
         fm.update(2.0)  # everything ages out
-        self.assertEqual(len(fm._particles), 0)
-        self.assertEqual(len(fm._gold), 0)
+        self.assertEqual(len(fm._vfx._particles), 0)
+        self.assertEqual(len(fm._vfx._gold), 0)
 
     def test_death_watcher_bursts_and_logs_named_only(self):
         tm, scene, occupancy, session = make_world()
         panel = make_panel()
         log = GameLog()
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
         session.state.love = 999
         tile = tm.get(2, 1)
         panel.open_for_tile(tile, session, BUILDINGS_BAL)
@@ -301,26 +410,26 @@ class TestFxHooks(unittest.TestCase):
         from engine.core import Health
         b.get_component(Health).damage(10 ** 6)
         fm.watch_buildings(scene, log)      # sees the death once
-        self.assertGreater(len(fm._particles), 0)
+        self.assertGreater(len(fm._vfx._particles), 0)
         self.assertEqual(log._messages[-1][0], "Rex has been killed")
-        n = len(fm._particles)
+        n = len(fm._vfx._particles)
         fm.watch_buildings(scene, log)      # no double burst
-        self.assertEqual(len(fm._particles), n)
+        self.assertEqual(len(fm._vfx._particles), n)
 
     def test_splatters_gated_and_cleared(self):
-        fm = FloaterManager(UI_BAL, CORE_BAL)
+        fm = FloaterManager(UI_BAL, CORE_BAL, VFX_BAL)
 
         class _S:
             enemy_death_events = [(3.0, 4.0)]
 
         fm.spawn_death_events(_S, gore_on=False)   # settings toggle off
-        self.assertEqual(fm._splatters, [])
+        self.assertEqual(fm._vfx._splatters, [])
         self.assertEqual(_S.enemy_death_events, [])  # ledger drains anyway
         _S.enemy_death_events = [(3.0, 4.0), (5.0, 6.0)]
         fm.spawn_death_events(_S, gore_on=True)
-        self.assertEqual(len(fm._splatters), 2)
+        self.assertEqual(len(fm._vfx._splatters), 2)
         fm.clear_splatters()
-        self.assertEqual(fm._splatters, [])
+        self.assertEqual(fm._vfx._splatters, [])
 
 
 class TestStormPriestLightningSeam(unittest.TestCase):

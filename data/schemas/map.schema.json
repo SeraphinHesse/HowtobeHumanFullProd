@@ -8,21 +8,130 @@
       "additionalProperties": false,
       "description": "Dijkstra edge weights by tile content, plus damage-based weight reduction.",
       "properties": {
+        "buildings_overwrite_tileweights": {
+          "description": "Master switch: when true, a live building's content weight OVERWRITES its tile's terrain condition weight instead of adding to it (stops the water-parking exploit). OR'd with content_weight_overwrites/path_weight_overwritable per-key overrides.",
+          "type": "boolean"
+        },
+        "content_weight_overwrites": {
+          "additionalProperties": false,
+          "description": "Per-building-type override: when true, that building's content weight OVERWRITES its tile's terrain condition weight instead of adding to it, independent of the master switch. Non-building content keys (buildable_tile/combat_tile/spawning_tile/impassable) have no entry here - they never occupy a tile.",
+          "properties": {
+            "aoe_defence_building": {
+              "description": "Overwrite terrain weight when an AOE defence building occupies the tile.",
+              "type": "boolean"
+            },
+            "base_building": {
+              "description": "Overwrite terrain weight when the base building occupies the tile.",
+              "type": "boolean"
+            },
+            "blocker_building": {
+              "description": "Overwrite terrain weight when a blocker structure occupies the tile.",
+              "type": "boolean"
+            },
+            "boost_damage_building": {
+              "description": "Overwrite terrain weight when a damage boost building occupies the tile.",
+              "type": "boolean"
+            },
+            "boost_hp_building": {
+              "description": "Overwrite terrain weight when an HP boost building occupies the tile.",
+              "type": "boolean"
+            },
+            "boost_speed_building": {
+              "description": "Overwrite terrain weight when a speed boost building occupies the tile.",
+              "type": "boolean"
+            },
+            "defence_building": {
+              "description": "Overwrite terrain weight when a basic defence building occupies the tile.",
+              "type": "boolean"
+            },
+            "economic_building": {
+              "description": "Overwrite terrain weight when an economy building occupies the tile.",
+              "type": "boolean"
+            },
+            "meditator_building": {
+              "description": "Overwrite terrain weight when a meditator building occupies the tile.",
+              "type": "boolean"
+            },
+            "painter_building": {
+              "description": "Overwrite terrain weight when a painter building occupies the tile.",
+              "type": "boolean"
+            },
+            "storm_priest_building": {
+              "description": "Overwrite terrain weight when a storm priest building occupies the tile.",
+              "type": "boolean"
+            },
+            "sun_scorcher_building": {
+              "description": "Overwrite terrain weight when a sun scorcher building occupies the tile.",
+              "type": "boolean"
+            },
+            "wall_builder_building": {
+              "description": "Overwrite terrain weight when a wall builder structure occupies the tile.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "aoe_defence_building",
+            "base_building",
+            "blocker_building",
+            "boost_damage_building",
+            "boost_hp_building",
+            "boost_speed_building",
+            "defence_building",
+            "economic_building",
+            "meditator_building",
+            "painter_building",
+            "storm_priest_building",
+            "sun_scorcher_building",
+            "wall_builder_building"
+          ],
+          "type": "object",
+          "x-paired": true
+        },
         "content_weights": {
           "additionalProperties": false,
-          "description": "Path weight contributed by what stands on a tile (higher = avoided; impassable is effectively a wall).",
+          "description": "Path weight contributed by what stands on a tile (higher = avoided; impassable is effectively a wall). Building keys ADD to a tile's terrain condition weight by default, or OVERWRITE it when buildings_overwrite_tileweights / content_weight_overwrites / path_weight_overwritable resolves true for that tile (see Pathfinding docs).",
           "properties": {
             "aoe_defence_building": {
               "description": "Weight of a tile holding an AOE defence building.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             },
             "base_building": {
               "description": "Weight of the base tile (0 keeps the hole maximally attractive).",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "blocker_building": {
+              "description": "Weight of a tile holding a blocker structure.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "boost_damage_building": {
+              "description": "Weight of a tile holding a damage boost building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "boost_hp_building": {
+              "description": "Weight of a tile holding an HP boost building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "boost_speed_building": {
+              "description": "Weight of a tile holding a speed boost building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             },
             "buildable_tile": {
               "description": "Weight of an empty buildable tile.",
@@ -40,13 +149,15 @@
               "description": "Weight of a tile holding a basic defence building.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             },
             "economic_building": {
               "description": "Weight of a tile holding an economy building.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             },
             "impassable": {
               "description": "Weight of an impassable tile (effectively infinite).",
@@ -54,29 +165,66 @@
               "minimum": 0,
               "type": "integer"
             },
+            "meditator_building": {
+              "description": "Weight of a tile holding a meditator building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
             "painter_building": {
               "description": "Weight of a tile holding a painter building.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             },
             "spawning_tile": {
               "description": "Weight of a spawn-zone tile.",
               "maximum": 10000,
               "minimum": 0,
               "type": "integer"
+            },
+            "storm_priest_building": {
+              "description": "Weight of a tile holding a storm priest building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "sun_scorcher_building": {
+              "description": "Weight of a tile holding a sun scorcher building.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
+            },
+            "wall_builder_building": {
+              "description": "Weight of a tile holding a wall builder structure.",
+              "maximum": 10000,
+              "minimum": 0,
+              "type": "integer",
+              "x-toggle": "content_weight_overwrites"
             }
           },
           "required": [
             "aoe_defence_building",
             "base_building",
+            "blocker_building",
+            "boost_damage_building",
+            "boost_hp_building",
+            "boost_speed_building",
             "buildable_tile",
             "combat_tile",
             "defence_building",
             "economic_building",
             "impassable",
+            "meditator_building",
             "painter_building",
-            "spawning_tile"
+            "spawning_tile",
+            "storm_priest_building",
+            "sun_scorcher_building",
+            "wall_builder_building"
           ],
           "type": "object"
         },
@@ -112,6 +260,8 @@
         }
       },
       "required": [
+        "buildings_overwrite_tileweights",
+        "content_weight_overwrites",
         "content_weights",
         "damage_reduction"
       ],
@@ -252,6 +402,31 @@
           ],
           "type": "object"
         },
+        "path_weight_overwritable": {
+          "additionalProperties": false,
+          "description": "Per-condition override: when true, a live overwriting building on a tile of this condition drops the terrain condition weight entirely (overwrite) rather than adding to it, independent of the master switch and the per-building overrides.",
+          "properties": {
+            "forest": {
+              "description": "Overwritable when the tile's condition is forest.",
+              "type": "boolean"
+            },
+            "mountain": {
+              "description": "Overwritable when the tile's condition is mountain.",
+              "type": "boolean"
+            },
+            "pond": {
+              "description": "Overwritable when the tile's condition is pond.",
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "forest",
+            "mountain",
+            "pond"
+          ],
+          "type": "object",
+          "x-paired": true
+        },
         "path_weights": {
           "additionalProperties": false,
           "description": "Extra path weight per condition (higher = enemies avoid it).",
@@ -260,19 +435,22 @@
               "description": "Extra weight of a forest tile.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "path_weight_overwritable"
             },
             "mountain": {
               "description": "Extra weight of a mountain tile.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "path_weight_overwritable"
             },
             "pond": {
               "description": "Extra weight of a pond tile.",
               "maximum": 10000,
               "minimum": 0,
-              "type": "integer"
+              "type": "integer",
+              "x-toggle": "path_weight_overwritable"
             }
           },
           "required": [
@@ -323,6 +501,7 @@
       "required": [
         "min_speed_fraction",
         "modifiers",
+        "path_weight_overwritable",
         "path_weights",
         "spawn_chances"
       ],
@@ -342,6 +521,10 @@
           "minimum": 0,
           "type": "integer"
         },
+        "spawn_recede_enabled": {
+          "description": "Master switch for the OLD implicit spawn-recede rule (spawning tiles turning buildable as the player unlocks land). If false the spawn band never recedes on unlock, whatever the painted spawn-reserve state is.",
+          "type": "boolean"
+        },
         "unlock_cost_distance_mod": {
           "description": "Extra love cost per tile of distance from the base.",
           "maximum": 10000,
@@ -352,6 +535,7 @@
       "required": [
         "adjacent_unlock_only",
         "base_unlock_cost",
+        "spawn_recede_enabled",
         "unlock_cost_distance_mod"
       ],
       "type": "object"

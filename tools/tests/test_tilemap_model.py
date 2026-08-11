@@ -370,6 +370,163 @@ class TestStartArea(unittest.TestCase):
         self.assertNotIn("start_area", [i.slot_key for i in windowed])
 
 
+class TestTutorialMarkers(unittest.TestCase):
+    """The tutorial-flute / tutorial-stone markers (D1, planning/
+    TutorialPLAN.md): two single-tile nullable movable map objects mirroring
+    camera_start; deliberately NOT emitted by the render emitters (the editor
+    draws its own overlay, the game never draws them)."""
+
+    def test_defaults_to_none_and_round_trips(self):
+        doc = make_doc()
+        self.assertIsNone(doc.tutorial_flute)  # absent by default
+        self.assertIsNone(doc.tutorial_stone)
+        doc.tutorial_flute = {"col": 2, "row": 3, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 3, "row": 4, "slot": "tutorial_stone"}
+        again = tilemap.from_dict(tilemap.to_dict(doc))
+        self.assertEqual(again.tutorial_flute,
+                         {"col": 2, "row": 3, "slot": "tutorial_flute"})
+        self.assertEqual(again.tutorial_stone,
+                         {"col": 3, "row": 4, "slot": "tutorial_stone"})
+        self.assertEqual(again, doc)
+
+    def test_disk_round_trip_with_tutorial_markers(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": 1, "row": 1, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 4, "row": 3, "slot": "tutorial_stone"}
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = Path(tmp.name) / "testmap.json"
+        tilemap.save_map(doc, path, SCHEMA)
+        self.assertEqual(tilemap.load_map(path, SCHEMA), doc)
+
+    def test_slot_const_from_schema(self):
+        schema = data_io.load_json(SCHEMA)
+        self.assertEqual(
+            tilemap.tutorial_flute_slot_from_schema(schema), "tutorial_flute")
+        self.assertEqual(
+            tilemap.tutorial_stone_slot_from_schema(schema), "tutorial_stone")
+
+    def test_new_doc_has_no_tutorial_markers(self):
+        doc = tilemap.new_doc("newmap", "New Map", 8, 8, SCHEMA)
+        self.assertIsNone(doc.tutorial_flute)
+        self.assertIsNone(doc.tutorial_stone)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": doc.cols, "row": 0, "slot": "tutorial_flute"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+        doc = make_doc()
+        doc.tutorial_stone = {"col": 0, "row": doc.rows, "slot": "tutorial_stone"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+    def test_never_emitted_by_render_emitters(self):
+        doc = make_doc()
+        doc.tutorial_flute = {"col": 1, "row": 1, "slot": "tutorial_flute"}
+        doc.tutorial_stone = {"col": 2, "row": 1, "slot": "tutorial_stone"}
+        full = tilemap.render_items(doc, camera=True)
+        self.assertNotIn("tutorial_flute", [i.slot_key for i in full])
+        self.assertNotIn("tutorial_stone", [i.slot_key for i in full])
+        windowed = tilemap.visible_render_items(doc, 0, 5, 0, 4, camera=True)
+        self.assertNotIn("tutorial_flute", [i.slot_key for i in windowed])
+        self.assertNotIn("tutorial_stone", [i.slot_key for i in windowed])
+
+
+class TestSpawnableBackground(unittest.TestCase):
+    """The designer-painted spawn reserve: {(col,row): stage} in memory, a
+    list sorted by (row, col) on disk."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.spawnable_background, {})  # empty by default
+        doc.spawnable_background = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["spawnable_background"], [
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.spawnable_background = {(0, doc.rows): 1}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
+class TestDespawnableSpawn(unittest.TestCase):
+    """The designer-painted despawn schedule: same shape as the spawn reserve —
+    {(col,row): stage} in memory, a list sorted by (row, col) on disk."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.despawnable_spawn, {})  # empty by default
+        doc.despawnable_spawn = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["despawnable_spawn"], [
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.despawnable_spawn = {(0, doc.rows): 1}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
+class TestStageZones(unittest.TestCase):
+    """The designer-painted stage zones: the third overlay of the same shape —
+    {(col,row): stage} in memory, a list sorted by (row, col) on disk."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.stage_zones, {})  # empty by default
+        doc.stage_zones = {(3, 1): 2, (0, 1): 5, (4, 0): 1}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["stage_zones"], [
+            {"col": 4, "row": 0, "stage": 1},
+            {"col": 0, "row": 1, "stage": 5},
+            {"col": 3, "row": 1, "stage": 2},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.stage_zones = {(0, doc.rows): 1}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
+class TestTileConditions(unittest.TestCase):
+    """The designer-painted tile conditions: the fourth overlay of the same
+    shape — {(col,row): name} in memory, a list sorted by (row, col) on disk.
+    The value is an opaque NAME here, not a stage number."""
+
+    def test_round_trips_dict_to_sorted_list(self):
+        doc = make_doc()
+        self.assertEqual(doc.tile_conditions, {})  # empty by default
+        doc.tile_conditions = {(3, 1): "pond", (0, 1): "forest",
+                               (4, 0): "mountain"}
+        data = tilemap.to_dict(doc)
+        self.assertEqual(data["tile_conditions"], [
+            {"col": 4, "condition": "mountain", "row": 0},
+            {"col": 0, "condition": "forest", "row": 1},
+            {"col": 3, "condition": "pond", "row": 1},
+        ])
+        self.assertEqual(tilemap.from_dict(data), doc)
+
+    def test_out_of_bounds_fails_loud(self):
+        doc = make_doc()
+        doc.tile_conditions = {(0, doc.rows): "pond"}
+        with self.assertRaises(ValueError):
+            tilemap.validate_doc(doc)
+
+
 class TestBandRenderItems(unittest.TestCase):
     """Iso-diagonal ground emitter (d=col-row, s=col+row) for the ground cache's
     scroll strips: same tiles/slots as render_items over the covered cells, only

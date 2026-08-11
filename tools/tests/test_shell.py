@@ -16,11 +16,11 @@ from game.ui import Shell
 
 REPO = Path(__file__).resolve().parents[2]
 from tools.tests.fixture_data import FIXTURE_DATA
-VW, VH = 1280, 720
+VW, VH = 640, 360
 
 
 class _FakeAssets:
-    def frame(self, slot_key, animation="idle", anim_time_ms=0):
+    def frame(self, slot_key, animation="idle", anim_time_ms=0, extra_hidden=None):
         return Frame(surface=f"SURF:{slot_key}", frame_w=64, frame_h=64)
 
 

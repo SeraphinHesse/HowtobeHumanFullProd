@@ -47,6 +47,21 @@ def export_layouts_command(python_exe=None, repo=None):
            str(repo / "tools" / "export_ui_layouts.py")]
 
 
+def render_preview_command(overrides_path, out_path, python_exe=None,
+                           repo=None):
+    """UT-2: re-record `screen_previews.json` for an UNSAVED screen doc.
+
+    Same script as "Refresh Layouts", pointed at a temp override file and a
+    temp output file — `--previews-only` so a live preview render never
+    rewrites the committed `screen_defaults.json`."""
+    repo = Path(repo) if repo is not None else REPO
+    return [python_exe or sys.executable,
+            str(repo / "tools" / "export_ui_layouts.py"),
+            "--previews-only",
+            "--overrides", str(overrides_path),
+            "--previews-out", str(out_path)]
+
+
 def playbuild_path(repo=None):
     repo = Path(repo) if repo is not None else REPO
     return repo / "dist" / "HowToBeHuman" / "HowToBeHuman.exe"
@@ -94,6 +109,7 @@ class RunControls(QObject):
     finished = Signal(str, int)   # ("build", exit_code)
     build_state_changed = Signal(bool)  # re-evaluated after every Build finishes
     launched = Signal(str, bool)  # ("play" | "playbuild", started_ok) — detached
+    preview_rendered = Signal(int)  # UT-2 screen-preview render exit code
 
     def __init__(self, data_dir=None, repo=None, parent=None):
         super().__init__(parent)
@@ -101,6 +117,7 @@ class RunControls(QObject):
         self._data_dir = Path(data_dir) if data_dir is not None else self._repo / "data"
         self._process = None
         self._which = None
+        self._preview_process = None   # UT-2, its own slot — see render_preview
         self._detach = start_detached  # injectable per-instance for tests
 
     def is_running(self):
@@ -130,7 +147,35 @@ class RunControls(QObject):
         self._launch("export_layouts",
                      export_layouts_command(repo=self._repo))
 
+    def render_preview(self, overrides_path, out_path):
+        """UT-2: re-record the screen preview for an unsaved doc.
+
+        Deliberately its OWN process slot rather than `_launch`'s: this fires
+        after every screen-mode edit, and queueing it behind Build (or having
+        Build refuse because a preview render is in flight) would make both
+        feel broken. It streams nothing to the console for the same reason —
+        a designer nudging a widget does not want a console line per pixel.
+        A render already in flight is KILLED, not queued: only the newest doc
+        is worth drawing.
+        """
+        if self._preview_process is not None:
+            self._preview_process.kill()
+            self._preview_process = None
+        cmd = render_preview_command(overrides_path, out_path, repo=self._repo)
+        process = QProcess(self)
+        process.setWorkingDirectory(str(self._repo))
+        process.finished.connect(
+            lambda code, _status: self._on_preview_finished(code))
+        self._preview_process = process
+        process.start(cmd[0], cmd[1:])
+
     # -- internals -----------------------------------------------------------
+
+    def _on_preview_finished(self, code):
+        if not shiboken6.isValid(self):
+            return  # editor torn down mid-render; nothing left to notify
+        self._preview_process = None
+        self.preview_rendered.emit(code)
 
     def _launch(self, which, command):
         if self._process is not None:

@@ -45,12 +45,13 @@ PW = MAPBAL["TileConditions"]["path_weights"]
 LOVE = 10 ** 9
 
 
-def synth(rows, base=(0, 0), rng=None):
+def synth(rows, base=(0, 0), rng=None, tile_conditions=None):
     doc = tilemap.TileMapDoc(
         map_id="synth", display_name="Synth",
         cols=len(rows[0]), rows=len(rows),
         legend={}, terrain=[list(r) for r in rows],
-        base={"col": base[0], "row": base[1], "slot": "base_hole"}, deco=[])
+        base={"col": base[0], "row": base[1], "slot": "base_hole"}, deco=[],
+        tile_conditions=tile_conditions)
     return TileMap(doc, MAPBAL, rng=rng)
 
 
@@ -87,7 +88,7 @@ class TestConditionRoll(unittest.TestCase):
     def test_distribution_matches_spawn_chances(self):
         tm = synth(self.ROWS, rng=random.Random(42))
         eligible = [t for t in tm.all_tiles()
-                    if t.state in (TileState.COMBAT, TileState.SPAWNING)]
+                    if t.state == TileState.COMBAT]
         n = len(eligible)
         self.assertGreater(n, 1000)
         chances = MAPBAL["TileConditions"]["spawn_chances"]
@@ -110,6 +111,126 @@ class TestConditionRoll(unittest.TestCase):
         tm = synth(self.ROWS)   # rng=None -> the pre-10I neutral grid
         self.assertTrue(all(t.condition == TileCondition.GRASS
                             for t in tm.all_tiles()))
+
+
+class TestSpawnTilesAreConditionFreeUntilTheyConvert(unittest.TestCase):
+    """A spawn tile is a staging area, not a gameplay tile: it carries NO
+    condition at map construction and decides one only when it converts to
+    COMBAT. That covers `s -> c` and `f -> s -> c` alike, since both go
+    through the one `set_tile_state` seam."""
+
+    #: pocket, combat, a painted spawn band, background behind it
+    ROWS = ["bbcccc" + "s" * 6 + "f" * 8] * 12
+
+    def _map(self, seed=13, **kw):
+        return synth(self.ROWS, rng=random.Random(seed), **kw)
+
+    def test_the_init_roll_skips_the_spawn_band(self):
+        tm = self._map()
+        band = [t for t in tm.all_tiles() if t.state == TileState.SPAWNING]
+        self.assertGreater(len(band), 50)
+        for t in band:
+            self.assertEqual(t.condition, TileCondition.GRASS,
+                             (t.col, t.row))
+            self.assertFalse(t.condition_rolled, (t.col, t.row))
+
+    def test_converting_to_combat_rolls_the_condition(self):
+        tm = self._map()
+        band = [t for t in tm.all_tiles() if t.state == TileState.SPAWNING]
+        for t in band:
+            tm.set_tile_state(t, TileState.COMBAT)
+        for t in band:
+            self.assertTrue(t.condition_rolled, (t.col, t.row))
+        # a whole band's worth of draws cannot plausibly all come up grass
+        self.assertGreater(
+            len({t.condition for t in band}), 1,
+            "the deferred roll produced a single condition for the band")
+
+    def test_a_background_tile_rolls_on_the_f_to_s_to_c_route(self):
+        """The bug this replaces: a tile that entered play late used to stay
+        GRASS forever, because the init roll skipped it and never returned."""
+        tm = self._map()
+        tile = tm.get(15, 5)
+        self.assertEqual(tile.state, TileState.BACKGROUND)
+        tm.set_tile_state(tile, TileState.SPAWNING)
+        self.assertEqual(tile.condition, TileCondition.GRASS)
+        self.assertFalse(tile.condition_rolled)
+        tm.set_tile_state(tile, TileState.COMBAT)
+        self.assertTrue(tile.condition_rolled)
+
+    def test_the_roll_fires_once_and_survives_later_transitions(self):
+        tm = self._map()
+        tile = tm.get(6, 0)                       # spawn band
+        tm.set_tile_state(tile, TileState.COMBAT)
+        rolled = tile.condition
+        for state in (TileState.BUILDABLE, TileState.BUILT,
+                      TileState.COMBAT):
+            tm.set_tile_state(tile, state)
+            self.assertEqual(tile.condition, rolled, state)
+
+    def test_a_painted_spawn_tile_keeps_its_mark_through_the_conversion(self):
+        """A designer's mark still wins everywhere: it applies to the spawn
+        band immediately AND is never overwritten by the deferred roll."""
+        tm = self._map(tile_conditions={(6, 0): "pond", (7, 0): "mountain"})
+        for (col, row), cond in (((6, 0), TileCondition.POND),
+                                 ((7, 0), TileCondition.MOUNTAIN)):
+            tile = tm.get(col, row)
+            self.assertEqual(tile.state, TileState.SPAWNING)
+            self.assertEqual(tile.condition, cond)      # visible immediately
+            tm.set_tile_state(tile, TileState.COMBAT)
+            self.assertEqual(tile.condition, cond)      # never re-rolled
+
+    def test_no_rng_defers_nothing(self):
+        """`rng=None` is the all-GRASS headless-fixture mode for the deferred
+        roll exactly as it is for the init roll."""
+        tm = synth(self.ROWS)
+        tile = tm.get(6, 0)
+        tm.set_tile_state(tile, TileState.COMBAT)
+        self.assertEqual(tile.condition, TileCondition.GRASS)
+        self.assertFalse(tile.condition_rolled)
+
+    def test_the_conversion_roll_is_seed_deterministic(self):
+        def band_conditions(seed):
+            tm = self._map(seed=seed)
+            band = [t for t in tm.all_tiles()
+                    if t.state == TileState.SPAWNING]
+            for t in band:
+                tm.set_tile_state(t, TileState.COMBAT)
+            return [t.condition for t in band]
+
+        self.assertEqual(band_conditions(3), band_conditions(3))
+        self.assertNotEqual(band_conditions(3), band_conditions(4))
+
+
+class TestPaintedConditions(unittest.TestCase):
+    """The map doc's `tile_conditions` marks: applied unconditionally (even at
+    rng=None), locking their cell out of the roll and overriding EVERY
+    eligibility rule the roll applies (background, starting pocket, base)."""
+
+    ROWS = TestConditionRoll.ROWS
+    PAINT = {(5, 5): "pond",        # eligible combat tile
+             (0, 0): "mountain",    # the base, inside the starting pocket
+             (3, 39): "forest"}     # a BACKGROUND tile
+
+    def test_paint_wins_everywhere_and_locks_the_cell(self):
+        tm = synth(self.ROWS, rng=random.Random(42), tile_conditions=self.PAINT)
+        self.assertEqual(tm.get(5, 5).condition, TileCondition.POND)
+        self.assertEqual(tm.get(0, 0).condition, TileCondition.MOUNTAIN)
+        self.assertEqual(tm.get(3, 39).condition, TileCondition.FOREST)
+        # ... while unpainted eligible tiles still roll.
+        rolled = [t.condition for t in tm.all_tiles()
+                  if t.state == TileState.COMBAT and (t.col, t.row) != (5, 5)]
+        self.assertTrue(any(c != TileCondition.GRASS for c in rolled))
+
+    def test_paint_applies_without_an_rng(self):
+        tm = synth(self.ROWS, tile_conditions=self.PAINT)   # rng=None
+        self.assertEqual(tm.get(5, 5).condition, TileCondition.POND)
+        self.assertEqual(tm.get(0, 0).condition, TileCondition.MOUNTAIN)
+        self.assertEqual(tm.get(3, 39).condition, TileCondition.FOREST)
+        painted = set(self.PAINT)
+        self.assertTrue(all(t.condition == TileCondition.GRASS
+                            for t in tm.all_tiles()
+                            if (t.col, t.row) not in painted))
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +449,7 @@ class TestEnemyModifiers(unittest.TestCase):
         Siege is the closest of the normal types to that line and still clears
         it: 1.0 − 0.4 = 0.6 beats its 0.5 floor, so its number is unmoved."""
         tm = synth(["bbccs"])
-        real = ENEM["EnemyTypes"]["SiegeCannon"]["move_speed"]
+        real = ENEM["EnemyTypes"]["SiegeCannon"]["eras"][0]["stats"]["move_speed"]
         s = SiegeCannon(4, 0, ENEM, tm)
         pa = s.get_component(PathAgent)
         pa._current_condition = TileCondition.MOUNTAIN
@@ -435,6 +556,21 @@ class TestDamageReduction(unittest.TestCase):
         buildings[0].get_component(RoundStats).dmg_dealt_last_round = 5
         find_path(tm, 4, 1)
         self.assertEqual(self._flags(tm), {(2, 0), (3, 0), (4, 0)})
+
+
+# ---------------------------------------------------------------------------
+# 7b. buildings-overwrite-tileweights: a building's death must bump the
+#     shared flow field, or a stale field serves a pre-death route/cost.
+# ---------------------------------------------------------------------------
+class TestBuildingOverwriteFlowFieldInvalidation(unittest.TestCase):
+    def test_building_death_bumps_path_version(self):
+        tm = synth(["bbbbb"])
+        place(tm, 2, 0, "defence", TileCondition.MOUNTAIN)
+        find_path(tm, 4, 0)   # pre-query refresh populates _overwrite_prev
+        v0 = tm._path_version
+        tm.get(2, 0).occupant.get_component(Health).damage(10 ** 6)
+        find_path(tm, 4, 0)   # must detect the flag-set change and bump
+        self.assertGreater(tm._path_version, v0)
 
 
 # ---------------------------------------------------------------------------

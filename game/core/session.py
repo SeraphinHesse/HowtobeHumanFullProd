@@ -26,10 +26,12 @@ skips the whole sim, so nothing animates behind the window.
 """
 import random
 
+from engine import era_math
+from game.debug import events as dbg  # debug-mode-telemetry Phase 2
+
 from . import boss_bonuses as bb
 from . import levelup as lv
 from . import lightning as lt  # 10H
-from . import payday
 from . import xp as xpmod
 from .game_state import RunState
 from .payday import run_payday
@@ -44,19 +46,41 @@ PAUSE_SPEED_IDX = 3
 
 class Session:
     def __init__(self, state, spawner, tilemap, enemies_balance, core_balance,
-                 buildings_balance, registry=None, rng=None, occupancy=None):
+                 buildings_balance, registry=None, rng=None, occupancy=None,
+                 progression_balance=None):
         self.state = state
         self.spawner = spawner
         self.tilemap = tilemap
         self.enemies_balance = enemies_balance
         self.core_balance = core_balance
         self.buildings_balance = buildings_balance
+        # TimelinePLAN T4: the sole source of unlock timing (tier_offerable/
+        # upgrade_gate). Optional, host-set, None-safe — the tutorial_gate/
+        # debug pattern: a bare Session a logic test builds is untouched (its
+        # level-up roll simply offers nothing beyond the love fallback).
+        self.progression_balance = progression_balance
         self.registry = registry
         self.rng = rng if rng is not None else random
         # Occupancy handle so the payday Painter slot can free a completed
         # painter's tile (clear it here as well as on the tilemap). Optional so
         # logic tests that predate it still construct a Session.
         self.occupancy = occupancy
+        # TU-6: optional callable, host-set (BuildingUI/on_build_vfx
+        # precedent) — allows()->bool gate consulted by end_turn(). None
+        # (default) = always allowed (a bare Session built by a logic test
+        # never gates).
+        self.tutorial_gate = None
+        # TU-7: optional TutorialDirector reference, host-set alongside
+        # tutorial_gate in build_gameplay() — consulted by on_base_hit() (the
+        # scripted first-loss waiver) and notified by _begin_round_end(). None
+        # (default) = normal rules, no notification (a bare Session built by a
+        # logic test never gates/notifies).
+        self.tutorial_director = None
+        # debug-mode-telemetry: optional DebugRecorder, host-set (the
+        # tutorial_director precedent) — None (default) means a bare Session
+        # built by a logic test is byte-identical; every emit site below is
+        # guarded on `self.debug is not None`. See game/core/CLAUDE.md.
+        self.debug = None
         self._wipe_pending = False
         # (col, row, plan) death-spawn bursts to flush in post_sim (ER-3; the
         # 10G single-slot `_boss_swarm_pending` generalised — several units can
@@ -81,17 +105,24 @@ class Session:
 
     @classmethod
     def create(cls, spawner, tilemap, enemies_balance, core_balance,
-               buildings_balance, registry=None, rng=None, occupancy=None):
+               buildings_balance, registry=None, rng=None, occupancy=None,
+               progression_balance=None):
         """Fresh session with a run-state seeded from the ``core`` balance."""
         return cls(RunState.from_balance(core_balance, buildings_balance),
                    spawner, tilemap, enemies_balance, core_balance,
-                   buildings_balance, registry, rng, occupancy)
+                   buildings_balance, registry, rng, occupancy,
+                   progression_balance)
 
     @property
     def frozen(self):
-        """LEVELUP / BOSS_CUTSCENE are fully modal: no updates, no animations,
-        no combat (prototype ``_update_gameplay`` returns immediately)."""
-        return self.state.phase in (GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE)
+        """LEVELUP / BOSS_CUTSCENE / ENEMY_INTRO are fully modal: no updates,
+        no animations, no combat (prototype ``_update_gameplay`` returns
+        immediately). ENEMY_INTRO (feature-enemy-intro-dialogue) freezes the
+        SAME way even though it sits BEFORE the wave spawns, not after
+        ROUND_END like the other two — it just holds the phase at
+        BUILDING-equivalent stillness until every queued dialogue closes."""
+        return self.state.phase in (
+            GamePhase.LEVELUP, GamePhase.BOSS_CUTSCENE, GamePhase.ENEMY_INTRO)
 
     # -- combat speed (10F) -----------------------------------------------
 
@@ -148,15 +179,40 @@ class Session:
 
     # -- 10H: lightning + cheat menu ---------------------------------------
 
-    def lightning_strike(self, scene, cs, wx, wy):
+    def lightning_strike(self, scene, cs, wx, wy, vfx_balance):
         """The ENEMY-phase left-click strike (prototype dispatch game.py:426-31
         + ``_handle_lightning_click``): only fires during a live ENEMY phase;
         locked/cooling strikes are silent no-ops inside ``lightning.strike``.
-        Returns whether the bolt actually fired."""
+        Returns whether the bolt actually fired.
+
+        ``vfx_balance`` (ESV-3b, required — no default, G-7): the loaded
+        ``vfx.json`` dict, passed straight through to ``lightning.strike``
+        for the FX marker's cosmetic fade lifetimes. Not stored on
+        ``Session`` — the host already holds it and passes it per call, the
+        same way it passes ``scene``/``cs``."""
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.ENEMY:
             return False
-        return lt.strike(st, self.core_balance, scene, cs, wx, wy)
+        # debug-mode-telemetry: an optional per-hit collector, additive to
+        # lt.strike's signature (None keeps every other caller untouched —
+        # see game/core/lightning.py). note_lightning wants the STRIKE's
+        # total damage (per-enemy flat damage x hits), not a per-enemy figure.
+        hits = []
+        on_hit = (lambda dmg: hits.append(dmg)) if self.debug is not None else None
+        fired = lt.strike(st, self.core_balance, vfx_balance, scene, cs, wx, wy,
+                          on_hit=on_hit)
+        if self.debug is not None and fired:
+            total = sum(hits)
+            n = len(hits)
+            self.debug.note_lightning(total, n)
+            # No per-enemy `damage` field: several casters of DIFFERENT tiers
+            # can fire in one click, each with its own flat damage, so any
+            # single number here would be an average that no caster actually
+            # dealt. Report the two figures that are always true instead.
+            self.debug.emit(
+                dbg.LIGHTNING, level=st.lightning_level,
+                hits=n, total_damage=total, wx=wx, wy=wy)
+        return fired
 
     def cheat_add_love(self, amount):
         """``+10 Love`` / ``Infinite Money`` (prototype game.py:305, 313).
@@ -164,6 +220,8 @@ class Session:
         if self.state.state != GameState.GAMEPLAY:
             return
         self.state.add_love(amount)
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="add_love", amount=amount)
 
     def cheat_skip_round(self, scene):
         """``Skip Round`` — ``quick_skip_combat``'s body WITHOUT its ENEMY
@@ -180,6 +238,8 @@ class Session:
             scene.despawn(e)
         self.spawner.clear()
         self._wipe_pending = False
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="skip_round")
         self._begin_round_end()
 
     def cheat_goto_round(self, n, scene):
@@ -199,6 +259,8 @@ class Session:
         self._wipe_pending = False
         self.state.round_num = n
         self.state.phase = GamePhase.BUILDING
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="goto_round", round=n)
 
     def cheat_trigger_levelup(self):
         """``LEVEL UP`` (prototype ``_cheat_trigger_levelup``, game.py:1493-99):
@@ -210,6 +272,8 @@ class Session:
         if st.state != GameState.GAMEPLAY:
             return
         st.levelup_pending = True
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="trigger_levelup")
         if st.phase not in (GamePhase.ENEMY, GamePhase.LEVELUP):
             self._begin_levelup(run_income=False, return_phase=st.phase)
 
@@ -228,6 +292,8 @@ class Session:
             st.unlocked_buildings[bt] = True
             st.tiers_unlocked[bt] = len(
                 LEAF_CLASSES[bt]._resolve_tiers(self.buildings_balance))
+        if self.debug is not None:
+            self.debug.emit(dbg.CHEAT, action="unlock_all")
 
     # -- /10H ---------------------------------------------------------------
 
@@ -242,23 +308,65 @@ class Session:
         st = self.state
         if st.state != GameState.GAMEPLAY or st.phase != GamePhase.BUILDING:
             return
+        if self.tutorial_gate is not None and not self.tutorial_gate():
+            return  # TU-6: the guided chain still owns End Turn
         self.tilemap.set_round(st.round_num)  # 10I: damage-weight round gate
+        # TU-9: fires once on the first End Turn of the run — round 0 (the
+        # tutorial) or round 1 (a skipped run) alike — never keyed on
+        # round_num == 1 directly any more (see game_state.py).
+        if not st.first_end_turn_cutscene_requested:
+            st.pending_cutscene = {"id": "first_end_turn"}
+            st.first_end_turn_cutscene_requested = True
         self.spawner.begin_round(
             st.round_num, self.tilemap, self.enemies_balance,
             rng=self.rng, registry=self.registry)
+        # debug-mode-telemetry: the wave's composition has no other source —
+        # the recorder reads wave_size/enemy_tier off THIS event into the
+        # round row (game/debug/events.py). note_spawn counts every queued
+        # enemy as "spawned" (an exact wipe/quick-skip proxy is out of
+        # reach without instrumenting game/enemies, which is out of scope).
+        if self.debug is not None:
+            composition = {}
+            for _tile, etype in self.spawner.pending():
+                composition[etype] = composition.get(etype, 0) + 1
+            wave_size = sum(composition.values())
+            self.debug.note_spawn(wave_size)
+            self.debug.emit(
+                dbg.WAVE_START, wave_size=wave_size,
+                enemy_tier=self.spawner.enemy_tier, composition=composition,
+                love=st.love, lives=st.base_lives)
         # -- 10G boss: End-Turn snapshots + announcement marker --
         # Love snapshot EVERY round (the Boss3A damage base, prototype
         # game.py:838-839); on a boss round also snapshot lives (the cutscene's
         # win/loss compare) and queue one announce marker (drained by the UI —
         # the enabled gate lives in FloaterManager, session stays ui-free).
+        # ES-2: the boss round comes off the ONE era clock in EnemyScaling
+        # (era_math.is_boss_round is False at round 0 for every configuration,
+        # D11 — the TU-9 guard no longer has to live here).
         st.boss_love_snapshot = st.love
-        boss_interval = \
-            self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % boss_interval == 0:
+        scaling = self.enemies_balance["EnemyScaling"]
+        if era_math.is_boss_round(st.round_num, scaling["rounds_per_era"],
+                                  scaling["boss_round_in_era"]):
             st.boss_lives_snapshot = st.base_lives
             st.boss_events.append(st.round_num)
         # -- /10G --
-        st.phase = GamePhase.ENEMY
+        # -- feature-enemy-intro-dialogue: queue any designer-authored intro
+        # dialogues whose round matches THIS round, BEFORE the wave actually
+        # starts. spawner.begin_round() above already queued the wave — that
+        # is fine, pre_sim never drains it outside GamePhase.ENEMY, so nothing
+        # spawns while ENEMY_INTRO holds. Two-or-more entries sharing this
+        # round is legal and IS the "queue them" case (they show one after
+        # another via Session.resolve_enemy_intro()). No match (the common
+        # case, and always true on a fresh EnemyIntro.entries: []) leaves this
+        # byte-identical to before the feature existed.
+        matches = [e for e in self.core_balance["EnemyIntro"]["entries"]
+                   if e["round"] == st.round_num]
+        if matches:
+            st.pending_enemy_intros = matches
+            st.phase = GamePhase.ENEMY_INTRO
+        else:
+            st.phase = GamePhase.ENEMY
+        # -- /feature-enemy-intro-dialogue --
         self._wipe_pending = False
 
     # -- per-frame dispatch (prototype _update_gameplay) ------------------
@@ -274,7 +382,9 @@ class Session:
             # sim dt the host already speed-scales (prototype game.py:1243-46):
             # 2x drains it faster, the in-combat pause freezes it, and it
             # persists frozen across BUILDING/ROUND_END/LEVELUP/INCOME.
-            lt.tick(st, dt)
+            # feature-storm-acolyte-multi-build: ticks every alive acolyte's
+            # OWN LightningCaster cooldown now, not one RunState field.
+            lt.tick(st, dt, scene)
             self.spawner.update(dt, scene)
             self._award_building_deaths(scene)
         elif st.phase == GamePhase.ROUND_END:
@@ -289,7 +399,7 @@ class Session:
                     self._begin_levelup()
                 else:
                     run_payday(st, self.tilemap, self.core_balance,
-                               self.occupancy, scene)  # -> INCOME
+                               self.occupancy, scene, self.debug)  # -> INCOME
         elif st.phase == GamePhase.INCOME:
             st.phase_timer -= dt
             if st.phase_timer <= 0:
@@ -309,7 +419,13 @@ class Session:
             for col, row, plan in pending:
                 self.spawner.spawn_death_swarm(scene, col, row, plan)
         # -- /ER-3 --
+        # Both branches below leave the ENEMY phase, and `_award_building_deaths`
+        # only ever runs from `pre_sim`'s ENEMY arm — so a building that died on
+        # THIS frame would never pay its death XP, and the payday revive would
+        # then make it alive again. This is the last chance; the id-keyed
+        # `_xp_awarded_buildings` guard makes the double sweep a no-op.
         if self._wipe_pending:
+            self._award_building_deaths(scene)
             self._wipe_round(scene)
             self._begin_round_end()
         elif (self.spawner.done
@@ -325,6 +441,7 @@ class Session:
                 # tile and despawned (user decision).
                 and not scene.by_tag("kidnapper")
                 and not scene.queued_by_tag("kidnapper")):
+            self._award_building_deaths(scene)
             self._begin_round_end()
 
     # -- LEVELUP (10A) ----------------------------------------------------
@@ -342,7 +459,8 @@ class Session:
         self._levelup_return_phase = return_phase
         # -- /10H --
         st.levelup_options = lv.roll_levelup_options(
-            st, self.buildings_balance, self.core_balance, self.rng)
+            st, self.buildings_balance, self.core_balance, self.rng,
+            self.progression_balance)
         st.phase = GamePhase.LEVELUP
 
     def resolve_levelup(self, option, scene=None):
@@ -354,9 +472,14 @@ class Session:
         on both paths (prototype game.py:1501-1517)."""
         st = self.state
         lv.apply_levelup_option(st, option, self.core_balance)
+        if self.debug is not None:
+            self._emit_levelup_option(option)
         st.levelup_pending = False
         st.levelup_options = []
         xpmod.advance_village_level(st, self.core_balance)
+        if self.debug is not None:
+            self.debug.emit(dbg.LEVELUP, village_level=st.village_level,
+                            option=option.get("kind"), player_xp=st.player_xp)
         # -- 10H: the cheat return_phase path — NO payday --
         if not self._levelup_run_income:
             st.phase = self._levelup_return_phase or GamePhase.BUILDING
@@ -365,7 +488,25 @@ class Session:
             return
         # -- /10H --
         run_payday(st, self.tilemap, self.core_balance,
-                   self.occupancy, scene)  # -> INCOME
+                   self.occupancy, scene, self.debug)  # -> INCOME
+
+    def _emit_levelup_option(self, option):
+        """debug-mode-telemetry: the level-up reward IS the natural source of
+        the ``unlock``/``research`` events (a whole-type unlock or a type-wide
+        tier research) — distinct from ``building_ui.py``'s per-INSTANCE
+        tier-advance ``research`` event. Both are "a tier was researched /
+        advanced" per ``events.py``'s docstring."""
+        kind = option.get("kind")
+        cost = option.get("cost", 0)
+        if kind == "unlock_building":
+            self.debug.note_love_spent(cost, dbg.SPEND_UNLOCK)
+            self.debug.emit(dbg.UNLOCK, building_type=option.get("building_type"),
+                            cost=cost)
+        elif kind == "tier":
+            self.debug.note_love_spent(cost, dbg.SPEND_RESEARCH)
+            self.debug.emit(dbg.RESEARCH,
+                            building_type=option.get("building_type"),
+                            tier=option.get("tier_no"), cost=cost)
 
     # -- BOSS_CUTSCENE (10G) -----------------------------------------------
 
@@ -387,11 +528,29 @@ class Session:
         bb.apply_choice(st, (boss_num - 1) % 3, option)
         st.boss_choices.append((boss_num, option, outcome))
         st.pending_boss_cutscene = None
+        if self.debug is not None:
+            self.debug.emit(dbg.BOSS_CHOICE, boss_num=boss_num, option=option,
+                            outcome=outcome)
         if st.levelup_pending:
             self._begin_levelup()
         else:
             run_payday(st, self.tilemap, self.core_balance,
-                       self.occupancy, scene)  # -> INCOME
+                       self.occupancy, scene, self.debug)  # -> INCOME
+
+    # -- ENEMY_INTRO (feature-enemy-intro-dialogue) ------------------------
+
+    def resolve_enemy_intro(self):
+        """Pop the entry the host just finished showing (its close animation
+        ended, whether by the hold timer or a manual close). Queued entries
+        show one after another: the host re-opens ``pending_enemy_intros[0]``
+        each time this leaves the list non-empty. Once it drains, the round
+        actually starts — the SAME ``GamePhase.ENEMY`` transition
+        ``end_turn()`` would have made directly had nothing matched."""
+        st = self.state
+        if st.pending_enemy_intros:
+            st.pending_enemy_intros.pop(0)
+        if not st.pending_enemy_intros:
+            st.phase = GamePhase.ENEMY
 
     # -- XP award sites (10A) ---------------------------------------------
 
@@ -429,9 +588,26 @@ class Session:
         if transform is not None:
             st.enemy_death_events.append(transform.world_pos)
         st.enemies_killed += 1
-        st.base_lives -= 1
+        # TU-7: the scripted round-1 loss may be waived (script-toggleable,
+        # `first_loss_costs_life`) — a pure read, never mutates the director.
+        charge = True
+        if self.tutorial_director is not None:
+            charge = self.tutorial_director.charges_life_on_base_hit(
+                st.round_num)
+        if charge:
+            st.base_lives -= 1
+        if self.debug is not None:
+            # A base breach applies NO HP damage — note_base_hit tracks
+            # leaks/lives_lost separately, never fused with dmg_taken_buildings
+            # (game/debug/events.py).
+            self.debug.note_base_hit(waived=not charge)
+            self.debug.emit(dbg.BASE_HIT, etype=getattr(enemy, "ETYPE", None),
+                            waived=not charge, lives_after=st.base_lives)
         if st.base_lives <= 0:
             st.state = GameState.GAME_OVER
+            if self.debug is not None:
+                self.debug.emit(dbg.GAME_OVER, kills=st.enemies_killed,
+                                buildings_placed=st.buildings_placed)
         else:
             self._wipe_pending = True
 
@@ -458,27 +634,37 @@ class Session:
             self.state.enemy_death_events.append(transform.world_pos)
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
+        if self.debug is not None:
+            self.debug.note_kill()
+            etype = getattr(enemy, "ETYPE", None)
+            xp = xpmod.xp_for_etype(etype or "standard", self.core_balance)
+            wx, wy = transform.world_pos if transform is not None else (None, None)
+            self.debug.emit(dbg.ENEMY_DEATH, etype=etype, xp=xp, wx=wx, wy=wy)
 
     # -- kidnapping (fed from resolve_combat's on_kidnap) -----------------
 
-    def on_kidnap(self, enemy, building, scene):
+    def on_kidnap(self, enemy, building):
         """The mirror of ``on_enemy_death`` for a kidnap transition
         (Art/enemies): the carrier counts as dead for scoring (XP + kill
         count) but leaves NO gore/splatter (``enemy_death_events``) and no
-        death-spawn burst — "no VFX" per the design. The building is gone for
-        good: its tile is freed back to empty BUILDABLE ground through the
-        same helper payday's own free-tile step uses, so there is no payday
-        revive."""
+        death-spawn burst — "no VFX" per the design.
+
+        The BUILDING is deliberately left alone — it is simply a dead building
+        still standing on its tile, exactly like one killed by a non-kidnapping
+        enemy (user decision): payday's slots see it as ``alive == False`` (a
+        kidnapped wall-builder's walls come down at slot 8 and back at slot 10,
+        a kidnapped booster explodes at slot 7) and the slot-9 revive rebuilds
+        it, so it reappears next phase. Its sprite is hidden meanwhile by
+        ``BuildingSprite`` — nothing here has to hide or free anything."""
         self.state.enemies_killed += 1
         self._award_enemy_xp(enemy)
-        # A kidnapped wall builder's perimeter must be torn down explicitly:
-        # payday's slot-8 teardown sweeps dead buildings still ON THE BOARD
-        # and will never see one that was carried off, so its walls would
-        # otherwise be orphaned.
-        if getattr(building, "building_type", None) == "wall_builder":
-            self.tilemap.remove_walls_for_builder(building)
-        tile = self.tilemap.get(building.col, building.row)
-        payday._free_tile(self.tilemap, tile, self.occupancy, scene)
+        if self.debug is not None:
+            self.debug.note_kidnap()
+            self.debug.emit(
+                dbg.KIDNAP, etype=getattr(enemy, "ETYPE", None),
+                building_type=getattr(building, "building_type", None),
+                col=getattr(building, "col", None),
+                row=getattr(building, "row", None))
 
     def _award_enemy_xp(self, enemy):
         amount = xpmod.xp_for_etype(getattr(enemy, "ETYPE", "standard"),
@@ -495,15 +681,24 @@ class Session:
         # still pre-increment at ROUND_END; GAME_OVER never reaches here — the
         # post_sim/on_base_hit gates stop first). Outcome compares lives to the
         # End-Turn snapshot (prototype game.py:933-938).
-        interval = self.enemies_balance["EnemyTypes"]["Boss"]["round_interval"]
-        if st.round_num % interval == 0:
+        # ES-2: same one clock as end_turn() (round 0 is never a boss round).
+        scaling = self.enemies_balance["EnemyScaling"]
+        rounds_per_era = scaling["rounds_per_era"]
+        if era_math.is_boss_round(st.round_num, rounds_per_era,
+                                  scaling["boss_round_in_era"]):
             st.pending_boss_cutscene = {
-                "boss_num": st.round_num // interval,
+                "boss_num": era_math.era_of_round(
+                    st.round_num, rounds_per_era) + 1,
                 "outcome": ("win" if st.base_lives >= st.boss_lives_snapshot
                             else "loss"),
             }
         # -- /10G --
         st.phase = GamePhase.ROUND_END
+        # TU-7: every road to ROUND_END notifies the tutorial director — a
+        # no-op unless its sequencer is actually waiting on this event (the
+        # scripted round-1 "wait for the loss" step).
+        if self.tutorial_director is not None:
+            self.tutorial_director.on_round_end(st.round_num)
         st.phase_timer = self.core_balance["PhaseLoop"]["round_end_delay"]
 
     def _wipe_round(self, scene):

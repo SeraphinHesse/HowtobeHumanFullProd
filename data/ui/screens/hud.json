@@ -1,22 +1,101 @@
 {
   "widgets": {
+    "btn_drag_select": {
+      "rect": [
+        11,
+        131,
+        45,
+        14
+      ]
+    },
     "btn_end_turn": {
-      "skin": "ui_button_end_turn"
+      "rect": [
+        552,
+        322,
+        80,
+        30
+      ],
+      "skin": "ui_button_end_turn",
+      "text_color": [
+        255,
+        255,
+        0
+      ]
     },
     "btn_pause": {
+      "rect": [
+        587,
+        6,
+        45,
+        15
+      ],
       "skin": "ui_button_pause"
     },
     "btn_speed_1_5x": {
+      "rect": [
+        36,
+        107,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
     },
     "btn_speed_1x": {
+      "rect": [
+        4,
+        108,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
     },
     "btn_speed_2x": {
+      "rect": [
+        68,
+        109,
+        28,
+        14
+      ],
       "skin": "ui_button_pill"
     },
+    "icon_xp": {
+      "rect": [
+        234,
+        9,
+        9,
+        9
+      ]
+    },
     "love_panel": {
-      "skin": "ui_panel"
+      "rect": [
+        6,
+        6,
+        93,
+        62
+      ]
+    },
+    "readout_panel": {
+      "rect": [
+        1,
+        66,
+        84,
+        36
+      ]
+    },
+    "round_label": {
+      "text_color": [
+        0,
+        0,
+        0
+      ]
+    },
+    "xp_bar": {
+      "rect": [
+        248,
+        12,
+        55,
+        4
+      ]
     }
   }
 }
