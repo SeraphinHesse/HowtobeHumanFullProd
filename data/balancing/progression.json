@@ -47,14 +47,14 @@
           },
           {
             "assignment": {
-              "building_type": "wall_builder",
+              "building_type": "storm_priest",
               "kind": "unlock",
               "tier_index": 0
             }
           },
           {
             "assignment": {
-              "building_type": "storm_priest",
+              "building_type": "wall_builder",
               "kind": "unlock",
               "tier_index": 0
             }

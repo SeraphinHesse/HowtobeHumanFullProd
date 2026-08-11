@@ -232,6 +232,16 @@ modal LEVELUP window whose reward researches the next building tier (or pays lov
   `tier_index=0` — the single eligibility gate per type (no separate era
   key); unlocking a type makes tier 1 immediately placeable. The gate table +
   stacking rules live in `game/buildings/research.py` (see that doc).
+- **Row N of the Timeline is what the level-up REACHING level N offers**, in
+  BOTH leveling modes. The roll runs before `advance_village_level`, so
+  `roll_levelup_options` gates its pool on `village_level + 1` (passed down as
+  an explicit override to `tier_offerable`/`_gate_met`), matching
+  `scripted_level_due`'s and `exact_levelup_options`' own `+ 1` lookups. Row 1
+  is the STARTING loadout and never funds a level-up. `upgrade_gate`'s panel
+  readout deliberately keeps measuring against the level the player HOLDS —
+  that is `tier_offerable`'s default when no override is passed. (Before this
+  fix only the random path lagged: it gated on the level being LEFT, so the
+  level-up that fired on row N's authored round offered row N-1's cards.)
 - **Phase machine**: at ROUND_END's expiry a pending level-up enters
   `GamePhase.LEVELUP` **instead of** running payday; `Session.resolve_levelup`
   applies the reward, advances the level, then runs payday (the prototype's

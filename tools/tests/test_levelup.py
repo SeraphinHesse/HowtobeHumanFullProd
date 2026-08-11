@@ -237,23 +237,18 @@ class TestOptionRoll(unittest.TestCase):
                                        PROGRESSION)
 
     def test_early_pool_offers_unlocks_then_pads(self):
-        # Village level 1: every locked type's unlock card is gated by whether
-        # its tier 0 is placed on the Timeline at a village_level the player
-        # has reached. Sun Scorcher, Meditator, the boost trio and Wall
-        # Builder are all placed at level 2, so at level 1 the candidates are
-        # Maw Mortar (min_village_level 1), Storm Priest, Painter
-        # (min_village_level 0) and Blocker — more than three, so the pool
-        # needs no fallback pad and NoShuffle takes the first three in
-        # RESEARCH-table order.
+        # The FIRST level-up (village level 1) is the one that reaches level 2,
+        # so its pool is everything placed at level 1 or 2 and not already
+        # owned: defence's and economic's tier 1s plus the level-2 unlock
+        # cards (Sun Scorcher, Meditator, the boost trio, Wall Builder) and the
+        # level-1 ones still unclaimed (Maw Mortar, Storm Priest, Painter,
+        # Blocker). Far more than three, so the pool needs no fallback pad and
+        # NoShuffle takes the first three in RESEARCH-table order.
         st = RunState.from_balance(CORE, BUILD)
         options = self.roll(st)
-        self.assertEqual(len(options), 3)
-        unlocks = [o for o in options if o["kind"] == "unlock_building"]
-        fallbacks = [o for o in options if o["kind"] == "fallback"]
-        self.assertEqual([o["title"] for o in unlocks],
-                         ["Unlock Maw Mortar", "Unlock Storm Priest",
-                          "Unlock Painter"])
-        self.assertEqual(len(fallbacks), 0)
+        self.assertEqual([o["title"] for o in options],
+                         ["Slinger", "Harp Player", "Unlock Maw Mortar"])
+        self.assertFalse([o for o in options if o["kind"] == "fallback"])
 
     def test_fully_researched_pool_pads_with_fallbacks(self):
         """With every type unlocked and every tier maxed, nothing real is left
@@ -269,13 +264,17 @@ class TestOptionRoll(unittest.TestCase):
 
     def test_tier_two_enters_the_pool_at_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        # No TIER card yet at village level 1: the defence/economic tier-2s are
-        # both placed on the Timeline at level 2, so the only cards here are
-        # locked types' unlock cards — not tier options.
-        self.assertFalse(any(o["kind"] == "tier" for o in self.roll(st)))
-        st.village_level = DEF_T2_LEVEL
+        # The roll gates on the level being REACHED, so a tier placed at
+        # DEF_T2_LEVEL is offered by the level-up FROM DEF_T2_LEVEL - 1.
+        st.village_level = DEF_T2_LEVEL - 1
         titles = {o["title"] for o in self.roll(st) if o["kind"] == "tier"}
         self.assertEqual(titles, {"Slinger", "Harp Player"})
+        # ...and it is THAT row's level that gates it: push defence's tier 1
+        # out of reach and the same roll offers only economic's.
+        moved = moved_placement("defence", 1, 9999)
+        titles = {o["title"] for o in lv.roll_levelup_options(
+            st, BUILD, CORE, NoShuffle, moved) if o["kind"] == "tier"}
+        self.assertEqual(titles, {"Harp Player"})
 
     def test_only_the_single_next_locked_tier_is_offered(self):
         """With Slinger researched, Pistoleer (Timeline level 12) is the only
@@ -321,10 +320,12 @@ class TestOptionRoll(unittest.TestCase):
             st.unlocked_buildings[bt] = True
             st.tiers_unlocked[bt] = 3
         gate_level = lv.timeline_level_for("meditator", 0, PROGRESSION)
-        st.village_level = gate_level - 1
+        # Gated on the level being REACHED (village_level + 1), so the level-up
+        # that first shows it is the one from gate_level - 1.
+        st.village_level = gate_level - 2
         self.assertFalse(any(o.get("building_type") == "meditator"
                              for o in self.roll(st)))
-        st.village_level = gate_level
+        st.village_level = gate_level - 1
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "meditator")
         self.assertEqual(card["kind"], "unlock_building")
@@ -708,10 +709,12 @@ class TestDefence10BGates(unittest.TestCase):
         st.tiers_unlocked["defence"] = 3
         st.tiers_unlocked["economic"] = 3
         gate_level = lv.timeline_level_for("sun_scorcher", 0, PROGRESSION)
-        st.village_level = gate_level - 1
+        # The roll gates on the level being REACHED, so village_level N shows
+        # what row N+1 opened: gate_level - 2 is the last level-up before it.
+        st.village_level = gate_level - 2
         self.assertFalse(any(o.get("building_type") == "sun_scorcher"
                              for o in self.roll(st)))
-        st.village_level = gate_level
+        st.village_level = gate_level - 1
         card = next(o for o in self.roll(st)
                     if o.get("building_type") == "sun_scorcher")
         self.assertEqual(card["kind"], "unlock_building")

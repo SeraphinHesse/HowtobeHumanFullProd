@@ -18,7 +18,12 @@ TWO gates stack:
    can't be researched, previewed or named until the player's
    ``village_level`` reaches its placed ``village_level`` —
    ``timeline_level_for`` is the ONE place this is resolved, and it is the
-   SOLE source of unlock timing (``unlock_min_round`` no longer exists —
+   SOLE source of unlock timing. **Row N is what the level-up REACHING level
+   N offers** — the roll runs before ``advance_village_level``, so it gates on
+   ``state.village_level + 1``, the same lookup ``scripted_level_due`` and
+   ``exact_levelup_options`` use; row 1 is the starting loadout and never
+   funds a level-up. (``upgrade_gate``'s panel readout still measures against
+   the level the player HOLDS.) (``unlock_min_round`` no longer exists —
    deleted from ``buildings.json`` schema+content in this same change,
    TimelinePLAN D4/D6). A tier never placed on the Timeline is never
    offerable at all.
@@ -114,9 +119,20 @@ def tier_lead(btype):
     return btype
 
 
-def tier_offerable(state, btype, idx, progression_balance):
+def tier_offerable(state, btype, idx, progression_balance, village_level=None):
+    """Is ``(btype, idx)`` past its Timeline gate?
+
+    ``village_level`` overrides which level the gate is measured against.
+    Default (``None``) = the level the player HOLDS, which is what the upgrade
+    panel's ``upgrade_gate`` wants. The level-up ROLL passes the level being
+    REACHED (``state.village_level + 1``) instead: a level-up window opens
+    BEFORE ``advance_village_level`` runs, so measuring against the held level
+    would offer the previous row's cards on this row's round — the same
+    ``village_level + 1`` lookup ``scripted_level_due`` and
+    ``exact_levelup_options`` already use."""
     level = timeline_level_for(tier_lead(btype), idx, progression_balance)
-    return level is not None and state.village_level >= level
+    have = state.village_level if village_level is None else village_level
+    return level is not None and have >= level
 
 
 # -- run-state gates --------------------------------------------------------
@@ -125,7 +141,7 @@ def tier_offerable(state, btype, idx, progression_balance):
 # import game/core).
 
 
-def _gate_met(state, spec, buildings_balance):
+def _gate_met(state, spec, buildings_balance, village_level=None):
     """The per-type unlock-reward gate (village level / none). The round axis
     is no longer a spec-level gate_kind — it is the type's own
     ``tiers[0].unlock_min_round``, checked separately via ``tier_offerable``
@@ -134,7 +150,8 @@ def _gate_met(state, spec, buildings_balance):
         return True
     value = reduce(lambda d, k: d[k], spec.gate_path, buildings_balance)
     if spec.gate_kind == "min_village_level":
-        return state.village_level >= value
+        have = state.village_level if village_level is None else village_level
+        return have >= value
     raise ValueError(f"unknown gate_kind {spec.gate_kind!r}")
 
 
@@ -304,6 +321,12 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng,
             and progression_balance["Timeline"]["exact_offer_slots"]):
         return exact_levelup_options(
             state, buildings_balance, core_balance, progression_balance)
+    # The level this window is REACHING — the roll runs before
+    # advance_village_level, so every gate below is measured against it, not
+    # against the level being left (see tier_offerable's docstring). Row N of
+    # the Timeline is what the level-up TO level N offers; row 1 is the
+    # starting loadout and never funds a level-up.
+    target_level = state.village_level + 1
     pool = []
     for btype, spec in RESEARCH.items():
         if btype not in LEAF_CLASSES:
@@ -318,10 +341,12 @@ def roll_levelup_options(state, buildings_balance, core_balance, rng,
             idx = tiers_unlocked_for(state, btype)
             tiers = tiers_for(btype, buildings_balance)
             if idx < len(tiers) and tier_offerable(state, btype, idx,
-                                                   progression_balance):
+                                                   progression_balance,
+                                                   target_level):
                 pool.append(_tier_option(btype, idx, buildings_balance, spec))
-        elif (_gate_met(state, spec, buildings_balance)
-              and tier_offerable(state, btype, 0, progression_balance)):
+        elif (_gate_met(state, spec, buildings_balance, target_level)
+              and tier_offerable(state, btype, 0, progression_balance,
+                                 target_level)):
             # Grouped unlock (the boost trio): all members are seeded locked so
             # each offers its own tier cards after unlocking, but only the LEAD
             # type offers the shared "unlock all three" card — skip the rest so

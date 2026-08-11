@@ -313,7 +313,10 @@ class TestTrioUnlock(unittest.TestCase):
 
     def test_not_offered_before_its_timeline_level(self):
         st = RunState.from_balance(CORE, BUILD)
-        st.village_level = self.GATE_LEVEL - 1
+        # The roll gates on the level being REACHED (village_level + 1), so
+        # the last level-up that must NOT show the card is the one reaching
+        # GATE_LEVEL - 1.
+        st.village_level = self.GATE_LEVEL - 2
         self._silence_non_boost(st)
         opts = roll_levelup_options(st, BUILD, CORE, random.Random(0),
                                     PROGRESSION)
